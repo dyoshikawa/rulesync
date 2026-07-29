@@ -4,6 +4,7 @@ import { CURSOR_BUGBOT_FILE_NAME, CURSOR_DIR } from "../../constants/cursor-path
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { slugifyCheckName } from "./check-slug.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import {
   ToolCheck,
@@ -21,23 +22,28 @@ import {
  */
 const CHECK_MARKER_PATTERN = /^<!--\s*rulesync:check:(.+?)\s*-->[ \t]*$/gm;
 
+/**
+ * A marker line a check body wrote itself — a rulesync doc fragment quoted in a
+ * code block, say. Emitting it verbatim would split that check in two on the
+ * next import, so `literal-` is inserted before `check:` on the way out and
+ * taken off on the way back. `(?:literal-)*` makes it a ladder, so a body that
+ * already contains an escaped marker survives the round trip too.
+ */
+const ESCAPABLE_MARKER_PATTERN = /^(<!--\s*rulesync:)((?:literal-)*check:.+?\s*-->)[ \t]*$/gm;
+const ESCAPED_MARKER_PATTERN = /^(<!--\s*rulesync:)literal-((?:literal-)*check:.+?\s*-->)[ \t]*$/gm;
+
 const FALLBACK_CHECK_NAME = "bugbot";
 
 function renderMarker(name: string): string {
   return `<!-- rulesync:check:${name} -->`;
 }
 
-function slugify(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 48)
-      // Again after the slice, so a cut landing on a separator does not leave a
-      // name like `foo-.md`.
-      .replace(/-+$/, "")
-  );
+function escapeMarkers(content: string): string {
+  return content.replace(ESCAPABLE_MARKER_PATTERN, "$1literal-$2");
+}
+
+function unescapeMarkers(content: string): string {
+  return content.replace(ESCAPED_MARKER_PATTERN, "$1$2");
 }
 
 /**
@@ -60,7 +66,7 @@ function renderSection(rulesyncCheck: RulesyncCheck): string {
   const instruction = toInstruction(rulesyncCheck);
   const lines = [renderMarker(name), heading];
   if (instruction.length > 0) {
-    lines.push("", instruction);
+    lines.push("", escapeMarkers(instruction));
   }
   return lines.join("\n");
 }
@@ -97,7 +103,10 @@ function stripGeneratedHeading(section: string, name: string): string {
  *
  * On import the markers split the file back into one check per section; content
  * before the first marker — and a hand-written file with no markers at all —
- * becomes a single `bugbot` check, so nothing in the file is dropped.
+ * becomes a single `bugbot` check, so nothing in the file is dropped. A file
+ * carrying no marker is never deleted either (see
+ * {@link canDeleteAuxiliaryFiles}), though generating checks for Cursor does
+ * overwrite it — import first to keep what is there.
  *
  * @see https://cursor.com/docs/bugbot
  */
@@ -111,6 +120,29 @@ export class CursorCheck extends ToolCheck {
 
   static isTargetedByRulesyncCheck(rulesyncCheck: RulesyncCheck): boolean {
     return this.isTargetedByRulesyncCheckDefault({ rulesyncCheck, toolTarget: "cursor" });
+  }
+
+  /**
+   * Ownership guard the processor consults before it deletes anything for this
+   * tool. `.cursor/BUGBOT.md` is a file Cursor's own documentation tells users
+   * to hand-write, so one carrying no rulesync marker is not rulesync's to
+   * remove — dropping the last check targeting Cursor must not take somebody's
+   * hand-written review instructions with it. A file rulesync generated always
+   * carries a marker, so its own output is still cleaned up.
+   */
+  static async canDeleteAuxiliaryFiles({ outputRoot }: { outputRoot: string }): Promise<boolean> {
+    const paths = CursorCheck.getSettablePaths();
+    const filePath = join(
+      outputRoot,
+      paths.relativeDirPath,
+      paths.relativeFilePath ?? CURSOR_BUGBOT_FILE_NAME,
+    );
+    const fileContent = await readFileContentOrNull(filePath);
+    if (fileContent === null) {
+      return true;
+    }
+    CHECK_MARKER_PATTERN.lastIndex = 0;
+    return CHECK_MARKER_PATTERN.test(fileContent);
   }
 
   static override fromRulesyncCheck(_params: ToolCheckFromRulesyncCheckParams): CursorCheck {
@@ -213,17 +245,24 @@ export class CursorCheck extends ToolCheck {
     const preambleEnd = markers[0]?.start ?? fileContent.length;
     const preamble = fileContent.slice(0, preambleEnd).trim();
     if (preamble.length > 0) {
-      sections.push({ name: FALLBACK_CHECK_NAME, content: preamble });
+      sections.push({ name: FALLBACK_CHECK_NAME, content: unescapeMarkers(preamble) });
     }
 
     for (const [index, marker] of markers.entries()) {
       const sectionEnd = markers[index + 1]?.start ?? fileContent.length;
+      const markerName = marker.name.trim();
       // The marker name comes from someone else's BUGBOT.md on import, so it
       // goes through the slug rules: a raw `../escape` would otherwise write
       // outside the checks directory.
-      const name = slugify(marker.name) || FALLBACK_CHECK_NAME;
-      const content = stripGeneratedHeading(fileContent.slice(marker.end, sectionEnd).trim(), name);
-      sections.push({ name, content });
+      const name = slugifyCheckName(markerName) || FALLBACK_CHECK_NAME;
+      // Matched against the marker name rather than the slug, because that is
+      // what generate put in the heading — a check named `No_Console` would
+      // otherwise keep its heading and stack a second one on the next generate.
+      const content = stripGeneratedHeading(
+        fileContent.slice(marker.end, sectionEnd).trim(),
+        markerName,
+      );
+      sections.push({ name, content: unescapeMarkers(content) });
     }
 
     const used = new Set<string>();

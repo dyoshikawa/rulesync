@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CURSOR_BUGBOT_FILE_NAME, CURSOR_DIR } from "../../constants/cursor-paths.js";
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -34,6 +34,15 @@ function cursorCheck(fileContent: string): CursorCheck {
     relativeFilePath: CURSOR_BUGBOT_FILE_NAME,
     fileContent,
   });
+}
+
+async function generate(checks: RulesyncCheck[]): Promise<string> {
+  const [toolCheck] = await CursorCheck.fromRulesyncChecks({
+    relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
+    rulesyncChecks: checks,
+  });
+  if (!toolCheck) throw new Error("expected one instruction file");
+  return toolCheck.getFileContent();
 }
 
 describe("CursorCheck.getSettablePaths", () => {
@@ -250,5 +259,84 @@ describe("CursorCheck.fromFile", () => {
     } finally {
       await cleanup();
     }
+  });
+});
+
+describe("CursorCheck marker round trip", () => {
+  it("escapes a marker a check body wrote itself, and restores it on import", async () => {
+    const body = ["Example:", "", "```md", "<!-- rulesync:check:evil -->", "```"].join("\n");
+
+    const generated = await generate([rulesyncCheck({ name: "docs", body })]);
+
+    // Emitted verbatim, this line would split the check in two on import.
+    expect(generated).toContain("<!-- rulesync:literal-check:evil -->");
+    const imported = cursorCheck(generated).toRulesyncChecks();
+    expect(imported).toHaveLength(1);
+    expect(imported[0]?.getRelativeFilePath()).toBe("docs.md");
+    expect(imported[0]?.getBody()).toBe(body);
+  });
+
+  it("keeps an already-escaped marker distinct from a real one", async () => {
+    const body = "<!-- rulesync:literal-check:evil -->";
+
+    const generated = await generate([rulesyncCheck({ name: "docs", body })]);
+
+    expect(generated).toContain("<!-- rulesync:literal-literal-check:evil -->");
+    expect(cursorCheck(generated).toRulesyncChecks()[0]?.getBody()).toBe(body);
+  });
+
+  it("strips the heading of a check whose name is not already a slug", async () => {
+    const generated = await generate([
+      rulesyncCheck({ name: "No_Console_Logs", body: "Do not log." }),
+    ]);
+
+    const imported = cursorCheck(generated).toRulesyncChecks();
+    expect(imported[0]?.getRelativeFilePath()).toBe("no-console-logs.md");
+    // The heading is generate's, so it must not end up inside the check body.
+    expect(imported[0]?.getBody()).toBe("Do not log.");
+  });
+
+  it("splits a file written with CRLF line endings", () => {
+    const checks = cursorCheck(
+      ["<!-- rulesync:check:style -->", "## style", "", "Prefer const."].join("\r\n"),
+    ).toRulesyncChecks();
+
+    expect(checks).toHaveLength(1);
+    expect(checks[0]?.getBody()).toBe("Prefer const.");
+  });
+});
+
+describe("CursorCheck.canDeleteAuxiliaryFiles", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
+  it("refuses to delete a hand-written file carrying no marker", async () => {
+    await writeFileContent(
+      join(testDir, CURSOR_DIR, CURSOR_BUGBOT_FILE_NAME),
+      "Hand-written review notes.\n",
+    );
+
+    expect(await CursorCheck.canDeleteAuxiliaryFiles({ outputRoot: testDir })).toBe(false);
+  });
+
+  it("allows deleting a file rulesync generated", async () => {
+    await writeFileContent(
+      join(testDir, CURSOR_DIR, CURSOR_BUGBOT_FILE_NAME),
+      "<!-- rulesync:check:style -->\n## style\n\nPrefer const.\n",
+    );
+
+    expect(await CursorCheck.canDeleteAuxiliaryFiles({ outputRoot: testDir })).toBe(true);
+  });
+
+  it("allows deletion when there is no file at all", async () => {
+    expect(await CursorCheck.canDeleteAuxiliaryFiles({ outputRoot: testDir })).toBe(true);
   });
 });
