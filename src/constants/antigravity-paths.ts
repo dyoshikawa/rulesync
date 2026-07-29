@@ -5,6 +5,10 @@ export const ANTIGRAVITY_SKILLS_DIR_PATH = join(ANTIGRAVITY_DIR, "skills");
 // Project-scope workflows (custom slash commands) live in `.agents/workflows/`,
 // shared by both the IDE and the CLI Antigravity 2.0 harness.
 export const ANTIGRAVITY_WORKFLOWS_DIR_PATH = join(ANTIGRAVITY_DIR, "workflows");
+// Project-scope custom agents (subagents) live in `.agents/agents/`, shared by
+// both the IDE and the CLI Antigravity 2.0 harness.
+// @see https://antigravity.google/docs/subagents
+export const ANTIGRAVITY_AGENTS_DIR_PATH = join(ANTIGRAVITY_DIR, "agents");
 export const ANTIGRAVITY_MCP_FILE_NAME = "mcp_config.json";
 export const ANTIGRAVITY_HOOKS_FILE_NAME = "hooks.json";
 
@@ -35,4 +39,13 @@ export const ANTIGRAVITY_GLOBAL_CONFIG_SUBDIR = "config";
 export const ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH = join(
   ANTIGRAVITY_GEMINI_DIR,
   ANTIGRAVITY_GLOBAL_CONFIG_SUBDIR,
+);
+
+// Global (user-scope) custom agents live in the shared `~/.gemini/config/`
+// tree, the same way `~/.gemini/config/hooks.json` is shared by the IDE and the
+// CLI — the subagents doc lists a single global root for both.
+// @see https://antigravity.google/docs/subagents
+export const ANTIGRAVITY_GLOBAL_AGENTS_DIR_PATH = join(
+  ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH,
+  "agents",
 );
