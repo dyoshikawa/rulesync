@@ -164,6 +164,8 @@ Example:
 - `url` / `headers` / `allowedEnvVars` (optional, `http` hooks): the POST target URL, request headers (values support `$VAR` interpolation), and the env-var allowlist for that interpolation. Forwarded to Claude Code and Qwen Code http hooks.
 - `server` / `tool` / `input` (optional, `mcp_tool` hooks): the configured MCP server name, the tool to call on it, and the (arbitrary JSON) arguments, whose string values support `${path}` substitution from the hook input. Forwarded to Claude Code mcp_tool hooks.
 - `model` (optional, `prompt` / `agent` hooks): the model used for evaluation (defaults to a fast model). Forwarded to Claude Code prompt/agent hooks.
+- `commandWindows` (optional): a Windows-only override for `command`, so one hook set can be cross-platform. Forwarded to Codex CLI command hooks (`.codex/hooks.json`), which is the only tool that accepts it.
+- `statusMessage` (optional): the progress text shown while the hook runs. Forwarded to Qwen Code (command and http hooks) and to Codex CLI command hooks.
 - `if` (optional): a single permission rule (same syntax as `settings.json` permission rules, e.g. `"Bash(rm *)"`) that filters a hook by tool arguments in addition to the tool name. Forwarded to Claude Code, where it is evaluated only on tool events (`preToolUse`, `postToolUse`, `postToolUseFailure`, `permissionRequest`, `permissionDenied`); it round-trips as an opaque string.
 
 Top-level `hooks` keys must be canonical event names; unknown event names are rejected at parse time. Tool-specific override blocks (e.g. `kiro-ide.hooks`) additionally accept tool-native event keys, which pass through verbatim.
@@ -175,7 +177,7 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 | Event                  | Cursor | Claude Code | OpenCode | Kilo | Copilot | Copilot CLI | Factory Droid | Gemini CLI | Codex CLI | deepagents | Kiro | Antigravity IDE | Antigravity CLI | Devin | AugmentCode | Goose |
 | ---------------------- | :----: | :---------: | :------: | :--: | :-----: | :---------: | :-----------: | :--------: | :-------: | :--------: | :--: | :-------------: | :-------------: | :---: | :---------: | :---: |
 | `sessionStart`         |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |        —        |        —        |   —   |     ✅      |  ✅   |
-| `sessionEnd`           |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |     —     |     ✅     |  ✅  |        —        |        —        |   —   |     ✅      |  ✅   |
+| `sessionEnd`           |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |        —        |        —        |   —   |     ✅      |  ✅   |
 | `beforeSubmitPrompt`   |   ✅   |     ✅      |    —     |  —   |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |        —        |        —        |  ✅   |     ✅      |  ✅   |
 | `preToolUse`           |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |       ✅        |       ✅        |   —   |     ✅      |  ✅   |
 | `postToolUse`          |   ✅   |     ✅      |    ✅    |  ✅  |   ✅    |     ✅      |      ✅       |     ✅     |    ✅     |     ✅     |  ✅  |       ✅        |       ✅        |   —   |     ✅      |  ✅   |
@@ -926,9 +928,17 @@ args = ["--from", "git+https://github.com/BeehiveInnovations/pal-mcp-server.git"
 env_vars = ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"]
 ```
 
+An entry may also be an object naming the environment to read the variable from: `{ "name": "REMOTE_TOKEN", "source": "remote" }` reads it from the remote executor environment (and requires remote MCP stdio support), while a bare name and `"source": "local"` read from Codex's own environment. The object form is written to `config.toml` as an inline table, matching Codex's documented shape. Only `name` and `source` are accepted in that object — Codex rejects an unknown key there, and rejecting one server's entry would take the whole `config.toml` down with it, so Rulesync fails on the canonical file instead. For the same reason an entry that a `config.toml` already holds in some other shape is dropped with a warning on import rather than written into a `.rulesync/mcp.jsonc` the next generate would refuse.
+
 - Emitted only into the codex CLI output. Stripped from `RulesyncMcp.getMcpServers()` so it does not appear in other tools' generated configs (Claude Code, Kilo, OpenCode, Gemini CLI, Cursor, Cline, Junie, Factorydroid, Rovodev, etc.).
 - Use this for secrets and API keys you do not want literal-encoded into a committed `mcp.json`.
 - Precedence: codex CLI resolves these names from the user's runtime shell environment. If a name is also set in `env` (literal value), the codex CLI behavior is upstream-defined; see the [Codex configuration reference](https://developers.openai.com/codex/config-reference#mcp_serversid-env_vars) (last checked 2026-05-13) for the exact resolution rule.
+
+### Codex-specific: run a stdio server remotely (`experimentalEnvironment`)
+
+For stdio servers, `experimentalEnvironment: "remote"` starts the server through a remote executor environment when one is available. It is written as `experimental_environment` in `config.toml`. Like `envVars`, it is stripped before every other tool's MCP config is written, so it cannot leak into a config that would not understand it — and for the same reason, a server config copied straight out of a `config.toml` may spell it `experimental_environment`, which is accepted and normalized on the way to Codex.
+
+See the [Codex MCP reference](https://learn.chatgpt.com/docs/extend/mcp) for both fields.
 
 #### Codex-specific: OAuth client id (`oauth.clientId` → `client_id`)
 

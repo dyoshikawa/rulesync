@@ -55,7 +55,7 @@ export type ToolHooksConverterConfig = {
    * for tool-specific opaque strings such as Claude Code's `if` condition.
    */
   stringPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "if";
+    readonly canonical: "if" | "statusMessage" | "commandWindows";
     readonly tool: string;
   }>;
   /**

@@ -9,6 +9,34 @@ const EnvVarNameSchema = z
     ),
   );
 
+/**
+ * One `envVars` entry. A bare name reads the variable from Codex's own
+ * environment; the object form names the environment to read it from, where
+ * `source = "remote"` reads from the remote executor environment.
+ * @see https://learn.chatgpt.com/docs/extend/mcp
+ */
+export const EnvVarEntrySchema = z.union([
+  EnvVarNameSchema,
+  // Strict, unlike the loose objects elsewhere in this file: upstream's
+  // `McpServerEnvVar` denies unknown fields, so one stray key here
+  // makes Codex reject the whole `config.toml` — every MCP server with it, not
+  // just this entry. Failing on the rulesync side names the offending file.
+  z.strictObject({
+    name: EnvVarNameSchema,
+    source: z.optional(z.enum(["local", "remote"])),
+  }),
+]);
+
+/**
+ * Whether a value is usable as `envVars`. Applied in both directions by the
+ * codex adapter, so an entry read out of somebody's `config.toml` can never be
+ * imported into a `.rulesync/mcp.jsonc` that the next generate would refuse to
+ * parse.
+ */
+export function isEnvVarEntryArray(value: unknown): value is (string | { name: string })[] {
+  return Array.isArray(value) && value.every((entry) => EnvVarEntrySchema.safeParse(entry).success);
+}
+
 export const McpServerSchema = z.looseObject({
   // `streamable-http` is the MCP spec's transport name and an accepted alias for
   // `http` (Claude Code), so configs copied from server docs work unchanged.
@@ -28,7 +56,14 @@ export const McpServerSchema = z.looseObject({
   // `enabledTools`→`enabled_tools` precedent in `codexcli-mcp.ts`).
   // Stripped by `RulesyncMcp.getMcpServers()` so it does not leak into
   // other tools' configs.
-  envVars: z.optional(z.array(EnvVarNameSchema)),
+  envVars: z.optional(z.array(EnvVarEntrySchema)),
+  // Codex CLI-specific (stdio servers): set to `remote` to start the server
+  // through a remote executor environment when one is available. Kept as a
+  // plain string rather than an enum so a value Codex adds later is not
+  // rejected outright. Written as `experimental_environment` in codex TOML and
+  // stripped by `RulesyncMcp.getMcpServers()`, like `envVars`.
+  // https://learn.chatgpt.com/docs/extend/mcp
+  experimentalEnvironment: z.optional(z.string()),
   disabled: z.optional(z.boolean()),
   networkTimeout: z.optional(z.number()),
   timeout: z.optional(z.number()),

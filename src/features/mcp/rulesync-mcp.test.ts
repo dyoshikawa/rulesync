@@ -1321,6 +1321,29 @@ describe("RulesyncMcp", () => {
       expect((servers.pal as any).envVars).toBeUndefined();
     });
 
+    it("should strip both spellings of the codex-only experimental_environment", () => {
+      // Codex-only, and meaningless to every other tool. The camelCase form is
+      // canonical; the snake_case one is what someone copying a codex config
+      // writes, and it leaked into every other tool's config before.
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            canonical: { command: "uvx", experimentalEnvironment: "remote" },
+            raw: { command: "uvx", experimental_environment: "remote" },
+          },
+        }),
+      });
+
+      const servers = rulesyncMcp.getMcpServers();
+
+      expect((servers.canonical as any).experimentalEnvironment).toBeUndefined();
+      expect((servers.raw as any).experimental_environment).toBeUndefined();
+      expect((servers.canonical as any).command).toBe("uvx");
+      expect((servers.raw as any).command).toBe("uvx");
+    });
+
     it("should still expose envVars via getJson() for the codex generator", () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,

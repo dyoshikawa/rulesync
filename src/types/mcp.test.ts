@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { McpServerSchema, isMcpServers } from "./mcp.js";
+import { McpServerSchema, isEnvVarEntryArray, isMcpServers } from "./mcp.js";
 
 describe("isMcpServers", () => {
   it("should return true for a plain object", () => {
@@ -91,5 +91,46 @@ describe("McpServerSchema", () => {
   it("should reject an unknown transport value", () => {
     const result = McpServerSchema.safeParse({ type: "grpc" });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("envVars entries", () => {
+  it("should accept bare names and the object form naming a source", () => {
+    const result = McpServerSchema.safeParse({
+      command: "uvx",
+      envVars: [
+        "LOCAL_TOKEN",
+        { name: "REMOTE_TOKEN", source: "remote" },
+        { name: "L", source: "local" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should reject an object entry carrying a key Codex would not accept", () => {
+    // Upstream deny_unknown_fields: one stray key rejects the whole config.toml.
+    expect(
+      McpServerSchema.safeParse({ command: "uvx", envVars: [{ name: "A", extra: 1 }] }).success,
+    ).toBe(false);
+  });
+
+  it("should reject an unknown source and a non-name entry", () => {
+    expect(
+      McpServerSchema.safeParse({ command: "uvx", envVars: [{ name: "A", source: "bogus" }] })
+        .success,
+    ).toBe(false);
+    expect(
+      McpServerSchema.safeParse({ command: "uvx", envVars: [{ source: "remote" }] }).success,
+    ).toBe(false);
+    expect(McpServerSchema.safeParse({ command: "uvx", envVars: ["1BAD"] }).success).toBe(false);
+  });
+});
+
+describe("isEnvVarEntryArray", () => {
+  it("should agree with the schema, so import cannot write what generate rejects", () => {
+    expect(isEnvVarEntryArray(["A", { name: "B", source: "remote" }])).toBe(true);
+    expect(isEnvVarEntryArray([{ name: "A", source: "bogus" }])).toBe(false);
+    expect(isEnvVarEntryArray([{ name: "A", extra: 1 }])).toBe(false);
+    expect(isEnvVarEntryArray("A")).toBe(false);
   });
 });
