@@ -118,6 +118,7 @@ export const commandsProcessorToolTargetTuple = [
   "cursor",
   "factorydroid",
   "goose",
+  "grokcli",
   "hermesagent",
   "junie",
   "kilo",

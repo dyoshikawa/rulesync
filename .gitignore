@@ -297,6 +297,7 @@ rulesync.local.jsonc
 **/.cursor/commands/
 **/.factory/commands/
 **/.goose/recipes/
+**/.grok/commands/
 **/.junie/commands/
 **/.kilo/commands/
 **/.kiro/prompts/
