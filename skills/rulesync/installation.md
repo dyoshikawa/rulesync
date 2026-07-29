@@ -109,3 +109,17 @@ Get-FileHash rulesync.exe -Algorithm SHA256 | ForEach-Object {
   if ($actual -eq $expected) { "✓ Checksum verified" } else { "✗ Checksum mismatch" }
 }
 ```
+
+#### Verify build provenance
+
+Release binaries carry [GitHub Artifact Attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations), so you can check that the file you downloaded really was built by this repository's release workflow. This needs the [GitHub CLI](https://cli.github.com/) v2.49.0 or later, which is where `gh attestation` was introduced:
+
+```bash
+# Linux/macOS — the path the steps above saved the binary to
+gh attestation verify /usr/local/bin/rulesync --repo dyoshikawa/rulesync
+
+# Windows (PowerShell)
+gh attestation verify rulesync.exe --repo dyoshikawa/rulesync
+```
+
+Pass the path you actually saved the binary to. The command identifies the file by its contents, not by its name, so renaming it during installation — which the steps above do — does not affect verification.
