@@ -8,10 +8,10 @@ import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
-import { ErrorCodes } from "../../types/json-output.js";
+import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import { fileExists } from "../../utils/file.js";
 import type { GenerateOptions } from "./generate.js";
-import { generateCommand } from "./generate.js";
+import { assertWatchModeCompatible, generateCommand } from "./generate.js";
 
 // Mock all dependencies
 vi.mock("../../config/config-resolver.js");
@@ -1346,5 +1346,34 @@ describe("generateCommand", () => {
         "🎉 All done! Written 4 file(s) total (4 rules)",
       );
     });
+  });
+});
+
+describe("assertWatchModeCompatible", () => {
+  it("accepts a plain watch run", () => {
+    expect(() =>
+      assertWatchModeCompatible({ isCheck: false, isDryRun: false, isJsonMode: false }),
+    ).not.toThrow();
+  });
+
+  it.each([
+    { params: { isCheck: true, isDryRun: false, isJsonMode: false }, expected: "--check" },
+    { params: { isCheck: false, isDryRun: true, isJsonMode: false }, expected: "--dry-run" },
+    { params: { isCheck: false, isDryRun: false, isJsonMode: true }, expected: "--json" },
+  ])("rejects $expected", ({ params, expected }) => {
+    try {
+      assertWatchModeCompatible(params);
+      expect.unreachable("assertWatchModeCompatible should have thrown");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CLIError);
+      expect((error as CLIError).code).toBe(ErrorCodes.VALIDATION_FAILED);
+      expect((error as CLIError).message).toContain(expected);
+    }
+  });
+
+  it("lists every conflicting flag", () => {
+    expect(() =>
+      assertWatchModeCompatible({ isCheck: true, isDryRun: true, isJsonMode: true }),
+    ).toThrow("--watch cannot be combined with --check, --dry-run, --json.");
   });
 });
