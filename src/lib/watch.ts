@@ -1,5 +1,5 @@
-import { type FSWatcher, watch as fsWatch } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { existsSync, type FSWatcher, watch as fsWatch } from "node:fs";
+import { dirname, join, relative } from "node:path";
 
 import {
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
@@ -72,13 +72,6 @@ export class WatchScheduler {
     await this.running;
   }
 
-  /**
-   * Resolves once no run is in flight. Only meant for tests.
-   */
-  public async waitForIdle(): Promise<void> {
-    await this.running;
-  }
-
   private clearTimer(): void {
     if (this.timer !== undefined) {
       clearTimeout(this.timer);
@@ -139,31 +132,47 @@ export type WatchHandle = {
 };
 
 /**
- * Starts one `fs.watch` per target and forwards matching events to `onChange`
- * as absolute paths.
- *
- * `fs.watch` reports a `null` filename on some platforms; those events are
- * forwarded as the watched directory itself, which is enough to trigger a
- * regeneration.
+ * How often a watcher whose directory disappeared polls for its return.
  */
-export function watchTargets({
-  targets,
+export const DEFAULT_WATCH_REARM_INTERVAL_MS = 500;
+
+/**
+ * Watches one directory, re-attaching the underlying `fs.watch` if the
+ * directory is deleted and later recreated.
+ *
+ * Without this, a `git checkout` to a branch without `.rulesync/` (or any
+ * tool that replaces the directory rather than its contents) would silently
+ * kill the watcher: the deleted inode emits no further events and no error,
+ * so watch mode would keep running while never regenerating again.
+ *
+ * The first attach is not guarded — a missing directory at startup is a real
+ * configuration error and must surface to the caller.
+ */
+function watchTargetWithRearm({
+  target,
   onChange,
   onError,
+  rearmIntervalMs,
 }: {
-  targets: readonly WatchTarget[];
+  target: WatchTarget;
   onChange: (params: { path: string }) => void;
   onError: (params: { error: unknown; directory: string }) => void;
+  rearmIntervalMs: number;
 }): WatchHandle {
-  const watchers: FSWatcher[] = [];
+  let watcher: FSWatcher | undefined;
+  let rearmTimer: ReturnType<typeof setInterval> | undefined;
+  let closed = false;
 
-  for (const target of targets) {
-    const watcher = fsWatch(
+  const attach = (): void => {
+    const created = fsWatch(
       target.directory,
       { recursive: target.recursive, persistent: true },
       (_eventType, filename) => {
+        // `fs.watch` reports a null filename on some platforms; treat those as
+        // a change to the watched directory itself.
         if (filename === null || filename === undefined) {
           onChange({ path: target.directory });
+          verifyStillWatching();
           return;
         }
         const relativePath = filename.toString();
@@ -171,21 +180,97 @@ export function watchTargets({
           return;
         }
         onChange({ path: join(target.directory, relativePath) });
+        verifyStillWatching();
       },
     );
-    watcher.on("error", (error) => {
+    created.on("error", (error) => {
       onError({ error, directory: target.directory });
+      verifyStillWatching();
     });
-    watchers.push(watcher);
-  }
+    watcher = created;
+  };
+
+  const scheduleRearm = (): void => {
+    if (closed || rearmTimer !== undefined) {
+      return;
+    }
+    rearmTimer = setInterval(() => {
+      if (closed || !existsSync(target.directory)) {
+        return;
+      }
+      clearInterval(rearmTimer);
+      rearmTimer = undefined;
+      try {
+        attach();
+      } catch (error) {
+        // Lost another race with a delete; keep polling.
+        onError({ error, directory: target.directory });
+        scheduleRearm();
+        return;
+      }
+      // The directory came back with unknown contents, so regenerate.
+      onChange({ path: target.directory });
+    }, rearmIntervalMs);
+  };
+
+  const verifyStillWatching = (): void => {
+    if (closed || watcher === undefined || existsSync(target.directory)) {
+      return;
+    }
+    watcher.close();
+    watcher = undefined;
+    scheduleRearm();
+  };
+
+  attach();
 
   return {
     close: () => {
-      for (const watcher of watchers) {
-        watcher.close();
+      closed = true;
+      if (rearmTimer !== undefined) {
+        clearInterval(rearmTimer);
+        rearmTimer = undefined;
       }
+      watcher?.close();
+      watcher = undefined;
     },
   };
+}
+
+/**
+ * Starts one watcher per target and forwards matching events to `onChange` as
+ * absolute paths. If any target fails to attach, the watchers started so far
+ * are closed before the error propagates, so no descriptor is leaked.
+ */
+export function watchTargets({
+  targets,
+  onChange,
+  onError,
+  rearmIntervalMs = DEFAULT_WATCH_REARM_INTERVAL_MS,
+}: {
+  targets: readonly WatchTarget[];
+  onChange: (params: { path: string }) => void;
+  onError: (params: { error: unknown; directory: string }) => void;
+  rearmIntervalMs?: number;
+}): WatchHandle {
+  const handles: WatchHandle[] = [];
+
+  const closeAll = (): void => {
+    for (const handle of handles) {
+      handle.close();
+    }
+  };
+
+  try {
+    for (const target of targets) {
+      handles.push(watchTargetWithRearm({ target, onChange, onError, rearmIntervalMs }));
+    }
+  } catch (error) {
+    closeAll();
+    throw error;
+  }
+
+  return { close: closeAll };
 }
 
 /**
@@ -203,19 +288,28 @@ export function buildWatchTargets({
   inputRoot: string;
   configFilePath: string;
 }): WatchTarget[] {
-  const configFileNames = new Set([
-    basename(configFilePath),
-    RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
-  ]);
+  const configFilePaths = buildConfigFilePaths({ configFilePath });
 
   return [
     { directory: join(inputRoot, RULESYNC_RELATIVE_DIR_PATH), recursive: true },
     {
       directory: dirname(configFilePath),
       recursive: false,
-      include: (relativePath) => configFileNames.has(relativePath),
+      include: (relativePath) => configFilePaths.has(join(dirname(configFilePath), relativePath)),
     },
   ];
+}
+
+/**
+ * The absolute paths of the configuration files watch mode observes: the base
+ * configuration file and the `rulesync.local.jsonc` sitting next to it, which
+ * is exactly what `ConfigResolver` loads.
+ */
+export function buildConfigFilePaths({ configFilePath }: { configFilePath: string }): Set<string> {
+  return new Set([
+    configFilePath,
+    join(dirname(configFilePath), RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH),
+  ]);
 }
 
 /**

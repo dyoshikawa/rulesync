@@ -48,6 +48,7 @@ rulesync generate --targets "*" --features "*"
 | `rulesync install`                               | Install skill sources declared in rulesync.jsonc |
 | `rulesync generate --check`                      | CI check that generated files are up to date     |
 | `rulesync generate --dry-run`                    | Preview changes without writing files            |
+| `rulesync generate --watch`                      | Regenerate whenever source files change          |
 
 ## Detailed Reference
 

@@ -1,12 +1,8 @@
-import { basename, resolve } from "node:path";
-
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
-import {
-  RULESYNC_CONFIG_RELATIVE_FILE_PATH,
-  RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
-} from "../../constants/rulesync-paths.js";
+import type { Config } from "../../config/config.js";
 import { checkRulesyncDirExists, generate, type GenerateResult } from "../../lib/generate.js";
 import {
+  buildConfigFilePaths,
   buildWatchTargets,
   formatTriggerPaths,
   WatchScheduler,
@@ -114,8 +110,18 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
   await generateOnce(logger, options);
 }
 
-async function generateOnce(logger: Logger, options: GenerateOptions): Promise<void> {
-  const config = await ConfigResolver.resolve(options, { logger });
+/**
+ * Runs one generation. `resolvedConfig` lets a caller that already resolved
+ * the configuration (watch mode's startup validation) reuse it instead of
+ * paying for a second resolution — and, more importantly, instead of emitting
+ * the resolver's warnings twice.
+ */
+async function generateOnce(
+  logger: Logger,
+  options: GenerateOptions,
+  { resolvedConfig }: { resolvedConfig?: Config } = {},
+): Promise<void> {
+  const config = resolvedConfig ?? (await ConfigResolver.resolve(options, { logger }));
 
   const check = config.getCheck();
 
@@ -255,25 +261,21 @@ async function generateWatchCommand(logger: Logger, options: GenerateOptions): P
   });
 
   const inputRoot = config.getInputRoot();
-  const configFilePath = resolve(
-    inputRoot,
-    options.configPath ?? RULESYNC_CONFIG_RELATIVE_FILE_PATH,
-  );
-  const configFileNames = new Set([
-    basename(configFilePath),
-    RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
-  ]);
+  // Take the path the resolver actually loaded rather than re-deriving it:
+  // the two differ when `inputRoot` comes from the configuration file itself.
+  const configFilePath = config.getConfigFilePath();
+  const configFilePaths = buildConfigFilePaths({ configFilePath });
 
   // Run once before watching so a missing `.rulesync` directory (or any other
   // configuration error) fails fast instead of starting an idle watcher.
-  await generateOnce(logger, options);
+  await generateOnce(logger, options, { resolvedConfig: config });
 
   const targets = buildWatchTargets({ inputRoot, configFilePath });
 
   const scheduler = new WatchScheduler({
     run: async ({ triggers }) => {
       logger.info(`\nChange detected: ${formatTriggerPaths({ triggers, baseDir: inputRoot })}`);
-      if (triggers.some((trigger) => configFileNames.has(basename(trigger)))) {
+      if (triggers.some((trigger) => configFilePaths.has(trigger))) {
         logger.warn(
           "Configuration file changed. The set of watched paths is fixed at startup — restart 'rulesync generate --watch' if you changed 'inputRoot' or the configuration file location.",
         );
@@ -306,10 +308,15 @@ async function generateWatchCommand(logger: Logger, options: GenerateOptions): P
       process.off("SIGINT", shutdown);
       process.off("SIGTERM", shutdown);
       handle.close();
-      void scheduler.close().then(() => {
-        logger.info("\nStopped watching.");
-        resolveShutdown();
-      });
+      void scheduler
+        .close()
+        .catch((error: unknown) => {
+          logger.error(`Failed to stop the watcher cleanly: ${formatError(error)}`);
+        })
+        .finally(() => {
+          logger.info("\nStopped watching.");
+          resolveShutdown();
+        });
     };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);

@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +10,7 @@ import {
 } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
+  buildConfigFilePaths,
   buildWatchTargets,
   DEFAULT_WATCH_DEBOUNCE_MS,
   formatTriggerPaths,
@@ -176,6 +177,30 @@ describe("WatchScheduler", () => {
     expect(runs).toEqual([]);
   });
 
+  it("waits for an in-flight run to settle on close", async () => {
+    let finished = false;
+    let releaseRun: (() => void) | undefined;
+    const scheduler = new WatchScheduler({
+      run: async () => {
+        await new Promise<void>((resolve) => {
+          releaseRun = resolve;
+        });
+        finished = true;
+      },
+      onError: () => {},
+      debounceMs: 1,
+    });
+
+    scheduler.notify({ path: "/a.md" });
+    await waitFor(() => releaseRun !== undefined);
+
+    const closed = scheduler.close();
+    releaseRun?.();
+    await closed;
+
+    expect(finished).toBe(true);
+  });
+
   it("defaults to a 300ms debounce window", () => {
     expect(DEFAULT_WATCH_DEBOUNCE_MS).toBe(300);
   });
@@ -216,6 +241,16 @@ describe("buildWatchTargets", () => {
     expect(configTarget?.directory).toBe(join(inputRoot, "config"));
     expect(configTarget?.include?.("custom.jsonc")).toBe(true);
     expect(configTarget?.include?.(RULESYNC_CONFIG_RELATIVE_FILE_PATH)).toBe(false);
+  });
+});
+
+describe("buildConfigFilePaths", () => {
+  it("covers the base config file and the local override next to it", () => {
+    const configFilePath = join("/", "repo", RULESYNC_CONFIG_RELATIVE_FILE_PATH);
+
+    expect(buildConfigFilePaths({ configFilePath })).toEqual(
+      new Set([configFilePath, join("/", "repo", RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH)]),
+    );
   });
 });
 
@@ -270,6 +305,72 @@ describe("watchTargets", () => {
       } finally {
         handle.close();
       }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("re-attaches after the watched directory is deleted and recreated", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const watchedDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await mkdir(join(watchedDir, "rules"), { recursive: true });
+
+      const changed: string[] = [];
+      const handle = watchTargets({
+        targets: [{ directory: watchedDir, recursive: true }],
+        onChange: ({ path }) => {
+          changed.push(path);
+        },
+        onError: () => {},
+        rearmIntervalMs: 25,
+      });
+
+      try {
+        // A branch switch that drops `.rulesync/` kills the underlying inode
+        // watch; without re-arming, nothing below would ever be reported.
+        await rm(watchedDir, { recursive: true, force: true });
+        await waitFor(() => changed.length > 0);
+
+        changed.length = 0;
+        await mkdir(join(watchedDir, "rules"), { recursive: true });
+        await waitFor(() => changed.length > 0);
+
+        changed.length = 0;
+        await writeFile(join(watchedDir, "rules", "after-rearm.md"), "# after\n", "utf8");
+        await waitFor(() => changed.some((path) => path.includes("after-rearm.md")));
+      } finally {
+        handle.close();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("closes already-started watchers when a later target cannot be watched", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const watchedDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await mkdir(watchedDir, { recursive: true });
+
+      const changed: string[] = [];
+      expect(() =>
+        watchTargets({
+          targets: [
+            { directory: watchedDir, recursive: true },
+            { directory: join(testDir, "missing-directory"), recursive: false },
+          ],
+          onChange: ({ path }) => {
+            changed.push(path);
+          },
+          onError: () => {},
+        }),
+      ).toThrow();
+
+      // The first watcher must have been closed, so later writes are silent.
+      await writeFile(join(watchedDir, "orphan.md"), "# orphan\n", "utf8");
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(changed).toEqual([]);
     } finally {
       await cleanup();
     }

@@ -389,6 +389,10 @@ export class ConfigResolver {
       // neither CLI nor config file supplied an inputRoot, fall back to the
       // captured `cwd` so the value is still deterministic.
       inputRoot: resolvedInputRoot !== undefined ? resolve(resolvedInputRoot) : cwd,
+      // The path actually loaded above, so callers that need to observe the
+      // configuration file (e.g. `generate --watch`) never have to re-derive
+      // it and risk diverging from this resolution.
+      configFilePath: validatedConfigPath,
       sources: configByFile.sources ?? getDefaults().sources,
       flattenedCommandNaming:
         configByFile.flattenedCommandNaming ?? getDefaults().flattenedCommandNaming,
