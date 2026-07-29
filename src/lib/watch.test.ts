@@ -347,6 +347,51 @@ describe("watchTargets", () => {
     }
   });
 
+  it("re-attaches a filtered target after its directory is deleted and recreated", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const configDir = join(testDir, "packages", "app");
+      await mkdir(configDir, { recursive: true });
+
+      const changed: string[] = [];
+      const handle = watchTargets({
+        targets: [
+          {
+            directory: configDir,
+            recursive: false,
+            include: (relativePath) => relativePath === RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+          },
+        ],
+        onChange: ({ path }) => {
+          changed.push(path);
+        },
+        onError: () => {},
+        rearmIntervalMs: 25,
+      });
+
+      try {
+        // The last event a deleted directory emits names the directory
+        // itself, which the include filter rejects — re-arming must still
+        // kick in.
+        await rm(configDir, { recursive: true, force: true });
+        await mkdir(configDir, { recursive: true });
+
+        changed.length = 0;
+        await waitFor(() => changed.length > 0);
+
+        changed.length = 0;
+        await writeFile(join(configDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH), "{}\n", "utf8");
+        await waitFor(() =>
+          changed.some((path) => path.endsWith(RULESYNC_CONFIG_RELATIVE_FILE_PATH)),
+        );
+      } finally {
+        handle.close();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("closes already-started watchers when a later target cannot be watched", async () => {
     const { testDir, cleanup } = await setupTestDirectory();
     try {

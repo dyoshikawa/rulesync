@@ -177,6 +177,11 @@ function watchTargetWithRearm({
         }
         const relativePath = filename.toString();
         if (target.include && !target.include(relativePath)) {
+          // Still check liveness: the final event a deleted directory emits
+          // names the directory itself, which every `include` predicate here
+          // rejects. Returning early would leave the dead watcher attached
+          // and re-arming would never start.
+          verifyStillWatching();
           return;
         }
         onChange({ path: join(target.directory, relativePath) });
