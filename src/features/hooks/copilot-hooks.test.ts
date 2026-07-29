@@ -32,12 +32,37 @@ describe("CopilotHooks", () => {
       });
     });
 
-    it("should return .github/hooks and copilot-hooks.json for global mode", () => {
+    it("should return the ~/.copilot/hooks user-scope file for global mode", () => {
       const paths = CopilotHooks.getSettablePaths({ global: true });
       expect(paths).toEqual({
-        relativeDirPath: join(".github", "hooks"),
-        relativeFilePath: "copilot-hooks.json",
+        relativeDirPath: join(".copilot", "hooks"),
+        // Distinct from the Copilot CLI's global `copilot-hooks.json` in the
+        // same folder, so the two targets never overwrite each other.
+        relativeFilePath: "copilot-ide-hooks.json",
       });
+    });
+
+    it("writes the generated global file to the user-scope path", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { sessionStart: [{ command: "echo hi" }] },
+        }),
+        validate: false,
+      });
+
+      const hooks = await CopilotHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        global: true,
+      });
+
+      expect(hooks.getRelativeDirPath()).toBe(join(".copilot", "hooks"));
+      expect(hooks.getRelativeFilePath()).toBe("copilot-ide-hooks.json");
+      expect(JSON.parse(hooks.getFileContent()).hooks.sessionStart).toBeDefined();
     });
   });
 

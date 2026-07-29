@@ -133,4 +133,30 @@ describe("DevinCommand", () => {
       expect(DevinCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(expected);
     });
   });
+
+  describe("devin section passthrough (issue #2406)", () => {
+    it("should emit devin section fields into the command SKILL.md frontmatter", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "deploy.md",
+        frontmatter: {
+          description: "Deploy",
+          devin: { "argument-hint": "[environment]", model: "fast", agent: "deployer" },
+        },
+        body: "Deploy.",
+        fileContent: "",
+      });
+
+      const command = DevinCommand.fromRulesyncCommand({
+        outputRoot: ".",
+        rulesyncCommand,
+      });
+
+      const content = command.getFileContent();
+      expect(content).toContain("argument-hint: '[environment]'");
+      expect(content).toContain("model: fast");
+      expect(content).toContain("agent: deployer");
+      expect(content).toContain("name: deploy");
+    });
+  });
 });

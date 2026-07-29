@@ -12,19 +12,19 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Claude Code               | claudecode         | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Claude Code plugin        | claudecode-plugin  |       |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | Codex CLI                 | codexcli           | ✅ 🌏 |        | ✅ 🌏 🔧 |    🌏    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| GitHub Copilot            | copilot            | ✅ 🌏 |        |    ✅    |    ✅    |   ✅ 🌏   | ✅ 🌏  |  ✅   |     ✅      |        |
+| GitHub Copilot            | copilot            | ✅ 🌏 |        |    ✅    |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
 | GitHub Copilot CLI        | copilotcli         | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
-| Goose                     | goose              | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   |   ✅   | ✅ 🌏 |     🌏      |        |
+| Goose                     | goose              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   |   ✅   | ✅ 🌏 |     🌏      |        |
 | Hermes Agent              | hermesagent        |  ✅   |   ✅   |  🌏 🔧   |    🌏    |   ✅ 🌏   |   🌏   |  🌏   |     🌏      |   ✅   |
 | Grok CLI                  | grokcli            | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Cursor                    | cursor             |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Cursor                    | cursor             |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
 | deepagents-cli            | deepagents         | ✅ 🌏 |        |  ✅ 🌏   |          |   ✅ 🌏   | ✅ 🌏  |  🌏   |             |        |
 | Factory Droid             | factorydroid       | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | OpenCode                  | opencode           | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Cline                     | cline              | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |     ✅      |        |
 | Kilo Code                 | kilo               | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Kimi Code                 | kimi-code          | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  |  🌏   |     🌏      |        |
-| Roo Code                  | roo                | ✅ 🌏 |   ✅   |    ✅    |    ✅    |    ✅     | ✅ 🌏  |       |             |        |
+| Roo Code                  | roo                | ✅ 🌏 |   ✅   |    ✅    |  ✅ 🌏   |    ✅     | ✅ 🌏  |       |             |        |
 | Rovodev (Atlassian)       | rovodev            | ✅ 🌏 |        |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |     🌏      |        |
 | Takt                      | takt               | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    | ✅ 🌏  |
 | Vibe Code                 | vibe               | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
@@ -33,14 +33,14 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Kiro ⚠️                   | kiro               | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro CLI                  | kiro-cli           | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  ✅   |     ✅      |        |
 | Kiro IDE                  | kiro-ide           | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
-| Google Antigravity IDE    | antigravity-ide    | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
-| Google Antigravity CLI    | antigravity-cli    | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
-| Google Antigravity plugin | antigravity-plugin |  ✅   |        |  ✅ 🔧   |          |           |   ✅   |  ✅   |             |        |
+| Google Antigravity IDE    | antigravity-ide    | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
+| Google Antigravity CLI    | antigravity-cli    | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
+| Google Antigravity plugin | antigravity-plugin |  ✅   |        |  ✅ 🔧   |          |    ✅     |   ✅   |  ✅   |             |        |
 | JetBrains AI Assistant    | aiassistant        |  ✅   |   ✅   |  ✅ 🌏   |          |           |   ✅   |       |             |        |
-| JetBrains Junie           | junie              | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  🌏   |    ✅ 🌏    |        |
+| JetBrains Junie           | junie              | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  🌏   |     🌏      |        |
 | AugmentCode               | augmentcode        | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Devin Desktop             | devin              | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Warp                      | warp               |  ✅   |   ✅   |  ✅ 🌏   |          |           | ✅ 🌏  |       |     🌏      |        |
+| Warp                      | warp               |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  |       |     🌏      |        |
 | Replit                    | replit             |  ✅   |        |          |          |           | ✅ 🌏  |       |             |        |
 | Pi Coding Agent           | pi                 | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |             |        |
 | Zed                       | zed                | ✅ 🌏 |   ✅   |  ✅ 🌏   |          |           | ✅ 🌏  |       |    ✅ 🌏    |        |

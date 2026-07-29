@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import {
-  ZED_GLOBAL_DIR,
+  getZedGlobalDir,
   ZED_GLOBAL_RULE_FILE_NAME,
   ZED_RULE_FILE_NAME,
 } from "../../constants/zed-paths.js";
@@ -33,7 +33,8 @@ export type ZedRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  *
  * Zed reads a single project rules file (the first match in its priority list,
  * of which `.rules` is the highest-priority, Zed-specific entry) and a single
- * global rules file at `~/.config/zed/AGENTS.md`. Because Zed loads exactly one
+ * global rules file at `~/.config/zed/AGENTS.md` (`%APPDATA%\Zed\AGENTS.md` on
+ * Windows). Because Zed loads exactly one
  * file, only root rules are supported; non-root rules cannot be represented.
  */
 export class ZedRule extends ToolRule {
@@ -47,7 +48,7 @@ export class ZedRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(ZED_GLOBAL_DIR, ".", excludeToolDir),
+          relativeDirPath: buildToolPath(getZedGlobalDir(), ".", excludeToolDir),
           relativeFilePath: ZED_GLOBAL_RULE_FILE_NAME,
         },
       };

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { AGENTSMD_DIR, AGENTSMD_RULE_FILE_NAME } from "../../constants/agentsmd-paths.js";
-import { CLINERULES_DIR } from "../../constants/cline-paths.js";
+import { CLINE_RULES_GLOBAL_DIR_PATH, CLINERULES_DIR } from "../../constants/cline-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
@@ -65,7 +65,11 @@ export type ClineRuleParams = ClineRuleNonRootParams | ClineRuleRootParams;
 
 export type ClineRuleSettablePaths = Pick<ToolRuleSettablePaths, "nonRoot">;
 
-export type ClineRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
+export type ClineRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal & {
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
 
 function isNonRootParams(params: ClineRuleParams): params is ClineRuleNonRootParams {
   return "frontmatter" in params && "body" in params;
@@ -168,6 +172,12 @@ export class ClineRule extends ToolRule {
           relativeDirPath: buildToolPath(AGENTSMD_DIR, ".", excludeToolDir),
           relativeFilePath: AGENTSMD_RULE_FILE_NAME,
         },
+        // Global modular rules: `~/Documents/Cline/Rules/*.md` is read by the
+        // VS Code extension and the SDK/CLI alike (the SDK/CLI also reads
+        // `~/.cline/rules/`), so non-root global rules are no longer dropped.
+        nonRoot: {
+          relativeDirPath: CLINE_RULES_GLOBAL_DIR_PATH,
+        },
       };
     }
     return {
@@ -215,9 +225,14 @@ export class ClineRule extends ToolRule {
         throw new Error("ClineRule global settable paths must include a root path");
       }
       if (!isRoot) {
-        throw new Error(
-          `ClineRule does not support non-root rules in global mode; expected a root rule but got '${rulesyncRule.getRelativeFilePath()}'`,
-        );
+        // Non-root global rules land in `~/Documents/Cline/Rules/*.md` with the
+        // same conditional frontmatter conversion project rules get.
+        return this.buildNonRootRule({
+          outputRoot,
+          rulesyncRule,
+          validate,
+          relativeDirPath: CLINE_RULES_GLOBAL_DIR_PATH,
+        });
       }
       return new ClineRule(
         this.buildToolRuleParamsAgentsmd({
@@ -242,10 +257,34 @@ export class ClineRule extends ToolRule {
       });
     }
 
-    // Map rulesync `globs` -> Cline `paths`. Universal globs (`**/*` / `*`) mean
-    // "always", so they map to `alwaysApply: true` instead of a `paths` list.
-    // Specific globs become conditional `paths`; an empty globs list leaves the
-    // rule always-active with no `paths`/`alwaysApply`.
+    return this.buildNonRootRule({
+      outputRoot,
+      rulesyncRule,
+      validate,
+      relativeDirPath: CLINERULES_DIR,
+    });
+  }
+
+  /**
+   * Builds a non-root rule file (project `.clinerules/*.md` or global
+   * `~/Documents/Cline/Rules`). Maps rulesync `globs` -> Cline `paths`:
+   * universal match-everything globs mean "always", so they map to
+   * `alwaysApply: true` instead of a `paths` list; specific globs become
+   * conditional `paths`; an empty globs list leaves the rule always-active with
+   * no `paths`/`alwaysApply`.
+   */
+  private static buildNonRootRule({
+    outputRoot,
+    rulesyncRule,
+    validate,
+    relativeDirPath,
+  }: {
+    outputRoot: string;
+    rulesyncRule: RulesyncRule;
+    validate: boolean;
+    relativeDirPath: string;
+  }): ClineRule {
+    const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
     const globs = normalizePaths(rulesyncFrontmatter.globs);
     const isUniversal = globs.length > 0 && globs.every((glob) => glob === "**/*" || glob === "*");
     const frontmatter: ClineRuleFrontmatter = {
@@ -258,7 +297,7 @@ export class ClineRule extends ToolRule {
 
     return new ClineRule({
       outputRoot,
-      relativeDirPath: CLINERULES_DIR,
+      relativeDirPath,
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       frontmatter,
       body: rulesyncRule.getBody(),
@@ -305,17 +344,26 @@ export class ClineRule extends ToolRule {
       if (!("root" in paths)) {
         throw new Error("ClineRule global settable paths must include a root path");
       }
-      const fileContent = await readFileContent(
-        join(outputRoot, paths.root.relativeDirPath, paths.root.relativeFilePath),
-      );
+      if (relativeFilePath === paths.root.relativeFilePath) {
+        const fileContent = await readFileContent(
+          join(outputRoot, paths.root.relativeDirPath, paths.root.relativeFilePath),
+        );
 
-      return new ClineRule({
+        return new ClineRule({
+          outputRoot,
+          relativeDirPath: paths.root.relativeDirPath,
+          relativeFilePath: paths.root.relativeFilePath,
+          fileContent,
+          validate,
+          root: true,
+        });
+      }
+      // A non-root global rule from `~/Documents/Cline/Rules/*.md`.
+      return this.fromNonRootFile({
         outputRoot,
-        relativeDirPath: paths.root.relativeDirPath,
-        relativeFilePath: paths.root.relativeFilePath,
-        fileContent,
+        relativeDirPath: CLINE_RULES_GLOBAL_DIR_PATH,
+        relativeFilePath,
         validate,
-        root: true,
       });
     }
 
@@ -324,7 +372,26 @@ export class ClineRule extends ToolRule {
       throw new Error("ClineRule project settable paths must include a nonRoot path");
     }
 
-    const filePath = join(outputRoot, paths.nonRoot.relativeDirPath, relativeFilePath);
+    return this.fromNonRootFile({
+      outputRoot,
+      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeFilePath,
+      validate,
+    });
+  }
+
+  private static async fromNonRootFile({
+    outputRoot,
+    relativeDirPath,
+    relativeFilePath,
+    validate,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    relativeFilePath: string;
+    validate: boolean;
+  }): Promise<ClineRule> {
+    const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
 
@@ -341,7 +408,7 @@ export class ClineRule extends ToolRule {
 
     return new ClineRule({
       outputRoot,
-      relativeDirPath: paths.nonRoot.relativeDirPath,
+      relativeDirPath,
       relativeFilePath,
       frontmatter: parsedFrontmatter,
       body: body.trim(),

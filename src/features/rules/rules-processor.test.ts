@@ -1131,6 +1131,20 @@ Content that would fail parsing`;
       expect(filePaths).toContain("AGENTS.local.md");
     });
 
+    it("should include AGENTS.local.md for deletion for roo (issue #2409)", async () => {
+      await ensureDir(join(testDir, ".roo", "rules"));
+      await writeFileContent(join(testDir, "AGENTS.local.md"), "# Local");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "roo" });
+
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
+
+      const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
+      expect(filePaths).toContain("AGENTS.local.md");
+    });
+
     it("should include project-root AGENTS.md for deletion when .rovodev/AGENTS.md exists (mirror)", async () => {
       await ensureDir(join(testDir, ".rovodev"));
       await writeFileContent(join(testDir, ".rovodev", "AGENTS.md"), "# Primary");
@@ -2039,6 +2053,37 @@ targets: ["*"]
       expect(localRule?.getRelativeDirPath()).toBe(".");
     });
 
+    it("should generate AGENTS.local.md for roo localRoot rule (issue #2409)", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "roo" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { root: true, targets: ["roo"] },
+          body: "# Root",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { localRoot: true, targets: ["roo"] },
+          body: "# Local overrides",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      // Roo loads AGENTS.local.md for personal, gitignored overrides — the
+      // localRoot rule must get its own file, not be folded into AGENTS.md.
+      const localRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.local.md");
+      expect(localRule).toBeDefined();
+      expect(localRule?.getFileContent()).toBe("# Local overrides");
+      const rootRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.md");
+      expect(rootRule?.getFileContent()).not.toContain("# Local overrides");
+    });
+
     it("should append localRoot content to root file for other tools", async () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "copilot" });
 
@@ -2932,14 +2977,14 @@ targets: ["${toolTarget}"]
         join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
         `---
 root: true
-targets: ["cline"]
+targets: ["amp"]
 ---
 # Global root`,
       );
       await writeFileContent(
         join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
         `---
-targets: ["cline"]
+targets: ["amp"]
 ---
 # Global detail`,
       );
@@ -2948,7 +2993,7 @@ targets: ["cline"]
       const processor = new RulesProcessor({
         logger,
         outputRoot: testDir,
-        toolTarget: "cline",
+        toolTarget: "amp",
         global: true,
       });
 

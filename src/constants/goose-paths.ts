@@ -3,7 +3,6 @@ import { join } from "node:path";
 const GOOSE_DIR = ".goose";
 export const GOOSE_GLOBAL_DIR = join(".config", "goose");
 export const GOOSE_RULE_FILE_NAME = ".goosehints";
-export const GOOSE_IGNORE_FILE_NAME = ".gooseignore";
 export const GOOSE_MCP_FILE_NAME = "config.yaml";
 // Goose persists per-tool permission overrides in the global user config dir.
 // https://github.com/block/goose/blob/main/crates/goose/src/config/permission.rs
@@ -47,8 +46,9 @@ export const GOOSE_SKILLS_DIR_PATH = join(GOOSE_DIR, "skills");
 // @see https://block.github.io/goose/docs/guides/recipes/recipe-reference/
 export const GOOSE_RECIPES_DIR_PATH = join(GOOSE_DIR, "recipes");
 export const GOOSE_GLOBAL_RECIPES_DIR_PATH = join(GOOSE_GLOBAL_DIR, "recipes");
-export const GOOSE_RECIPES_SUBAGENTS_DIR_PATH = join(GOOSE_RECIPES_DIR_PATH, "subagents");
-export const GOOSE_GLOBAL_RECIPES_SUBAGENTS_DIR_PATH = join(
-  GOOSE_GLOBAL_RECIPES_DIR_PATH,
-  "subagents",
-);
+// Goose custom agents (Markdown + YAML frontmatter, v1.34.0+): the
+// goose-specific discovery dirs are used so the output does not collide with a
+// future shared `.agents/agents/` target.
+// @see https://block.github.io/goose/docs/guides/context-engineering/custom-agents/
+export const GOOSE_AGENTS_DIR_PATH = join(GOOSE_DIR, "agents");
+export const GOOSE_GLOBAL_AGENTS_DIR_PATH = join(GOOSE_GLOBAL_DIR, "agents");

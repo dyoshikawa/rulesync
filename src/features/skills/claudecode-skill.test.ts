@@ -308,6 +308,30 @@ describe("ClaudecodeSkill", () => {
       expect(rulesyncFrontmatter.claudecode).toEqual({ model: "opus" });
     });
 
+    it("should round-trip background: false, the meaningful value of the field", () => {
+      // `background` defaults to true, so a truthy-only copy would drop the one
+      // value worth writing. https://code.claude.com/docs/en/skills
+      const skill = new ClaudecodeSkill({
+        dirName: "forked-skill",
+        frontmatter: {
+          name: "forked-skill",
+          description: "Runs in a forked subagent",
+          context: "fork",
+          background: false,
+        },
+        body: "Body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().claudecode).toEqual({
+        context: "fork",
+        background: false,
+      });
+      expect(ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter().background).toBe(
+        false,
+      );
+    });
+
     it("should round-trip the extended Claude Code skill frontmatter fields", () => {
       const frontmatter: ClaudecodeSkillFrontmatter = {
         name: "extended-skill",

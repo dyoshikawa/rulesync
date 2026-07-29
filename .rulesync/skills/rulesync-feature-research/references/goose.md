@@ -5,20 +5,21 @@
 | Feature       | Official docs                                                             | Upstream surface                                                                |
 | ------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | index         | `https://goose-docs.ai/docs/category/getting-started/`                    | Goose documentation index                                                       |
-| `rules`       | `https://goose-docs.ai/docs/guides/context-engineering/using-goosehints/` | `.goosehints`, `AGENTS.md`, nested hints                                        |
-| `ignore`      | `https://goose-docs.ai/docs/guides/using-gooseignore/`                    | `.gooseignore`, global `~/.config/goose/.gooseignore`, local override           |
-| `mcp`         | No dedicated upstream MCP surface in map                                  | Upstream extensions exist                                                       |
-| `commands`    | No dedicated upstream commands surface in map                             | No Rulesync-supported Goose commands target in map                              |
-| `subagents`   | No dedicated upstream subagents surface in map                            | No Rulesync-supported Goose subagents target in map                             |
-| `skills`      | No dedicated upstream skills surface in map                               | No Rulesync-supported Goose skills target in map                                |
-| `hooks`       | No dedicated upstream hooks surface in map                                | No Rulesync-supported Goose hooks target in map                                 |
+| `rules`       | `https://goose-docs.ai/docs/guides/context-engineering/using-goosehints/` | `.goosehints`, `AGENTS.md`, nested hints, global `~/.agents/AGENTS.md`          |
+| `ignore`      | Retired upstream (docs removed in v1.44.0; goose#10343)                   | No ignore file — `.gitignore` plus tool permissions are the guidance            |
+| `mcp`         | `https://goose-docs.ai/docs/getting-started/using-extensions/`            | Global `config.yaml` `extensions:`; project open-plugin `.mcp.json`             |
+| `commands`    | `https://goose-docs.ai/docs/guides/recipes/recipe-reference/`             | Recipes at `.goose/recipes/` and `~/.config/goose/recipes/`                     |
+| `subagents`   | `https://goose-docs.ai/docs/guides/context-engineering/custom-agents/`    | Custom agents (Markdown), `.goose/agents/` + `~/.config/goose/agents/` et al.   |
+| `skills`      | `https://goose-docs.ai/docs/guides/context-engineering/using-skills/`     | `.goose/skills/`, `.agents/skills/`, global `~/.config/goose/skills/`           |
+| `hooks`       | Open Plugins hooks (`.agents/plugins/<name>/hooks/hooks.json`)            | Eleven `HookEvent` values; no `SubagentStart`/`SubagentStop`                    |
 | `permissions` | `https://goose-docs.ai/docs/guides/managing-tools/tool-permissions/`      | Global `~/.config/goose/permission.yaml` (`user` key) in `goose-permissions.ts` |
 
 ## Client Anchors
 
 Common adapter paths: `rulesync-source-map.md`.
 
-| Surface  | Anchor                                                                                                 |
-| -------- | ------------------------------------------------------------------------------------------------------ |
-| `rules`  | Root `.goosehints`, nested `.goose/memories`, and plain-Markdown conversion in `goose-rule.ts`         |
-| `ignore` | Project `.gooseignore`, gitignore-compatible body passthrough, and default import in `goose-ignore.ts` |
+| Surface     | Anchor                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| `rules`     | Root `.goosehints`, nested `.goose/memories`, and plain-Markdown conversion in `goose-rule.ts`    |
+| `subagents` | Custom-agent Markdown under `.goose/agents/` and `~/.config/goose/agents/` in `goose-subagent.ts` |
+| `commands`  | Top-level recipes under `.goose/recipes/` in `goose-command.ts`                                   |

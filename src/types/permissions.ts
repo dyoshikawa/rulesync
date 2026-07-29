@@ -165,12 +165,23 @@ export type KiloPermissionsOverride = z.infer<typeof KiloPermissionsOverrideSche
  * authored without modeling each one; the managed `allow`/`ask`/`deny` arrays are
  * ignored here (rulesync owns them).
  *
+ * `sandbox` is the sibling top-level settings subtree that governs the sandbox
+ * Claude Code runs commands in (`sandbox.network.*`, `sandbox.filesystem.*`,
+ * `sandbox.credentials`, `sandbox.allowAppleEvents`, ...). It has no canonical
+ * permission category either — it constrains how a permitted command runs
+ * rather than which commands are permitted — so it is a loose passthrough on
+ * the same terms, merged into the top level of `.claude/settings.json`.
+ *
  * @example
  * { "permissions": { "defaultMode": "acceptEdits", "additionalDirectories": ["../shared"] } }
+ * @example
+ * { "sandbox": { "network": { "allowedDomains": ["example.com"], "strictAllowlist": true } } }
+ * @see https://code.claude.com/docs/en/sandboxing
  */
 const ClaudecodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   permissions: z.optional(z.looseObject({})),
+  sandbox: z.optional(z.looseObject({})),
 });
 export type ClaudecodePermissionsOverride = z.infer<typeof ClaudecodePermissionsOverrideSchema>;
 
@@ -321,25 +332,65 @@ const WarpPermissionsOverrideSchema = z.looseObject({
 export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
 
 /**
+ * The actions Junie's allowlist accepts. Verified against the shipped Junie
+ * CLI release `2383.10` (26.7.20): `AllowListDecision` contains exactly
+ * `allow` and `ask`, and a `deny` value fails the whole-file parse — which
+ * makes Junie discard and overwrite `allowlist.json` — so the schema rejects
+ * it up front instead of emitting a file Junie destroys.
+ */
+const JunieAllowlistActionSchema = z.enum(["allow", "ask"]);
+
+/**
+ * One Junie allowlist rule: a literal `prefix` or glob `pattern` plus the
+ * action taken on match.
+ */
+const JunieAllowlistRuleSchema = z.looseObject({
+  prefix: z.optional(z.string()),
+  pattern: z.optional(z.string()),
+  action: JunieAllowlistActionSchema,
+});
+
+/**
+ * One Junie rule group (`AllowListRuleSet`): an optional per-group fallback
+ * `default` plus its ordered `rules`.
+ */
+const JunieAllowlistRuleSetSchema = z.looseObject({
+  default: z.optional(JunieAllowlistActionSchema),
+  rules: z.optional(z.array(JunieAllowlistRuleSchema)),
+});
+
+/**
  * Tool-scoped override block for JetBrains Junie. Junie's `allowlist.json` has
- * two top-level autonomy knobs with no canonical per-glob slot:
- * `allowReadonlyCommands` (a boolean auto-allowing read-only commands) and
- * `defaultBehavior` (the fallback action applied when no rule matches — Junie
- * documents only `allow`/`ask`). Fields placed here are merged onto the
- * top level of `allowlist.json`, while the shared `permission` block continues
- * to drive the per-category `rules` groups.
+ * top-level autonomy knobs and per-group settings with no canonical per-glob
+ * slot: `allowReadonlyCommands` (a boolean auto-allowing read-only commands),
+ * `defaultBehavior` (the fallback action applied when no rule matches),
+ * `readSecretFile` (the secret-file rule group — canonical `read` is already
+ * taken by `readOutsideProject`, so this group is authored whole), and
+ * `ruleDefaults` (each canonical-mapped group's own fallback action). Fields
+ * placed here are merged into `allowlist.json`, while the shared `permission`
+ * block continues to drive the rule lists of the four canonical-mapped groups.
  *
  * @example
- * { "allowReadonlyCommands": true, "defaultBehavior": "ask" }
+ * {
+ *   "allowReadonlyCommands": true,
+ *   "defaultBehavior": "ask",
+ *   "readSecretFile": { "rules": [{ "pattern": "**\/.env", "action": "ask" }] },
+ *   "ruleDefaults": { "executables": "ask" }
+ * }
  */
 const JuniePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   allowReadonlyCommands: z.optional(z.boolean()),
-  // Deliberately NOT an enum: Junie's allowlist docs only show `ask` in
-  // examples and never enumerate the accepted values (`deny` appears only in
-  // third-party material and `allow` is unconfirmed), so the bounds are
-  // undocumented. Do not "helpfully" enum this without an official value list.
-  defaultBehavior: z.optional(z.string()),
+  defaultBehavior: z.optional(JunieAllowlistActionSchema),
+  readSecretFile: z.optional(JunieAllowlistRuleSetSchema),
+  ruleDefaults: z.optional(
+    z.looseObject({
+      executables: z.optional(JunieAllowlistActionSchema),
+      fileEditing: z.optional(JunieAllowlistActionSchema),
+      mcpTools: z.optional(JunieAllowlistActionSchema),
+      readOutsideProject: z.optional(JunieAllowlistActionSchema),
+    }),
+  ),
 });
 export type JuniePermissionsOverride = z.infer<typeof JuniePermissionsOverrideSchema>;
 
@@ -434,19 +485,24 @@ export type AmpPermissionsOverride = z.infer<typeof AmpPermissionsOverrideSchema
 
 /**
  * Tool-scoped override block for the Google Antigravity CLI. Antigravity's CLI
- * `settings.json` carries two global autonomy/sandbox knobs outside the
+ * `settings.json` carries four global autonomy/sandbox knobs outside the
  * `permissions.allow/ask/deny` arrays rulesync manages: `toolPermission` (the
  * global autonomy preset — `request-review` (default) / `proceed-in-sandbox` /
- * `always-proceed` / `strict`) and `enableTerminalSandbox` (a boolean confining
- * agent-run commands to OS containment). Antigravity applies the allow/deny
+ * `always-proceed` / `strict`), `enableTerminalSandbox` (a boolean confining
+ * agent-run commands to OS containment), `artifactReviewPolicy` (whether the
+ * agent's artifact changes are gated on a review prompt — `asks-for-review`
+ * (default) / `agent-decides` / `always-proceed`) and `allowNonWorkspaceAccess`
+ * (a boolean, off by default, letting the agent read or write files outside the
+ * active workspace roots). Antigravity applies the allow/deny
  * lists as per-rule exceptions to the preset at runtime, so rulesync only
  * authors these keys verbatim — no precedence modeling is needed on our side.
  * Fields placed here are merged onto the top level of
  * `~/.gemini/antigravity-cli/settings.json` (global-only) and emitted only for
  * the CLI. The Antigravity IDE exposes the same concepts through a GUI (no
  * documented JSON schema), so this override does NOT apply to `antigravity-ide`.
- * Verified against https://antigravity.google/docs/cli/reference and
- * https://antigravity.google/docs/cli/sandbox.
+ * Verified against https://antigravity.google/docs/cli/reference,
+ * https://antigravity.google/docs/cli/sandbox and
+ * https://antigravity.google/docs/cli/settings.
  *
  * @example
  * { "toolPermission": "strict", "enableTerminalSandbox": true }
@@ -458,6 +514,9 @@ const AntigravityCliPermissionsOverrideSchema = z.looseObject({
     z.enum(["request-review", "proceed-in-sandbox", "always-proceed", "strict"]),
   ),
   enableTerminalSandbox: z.optional(z.boolean()),
+  // @see https://antigravity.google/docs/cli/settings
+  artifactReviewPolicy: z.optional(z.enum(["asks-for-review", "agent-decides", "always-proceed"])),
+  allowNonWorkspaceAccess: z.optional(z.boolean()),
 });
 export type AntigravityCliPermissionsOverride = z.infer<
   typeof AntigravityCliPermissionsOverrideSchema

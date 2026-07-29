@@ -376,12 +376,21 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
     },
   },
+  // The same global Zed settings under the Windows user config dir
+  // (`%APPDATA%\Zed`), which `getZedGlobalDir()` resolves to on win32.
+  "AppData/Roaming/Zed/settings.json": {
+    format: "json",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
+    },
+  },
   // VS Code workspace settings (`.vscode/settings.json`): a general-purpose
-  // user/project settings file. Copilot permissions owns only the single flat
-  // dotted key `chat.tools.terminal.autoApprove` (VS Code stores dotted setting
-  // keys flat at the top level); every unrelated editor setting is preserved by
-  // the shallow merge. The Copilot MCP feature writes a SEPARATE file
-  // (`.vscode/mcp.json`), so this file has a single writer.
+  // user/project settings file. Copilot permissions owns only the three flat
+  // dotted `chat.tools.*.autoApprove` keys (VS Code stores dotted setting keys
+  // flat at the top level); every unrelated editor setting is preserved by the
+  // shallow merge. The Copilot MCP feature writes a SEPARATE file
+  // (`.vscode/mcp.json`, declared just below), so this file has a single writer.
   ".vscode/settings.json": {
     format: "jsonc",
     // A general-purpose user file we promise to preserve untouched apart from
@@ -393,8 +402,32 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     features: {
       permissions: {
         kind: "replace-owned-keys",
-        ownedKeys: ["chat.tools.terminal.autoApprove"],
+        ownedKeys: [
+          "chat.tools.terminal.autoApprove",
+          "chat.tools.edits.autoApprove",
+          "chat.tools.urls.autoApprove",
+        ],
       },
+    },
+  },
+  // VS Code MCP config (`.vscode/mcp.json`): a JSONC file VS Code recommends
+  // committing. It has three documented top-level sections — `servers` (the one
+  // rulesync owns), `inputs` (secret prompts referenced as `${input:id}`) and
+  // `sandbox` (filesystem/network rules for sandboxed servers). Dropping an
+  // `inputs` entry would leave `${input:…}` unresolvable and the affected
+  // servers would fail to start, so everything but `servers` is preserved.
+  // VS Code's own "MCP: Add Server" scaffold starts with a comment line, hence
+  // the `jsonc` format.
+  // https://code.visualstudio.com/docs/agents/reference/mcp-configuration
+  ".vscode/mcp.json": {
+    format: "jsonc",
+    // Fail-closed like `.vscode/settings.json`: never read-modify-write a file
+    // we could not fully parse, so a partial parse cannot silently drop the
+    // user's `inputs` / `sandbox` on the write-back.
+    invalidRootPolicy: "error",
+    jsoncParseErrors: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["servers"] },
     },
   },
   // Qwen Code settings: `permissions` is recomputed from the existing file
@@ -779,8 +812,14 @@ export const applyPermissions = (params: {
   const { settings, managedToolNames, toolNameOf, allow, ask, deny, logger } = params;
   const current = parsePermissionsBlock(settings);
 
+  // An entry this run emits is this run's to place, whatever list it currently
+  // sits in — otherwise flipping a rule from deny to allow would leave the old
+  // deny behind and win. Narrower than claiming its whole tool name, which
+  // would also sweep up entries another feature or the user wrote: a tool name
+  // is only claimed when the caller says the canonical config manages it.
+  const emitted = new Set([...allow, ...ask, ...deny]);
   const keepUnmanaged = (entries: string[]): string[] =>
-    entries.filter((entry) => !managedToolNames.has(toolNameOf(entry)));
+    entries.filter((entry) => !managedToolNames.has(toolNameOf(entry)) && !emitted.has(entry));
 
   if (logger && managedToolNames.has(READ_TOOL_NAME)) {
     const overwrittenReadDenies = current.deny.filter(

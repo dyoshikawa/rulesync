@@ -67,7 +67,7 @@ describe("CodexcliHooks", () => {
           fileContent: JSON.stringify({
             hooks: {
               sessionStart: [{ command: "echo start" }],
-              sessionEnd: [{ command: "echo end" }],
+              preModelInvocation: [{ command: "echo before-model" }],
               subagentStop: [{ command: "echo sub" }],
             },
           }),
@@ -82,8 +82,41 @@ describe("CodexcliHooks", () => {
 
       const parsed = JSON.parse(codexHooks.getFileContent());
       expect(parsed.hooks.SessionStart).toBeDefined();
-      expect(parsed.hooks.SessionEnd).toBeUndefined();
+      // Codex CLI has no equivalent of the canonical preModelInvocation event.
+      expect(parsed.hooks.PreModelInvocation).toBeUndefined();
       expect(parsed.hooks.SubagentStop).toBeDefined();
+    });
+
+    it("should emit sessionEnd, commandWindows and statusMessage", async () => {
+      // SessionEnd landed in Codex CLI 0.145.0; commandWindows (0.131.0) is the
+      // Windows-only override for `command`, and statusMessage is the TUI label
+      // shown while the hook runs. https://learn.chatgpt.com/docs/hooks
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              sessionEnd: [
+                {
+                  command: "./scripts/teardown.sh",
+                  commandWindows: "powershell -File ./scripts/teardown.ps1",
+                  statusMessage: "Saving notes",
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const hook = JSON.parse(codexHooks.getFileContent()).hooks.SessionEnd[0].hooks[0];
+      expect(hook.command).toBe("./scripts/teardown.sh");
+      expect(hook.commandWindows).toBe("powershell -File ./scripts/teardown.ps1");
+      expect(hook.statusMessage).toBe("Saving notes");
     });
 
     it("should convert subagentStart, subagentStop, and preCompact to PascalCase", async () => {
@@ -297,6 +330,38 @@ describe("CodexcliHooks", () => {
   });
 
   describe("toRulesyncHooks", () => {
+    it("should import SessionEnd along with commandWindows and statusMessage", () => {
+      const codexHooks = new CodexcliHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".codex",
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              SessionEnd: [
+                {
+                  hooks: [
+                    {
+                      type: "command",
+                      command: "./scripts/teardown.sh",
+                      commandWindows: "powershell -File ./scripts/teardown.ps1",
+                      statusMessage: "Saving notes",
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      expect(codexHooks.toRulesyncHooks().getJson().hooks.sessionEnd?.[0]).toEqual({
+        type: "command",
+        command: "./scripts/teardown.sh",
+        commandWindows: "powershell -File ./scripts/teardown.ps1",
+        statusMessage: "Saving notes",
+      });
+    });
+
     it("should convert Codex CLI format to canonical format", () => {
       const codexHooks = new CodexcliHooks(
         createMockAiFileParams({

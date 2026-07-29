@@ -86,7 +86,6 @@ def _register_subagent(ctx, subagent):
     name = subagent.get("name") or slug
     description = subagent.get("description") or f"Delegate work to the {name} RuleSync subagent."
     system_prompt = subagent.get("prompt") or ""
-    toolsets = subagent.get("toolsets") or ["terminal", "file", "web"]
 
     def handler(args=None, **kwargs):
         del kwargs
@@ -102,12 +101,14 @@ def _register_subagent(ctx, subagent):
         if user_context:
             context_parts.append(user_context)
 
+        # delegate_task takes no model-facing "toolsets" argument: a subagent
+        # inherits the parent's enabled toolsets (role="orchestrator" is the
+        # only knob that changes them).
         return ctx.dispatch_tool(
             "delegate_task",
             {
                 "goal": description,
                 "context": "\\n\\n".join(context_parts),
-                "toolsets": toolsets,
             },
         )
 
@@ -155,7 +156,6 @@ function getSubagentSpec(rulesyncSubagent: RulesyncSubagent): Record<string, unk
     name,
     description,
     prompt: rulesyncSubagent.getBody(),
-    toolsets: ["terminal", "file", "web"],
     hermes: {
       command: hermesCommandName(slug),
       dispatch: "delegate_task",

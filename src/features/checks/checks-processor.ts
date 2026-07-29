@@ -2,6 +2,7 @@ import { join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
+import { CURSOR_BUGBOT_FILE_NAME } from "../../constants/cursor-paths.js";
 import { TAKT_CONFIG_FILE_NAME } from "../../constants/takt-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -12,6 +13,7 @@ import { formatError } from "../../utils/error.js";
 import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AmpCheck } from "./amp-check.js";
+import { CursorCheck } from "./cursor-check.js";
 import { HermesagentCheck } from "./hermesagent-check.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import { TaktCheck } from "./takt-check.js";
@@ -74,6 +76,16 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
       // https://ampcode.com/manual
       class: AmpCheck,
       meta: { supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "cursor",
+    {
+      // Bugbot reads one aggregated instruction file per directory, so every
+      // check targeting Cursor collapses into the root `.cursor/BUGBOT.md`.
+      // https://cursor.com/docs/bugbot
+      class: CursorCheck,
+      meta: { supportsGlobal: false, filePattern: CURSOR_BUGBOT_FILE_NAME },
     },
   ],
   [

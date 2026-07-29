@@ -254,6 +254,29 @@ describe("FactorydroidPermissions", () => {
       });
     });
 
+    it("routes the plugin-bootstrap keys and hooksDisabled into the override on import (issue #2412)", () => {
+      const instance = new FactorydroidPermissions({
+        relativeDirPath: ".factory",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          extraKnownMarketplaces: {
+            "org-plugins": { source: { source: "github", repo: "org/plugins", ref: "v1.2.0" } },
+          },
+          enabledPlugins: { "code-standards@org-plugins": true },
+          hooksDisabled: true,
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.factorydroid).toEqual({
+        extraKnownMarketplaces: {
+          "org-plugins": { source: { source: "github", repo: "org/plugins", ref: "v1.2.0" } },
+        },
+        enabledPlugins: { "code-standards@org-plugins": true },
+        hooksDisabled: true,
+      });
+    });
+
     it("does not emit a factorydroid override when no Factory-specific keys are present", () => {
       const instance = new FactorydroidPermissions({
         relativeDirPath: ".factory",
@@ -333,6 +356,33 @@ describe("FactorydroidPermissions", () => {
       expect(settings.commandAllowlist).toEqual(["git *"]);
       expect(settings.commandBlocklist).toEqual(["curl *"]);
       expect(settings.sandbox).toEqual({ enabled: true });
+    });
+
+    it("merges the plugin-bootstrap override keys into settings.json (issue #2412)", async () => {
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            factorydroid: {
+              extraKnownMarketplaces: {
+                "org-plugins": { source: { source: "github", repo: "org/plugins" } },
+              },
+              enabledPlugins: { "code-standards@org-plugins": true },
+              hooksDisabled: true,
+            },
+          }),
+        }),
+      });
+
+      const settings = JSON.parse(instance.getFileContent());
+      expect(settings.extraKnownMarketplaces).toEqual({
+        "org-plugins": { source: { source: "github", repo: "org/plugins" } },
+      });
+      expect(settings.enabledPlugins).toEqual({ "code-standards@org-plugins": true });
+      expect(settings.hooksDisabled).toBe(true);
     });
   });
 

@@ -17,6 +17,9 @@ import {
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
+import { AntigravityCliSubagent } from "./antigravity-cli-subagent.js";
+import { AntigravityIdeSubagent } from "./antigravity-ide-subagent.js";
+import { AntigravityPluginSubagent } from "./antigravity-plugin-subagent.js";
 import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
 import { ClaudecodePluginSubagent } from "./claudecode-plugin-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
@@ -133,6 +136,34 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "antigravity-cli",
+    {
+      // Antigravity custom agents (CLI v1.1.6+) are Markdown files with YAML
+      // frontmatter under `.agents/agents/` (project) and the shared
+      // `~/.gemini/config/agents/` (global).
+      // https://antigravity.google/docs/subagents
+      class: AntigravityCliSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "antigravity-ide",
+    {
+      class: AntigravityIdeSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "antigravity-plugin",
+    {
+      // Plugin bundles ship agents in `<plugin_name>/agents/`; bundles are a
+      // project-scope artifact the user stages globally themselves.
+      // https://antigravity.google/docs/cli/plugins
+      class: AntigravityPluginSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+    },
+  ],
+  [
     "augmentcode",
     {
       // AugmentCode (Auggie CLI) subagents are native Markdown files under
@@ -171,7 +202,8 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // stored under `.cline/agents/` (project) and `~/.cline/agents/` (global).
       // https://github.com/cline/cline/blob/main/apps/vscode/src/core/task/tools/subagent/AgentConfigLoader.ts
       class: ClineSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.yaml" },
+      // isYamlFile() upstream accepts .yml alongside .yaml, so import scans both.
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.{yaml,yml}" },
     },
   ],
   [
@@ -255,7 +287,10 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "goose",
     {
       class: GooseSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.yaml" },
+      // Custom agents are Markdown files under .goose/agents/ (project) and
+      // ~/.config/goose/agents/ (global); the old sub-recipe YAML surface was
+      // never read by Goose's agent discovery.
+      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
     },
   ],
   [

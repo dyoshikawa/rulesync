@@ -29,8 +29,18 @@ import {
 //      `~/.cline/agents` global)
 // looseObject preserves unknown keys so future fields round-trip cleanly.
 const ClineSubagentFrontmatterSchema = z.looseObject({
-  name: z.string(),
-  description: z.optional(z.string()),
+  name: z.string().check(z.minLength(1)),
+  // Cline's ConfiguredAgentFrontmatterSchema requires a non-empty description
+  // (cli-v3.0.23+): a missing or empty value makes parseConfiguredAgentConfig
+  // throw and the agent is silently skipped, so the schema matches upstream.
+  description: z.string().check(z.minLength(1)),
+  // Typed optional fields of the same upstream schema (unknown future keys
+  // still pass through the looseObject).
+  tools: z.optional(z.union([z.string(), z.array(z.string())])),
+  skills: z.optional(z.union([z.string(), z.array(z.string())])),
+  providerId: z.optional(z.string()),
+  modelId: z.optional(z.string()),
+  maxIterations: z.optional(z.number().check(z.int(), z.positive())),
 });
 
 type ClineSubagentFrontmatter = z.infer<typeof ClineSubagentFrontmatterSchema>;
@@ -84,6 +94,16 @@ export class ClineSubagent extends ToolSubagent {
     return this.frontmatter;
   }
 
+  /**
+   * `reviewer.yaml` and `reviewer.yml` both convert to the canonical
+   * `reviewer.md`, so they must share one import identity — otherwise the pair
+   * passes the duplicate check and the later one silently overwrites the
+   * earlier in `.rulesync/subagents/` (mirrors KimiCodeSubagent).
+   */
+  override getImportIdentity(): string {
+    return this.getRelativeFilePath().replace(/\.ya?ml$/, "");
+  }
+
   getBody(): string {
     return this.body;
   }
@@ -121,7 +141,10 @@ export class ClineSubagent extends ToolSubagent {
 
     const clineFrontmatter: ClineSubagentFrontmatter = {
       name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
+      // Cline refuses to load an agent without a non-empty description, so a
+      // canonical subagent that omits one gets a minimal fallback rather than
+      // a file Cline cannot load.
+      description: rulesyncFrontmatter.description || `${rulesyncFrontmatter.name} subagent`,
       ...clineSection,
     };
 
@@ -179,6 +202,20 @@ export class ClineSubagent extends ToolSubagent {
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
+
+    // Import leniency: earlier rulesync versions emitted agents without a
+    // description (Cline skips them, so nothing is lost by repairing). Filling
+    // the same fallback the generate side uses keeps one legacy file from
+    // aborting the whole import run, and the next generate writes a loadable
+    // file. A missing/empty name is still a hard error - there is nothing to
+    // repair it from.
+    if (
+      typeof frontmatter.name === "string" &&
+      frontmatter.name.length > 0 &&
+      (typeof frontmatter.description !== "string" || frontmatter.description.length === 0)
+    ) {
+      frontmatter.description = `${frontmatter.name} subagent`;
+    }
 
     const result = ClineSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

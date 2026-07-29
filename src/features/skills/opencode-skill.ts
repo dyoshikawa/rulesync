@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { isAbsolute, join, normalize } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -12,6 +12,7 @@ import {
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import { asOpencodeEntries, getOpencodeConfigDir, readOpencodeConfig } from "../opencode-config.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -110,6 +111,49 @@ export class OpenCodeSkill extends ToolSkill {
       relativeDirPath: global ? OPENCODE_GLOBAL_SKILLS_DIR_PATH : OPENCODE_SKILLS_DIR_PATH,
       alternativeSkillRoots: [global ? OPENCODE_GLOBAL_SKILL_DIR_PATH : OPENCODE_SKILL_DIR_PATH],
     };
+  }
+
+  /**
+   * Extra skill roots the project configured in `opencode.json` /
+   * `opencode.jsonc` via `skills.paths` ("Additional paths to skill folders").
+   * Without these, skills a project keeps outside `.opencode/skills/` are
+   * invisible to `rulesync import` even though OpenCode loads them.
+   *
+   * Import-only: rulesync keeps writing to its own managed root, so a
+   * configured path is read but never generated into. `skills.urls` is a
+   * remote-fetch surface and is out of scope for a file-based generator.
+   *
+   * Absolute paths and paths escaping the output root are dropped — an import
+   * root is joined onto `outputRoot`, and reaching outside it is not something
+   * a project config should be able to ask for.
+   *
+   * @see https://opencode.ai/config.json
+   */
+  static async getConfiguredImportRoots({
+    outputRoot,
+    global = false,
+  }: {
+    outputRoot: string;
+    global?: boolean;
+  }): Promise<Array<{ outputRoot: string; relativeDirPath: string }>> {
+    const config = await readOpencodeConfig({ outputRoot, global });
+    const skills = asOpencodeEntries(config.skills);
+    if (skills === null || !Array.isArray(skills.paths)) {
+      return [];
+    }
+    // Resolved against the directory the config itself was read from, which is
+    // what OpenCode does — in global mode that is `~/.config/opencode/`, not
+    // the home directory.
+    const configDir = getOpencodeConfigDir({ outputRoot, global });
+    return skills.paths
+      .filter(
+        (candidate): candidate is string =>
+          typeof candidate === "string" &&
+          candidate !== "" &&
+          !isAbsolute(candidate) &&
+          !normalize(candidate).startsWith(".."),
+      )
+      .map((relativeDirPath) => ({ outputRoot: configDir, relativeDirPath }));
   }
 
   getFrontmatter(): OpenCodeSkillFrontmatter {

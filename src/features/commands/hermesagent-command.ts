@@ -110,12 +110,13 @@ def _register_command(ctx, command):
         if raw_args:
             context_parts.append(f"User arguments:\\n{raw_args}")
 
+        # delegate_task takes no model-facing "toolsets" argument: the child
+        # inherits the parent's enabled toolsets.
         return ctx.dispatch_tool(
             "delegate_task",
             {
                 "goal": description,
                 "context": "\\n\\n".join(context_parts),
-                "toolsets": ["terminal", "file", "web"],
             },
         )
 

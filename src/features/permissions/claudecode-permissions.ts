@@ -6,6 +6,8 @@ import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
+import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { applyPermissions } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -67,6 +69,45 @@ function parseClaudePermissionEntry(entry: string): { toolName: string; pattern:
 }
 
 /**
+ * Claude Code's file permission checks match only `Edit(path)` and `Read(path)`
+ * rules. A `Write(path)`, `NotebookEdit(path)` or `Glob(path)` rule "is accepted
+ * but never matched by those checks, so Claude Code warns at startup for each
+ * allow, deny, or ask rule in one of these unmatched forms" — so a canonical
+ * `write`/`notebookedit`/`glob` rule with a pattern is emitted in the form the
+ * docs prescribe instead. A tool-name rule with no path is unaffected: it
+ * matches the tool everywhere and produces no warning.
+ * @see https://code.claude.com/docs/en/permissions
+ */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Merge `patch` into `base`, recursing into plain objects so a sibling key at
+ * any depth survives. Arrays and scalars are replaced, since a list the author
+ * states is the list they mean.
+ */
+function deepMergeRecords(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(patch)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    const existing = merged[key];
+    merged[key] =
+      isPlainRecord(existing) && isPlainRecord(value) ? deepMergeRecords(existing, value) : value;
+  }
+  return merged;
+}
+
+const CLAUDE_PATH_RULE_ALIASES: Record<string, string> = {
+  Write: "Edit",
+  NotebookEdit: "Edit",
+  Glob: "Read",
+};
+
+/**
  * Build a Claude Code permission entry like "Bash(npm run *)".
  * If the pattern is "*", returns just the tool name.
  */
@@ -74,7 +115,21 @@ function buildClaudePermissionEntry(toolName: string, pattern: string): string {
   if (pattern === "*") {
     return toolName;
   }
-  return `${toolName}(${pattern})`;
+  return `${CLAUDE_PATH_RULE_ALIASES[toolName] ?? toolName}(${pattern})`;
+}
+
+/**
+ * The Claude tool names the canonical config manages. Deliberately the tool
+ * names the categories map to and *not* the aliases a path rule is rewritten
+ * to: claiming `Edit` because a `write` rule exists would sweep away the
+ * `Read`/`Edit` entries the ignore feature and the user wrote in the same file.
+ * The rewritten entries are still rulesync's to place — `applyPermissions`
+ * replaces an entry this run emits wherever it currently sits — and the
+ * original name stays claimed so an entry an older rulesync wrote in the warned
+ * form is cleaned up on the next generate.
+ */
+function managedClaudeToolNames(config: PermissionsConfig): Set<string> {
+  return new Set(Object.keys(config.permission).map((category) => toClaudeToolName(category)));
 }
 
 export class ClaudecodePermissions extends ToolPermissions {
@@ -131,7 +186,7 @@ export class ClaudecodePermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const { allow, ask, deny } = convertRulesyncToClaudePermissions(config);
+    const { allow, ask, deny } = convertRulesyncToClaudePermissions({ config, logger });
 
     // Merge the Claude Code-scoped override's non-list `permissions` fields
     // (e.g. `defaultMode`, `additionalDirectories`) into the settings
@@ -143,9 +198,19 @@ export class ClaudecodePermissions extends ToolPermissions {
       settings.permissions = { ...settings.permissions, ...nonListFields };
     }
 
-    const managedToolNames = new Set(
-      Object.keys(config.permission).map((category) => toClaudeToolName(category)),
-    );
+    // `sandbox` sits next to `permissions` at the top level of settings.json.
+    // Deep-merged rather than shallow: its subtrees hold deny lists
+    // (`network.deniedDomains`, `filesystem.denyRead`), so replacing `network`
+    // wholesale to set one flag would drop the restrictions beside it.
+    const overrideSandbox = config.claudecode?.sandbox;
+    if (isPlainRecord(overrideSandbox)) {
+      settings.sandbox = deepMergeRecords(
+        isPlainRecord(settings.sandbox) ? settings.sandbox : {},
+        overrideSandbox,
+      );
+    }
+
+    const managedToolNames = managedClaudeToolNames(config);
 
     // The gateway owns the shared `permissions` merge and the cross-feature
     // ownership rule; here we only state the intent (managed tools + arrays).
@@ -195,6 +260,12 @@ export class ClaudecodePermissions extends ToolPermissions {
       config.claudecode = { permissions: nonListFields };
     }
 
+    // The sibling `sandbox` subtree round-trips through the same override block.
+    const { sandbox } = settings;
+    if (isPlainRecord(sandbox) && Object.keys(sandbox).length > 0) {
+      config.claudecode = { ...config.claudecode, sandbox };
+    }
+
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(config, null, 2),
     });
@@ -222,7 +293,13 @@ export class ClaudecodePermissions extends ToolPermissions {
 /**
  * Convert rulesync permissions config to Claude Code allow/ask/deny arrays.
  */
-function convertRulesyncToClaudePermissions(config: PermissionsConfig): {
+function convertRulesyncToClaudePermissions({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger?: Logger;
+}): {
   allow: string[];
   ask: string[];
   deny: string[];
@@ -230,11 +307,25 @@ function convertRulesyncToClaudePermissions(config: PermissionsConfig): {
   const allow: string[] = [];
   const ask: string[] = [];
   const deny: string[] = [];
+  // Two categories can now produce the same entry — `write` and `edit` both map
+  // to `Edit(path)` — so a disagreement between them becomes a config that says
+  // two things at once. Claude Code resolves deny first, but the author should
+  // hear about it rather than discover it later.
+  const actionByEntry = new Map<string, PermissionAction>();
 
   for (const [category, rules] of Object.entries(config.permission)) {
     const claudeToolName = toClaudeToolName(category);
     for (const [pattern, action] of Object.entries(rules)) {
       const entry = buildClaudePermissionEntry(claudeToolName, pattern);
+      const previous = actionByEntry.get(entry);
+      if (previous !== undefined && previous !== action) {
+        logger?.warn(
+          `Claude Code permissions: rules from different categories both resolve to "${entry}" ` +
+            `with conflicting actions (${previous} and ${action}). Both are written; Claude Code ` +
+            `applies deny first, then ask, then allow.`,
+        );
+      }
+      actionByEntry.set(entry, action);
       switch (action) {
         case "allow":
           allow.push(entry);

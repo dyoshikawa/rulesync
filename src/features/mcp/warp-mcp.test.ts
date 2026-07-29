@@ -181,6 +181,47 @@ describe("WarpMcp", () => {
 
       expect(json.mcpServers["test-server"]?.targets).toBeUndefined();
     });
+
+    it("should write the canonical cwd as Warp's working_directory", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "test-server": { command: "node", args: ["server.js"], cwd: "./tools" },
+          },
+        }),
+      });
+
+      const warpMcp = await WarpMcp.fromRulesyncMcp({ rulesyncMcp, validate: true });
+      const json = warpMcp.getJson() as { mcpServers: Record<string, unknown> };
+
+      expect(json.mcpServers["test-server"]).toEqual({
+        command: "node",
+        args: ["server.js"],
+        working_directory: "./tools",
+      });
+    });
+
+    it("should let a tool-native working_directory win over cwd", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "test-server": { command: "node", cwd: "./a", working_directory: "./b" },
+          },
+        }),
+      });
+
+      const warpMcp = await WarpMcp.fromRulesyncMcp({ rulesyncMcp, validate: true });
+      const json = warpMcp.getJson() as { mcpServers: Record<string, unknown> };
+
+      expect(json.mcpServers["test-server"]).toEqual({
+        command: "node",
+        working_directory: "./b",
+      });
+    });
   });
 
   describe("toRulesyncMcp", () => {
@@ -208,6 +249,22 @@ describe("WarpMcp", () => {
         $schema: RULESYNC_MCP_SCHEMA_URL,
         ...warpMcpData,
       });
+    });
+
+    it("should import working_directory back as the canonical cwd", () => {
+      const warpMcp = new WarpMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".warp",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "test-server": { command: "node", working_directory: "./tools" },
+          },
+        }),
+      });
+
+      const imported = JSON.parse(warpMcp.toRulesyncMcp().getFileContent());
+      expect(imported.mcpServers["test-server"]).toEqual({ command: "node", cwd: "./tools" });
     });
   });
 

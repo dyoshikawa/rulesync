@@ -61,6 +61,7 @@ import {
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
 } from "./tool-command.js";
+import { WarpCommand } from "./warp-command.js";
 
 /**
  * Factory entry for each tool command class.
@@ -329,7 +330,7 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         // Non-recursive: project recipes live flat in `.goose/recipes/`, while
-        // subagent sub-recipes live in `.goose/recipes/subagents/` and must not
+        // legacy subagent sub-recipes of earlier rulesync versions may remain in `.goose/recipes/subagents/` and must not
         // be picked up by the command importer.
         supportsSubdirectory: false,
       },
@@ -481,9 +482,12 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     {
       class: RooCommand,
       meta: {
+        // Roo reads project `.roo/commands/` and global `~/.roo/commands/`
+        // (project wins on a name collision), same relative dir at both
+        // scopes. Verified at the final v3.54.0 tag.
         extension: "md",
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: true,
       },
@@ -533,6 +537,26 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         // `~/.config/devin/skills/<slug>/SKILL.md` (global). The skills
         // feature owns that tree, so import and generate-delete never scan
         // it — mirrors the Hermes Agent commands target.
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+        skipToolFileScan: true,
+      },
+    },
+  ],
+  [
+    "warp",
+    {
+      class: WarpCommand,
+      meta: {
+        // Warp's custom slash-command surface is skills (`/{skill-name}` with
+        // `$ARGUMENTS` substitution), so commands are emitted as
+        // `.warp/skills/<slug>/SKILL.md` (project) and
+        // `~/.warp/skills/<slug>/SKILL.md` (global). The skills feature owns
+        // that tree, so import and generate-delete never scan it — mirrors
+        // the Devin and Hermes Agent commands targets.
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,

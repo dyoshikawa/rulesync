@@ -33,6 +33,8 @@ const commandsGenerateTargets = [
   { target: "pi", outputPath: join(".pi", "prompts", "review-pr.md") },
   // Devin slash commands are Skills; commands are emitted onto the skills surface.
   { target: "devin", outputPath: join(".devin", "skills", "review-pr", "SKILL.md") },
+  // Warp's custom slash-command surface is skills, too.
+  { target: "warp", outputPath: join(".warp", "skills", "review-pr", "SKILL.md") },
   { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
   { target: "goose", outputPath: join(".goose", "recipes", "review-pr.yaml") },
   { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
@@ -67,9 +69,11 @@ const commandsGlobalTargets = [
     target: "devin",
     outputPath: join(".config", "devin", "skills", "review-pr", "SKILL.md"),
   },
+  { target: "warp", outputPath: join(".warp", "skills", "review-pr", "SKILL.md") },
   { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
   { target: "goose", outputPath: join(".config", "goose", "recipes", "review-pr.yaml") },
   { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
+  { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
   // Hermes commands are global plugin-backed slash commands, separate from skills.
   {
     target: "hermesagent",

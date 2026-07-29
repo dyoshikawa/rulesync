@@ -1066,6 +1066,8 @@ Second global content`;
 
       expect(Array.isArray(toolTargets)).toBe(true);
       expect(toolTargets).toEqual([
+        "antigravity-cli",
+        "antigravity-ide",
         "augmentcode",
         "claudecode",
         "claudecode-legacy",
@@ -1122,6 +1124,9 @@ Second global content`;
       expect(new Set(subagentsProcessorToolTargets)).toEqual(
         new Set([
           "agentsmd",
+          "antigravity-cli",
+          "antigravity-ide",
+          "antigravity-plugin",
           "augmentcode",
           "claudecode",
           "claudecode-plugin",

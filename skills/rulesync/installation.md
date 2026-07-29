@@ -109,3 +109,25 @@ Get-FileHash rulesync.exe -Algorithm SHA256 | ForEach-Object {
   if ($actual -eq $expected) { "✓ Checksum verified" } else { "✗ Checksum mismatch" }
 }
 ```
+
+#### Verify build provenance
+
+Release binaries carry [GitHub Artifact Attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations), so you can check that the file you downloaded really was built by this repository's release workflow. This needs the [GitHub CLI](https://cli.github.com/) v2.49.0 or later, which is where `gh attestation` was introduced, and a signed-in CLI (`gh auth login`) — verification queries the API even for a public repository.
+
+```bash
+# Linux/macOS — the path the steps above installed the binary to
+gh attestation verify /usr/local/bin/rulesync \
+  --repo dyoshikawa/rulesync \
+  --signer-workflow dyoshikawa/rulesync/.github/workflows/publish-assets.yml
+```
+
+```powershell
+# Windows
+gh attestation verify C:\Windows\System32\rulesync.exe `
+  --repo dyoshikawa/rulesync `
+  --signer-workflow dyoshikawa/rulesync/.github/workflows/publish-assets.yml
+```
+
+Pass the path you actually installed the binary to. The command identifies the file by its contents, not by its name, so renaming it during installation — which the steps above do — does not affect verification; a binary installed by `install.sh` or Homebrew is the same file and verifies the same way. `--repo` alone only proves the attestation came from this repository, so `--signer-workflow` is included to pin the workflow that signed it.
+
+This covers the release binaries. The npm package carries npm's own provenance attestation instead, which is checked with `npm audit signatures` rather than `gh attestation verify`.

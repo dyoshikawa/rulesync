@@ -433,8 +433,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: ClineRule,
       meta: {
-        // Project scope writes `.clinerules/*.md`; global scope writes a single
-        // cross-tool `~/.agents/AGENTS.md` (Cline CLI v3.0.15+).
+        // Project scope writes `.clinerules/*.md`; global scope writes the
+        // cross-tool `~/.agents/AGENTS.md` root (Cline CLI v3.0.15+) plus
+        // non-root modular rules under `~/Documents/Cline/Rules/`.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
@@ -725,6 +726,12 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+        // Roo loads `AGENTS.local.md` from the workspace root for personal,
+        // gitignored overrides (v3.47.0; verified at the final v3.54.0 tag),
+        // so a localRoot rule gets its own file instead of being folded into
+        // the checked-in AGENTS.md — mirrors the rovodev entry below.
+        localRootMode: "separate-local-file",
+        localRootFileName: "AGENTS.local.md",
       },
     },
   ],
@@ -791,7 +798,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: DevinRule,
       meta: {
         extension: "md",
-        // Project rules live under `.devin/rules/*.md`; global always-on rules
+        // The root rule goes to the project-root `AGENTS.md` (the file Devin
+        // CLI/Local reads); non-root rules live under `.devin/rules/*.md`
+        // (Devin Desktop Cascade); global always-on rules
         // are a single plain `~/.config/devin/AGENTS.md` file.
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
@@ -1319,6 +1328,16 @@ export class RulesProcessor extends FeatureProcessor {
     }
     if (factory.class === RovodevRule) {
       return new RovodevRule({
+        outputRoot: this.outputRoot,
+        relativeDirPath: ".",
+        relativeFilePath: fileName,
+        fileContent: body,
+        validate: true,
+        root: true,
+      });
+    }
+    if (factory.class === RooRule) {
+      return new RooRule({
         outputRoot: this.outputRoot,
         relativeDirPath: ".",
         relativeFilePath: fileName,

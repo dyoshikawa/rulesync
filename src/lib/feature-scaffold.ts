@@ -291,6 +291,16 @@ function singletonTemplate(feature: ScaffoldFeature): string {
         "mcp"
       ],
       "env": {}
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "pnpm",
+      "args": [
+        "dlx",
+        "@playwright/mcp",
+        "--headless"
+      ],
+      "env": {}
     }
   }
 }

@@ -114,6 +114,20 @@ export const HookDefinitionSchema = z.looseObject({
   // (`&&`/`||`/list) syntax, so it round-trips as an opaque string.
   // https://code.claude.com/docs/en/hooks
   if: z.optional(safeString),
+  // Codex CLI command hooks: a Windows-only override for `command`, so one hook
+  // set can be cross-platform. Added in Codex CLI 0.131.0 (PR #22159); spelled
+  // `command_windows` in the inline TOML `[hooks]` form and `commandWindows` in
+  // `.codex/hooks.json`, which is the file rulesync writes.
+  // https://learn.chatgpt.com/docs/hooks
+  commandWindows: z.optional(safeString),
+  // Claude Code command hooks: `asyncRewake` runs the hook in the background
+  // and wakes Claude on exit code 2 (it implies `async`).
+  // https://code.claude.com/docs/en/hooks
+  asyncRewake: z.optional(z.boolean()),
+  // Claude Code: feed a blocking hook's rejection reason back to the model and
+  // continue the turn instead of ending it. Added for `PostToolUse` in 2.1.139.
+  // https://code.claude.com/docs/en/hooks
+  continueOnBlock: z.optional(z.boolean()),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
@@ -170,6 +184,7 @@ export const HOOK_EVENTS = [
   "configChange",
   "cwdChanged",
   "fileChanged",
+  "directoryAdded",
   "elicitation",
   "elicitationResult",
 ] as const;
@@ -237,6 +252,12 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "configChange",
   "cwdChanged",
   "fileChanged",
+  // Announced in the 2.1.219 changelog — "fires after `/add-dir` or the SDK
+  // `register_repo_root` control request registers a new working directory
+  // mid-session" — but not yet in the docs' event table, so its matcher support
+  // is unknown and it is treated as no-matcher (see CLAUDE_NO_MATCHER_EVENTS).
+  // https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
+  "directoryAdded",
   "postCompact",
   "elicitation",
   "elicitationResult",
@@ -271,7 +292,15 @@ export const DEVIN_HOOK_EVENTS: readonly HookEvent[] = [
   "postCompact",
 ];
 
-/** Hook events supported by OpenCode. */
+/**
+ * Hook events supported by OpenCode.
+ *
+ * `preCompact` maps to `experimental.session.compacting`, which the plugin docs
+ * document as a named `(input, output)` hook rather than an `event.type`
+ * dispatch; the other entries are all generic events.
+ *
+ * @see https://opencode.ai/docs/plugins/
+ */
 export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "preToolUse",
@@ -280,9 +309,19 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "afterFileEdit",
   "afterShellExecution",
   "permissionRequest",
+  "preCompact",
+  "postCompact",
+  "afterError",
+  "fileChanged",
 ];
 
-/** Hook events supported by Kilo. (Currently identical to OpenCode) */
+/**
+ * Hook events supported by Kilo. Identical to OpenCode: Kilo's plugin docs list
+ * the same event surface, including `session.compacted`, `session.error`,
+ * `file.watcher.updated` and the experimental compaction hook.
+ *
+ * @see https://kilo.ai/docs/automate/extending/plugins
+ */
 export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS;
 
 /**
@@ -353,7 +392,8 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
  * `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`,
  * `postToolUse`, `postToolUseFailure`, `agentStop`, `subagentStart`,
  * `subagentStop`, `errorOccurred`, `preCompact`, `permissionRequest`,
- * `notification`, `preMcpToolCall` ← `beforeMCPExecution`.
+ * `notification`, `userPromptTransformed` ← `userPromptExpansion`,
+ * `preMcpToolCall` ← `beforeMCPExecution`.
  *
  * `preMcpToolCall` (canonical `beforeMCPExecution`) was added in Copilot CLI
  * v1.0.51 (2026-05-20) for hook providers to control outgoing MCP request
@@ -375,6 +415,11 @@ export const COPILOTCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "preCompact",
   "permissionRequest",
   "notification",
+  // Copilot CLI's `userPromptTransformed` — a mutation-only hook that runs on
+  // the transformed prompt and can rewrite the model-facing content. Same
+  // concept as Qwen Code's `UserPromptExpansion`, so it reuses the existing
+  // canonical `userPromptExpansion` event rather than adding a new one.
+  "userPromptExpansion",
   "beforeMCPExecution",
 ];
 
@@ -422,6 +467,11 @@ export const DEEPAGENTS_HOOK_EVENTS: readonly HookEvent[] = [
 /** Hook events supported by Codex CLI. */
 export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
+  // Added in Codex CLI 0.145.0 (PR #33895). Its matcher is the end reason and
+  // its timeout is capped at 3s, but neither is modelled differently here:
+  // the matcher is already a free string and the timeout is the tool's to
+  // enforce. https://github.com/openai/codex/releases/tag/rust-v0.145.0
+  "sessionEnd",
   "preToolUse",
   "postToolUse",
   "beforeSubmitPrompt",
@@ -605,6 +655,9 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "instructionsLoaded",
   "todoCreated",
   "todoCompleted",
+  // `hooks.MessageDisplay` landed in Qwen Code v0.19.10 (PR #6489): fires
+  // repeatedly as the reply streams (payload message_id/displayed_text/is_final).
+  "messageDisplay",
 ];
 
 /**
@@ -895,6 +948,7 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   configChange: "ConfigChange",
   cwdChanged: "CwdChanged",
   fileChanged: "FileChanged",
+  directoryAdded: "DirectoryAdded",
   postCompact: "PostCompact",
   elicitation: "Elicitation",
   elicitationResult: "ElicitationResult",
@@ -1043,6 +1097,12 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
   afterFileEdit: "file.edited",
   afterShellExecution: "command.executed",
   permissionRequest: "permission.asked",
+  // A named `(input, output)` hook, not an `event.type` dispatch — see
+  // `NAMED_HOOK_MATCHER_SUBJECTS` in `opencode-style-generator.ts`.
+  preCompact: "experimental.session.compacting",
+  postCompact: "session.compacted",
+  afterError: "session.error",
+  fileChanged: "file.watcher.updated",
 };
 
 /**
@@ -1129,6 +1189,10 @@ export const CANONICAL_TO_COPILOTCLI_EVENT_NAMES: Record<string, string> = {
   preCompact: "preCompact",
   permissionRequest: "permissionRequest",
   notification: "notification",
+  // Mutation-only event that fires on the transformed prompt; the canonical
+  // prompt-expansion event is the closest match (Qwen's `UserPromptExpansion`
+  // maps to it too).
+  userPromptExpansion: "userPromptTransformed",
   // Added in Copilot CLI v1.0.51 (2026-05-20). The canonical MCP pre-call event
   // maps to the CLI's `preMcpToolCall` hook.
   beforeMCPExecution: "preMcpToolCall",
@@ -1144,6 +1208,7 @@ export const COPILOTCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Objec
  */
 export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
   beforeSubmitPrompt: "UserPromptSubmit",
@@ -1331,6 +1396,7 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
   instructionsLoaded: "InstructionsLoaded",
   todoCreated: "TodoCreated",
   todoCompleted: "TodoCompleted",
+  messageDisplay: "MessageDisplay",
 };
 
 /**

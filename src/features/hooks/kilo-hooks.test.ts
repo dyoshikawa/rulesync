@@ -688,4 +688,38 @@ describe("KiloHooks", () => {
       expect(hooks.isDeletable()).toBe(true);
     });
   });
+  describe("shared OpenCode event surface", () => {
+    it("emits the compaction, error and file-watcher events in Kilo's default export shape", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            postCompact: [{ command: "after-compact.sh" }],
+            afterError: [{ command: "on-error.sh" }],
+            fileChanged: [{ command: "on-change.sh" }],
+            preCompact: [{ command: "before-compact.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const content = KiloHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      }).getFileContent();
+
+      expect(content).toContain('event.type === "session.compacted"');
+      expect(content).toContain('event.type === "session.error"');
+      expect(content).toContain('event.type === "file.watcher.updated"');
+      // The compaction hook is a named `(input, output)` hook, and Kilo wraps
+      // the handlers in its `{ id, server }` module descriptor.
+      expect(content).toContain('"experimental.session.compacting": async (input) => {');
+      expect(content).toContain("export default {");
+      expect(content).toContain('id: "rulesync-hooks",');
+    });
+  });
 });

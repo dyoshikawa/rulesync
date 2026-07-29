@@ -24,6 +24,17 @@ export const QwencodeSkillFrontmatterSchema = z.looseObject({
   paths: z.optional(z.union([z.string(), z.array(z.string())])),
   "user-invocable": z.optional(z.boolean()),
   "disable-model-invocation": z.optional(z.boolean()),
+  // Fields Qwen Code's skill-manager parses from SKILL.md (issue #2407):
+  // `allowedTools` auto-approves the listed permission rules while the skill
+  // is active (v0.18.0); `model` overrides the model for the skill (v0.14.4);
+  // `hooks` registers session-scoped hooks in the settings.json shape;
+  // `when_to_use` feeds the SkillTool description; `argument-hint` is shown
+  // in slash-command completion.
+  allowedTools: z.optional(z.array(z.string())),
+  model: z.optional(z.string()),
+  hooks: z.optional(z.record(z.string(), z.unknown())),
+  when_to_use: z.optional(z.string()),
+  "argument-hint": z.optional(z.string()),
 });
 
 export type QwencodeSkillFrontmatter = z.infer<typeof QwencodeSkillFrontmatterSchema>;
@@ -38,7 +49,22 @@ type QwencodeRulesyncSection = {
   paths?: string | string[];
   "user-invocable"?: boolean;
   "disable-model-invocation"?: boolean;
+  allowedTools?: string[];
+  model?: string;
+  hooks?: Record<string, unknown>;
+  when_to_use?: string;
+  "argument-hint"?: string;
 };
+
+/**
+ * Qwen Code's `parsePathsField` throws for any non-array `paths` value and the
+ * throw drops the whole skill at load time, so a scalar authored in the
+ * canonical config is coerced to a one-element array on emit (the same
+ * normalization the qwencode rules adapter applies).
+ */
+function normalizeQwencodePaths(paths: string | string[]): string[] {
+  return Array.isArray(paths) ? paths : [paths];
+}
 
 export type QwencodeSkillParams = {
   outputRoot?: string;
@@ -139,6 +165,13 @@ export class QwencodeSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
+      ...(frontmatter.allowedTools !== undefined && { allowedTools: frontmatter.allowedTools }),
+      ...(frontmatter.model !== undefined && { model: frontmatter.model }),
+      ...(frontmatter.hooks !== undefined && { hooks: frontmatter.hooks }),
+      ...(frontmatter.when_to_use !== undefined && { when_to_use: frontmatter.when_to_use }),
+      ...(frontmatter["argument-hint"] !== undefined && {
+        "argument-hint": frontmatter["argument-hint"],
+      }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -181,12 +214,25 @@ export class QwencodeSkill extends ToolSkill {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(qwencodeSection?.priority !== undefined && { priority: qwencodeSection.priority }),
-      ...(qwencodeSection?.paths !== undefined && { paths: qwencodeSection.paths }),
+      ...(qwencodeSection?.paths !== undefined && {
+        paths: normalizeQwencodePaths(qwencodeSection.paths),
+      }),
       ...(resolvedUserInvocable !== undefined && {
         "user-invocable": resolvedUserInvocable,
       }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
+      }),
+      ...(qwencodeSection?.allowedTools !== undefined && {
+        allowedTools: qwencodeSection.allowedTools,
+      }),
+      ...(qwencodeSection?.model !== undefined && { model: qwencodeSection.model }),
+      ...(qwencodeSection?.hooks !== undefined && { hooks: qwencodeSection.hooks }),
+      ...(qwencodeSection?.when_to_use !== undefined && {
+        when_to_use: qwencodeSection.when_to_use,
+      }),
+      ...(qwencodeSection?.["argument-hint"] !== undefined && {
+        "argument-hint": qwencodeSection["argument-hint"],
       }),
     };
 

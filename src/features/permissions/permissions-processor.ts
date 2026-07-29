@@ -268,9 +268,11 @@ export const toolPermissionsFactories = new Map<
     {
       class: JuniePermissions,
       meta: {
-        // Junie reads the Action Allowlist from both the project
-        // `.junie/allowlist.json` and the user `~/.junie/allowlist.json`.
-        supportsProject: true,
+        // Junie CLI resolves exactly one allowlist path, the user
+        // `~/.junie/allowlist.json` — it never reads a project-scope
+        // `.junie/allowlist.json` (verified against release `2383.10`), so the
+        // feature is global-only, mirroring the Junie hooks surface.
+        supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,
       },

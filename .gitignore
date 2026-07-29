@@ -239,6 +239,9 @@ rulesync.local.jsonc
 **/.augment-guidelines
 **/.devin/workflows/
 **/.junie/memories/
+**/.gooseignore
+**/.goose/recipes/subagents/
+**/.junie/allowlist.json
 **/.agents/skills/
 **/.rovodev/prompts.yml
 **/.config/devin/skills/
@@ -305,6 +308,7 @@ rulesync.local.jsonc
 **/.rovodev/prompts/
 **/.takt/facets/instructions/
 **/.devin/skills/
+**/.warp/skills/
 **/.augment/skills/
 **/.claude/skills/
 **/.cline/skills/
@@ -326,8 +330,8 @@ rulesync.local.jsonc
 **/.rovodev/skills/
 **/.takt/facets/knowledge/
 **/.vibe/skills/
-**/.warp/skills/
 **/.agents/subagents/
+**/.agents/agents/
 **/.augment/agents/
 **/.claude/agents/
 **/.cline/agents/
@@ -337,7 +341,7 @@ rulesync.local.jsonc
 **/.deepagents/agents/
 **/.devin/agents/
 **/.factory/droids/
-**/.goose/recipes/subagents/
+**/.goose/agents/
 **/.hermes/rulesync/subagents/
 **/.grok/agents/
 **/.junie/agents/
@@ -384,13 +388,11 @@ rulesync.local.jsonc
 **/.grok/hooks/rulesync.json
 **/.cline/command-permissions.json
 **/.cursor/cli.json
-**/.junie/allowlist.json
 **/.aiignore
 **/.geminiignore
 **/.augmentignore
 **/.clineignore
 **/.cursorignore
-**/.gooseignore
 **/.hermes/plugins/rulesync-ignore/patterns.gitignore
 **/.kilocodeignore
 **/.kiroignore
@@ -400,6 +402,7 @@ rulesync.local.jsonc
 **/.vibeignore
 **/.warpindexingignore
 **/.agents/checks/
+**/.cursor/BUGBOT.md
 **/.hermes/plugins/rulesync-checks/checks/
 !.rulesync/.aiignore
 # End of Rulesync

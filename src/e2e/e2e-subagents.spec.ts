@@ -16,6 +16,18 @@ import {
 
 const subagentsGenerateTargets = [
   {
+    target: "antigravity-cli",
+    outputPath: join(".agents", "agents", "planner.md"),
+  },
+  {
+    target: "antigravity-ide",
+    outputPath: join(".agents", "agents", "planner.md"),
+  },
+  {
+    target: "antigravity-plugin",
+    outputPath: join("agents", "planner.md"),
+  },
+  {
     target: "augmentcode",
     outputPath: join(".augment", "agents", "planner.md"),
   },
@@ -109,7 +121,7 @@ const subagentsGenerateTargets = [
   },
   {
     target: "goose",
-    outputPath: join(".goose", "recipes", "subagents", "planner.yaml"),
+    outputPath: join(".goose", "agents", "planner.md"),
   },
   {
     target: "reasonix",
@@ -126,6 +138,8 @@ const subagentsGenerateTargets = [
 ] as const;
 
 const subagentsGlobalTargets = [
+  { target: "antigravity-cli", outputPath: join(".gemini", "config", "agents", "planner.md") },
+  { target: "antigravity-ide", outputPath: join(".gemini", "config", "agents", "planner.md") },
   { target: "augmentcode", outputPath: join(".augment", "agents", "planner.md") },
   { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
   { target: "codexcli", outputPath: join(".codex", "agents", "planner.toml") },
@@ -155,7 +169,7 @@ const subagentsGlobalTargets = [
   { target: "vibe", outputPath: join(".vibe", "agents", "planner.toml") },
   {
     target: "goose",
-    outputPath: join(".config", "goose", "recipes", "subagents", "planner.yaml"),
+    outputPath: join(".config", "goose", "agents", "planner.md"),
   },
   {
     target: "reasonix",
@@ -347,7 +361,7 @@ You are a subagent-only helper.
     { target: "factorydroid", orphanPath: join(".factory", "droids", "orphan.md") },
     { target: "cline", orphanPath: join(".cline", "agents", "orphan.yaml") },
     { target: "vibe", orphanPath: join(".vibe", "agents", "orphan.toml") },
-    { target: "goose", orphanPath: join(".goose", "recipes", "subagents", "orphan.yaml") },
+    { target: "goose", orphanPath: join(".goose", "agents", "orphan.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target subagent file",
     async ({ target, orphanPath }) => {
@@ -402,6 +416,8 @@ describe("E2E: subagents (import)", () => {
 
   it.each([
     { target: "claudecode", sourcePath: join(".claude", "agents", "planner.md") },
+    { target: "antigravity-cli", sourcePath: join(".agents", "agents", "planner.md") },
+    { target: "antigravity-ide", sourcePath: join(".agents", "agents", "planner.md") },
     { target: "cursor", sourcePath: join(".cursor", "agents", "planner.md") },
     { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
     { target: "kimi-code", sourcePath: join(".kimi-code", "agents", "planner.md") },
@@ -605,19 +621,18 @@ Break down tasks into steps.
     expect(await readFileContent(protectedFile)).toBe("Protected notes.\n");
   });
 
-  it("should import goose subagents (sub-recipe YAML)", async () => {
+  it("should import goose subagents (custom-agent Markdown)", async () => {
     const testDir = getTestDir();
 
-    const recipeContent = [
-      "version: 1.0.0",
-      "title: planner",
+    const agentContent = [
+      "---",
+      "name: planner",
       "description: Plans tasks",
-      "instructions: Break down tasks into steps.",
+      "---",
+      "",
+      "Break down tasks into steps.",
     ].join("\n");
-    await writeFileContent(
-      join(testDir, ".goose", "recipes", "subagents", "planner.yaml"),
-      recipeContent,
-    );
+    await writeFileContent(join(testDir, ".goose", "agents", "planner.md"), agentContent);
 
     await runImport({ target: "goose", features: "subagents" });
 

@@ -16,7 +16,6 @@ import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { DevinIgnore } from "./devin-ignore.js";
-import { GooseIgnore } from "./goose-ignore.js";
 import { HermesagentIgnore } from "./hermesagent-ignore.js";
 import { JunieIgnore } from "./junie-ignore.js";
 import { KiloIgnore } from "./kilo-ignore.js";
@@ -64,7 +63,6 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["claudecode-legacy", { class: ClaudecodeIgnore }],
   ["cline", { class: ClineIgnore }],
   ["cursor", { class: CursorIgnore }],
-  ["goose", { class: GooseIgnore }],
   ["hermesagent", { class: HermesagentIgnore }],
   ["junie", { class: JunieIgnore }],
   ["kilo", { class: KiloIgnore }],

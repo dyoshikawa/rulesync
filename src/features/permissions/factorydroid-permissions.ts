@@ -52,6 +52,14 @@ const FACTORYDROID_OVERRIDE_KEYS = [
   "maxAutonomyLevel",
   "subagentAutonomyLevel",
   "interactionMode",
+  // Plugin bootstrap: Droid auto-registers these marketplaces and installs
+  // these plugins on start — the upstream distribution path for the same
+  // artifacts rulesync generates (commands, skills, droids, hooks, mcp).
+  // https://docs.factory.ai/cli/configuration/plugins
+  "extraKnownMarketplaces",
+  "enabledPlugins",
+  // Global hooks kill-switch. https://docs.factory.ai/cli/configuration/settings
+  "hooksDisabled",
 ] as const;
 
 /**

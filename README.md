@@ -94,10 +94,10 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Codex CLI                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitHub Copilot            |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitHub Copilot CLI        |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
-| Goose                     |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Goose                     |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Hermes Agent              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | Grok CLI                  |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Cursor                    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Cursor                    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | deepagents-cli            |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
 | Factory Droid             |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | OpenCode                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
@@ -113,14 +113,14 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Kiro ⚠️                   |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro CLI                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro IDE                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Google Antigravity IDE    |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
-| Google Antigravity CLI    |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
-| Google Antigravity plugin |  ✅   |        | ✅  |          |           |   ✅   |  ✅   |             |        |
+| Google Antigravity IDE    |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Google Antigravity CLI    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Google Antigravity plugin |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
 | JetBrains AI Assistant    |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |             |        |
 | JetBrains Junie           |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | AugmentCode               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Devin Desktop             |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Warp                      |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |
+| Warp                      |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |       |     ✅      |        |
 | Replit                    |  ✅   |        |     |          |           |   ✅   |       |             |        |
 | Pi Coding Agent           |  ✅   |        |     |    ✅    |           |   ✅   |  ✅   |             |        |
 | Zed                       |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |

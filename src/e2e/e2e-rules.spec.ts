@@ -8,6 +8,7 @@ import {
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
@@ -42,6 +43,9 @@ const rulesRootTargets = [
   { target: "qwencode", outputPath: "QWEN.md" },
   { target: "junie", outputPath: join(".junie", "AGENTS.md") },
   { target: "warp", outputPath: "AGENTS.md" },
+  // The root rule goes to the project-root AGENTS.md Devin CLI/Local reads
+  // (issue #2406); .devin/rules/ holds non-root Cascade rules.
+  { target: "devin", outputPath: "AGENTS.md" },
   { target: "replit", outputPath: "replit.md" },
   { target: "pi", outputPath: "AGENTS.md" },
   { target: "zed", outputPath: ".rules" },
@@ -878,7 +882,7 @@ const rulesGlobalTargets = [
   { target: "rovodev", outputPath: join(".rovodev", "AGENTS.md") },
   { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
   { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
-  { target: "zed", outputPath: join(".config", "zed", "AGENTS.md") },
+  { target: "zed", outputPath: join(getZedGlobalDir(), "AGENTS.md") },
   { target: "vibe", outputPath: join(".vibe", "AGENTS.md") },
   { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
   {
@@ -1185,6 +1189,50 @@ globs: ["src/**/*.ts"]
     // Non-root rule -> ~/.qwen/rules/*.md with `paths` frontmatter
     const nonRootContent = await readFileContent(
       join(homeDir, ".qwen", "rules", "coding-guidelines.md"),
+    );
+    expect(nonRootContent).toContain("Global Non-Root Rule");
+    expect(nonRootContent).toContain("src/**/*.ts");
+  });
+
+  it("should generate cline non-root rules into ~/Documents/Cline/Rules in global mode", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+---
+
+# Root Rule Content
+`,
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+      `---
+targets: ["*"]
+globs: ["src/**/*.ts"]
+---
+
+# Global Non-Root Rule
+`,
+    );
+
+    await runGenerate({
+      target: "cline",
+      features: "rules",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Root memory file -> ~/.agents/AGENTS.md
+    const rootContent = await readFileContent(join(homeDir, ".agents", "AGENTS.md"));
+    expect(rootContent).toContain("Root Rule Content");
+
+    // Non-root rule -> ~/Documents/Cline/Rules/*.md with `paths` frontmatter
+    const nonRootContent = await readFileContent(
+      join(homeDir, "Documents", "Cline", "Rules", "coding-guidelines.md"),
     );
     expect(nonRootContent).toContain("Global Non-Root Rule");
     expect(nonRootContent).toContain("src/**/*.ts");

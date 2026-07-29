@@ -114,10 +114,11 @@ function buildPermissionEntry(toolName: string, pattern: string): string {
  * file (global scope only). The file holds other CLI settings besides
  * permissions, so it is never deleted.
  *
- * Two CLI-only autonomy/sandbox knobs outside the allow/ask/deny arrays —
- * `toolPermission` (the global autonomy preset) and `enableTerminalSandbox` — are
- * authored and round-tripped through the `antigravity-cli` permissions override
- * (see `AntigravityCliPermissionsOverrideSchema`).
+ * Four CLI-only autonomy/sandbox knobs outside the allow/ask/deny arrays —
+ * `toolPermission` (the global autonomy preset), `enableTerminalSandbox`,
+ * `artifactReviewPolicy` and `allowNonWorkspaceAccess` — are authored and
+ * round-tripped through the `antigravity-cli` permissions override (see
+ * `AntigravityCliPermissionsOverrideSchema`).
  */
 export class AntigravityCliPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -229,6 +230,12 @@ export class AntigravityCliPermissions extends ToolPermissions {
     if (override?.enableTerminalSandbox !== undefined) {
       merged.enableTerminalSandbox = override.enableTerminalSandbox;
     }
+    if (override?.artifactReviewPolicy !== undefined) {
+      merged.artifactReviewPolicy = override.artifactReviewPolicy;
+    }
+    if (override?.allowNonWorkspaceAccess !== undefined) {
+      merged.allowNonWorkspaceAccess = override.allowNonWorkspaceAccess;
+    }
 
     const fileContent = JSON.stringify(merged, null, 2);
 
@@ -268,6 +275,12 @@ export class AntigravityCliPermissions extends ToolPermissions {
     }
     if (typeof settings.enableTerminalSandbox === "boolean") {
       override.enableTerminalSandbox = settings.enableTerminalSandbox;
+    }
+    if (typeof settings.artifactReviewPolicy === "string") {
+      override.artifactReviewPolicy = settings.artifactReviewPolicy;
+    }
+    if (typeof settings.allowNonWorkspaceAccess === "boolean") {
+      override.allowNonWorkspaceAccess = settings.allowNonWorkspaceAccess;
     }
 
     const result: Record<string, unknown> = { ...config };

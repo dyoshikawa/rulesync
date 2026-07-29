@@ -275,7 +275,10 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       class: CopilotHooks,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        // User-scope hooks live in `~/.copilot/hooks/`, documented for both
+        // VS Code and the coding agent.
+        // https://code.visualstudio.com/docs/agent-customization/hooks
+        supportsGlobal: true,
         supportsImport: true,
       },
       supportedEvents: COPILOT_HOOK_EVENTS,
@@ -360,7 +363,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       supportedEvents: FACTORYDROID_HOOK_EVENTS,
-      supportedHookTypes: ["command", "prompt"],
+      // Droid's hooks reference states "Currently only \"command\" is
+      // supported" — a prompt-type entry in hooks.json is inert.
+      supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
   ],

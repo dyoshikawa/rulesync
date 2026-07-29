@@ -211,6 +211,13 @@ describe("init", () => {
       expect(writeCall).toBeDefined();
       const content = writeCall?.[1] ?? "";
       expect(content).toContain('"mcpServers"');
+      // The scaffolded defaults: docs lookup, rulesync's own server, and
+      // browser automation for SPA pages (issue #2432).
+      expect(content).toContain('"deepwiki"');
+      expect(content).toContain('"rulesync"');
+      expect(content).toContain('"playwright"');
+      expect(content).toContain('"@playwright/mcp"');
+      expect(content).toContain('"--headless"');
     });
 
     it("should not create a command sample file", async () => {

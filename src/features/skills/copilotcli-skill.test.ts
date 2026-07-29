@@ -250,6 +250,47 @@ Skill content goes here.`,
       const roundTripped = CopilotcliSkill.fromRulesyncSkill({ rulesyncSkill });
       expect(roundTripped.getFrontmatter()["argument-hint"]).toBe("[message]");
     });
+
+    it("should round-trip the two invocation flags", () => {
+      const skill = new CopilotcliSkill({
+        dirName: "gated-skill",
+        frontmatter: {
+          name: "gated-skill",
+          description: "Only the user may run it",
+          "user-invocable": true,
+          "disable-model-invocation": true,
+        },
+        body: "body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().copilotcli).toEqual({
+        "user-invocable": true,
+        "disable-model-invocation": true,
+      });
+
+      const roundTripped = CopilotcliSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter()["user-invocable"]).toBe(true);
+      expect(roundTripped.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
+
+    it("keeps a false invocation flag rather than treating it as absent", () => {
+      const skill = new CopilotcliSkill({
+        dirName: "hidden-skill",
+        frontmatter: {
+          name: "hidden-skill",
+          description: "Agent-only",
+          "user-invocable": false,
+        },
+        body: "body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().copilotcli).toEqual({ "user-invocable": false });
+      expect(
+        CopilotcliSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()["user-invocable"],
+      ).toBe(false);
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

@@ -177,14 +177,24 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
     });
   });
 
-  describe("fields deliberately kept as free strings", () => {
-    it("junie.defaultBehavior accepts any string (bounds are undocumented)", () => {
-      const result = RulesyncPermissionsFileSchema.safeParse(
-        withOverride({ junie: { defaultBehavior: "whatever" } }),
-      );
-      expect(result.success).toBe(true);
+  describe("junie.defaultBehavior", () => {
+    it("rejects values outside allow/ask (verified against release 2383.10)", () => {
+      // Junie's AllowListDecision accepts only allow/ask; a stray value fails
+      // Junie's whole-file parse, which makes it discard and overwrite
+      // allowlist.json — so the schema rejects it up front (issue #2411).
+      expect(
+        RulesyncPermissionsFileSchema.safeParse(
+          withOverride({ junie: { defaultBehavior: "deny" } }),
+        ).success,
+      ).toBe(false);
+      expect(
+        RulesyncPermissionsFileSchema.safeParse(withOverride({ junie: { defaultBehavior: "ask" } }))
+          .success,
+      ).toBe(true);
     });
+  });
 
+  describe("fields deliberately kept as free strings", () => {
     it("cursor.sandbox accepts arbitrary values (bounds are undocumented)", () => {
       const result = RulesyncPermissionsFileSchema.safeParse(
         withOverride({ cursor: { sandbox: { mode: "anything", networkAccess: "custom" } } }),

@@ -51,7 +51,6 @@ export const ignoreProcessorToolTargetTuple = [
   "claudecode-legacy",
   "cline",
   "cursor",
-  "goose",
   "hermesagent",
   "junie",
   "kilo",
@@ -132,11 +131,15 @@ export const commandsProcessorToolTargetTuple = [
   "rovodev",
   "takt",
   "devin",
+  "warp",
 ] as const;
 
 export const subagentsProcessorToolTargetTuple = [
   "kilo",
   "agentsmd",
+  "antigravity-cli",
+  "antigravity-ide",
+  "antigravity-plugin",
   "augmentcode",
   "claudecode",
   "claudecode-plugin",
@@ -270,7 +273,7 @@ export const permissionsProcessorToolTargetTuple = [
   "zed",
 ] as const;
 
-export const checksProcessorToolTargetTuple = ["amp", "hermesagent", "takt"] as const;
+export const checksProcessorToolTargetTuple = ["amp", "cursor", "hermesagent", "takt"] as const;
 
 export const ALL_TOOL_TARGET_TUPLES = [
   rulesProcessorToolTargetTuple,

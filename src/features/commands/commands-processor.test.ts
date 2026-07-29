@@ -1241,6 +1241,7 @@ describe("CommandsProcessor", () => {
           "rovodev",
           "takt",
           "devin",
+          "warp",
         ]),
       );
     });
@@ -1274,6 +1275,7 @@ describe("CommandsProcessor", () => {
           "rovodev",
           "takt",
           "devin",
+          "warp",
         ]),
       );
     });
@@ -1302,9 +1304,11 @@ describe("CommandsProcessor", () => {
           "pi",
           "qwencode",
           "reasonix",
+          "roo",
           "rovodev",
           "takt",
           "devin",
+          "warp",
         ]),
       );
     });
