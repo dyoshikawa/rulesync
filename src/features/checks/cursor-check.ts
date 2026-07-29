@@ -29,8 +29,8 @@ const CHECK_MARKER_PATTERN = /^<!--\s*rulesync:check:(.+?)\s*-->[ \t]*$/gm;
  * taken off on the way back. `(?:literal-)*` makes it a ladder, so a body that
  * already contains an escaped marker survives the round trip too.
  */
-const ESCAPABLE_MARKER_PATTERN = /^(<!--\s*rulesync:)((?:literal-)*check:.+?\s*-->)[ \t]*$/gm;
-const ESCAPED_MARKER_PATTERN = /^(<!--\s*rulesync:)literal-((?:literal-)*check:.+?\s*-->)[ \t]*$/gm;
+const ESCAPABLE_MARKER_PATTERN = /^(<!--\s*rulesync:)((?:literal-)*check:.+?\s*-->[ \t]*)$/gm;
+const ESCAPED_MARKER_PATTERN = /^(<!--\s*rulesync:)literal-((?:literal-)*check:.+?\s*-->[ \t]*)$/gm;
 
 const FALLBACK_CHECK_NAME = "bugbot";
 
@@ -44,6 +44,24 @@ function escapeMarkers(content: string): string {
 
 function unescapeMarkers(content: string): string {
   return content.replace(ESCAPED_MARKER_PATTERN, "$1$2");
+}
+
+type CheckMarker = { name: string; start: number; end: number };
+
+function findMarkers(fileContent: string): CheckMarker[] {
+  // Reset lastIndex explicitly: the pattern is module-level and global.
+  CHECK_MARKER_PATTERN.lastIndex = 0;
+  const markers: CheckMarker[] = [];
+  let match: RegExpExecArray | null = CHECK_MARKER_PATTERN.exec(fileContent);
+  while (match !== null) {
+    markers.push({
+      name: match[1] ?? "",
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+    match = CHECK_MARKER_PATTERN.exec(fileContent);
+  }
+  return markers;
 }
 
 /**
@@ -104,9 +122,9 @@ function stripGeneratedHeading(section: string, name: string): string {
  * On import the markers split the file back into one check per section; content
  * before the first marker — and a hand-written file with no markers at all —
  * becomes a single `bugbot` check, so nothing in the file is dropped. A file
- * carrying no marker is never deleted either (see
+ * holding anything rulesync did not write is never deleted either (see
  * {@link canDeleteAuxiliaryFiles}), though generating checks for Cursor does
- * overwrite it — import first to keep what is there.
+ * replace it — import first to keep what is there, which is warned about.
  *
  * @see https://cursor.com/docs/bugbot
  */
@@ -125,10 +143,12 @@ export class CursorCheck extends ToolCheck {
   /**
    * Ownership guard the processor consults before it deletes anything for this
    * tool. `.cursor/BUGBOT.md` is a file Cursor's own documentation tells users
-   * to hand-write, so one carrying no rulesync marker is not rulesync's to
-   * remove — dropping the last check targeting Cursor must not take somebody's
-   * hand-written review instructions with it. A file rulesync generated always
-   * carries a marker, so its own output is still cleaned up.
+   * to hand-write, so anything in it that rulesync did not write is not
+   * rulesync's to remove — dropping the last check targeting Cursor must not
+   * take somebody's hand-written review instructions with it. Deletion is
+   * therefore allowed only for a file that is nothing but generated sections:
+   * one that carries no marker at all, or that carries hand-written text ahead
+   * of the first marker, stays.
    */
   static async canDeleteAuxiliaryFiles({ outputRoot }: { outputRoot: string }): Promise<boolean> {
     const paths = CursorCheck.getSettablePaths();
@@ -141,8 +161,11 @@ export class CursorCheck extends ToolCheck {
     if (fileContent === null) {
       return true;
     }
-    CHECK_MARKER_PATTERN.lastIndex = 0;
-    return CHECK_MARKER_PATTERN.test(fileContent);
+    const firstMarkerStart = findMarkers(fileContent)[0]?.start;
+    if (firstMarkerStart === undefined) {
+      return false;
+    }
+    return fileContent.slice(0, firstMarkerStart).trim().length === 0;
   }
 
   static override fromRulesyncCheck(_params: ToolCheckFromRulesyncCheckParams): CursorCheck {
@@ -154,6 +177,7 @@ export class CursorCheck extends ToolCheck {
     outputRoot = process.cwd(),
     rulesyncChecks,
     global = false,
+    logger,
   }: ToolCheckFromRulesyncChecksParams): Promise<CursorCheck[]> {
     if (rulesyncChecks.length === 0) {
       // No section to write. A stale file from an earlier generate is removed by
@@ -162,13 +186,29 @@ export class CursorCheck extends ToolCheck {
     }
 
     const paths = CursorCheck.getSettablePaths({ global });
+    const relativeFilePath = paths.relativeFilePath ?? CURSOR_BUGBOT_FILE_NAME;
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
+
+    // The file is rewritten from `.rulesync/checks/` rather than merged into, so
+    // say so before hand-written instructions go away — the deletion guard
+    // protects them, but generating over them cannot.
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
+    const firstMarkerStart = findMarkers(existingContent)[0]?.start ?? existingContent.length;
+    if (existingContent.slice(0, firstMarkerStart).trim().length > 0) {
+      logger?.warn(
+        `Cursor checks: ${filePath} holds instructions rulesync did not write, and generating ` +
+          `replaces the whole file. Run \`rulesync import --targets cursor --features checks\` ` +
+          `first to keep them.`,
+      );
+    }
+
     const fileContent = `${rulesyncChecks.map(renderSection).join("\n\n")}\n`;
 
     return [
       new CursorCheck({
         outputRoot,
         relativeDirPath: paths.relativeDirPath,
-        relativeFilePath: paths.relativeFilePath ?? CURSOR_BUGBOT_FILE_NAME,
+        relativeFilePath,
         fileContent,
         global,
       }),
@@ -225,19 +265,7 @@ export class CursorCheck extends ToolCheck {
   override toRulesyncChecks(): RulesyncCheck[] {
     const fileContent = this.getFileContent();
     const sections: { name: string; content: string }[] = [];
-
-    // Reset lastIndex explicitly: the pattern is module-level and global.
-    CHECK_MARKER_PATTERN.lastIndex = 0;
-    const markers: { name: string; start: number; end: number }[] = [];
-    let match: RegExpExecArray | null = CHECK_MARKER_PATTERN.exec(fileContent);
-    while (match !== null) {
-      markers.push({
-        name: match[1] ?? "",
-        start: match.index,
-        end: match.index + match[0].length,
-      });
-      match = CHECK_MARKER_PATTERN.exec(fileContent);
-    }
+    const markers = findMarkers(fileContent);
 
     // Anything ahead of the first marker was hand-written beside the generated
     // sections — or is the whole of a file rulesync never wrote. Either way it

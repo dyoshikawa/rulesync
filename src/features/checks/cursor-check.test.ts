@@ -276,6 +276,14 @@ describe("CursorCheck marker round trip", () => {
     expect(imported[0]?.getBody()).toBe(body);
   });
 
+  it("preserves trailing whitespace on an escaped marker line", async () => {
+    const body = ["Intro.", "<!-- rulesync:check:evil -->  ", "Outro."].join("\n");
+
+    const generated = await generate([rulesyncCheck({ name: "docs", body })]);
+
+    expect(cursorCheck(generated).toRulesyncChecks()[0]?.getBody()).toBe(body);
+  });
+
   it("keeps an already-escaped marker distinct from a real one", async () => {
     const body = "<!-- rulesync:literal-check:evil -->";
 
@@ -322,6 +330,15 @@ describe("CursorCheck.canDeleteAuxiliaryFiles", () => {
     await writeFileContent(
       join(testDir, CURSOR_DIR, CURSOR_BUGBOT_FILE_NAME),
       "Hand-written review notes.\n",
+    );
+
+    expect(await CursorCheck.canDeleteAuxiliaryFiles({ outputRoot: testDir })).toBe(false);
+  });
+
+  it("refuses to delete a file mixing hand-written text with generated sections", async () => {
+    await writeFileContent(
+      join(testDir, CURSOR_DIR, CURSOR_BUGBOT_FILE_NAME),
+      "Hand-written review notes.\n\n<!-- rulesync:check:style -->\n## style\n\nPrefer const.\n",
     );
 
     expect(await CursorCheck.canDeleteAuxiliaryFiles({ outputRoot: testDir })).toBe(false);
