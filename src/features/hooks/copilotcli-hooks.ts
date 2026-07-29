@@ -40,10 +40,14 @@ import {
  * (`sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`,
  * `postToolUse`, `postToolUseFailure`, `agentStop`, `subagentStart`,
  * `subagentStop`, `errorOccurred`, `preCompact`, `permissionRequest`,
- * `notification`, `preMcpToolCall`). Each entry supports three hook types:
+ * `notification`, `userPromptTransformed`, `preMcpToolCall`). Each entry
+ * supports three hook types:
  *
  * - `command` — the `bash` / `powershell` command-field shape with optional
- *   `timeoutSec`, plus optional `cwd` / `env`.
+ *   `timeoutSec`, plus optional `cwd` / `env`. Upstream also accepts the
+ *   portable `command` field (copied to both shells when neither is present)
+ *   and `timeout` as an alias for `timeoutSec`; rulesync reads both on import
+ *   and normalizes to the platform-specific field on generate.
  * - `prompt` — a `prompt` string (Copilot CLI only honors prompt hooks on
  *   `sessionStart`, so prompt hooks on other events are skipped).
  * - `http` — `url` / `headers` / `allowedEnvVars` with optional `timeoutSec`.
@@ -69,11 +73,11 @@ import {
  *   all rulesync-managed Copilot CLI files under the single `~/.copilot/`
  *   root and will revisit if the spec later mandates an alternate layout.
  *
- * Hook entries on `preToolUse` / `postToolUse` may carry an optional `matcher`
- * field (a regex compiled as `^(?:PATTERN)$`, tested against `toolName`); it is
- * emitted on those events and dropped (with a warning) on any other event,
- * which never honors matchers. See changelog v1.0.36 (2026-04-24) and v1.0.63
- * (2026-06-15). Reference: https://docs.github.com/en/copilot/reference/hooks-reference
+ * Hook entries on the six matcher-aware events (see
+ * {@link COPILOTCLI_MATCHER_EVENTS}) may carry an optional `matcher` regex; it
+ * is emitted on those events and dropped (with a warning) on any other event,
+ * which never honors matchers.
+ * Reference: https://docs.github.com/en/copilot/reference/hooks-reference
  *
  * The output JSON schema and platform-specific `bash` / `powershell` command
  * field selection match `copilot-hooks.ts`, but the event surface diverges (the
@@ -88,17 +92,35 @@ import {
  * `Edit|Write`) are now honored instead of silently dropped").
  * @see https://docs.github.com/en/copilot/reference/hooks-reference
  */
-const COPILOTCLI_MATCHER_EVENTS: ReadonlySet<string> = new Set(["preToolUse", "postToolUse"]);
+const COPILOTCLI_MATCHER_EVENTS: ReadonlySet<string> = new Set([
+  "preToolUse",
+  "postToolUse",
+  // The hooks reference documents `matcher` on four more events, each filtering
+  // on a different field: `notification` (notification_type),
+  // `permissionRequest` (toolName), `preCompact` (trigger: "manual" | "auto")
+  // and `subagentStart` (agentName).
+  "notification",
+  "permissionRequest",
+  "preCompact",
+  "subagentStart",
+]);
+
+/** Human-readable list of the matcher-aware events, for the drop warning. */
+const COPILOTCLI_MATCHER_EVENTS_LABEL = [...COPILOTCLI_MATCHER_EVENTS].join("/");
 
 const CopilotCliHookEntrySchema = z.looseObject({
   // `type` defaults to "command" so hand-edited entries omitting the field
   // import successfully — this matches the most common case and avoids
   // silently dropping otherwise-valid entries.
   type: z._default(z.string(), "command"),
-  // Optional tool-name matcher honored on preToolUse/postToolUse entries.
+  // Optional matcher honored on the events in COPILOTCLI_MATCHER_EVENTS.
   matcher: z.optional(z.string()),
   bash: z.optional(z.string()),
   powershell: z.optional(z.string()),
+  // Cross-platform fallback: upstream copies it to both `bash` and
+  // `powershell` when those fields are absent, so it is import-only here —
+  // generate always writes the platform-specific field.
+  command: z.optional(z.string()),
   prompt: z.optional(z.string()),
   url: z.optional(z.string()),
   headers: z.optional(z.record(z.string(), z.string())),
@@ -106,6 +128,8 @@ const CopilotCliHookEntrySchema = z.looseObject({
   cwd: z.optional(z.string()),
   env: z.optional(z.record(z.string(), z.string())),
   timeoutSec: z.optional(z.number()),
+  // Alias for `timeoutSec`, used only when `timeoutSec` is absent.
+  timeout: z.optional(z.number()),
 });
 
 type CopilotCliHookEntry = z.infer<typeof CopilotCliHookEntrySchema>;
@@ -124,9 +148,9 @@ function filterSupportedCopilotCliHooks(hooks: HooksConfig["hooks"]): HooksConfi
 
 /**
  * Resolve the `matcher` part for an exported entry. Copilot CLI honors `matcher`
- * only on preToolUse/postToolUse entries; on any other event a matcher would be
- * silently dropped by the CLI, so we drop it here with a warning rather than
- * emitting a dead field.
+ * only on the events listed in {@link COPILOTCLI_MATCHER_EVENTS}; on any other
+ * event a matcher would be silently dropped by the CLI, so we drop it here with
+ * a warning rather than emitting a dead field.
  */
 function resolveExportMatcherPart({
   matcher,
@@ -146,7 +170,7 @@ function resolveExportMatcherPart({
     return { matcher };
   }
   logger?.warn(
-    `Copilot CLI hook matchers are only honored on preToolUse/postToolUse; dropping matcher "${matcher}" on '${eventName}'.`,
+    `Copilot CLI hook matchers are only honored on ${COPILOTCLI_MATCHER_EVENTS_LABEL}; dropping matcher "${matcher}" on '${eventName}'.`,
   );
   return {};
 }
@@ -286,7 +310,9 @@ function resolveImportCommand(entry: CopilotCliHookEntry, logger?: Logger): stri
   } else if (hasPowershell) {
     return entry.powershell;
   }
-  return undefined;
+  // Portable `command` is the documented cross-platform fallback used when
+  // neither shell-specific field is present.
+  return typeof entry.command === "string" ? entry.command : undefined;
 }
 
 function copilotCliHooksToCanonical(rawHooks: unknown, logger?: Logger): HooksConfig["hooks"] {
@@ -303,11 +329,11 @@ function copilotCliHooksToCanonical(rawHooks: unknown, logger?: Logger): HooksCo
       const parseResult = CopilotCliHookEntrySchema.safeParse(rawEntry);
       if (!parseResult.success) continue;
       const entry = parseResult.data;
-      const timeout = entry.timeoutSec;
+      const timeout = entry.timeoutSec ?? entry.timeout;
       const timeoutPart = timeout !== undefined ? { timeout } : {};
       // Preserve the matcher on import so it round-trips back to export. It is
-      // only meaningful on preToolUse/postToolUse, but keeping it on any entry
-      // is harmless — export drops it again on unsupported events.
+      // only meaningful on the matcher-aware events, but keeping it on any
+      // entry is harmless — export drops it again on unsupported events.
       const matcherPart =
         entry.matcher !== undefined && entry.matcher !== "" ? { matcher: entry.matcher } : {};
       const passthrough = importPassthrough(entry);
