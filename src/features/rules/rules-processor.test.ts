@@ -1506,10 +1506,13 @@ Content that would fail parsing`;
         const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
 
         expect(result).toHaveLength(2);
+        // Both sources normalize to the exact same path, so the warning names
+        // that path once, without the case-insensitivity clause.
         expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining(
-            "(compared case-insensitively, as on macOS and Windows); the last one wins wherever they collide.",
-          ),
+          expect.stringContaining("; the last one wins wherever they collide."),
+        );
+        expect(logger.warn).not.toHaveBeenCalledWith(
+          expect.stringContaining("compared case-insensitively"),
         );
       },
     );
@@ -1591,6 +1594,59 @@ Content that would fail parsing`;
         );
       },
     );
+
+    it("should not compose amp fragments that carry a globs frontmatter gate", async () => {
+      // Amp gates non-root files on a leading `globs:` frontmatter block
+      // (issue #2410). Concatenating two gated fragments would bury the second
+      // block mid-body where Amp never reads it, so the group falls back to
+      // preserve-and-warn instead of composing.
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "amp",
+      });
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "first.md",
+          frontmatter: {
+            root: false,
+            targets: ["amp"],
+            globs: ["packages/app/**/*.ts"],
+            agentsmd: { subprojectPath: "packages/app" },
+          },
+          body: "# First Gated Rule",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "second.md",
+          frontmatter: {
+            root: false,
+            targets: ["amp"],
+            globs: ["packages/app/**/*.tsx"],
+            agentsmd: { subprojectPath: "packages/app" },
+          },
+          body: "# Second Gated Rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const gatedRules = result.filter(
+        (file) => file.getRelativeDirPath() === join("packages", "app"),
+      );
+
+      expect(gatedRules).toHaveLength(2);
+      for (const rule of gatedRules) {
+        // Each file keeps exactly one frontmatter block, at the top.
+        expect(rule.getFileContent().startsWith("---\n")).toBe(true);
+        expect(rule.getFileContent()).not.toMatch(/\n---\nglobs:/);
+      }
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("; the last one wins wherever they collide."),
+      );
+    });
 
     it("should reject Takt rules with the same overridden output name", async () => {
       const processor = new RulesProcessor({

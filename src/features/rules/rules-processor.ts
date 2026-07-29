@@ -1143,9 +1143,12 @@ export class RulesProcessor extends FeatureProcessor {
    * Plain-Markdown adapters can opt into `compose` for colliding modular outputs.
    *
    * A generated root rule becomes the merge target when present. A `fold` group
-   * without one uses its first rule. Root-involved collisions that cannot be
-   * composed safely fail; pre-existing modular collisions remain separate and are
-   * reported by the final output-path check. Mutates `convertedRules` in place.
+   * without one uses its first rule. A group only composes when every rendered
+   * fragment is plain Markdown — a fragment carrying its own frontmatter block
+   * (e.g. Amp's `globs:` gate) would end up mid-body where the tool ignores it.
+   * Root-involved collisions that cannot be composed safely fail; other
+   * collisions remain separate and are reported by the final output-path check.
+   * Mutates `convertedRules` in place.
    */
   private mergeRulesByOutputPath({
     convertedRules,
@@ -1195,8 +1198,19 @@ export class RulesProcessor extends FeatureProcessor {
       const hasSourceRoot = group.some(
         ({ rulesyncRule }) => rulesyncRule.getFrontmatter().root === true,
       );
+      // Composition is only structure-preserving when every fragment is plain
+      // Markdown. An adapter may prepend a frontmatter block to some outputs
+      // (Amp gates non-root files on a leading `globs:` block); concatenating
+      // such a fragment would bury its block mid-body where the tool no longer
+      // reads it, so those groups fall through to preserve-or-reject instead.
+      const allFragmentsArePlain = group.every(
+        ({ toolRule }) => !/^---\r?\n/.test(toolRule.getFileContent()),
+      );
       const shouldCompose =
-        collisionPolicy === "fold" || collisionPolicy === "compose" || allGeneratedRulesAreRoots;
+        (collisionPolicy === "fold" ||
+          collisionPolicy === "compose" ||
+          allGeneratedRulesAreRoots) &&
+        allFragmentsArePlain;
 
       if (!shouldCompose && hasSourceRoot) {
         throw new Error(
@@ -1254,8 +1268,12 @@ export class RulesProcessor extends FeatureProcessor {
       const previous = seen.get(key);
       if (previous) {
         const previousPath = join(previous.getRelativeDirPath(), previous.getRelativeFilePath());
+        const pathDescription =
+          previousPath === path
+            ? `'${path}'`
+            : `'${previousPath}' and '${path}' (compared case-insensitively, as on macOS and Windows)`;
         this.logger.warn(
-          `Both ${describeSource(previous)} and ${describeSource(file)} generate to '${previousPath}' and '${path}' (compared case-insensitively, as on macOS and Windows); the last one wins wherever they collide.`,
+          `Both ${describeSource(previous)} and ${describeSource(file)} generate to ${pathDescription}; the last one wins wherever they collide.`,
         );
       }
       seen.set(key, file);
