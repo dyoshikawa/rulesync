@@ -4,23 +4,22 @@ import {
   HERMESAGENT_CONFIG_FILE_NAME,
   HERMESAGENT_GLOBAL_DIR,
 } from "../../constants/hermesagent-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import {
+  getHermesagentConfigSharedFileKey,
   getHermesagentRelativeDirPath,
   getHermesagentRulesyncOutputRoot,
+  getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
 import {
   omitPrototypePollutionKeys,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
-import {
-  applySharedConfigPatch,
-  HERMES_CONFIG_SHARED_FILE_KEY,
-  parseSharedConfig,
-} from "../shared/shared-config-gateway.js";
+import { applySharedConfigPatch, parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -335,7 +334,7 @@ export class HermesagentMcp extends ToolMcp {
     this.config = merged;
     super.setFileContent(
       applySharedConfigPatch({
-        fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+        fileKey: getHermesagentConfigSharedFileKey({ global: this.global }),
         feature: "mcp",
         existingContent: fileContent,
         patch: { mcp_servers: merged.mcp_servers },
@@ -357,6 +356,14 @@ export class HermesagentMcp extends ToolMcp {
       }),
       relativeFilePath: HERMESAGENT_CONFIG_FILE_NAME,
     };
+  }
+
+  /**
+   * `config.yaml` under every spelling the global profile root can take.
+   * @see getHermesagentSharedConfigWritePaths
+   */
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return getHermesagentSharedConfigWritePaths();
   }
 
   static async fromFile({
@@ -410,7 +417,7 @@ export class HermesagentMcp extends ToolMcp {
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent: applySharedConfigPatch({
-        fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+        fileKey: getHermesagentConfigSharedFileKey({ global }),
         feature: "mcp",
         existingContent: fileContent,
         patch: { mcp_servers: merged.mcp_servers },

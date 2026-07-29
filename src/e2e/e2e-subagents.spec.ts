@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -177,7 +178,7 @@ const subagentsGlobalTargets = [
   },
   {
     target: "hermesagent",
-    outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
+    outputPath: join(getHermesagentGlobalDir(), "rulesync", "subagents", "planner.json"),
   },
 ] as const;
 
@@ -220,10 +221,10 @@ You are the planner. Analyze files and create a plan.
       expect(generatedContent).toContain("Analyze files and create a plan.");
 
       if (target === "hermesagent") {
-        expect(await readFileContent(join(homeDir, ".hermes", "config.yaml"))).toContain(
-          "rulesync-subagents",
-        );
-        expect(await fileExists(join(homeDir, ".hermes", ".env"))).toBe(false);
+        expect(
+          await readFileContent(join(homeDir, getHermesagentGlobalDir(), "config.yaml")),
+        ).toContain("rulesync-subagents");
+        expect(await fileExists(join(homeDir, getHermesagentGlobalDir(), ".env"))).toBe(false);
         expect(
           await readFileContent(
             join(testDir, ".hermes", "plugins", "rulesync-subagents", "__init__.py"),
@@ -726,7 +727,7 @@ describe("E2E: subagents (global mode)", () => {
   it("should import Hermes global subagents into the global RuleSync source directory", async () => {
     const homeDir = getHomeDir();
     await writeFileContent(
-      join(homeDir, ".hermes", "rulesync", "subagents", "planner.json"),
+      join(homeDir, getHermesagentGlobalDir(), "rulesync", "subagents", "planner.json"),
       JSON.stringify({
         slug: "planner",
         name: "Planner",

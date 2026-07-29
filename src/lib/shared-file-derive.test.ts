@@ -201,10 +201,29 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        "AppData/Local/hermes/config.yaml": [
+          "commands",
+          "hooks",
+          "mcp",
+          "permissions",
+          "subagents",
+        ],
         "AppData/Roaming/Zed/settings.json": [
           "ignore",
           "mcp",
           "permissions",
+        ],
+        "config.toml": [
+          "hooks",
+          "mcp",
+          "permissions",
+        ],
+        "config.yaml": [
+          "commands",
+          "hooks",
+          "mcp",
+          "permissions",
+          "subagents",
         ],
         "kilo.json": [
           "mcp",

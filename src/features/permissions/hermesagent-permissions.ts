@@ -8,6 +8,7 @@ import {
   RULESYNC_PERMISSIONS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   type PermissionAction,
@@ -16,13 +17,14 @@ import {
 } from "../../types/permissions.js";
 import { readFileContent } from "../../utils/file.js";
 import {
+  getHermesagentConfigSharedFileKey,
   getHermesagentRelativeDirPath,
   getHermesagentRulesyncOutputRoot,
+  getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  HERMES_CONFIG_SHARED_FILE_KEY,
   mergeSharedConfigDeep,
   parseSharedConfig,
   stringifySharedConfig,
@@ -188,6 +190,14 @@ export class HermesagentPermissions extends ToolPermissions {
     };
   }
 
+  /**
+   * `config.yaml` under every spelling the global profile root can take.
+   * @see getHermesagentSharedConfigWritePaths
+   */
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return getHermesagentSharedConfigWritePaths();
+  }
+
   constructor(params: HermesagentPermissionsParams) {
     super({
       ...params,
@@ -232,7 +242,7 @@ export class HermesagentPermissions extends ToolPermissions {
 
   setFileContent(fileContent: string): void {
     this.fileContent = applySharedConfigPatch({
-      fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+      fileKey: getHermesagentConfigSharedFileKey({ global: this.global }),
       feature: "permissions",
       existingContent: fileContent,
       patch: parseSharedConfig({ format: "yaml", fileContent: this.fileContent }),

@@ -12,6 +12,7 @@ import {
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
+import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   execFileAsync,
   rulesyncArgs,
@@ -137,7 +138,7 @@ describe("E2E: HERMES_HOME", () => {
     expect(config).toContain("rm -rf *");
     expect(config).toContain("rulesync-commands");
     expect(config).toContain("rulesync-subagents");
-    expect(await fileExists(join(homeDir, ".hermes", "config.yaml"))).toBe(false);
+    expect(await fileExists(join(homeDir, getHermesagentGlobalDir(), "config.yaml"))).toBe(false);
 
     await runGenerate({
       target: "hermesagent",
@@ -205,7 +206,7 @@ describe("E2E: HERMES_HOME", () => {
     expect(await fileExists(join(homeDir, "plugins", "rulesync-commands", "plugin.yaml"))).toBe(
       false,
     );
-    expect(await fileExists(join(homeDir, ".hermes", "config.yaml"))).toBe(false);
+    expect(await fileExists(join(homeDir, getHermesagentGlobalDir(), "config.yaml"))).toBe(false);
   });
 
   it("imports every global feature from the custom profile into the global RuleSync root", async () => {
@@ -229,7 +230,7 @@ describe("E2E: HERMES_HOME", () => {
       ].join("\n"),
     );
     await writeFileContent(
-      join(homeDir, ".hermes", "config.yaml"),
+      join(homeDir, getHermesagentGlobalDir(), "config.yaml"),
       ["mcp_servers:", "  wrong-profile:", "    command: false"].join("\n"),
     );
     await writeFileContent(

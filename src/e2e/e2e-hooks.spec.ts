@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -980,7 +981,9 @@ describe("E2E: hooks (global mode)", () => {
 
     // The config is YAML; assert the canonical hooks survive generation under
     // Hermes's real, functioning event keys.
-    const generatedContent = await readFileContent(join(homeDir, ".hermes", "config.yaml"));
+    const generatedContent = await readFileContent(
+      join(homeDir, getHermesagentGlobalDir(), "config.yaml"),
+    );
     expect(generatedContent).not.toContain("rulesync:");
     expect(generatedContent).toContain("on_session_start");
     expect(generatedContent).toContain("pre_tool_call");
@@ -993,7 +996,7 @@ describe("E2E: hooks (global mode)", () => {
   it("should import Hermes native-only hooks without dropping them", async () => {
     const homeDir = getHomeDir();
     await writeFileContent(
-      join(homeDir, ".hermes", "config.yaml"),
+      join(homeDir, getHermesagentGlobalDir(), "config.yaml"),
       [
         "hooks:",
         "  pre_tool_call:",

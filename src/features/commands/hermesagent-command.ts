@@ -16,19 +16,18 @@ import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { findFilesByGlobs, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import {
+  getHermesagentConfigSharedFileKey,
   getHermesagentRelativeDirPath,
   getHermesagentRelativeFilePath,
   getHermesagentRulesyncOutputRoot,
+  getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
-import {
-  applySharedConfigPatch,
-  HERMES_CONFIG_SHARED_FILE_KEY,
-  parseSharedConfig,
-} from "../shared/shared-config-gateway.js";
+import { applySharedConfigPatch, parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentSkill } from "../skills/hermesagent-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { RulesyncCommand } from "./rulesync-command.js";
@@ -129,7 +128,13 @@ def register(ctx):
 `;
 }
 
-function getEnabledPluginConfigContent(currentContent: string): string {
+function getEnabledPluginConfigContent({
+  currentContent,
+  global,
+}: {
+  currentContent: string;
+  global: boolean;
+}): string {
   const config = parseSharedConfig({ format: "yaml", fileContent: currentContent });
   const plugins =
     config.plugins && typeof config.plugins === "object"
@@ -138,7 +143,7 @@ function getEnabledPluginConfigContent(currentContent: string): string {
   const enabled = Array.isArray(plugins.enabled) ? plugins.enabled : [];
 
   return applySharedConfigPatch({
-    fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+    fileKey: getHermesagentConfigSharedFileKey({ global }),
     feature: "commands",
     existingContent: currentContent,
     patch: {
@@ -150,7 +155,13 @@ function getEnabledPluginConfigContent(currentContent: string): string {
   });
 }
 
-export function getDisabledHermesCommandsPluginConfigContent(currentContent: string): string {
+export function getDisabledHermesCommandsPluginConfigContent({
+  currentContent,
+  global,
+}: {
+  currentContent: string;
+  global: boolean;
+}): string {
   const config = parseSharedConfig({ format: "yaml", fileContent: currentContent });
   const plugins =
     config.plugins && typeof config.plugins === "object"
@@ -159,7 +170,7 @@ export function getDisabledHermesCommandsPluginConfigContent(currentContent: str
   const enabled = Array.isArray(plugins.enabled) ? plugins.enabled : [];
 
   return applySharedConfigPatch({
-    fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+    fileKey: getHermesagentConfigSharedFileKey({ global }),
     feature: "commands",
     existingContent: currentContent,
     patch: {
@@ -198,7 +209,9 @@ class HermesagentCommandAuxiliaryFile extends ToolFile {
         }),
       )
     ) {
-      super.setFileContent(getEnabledPluginConfigContent(newFileContent));
+      super.setFileContent(
+        getEnabledPluginConfigContent({ currentContent: newFileContent, global: this.global }),
+      );
       return;
     }
     super.setFileContent(newFileContent);
@@ -236,7 +249,10 @@ class HermesagentCommandAuxiliaryFile extends ToolFile {
         }),
       )
     ) {
-      return getEnabledPluginConfigContent(super.getFileContent());
+      return getEnabledPluginConfigContent({
+        currentContent: super.getFileContent(),
+        global: this.global,
+      });
     }
     return super.getFileContent();
   }
@@ -258,19 +274,12 @@ export class HermesagentCommand extends ToolCommand {
     };
   }
 
-  static getExtraSharedWritePaths({ global = false }: { global?: boolean } = {}): {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  }[] {
-    return [
-      {
-        relativeDirPath: getHermesagentRelativeDirPath({
-          global,
-          relativeDirPath: HERMESAGENT_GLOBAL_DIR,
-        }),
-        relativeFilePath: basename(HERMESAGENT_CONFIG_FILE_PATH),
-      },
-    ];
+  /**
+   * `config.yaml` under every spelling the global profile root can take.
+   * @see getHermesagentSharedConfigWritePaths
+   */
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return getHermesagentSharedConfigWritePaths();
   }
 
   static async validateRulesyncCommands({

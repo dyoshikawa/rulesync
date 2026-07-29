@@ -5,12 +5,15 @@ import {
   RULESYNC_PERMISSIONS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import {
+  getKimiCodeConfigSharedFileKey,
   getKimiCodeRelativeDirPath,
+  getKimiCodeSharedConfigWritePaths,
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
@@ -329,6 +332,14 @@ export class KimiCodePermissions extends ToolPermissions {
     return false;
   }
 
+  /**
+   * `config.toml` under both spellings its directory can take.
+   * @see getKimiCodeSharedConfigWritePaths
+   */
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return getKimiCodeSharedConfigWritePaths();
+  }
+
   shouldMergeExistingFileContent(): boolean {
     return true;
   }
@@ -341,7 +352,7 @@ export class KimiCodePermissions extends ToolPermissions {
     // not delete a hand-written `disabled` list.
     const mergedTools = mergeKimiCodeToolsSection({ existingContent: fileContent, patch });
     this.fileContent = applySharedConfigPatch({
-      fileKey: KIMI_CODE_CONFIG_SHARED_FILE_KEY,
+      fileKey: getKimiCodeConfigSharedFileKey({ global: this.global }),
       feature: "permissions",
       existingContent: fileContent,
       patch: { ...patch, ...(mergedTools && { tools: mergedTools }) },

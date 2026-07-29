@@ -64,8 +64,11 @@ covered for both advertised scopes.
 Rulesync honors Hermes profiles through `HERMES_HOME`. When it is set, its value
 is the profile root itself: global configuration is read and written directly
 under `$HERMES_HOME` (`config.yaml`, `skills/`, `plugins/`, and `rulesync/`),
-without appending `.hermes`. When it is unset, the default remains
-`~/.hermes`. Project-scoped paths remain rooted in the project.
+without appending `.hermes`. When it is unset, Rulesync follows Hermes's own
+platform default: `~/.hermes` everywhere except Windows, where it is
+`%LOCALAPPDATA%\hermes`. Because `HERMES_HOME` names where Hermes itself reads
+the profile, it also takes precedence over `--output-roots` in global scope.
+Project-scoped paths remain rooted in the project.
 
 Project plugins are registered by adding their names to
 `$HERMES_HOME/config.yaml`, but Rulesync does not persist Hermes's global

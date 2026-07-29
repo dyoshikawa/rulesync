@@ -13,6 +13,7 @@ import {
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -2421,7 +2422,7 @@ describe("E2E: permissions (global mode)", () => {
     // Pre-seed config.yaml with unrelated user settings to verify the
     // non-destructive merge into ~/.hermes/config.yaml.
     await writeFileContent(
-      join(homeDir, ".hermes", "config.yaml"),
+      join(homeDir, getHermesagentGlobalDir(), "config.yaml"),
       ["model: hermes-large", "terminal: tmux"].join("\n"),
     );
 
@@ -2436,7 +2437,9 @@ describe("E2E: permissions (global mode)", () => {
     // merged into the shared global ~/.hermes/config.yaml. Allow rules are also
     // surfaced as a flat `command_allowlist`, and the canonical map is preserved
     // under `permissions.rulesync` for round-tripping.
-    const parsed = toTable(load(await readFileContent(join(homeDir, ".hermes", "config.yaml"))));
+    const parsed = toTable(
+      load(await readFileContent(join(homeDir, getHermesagentGlobalDir(), "config.yaml"))),
+    );
     expect(parsed.command_allowlist).toEqual(["git status *"]);
     // The bash deny reaches Hermes's hard denylist (previously silently dropped).
     expect(toTable(parsed.approvals).deny).toEqual(["rm -rf *"]);
@@ -2454,7 +2457,7 @@ describe("E2E: permissions (global mode)", () => {
   it("should import native Hermes permission settings without private provenance", async () => {
     const homeDir = getHomeDir();
     await writeFileContent(
-      join(homeDir, ".hermes", "config.yaml"),
+      join(homeDir, getHermesagentGlobalDir(), "config.yaml"),
       [
         "model: hermes-large",
         'command_allowlist: ["git *", "pnpm *"]',

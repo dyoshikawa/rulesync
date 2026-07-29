@@ -14,6 +14,7 @@ import {
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -750,7 +751,7 @@ const mcpGlobalTargets = [
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   { target: "goose", outputPath: join(".config", "goose", "config.yaml") },
-  { target: "hermesagent", outputPath: join(".hermes", "config.yaml") },
+  { target: "hermesagent", outputPath: join(getHermesagentGlobalDir(), "config.yaml") },
   { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },
   { target: "grokcli", outputPath: join(".grok", "config.toml") },
@@ -849,7 +850,7 @@ describe("E2E: mcp (global mode)", () => {
   it("should import Hermes OAuth and lifecycle settings into a target override", async () => {
     const homeDir = getHomeDir();
     await writeFileContent(
-      join(homeDir, ".hermes", "config.yaml"),
+      join(homeDir, getHermesagentGlobalDir(), "config.yaml"),
       [
         "mcp_servers:",
         "  remote:",

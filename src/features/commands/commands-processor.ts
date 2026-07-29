@@ -914,7 +914,10 @@ export class CommandsProcessor extends FeatureProcessor {
     );
     const currentContent = await readFileContentOrNull(configPath);
     if (currentContent === null) return changedCount;
-    const nextContent = getDisabledHermesCommandsPluginConfigContent(currentContent);
+    const nextContent = getDisabledHermesCommandsPluginConfigContent({
+      currentContent,
+      global: this.global,
+    });
     if (nextContent === currentContent) return changedCount;
 
     if (this.dryRun) {
