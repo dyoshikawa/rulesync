@@ -7,6 +7,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { applyPermissions } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -77,6 +78,29 @@ function parseClaudePermissionEntry(entry: string): { toolName: string; pattern:
  * matches the tool everywhere and produces no warning.
  * @see https://code.claude.com/docs/en/permissions
  */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Merge `patch` into `base`, recursing into plain objects so a sibling key at
+ * any depth survives. Arrays and scalars are replaced, since a list the author
+ * states is the list they mean.
+ */
+function deepMergeRecords(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(patch)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    const existing = merged[key];
+    merged[key] =
+      isPlainRecord(existing) && isPlainRecord(value) ? deepMergeRecords(existing, value) : value;
+  }
+  return merged;
+}
+
 const CLAUDE_PATH_RULE_ALIASES: Record<string, string> = {
   Write: "Edit",
   NotebookEdit: "Edit",
@@ -95,24 +119,17 @@ function buildClaudePermissionEntry(toolName: string, pattern: string): string {
 }
 
 /**
- * Every Claude tool name the generated arrays may carry for a config, including
- * the alias a path rule is rewritten to. Both are claimed: the alias so a rule
- * this run removed does not linger, and the original so an entry an older
- * rulesync wrote in the warned form is cleaned up on the next generate.
+ * The Claude tool names the canonical config manages. Deliberately the tool
+ * names the categories map to and *not* the aliases a path rule is rewritten
+ * to: claiming `Edit` because a `write` rule exists would sweep away the
+ * `Read`/`Edit` entries the ignore feature and the user wrote in the same file.
+ * The rewritten entries are still rulesync's to place — `applyPermissions`
+ * replaces an entry this run emits wherever it currently sits — and the
+ * original name stays claimed so an entry an older rulesync wrote in the warned
+ * form is cleaned up on the next generate.
  */
 function managedClaudeToolNames(config: PermissionsConfig): Set<string> {
-  const names = new Set<string>();
-  for (const [category, rules] of Object.entries(config.permission)) {
-    const toolName = toClaudeToolName(category);
-    names.add(toolName);
-    const alias = CLAUDE_PATH_RULE_ALIASES[toolName];
-    // Only a rule that carries a path is rewritten, so the alias is claimed
-    // only when one does.
-    if (alias !== undefined && Object.keys(rules).some((pattern) => pattern !== "*")) {
-      names.add(alias);
-    }
-  }
-  return names;
+  return new Set(Object.keys(config.permission).map((category) => toClaudeToolName(category)));
 }
 
 export class ClaudecodePermissions extends ToolPermissions {
@@ -169,7 +186,7 @@ export class ClaudecodePermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const { allow, ask, deny } = convertRulesyncToClaudePermissions(config, logger);
+    const { allow, ask, deny } = convertRulesyncToClaudePermissions({ config, logger });
 
     // Merge the Claude Code-scoped override's non-list `permissions` fields
     // (e.g. `defaultMode`, `additionalDirectories`) into the settings
@@ -182,16 +199,15 @@ export class ClaudecodePermissions extends ToolPermissions {
     }
 
     // `sandbox` sits next to `permissions` at the top level of settings.json.
-    // Merged one level deep, like the `permissions` non-list fields above: a
-    // sibling key the user set stays, while an authored subtree (`network`,
-    // say) replaces the existing one wholesale rather than being merged into.
+    // Deep-merged rather than shallow: its subtrees hold deny lists
+    // (`network.deniedDomains`, `filesystem.denyRead`), so replacing `network`
+    // wholesale to set one flag would drop the restrictions beside it.
     const overrideSandbox = config.claudecode?.sandbox;
-    if (overrideSandbox && typeof overrideSandbox === "object") {
-      const existingSandbox =
-        settings.sandbox && typeof settings.sandbox === "object" && !Array.isArray(settings.sandbox)
-          ? settings.sandbox
-          : {};
-      settings.sandbox = { ...existingSandbox, ...overrideSandbox };
+    if (isPlainRecord(overrideSandbox)) {
+      settings.sandbox = deepMergeRecords(
+        isPlainRecord(settings.sandbox) ? settings.sandbox : {},
+        overrideSandbox,
+      );
     }
 
     const managedToolNames = managedClaudeToolNames(config);
@@ -246,8 +262,8 @@ export class ClaudecodePermissions extends ToolPermissions {
 
     // The sibling `sandbox` subtree round-trips through the same override block.
     const { sandbox } = settings;
-    if (sandbox && typeof sandbox === "object" && !Array.isArray(sandbox)) {
-      config.claudecode = { ...config.claudecode, sandbox: sandbox as Record<string, unknown> };
+    if (isPlainRecord(sandbox) && Object.keys(sandbox).length > 0) {
+      config.claudecode = { ...config.claudecode, sandbox };
     }
 
     return this.toRulesyncPermissionsDefault({
@@ -277,10 +293,13 @@ export class ClaudecodePermissions extends ToolPermissions {
 /**
  * Convert rulesync permissions config to Claude Code allow/ask/deny arrays.
  */
-function convertRulesyncToClaudePermissions(
-  config: PermissionsConfig,
-  logger?: Logger,
-): {
+function convertRulesyncToClaudePermissions({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger?: Logger;
+}): {
   allow: string[];
   ask: string[];
   deny: string[];

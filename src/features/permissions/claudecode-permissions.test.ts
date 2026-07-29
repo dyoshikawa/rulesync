@@ -240,12 +240,71 @@ describe("ClaudecodePermissions", () => {
       });
 
       const content = JSON.parse(instance.getFileContent());
-      // Sibling keys survive; an authored subtree replaces the existing one.
+      // Deep-merged: the restriction beside the authored flag survives, and so
+      // does the sibling settings key.
       expect(content.model).toBe("opus");
       expect(content.sandbox).toEqual({
         credentials: "keep",
-        network: { strictAllowlist: true },
+        network: { deniedDomains: ["evil.test"], strictAllowlist: true },
       });
+    });
+
+    it("should keep Edit and Read entries it does not manage", async () => {
+      // The ignore feature writes Read(...) denies into the same file, and a
+      // user may hand-write an Edit(...) rule. Rewriting a `write` rule to
+      // `Edit(...)` must not make rulesync claim those namespaces wholesale.
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({
+          permissions: {
+            allow: ["Edit(vendor/**)"],
+            deny: ["Read(.env)", "Write(docs/**)"],
+          },
+        }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            write: { "docs/**": "deny" },
+            glob: { "secrets/**": "deny" },
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.permissions.allow).toEqual(["Edit(vendor/**)"]);
+      expect(content.permissions.deny).toEqual(["Edit(docs/**)", "Read(.env)", "Read(secrets/**)"]);
+    });
+
+    it("should move a rewritten entry when its action changes", async () => {
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({ permissions: { deny: ["Edit(docs/**)"] } }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { write: { "docs/**": "allow" } } }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // The stale deny must not survive to win over the new allow.
+      expect(content.permissions.allow).toEqual(["Edit(docs/**)"]);
+      expect(content.permissions.deny ?? []).toEqual([]);
     });
 
     it("should handle multiple tool categories", async () => {

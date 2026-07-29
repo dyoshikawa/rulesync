@@ -8,5 +8,11 @@ export type ClaudeSettingsJson = {
     ask?: string[] | null;
     deny?: string[] | null;
   } | null;
+  /**
+   * The sandbox commands run in (`network`, `filesystem`, `credentials`, ...).
+   * Authorable through the `claudecode.sandbox` permissions override.
+   * @see https://code.claude.com/docs/en/sandboxing
+   */
+  sandbox?: Record<string, unknown> | null;
   [key: string]: unknown;
 };
