@@ -7,7 +7,8 @@ import {
 } from "../constants/hermesagent-paths.js";
 import { sharedConfigFileKey } from "../features/shared/shared-config-gateway.js";
 import type { SharedWritePath } from "../lib/shared-file-derive.js";
-import { checkPathTraversal, getHomeDirectory } from "./file.js";
+import { checkPathTraversal } from "./file.js";
+import { getToolRulesyncOutputRoot } from "./tool-home.js";
 
 export function getHermesagentHome(): string | undefined {
   const configuredHome = process.env.HERMES_HOME?.trim();
@@ -136,5 +137,5 @@ export function getHermesagentRulesyncOutputRoot({
   nativeOutputRoot: string;
   global: boolean;
 }): string {
-  return global && getHermesagentHome() ? getHomeDirectory() : nativeOutputRoot;
+  return getToolRulesyncOutputRoot({ nativeOutputRoot, global, toolHome: getHermesagentHome });
 }

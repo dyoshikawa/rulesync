@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { KIMI_CODE_CONFIG_FILE_NAME, KIMI_CODE_DIR } from "../constants/kimi-code-paths.js";
 import { sharedConfigFileKey } from "../features/shared/shared-config-gateway.js";
 import type { SharedWritePath } from "../lib/shared-file-derive.js";
-import { getHomeDirectory } from "./file.js";
+import { getToolRulesyncOutputRoot } from "./tool-home.js";
 
 export function getKimiCodeHome(): string | undefined {
   const configuredHome = process.env.KIMI_CODE_HOME?.trim();
@@ -52,5 +52,5 @@ export function getKimiCodeRulesyncOutputRoot({
   nativeOutputRoot: string;
   global: boolean;
 }): string {
-  return global && getKimiCodeHome() ? getHomeDirectory() : nativeOutputRoot;
+  return getToolRulesyncOutputRoot({ nativeOutputRoot, global, toolHome: getKimiCodeHome });
 }

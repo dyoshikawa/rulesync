@@ -187,28 +187,23 @@ class HermesagentCommandAuxiliaryFile extends ToolFile {
     return { success: true, error: null };
   }
 
-  shouldMergeExistingFileContent(): boolean {
+  /**
+   * Whether this auxiliary file is the one at `relativeFilePath`, comparing
+   * against the scope-resolved location of that canonical `.hermes/...` path.
+   */
+  private matchesPath(relativeFilePath: string): boolean {
     return (
       this.getRelativePathFromCwd() ===
-      toPosixPath(
-        getHermesagentRelativeFilePath({
-          global: this.global,
-          relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
-        }),
-      )
+      toPosixPath(getHermesagentRelativeFilePath({ global: this.global, relativeFilePath }))
     );
   }
 
+  shouldMergeExistingFileContent(): boolean {
+    return this.matchesPath(HERMESAGENT_CONFIG_FILE_PATH);
+  }
+
   setFileContent(newFileContent: string): void {
-    if (
-      this.getRelativePathFromCwd() ===
-      toPosixPath(
-        getHermesagentRelativeFilePath({
-          global: this.global,
-          relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
-        }),
-      )
-    ) {
+    if (this.matchesPath(HERMESAGENT_CONFIG_FILE_PATH)) {
       super.setFileContent(
         getEnabledPluginConfigContent({ currentContent: newFileContent, global: this.global }),
       );
@@ -218,37 +213,13 @@ class HermesagentCommandAuxiliaryFile extends ToolFile {
   }
 
   getFileContent(): string {
-    if (
-      this.getRelativePathFromCwd() ===
-      toPosixPath(
-        getHermesagentRelativeFilePath({
-          global: this.global,
-          relativeFilePath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_MANIFEST_PATH,
-        }),
-      )
-    ) {
+    if (this.matchesPath(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_MANIFEST_PATH)) {
       return getPluginManifestContent();
     }
-    if (
-      this.getRelativePathFromCwd() ===
-      toPosixPath(
-        getHermesagentRelativeFilePath({
-          global: this.global,
-          relativeFilePath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_INIT_PATH,
-        }),
-      )
-    ) {
+    if (this.matchesPath(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_INIT_PATH)) {
       return getPluginInitContent();
     }
-    if (
-      this.getRelativePathFromCwd() ===
-      toPosixPath(
-        getHermesagentRelativeFilePath({
-          global: this.global,
-          relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
-        }),
-      )
-    ) {
+    if (this.matchesPath(HERMESAGENT_CONFIG_FILE_PATH)) {
       return getEnabledPluginConfigContent({
         currentContent: super.getFileContent(),
         global: this.global,
@@ -342,33 +313,28 @@ export class HermesagentCommand extends ToolCommand {
     forDeletion?: boolean;
   }): Promise<ToolFile[]> {
     if (toolCommands.length === 0 && !forDeletion) return [];
+    const pluginDirPath = getHermesagentRelativeDirPath({
+      global,
+      relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
+    });
     const pluginFiles: ToolFile[] = [
       new HermesagentCommandAuxiliaryFile({
         outputRoot,
-        relativeDirPath: getHermesagentRelativeDirPath({
-          global,
-          relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
-        }),
+        relativeDirPath: pluginDirPath,
         relativeFilePath: basename(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_MANIFEST_PATH),
         fileContent: "",
         global,
       }),
       new HermesagentCommandAuxiliaryFile({
         outputRoot,
-        relativeDirPath: getHermesagentRelativeDirPath({
-          global,
-          relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
-        }),
+        relativeDirPath: pluginDirPath,
         relativeFilePath: basename(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH),
         fileContent: "Generated and owned by RuleSync.\n",
         global,
       }),
       new HermesagentCommandAuxiliaryFile({
         outputRoot,
-        relativeDirPath: getHermesagentRelativeDirPath({
-          global,
-          relativeDirPath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_DIR_PATH,
-        }),
+        relativeDirPath: pluginDirPath,
         relativeFilePath: basename(HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_INIT_PATH),
         fileContent: "",
         global,

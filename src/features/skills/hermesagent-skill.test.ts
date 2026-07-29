@@ -1,9 +1,12 @@
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HERMESAGENT_SKILLS_DIR_PATH } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { getHermesagentGlobalDir } from "../../utils/hermesagent.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
@@ -254,6 +257,31 @@ describe("HermesagentSkill", () => {
         },
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
+    });
+  });
+});
+
+describe("HermesagentSkill global settable paths", () => {
+  const originalHermesHome = process.env.HERMES_HOME;
+
+  afterEach(() => {
+    if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
+    else process.env.HERMES_HOME = originalHermesHome;
+  });
+
+  it("anchors global paths on the platform profile directory when HERMES_HOME is unset", () => {
+    delete process.env.HERMES_HOME;
+
+    expect(HermesagentSkill.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: join(getHermesagentGlobalDir(), "skills"),
+    });
+  });
+
+  it("drops the .hermes prefix when HERMES_HOME names the profile root itself", () => {
+    process.env.HERMES_HOME = "/custom-hermes";
+
+    expect(HermesagentSkill.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: "skills",
     });
   });
 });

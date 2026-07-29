@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
+import { getHermesagentGlobalDir } from "../../utils/hermesagent.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentPermissions } from "./hermesagent-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -339,5 +340,32 @@ security:
 
     const roundTripped = JSON.parse(reimported.toRulesyncPermissions().getFileContent());
     expect(roundTripped).toEqual(canonical);
+  });
+});
+
+describe("HermesagentPermissions global settable paths", () => {
+  const originalHermesHome = process.env.HERMES_HOME;
+
+  afterEach(() => {
+    if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
+    else process.env.HERMES_HOME = originalHermesHome;
+  });
+
+  it("anchors global paths on the platform profile directory when HERMES_HOME is unset", () => {
+    delete process.env.HERMES_HOME;
+
+    expect(HermesagentPermissions.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: getHermesagentGlobalDir(),
+      relativeFilePath: "config.yaml",
+    });
+  });
+
+  it("drops the .hermes prefix when HERMES_HOME names the profile root itself", () => {
+    process.env.HERMES_HOME = "/custom-hermes";
+
+    expect(HermesagentPermissions.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: ".",
+      relativeFilePath: "config.yaml",
+    });
   });
 });

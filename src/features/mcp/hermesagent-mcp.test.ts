@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { getHermesagentGlobalDir } from "../../utils/hermesagent.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { HermesagentMcp } from "./hermesagent-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -746,5 +747,32 @@ mcp_servers:
     expect(getMcpServers(mcp.getFileContent())["existing-server"]?.command).toBe("existing");
     expect(getMcpServers(mcp.getFileContent())["test-server"]?.command).toBe("echo");
     expect(getMcpServers(mcp.getFileContent())["test-server"]?.args).toEqual(["hello"]);
+  });
+});
+
+describe("HermesagentMcp global settable paths", () => {
+  const originalHermesHome = process.env.HERMES_HOME;
+
+  afterEach(() => {
+    if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
+    else process.env.HERMES_HOME = originalHermesHome;
+  });
+
+  it("anchors global paths on the platform profile directory when HERMES_HOME is unset", () => {
+    delete process.env.HERMES_HOME;
+
+    expect(HermesagentMcp.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: getHermesagentGlobalDir(),
+      relativeFilePath: "config.yaml",
+    });
+  });
+
+  it("drops the .hermes prefix when HERMES_HOME names the profile root itself", () => {
+    process.env.HERMES_HOME = "/custom-hermes";
+
+    expect(HermesagentMcp.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: ".",
+      relativeFilePath: "config.yaml",
+    });
   });
 });

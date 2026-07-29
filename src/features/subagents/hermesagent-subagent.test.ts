@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 
 import {
   HERMESAGENT_GLOBAL_DIR,
@@ -11,6 +11,7 @@ import {
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { getHermesagentGlobalDir } from "../../utils/hermesagent.js";
 import { getHermesagentSharedConfigWritePaths } from "../../utils/hermesagent.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
@@ -165,5 +166,30 @@ plugins:
       HERMESAGENT_GLOBAL_WIN32_DIR,
       ".",
     ]);
+  });
+});
+
+describe("HermesagentSubagent global settable paths", () => {
+  const originalHermesHome = process.env.HERMES_HOME;
+
+  afterEach(() => {
+    if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
+    else process.env.HERMES_HOME = originalHermesHome;
+  });
+
+  test("anchors global paths on the platform profile directory when HERMES_HOME is unset", () => {
+    delete process.env.HERMES_HOME;
+
+    expect(HermesagentSubagent.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: join(getHermesagentGlobalDir(), "rulesync", "subagents"),
+    });
+  });
+
+  test("drops the .hermes prefix when HERMES_HOME names the profile root itself", () => {
+    process.env.HERMES_HOME = "/custom-hermes";
+
+    expect(HermesagentSubagent.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: join("rulesync", "subagents"),
+    });
   });
 });

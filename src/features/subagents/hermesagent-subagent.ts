@@ -218,6 +218,10 @@ export class HermesagentSubagent extends ToolSubagent {
     outputRoot,
     global = false,
   }: ToolSubagentsFromRulesyncSubagentsParams): HermesagentSubagent[] {
+    const pluginDirPath = getHermesagentRelativeDirPath({
+      global,
+      relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
+    });
     return [
       ...rulesyncSubagents.map((rulesyncSubagent) =>
         HermesagentSubagent.fromRulesyncSubagent({
@@ -228,20 +232,14 @@ export class HermesagentSubagent extends ToolSubagent {
         }),
       ),
       new HermesagentSubagent({
-        relativeDirPath: getHermesagentRelativeDirPath({
-          global,
-          relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
-        }),
+        relativeDirPath: pluginDirPath,
         relativeFilePath: basename(HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_MANIFEST_PATH),
         fileContent: "",
         outputRoot,
         global,
       }),
       new HermesagentSubagent({
-        relativeDirPath: getHermesagentRelativeDirPath({
-          global,
-          relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
-        }),
+        relativeDirPath: pluginDirPath,
         relativeFilePath: basename(HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_INIT_PATH),
         fileContent: "",
         outputRoot,

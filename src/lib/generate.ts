@@ -1169,7 +1169,11 @@ async function generateChecksCore(params: {
       }
 
       const processor = new ChecksProcessor({
-        outputRoot: outputRoot,
+        outputRoot: resolveToolOutputRoot({
+          outputRoot,
+          toolTarget,
+          global: config.getGlobal(),
+        }),
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),

@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
+import { getHermesagentGlobalDir } from "../../utils/hermesagent.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -375,6 +376,33 @@ hooks:
         fileContent: "hooks: {}\n",
       });
       expect(hooks.isDeletable()).toBe(false);
+    });
+  });
+});
+
+describe("HermesagentHooks global settable paths", () => {
+  const originalHermesHome = process.env.HERMES_HOME;
+
+  afterEach(() => {
+    if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
+    else process.env.HERMES_HOME = originalHermesHome;
+  });
+
+  it("anchors global paths on the platform profile directory when HERMES_HOME is unset", () => {
+    delete process.env.HERMES_HOME;
+
+    expect(HermesagentHooks.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: getHermesagentGlobalDir(),
+      relativeFilePath: "config.yaml",
+    });
+  });
+
+  it("drops the .hermes prefix when HERMES_HOME names the profile root itself", () => {
+    process.env.HERMES_HOME = "/custom-hermes";
+
+    expect(HermesagentHooks.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: ".",
+      relativeFilePath: "config.yaml",
     });
   });
 });
