@@ -32,9 +32,11 @@ const KiloPermissionSchema = z.union([
 
 const KiloPermissionsConfigSchema = z.looseObject({
   permission: z.optional(z.record(z.string(), KiloPermissionSchema)),
-  // The sandbox block Kilo runs commands in. Loose because upstream documents
-  // `enabled`/`network`/`allowed_hosts`/`writable_paths` but keeps adding to it.
-  sandbox: z.optional(z.looseObject({})),
+  // The sandbox block Kilo runs commands in. Deliberately unconstrained: this
+  // schema validates the user's own `kilo.jsonc`, and rejecting a `sandbox`
+  // rulesync does not manage would abort the whole Kilo generate over content
+  // outside its managed keys. Every read site narrows with `isPlainObject`.
+  sandbox: z.optional(z.unknown()),
 });
 
 type KiloPermissionsConfig = z.infer<typeof KiloPermissionsConfigSchema>;
@@ -125,6 +127,9 @@ function asKiloRecord(value: unknown): Record<string, unknown> {
  * would produce config Kilo ignores.
  * @see https://kilo.ai/docs/getting-started/settings/sandboxing
  */
+// Closed on purpose: an unknown key at project scope is far more likely to be a
+// global-only one than a newly project-honorable one. Revisit this alongside the
+// schema whenever upstream documents another key a project config may state.
 const KILO_PROJECT_SCOPE_SANDBOX_KEYS = new Set(["enabled", "network"]);
 
 function narrowSandboxToProjectScope({
@@ -276,11 +281,7 @@ export class KiloPermissions extends ToolPermissions {
     //   are not silently wiped on regenerate.
     // - When a key is replaced AND the existing one had `deny` rules that disappear from the
     //   regenerated output, an aggregated `logger.warn` enumerates the dropped patterns.
-    const parsedPermission = parsed.permission;
-    const existingPermission: Record<string, unknown> =
-      parsedPermission && typeof parsedPermission === "object" && !Array.isArray(parsedPermission)
-        ? { ...parsedPermission }
-        : {};
+    const existingPermission = asKiloRecord(parsed.permission);
     const rulesyncJson = rulesyncPermissions.getJson();
 
     // The full set of keys rulesync owns this generation: the shared `permission`
@@ -333,7 +334,13 @@ export class KiloPermissions extends ToolPermissions {
     if (kiloOverride?.sandbox !== undefined) {
       const authored = asKiloRecord(kiloOverride.sandbox);
       const emitted = global ? authored : narrowSandboxToProjectScope({ authored, logger });
-      nextJson.sandbox = { ...asKiloRecord(parsed.sandbox), ...emitted };
+      const merged = { ...asKiloRecord(parsed.sandbox), ...emitted };
+      // Narrowing can drop every authored key (a project config stating only
+      // global-only ones). Materializing `"sandbox": {}` in that case would put
+      // a meaningless key — and a diff — into a file that never had one.
+      if (Object.keys(merged).length > 0) {
+        nextJson.sandbox = merged;
+      }
     }
 
     return new KiloPermissions({

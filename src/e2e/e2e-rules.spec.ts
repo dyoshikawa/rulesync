@@ -1299,6 +1299,13 @@ globs: ["src/**/*"]
 `,
     );
 
+    // Pre-seed the global config so the assertion below distinguishes "no
+    // registration happened" from "no writer for this file ran at all".
+    await writeFileContent(
+      join(homeDir, ".config", "kilo", "kilo.jsonc"),
+      JSON.stringify({ model: "x" }),
+    );
+
     await runGenerate({
       target: "kilo",
       features: "rules",
@@ -1315,6 +1322,9 @@ globs: ["src/**/*"]
     expect(await readFileContent(join(homeDir, ".kilo", "rules", "detail.md"))).toContain(
       "Global Kilo Detail",
     );
-    expect(await fileExists(join(homeDir, ".config", "kilo", "kilo.jsonc"))).toBe(false);
+    const globalConfig = JSON.parse(
+      await readFileContent(join(homeDir, ".config", "kilo", "kilo.jsonc")),
+    );
+    expect(globalConfig).toEqual({ model: "x" });
   });
 });

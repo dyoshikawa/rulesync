@@ -557,6 +557,53 @@ describe("KiloPermissions", () => {
       expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({ enabled: true });
     });
 
+    it("should not materialize an empty sandbox when every authored key is dropped", async () => {
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withSandbox({ allowed_hosts: ["example.com"] }),
+      });
+
+      expect(JSON.parse(instance.getFileContent())).not.toHaveProperty("sandbox");
+    });
+
+    it("should preserve sibling sandbox keys at global scope too", async () => {
+      await ensureDir(join(testDir, ".config", "kilo"));
+      await writeFileContent(
+        join(testDir, ".config", "kilo", "kilo.jsonc"),
+        JSON.stringify({ sandbox: { allowed_hosts: ["kept.example.com"], custom_key: 1 } }),
+      );
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withSandbox({ enabled: true, writable_paths: ["/tmp"] }),
+        global: true,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({
+        enabled: true,
+        writable_paths: ["/tmp"],
+        allowed_hosts: ["kept.example.com"],
+        custom_key: 1,
+      });
+    });
+
+    it("should not abort the run when the existing sandbox is not an object", async () => {
+      await writeFileContent(join(testDir, "kilo.jsonc"), JSON.stringify({ sandbox: true }));
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { bash: { "*": "ask" } } }),
+        }),
+      });
+
+      // rulesync does not manage this value, so it passes through untouched
+      // rather than failing the whole Kilo generate.
+      expect(JSON.parse(instance.getFileContent()).sandbox).toBe(true);
+    });
+
     it("should round-trip the sandbox block into the kilo override on import", async () => {
       await writeFileContent(
         join(testDir, "kilo.jsonc"),

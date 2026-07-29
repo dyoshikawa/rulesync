@@ -633,9 +633,12 @@ export class KiloMcp extends ToolMcp {
    * Merge a list of project rule file globs into the `instructions` array of the
    * shared `kilo.jsonc` (or `kilo.json`) config, preserving every existing key
    * (notably `mcp`/`tools` written by the MCP feature). In Kilo v7, files under
-   * `.kilo/rules/` are NOT auto-loaded; they are only picked up when listed in
-   * the `instructions` key. The resulting `instructions` list is deduped and
-   * sorted for a stable output.
+   * a *project* `.kilo/rules/` are NOT auto-loaded; they are only picked up
+   * when listed in the `instructions` key. (The home-scope `~/.kilo/rules/` is
+   * different — the rules migrator's `globalRulesDirs()` walks it on every
+   * config load — which is why `KiloRule` registers instructions in project
+   * scope only.) The resulting `instructions` list is deduped and sorted for a
+   * stable output.
    *
    * @see https://kilo.ai/docs/automate/mcp/using-in-kilo-code
    */
