@@ -596,7 +596,7 @@ describe("RovodevPermissions", () => {
       await ensureDir(dirPath);
       await writeFileContent(
         join(dirPath, "config.yml"),
-        dump({ toolPermissions: { tools: { createTechnicalPlan: "allow" } } }),
+        dump({ toolPermissions: { tools: { someFutureRovodevTool: "allow" } } }),
       );
 
       const perms = await RovodevPermissions.fromRulesyncPermissions({
@@ -606,8 +606,109 @@ describe("RovodevPermissions", () => {
       });
 
       const tools = toolLevelsOf(perms.getFileContent());
-      expect(tools.createTechnicalPlan).toBe("allow");
+      expect(tools.someFutureRovodevTool).toBe("allow");
       expect(tools.grep).toBe("deny");
+    });
+  });
+
+  describe("planning and Atlassian tool keys", () => {
+    it("maps the read category onto the inspection tools of both surfaces", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ read: { "*": "deny" } }),
+        global: true,
+      });
+
+      const tools = toolLevelsOf(perms.getFileContent());
+      expect(tools.grep).toBe("deny");
+      expect(tools.getJiraIssue).toBe("deny");
+      expect(tools.getConfluencePage).toBe("deny");
+    });
+
+    it("maps the edit category onto the mutating tools of both surfaces", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ edit: { "*": "deny" } }),
+        global: true,
+      });
+
+      const tools = toolLevelsOf(perms.getFileContent());
+      expect(tools.create_file).toBe("deny");
+      expect(tools.createTechnicalPlan).toBe("deny");
+      expect(tools.createJiraIssue).toBe("deny");
+      expect(tools.updateJiraIssue).toBe("deny");
+      expect(tools.createConfluencePage).toBe("deny");
+      expect(tools.updateConfluencePage).toBe("deny");
+    });
+
+    it("imports the new keys back into their canonical categories", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({
+          toolPermissions: {
+            tools: { getJiraIssue: "deny", createConfluencePage: "ask" },
+          },
+        }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      expect(imported.permission.read["*"]).toBe("deny");
+      expect(imported.permission.edit["*"]).toBe("ask");
+    });
+  });
+
+  describe("toolPermissions.default", () => {
+    it("maps the all-tools catch-all onto the tool-wide default", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "*": "deny" },
+          bash: { "*": "ask" },
+        }),
+        global: true,
+      });
+
+      const parsed = load(perms.getFileContent()) as {
+        toolPermissions: { default?: string; bash?: { default?: string } };
+      };
+      expect(parsed.toolPermissions.default).toBe("deny");
+      // The two defaults are derived the same way and stay independent.
+      expect(parsed.toolPermissions.bash?.default).toBe("ask");
+    });
+
+    it("warns and skips a pattern rule in the all-tools category", async () => {
+      const logger = createMockLogger();
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ "*": { "src/**": "deny", "*": "ask" } }),
+        global: true,
+        logger,
+      });
+
+      const parsed = load(perms.getFileContent()) as {
+        toolPermissions: { default?: string };
+      };
+      expect(parsed.toolPermissions.default).toBe("ask");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("src/**"));
+    });
+
+    it("round-trips the tool-wide default through import", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { default: "deny" } }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      expect(imported.permission["*"]).toEqual({ "*": "deny" });
     });
   });
 });

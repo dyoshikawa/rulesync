@@ -405,5 +405,6 @@ rulesync.local.jsonc
 **/.agents/checks/
 **/.cursor/BUGBOT.md
 **/.hermes/plugins/rulesync-checks/checks/
+**/.rovodev/.review-agent.md
 !.rulesync/.aiignore
 # End of Rulesync
