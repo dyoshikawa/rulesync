@@ -92,6 +92,44 @@ describe("CopilotPermissions", () => {
       expect(Object.keys(json)).toEqual([AUTO_APPROVE_KEY, EDITS_KEY, URLS_KEY]);
     });
 
+    it("leaves a hand-written map alone when its canonical category is absent", async () => {
+      await writeFileContent(
+        join(testDir, ".vscode", "settings.json"),
+        JSON.stringify({
+          "editor.tabSize": 2,
+          [EDITS_KEY]: { "**/.env": false, "src/**": true },
+          [URLS_KEY]: { "https://x.example": { approveRequest: true } },
+        }),
+      );
+
+      // The canonical config states `bash` only, so adopting rulesync must not
+      // disturb the edits/urls maps the user wrote by hand.
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ bash: { "git *": "allow" } }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json[EDITS_KEY]).toEqual({ "**/.env": false, "src/**": true });
+      expect(json[URLS_KEY]).toEqual({ "https://x.example": { approveRequest: true } });
+      expect(json[AUTO_APPROVE_KEY]).toEqual({ "git *": true });
+      expect(json["editor.tabSize"]).toBe(2);
+    });
+
+    it("still retracts a key whose category is stated but yields nothing", async () => {
+      await writeFileContent(
+        join(testDir, ".vscode", "settings.json"),
+        JSON.stringify({ [EDITS_KEY]: { "src/**": true } }),
+      );
+
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ edit: { "src/**": "ask" } }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).not.toHaveProperty(EDITS_KEY);
+    });
+
     it("imports all three maps back into their canonical categories", () => {
       const permissions = new CopilotPermissions({
         outputRoot: testDir,

@@ -378,7 +378,32 @@ describe("CopilotMcp", () => {
 
       await expect(
         CopilotMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp }),
-      ).rejects.toThrow("Failed to parse existing Copilot MCP config");
+      ).rejects.toThrow("Failed to parse shared config");
+    });
+
+    it("reads the JSONC form VS Code's own scaffold writes", async () => {
+      await writeFileContent(
+        join(testDir, ".vscode", "mcp.json"),
+        [
+          "// For more info, visit https://aka.ms/vscode-add-mcp",
+          "{",
+          '  "inputs": [{ "id": "api-key", "type": "promptString" }],',
+          '  "servers": {},',
+          "}",
+        ].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { fresh: { command: "node" } } }),
+      });
+
+      const copilotMcp = await CopilotMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const json = JSON.parse(copilotMcp.getFileContent());
+
+      expect(json.inputs).toEqual([{ id: "api-key", type: "promptString" }]);
+      expect(json.servers).toEqual({ fresh: { command: "node" } });
     });
   });
 

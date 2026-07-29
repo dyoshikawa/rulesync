@@ -14,7 +14,6 @@ export const COPILOT_HOOKS_FILE_NAME = "copilot-hooks.json";
 // VS Code target uses a distinct name and the two never overwrite each other.
 // https://code.visualstudio.com/docs/agent-customization/hooks
 // https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks
-export const COPILOT_GLOBAL_HOOKS_DIR_PATH = join(COPILOT_DIR, "hooks");
 export const COPILOT_GLOBAL_HOOKS_FILE_NAME = "copilot-ide-hooks.json";
 export const COPILOT_MCP_DIR = ".vscode";
 export const COPILOT_MCP_FILE_NAME = "mcp.json";
@@ -30,7 +29,11 @@ export const COPILOTCLI_MCP_FILE_NAME = "mcp-config.json";
 // https://github.com/github/copilot-cli (changelog v1.0.61, 2026-06-09)
 export const COPILOTCLI_PROJECT_MCP_FILE_NAME = "mcp.json";
 export const COPILOTCLI_AGENTS_DIR_PATH = join(COPILOT_DIR, "agents");
+// The single user-scope hooks folder. VS Code, the coding agent and the
+// Copilot CLI all load every `*.json` in it, so both the `copilot` and
+// `copilotcli` targets write here — under different filenames.
 export const COPILOTCLI_HOOKS_DIR_PATH = join(COPILOT_DIR, "hooks");
+export const COPILOT_GLOBAL_HOOKS_DIR_PATH = COPILOTCLI_HOOKS_DIR_PATH;
 export const COPILOTCLI_HOOKS_FILE_NAME = "copilotcli-hooks.json";
 // Both GitHub Copilot and the Copilot CLI auto-discover personal/global skills
 // from the same `~/.copilot/skills/` location (mirroring the project

@@ -46,7 +46,7 @@ const AUTO_APPROVE_KEYS: Readonly<Record<string, string>> = {
   // `{approveRequest, approveResponse}` object per pattern, which the canonical
   // allow/deny/ask model cannot express: such an entry is skipped on import,
   // and — since rulesync owns this key outright — is replaced on generate
-  // whenever the canonical config carries any `webfetch` rule.
+  // whenever the canonical config states a `webfetch` category at all.
   webfetch: "chat.tools.urls.autoApprove",
 };
 
@@ -101,9 +101,11 @@ function buildAutoApproveValue(
  * Three canonical categories have a clean, non-lossy representation and are
  * mapped (see {@link AUTO_APPROVE_KEYS}): `bash`, `edit` and `webfetch`. In
  * every one, per-pattern rules map as: `allow` → `true` (auto-approve), `deny`
- * → `false` (never approve), and `ask` → the entry is OMITTED (VS Code then
- * falls through to its default in-chat approval prompt, i.e. "ask"). Entries
- * already in the file that the canonical config does not name are preserved.
+ * → `false` (VS Code then always prompts — note this is "never auto-approve",
+ * not a hard block), and `ask` → the entry is OMITTED (VS Code falls through to
+ * the same default prompt). A key whose canonical category is absent entirely
+ * is left untouched, so authoring only `bash` rules never disturbs a
+ * hand-written edits or urls map.
  * Only project scope is modeled: VS Code's user-scope settings.json lives at a
  * platform-dependent path outside rulesync's home-relative global model.
  */
@@ -160,9 +162,18 @@ export class CopilotPermissions extends ToolPermissions {
 
     const config = rulesyncPermissions.getJson();
 
+    // Only categories the canonical config actually states are touched. A key
+    // whose category is absent stays exactly as the user left it — otherwise
+    // adopting rulesync for `bash` alone would wipe a hand-authored
+    // `chat.tools.edits.autoApprove`. A category that IS stated but yields
+    // nothing (all `ask`) still retracts its key, since rulesync owns it.
     const patch: Record<string, unknown> = {};
     for (const [category, settingKey] of Object.entries(AUTO_APPROVE_KEYS)) {
-      patch[settingKey] = buildAutoApproveValue(config.permission[category] ?? {});
+      const rules = config.permission[category];
+      if (rules === undefined) {
+        continue;
+      }
+      patch[settingKey] = buildAutoApproveValue(rules);
     }
 
     return new CopilotPermissions({

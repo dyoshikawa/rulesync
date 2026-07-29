@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { COPILOT_MCP_DIR, COPILOT_MCP_FILE_NAME } from "../../constants/copilot-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -80,28 +80,25 @@ export class CopilotMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<CopilotMcp> {
     const paths = this.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = await readFileContentOrNull(filePath);
+    // Read without initializing so this stays side-effect-free under
+    // `--dry-run`/`--check`; the actual write happens later in `writeAiFiles`.
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
 
-    let existing: CopilotMcpConfig = {};
-    if (existingContent !== null && existingContent.trim() !== "") {
-      try {
-        existing = JSON.parse(existingContent);
-      } catch (error) {
-        // Fail loudly rather than write a file that would silently drop the
-        // user's `inputs` / `sandbox` sections.
-        throw new Error(
-          `Failed to parse existing Copilot MCP config at ${filePath}: ${formatError(error)}`,
-          { cause: error },
-        );
-      }
-    }
-
-    const copilotConfig: CopilotMcpConfig = { ...existing, servers: rulesyncMcp.getMcpServers() };
     return new CopilotMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(copilotConfig, null, 2),
+      // The shared-config gateway owns only `servers`, parses the file as the
+      // JSONC VS Code actually writes (its "MCP: Add Server" scaffold starts
+      // with a comment), and fails closed rather than overwriting a file it
+      // could not fully parse.
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "mcp",
+        existingContent,
+        patch: { servers: rulesyncMcp.getMcpServers() },
+        filePath,
+      }),
       validate,
     });
   }
