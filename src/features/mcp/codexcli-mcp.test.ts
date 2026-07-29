@@ -1090,6 +1090,86 @@ args = ["server.js"]
       expect(mcpServers.pal.args).toEqual(["pal-mcp-server"]);
     });
 
+    it("should carry env_vars object entries that name a source environment", async () => {
+      // Codex accepts `{ name, source }` entries alongside bare names, where
+      // `source = "remote"` reads the variable from the remote executor
+      // environment. https://learn.chatgpt.com/docs/extend/mcp
+      const jsonData = {
+        mcpServers: {
+          pal: {
+            type: "stdio",
+            command: "uvx",
+            envVars: ["LOCAL_TOKEN", { name: "REMOTE_TOKEN", source: "remote" }],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers.pal.env_vars).toEqual([
+        "LOCAL_TOKEN",
+        { name: "REMOTE_TOKEN", source: "remote" },
+      ]);
+    });
+
+    it("should write experimentalEnvironment as experimental_environment", async () => {
+      const jsonData = {
+        mcpServers: {
+          pal: { type: "stdio", command: "uvx", experimentalEnvironment: "remote" },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers.pal.experimental_environment).toBe("remote");
+      expect(mcpServers.pal.experimentalEnvironment).toBeUndefined();
+    });
+
+    it("should accept the raw snake_case spelling of experimental_environment", async () => {
+      // What someone copying a server out of a codex config.toml writes. It is
+      // stripped for every other tool, so it has to be re-read here or it would
+      // reach nothing at all.
+      const jsonData = {
+        mcpServers: {
+          pal: { type: "stdio", command: "uvx", experimental_environment: "remote" },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers.pal.experimental_environment).toBe("remote");
+    });
+
     it("should coexist envVars and env on the same server", async () => {
       // `envVars` (list of names inherited from shell) and `env` (literal
       // name→value map) are distinct concepts. Both must serialize correctly

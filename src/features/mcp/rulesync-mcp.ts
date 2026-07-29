@@ -227,14 +227,25 @@ export class RulesyncMcp extends RulesyncFile {
         // `forTarget()` merges into the shared map before this runs.
         .filter(([, serverConfig]) => serverConfig.enabled !== false)
         .map(([serverName, serverConfig]) => {
-          // `envVars` is codex-specific: the codex generator reads it directly
-          // from the unfiltered source JSON. Strip here so it does not leak
-          // into other tools' outputs. `enabled` is stripped because OpenCode,
-          // Kilo, Grok CLI and Goose have a NATIVE `enabled` field with
-          // different semantics a leaked value would silently collide with.
+          // `envVars` and `experimentalEnvironment` are codex-specific: the
+          // codex generator reads them directly from the unfiltered source
+          // JSON. Strip here so they do not leak into other tools' outputs —
+          // including the raw `experimental_environment` spelling, which is
+          // what someone copying a codex config writes and which no other tool
+          // understands. `enabled` is stripped because OpenCode, Kilo, Grok CLI
+          // and Goose have a NATIVE `enabled` field with different semantics a
+          // leaked value would silently collide with.
           return [
             serverName,
-            omit(serverConfig, ["targets", "description", "exposed", "envVars", "enabled"]),
+            omit(serverConfig, [
+              "targets",
+              "description",
+              "exposed",
+              "envVars",
+              "experimentalEnvironment",
+              "experimental_environment",
+              "enabled",
+            ]),
           ];
         }),
     );

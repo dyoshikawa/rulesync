@@ -40,6 +40,14 @@ const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "",
   supportedHookTypes: new Set(["command"]),
   passthroughFields: ["name", "description"],
+  // `commandWindows` overrides `command` on Windows; `statusMessage` is the
+  // label the TUI shows while the hook runs. Both are per-handler fields of
+  // `.codex/hooks.json` and carry the same name on either side.
+  // https://learn.chatgpt.com/docs/hooks
+  stringPassthroughFields: [
+    { canonical: "commandWindows", tool: "commandWindows" },
+    { canonical: "statusMessage", tool: "statusMessage" },
+  ],
 };
 
 /**

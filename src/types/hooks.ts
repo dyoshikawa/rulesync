@@ -114,6 +114,12 @@ export const HookDefinitionSchema = z.looseObject({
   // (`&&`/`||`/list) syntax, so it round-trips as an opaque string.
   // https://code.claude.com/docs/en/hooks
   if: z.optional(safeString),
+  // Codex CLI command hooks: a Windows-only override for `command`, so one hook
+  // set can be cross-platform. Added in Codex CLI 0.131.0 (PR #22159); spelled
+  // `command_windows` in the inline TOML `[hooks]` form and `commandWindows` in
+  // `.codex/hooks.json`, which is the file rulesync writes.
+  // https://learn.chatgpt.com/docs/hooks
+  commandWindows: z.optional(safeString),
 });
 
 export type HookDefinition = z.infer<typeof HookDefinitionSchema>;
@@ -446,6 +452,11 @@ export const DEEPAGENTS_HOOK_EVENTS: readonly HookEvent[] = [
 /** Hook events supported by Codex CLI. */
 export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
+  // Added in Codex CLI 0.145.0 (PR #33895). Its matcher is the end reason and
+  // its timeout is capped at 3s, but neither is modelled differently here:
+  // the matcher is already a free string and the timeout is the tool's to
+  // enforce. https://github.com/openai/codex/releases/tag/rust-v0.145.0
+  "sessionEnd",
   "preToolUse",
   "postToolUse",
   "beforeSubmitPrompt",
@@ -1181,6 +1192,7 @@ export const COPILOTCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Objec
  */
 export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
   beforeSubmitPrompt: "UserPromptSubmit",
