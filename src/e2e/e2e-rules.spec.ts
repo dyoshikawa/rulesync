@@ -132,6 +132,59 @@ This is a test rule for E2E testing.
     },
   );
 
+  it.each([
+    {
+      target: "claudecode",
+      outputPaths: ["CLAUDE.md"],
+    },
+    {
+      target: "cursor",
+      outputPaths: [
+        join(".cursor", "rules", "overview.mdc"),
+        join(".cursor", "rules", "additional-project-rule.mdc"),
+      ],
+    },
+  ] as const)(
+    "should preserve multiple project root rules for $target",
+    async ({ target, outputPaths }) => {
+      const testDir = getTestDir();
+      const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Project root rule"
+---
+
+# Project Root Fragment
+`;
+      const additionalRuleContent = `---
+root: true
+targets: ["*"]
+description: "Additional project root rule"
+---
+
+# Additional Project Root Fragment
+`;
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+        rootRuleContent,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "additional-project-rule.md"),
+        additionalRuleContent,
+      );
+
+      await runGenerate({ target, features: "rules" });
+
+      const generatedContent = (
+        await Promise.all(
+          outputPaths.map((outputPath) => readFileContent(join(testDir, outputPath))),
+        )
+      ).join("\n");
+      expect(generatedContent.split("# Project Root Fragment")).toHaveLength(2);
+      expect(generatedContent.split("# Additional Project Root Fragment")).toHaveLength(2);
+    },
+  );
+
   it("should fold pi non-root rules into the root AGENTS.md", async () => {
     const testDir = getTestDir();
 
@@ -889,6 +942,72 @@ This is a global test rule for E2E testing.
 
       const generatedContent = await readFileContent(join(homeDir, outputPath));
       expect(generatedContent).toContain("Global Test Rule");
+    },
+  );
+
+  it.each([
+    {
+      target: "claudecode",
+      outputPaths: [join(".claude", "CLAUDE.md")],
+    },
+    {
+      target: "augmentcode",
+      outputPaths: [
+        join(".augment", "rules", "overview.md"),
+        join(".augment", "rules", "additional-global-rule.md"),
+      ],
+    },
+    {
+      target: "takt",
+      outputPaths: [
+        join(".takt", "facets", "policies", "overview.md"),
+        join(".takt", "facets", "policies", "additional-global-rule.md"),
+      ],
+    },
+  ] as const)(
+    "should preserve multiple global root rules for $target",
+    async ({ target, outputPaths }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+      const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Global root rule"
+---
+
+# Global Root Fragment
+`;
+      const additionalRuleContent = `---
+root: true
+targets: ["*"]
+description: "Additional global root rule"
+---
+
+# Additional Global Root Fragment
+`;
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+        rootRuleContent,
+      );
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "additional-global-rule.md"),
+        additionalRuleContent,
+      );
+
+      await runGenerate({
+        target,
+        features: "rules",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
+
+      const generatedContent = (
+        await Promise.all(
+          outputPaths.map((outputPath) => readFileContent(join(homeDir, outputPath))),
+        )
+      ).join("\n");
+      expect(generatedContent.split("# Global Root Fragment")).toHaveLength(2);
+      expect(generatedContent.split("# Additional Global Root Fragment")).toHaveLength(2);
     },
   );
 

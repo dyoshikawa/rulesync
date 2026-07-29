@@ -26,7 +26,7 @@ import { WarpRule } from "./warp-rule.js";
 const logger = createMockLogger();
 
 const globalFoldTargets = RulesProcessor.getToolTargets({ global: true }).filter(
-  (target) => RulesProcessor.getFactory(target)?.meta.foldsNonRootIntoRoot === true,
+  (target) => RulesProcessor.getFactory(target)?.meta.collisionPolicy === "fold",
 );
 
 describe("RulesProcessor", () => {
@@ -286,6 +286,37 @@ describe("RulesProcessor", () => {
       // Two opted-in rules concatenate in source order.
       expect(appendRule?.getFileContent()).toBe("# Append one\n\n# Append two");
       expect(appendRule?.getRelativeDirPath()).toBe(".pi");
+    });
+
+    it("should trim singleton pi output groups", async () => {
+      const processor = new RulesProcessor({ logger, toolTarget: "pi" });
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["pi"] },
+          body: "# RootA\n\n\n",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "append.md",
+          frontmatter: { targets: ["pi"], pi: { systemPrompt: "append" } },
+          body: "# Appended\n\n\n",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const rootRule = result.find(
+        (rule) => rule instanceof PiRule && rule.getRelativeFilePath() === "AGENTS.md",
+      );
+      const appendRule = result.find(
+        (rule) => rule instanceof PiRule && rule.getRelativeFilePath() === "APPEND_SYSTEM.md",
+      );
+
+      expect(rootRule?.getFileContent()).toBe("# RootA");
+      expect(appendRule?.getFileContent()).toBe("# Appended");
     });
 
     it("should not list APPEND_SYSTEM.md in the pi references section in explicit discovery mode", async () => {
@@ -1332,6 +1363,399 @@ Content that would fail parsing`;
         expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
       });
 
+      it("should merge multiple global root rules that resolve to the same path", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          global: true,
+        });
+
+        const rulesyncRules = [
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "10-overview.md",
+            frontmatter: {
+              root: true,
+              targets: ["*"],
+            },
+            body: "# Global Overview",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "20-personal-assistant.md",
+            frontmatter: {
+              root: true,
+              targets: ["claudecode"],
+            },
+            body: "# Personal Assistant",
+          }),
+        ];
+
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toBeInstanceOf(ClaudecodeRule);
+        expect(result[0]?.getRelativeDirPath()).toBe(".claude");
+        expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
+        expect(result[0]?.getFileContent()).toBe("# Global Overview\n\n# Personal Assistant");
+      });
+
+      it.each([false, true])(
+        "should preserve multiple root fragments across every target with global=%s",
+        async (global) => {
+          for (const toolTarget of RulesProcessor.getToolTargets({ global })) {
+            const processor = new RulesProcessor({
+              logger,
+              outputRoot: testDir,
+              toolTarget: toolTarget as RulesProcessorToolTarget,
+              global,
+            });
+            const rulesyncRules = [
+              new RulesyncRule({
+                outputRoot: testDir,
+                relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+                relativeFilePath: "10-first-root.md",
+                frontmatter: {
+                  root: true,
+                  targets: ["*"],
+                  description: "First root",
+                  globs: ["**/*"],
+                },
+                body: "# First Root Fragment",
+              }),
+              new RulesyncRule({
+                outputRoot: testDir,
+                relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+                relativeFilePath: "20-second-root.md",
+                frontmatter: {
+                  root: true,
+                  targets: ["*"],
+                  description: "Second root",
+                  globs: ["**/*"],
+                },
+                body: "# Second Root Fragment",
+              }),
+            ];
+
+            const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+            const outputPaths = result.map((rule) =>
+              join(rule.getRelativeDirPath(), rule.getRelativeFilePath()),
+            );
+            const generatedContent = result.map((rule) => rule.getFileContent()).join("\n");
+
+            expect(new Set(outputPaths).size, toolTarget).toBe(outputPaths.length);
+            expect(generatedContent, toolTarget).toContain("# First Root Fragment");
+            expect(generatedContent, toolTarget).toContain("# Second Root Fragment");
+            expect(
+              result.every(
+                (rule) => rule.getFileContent().split("# First Root Fragment").length <= 2,
+              ),
+              toolTarget,
+            ).toBe(true);
+            expect(
+              result.every(
+                (rule) => rule.getFileContent().split("# Second Root Fragment").length <= 2,
+              ),
+              toolTarget,
+            ).toBe(true);
+          }
+        },
+      );
+    });
+  });
+
+  describe("convertRulesyncFilesToToolFiles collision handling", () => {
+    it.each(["devin", "antigravity-ide"] as const)(
+      "should warn for metadata-bearing project rules normalized to the same %s path",
+      async (toolTarget) => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget,
+        });
+        const rulesyncRules = [
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "CodingGuidelines.md",
+            frontmatter: {
+              root: false,
+              targets: [toolTarget],
+              description: "First normalized rule",
+              globs: ["**/*"],
+            },
+            body: "# First Normalized Rule",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "coding_guidelines.md",
+            frontmatter: {
+              root: false,
+              targets: [toolTarget],
+              description: "Second normalized rule",
+              globs: ["src/**/*"],
+            },
+            body: "# Second Normalized Rule",
+          }),
+        ];
+
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+        expect(result).toHaveLength(2);
+        // Both sources normalize to the exact same path, so the warning names
+        // that path once, without the case-insensitivity clause.
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("; the last one wins wherever they collide."),
+        );
+        expect(logger.warn).not.toHaveBeenCalledWith(
+          expect.stringContaining("compared case-insensitively"),
+        );
+      },
+    );
+
+    it("should reject root collisions with metadata-bearing modular rules", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "kiro",
+        global: true,
+      });
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["kiro"] },
+          body: "# Root Body",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "product.md",
+          frontmatter: {
+            root: false,
+            targets: ["kiro"],
+            globs: ["src/**/*.ts"],
+          },
+          body: "# Non Root Body",
+        }),
+      ];
+
+      await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
+        `Multiple generated rules resolve to output path '${join(".kiro", "steering", "product.md")}' for target 'kiro', but this target cannot safely compose a collision involving a root rule. Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "product.md")}`,
+      );
+    });
+
+    it.each(["agentsmd", "amp", "factorydroid", "kilo", "opencode"] as const)(
+      "should compose plain Markdown %s modular rules with the same output path",
+      async (toolTarget) => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget,
+        });
+        const rulesyncRules = [
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "first.md",
+            frontmatter: {
+              root: false,
+              targets: [toolTarget],
+              agentsmd: { subprojectPath: "packages/app" },
+            },
+            body: "# First Subproject Rule",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "second.md",
+            frontmatter: {
+              root: false,
+              targets: [toolTarget],
+              agentsmd: { subprojectPath: "packages/app" },
+            },
+            body: "# Second Subproject Rule",
+          }),
+        ];
+
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+        const composedRules = result.filter(
+          (file) => file.getRelativeDirPath() === join("packages", "app"),
+        );
+
+        expect(composedRules).toHaveLength(1);
+        expect(composedRules[0]?.getFileContent()).toBe(
+          "# First Subproject Rule\n\n# Second Subproject Rule",
+        );
+      },
+    );
+
+    it("should not compose amp fragments that carry a globs frontmatter gate", async () => {
+      // Amp gates non-root files on a leading `globs:` frontmatter block
+      // (issue #2410). Concatenating two gated fragments would bury the second
+      // block mid-body where Amp never reads it, so the group falls back to
+      // preserve-and-warn instead of composing.
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "amp",
+      });
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "first.md",
+          frontmatter: {
+            root: false,
+            targets: ["amp"],
+            globs: ["packages/app/**/*.ts"],
+            agentsmd: { subprojectPath: "packages/app" },
+          },
+          body: "# First Gated Rule",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "second.md",
+          frontmatter: {
+            root: false,
+            targets: ["amp"],
+            globs: ["packages/app/**/*.tsx"],
+            agentsmd: { subprojectPath: "packages/app" },
+          },
+          body: "# Second Gated Rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const gatedRules = result.filter(
+        (file) => file.getRelativeDirPath() === join("packages", "app"),
+      );
+
+      expect(gatedRules).toHaveLength(2);
+      for (const rule of gatedRules) {
+        // Each file keeps exactly one frontmatter block, at the top.
+        expect(rule.getFileContent().startsWith("---\n")).toBe(true);
+        expect(rule.getFileContent()).not.toMatch(/\n---\nglobs:/);
+      }
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("; the last one wins wherever they collide."),
+      );
+    });
+
+    it("should reject Takt rules with the same overridden output name", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "takt",
+      });
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "first.md",
+          frontmatter: {
+            root: true,
+            targets: ["takt"],
+            takt: { name: "same", extends: "base-one" },
+          },
+          body: "# First Takt Rule",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "second.md",
+          frontmatter: {
+            root: true,
+            targets: ["takt"],
+            takt: { name: "same", extends: "base-two" },
+          },
+          body: "# Second Takt Rule",
+        }),
+      ];
+
+      await expect(processor.convertRulesyncFilesToToolFiles(rulesyncRules)).rejects.toThrow(
+        `Multiple generated rules resolve to output path '${join(".takt", "facets", "policies", "same.md")}' for target 'takt', but this target cannot safely compose a collision involving a root rule. Source rules: ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "first.md")}, ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "second.md")}`,
+      );
+    });
+
+    it.each([
+      {
+        toolTarget: "cursor",
+        expectedPaths: [
+          join(".cursor", "rules", "overview.mdc"),
+          join(".cursor", "rules", "API.mdc"),
+          join(".cursor", "rules", "api.mdc"),
+        ],
+      },
+      {
+        toolTarget: "claudecode",
+        expectedPaths: [
+          "CLAUDE.md",
+          join(".claude", "rules", "API.md"),
+          join(".claude", "rules", "api.md"),
+        ],
+      },
+    ] as const)(
+      "should preserve unrelated $toolTarget output paths that differ only by case",
+      async ({ toolTarget, expectedPaths }) => {
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget });
+        const rulesyncRules = [
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "overview.md",
+            frontmatter: { root: true, targets: [toolTarget] },
+            body: "# Overview",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "API.md",
+            frontmatter: {
+              root: false,
+              targets: [toolTarget],
+              description: "Uppercase API rule",
+              globs: ["**/*"],
+            },
+            body: "# Uppercase API",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "api.md",
+            frontmatter: {
+              root: false,
+              targets: [toolTarget],
+              description: "Lowercase API rule",
+              globs: ["src/**/*"],
+            },
+            body: "# Lowercase API",
+          }),
+        ];
+
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+        const outputPaths = result.map((rule) =>
+          join(rule.getRelativeDirPath(), rule.getRelativeFilePath()),
+        );
+
+        expect(outputPaths).toEqual(expectedPaths);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "(compared case-insensitively, as on macOS and Windows); the last one wins wherever they collide.",
+          ),
+        );
+      },
+    );
+  });
+
+  describe("RulesProcessor with global flag", () => {
+    describe("convertRulesyncFilesToToolFiles in global mode", () => {
       it("should convert using global paths when global=true for codexcli", async () => {
         const processor = new RulesProcessor({
           logger,
@@ -2051,6 +2475,30 @@ targets: ["opencode", "agentsmd"]
   });
 
   describe("loadRulesyncFiles with curated rules", () => {
+    it("should compose local root fragments before curated root fragments", async () => {
+      const frontmatter = "---\nroot: true\ntargets:\n  - claudecode\n---\n";
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "20-local.md"),
+        `${frontmatter}# Local Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "05-curated.md"),
+        `${frontmatter}# Curated Root`,
+      );
+      const processor = new RulesProcessor({
+        logger,
+        inputRoot: testDir,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      const [toolRule] = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+      const content = toolRule?.getFileContent() ?? "";
+
+      expect(content.indexOf("# Local Root")).toBeLessThan(content.indexOf("# Curated Root"));
+    });
+
     it("should load curated rules while preferring a same-path local rule", async () => {
       const frontmatter = "---\ntargets:\n  - '*'\n---\n";
       await writeFileContent(
@@ -2210,7 +2658,7 @@ targets: ["opencode"]
       expect((rootRules[0] as RulesyncRule).getFrontmatter().targets).toEqual(["claudecode"]);
     });
 
-    it("should throw when two root rules target the same tool", async () => {
+    it("should allow two root rules targeting the same tool", async () => {
       await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       await writeFileContent(
         join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root1.md"),
@@ -2235,12 +2683,17 @@ targets: ["claudecode"]
         toolTarget: "claudecode",
       });
 
-      await expect(processor.loadRulesyncFiles()).rejects.toThrow(
-        "Multiple root rulesync rules found for target 'claudecode'",
+      const result = await processor.loadRulesyncFiles();
+      const rootRules = result.filter(
+        (rule): rule is RulesyncRule =>
+          rule instanceof RulesyncRule && rule.getFrontmatter().root === true,
       );
+
+      expect(rootRules).toHaveLength(2);
+      expect(rootRules.map((rule) => rule.getBody())).toEqual(["# Root 1", "# Root 2"]);
     });
 
-    it("should throw when wildcard and specific target both match", async () => {
+    it("should allow wildcard and specific root rules when both match", async () => {
       await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       await writeFileContent(
         join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "wildcard-root.md"),
@@ -2265,9 +2718,14 @@ targets: ["claudecode"]
         toolTarget: "claudecode",
       });
 
-      await expect(processor.loadRulesyncFiles()).rejects.toThrow(
-        "Multiple root rulesync rules found for target 'claudecode'",
+      const result = await processor.loadRulesyncFiles();
+      const rootRules = result.filter(
+        (rule): rule is RulesyncRule =>
+          rule instanceof RulesyncRule && rule.getFrontmatter().root === true,
       );
+
+      expect(rootRules).toHaveLength(2);
+      expect(rootRules.map((rule) => rule.getBody())).toEqual(["# Claude Root", "# Wildcard Root"]);
     });
 
     it("should allow wildcard root when queried for non-overlapping target", async () => {
@@ -2331,6 +2789,40 @@ targets: ["opencode"]
       const result = await processor.loadRulesyncFiles();
       expect(result).toHaveLength(1);
       expect((result[0] as RulesyncRule).getFrontmatter().targets).toEqual(["claudecode"]);
+    });
+
+    it("should retain multiple matching root rules in global mode", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "10-overview.md"),
+        `---
+root: true
+targets: ["*"]
+---
+# Global Overview`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "20-personal-assistant.md"),
+        `---
+root: true
+targets: ["claudecode"]
+---
+# Personal Assistant`,
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const result = await processor.loadRulesyncFiles();
+      expect(result).toHaveLength(2);
+      expect(result.map((rule) => (rule as RulesyncRule).getBody())).toEqual([
+        "# Global Overview",
+        "# Personal Assistant",
+      ]);
     });
 
     it("should warn with target name when no root matches specific target", async () => {

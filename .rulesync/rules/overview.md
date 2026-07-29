@@ -1,5 +1,5 @@
 ---
-root: true # true that is less than or equal to one file for overview such as AGENTS.md, false for details such as .agents/memories/*.md
+root: true # true for overview fragments such as AGENTS.md; multiple root files can be composed for the same target. false for details such as .agents/memories/*.md
 targets: ["*"] # * = all, or specific tools
 description: "rulesync project overview and development guidelines for unified AI rules management CLI tool"
 globs: ["**/*"] # file patterns to match (e.g., ["*.md", "*.txt"])

@@ -206,6 +206,11 @@ type McpInstructionsRegistrar = {
 };
 
 type LocalRootMode = "separate-local-file" | "append-to-root";
+type RuleCollisionPolicy = "compose" | "fold" | "preserve";
+type RuleConversion = {
+  toolRule: ToolRule;
+  rulesyncRule: RulesyncRule;
+};
 
 /**
  * Factory entry for each tool rule class.
@@ -272,11 +277,8 @@ type ToolRuleFactory = {
     additionalConventions?: AdditionalConventionsConfig;
     /** Whether to create a separate rule file for additional conventions instead of prepending to root */
     createsSeparateConventionsRule?: boolean;
-    /**
-     * Fold every non-root rule body into the single root rule file, for tools that
-     * read only one root `AGENTS.md` and never scan a non-root directory.
-     */
-    foldsNonRootIntoRoot?: boolean;
+    /** How rules that resolve to the same output path are handled. */
+    collisionPolicy?: RuleCollisionPolicy;
     /**
      * MCP feature that registers non-root rule paths into its shared config's
      * `instructions` key (project scope only); set when the tool does not
@@ -303,6 +305,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "toon",
+        collisionPolicy: "compose",
         additionalConventions: {
           commands: { commandClass: AgentsmdCommand },
           subagents: { subagentClass: AgentsmdSubagent },
@@ -335,6 +338,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+        collisionPolicy: "compose",
       },
     },
   ],
@@ -446,7 +450,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        foldsNonRootIntoRoot: true,
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -492,7 +496,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // dcode reads user-level context from `~/.deepagents/<agent_name>/AGENTS.md`.
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        foldsNonRootIntoRoot: true,
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -508,6 +512,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+        collisionPolicy: "compose",
       },
     },
   ],
@@ -525,7 +530,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        foldsNonRootIntoRoot: true,
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -537,7 +542,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
-        foldsNonRootIntoRoot: true,
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -570,7 +575,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        foldsNonRootIntoRoot: true,
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -583,6 +588,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         mcpInstructionsRegistrar: KiloMcp,
+        collisionPolicy: "compose",
       },
     },
   ],
@@ -594,7 +600,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        foldsNonRootIntoRoot: true,
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -642,6 +648,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
         mcpInstructionsRegistrar: OpencodeMcp,
+        collisionPolicy: "compose",
       },
     },
   ],
@@ -653,7 +660,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        foldsNonRootIntoRoot: true,
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -688,7 +695,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-        foldsNonRootIntoRoot: true,
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -781,7 +788,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "toon",
-        foldsNonRootIntoRoot: true,
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -921,24 +928,26 @@ export class RulesProcessor extends FeatureProcessor {
 
     const factory = this.getFactory(this.toolTarget);
     const { meta } = factory;
-
-    const toolRules = nonLocalRootRules
+    const convertedRules = nonLocalRootRules
       .map((rulesyncRule) => {
         if (!factory.class.isTargetedByRulesyncRule(rulesyncRule)) {
           return null;
         }
-        return factory.class.fromRulesyncRule({
+        const toolRule = factory.class.fromRulesyncRule({
           outputRoot: this.outputRoot,
           rulesyncRule,
           validate: true,
           global: this.global,
         });
+        return { toolRule, rulesyncRule };
       })
-      .filter((rule): rule is ToolRule => rule !== null);
+      .filter((rule): rule is RuleConversion => rule !== null);
 
-    if (meta.foldsNonRootIntoRoot) {
-      this.foldNonRootRulesIntoRootRule(toolRules);
-    }
+    this.mergeRulesByOutputPath({
+      convertedRules,
+      collisionPolicy: meta.collisionPolicy ?? "preserve",
+    });
+    const toolRules = convertedRules.map(({ toolRule }) => toolRule);
 
     this.applyLocalRootRules({ toolRules, localRootRules, factory });
 
@@ -948,7 +957,9 @@ export class RulesProcessor extends FeatureProcessor {
 
     this.applyRootRuleSections({ toolRules, factory });
 
-    return [...toolRules, ...extraFiles];
+    const outputFiles = [...toolRules, ...extraFiles];
+    this.warnForOutputPathCollisions({ outputFiles, convertedRules });
+    return outputFiles;
   }
 
   /**
@@ -1061,6 +1072,9 @@ export class RulesProcessor extends FeatureProcessor {
     factory: ToolRuleFactory;
   }): void {
     const { meta } = factory;
+    // Fixed-root targets were collapsed by mergeRulesByOutputPath. Targets that
+    // keep multiple native paths emit those ToolRules as non-root, so at most
+    // one root rule can survive here.
     const rootRule = toolRules.find((rule) => rule.isRoot());
     if (!rootRule) {
       return;
@@ -1118,21 +1132,32 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * Fold every non-root rule body into the single root rule file.
+   * Reconcile rules that resolve to the same output path.
    *
-   * Used for tools whose rules engine reads only one root `AGENTS.md` and neither
-   * scans a `memories/` directory nor follows references (deepagents' dcode reads
-   * `.deepagents/AGENTS.md`; Warp reads root/subdir `AGENTS.md` but never
-   * `.warp/memories/`). Those rule classes emit both root and non-root rules to
-   * the same root path, so all bodies must be merged into one instance to avoid
-   * colliding on that path (last-writer-wins would silently drop content).
+   * Multiple root fragments are composed for tools that emit a fixed root file.
+   * The `fold` policy is for tools whose rules engine reads only one root file and
+   * neither scans a modular rules directory nor follows references. For example,
+   * dcode reads `.deepagents/AGENTS.md`, while Warp reads root or subdirectory
+   * `AGENTS.md` files but never `.warp/memories/`. Those adapters must fold every
+   * body into one instance because last-writer-wins would silently drop content.
+   * Plain-Markdown adapters can opt into `compose` for colliding modular outputs.
    *
-   * The root rule (if any) becomes the merge target and leads the merged content;
-   * otherwise the first rule is used so a rule set without a root overview still
-   * produces a single, complete file. Mutates `toolRules` in place.
+   * A generated root rule becomes the merge target when present. A `fold` group
+   * without one uses its first rule. A group only composes when every rendered
+   * fragment is plain Markdown — a fragment carrying its own frontmatter block
+   * (e.g. Amp's `globs:` gate) would end up mid-body where the tool ignores it.
+   * Root-involved collisions that cannot be composed safely fail; other
+   * collisions remain separate and are reported by the final output-path check.
+   * Mutates `convertedRules` in place.
    */
-  private foldNonRootRulesIntoRootRule(toolRules: ToolRule[]): void {
-    if (toolRules.length <= 1) {
+  private mergeRulesByOutputPath({
+    convertedRules,
+    collisionPolicy,
+  }: {
+    convertedRules: RuleConversion[];
+    collisionPolicy: RuleCollisionPolicy;
+  }): void {
+    if (convertedRules.length <= 1) {
       return;
     }
 
@@ -1141,40 +1166,117 @@ export class RulesProcessor extends FeatureProcessor {
     // Pi additionally routes `pi.systemPrompt: append` rules to a separate
     // `APPEND_SYSTEM.md`, so those must concatenate among themselves rather than
     // into the root file. Insertion order is preserved so source order is kept.
-    const groups = new Map<string, ToolRule[]>();
-    for (const rule of toolRules) {
-      const path = join(rule.getRelativeDirPath(), rule.getRelativeFilePath());
+    const groups = new Map<string, RuleConversion[]>();
+    for (const conversion of convertedRules) {
+      const path = join(
+        conversion.toolRule.getRelativeDirPath(),
+        conversion.toolRule.getRelativeFilePath(),
+      );
       const group = groups.get(path);
       if (group) {
-        group.push(rule);
+        group.push(conversion);
       } else {
-        groups.set(path, [rule]);
+        groups.set(path, [conversion]);
       }
     }
 
-    const survivors = new Set<ToolRule>();
-    for (const group of groups.values()) {
-      // The root-path group prefers the root rule as its merge target; other
-      // groups fold into their first rule in source order.
-      const target = group.find((rule) => rule.isRoot()) ?? group[0];
+    const survivors = new Set<RuleConversion>();
+    for (const [path, group] of groups) {
+      if (group.length === 1) {
+        const conversion = group[0];
+        if (conversion) {
+          if (collisionPolicy === "fold") {
+            conversion.toolRule.setFileContent(conversion.toolRule.getFileContent().trim());
+          }
+          survivors.add(conversion);
+        }
+        continue;
+      }
+
+      const rootConversion = group.find(({ toolRule }) => toolRule.isRoot());
+      const allGeneratedRulesAreRoots = group.every(({ toolRule }) => toolRule.isRoot());
+      const hasSourceRoot = group.some(
+        ({ rulesyncRule }) => rulesyncRule.getFrontmatter().root === true,
+      );
+      // Composition is only structure-preserving when every fragment is plain
+      // Markdown. An adapter may prepend a frontmatter block to some outputs
+      // (Amp gates non-root files on a leading `globs:` block); concatenating
+      // such a fragment would bury its block mid-body where the tool no longer
+      // reads it, so those groups fall through to preserve-or-reject instead.
+      const allFragmentsArePlain = group.every(
+        ({ toolRule }) => !/^---\r?\n/.test(toolRule.getFileContent()),
+      );
+      const shouldCompose =
+        (collisionPolicy === "fold" ||
+          collisionPolicy === "compose" ||
+          allGeneratedRulesAreRoots) &&
+        allFragmentsArePlain;
+
+      if (!shouldCompose && hasSourceRoot) {
+        throw new Error(
+          `Multiple generated rules resolve to output path '${path}' for target '${this.toolTarget}', but this target cannot safely compose a collision involving a root rule. Source rules: ${formatRulePaths(group.map(({ rulesyncRule }) => rulesyncRule))}`,
+        );
+      }
+
+      if (!shouldCompose) {
+        for (const conversion of group) {
+          survivors.add(conversion);
+        }
+        continue;
+      }
+
+      const target = rootConversion ?? group[0];
       if (!target) {
         continue;
       }
       const ordered = [target, ...group.filter((rule) => rule !== target)];
       const mergedContent = ordered
-        .map((rule) => rule.getFileContent().trim())
+        .map(({ toolRule }) => toolRule.getFileContent().trim())
         .filter((content) => content.length > 0)
         .join("\n\n");
-      target.setFileContent(mergedContent);
+      target.toolRule.setFileContent(mergedContent);
       survivors.add(target);
     }
 
     // Keep only each group's merge target; the others are now folded in.
-    for (let i = toolRules.length - 1; i >= 0; i--) {
-      const rule = toolRules[i];
-      if (rule && !survivors.has(rule)) {
-        toolRules.splice(i, 1);
+    for (let i = convertedRules.length - 1; i >= 0; i--) {
+      const conversion = convertedRules[i];
+      if (conversion && !survivors.has(conversion)) {
+        convertedRules.splice(i, 1);
       }
+    }
+  }
+
+  private warnForOutputPathCollisions({
+    outputFiles,
+    convertedRules,
+  }: {
+    outputFiles: ToolFile[];
+    convertedRules: RuleConversion[];
+  }): void {
+    const seen = new Map<string, ToolFile>();
+    const describeSource = (file: ToolFile): string => {
+      const source = convertedRules.find(({ toolRule }) => toolRule === file)?.rulesyncRule;
+      return source
+        ? formatRulePaths([source])
+        : join(file.getRelativeDirPath(), file.getRelativeFilePath());
+    };
+
+    for (const file of outputFiles) {
+      const path = join(file.getRelativeDirPath(), file.getRelativeFilePath());
+      const key = path.toLowerCase();
+      const previous = seen.get(key);
+      if (previous) {
+        const previousPath = join(previous.getRelativeDirPath(), previous.getRelativeFilePath());
+        const pathDescription =
+          previousPath === path
+            ? `'${path}'`
+            : `'${previousPath}' and '${path}' (compared case-insensitively, as on macOS and Windows)`;
+        this.logger.warn(
+          `Both ${describeSource(previous)} and ${describeSource(file)} generate to ${pathDescription}; the last one wins wherever they collide.`,
+        );
+      }
+      seen.set(key, file);
     }
   }
 
@@ -1438,12 +1540,6 @@ As this project's AI coding tool, you must follow the additional conventions bel
       factory.class.isTargetedByRulesyncRule(rule),
     );
 
-    if (targetedRootRules.length > 1) {
-      throw new Error(
-        `Multiple root rulesync rules found for target '${this.toolTarget}': ${formatRulePaths(targetedRootRules)}`,
-      );
-    }
-
     if (targetedRootRules.length === 0 && rulesyncRules.length > 0) {
       this.logger.warn(
         `No root rulesync rule file found for target '${this.toolTarget}'. Consider adding 'root: true' to one of your rule files in ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
@@ -1473,7 +1569,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
       const globalPaths = factory.class.getSettablePaths({ global: true });
       const supportsGlobalNonRoot =
         ("nonRoot" in globalPaths && globalPaths.nonRoot !== null) ||
-        (factory.meta.supportsGlobal && factory.meta.foldsNonRootIntoRoot === true);
+        (factory.meta.supportsGlobal && factory.meta.collisionPolicy === "fold");
 
       const nonRootRules = rulesyncRules.filter(
         (rule) =>
