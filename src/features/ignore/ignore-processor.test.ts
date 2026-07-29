@@ -425,6 +425,7 @@ describe("IgnoreProcessor", () => {
         "kiro-cli",
         "kiro-ide",
         "qwencode",
+        "reasonix",
         "roo",
         "devin",
         "vibe",
@@ -435,11 +436,12 @@ describe("IgnoreProcessor", () => {
       expect(toolTargets).toEqual(expectedTargets);
     });
 
-    it("should return only Kiro targets in global mode", () => {
+    it("should return only global-capable targets in global mode", () => {
       expect(IgnoreProcessor.getToolTargets({ global: true })).toEqual([
         "kiro",
         "kiro-cli",
         "kiro-ide",
+        "reasonix",
       ]);
     });
   });

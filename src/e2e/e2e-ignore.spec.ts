@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { parse as parseToml } from "smol-toml";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,6 +8,11 @@ import {
   KIRO_IGNORE_FILE_NAME,
   KIRO_SETTINGS_DIR_PATH,
 } from "../constants/kiro-paths.js";
+import {
+  REASONIX_GLOBAL_DIR,
+  REASONIX_GLOBAL_PERMISSIONS_FILE_NAME,
+  REASONIX_PROJECT_PERMISSIONS_FILE_NAME,
+} from "../constants/reasonix-paths.js";
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
@@ -49,6 +55,11 @@ const ignoreGenerateTargets = [
   },
   { target: "vibe", outputPath: ".vibeignore", format: "plaintext" as const },
   { target: "warp", outputPath: ".warpindexingignore", format: "plaintext" as const },
+  {
+    target: "reasonix",
+    outputPath: REASONIX_PROJECT_PERMISSIONS_FILE_NAME,
+    format: "toml" as const,
+  },
 ] as const;
 
 describe("E2E: ignore", () => {
@@ -93,6 +104,14 @@ credentials/
         expect(parsed.permissions.deny).toBeDefined();
         expect(parsed.permissions.deny).toEqual(
           expect.arrayContaining([expect.stringContaining("tmp/")]),
+        );
+      } else if (format === "toml" && target === "reasonix") {
+        // Reasonix writes Read(<pattern>) entries into the [permissions] table
+        const parsed = parseToml(generatedContent) as {
+          permissions?: { deny?: string[] };
+        };
+        expect(parsed.permissions?.deny).toEqual(
+          expect.arrayContaining(["Read(tmp/)", "Read(credentials/)", "Read(*.secret)"]),
         );
       } else if (format === "json" && target === "zed") {
         // Zed uses JSON format with private_files
@@ -248,41 +267,68 @@ credentials/
     expect(importedContent).toContain("tmp/");
     expect(importedContent).toContain("credentials/");
   });
+
+  it("should import reasonix ignore from the [permissions] deny table", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, REASONIX_PROJECT_PERMISSIONS_FILE_NAME),
+      '[permissions]\ndeny = ["Read(tmp/)", "Read(credentials/)", "Bash(rm *)"]\n',
+    );
+
+    await runImport({ target: "reasonix", features: "ignore" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
+    );
+    expect(importedContent).toContain("tmp/");
+    expect(importedContent).toContain("credentials/");
+    expect(importedContent).not.toContain("Bash(rm *)");
+  });
 });
 
 describe("E2E: ignore (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
-  const globalTargets = ["kiro", "kiro-cli", "kiro-ide"] as const;
+  const globalTargets = [
+    { target: "kiro", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },
+    { target: "kiro-cli", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },
+    { target: "kiro-ide", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },
+    {
+      target: "reasonix",
+      outputPath: join(REASONIX_GLOBAL_DIR, REASONIX_GLOBAL_PERMISSIONS_FILE_NAME),
+    },
+  ] as const;
 
   it("global matrix must cover every native global ignore tool target", () => {
     assertGenerateMatrixCoversTargets({
       processor: IgnoreProcessor,
-      testedTargets: globalTargets,
+      testedTargets: globalTargets.map((entry) => entry.target),
       global: true,
     });
   });
 
-  it.each(globalTargets)("should generate $target ignore in the home directory", async (target) => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
-    await writeFileContent(
-      join(projectDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
-      "credentials/\n*.secret\n",
-    );
+  it.each(globalTargets)(
+    "should generate $target ignore in the home directory",
+    async ({ target, outputPath }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+      await writeFileContent(
+        join(projectDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
+        "credentials/\n*.secret\n",
+      );
 
-    await runGenerate({
-      target,
-      features: "ignore",
-      global: true,
-      env: { HOME_DIR: homeDir },
-    });
+      await runGenerate({
+        target,
+        features: "ignore",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
 
-    const generatedContent = await readFileContent(
-      join(homeDir, KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME),
-    );
-    expect(generatedContent).toContain("credentials/");
-    expect(generatedContent).toContain("*.secret");
-  });
+      const generatedContent = await readFileContent(join(homeDir, outputPath));
+      expect(generatedContent).toContain("credentials/");
+      expect(generatedContent).toContain("*.secret");
+    },
+  );
 
   it("should import the Kiro CLI user-level ignore file", async () => {
     const projectDir = getProjectDir();

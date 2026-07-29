@@ -182,6 +182,7 @@ describe("shared-file write derivation", () => {
           "permissions",
         ],
         ".reasonix/config.toml": [
+          "ignore",
           "mcp",
           "permissions",
         ],
@@ -213,6 +214,7 @@ describe("shared-file write derivation", () => {
           "rules",
         ],
         "reasonix.toml": [
+          "ignore",
           "mcp",
           "permissions",
         ],

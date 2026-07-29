@@ -21,6 +21,7 @@ import { JunieIgnore } from "./junie-ignore.js";
 import { KiloIgnore } from "./kilo-ignore.js";
 import { KiroIgnore } from "./kiro-ignore.js";
 import { QwencodeIgnore } from "./qwencode-ignore.js";
+import { ReasonixIgnore } from "./reasonix-ignore.js";
 import { RooIgnore } from "./roo-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -70,6 +71,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["kiro-cli", { class: KiroIgnore }],
   ["kiro-ide", { class: KiroIgnore }],
   ["qwencode", { class: QwencodeIgnore }],
+  ["reasonix", { class: ReasonixIgnore }],
   ["roo", { class: RooIgnore }],
   ["devin", { class: DevinIgnore }],
   ["vibe", { class: VibeIgnore }],
@@ -78,7 +80,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
 ]);
 
 const ignoreProcessorToolTargets: ToolTarget[] = [...toolIgnoreFactories.keys()];
-const ignoreProcessorGlobalToolTargets: ToolTarget[] = ["kiro", "kiro-cli", "kiro-ide"];
+const ignoreProcessorGlobalToolTargets: ToolTarget[] = ["kiro", "kiro-cli", "kiro-ide", "reasonix"];
 
 type GetFactory = (target: IgnoreProcessorToolTarget) => ToolIgnoreFactory;
 

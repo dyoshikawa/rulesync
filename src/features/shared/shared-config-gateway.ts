@@ -628,10 +628,13 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // Reasonix project config (`./reasonix.toml`): mcp owns `plugins`;
   // permissions owns `permissions`/`sandbox`/`agent`. All three are recomputed
   // from the existing file (unmanaged entries and sibling override keys
-  // preserved) before being applied.
+  // preserved) before being applied. `ignore` writes `Read(...)` entries into
+  // `permissions.deny` under the same entry-level rule as `.claude/settings.json`
+  // — Reasonix's `[permissions]` table is documented as Claude-Code-style.
   [REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY]: {
     format: "toml",
     features: {
+      ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
       mcp: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions", "sandbox", "agent"] },
     },
@@ -641,6 +644,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   [REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY]: {
     format: "toml",
     features: {
+      ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
       mcp: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions", "sandbox", "agent"] },
     },
