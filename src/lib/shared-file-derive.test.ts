@@ -149,6 +149,7 @@ describe("shared-file write derivation", () => {
           "permissions",
         ],
         ".config/zed/settings.json": [
+          "ignore",
           "mcp",
           "permissions",
         ],
@@ -201,6 +202,7 @@ describe("shared-file write derivation", () => {
           "permissions",
         ],
         "AppData/Roaming/Zed/settings.json": [
+          "ignore",
           "mcp",
           "permissions",
         ],
