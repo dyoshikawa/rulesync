@@ -15,13 +15,27 @@ const EnvVarNameSchema = z
  * `source = "remote"` reads from the remote executor environment.
  * @see https://learn.chatgpt.com/docs/extend/mcp
  */
-const EnvVarEntrySchema = z.union([
+export const EnvVarEntrySchema = z.union([
   EnvVarNameSchema,
-  z.looseObject({
+  // Strict, unlike the loose objects elsewhere in this file: upstream's
+  // `McpServerEnvVar` denies unknown fields, so one stray key here
+  // makes Codex reject the whole `config.toml` — every MCP server with it, not
+  // just this entry. Failing on the rulesync side names the offending file.
+  z.strictObject({
     name: EnvVarNameSchema,
     source: z.optional(z.enum(["local", "remote"])),
   }),
 ]);
+
+/**
+ * Whether a value is usable as `envVars`. Applied in both directions by the
+ * codex adapter, so an entry read out of somebody's `config.toml` can never be
+ * imported into a `.rulesync/mcp.jsonc` that the next generate would refuse to
+ * parse.
+ */
+export function isEnvVarEntryArray(value: unknown): value is (string | { name: string })[] {
+  return Array.isArray(value) && value.every((entry) => EnvVarEntrySchema.safeParse(entry).success);
+}
 
 export const McpServerSchema = z.looseObject({
   // `streamable-http` is the MCP spec's transport name and an accepted alias for

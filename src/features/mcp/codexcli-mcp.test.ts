@@ -1170,6 +1170,60 @@ args = ["server.js"]
       expect(mcpServers.pal.experimental_environment).toBe("remote");
     });
 
+    it("should drop an env_vars entry carrying a key Codex would reject", async () => {
+      // Upstream's McpServerEnvVar is deny_unknown_fields, so one stray key
+      // makes Codex reject the whole config.toml rather than this one entry.
+      const jsonData = {
+        mcpServers: {
+          pal: {
+            command: "uvx",
+            envVars: [{ name: "A", unexpected: true }],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers.pal.env_vars).toBeUndefined();
+      expect(mcpServers.pal.command).toBe("uvx");
+    });
+
+    it("should let the canonical experimentalEnvironment win over the raw spelling", async () => {
+      const jsonData = {
+        mcpServers: {
+          pal: {
+            command: "uvx",
+            experimentalEnvironment: "remote",
+            experimental_environment: "local",
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers.pal.experimental_environment).toBe("remote");
+    });
+
     it("should coexist envVars and env on the same server", async () => {
       // `envVars` (list of names inherited from shell) and `env` (literal
       // name→value map) are distinct concepts. Both must serialize correctly

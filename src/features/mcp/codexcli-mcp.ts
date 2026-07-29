@@ -5,7 +5,7 @@ import * as smolToml from "smol-toml";
 
 import { CODEXCLI_DIR, CODEXCLI_MCP_FILE_NAME } from "../../constants/codexcli-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { McpServers } from "../../types/mcp.js";
+import { isEnvVarEntryArray, McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
@@ -37,13 +37,16 @@ const RULESYNC_TO_CODEX_FIELD_MAP: Record<string, string> = {
   envVars: "env_vars",
 };
 
-const CODEX_TO_RULESYNC_SCALAR_FIELD_MAP: Record<string, string> = {
-  experimental_environment: "experimentalEnvironment",
-};
-
 const RULESYNC_TO_CODEX_SCALAR_FIELD_MAP: Record<string, string> = {
   experimentalEnvironment: "experimental_environment",
 };
+
+const CODEX_TO_RULESYNC_SCALAR_FIELD_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(RULESYNC_TO_CODEX_SCALAR_FIELD_MAP).map(([canonical, codex]) => [
+    codex,
+    canonical,
+  ]),
+);
 
 const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
 
@@ -51,18 +54,11 @@ const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
  * `env_vars` entries are either a bare variable name or `{ name, source }`,
  * where `source = "remote"` reads the variable from the remote executor
  * environment. The other renamed keys (`enabled_tools`, `disabled_tools`) stay
- * plain string arrays, so this guard is applied to `env_vars` only.
+ * plain string arrays, so the widened check applies to `env_vars` only.
  * @see https://learn.chatgpt.com/docs/extend/mcp
  */
-function isEnvVarsArray(value: unknown): value is (string | Record<string, unknown>)[] {
-  return (
-    Array.isArray(value) &&
-    value.every((entry) => typeof entry === "string" || (isRecord(entry) && "name" in entry))
-  );
-}
-
 function isValidRenamedArray(key: string, value: unknown): boolean {
-  return key === "env_vars" || key === "envVars" ? isEnvVarsArray(value) : isStringArray(value);
+  return key === "env_vars" || key === "envVars" ? isEnvVarEntryArray(value) : isStringArray(value);
 }
 
 /**
@@ -343,7 +339,7 @@ export class CodexcliMcp extends ToolMcp {
             // Only the codex-only fields stripped by `getMcpServers()` need
             // manual re-merging here. Other codex-specific fields (like
             // disabledTools) are preserved by RulesyncMcp's filtering natively.
-            ...(isRecord(rawServer) && isEnvVarsArray(rawServer.envVars)
+            ...(isRecord(rawServer) && isEnvVarEntryArray(rawServer.envVars)
               ? { envVars: rawServer.envVars }
               : {}),
             // Both spellings are accepted, so a server config copied straight
