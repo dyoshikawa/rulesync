@@ -38,7 +38,20 @@ type RovodevToolPermissionKey =
   | "open_files"
   | "expand_code_chunks"
   | "expand_folder"
-  | "grep";
+  | "grep"
+  // The planning and Atlassian tools. These reach Jira and Confluence rather
+  // than the working tree, but they split the same way the file tools do —
+  // `get*` inspects, `create*`/`update*` mutates — so they ride the canonical
+  // `read`/`edit` categories rather than inventing a category for them.
+  // `createTechnicalPlan` is grouped with the mutating tools because it is the
+  // planning tool that produces an artifact rather than reading one.
+  | "createTechnicalPlan"
+  | "getJiraIssue"
+  | "createJiraIssue"
+  | "updateJiraIssue"
+  | "getConfluencePage"
+  | "createConfluencePage"
+  | "updateConfluencePage";
 
 // Maps a rulesync canonical category to the Rovo Dev per-tool keys it controls.
 // The mapping is intentionally conservative: only categories with a clean Rovo
@@ -47,9 +60,36 @@ type RovodevToolPermissionKey =
 //   - `edit`/`write` -> the file mutation tools.
 // `bash` is handled separately (it owns `bash.default`/`bash.commands`).
 const CATEGORY_TO_TOOL_KEYS: Record<string, RovodevToolPermissionKey[]> = {
-  read: ["open_files", "expand_code_chunks", "expand_folder", "grep"],
-  edit: ["find_and_replace_code", "create_file", "delete_file", "move_file"],
-  write: ["create_file", "delete_file", "move_file", "find_and_replace_code"],
+  read: [
+    "open_files",
+    "expand_code_chunks",
+    "expand_folder",
+    "grep",
+    "getJiraIssue",
+    "getConfluencePage",
+  ],
+  edit: [
+    "find_and_replace_code",
+    "create_file",
+    "delete_file",
+    "move_file",
+    "createTechnicalPlan",
+    "createJiraIssue",
+    "updateJiraIssue",
+    "createConfluencePage",
+    "updateConfluencePage",
+  ],
+  write: [
+    "create_file",
+    "delete_file",
+    "move_file",
+    "find_and_replace_code",
+    "createTechnicalPlan",
+    "createJiraIssue",
+    "updateJiraIssue",
+    "createConfluencePage",
+    "updateConfluencePage",
+  ],
 };
 
 // Reverse of CATEGORY_TO_TOOL_KEYS: which canonical category a Rovo Dev tool key
@@ -61,10 +101,17 @@ const TOOL_KEY_TO_CATEGORY: Record<RovodevToolPermissionKey, "read" | "edit"> = 
   expand_code_chunks: "read",
   expand_folder: "read",
   grep: "read",
+  getJiraIssue: "read",
+  getConfluencePage: "read",
   find_and_replace_code: "edit",
   create_file: "edit",
   delete_file: "edit",
   move_file: "edit",
+  createTechnicalPlan: "edit",
+  createJiraIssue: "edit",
+  updateJiraIssue: "edit",
+  createConfluencePage: "edit",
+  updateConfluencePage: "edit",
 };
 
 // Every per-tool key rulesync writes, from both directions of the mapping so a
@@ -79,7 +126,7 @@ const MANAGED_TOOL_KEYS: readonly RovodevToolPermissionKey[] = [
 // Keys directly under `toolPermissions` that rulesync rewrites from
 // `.rulesync/permissions.*` on every generate. `tools` is handled separately
 // because only the managed tool keys inside it are owned.
-const OWNED_TOOL_PERMISSION_KEYS = ["bash", "allowedExternalPaths"] as const;
+const OWNED_TOOL_PERMISSION_KEYS = ["bash", "allowedExternalPaths", "default"] as const;
 
 type RovodevBashCommand = {
   command: string;
@@ -92,6 +139,13 @@ type RovodevBash = {
 };
 
 type RovodevToolPermissions = {
+  /**
+   * The level applied to any tool with no more specific setting. Rovo Dev
+   * defaults it to `ask`.
+   *
+   * @see https://support.atlassian.com/rovo/docs/manage-rovo-dev-cli-settings/
+   */
+  default?: PermissionAction;
   bash?: RovodevBash;
   allowedExternalPaths?: string[];
   /**
@@ -116,9 +170,16 @@ type RovodevToolPermissions = {
  * Mapping decisions (rulesync canonical -> Rovo Dev):
  *   - `bash`: the catch-all `*` pattern -> `bash.default`; every other pattern ->
  *     a `bash.commands[]` entry `{ command: <pattern as regex>, permission }`.
+ *   - the all-tools category `*`: its catch-all -> `toolPermissions.default`,
+ *     the level Rovo Dev falls back to for any tool with no more specific
+ *     setting (Rovo Dev's own default is `ask`).
  *   - `read` -> the inspection tools (`open_files`, `expand_code_chunks`,
- *     `expand_folder`, `grep`); `edit`/`write` -> the mutation tools
- *     (`find_and_replace_code`, `create_file`, `delete_file`, `move_file`).
+ *     `expand_folder`, `grep`, `getJiraIssue`, `getConfluencePage`);
+ *     `edit`/`write` -> the mutation tools (`find_and_replace_code`,
+ *     `create_file`, `delete_file`, `move_file`, `createTechnicalPlan`,
+ *     `createJiraIssue`, `updateJiraIssue`, `createConfluencePage`,
+ *     `updateConfluencePage`) — so these two categories reach Jira and
+ *     Confluence, not just the working tree.
  *     These Rovo Dev keys hold a single level (no per-pattern rules), so only the
  *     catch-all `*` of each category sets the level. Non-catch-all `allow` rules
  *     in those categories are surfaced as `allowedExternalPaths` so explicit path
@@ -429,6 +490,14 @@ function stripPermissiveOwnedValues(toolPermissions: Record<string, unknown>): s
     strippedKeys.push("allowedExternalPaths");
   }
 
+  // A tool-wide `allow` default is the widest grant in the file, so it goes
+  // the same way `bash.default: allow` does — dropping it hands the decision
+  // back to Rovo Dev's own `ask` default.
+  if (toolPermissions.default === "allow") {
+    delete toolPermissions.default;
+    strippedKeys.push("default");
+  }
+
   const bash = toolPermissions.bash;
   if (isRecord(bash)) {
     const stripped: Record<string, unknown> = { ...bash };
@@ -473,22 +542,17 @@ function convertRulesyncToRovodevToolPermissions({
   const toolPermissions: RovodevToolPermissions = {};
   const allowedExternalPaths: string[] = [];
 
-  // `edit` and `write` collapse onto the same Rovo Dev file-mutation tools, so a
-  // conflicting catch-all between them cannot be represented. Warn that the loss
-  // is happening, and keep the stricter of the two — the same fail-closed rule
-  // the import direction uses when those tools disagree, so the resolution never
-  // grants more than the author asked for.
-  const editCatchAll = config.permission.edit?.[CATCH_ALL_PATTERN];
-  const writeCatchAll = config.permission.write?.[CATCH_ALL_PATTERN];
-  if (editCatchAll && writeCatchAll && editCatchAll !== writeCatchAll) {
-    logger?.warn(
-      `Rovo Dev maps both "edit" and "write" onto the same file-mutation tools, but they have ` +
-        `conflicting catch-all permissions ("edit": "${editCatchAll}", "write": "${writeCatchAll}"). ` +
-        `The stricter of the two ("${strictestAction(editCatchAll, writeCatchAll)}") is used.`,
-    );
-  }
+  warnOnEditWriteConflict({ config, logger });
 
   for (const [category, rules] of Object.entries(config.permission)) {
+    if (category === CATCH_ALL_PATTERN) {
+      const toolWideDefault = convertAllToolsRules({ rules, logger });
+      if (toolWideDefault) {
+        toolPermissions.default = toolWideDefault;
+      }
+      continue;
+    }
+
     if (category === "bash") {
       const bash = convertBashRules(rules);
       if (bash) {
@@ -536,6 +600,59 @@ function convertRulesyncToRovodevToolPermissions({
   return toolPermissions;
 }
 
+/**
+ * `edit` and `write` collapse onto the same Rovo Dev file-mutation tools, so a
+ * conflicting catch-all between them cannot be represented. Warn that the loss
+ * is happening; the conversion keeps the stricter of the two — the same
+ * fail-closed rule the import direction uses when those tools disagree, so the
+ * resolution never grants more than the author asked for.
+ */
+function warnOnEditWriteConflict({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger?: Logger | undefined;
+}): void {
+  const editCatchAll = config.permission.edit?.[CATCH_ALL_PATTERN];
+  const writeCatchAll = config.permission.write?.[CATCH_ALL_PATTERN];
+  if (editCatchAll && writeCatchAll && editCatchAll !== writeCatchAll) {
+    logger?.warn(
+      `Rovo Dev maps both "edit" and "write" onto the same file-mutation tools, but they have ` +
+        `conflicting catch-all permissions ("edit": "${editCatchAll}", "write": "${writeCatchAll}"). ` +
+        `The stricter of the two ("${strictestAction(editCatchAll, writeCatchAll)}") is used.`,
+    );
+  }
+}
+
+/**
+ * The canonical all-tools category. Its catch-all sets the tool-wide
+ * `toolPermissions.default`, the same way `bash`'s catch-all sets
+ * `bash.default` — both are the level Rovo Dev falls back to. Pattern rules
+ * under `*` have no counterpart (the default is a single level), so they are
+ * reported and skipped like any other rule Rovo Dev cannot express.
+ */
+function convertAllToolsRules({
+  rules,
+  logger,
+}: {
+  rules: Record<string, PermissionAction>;
+  logger?: Logger | undefined;
+}): PermissionAction | undefined {
+  let toolWideDefault: PermissionAction | undefined;
+  for (const [pattern, action] of Object.entries(rules)) {
+    if (pattern === CATCH_ALL_PATTERN) {
+      toolWideDefault = action;
+      continue;
+    }
+    logger?.warn(
+      `Rovo Dev's tool-wide default is a single level, so it cannot express the ` +
+        `pattern "${pattern}" in the "*" category. Skipping it.`,
+    );
+  }
+  return toolWideDefault;
+}
+
 function convertBashRules(rules: Record<string, PermissionAction>): RovodevBash | undefined {
   const bash: RovodevBash = {};
   const commands: RovodevBashCommand[] = [];
@@ -563,6 +680,12 @@ function convertRovodevToolPermissionsToRulesync(
 ): PermissionsConfig {
   const permission: PermissionsConfig["permission"] = {};
 
+  // The tool-wide fallback level comes back as the canonical all-tools category,
+  // mirroring how `bash.default` comes back as `bash`'s catch-all.
+  if (isPermissionAction(toolPermissions.default)) {
+    permission[CATCH_ALL_PATTERN] = { [CATCH_ALL_PATTERN]: toolPermissions.default };
+  }
+
   const bash = toolPermissions.bash;
   if (isRecord(bash)) {
     const bashRules: Record<string, PermissionAction> = {};
@@ -588,23 +711,45 @@ function convertRovodevToolPermissionsToRulesync(
   // Read from `toolPermissions.tools`, falling back to the top level for a file
   // an earlier rulesync wrote at the wrong depth, so those still import.
   const nestedTools = isRecord(toolPermissions.tools) ? toolPermissions.tools : {};
-  for (const [toolKey, category] of Object.entries(TOOL_KEY_TO_CATEGORY)) {
+  // The level Rovo Dev applies to a tool key the file says nothing about.
+  const implicitLevel: PermissionAction = isPermissionAction(toolPermissions.default)
+    ? toolPermissions.default
+    : "ask";
+
+  for (const category of new Set(Object.values(TOOL_KEY_TO_CATEGORY))) {
     // `tools` is what Rovo Dev actually reads, so a key present there settles
     // the level even when its value is unusable; the legacy flat copy is only
     // consulted when `tools` says nothing about the key at all.
-    const value = Object.hasOwn(nestedTools, toolKey)
-      ? nestedTools[toolKey]
-      : toolPermissions[toolKey];
-    if (!isPermissionAction(value)) {
+    const levels = (Object.entries(TOOL_KEY_TO_CATEGORY) as [RovodevToolPermissionKey, string][])
+      .filter(([, mapped]) => mapped === category)
+      .map(([toolKey]) => {
+        const value = Object.hasOwn(nestedTools, toolKey)
+          ? nestedTools[toolKey]
+          : toolPermissions[toolKey];
+        return isPermissionAction(value) ? value : undefined;
+      });
+
+    // A category the file says nothing about at all is not a rule; giving it the
+    // implicit level here would invent one for every category in every file.
+    if (levels.every((level) => level === undefined)) {
       continue;
     }
+
+    // A category maps onto several tool keys that can disagree — Rovo Dev
+    // rewrites a single key when the user answers "always allow" to one prompt.
+    // They collapse back onto one catch-all here, taking the strictest rather
+    // than whichever key is iterated last, which would quietly widen the rest.
+    //
+    // A key the file is silent about counts as the implicit level rather than
+    // as absent. Without that, one "always allow" answer about `create_file`
+    // would import as a blanket `edit: allow`, and the next generate would hand
+    // that grant to every other tool of the category — Jira and Confluence
+    // writes included, now that they ride the same category.
     permission[category] ??= {};
-    // A category maps onto four tool keys that can disagree — Rovo Dev rewrites
-    // a single key when the user answers "always allow" to one prompt. They
-    // collapse back onto one catch-all here, so take the strictest rather than
-    // whichever key is iterated last, which would quietly widen the other three.
-    const current = permission[category][CATCH_ALL_PATTERN];
-    permission[category][CATCH_ALL_PATTERN] = strictestAction(current, value);
+    permission[category][CATCH_ALL_PATTERN] = levels.reduce<PermissionAction>(
+      (strictest, level) => strictestAction(strictest, level ?? implicitLevel)!,
+      permission[category][CATCH_ALL_PATTERN]!,
+    );
   }
 
   if (isStringArray(toolPermissions.allowedExternalPaths)) {

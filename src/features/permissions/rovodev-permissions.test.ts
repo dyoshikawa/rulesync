@@ -282,6 +282,12 @@ describe("RovodevPermissions", () => {
             open_files: "allow",
             expand_folder: "allow",
             expand_code_chunks: "allow",
+            // Every key of the `read` category has to say `allow` for the
+            // catch-all to be `allow`; a silent one counts as the implicit
+            // level. Set them here so this test isolates the nested-vs-legacy
+            // precedence question rather than re-testing that fallback.
+            getJiraIssue: "allow",
+            getConfluencePage: "allow",
             tools: { grep: "allow" },
           },
         }),
@@ -596,7 +602,7 @@ describe("RovodevPermissions", () => {
       await ensureDir(dirPath);
       await writeFileContent(
         join(dirPath, "config.yml"),
-        dump({ toolPermissions: { tools: { createTechnicalPlan: "allow" } } }),
+        dump({ toolPermissions: { tools: { someFutureRovodevTool: "allow" } } }),
       );
 
       const perms = await RovodevPermissions.fromRulesyncPermissions({
@@ -606,8 +612,185 @@ describe("RovodevPermissions", () => {
       });
 
       const tools = toolLevelsOf(perms.getFileContent());
-      expect(tools.createTechnicalPlan).toBe("allow");
+      expect(tools.someFutureRovodevTool).toBe("allow");
       expect(tools.grep).toBe("deny");
+    });
+  });
+
+  describe("planning and Atlassian tool keys", () => {
+    it("maps the read category onto the inspection tools of both surfaces", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ read: { "*": "deny" } }),
+        global: true,
+      });
+
+      const tools = toolLevelsOf(perms.getFileContent());
+      expect(tools.grep).toBe("deny");
+      expect(tools.getJiraIssue).toBe("deny");
+      expect(tools.getConfluencePage).toBe("deny");
+    });
+
+    it("maps the edit category onto the mutating tools of both surfaces", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ edit: { "*": "deny" } }),
+        global: true,
+      });
+
+      const tools = toolLevelsOf(perms.getFileContent());
+      expect(tools.create_file).toBe("deny");
+      expect(tools.createTechnicalPlan).toBe("deny");
+      expect(tools.createJiraIssue).toBe("deny");
+      expect(tools.updateJiraIssue).toBe("deny");
+      expect(tools.createConfluencePage).toBe("deny");
+      expect(tools.updateConfluencePage).toBe("deny");
+    });
+
+    it("imports the new keys back into their canonical categories", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({
+          toolPermissions: {
+            tools: { getJiraIssue: "deny", createConfluencePage: "ask" },
+          },
+        }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      expect(imported.permission.read["*"]).toBe("deny");
+      expect(imported.permission.edit["*"]).toBe("ask");
+    });
+  });
+
+  describe("toolPermissions.default", () => {
+    it("maps the all-tools catch-all onto the tool-wide default", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "*": "deny" },
+          bash: { "*": "ask" },
+        }),
+        global: true,
+      });
+
+      const parsed = load(perms.getFileContent()) as {
+        toolPermissions: { default?: string; bash?: { default?: string } };
+      };
+      expect(parsed.toolPermissions.default).toBe("deny");
+      // The two defaults are derived the same way and stay independent.
+      expect(parsed.toolPermissions.bash?.default).toBe("ask");
+    });
+
+    it("warns and skips a pattern rule in the all-tools category", async () => {
+      const logger = createMockLogger();
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ "*": { "src/**": "deny", "*": "ask" } }),
+        global: true,
+        logger,
+      });
+
+      const parsed = load(perms.getFileContent()) as {
+        toolPermissions: { default?: string };
+      };
+      expect(parsed.toolPermissions.default).toBe("ask");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("src/**"));
+    });
+
+    it("round-trips the tool-wide default through import", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { default: "deny" } }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      expect(imported.permission["*"]).toEqual({ "*": "deny" });
+    });
+  });
+
+  describe("import falls back to the implicit level for silent tool keys", () => {
+    it("does not widen a category from one 'always allow' answer", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      // The shape Rovo Dev leaves behind when the user answers "always allow"
+      // to a single create_file prompt.
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { tools: { create_file: "allow" } } }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      // Rovo Dev's own default for the silent siblings is `ask`, so the category
+      // collapses to `ask` rather than handing every mutation tool an `allow`.
+      expect(imported.permission.edit["*"]).toBe("ask");
+    });
+
+    it("uses the file's own default as the implicit level", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { default: "deny", tools: { create_file: "allow" } } }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      expect(imported.permission.edit["*"]).toBe("deny");
+    });
+
+    it("still imports a fully stated category at its stated level", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({
+          toolPermissions: {
+            tools: {
+              find_and_replace_code: "allow",
+              create_file: "allow",
+              delete_file: "allow",
+              move_file: "allow",
+              createTechnicalPlan: "allow",
+              createJiraIssue: "allow",
+              updateJiraIssue: "allow",
+              createConfluencePage: "allow",
+              updateConfluencePage: "allow",
+            },
+          },
+        }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      expect(imported.permission.edit["*"]).toBe("allow");
+    });
+
+    it("invents no rule for a category the file says nothing about", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { tools: { grep: "deny" } } }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      expect(imported.permission.edit).toBeUndefined();
     });
   });
 });

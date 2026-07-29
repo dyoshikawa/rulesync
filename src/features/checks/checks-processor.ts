@@ -3,6 +3,7 @@ import { join, relative } from "node:path";
 import { z } from "zod/mini";
 
 import { CURSOR_BUGBOT_FILE_NAME } from "../../constants/cursor-paths.js";
+import { ROVODEV_REVIEW_AGENT_FILE_NAME } from "../../constants/rovodev-paths.js";
 import { TAKT_CONFIG_FILE_NAME } from "../../constants/takt-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -15,6 +16,7 @@ import type { Logger } from "../../utils/logger.js";
 import { AmpCheck } from "./amp-check.js";
 import { CursorCheck } from "./cursor-check.js";
 import { HermesagentCheck } from "./hermesagent-check.js";
+import { RovodevCheck } from "./rovodev-check.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import { TaktCheck } from "./takt-check.js";
 import {
@@ -93,6 +95,16 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
     {
       class: HermesagentCheck,
       meta: { supportsGlobal: false, filePattern: "*.json" },
+    },
+  ],
+  [
+    "rovodev",
+    {
+      // Rovo Dev reads one plain-Markdown instruction file for code reviews, so
+      // every check targeting it collapses into `.rovodev/.review-agent.md`.
+      // https://support.atlassian.com/rovo/docs/set-custom-instructions-for-code-reviews/
+      class: RovodevCheck,
+      meta: { supportsGlobal: false, filePattern: ROVODEV_REVIEW_AGENT_FILE_NAME },
     },
   ],
   [

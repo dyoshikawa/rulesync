@@ -28,6 +28,11 @@ const checksGenerateTargets = [
     outputPath: join(".hermes", "plugins", "rulesync-checks", "checks", "security.json"),
   },
   {
+    // Rovo Dev reads one plain-Markdown instruction file for code reviews.
+    target: "rovodev",
+    outputPath: join(".rovodev", ".review-agent.md"),
+  },
+  {
     // Takt's gates live in the shared config rather than in per-check files.
     target: "takt",
     outputPath: join(".takt", "config.yaml"),
@@ -88,11 +93,13 @@ Look for injection vulnerabilities.
         expect(generatedContent).toContain("Look for injection vulnerabilities.");
         return;
       }
-      if (target === "cursor") {
+      if (target === "cursor" || target === "rovodev") {
         // One marked-up section per check, keyed by the source file basename.
         expect(generatedContent).toContain("<!-- rulesync:check:security -->");
         expect(generatedContent).toContain("## security");
         expect(generatedContent).toContain("Look for injection vulnerabilities.");
+        // Plain prose: neither file takes frontmatter.
+        expect(generatedContent.startsWith("---")).toBe(false);
         return;
       }
       if (target === "amp") {
@@ -117,6 +124,22 @@ Look for injection vulnerabilities.
       expect(generatedContent).toContain("Look for injection vulnerabilities.");
     },
   );
+
+  it("should round-trip rovodev checks through import", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".rovodev", ".review-agent.md"),
+      "Prefer small, well-named functions.\n",
+    );
+
+    await runImport({ target: "rovodev", features: "checks" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "review-agent.md"),
+    );
+    expect(importedContent).toContain("Prefer small, well-named functions.");
+  });
 
   it("should round-trip checks through import", async () => {
     const testDir = getTestDir();

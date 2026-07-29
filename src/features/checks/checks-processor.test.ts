@@ -15,7 +15,13 @@ const logger = new ConsoleLogger({ verbose: false, silent: true });
 
 describe("ChecksProcessor.getToolTargets", () => {
   it("should return project-scoped check targets", () => {
-    expect(ChecksProcessor.getToolTargets()).toEqual(["amp", "cursor", "hermesagent", "takt"]);
+    expect(ChecksProcessor.getToolTargets()).toEqual([
+      "amp",
+      "cursor",
+      "hermesagent",
+      "rovodev",
+      "takt",
+    ]);
   });
 
   it("should return amp for global scope", () => {
