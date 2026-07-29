@@ -29,6 +29,13 @@ export const CopilotcliSkillFrontmatterSchema = z.looseObject({
   // Hint shown for the skill's expected arguments. Added in Copilot CLI v1.0.62
   // (2026-06-13). https://github.com/github/copilot-cli/blob/main/changelog.md
   "argument-hint": z.optional(z.string()),
+  // Whether users can invoke the skill with `/SKILL-NAME` (default true).
+  // v1.0.71 (2026-07-16) marks disabled skills in `copilot skill list`.
+  "user-invocable": z.optional(z.boolean()),
+  // Prevent the agent from automatically invoking the skill (default false).
+  // v1.0.74 (2026-07-23) "fully honors" the flag.
+  // https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference
+  "disable-model-invocation": z.optional(z.boolean()),
 });
 
 export type CopilotcliSkillFrontmatter = z.infer<typeof CopilotcliSkillFrontmatterSchema>;
@@ -135,6 +142,12 @@ export class CopilotcliSkill extends ToolSkill {
       ...(frontmatter["argument-hint"] !== undefined && {
         "argument-hint": frontmatter["argument-hint"],
       }),
+      ...(frontmatter["user-invocable"] !== undefined && {
+        "user-invocable": frontmatter["user-invocable"],
+      }),
+      ...(frontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": frontmatter["disable-model-invocation"],
+      }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -175,6 +188,12 @@ export class CopilotcliSkill extends ToolSkill {
       }),
       ...(rulesyncFrontmatter.copilotcli?.["argument-hint"] !== undefined && {
         "argument-hint": rulesyncFrontmatter.copilotcli["argument-hint"],
+      }),
+      ...(rulesyncFrontmatter.copilotcli?.["user-invocable"] !== undefined && {
+        "user-invocable": rulesyncFrontmatter.copilotcli["user-invocable"],
+      }),
+      ...(rulesyncFrontmatter.copilotcli?.["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": rulesyncFrontmatter.copilotcli["disable-model-invocation"],
       }),
     };
 

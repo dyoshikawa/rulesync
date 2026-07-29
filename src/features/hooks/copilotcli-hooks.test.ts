@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
@@ -104,6 +105,116 @@ describe("CopilotcliHooks", () => {
       // sessionStart hook is kept but its matcher is stripped
       expect(parsed.hooks.sessionStart).toBeDefined();
       expect(parsed.hooks.sessionStart[0].matcher).toBeUndefined();
+    });
+
+    it("emits matchers on the four other documented matcher-aware events", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          notification: [{ matcher: "permission", command: "echo n" }],
+          permissionRequest: [{ matcher: "Bash", command: "echo p" }],
+          preCompact: [{ matcher: "manual", command: "echo c" }],
+          subagentStart: [{ matcher: "planner", command: "echo s" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      expect(parsed.hooks.notification[0]).toMatchObject({ matcher: "permission" });
+      expect(parsed.hooks.permissionRequest[0]).toMatchObject({ matcher: "Bash" });
+      expect(parsed.hooks.preCompact[0]).toMatchObject({ matcher: "manual" });
+      expect(parsed.hooks.subagentStart[0]).toMatchObject({ matcher: "planner" });
+    });
+
+    it("round-trips the userPromptTransformed event", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { userPromptExpansion: [{ command: "echo transformed" }] },
+        }),
+        validate: false,
+      });
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+      expect(parsed.hooks.userPromptTransformed).toBeDefined();
+
+      const imported = new CopilotcliHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilotcli-hooks.json",
+        fileContent: hooks.getFileContent(),
+        validate: false,
+      });
+      expect(imported.toRulesyncHooks().getJson().hooks.userPromptExpansion?.[0]?.command).toBe(
+        "echo transformed",
+      );
+    });
+
+    it("writes the portable command field unless a shell is selected", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            // No `shell` selector: the output must be identical on every
+            // platform, so the portable field is written.
+            sessionStart: [{ command: "echo portable" }],
+            sessionEnd: [{ command: "echo win", shell: "powershell" }],
+            preToolUse: [{ command: "echo nix", shell: "bash" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      expect(parsed.hooks.sessionStart[0]).toMatchObject({ command: "echo portable" });
+      expect(parsed.hooks.sessionStart[0].bash).toBeUndefined();
+      expect(parsed.hooks.sessionStart[0].powershell).toBeUndefined();
+      expect(parsed.hooks.sessionEnd[0]).toMatchObject({ powershell: "echo win" });
+      expect(parsed.hooks.preToolUse[0]).toMatchObject({ bash: "echo nix" });
+    });
+
+    it("drops a matcher on an event that does not honor one, naming all six that do", async () => {
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { userPromptExpansion: [{ matcher: "ignored", command: "echo x" }] },
+        }),
+        validate: false,
+      });
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        logger,
+      });
+
+      expect(JSON.parse(hooks.getFileContent()).hooks.userPromptTransformed[0].matcher).toBe(
+        undefined,
+      );
+      const warning = logger.warn.mock.calls.flat().join(" ");
+      expect(warning).toContain("preToolUse");
+      expect(warning).toContain("subagentStart");
     });
 
     it("round-trips a preToolUse matcher through import and export", async () => {
@@ -377,6 +488,36 @@ describe("CopilotcliHooks", () => {
       expect(json.hooks.sessionStart?.[0]?.command).toBe("echo a");
       expect(json.hooks.sessionStart?.[0]?.timeout).toBe(30);
       expect(json.hooks.afterError?.[0]?.command).toBe("echo b");
+    });
+
+    it("reads the portable command field and the timeout alias", () => {
+      const hooks = new CopilotcliHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilotcli-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            // Upstream copies `command` to both shells when neither is present,
+            // and honors `timeout` only when `timeoutSec` is absent.
+            sessionStart: [{ type: "command", command: "echo portable", timeout: 45 }],
+            // An explicit shell field still wins over the portable fallback.
+            sessionEnd: [{ type: "command", bash: "echo bash", command: "echo ignored" }],
+            // `timeoutSec` still wins over the alias.
+            preToolUse: [{ type: "command", bash: "echo t", timeoutSec: 10, timeout: 99 }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = hooks.toRulesyncHooks().getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("echo portable");
+      expect(json.hooks.sessionStart?.[0]?.timeout).toBe(45);
+      // A portable entry stays portable: no shell selector is invented for it.
+      expect(json.hooks.sessionStart?.[0]?.shell).toBeUndefined();
+      expect(json.hooks.sessionEnd?.[0]?.command).toBe("echo bash");
+      expect(json.hooks.sessionEnd?.[0]?.shell).toBe("bash");
+      expect(json.hooks.preToolUse?.[0]?.timeout).toBe(10);
     });
 
     it("should default missing 'type' field to 'command' when importing", () => {

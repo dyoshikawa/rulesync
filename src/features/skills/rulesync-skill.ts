@@ -117,6 +117,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       license: z.optional(z.string()),
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
       "argument-hint": z.optional(z.string()),
+      // Copilot CLI's two invocation gates: `user-invocable` (default true)
+      // controls `/SKILL-NAME`, `disable-model-invocation` (default false)
+      // stops the agent from picking the skill up on its own.
+      "user-invocable": z.optional(z.boolean()),
+      "disable-model-invocation": z.optional(z.boolean()),
     }),
   ),
   pi: z.optional(

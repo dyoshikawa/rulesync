@@ -353,7 +353,8 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
  * `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`,
  * `postToolUse`, `postToolUseFailure`, `agentStop`, `subagentStart`,
  * `subagentStop`, `errorOccurred`, `preCompact`, `permissionRequest`,
- * `notification`, `preMcpToolCall` ← `beforeMCPExecution`.
+ * `notification`, `userPromptTransformed` ← `userPromptExpansion`,
+ * `preMcpToolCall` ← `beforeMCPExecution`.
  *
  * `preMcpToolCall` (canonical `beforeMCPExecution`) was added in Copilot CLI
  * v1.0.51 (2026-05-20) for hook providers to control outgoing MCP request
@@ -375,6 +376,11 @@ export const COPILOTCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "preCompact",
   "permissionRequest",
   "notification",
+  // Copilot CLI's `userPromptTransformed` — a mutation-only hook that runs on
+  // the transformed prompt and can rewrite the model-facing content. Same
+  // concept as Qwen Code's `UserPromptExpansion`, so it reuses the existing
+  // canonical `userPromptExpansion` event rather than adding a new one.
+  "userPromptExpansion",
   "beforeMCPExecution",
 ];
 
@@ -1132,6 +1138,10 @@ export const CANONICAL_TO_COPILOTCLI_EVENT_NAMES: Record<string, string> = {
   preCompact: "preCompact",
   permissionRequest: "permissionRequest",
   notification: "notification",
+  // Mutation-only event that fires on the transformed prompt; the canonical
+  // prompt-expansion event is the closest match (Qwen's `UserPromptExpansion`
+  // maps to it too).
+  userPromptExpansion: "userPromptTransformed",
   // Added in Copilot CLI v1.0.51 (2026-05-20). The canonical MCP pre-call event
   // maps to the CLI's `preMcpToolCall` hook.
   beforeMCPExecution: "preMcpToolCall",
