@@ -37,6 +37,7 @@ const commandsGenerateTargets = [
   { target: "warp", outputPath: join(".warp", "skills", "review-pr", "SKILL.md") },
   { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
   { target: "goose", outputPath: join(".goose", "recipes", "review-pr.yaml") },
+  { target: "grokcli", outputPath: join(".grok", "commands", "review-pr.md") },
   { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
   { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
   { target: "rovodev", outputPath: join(".rovodev", "prompts", "review-pr.md") },
@@ -72,6 +73,7 @@ const commandsGlobalTargets = [
   { target: "warp", outputPath: join(".warp", "skills", "review-pr", "SKILL.md") },
   { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
   { target: "goose", outputPath: join(".config", "goose", "recipes", "review-pr.yaml") },
+  { target: "grokcli", outputPath: join(".grok", "commands", "review-pr.md") },
   { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
   { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
   // Hermes commands are global plugin-backed slash commands, separate from skills.
@@ -182,6 +184,7 @@ Check the PR diff and provide feedback.
     { target: "pi", orphanPath: join(".pi", "prompts", "orphan.md") },
     { target: "factorydroid", orphanPath: join(".factory", "commands", "orphan.md") },
     { target: "goose", orphanPath: join(".goose", "recipes", "orphan.yaml") },
+    { target: "grokcli", orphanPath: join(".grok", "commands", "orphan.md") },
     { target: "rovodev", orphanPath: join(".rovodev", "prompts", "orphan.md") },
   ])(
     "should fail in check mode when delete would remove an orphan $target command file",
@@ -282,6 +285,7 @@ describe("E2E: commands (import)", () => {
     { target: "junie", sourcePath: join(".junie", "commands", "review-pr.md") },
     { target: "pi", sourcePath: join(".pi", "prompts", "review-pr.md") },
     { target: "factorydroid", sourcePath: join(".factory", "commands", "review-pr.md") },
+    { target: "grokcli", sourcePath: join(".grok", "commands", "review-pr.md") },
     { target: "reasonix", sourcePath: join(".reasonix", "commands", "review-pr.md") },
     { target: "rovodev", sourcePath: join(".rovodev", "prompts", "review-pr.md") },
   ])("should import $target commands", async ({ target, sourcePath }) => {

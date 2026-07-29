@@ -37,6 +37,7 @@ import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
 import { GooseCommand } from "./goose-command.js";
+import { GrokcliCommand } from "./grokcli-command.js";
 import {
   getDisabledHermesCommandsPluginConfigContent,
   HermesagentCommand,
@@ -332,6 +333,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         // Non-recursive: project recipes live flat in `.goose/recipes/`, while
         // legacy subagent sub-recipes of earlier rulesync versions may remain in `.goose/recipes/subagents/` and must not
         // be picked up by the command importer.
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "grokcli",
+    {
+      class: GrokcliCommand,
+      meta: {
+        // `.grok/commands/*.md` (project) / `~/.grok/commands/*.md` (global).
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        // Grok's `find_command_paths` scans `commands/` flat and
+        // non-recursively, so nested rulesync commands are flattened onto
+        // their basename rather than becoming `/namespace:command`.
         supportsSubdirectory: false,
       },
     },

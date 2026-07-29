@@ -59,6 +59,20 @@ export const GROKCLI_AGENTS_DIR_PATH = join(GROKCLI_DIR, "agents");
 export const GROKCLI_RULE_FILE_NAME = "AGENTS.md";
 
 /**
+ * Custom slash commands directory. Grok's `find_command_paths` scans
+ * `commands/*.md` under every discovered config dir — `.grok/commands/`
+ * (project, walked from cwd up to the git root) and `~/.grok/commands/`
+ * (global). The scan is **flat and non-recursive**, so subdirectory
+ * namespacing (`git/commit.md` → `/git:commit`) is not supported the way it is
+ * for Claude Code.
+ *
+ * Skills are collected before commands and win name collisions, so a
+ * `.grok/skills/<name>/` shadows `.grok/commands/<name>.md`.
+ * @see https://docs.x.ai/build/features/skills-plugins-marketplaces
+ */
+export const GROKCLI_COMMANDS_DIR_PATH = join(GROKCLI_DIR, "commands");
+
+/**
  * Non-root rules directory. Grok scans `*.md` here — flat, sorted by name —
  * alongside the AGENTS.md family: `.grok/rules/` in each project directory it
  * walks, and `~/.grok/rules/` in the home scope.
