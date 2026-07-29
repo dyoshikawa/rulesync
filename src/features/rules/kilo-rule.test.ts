@@ -758,7 +758,9 @@ describe("KiloRule", () => {
         relativeDirPath: ".config/kilo",
         relativeFilePath: "AGENTS.md",
       });
-      expect(paths).not.toHaveProperty("nonRoot");
+      // Kilo's own asymmetry: the global root file lives under `~/.config/kilo`
+      // while the global rules directory is `~/.kilo/rules`.
+      expect(paths.nonRoot).toEqual({ relativeDirPath: ".kilo/rules" });
     });
 
     it("should have different paths than regular getSettablePaths", () => {

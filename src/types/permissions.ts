@@ -145,11 +145,29 @@ export type ClinePermissionsOverride = z.infer<typeof ClinePermissionsOverrideSc
  * portable and keeps them out of other tools' configs. Mirrors the OpenCode
  * override; each value may be a bare action string or a pattern map.
  *
+ * `sandbox` is the sibling top-level block that governs the sandbox Kilo runs
+ * commands in: `enabled` (boolean), `network` (`"deny"` and friends),
+ * `allowed_hosts` (a list of `host` / `host:port` destination exceptions) and
+ * `writable_paths`. It has no canonical permission category, so it is authored
+ * here and emitted only for Kilo.
+ *
+ * Upstream restricts what a *project* config may say: `allowed_hosts` and
+ * `writable_paths` are honored from the global config only, and a project
+ * config may merely tighten (`enabled: true`, `network: "deny"`) — a
+ * project-level network denial even clears the global destination exceptions.
+ * rulesync mirrors that: at project scope only `enabled` and `network` are
+ * written, and the rest are dropped with a warning rather than emitted into a
+ * file Kilo would ignore.
+ *
  * @example
  * { "permission": { "external_directory": "deny", "doom_loop": "ask" } }
+ * @example
+ * { "sandbox": { "enabled": true, "network": "deny" } }
+ * @see https://kilo.ai/docs/getting-started/settings/sandboxing
  */
 const KiloPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(z.record(z.string(), OpencodeOverridePermissionValueSchema)),
+  sandbox: z.optional(z.looseObject({})),
 });
 export type KiloPermissionsOverride = z.infer<typeof KiloPermissionsOverrideSchema>;
 

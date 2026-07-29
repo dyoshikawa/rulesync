@@ -44,6 +44,16 @@ export class KiloRule extends ToolRule {
           relativeDirPath: buildToolPath(KILO_GLOBAL_DIR, ".", excludeToolDir),
           relativeFilePath: KILO_RULE_FILE_NAME,
         },
+        // Note the asymmetry, which is Kilo's rather than ours: the global root
+        // instruction file lives under `~/.config/kilo`, but the global rules
+        // directory is `~/.kilo/rules` — the same `.kilo`-relative path the
+        // skills adapter uses in both scopes. Kilo auto-discovers every
+        // `~/.kilo/rules/*.md` on config load, so unlike project scope these
+        // files need no `instructions` registration in `kilo.jsonc`; writing
+        // them is enough (see getExtraSharedWritePaths below).
+        nonRoot: {
+          relativeDirPath: buildToolPath(KILO_DIR, KILO_RULES_DIR_NAME, excludeToolDir),
+        },
       };
     }
     return {

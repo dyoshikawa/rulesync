@@ -1096,6 +1096,27 @@ enabled = true
     expect(content.codexcli.base_permission_profile).toBe(":read-only");
   });
 
+  it("should narrow the kilo sandbox block to tighten-only keys at project scope", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        permission: {},
+        kilo: {
+          sandbox: { enabled: true, network: "deny", allowed_hosts: ["example.com"] },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "kilo", features: "permissions" });
+
+    // `allowed_hosts` is honored from the global config only, so a project
+    // config that states it would be config Kilo ignores.
+    const content = JSON.parse(await readFileContent(join(testDir, "kilo.jsonc")));
+    expect(content.sandbox).toEqual({ enabled: true, network: "deny" });
+  });
+
   it("should import kilo permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
@@ -1868,6 +1889,43 @@ describe("E2E: permissions (global mode)", () => {
       await readFileContent(join(homeDir, ".config", "kilo", "kilo.jsonc")),
     );
     expect(generated.permission.bash["git status *"]).toBe("allow");
+  });
+
+  it("should write every kilo sandbox key with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        permission: {},
+        kilo: {
+          sandbox: {
+            enabled: true,
+            network: "deny",
+            allowed_hosts: ["example.com:443"],
+            writable_paths: ["/tmp"],
+          },
+        },
+      }),
+    );
+
+    await runGenerate({
+      target: "kilo",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".config", "kilo", "kilo.jsonc")),
+    );
+    expect(generated.sandbox).toEqual({
+      enabled: true,
+      network: "deny",
+      allowed_hosts: ["example.com:443"],
+      writable_paths: ["/tmp"],
+    });
   });
 
   it("should generate augmentcode permissions in home directory with --global", async () => {

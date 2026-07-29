@@ -14,6 +14,8 @@ import { type ValidationResult } from "../../types/ai-file.js";
 import type { KiloPermissionsOverride, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -30,6 +32,9 @@ const KiloPermissionSchema = z.union([
 
 const KiloPermissionsConfigSchema = z.looseObject({
   permission: z.optional(z.record(z.string(), KiloPermissionSchema)),
+  // The sandbox block Kilo runs commands in. Loose because upstream documents
+  // `enabled`/`network`/`allowed_hosts`/`writable_paths` but keeps adding to it.
+  sandbox: z.optional(z.looseObject({})),
 });
 
 type KiloPermissionsConfig = z.infer<typeof KiloPermissionsConfigSchema>;
@@ -107,6 +112,45 @@ function collectKiloDenyPatterns(value: unknown): string[] {
     return patterns;
   }
   return [];
+}
+
+function asKiloRecord(value: unknown): Record<string, unknown> {
+  return isPlainObject(value) ? { ...value } : {};
+}
+
+/**
+ * The `sandbox` keys a *project* `kilo.jsonc` may state. Kilo honors
+ * `allowed_hosts` and `writable_paths` from the global config only, and lets a
+ * project config merely tighten — so writing the wider keys into a project file
+ * would produce config Kilo ignores.
+ * @see https://kilo.ai/docs/getting-started/settings/sandboxing
+ */
+const KILO_PROJECT_SCOPE_SANDBOX_KEYS = new Set(["enabled", "network"]);
+
+function narrowSandboxToProjectScope({
+  authored,
+  logger,
+}: {
+  authored: Record<string, unknown>;
+  logger?: Logger | undefined;
+}): Record<string, unknown> {
+  const emitted: Record<string, unknown> = {};
+  const dropped: string[] = [];
+  for (const [key, value] of Object.entries(authored)) {
+    if (KILO_PROJECT_SCOPE_SANDBOX_KEYS.has(key)) {
+      emitted[key] = value;
+    } else {
+      dropped.push(key);
+    }
+  }
+  if (dropped.length > 0) {
+    logger?.warn(
+      `Kilo honors these 'sandbox' keys from the global config only, so they were dropped from ` +
+        `the project config: ${dropped.toSorted().join(", ")}. A project config may only tighten ` +
+        `the sandbox ('enabled', 'network'); generate with --global to author the rest.`,
+    );
+  }
+  return emitted;
 }
 
 export class KiloPermissions extends ToolPermissions {
@@ -278,10 +322,19 @@ export class KiloPermissions extends ToolPermissions {
       ...incomingPermission,
     };
 
-    const nextJson = {
+    const nextJson: Record<string, unknown> = {
       ...parsed,
       permission: mergedPermission,
     };
+
+    // Overlay the Kilo-scoped override's `sandbox` block. Shallow merged at the
+    // block's top level, so the override's keys win while unrelated sibling
+    // keys the user set directly are preserved.
+    if (kiloOverride?.sandbox !== undefined) {
+      const authored = asKiloRecord(kiloOverride.sandbox);
+      const emitted = global ? authored : narrowSandboxToProjectScope({ authored, logger });
+      nextJson.sandbox = { ...asKiloRecord(parsed.sandbox), ...emitted };
+    }
 
     return new KiloPermissions({
       outputRoot,
@@ -310,9 +363,19 @@ export class KiloPermissions extends ToolPermissions {
       }
     }
 
+    // `sandbox` is a dedicated security surface with no canonical category, so
+    // the whole block round-trips into the Kilo-scoped override. It is
+    // tool-scoped, so unlike a canonical field it cannot leak into another
+    // tool's config.
+    const sandbox = this.json.sandbox;
+    const override: KiloPermissionsOverride = {
+      ...(Object.keys(overrideOnly).length > 0 && { permission: overrideOnly }),
+      ...(isPlainObject(sandbox) && { sandbox }),
+    };
+
     const json: PermissionsConfig =
-      Object.keys(overrideOnly).length > 0
-        ? { permission: shared, kilo: { permission: overrideOnly } }
+      Object.keys(override).length > 0
+        ? { permission: shared, kilo: override }
         : { permission: shared };
 
     return this.toRulesyncPermissionsDefault({
