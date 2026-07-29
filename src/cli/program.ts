@@ -290,6 +290,10 @@ export function createProgram(): Command {
     )
     .option("--dry-run", "Dry run: show changes without writing files")
     .option("--check", "Check if files are up to date (exits with code 1 if changes needed)")
+    .option(
+      "-w, --watch",
+      "Keep running and regenerate whenever rulesync source files change (cannot be combined with --check, --dry-run or --json)",
+    )
     .action(
       wrapCommand("generate", "GENERATION_FAILED", async (logger, options) => {
         await generateCommand(logger, options as GenerateOptions);
