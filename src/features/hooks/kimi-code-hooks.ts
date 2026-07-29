@@ -207,7 +207,7 @@ export class KimiCodeHooks extends ToolHooks {
   setFileContent(fileContent: string): void {
     const paths = KimiCodeHooks.getSettablePaths({ global: this.global });
     this.fileContent = applySharedConfigPatch({
-      fileKey: getKimiCodeConfigSharedFileKey(),
+      fileKey: getKimiCodeConfigSharedFileKey({ global: this.global }),
       feature: "hooks",
       existingContent: fileContent,
       patch: parseSharedConfig({ format: "toml", fileContent: this.fileContent }),

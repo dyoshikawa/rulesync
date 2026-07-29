@@ -273,7 +273,7 @@ export class KimiCodeMcpConfigToml extends ToolFile {
     const existingContent = existing.content;
     const existingSection = existing.mcp;
     const fileContent = applySharedConfigPatch({
-      fileKey: getKimiCodeConfigSharedFileKey(),
+      fileKey: getKimiCodeConfigSharedFileKey({ global: true }),
       feature: "mcp",
       existingContent,
       patch: {

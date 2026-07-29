@@ -33,10 +33,14 @@ export function getKimiCodeSharedConfigWritePaths(): SharedWritePath[] {
   ];
 }
 
-/** The `SHARED_CONFIG_OWNERSHIP` key of the `config.toml` actually being written. */
-export function getKimiCodeConfigSharedFileKey(): string {
+/**
+ * The `SHARED_CONFIG_OWNERSHIP` key of the `config.toml` actually being written.
+ * Both spellings carry the same declaration, but passing the key of the file
+ * being written keeps the write path and the drift guards on the same entry.
+ */
+export function getKimiCodeConfigSharedFileKey({ global }: { global: boolean }): string {
   return sharedConfigFileKey({
-    relativeDirPath: getKimiCodeRelativeDirPath({ global: true }),
+    relativeDirPath: getKimiCodeRelativeDirPath({ global }),
     relativeFilePath: KIMI_CODE_CONFIG_FILE_NAME,
   });
 }

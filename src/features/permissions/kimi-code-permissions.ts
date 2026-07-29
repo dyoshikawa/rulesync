@@ -352,7 +352,7 @@ export class KimiCodePermissions extends ToolPermissions {
     // not delete a hand-written `disabled` list.
     const mergedTools = mergeKimiCodeToolsSection({ existingContent: fileContent, patch });
     this.fileContent = applySharedConfigPatch({
-      fileKey: getKimiCodeConfigSharedFileKey(),
+      fileKey: getKimiCodeConfigSharedFileKey({ global: this.global }),
       feature: "permissions",
       existingContent: fileContent,
       patch: { ...patch, ...(mergedTools && { tools: mergedTools }) },

@@ -2,11 +2,13 @@ import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { toPosixPath } from "./file.js";
 import {
   getHermesagentGlobalDir,
   getHermesagentHome,
   getHermesagentRelativeDirPath,
   getHermesagentRelativeFilePath,
+  getHermesagentConfigSharedFileKey,
   getHermesagentRulesyncOutputRoot,
   getHermesagentSharedConfigWritePaths,
   resolveHermesagentOutputRoot,
@@ -101,6 +103,28 @@ describe("Hermes Agent profile paths", () => {
         getHermesagentRelativeDirPath({ global: true, relativeDirPath: ".hermes" }),
       ),
     ).toBe(true);
+  });
+
+  it("keys the shared config by the file the current scope actually writes", () => {
+    // The key must name the file being written, not a fixed spelling: with
+    // HERMES_HOME set the config sits at the profile root, and on win32 it sits
+    // under the platform default directory.
+    delete process.env.HERMES_HOME;
+    expect(getHermesagentConfigSharedFileKey({ global: true })).toBe(
+      `${toPosixPath(getHermesagentGlobalDir())}/config.yaml`,
+    );
+    expect(getHermesagentConfigSharedFileKey({ global: false })).toBe(".hermes/config.yaml");
+
+    process.env.HERMES_HOME = "/custom-hermes";
+    expect(getHermesagentConfigSharedFileKey({ global: true })).toBe("config.yaml");
+
+    // Whatever it resolves to must be one of the declared write paths, or the
+    // gateway would reject the write for an undeclared key.
+    const declaredKeys = getHermesagentSharedConfigWritePaths().map(
+      (path) =>
+        `${path.relativeDirPath === "." ? "" : `${toPosixPath(path.relativeDirPath)}/`}config.yaml`,
+    );
+    expect(declaredKeys).toContain(getHermesagentConfigSharedFileKey({ global: true }));
   });
 
   it("keeps project paths and the global RuleSync source root separate", () => {
