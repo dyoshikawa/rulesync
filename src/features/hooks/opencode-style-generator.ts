@@ -71,8 +71,9 @@ function collectOpencodeStyleHandlers({
     }
 
     if (handlers.length > 0) {
-      const grouped =
-        toolEvent in NAMED_HOOK_MATCHER_SUBJECTS ? namedEventHandlers : genericEventHandlers;
+      const grouped = Object.hasOwn(NAMED_HOOK_MATCHER_SUBJECTS, toolEvent)
+        ? namedEventHandlers
+        : genericEventHandlers;
       const existing = grouped[toolEvent];
       if (existing) {
         existing.push(...handlers);

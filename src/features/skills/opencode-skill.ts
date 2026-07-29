@@ -12,7 +12,7 @@ import {
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import { readOpencodeConfig } from "../opencode-config.js";
+import { asOpencodeEntries, getOpencodeConfigDir, readOpencodeConfig } from "../opencode-config.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -135,23 +135,25 @@ export class OpenCodeSkill extends ToolSkill {
   }: {
     outputRoot: string;
     global?: boolean;
-  }): Promise<string[]> {
+  }): Promise<Array<{ outputRoot: string; relativeDirPath: string }>> {
     const config = await readOpencodeConfig({ outputRoot, global });
-    const skills = config.skills;
-    if (skills === null || typeof skills !== "object" || Array.isArray(skills)) {
+    const skills = asOpencodeEntries(config.skills);
+    if (skills === null || !Array.isArray(skills.paths)) {
       return [];
     }
-    const paths = (skills as Record<string, unknown>).paths;
-    if (!Array.isArray(paths)) {
-      return [];
-    }
-    return paths.filter(
-      (candidate): candidate is string =>
-        typeof candidate === "string" &&
-        candidate !== "" &&
-        !isAbsolute(candidate) &&
-        !normalize(candidate).startsWith(".."),
-    );
+    // Resolved against the directory the config itself was read from, which is
+    // what OpenCode does — in global mode that is `~/.config/opencode/`, not
+    // the home directory.
+    const configDir = getOpencodeConfigDir({ outputRoot, global });
+    return skills.paths
+      .filter(
+        (candidate): candidate is string =>
+          typeof candidate === "string" &&
+          candidate !== "" &&
+          !isAbsolute(candidate) &&
+          !normalize(candidate).startsWith(".."),
+      )
+      .map((relativeDirPath) => ({ outputRoot: configDir, relativeDirPath }));
   }
 
   getFrontmatter(): OpenCodeSkillFrontmatter {

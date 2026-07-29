@@ -89,7 +89,10 @@ type ToolSkillFactory = {
      * OpenCode's `skills.paths`). Appended after the declared import roots, so
      * a skill of the same name found in a managed root still wins.
      */
-    getConfiguredImportRoots?(params: { outputRoot: string; global: boolean }): Promise<string[]>;
+    getConfiguredImportRoots?(params: {
+      outputRoot: string;
+      global: boolean;
+    }): Promise<Array<{ outputRoot: string; relativeDirPath: string }>>;
     /**
      * Optional content-aware ownership filter for tools whose skills directory
      * is shared with another feature's output (e.g. Reasonix subagent profiles
@@ -630,6 +633,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
           global: this.global,
         })
       : [];
+    const configuredRootPaths = new Set(configuredRoots.map((root) => root.relativeDirPath));
     const roots = [...toolSkillImportRoots(paths), ...configuredRoots];
 
     const seenSkillNames = new Set<string>();
@@ -637,6 +641,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
     for (const root of roots) {
       const rootOutputRoot = typeof root === "string" ? this.outputRoot : root.outputRoot;
       const relativeDirPath = typeof root === "string" ? root : root.relativeDirPath;
+      const isConfiguredRoot = configuredRootPaths.has(relativeDirPath);
       const skillsDirPath = join(rootOutputRoot, relativeDirPath);
       if (!(await directoryExists(skillsDirPath))) {
         continue;
@@ -662,16 +667,30 @@ export class SkillsProcessor extends DirFeatureProcessor {
         ownedDirNames.push(dirName);
       }
 
-      const directorySkills = await Promise.all(
-        ownedDirNames.map((dirName) =>
-          factory.class.fromDir({
-            outputRoot: rootOutputRoot,
-            relativeDirPath,
-            dirName,
-            global: this.global,
+      const directorySkills = (
+        await Promise.all(
+          ownedDirNames.map(async (dirName) => {
+            try {
+              return await factory.class.fromDir({
+                outputRoot: rootOutputRoot,
+                relativeDirPath,
+                dirName,
+                global: this.global,
+              });
+            } catch (error) {
+              if (!isConfiguredRoot) {
+                throw error;
+              }
+              // A root the tool's own config points at is arbitrary user
+              // territory — a folder of skills may sit next to folders that are
+              // not skills at all. One of those must not take the whole import,
+              // and every feature after it, down.
+              this.logger.warn(`Skipping ${join(relativeDirPath, dirName)}: ${formatError(error)}`);
+              return null;
+            }
           }),
-        ),
-      );
+        )
+      ).filter((skill) => skill !== null);
       for (const skill of directorySkills) {
         const skillName = skill.getImportIdentity();
         if (seenSkillNames.has(skillName)) {

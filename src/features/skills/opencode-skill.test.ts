@@ -501,7 +501,10 @@ Body content.`;
 
       await expect(
         OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
-      ).resolves.toEqual(["docs/skills", "vendor/skills"]);
+      ).resolves.toEqual([
+        { outputRoot: testDir, relativeDirPath: "docs/skills" },
+        { outputRoot: testDir, relativeDirPath: "vendor/skills" },
+      ]);
     });
 
     it("drops absolute paths and paths escaping the output root", async () => {
@@ -514,7 +517,20 @@ Body content.`;
 
       await expect(
         OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
-      ).resolves.toEqual(["ok/skills"]);
+      ).resolves.toEqual([{ outputRoot: testDir, relativeDirPath: "ok/skills" }]);
+    });
+
+    it("resolves a global root against the config dir, not the home directory", async () => {
+      const configDir = join(testDir, ".config", "opencode");
+      await ensureDir(configDir);
+      await writeFileContent(
+        join(configDir, "opencode.json"),
+        JSON.stringify({ skills: { paths: ["custom-skills"] } }),
+      );
+
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir, global: true }),
+      ).resolves.toEqual([{ outputRoot: configDir, relativeDirPath: "custom-skills" }]);
     });
 
     it("returns nothing when the config has no skills.paths", async () => {
