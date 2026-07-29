@@ -165,12 +165,23 @@ export type KiloPermissionsOverride = z.infer<typeof KiloPermissionsOverrideSche
  * authored without modeling each one; the managed `allow`/`ask`/`deny` arrays are
  * ignored here (rulesync owns them).
  *
+ * `sandbox` is the sibling top-level settings subtree that governs the sandbox
+ * Claude Code runs commands in (`sandbox.network.*`, `sandbox.filesystem.*`,
+ * `sandbox.credentials`, `sandbox.allowAppleEvents`, ...). It has no canonical
+ * permission category either — it constrains how a permitted command runs
+ * rather than which commands are permitted — so it is a loose passthrough on
+ * the same terms, merged into the top level of `.claude/settings.json`.
+ *
  * @example
  * { "permissions": { "defaultMode": "acceptEdits", "additionalDirectories": ["../shared"] } }
+ * @example
+ * { "sandbox": { "network": { "allowedDomains": ["example.com"], "strictAllowlist": true } } }
+ * @see https://code.claude.com/docs/en/sandboxing
  */
 const ClaudecodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   permissions: z.optional(z.looseObject({})),
+  sandbox: z.optional(z.looseObject({})),
 });
 export type ClaudecodePermissionsOverride = z.infer<typeof ClaudecodePermissionsOverrideSchema>;
 

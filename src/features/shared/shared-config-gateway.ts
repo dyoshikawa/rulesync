@@ -812,8 +812,14 @@ export const applyPermissions = (params: {
   const { settings, managedToolNames, toolNameOf, allow, ask, deny, logger } = params;
   const current = parsePermissionsBlock(settings);
 
+  // An entry this run emits is this run's to place, whatever list it currently
+  // sits in — otherwise flipping a rule from deny to allow would leave the old
+  // deny behind and win. Narrower than claiming its whole tool name, which
+  // would also sweep up entries another feature or the user wrote: a tool name
+  // is only claimed when the caller says the canonical config manages it.
+  const emitted = new Set([...allow, ...ask, ...deny]);
   const keepUnmanaged = (entries: string[]): string[] =>
-    entries.filter((entry) => !managedToolNames.has(toolNameOf(entry)));
+    entries.filter((entry) => !managedToolNames.has(toolNameOf(entry)) && !emitted.has(entry));
 
   if (logger && managedToolNames.has(READ_TOOL_NAME)) {
     const overwrittenReadDenies = current.deny.filter(
