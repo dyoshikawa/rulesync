@@ -103,7 +103,7 @@ The `generate` command reads source files from `.rulesync/` and writes AI tool c
 | `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                                                   | `false`               |
 | `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                                                      | `false`               |
 | `--delete`                  | Delete existing generated files before writing                                                                             | From `rulesync.jsonc` |
-| `--watch, -w`               | Keep running and regenerate whenever rulesync source files change                                                           | `false`               |
+| `--watch, -w`               | Keep running and regenerate whenever rulesync source files change                                                          | `false`               |
 
 ### Examples
 
