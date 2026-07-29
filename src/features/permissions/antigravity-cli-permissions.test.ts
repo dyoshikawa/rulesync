@@ -434,6 +434,45 @@ describe("AntigravityCliPermissions", () => {
       expect((json.permission.bash as Record<string, string>)["rm -rf *"]).toBe("deny");
     });
 
+    it("authors and round-trips artifactReviewPolicy / allowNonWorkspaceAccess", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {},
+          "antigravity-cli": {
+            artifactReviewPolicy: "agent-decides",
+            allowNonWorkspaceAccess: false,
+          },
+        }),
+      });
+
+      const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const settings = JSON.parse(permissions.getFileContent()) as SettingsJson & {
+        artifactReviewPolicy?: string;
+        allowNonWorkspaceAccess?: boolean;
+      };
+      expect(settings.artifactReviewPolicy).toBe("agent-decides");
+      expect(settings.allowNonWorkspaceAccess).toBe(false);
+
+      const dir = join(testDir, ".gemini", "antigravity-cli");
+      await ensureDir(dir);
+      await writeFileContent(join(dir, "settings.json"), permissions.getFileContent());
+      const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
+      const json = loaded.toRulesyncPermissions().getJson() as {
+        "antigravity-cli"?: Record<string, unknown>;
+      };
+      expect(json["antigravity-cli"]).toEqual({
+        artifactReviewPolicy: "agent-decides",
+        allowNonWorkspaceAccess: false,
+      });
+    });
+
     it("omits the override when neither knob is present", async () => {
       const dir = join(testDir, ".gemini", "antigravity-cli");
       await ensureDir(dir);

@@ -331,6 +331,7 @@ rulesync.local.jsonc
 **/.takt/facets/knowledge/
 **/.vibe/skills/
 **/.agents/subagents/
+**/.agents/agents/
 **/.augment/agents/
 **/.claude/agents/
 **/.cline/agents/

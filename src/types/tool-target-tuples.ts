@@ -137,6 +137,9 @@ export const commandsProcessorToolTargetTuple = [
 export const subagentsProcessorToolTargetTuple = [
   "kilo",
   "agentsmd",
+  "antigravity-cli",
+  "antigravity-ide",
+  "antigravity-plugin",
   "augmentcode",
   "claudecode",
   "claudecode-plugin",

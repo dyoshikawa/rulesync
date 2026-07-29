@@ -16,6 +16,18 @@ import {
 
 const subagentsGenerateTargets = [
   {
+    target: "antigravity-cli",
+    outputPath: join(".agents", "agents", "planner.md"),
+  },
+  {
+    target: "antigravity-ide",
+    outputPath: join(".agents", "agents", "planner.md"),
+  },
+  {
+    target: "antigravity-plugin",
+    outputPath: join("agents", "planner.md"),
+  },
+  {
     target: "augmentcode",
     outputPath: join(".augment", "agents", "planner.md"),
   },
@@ -126,6 +138,8 @@ const subagentsGenerateTargets = [
 ] as const;
 
 const subagentsGlobalTargets = [
+  { target: "antigravity-cli", outputPath: join(".gemini", "config", "agents", "planner.md") },
+  { target: "antigravity-ide", outputPath: join(".gemini", "config", "agents", "planner.md") },
   { target: "augmentcode", outputPath: join(".augment", "agents", "planner.md") },
   { target: "claudecode", outputPath: join(".claude", "agents", "planner.md") },
   { target: "codexcli", outputPath: join(".codex", "agents", "planner.toml") },
