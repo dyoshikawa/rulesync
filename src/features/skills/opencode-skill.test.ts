@@ -492,4 +492,56 @@ Body content.`;
       expect(result.success).toBe(true);
     });
   });
+  describe("getConfiguredImportRoots", () => {
+    it("returns the skills.paths entries opencode.json configures", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ skills: { paths: ["docs/skills", "vendor/skills"] } }),
+      );
+
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
+      ).resolves.toEqual([
+        { outputRoot: testDir, relativeDirPath: "docs/skills" },
+        { outputRoot: testDir, relativeDirPath: "vendor/skills" },
+      ]);
+    });
+
+    it("drops absolute paths and paths escaping the output root", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          skills: { paths: ["/etc/skills", "../outside", "", 42, "ok/skills"] },
+        }),
+      );
+
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
+      ).resolves.toEqual([{ outputRoot: testDir, relativeDirPath: "ok/skills" }]);
+    });
+
+    it("resolves a global root against the config dir, not the home directory", async () => {
+      const configDir = join(testDir, ".config", "opencode");
+      await ensureDir(configDir);
+      await writeFileContent(
+        join(configDir, "opencode.json"),
+        JSON.stringify({ skills: { paths: ["custom-skills"] } }),
+      );
+
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir, global: true }),
+      ).resolves.toEqual([{ outputRoot: configDir, relativeDirPath: "custom-skills" }]);
+    });
+
+    it("returns nothing when the config has no skills.paths", async () => {
+      await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ skills: {} }));
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
+      ).resolves.toEqual([]);
+
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: join(testDir, "nowhere") }),
+      ).resolves.toEqual([]);
+    });
+  });
 });

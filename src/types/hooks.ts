@@ -271,7 +271,15 @@ export const DEVIN_HOOK_EVENTS: readonly HookEvent[] = [
   "postCompact",
 ];
 
-/** Hook events supported by OpenCode. */
+/**
+ * Hook events supported by OpenCode.
+ *
+ * `preCompact` maps to `experimental.session.compacting`, which the plugin docs
+ * document as a named `(input, output)` hook rather than an `event.type`
+ * dispatch; the other entries are all generic events.
+ *
+ * @see https://opencode.ai/docs/plugins/
+ */
 export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "preToolUse",
@@ -280,9 +288,19 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "afterFileEdit",
   "afterShellExecution",
   "permissionRequest",
+  "preCompact",
+  "postCompact",
+  "afterError",
+  "fileChanged",
 ];
 
-/** Hook events supported by Kilo. (Currently identical to OpenCode) */
+/**
+ * Hook events supported by Kilo. Identical to OpenCode: Kilo's plugin docs list
+ * the same event surface, including `session.compacted`, `session.error`,
+ * `file.watcher.updated` and the experimental compaction hook.
+ *
+ * @see https://kilo.ai/docs/automate/extending/plugins
+ */
 export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS;
 
 /**
@@ -1052,6 +1070,12 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
   afterFileEdit: "file.edited",
   afterShellExecution: "command.executed",
   permissionRequest: "permission.asked",
+  // A named `(input, output)` hook, not an `event.type` dispatch — see
+  // `NAMED_HOOK_MATCHER_SUBJECTS` in `opencode-style-generator.ts`.
+  preCompact: "experimental.session.compacting",
+  postCompact: "session.compacted",
+  afterError: "session.error",
+  fileChanged: "file.watcher.updated",
 };
 
 /**

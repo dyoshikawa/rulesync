@@ -9,7 +9,7 @@ import {
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { OpencodeMcp } from "./opencode-mcp.js";
+import { isOpencodeTransportServer, OpencodeMcp } from "./opencode-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("OpencodeMcp", () => {
@@ -2378,7 +2378,7 @@ describe("OpencodeMcp", () => {
       const server = exported.mcp?.["test-server"];
       expect(server).toBeDefined();
       expect(server?.type).toBe("local");
-      if (server?.type === "local") {
+      if (server && isOpencodeTransportServer(server) && server.type === "local") {
         expect(server.environment?.API_KEY).toBe("{env:MY_API_KEY}");
         expect(server.environment?.DEBUG).toBe("true");
       }
@@ -2449,7 +2449,7 @@ describe("OpencodeMcp", () => {
       const server = exported.mcp?.["remote-server"];
       expect(server).toBeDefined();
       expect(server?.type).toBe("remote");
-      if (server?.type === "remote") {
+      if (server && isOpencodeTransportServer(server) && server.type === "remote") {
         expect(server.headers?.Authorization).toBe("Bearer {env:API_KEY}");
       }
     });
@@ -2539,7 +2539,7 @@ describe("OpencodeMcp", () => {
       const opencodeJson = opencodeMcp.getJson();
       const server = opencodeJson.mcp?.["remote-server"];
       expect(server?.type).toBe("remote");
-      if (server?.type === "remote") {
+      if (server && isOpencodeTransportServer(server) && server.type === "remote") {
         expect(server.headers?.Authorization).toBe("Bearer {env:API_KEY}");
         expect(server.headers?.["X-Custom"]).toBe("static-value");
       }
@@ -2639,8 +2639,8 @@ describe("OpencodeMcp", () => {
     it("should skip a server with no reachable transport instead of writing an empty command", async () => {
       // `{type: "local", command: []}` is a server OpenCode cannot start, and
       // this adapter throws reading it back — so the file one generate wrote
-      // would break the next import. The first entry is the shape a Kilo
-      // `{"enabled": false}` toggle imports as.
+      // would break the next import. `toggled` is the shape a `{"enabled":
+      // false}` toggle imports as, and goes back out as one.
       const mockLogger = { warn: vi.fn() } as unknown as Logger;
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -2662,11 +2662,15 @@ describe("OpencodeMcp", () => {
       });
       const json = opencodeMcp.getJson() as any;
 
-      expect(Object.keys(json.mcp)).toEqual(["fine"]);
+      expect(Object.keys(json.mcp)).toEqual(["toggled", "fine"]);
+      // A transport-less server carrying an explicit disabled state is written
+      // as the bare toggle OpenCode's own schema accepts, so the server it
+      // switches off is not silently switched back on.
+      expect(json.mcp.toggled).toEqual({ enabled: false });
       // The filters of a skipped server stay: the map reaches servers `mcp`
       // does not list, so they are not this entry's to take away.
       expect(json.tools).toEqual({ toggled_read: true });
-      for (const name of ["toggled", "headless", "noUrl"]) {
+      for (const name of ["headless", "noUrl"]) {
         expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining(`skipping "${name}"`));
       }
     });
@@ -2690,6 +2694,114 @@ describe("OpencodeMcp", () => {
         url: "https://example.com/mcp",
         enabled: true,
       });
+    });
+  });
+  describe("legacy {enabled}-only entries", () => {
+    it("writes a toggle back so a disabled server is not switched on again", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          mcp: {
+            "builtin-server": { enabled: false },
+            "local-one": { type: "local", command: ["bun", "x", "srv"] },
+          },
+        }),
+      );
+
+      // What importing the file above produces, after `forTarget` merges the
+      // tool-scoped `opencode.mcpServers` block into the shared map: the
+      // toggle keeps only its state.
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "builtin-server": { disabled: true },
+            "local-one": { type: "stdio", command: "bun", args: ["x", "srv"] },
+          },
+        }),
+      });
+
+      const json = (
+        await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp })
+      ).getJson() as { mcp?: Record<string, unknown> };
+
+      expect(json.mcp?.["builtin-server"]).toEqual({ enabled: false });
+      expect(json.mcp?.["local-one"]).toMatchObject({ type: "local" });
+    });
+
+    it("keeps the toggle already on disk when the canonical server states no disabled", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ mcp: { "builtin-server": { enabled: false } } }),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { "builtin-server": { enabledTools: ["read"] } },
+        }),
+      });
+
+      const json = (
+        await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp })
+      ).getJson() as { mcp?: Record<string, unknown> };
+
+      // Writing `enabled: true` for a server that never asked to be enabled
+      // would undo what the user turned off in another config layer.
+      expect(json.mcp?.["builtin-server"]).toEqual({ enabled: false });
+    });
+
+    it("does not read a transport entry carrying oauth as a toggle", () => {
+      expect(
+        () =>
+          new OpencodeMcp({
+            outputRoot: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: "opencode.json",
+            fileContent: JSON.stringify({
+              mcp: { broken: { enabled: true, oauth: { clientId: "x" } } },
+            }),
+          }),
+      ).toThrow();
+    });
+
+    it("imports a bare toggle without aborting the servers beside it", async () => {
+      const opencodeMcp = new OpencodeMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify({
+          mcp: {
+            "builtin-server": { enabled: false },
+            "local-one": { type: "local", command: ["bun", "x", "srv"] },
+          },
+        }),
+      });
+
+      const imported = JSON.parse(opencodeMcp.toRulesyncMcp().getFileContent());
+
+      // The toggle names a server another config layer defines, so it carries
+      // no transport and lands in the block only OpenCode reads, with just its
+      // state crossing over.
+      expect(imported.opencode.mcpServers["builtin-server"]).toEqual({ disabled: true });
+      // The valid server beside it used to be lost with the whole import.
+      expect(imported.mcpServers["local-one"]).toMatchObject({ type: "stdio", command: "bun" });
+    });
+
+    it("still rejects a malformed transport entry that happens to carry enabled", () => {
+      expect(
+        () =>
+          new OpencodeMcp({
+            outputRoot: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: "opencode.json",
+            fileContent: JSON.stringify({
+              mcp: { broken: { type: "remote", enabled: true } },
+            }),
+          }),
+      ).toThrow();
     });
   });
 });
