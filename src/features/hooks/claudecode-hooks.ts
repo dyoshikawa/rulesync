@@ -71,7 +71,7 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
     // Common to every handler type: the spinner label shown while it runs.
     { canonical: "statusMessage", tool: "statusMessage" },
     // Command hooks: the interpreter, `"bash"` or `"powershell"`.
-    { canonical: "shell", tool: "shell" },
+    { canonical: "shell", tool: "shell", commandOnly: true },
   ],
   // `once` is common to every handler type (honored in skill frontmatter only,
   // but accepted everywhere); `async` / `asyncRewake` are command-hook flags,
@@ -79,14 +79,14 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // https://code.claude.com/docs/en/hooks
   booleanPassthroughFields: [
     { canonical: "once", tool: "once" },
-    { canonical: "async", tool: "async" },
-    { canonical: "asyncRewake", tool: "asyncRewake" },
+    { canonical: "async", tool: "async", commandOnly: true },
+    { canonical: "asyncRewake", tool: "asyncRewake", commandOnly: true },
     { canonical: "continueOnBlock", tool: "continueOnBlock" },
   ],
   // Command hooks: the exec form. With `args` present, `command` is resolved as
   // an executable and spawned directly, so no shell is involved and a path
   // never needs quoting.
-  arrayPassthroughFields: [{ canonical: "args", tool: "args" }],
+  arrayPassthroughFields: [{ canonical: "args", tool: "args", commandOnly: true }],
 };
 
 export class ClaudecodeHooks extends ToolHooks {

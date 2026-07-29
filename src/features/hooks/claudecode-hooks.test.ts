@@ -124,7 +124,7 @@ describe("ClaudecodeHooks", () => {
       });
     });
 
-    it("should leave an exec-form command unprefixed", async () => {
+    it("should use the braced placeholder for an exec-form command", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
 
@@ -132,9 +132,11 @@ describe("ClaudecodeHooks", () => {
         version: 1,
         hooks: {
           preToolUse: [
-            // No shell to expand $CLAUDE_PROJECT_DIR or strip the quotes, so the
-            // prefixed string would be looked up as a literal file name.
+            // No shell to strip the quotes the shell form adds, but Claude Code
+            // substitutes the braced placeholder itself. An empty `args` selects
+            // the exec form too — the docs' own example is `"args": []`.
             { command: "./scripts/exec.sh", args: ["--strict"] },
+            { command: "./scripts/empty-args.sh", args: [] },
             { command: "./scripts/shell-form.sh" },
           ],
         },
@@ -154,8 +156,55 @@ describe("ClaudecodeHooks", () => {
       });
 
       const hooks = JSON.parse(claudecodeHooks.getFileContent()).hooks.PreToolUse[0].hooks;
-      expect(hooks[0].command).toBe("./scripts/exec.sh");
-      expect(hooks[1].command).toBe('"$CLAUDE_PROJECT_DIR"/scripts/shell-form.sh');
+      expect(hooks[0].command).toBe("${CLAUDE_PROJECT_DIR}/scripts/exec.sh");
+      expect(hooks[1].command).toBe("${CLAUDE_PROJECT_DIR}/scripts/empty-args.sh");
+      expect(hooks[2].command).toBe('"$CLAUDE_PROJECT_DIR"/scripts/shell-form.sh');
+    });
+
+    it("should keep command-only fields off non-command hooks", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          // `args`, `async`, `asyncRewake` and `shell` are documented on command
+          // hooks only; `statusMessage` and `once` are common to every type.
+          preToolUse: [
+            {
+              type: "http",
+              url: "https://example.com/hook",
+              args: ["--strict"],
+              async: true,
+              asyncRewake: true,
+              shell: "bash",
+              statusMessage: "Calling",
+              once: true,
+            },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const hook = JSON.parse(claudecodeHooks.getFileContent()).hooks.PreToolUse[0].hooks[0];
+      expect(hook.args).toBeUndefined();
+      expect(hook.async).toBeUndefined();
+      expect(hook.asyncRewake).toBeUndefined();
+      expect(hook.shell).toBeUndefined();
+      expect(hook.statusMessage).toBe("Calling");
+      expect(hook.once).toBe(true);
     });
 
     it("should emit http/mcp_tool/agent hooks with their type-specific payload fields", async () => {
@@ -593,6 +642,52 @@ describe("ClaudecodeHooks", () => {
       expect(() => claudecodeHooks.toRulesyncHooks()).toThrow(
         /Failed to parse Claude hooks content/,
       );
+    });
+
+    it("should import DirectoryAdded and the per-handler fields, undoing the exec-form prefix", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            DirectoryAdded: [{ hooks: [{ command: "on-add-dir.sh" }] }],
+            PreToolUse: [
+              {
+                hooks: [
+                  {
+                    type: "command",
+                    command: "${CLAUDE_PROJECT_DIR}/scripts/check.js",
+                    args: ["--strict"],
+                    async: true,
+                    asyncRewake: true,
+                    shell: "bash",
+                    statusMessage: "Checking",
+                    once: true,
+                    continueOnBlock: true,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const parsed = claudecodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.directoryAdded).toBeDefined();
+      expect(parsed.hooks.preToolUse?.[0]).toMatchObject({
+        type: "command",
+        // The braced placeholder generate wrote comes back as the relative path.
+        command: "./scripts/check.js",
+        args: ["--strict"],
+        async: true,
+        asyncRewake: true,
+        shell: "bash",
+        statusMessage: "Checking",
+        once: true,
+        continueOnBlock: true,
+      });
     });
 
     it("should convert Claude PascalCase hooks to canonical camelCase", () => {
