@@ -58,6 +58,7 @@ export const ignoreProcessorToolTargetTuple = [
   "kiro-cli",
   "kiro-ide",
   "qwencode",
+  "reasonix",
   "roo",
   "devin",
   "vibe",
