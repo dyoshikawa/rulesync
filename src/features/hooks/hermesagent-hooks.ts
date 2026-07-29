@@ -4,6 +4,7 @@ import {
   HERMESAGENT_CONFIG_FILE_NAME,
   HERMESAGENT_GLOBAL_DIR,
 } from "../../constants/hermesagent-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_HERMESAGENT_EVENT_NAMES,
@@ -17,6 +18,7 @@ import { readFileContent } from "../../utils/file.js";
 import {
   getHermesagentRelativeDirPath,
   getHermesagentRulesyncOutputRoot,
+  getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
@@ -265,6 +267,14 @@ export class HermesagentHooks extends ToolHooks {
       }),
       relativeFilePath: HERMESAGENT_CONFIG_FILE_NAME,
     };
+  }
+
+  /**
+   * `config.yaml` under every spelling the global profile root can take.
+   * @see getHermesagentSharedConfigWritePaths
+   */
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return getHermesagentSharedConfigWritePaths();
   }
 
   constructor(params: HermesagentHooksParams) {

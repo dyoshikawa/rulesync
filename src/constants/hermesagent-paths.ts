@@ -16,8 +16,18 @@
 /** Project-root instruction file auto-injected by Hermes Agent. */
 export const HERMESAGENT_RULE_FILE_NAME = ".hermes.md";
 
-/** Root directory for Hermes Agent global configuration (the HERMES_HOME dir). */
+/**
+ * Root directory for Hermes Agent global configuration (the HERMES_HOME dir).
+ * Also the project-local plugin tree, which is `.hermes/` on every platform.
+ */
 export const HERMESAGENT_GLOBAL_DIR = ".hermes";
+
+/**
+ * Home-relative global profile root on Windows: upstream defaults to
+ * `%LOCALAPPDATA%\hermes` there, not `~/.hermes`.
+ * Resolve it through `getHermesagentGlobalDir()` rather than reading it directly.
+ */
+export const HERMESAGENT_GLOBAL_WIN32_DIR = join("AppData", "Local", "hermes");
 
 /** MCP servers and other settings live in `config.yaml` under `~/.hermes/`. */
 export const HERMESAGENT_CONFIG_FILE_NAME = "config.yaml";

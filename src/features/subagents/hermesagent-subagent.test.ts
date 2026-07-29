@@ -5,11 +5,13 @@ import { describe, expect, test } from "vitest";
 
 import {
   HERMESAGENT_GLOBAL_DIR,
+  HERMESAGENT_GLOBAL_WIN32_DIR,
   HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
   HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { getHermesagentSharedConfigWritePaths } from "../../utils/hermesagent.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -153,12 +155,15 @@ plugins:
     expect(parsed.plugins).toEqual({
       enabled: ["existing-plugin", "rulesync-subagents"],
     });
-    expect(HermesagentSubagent.getExtraSharedWritePaths()).toEqual([]);
-    expect(HermesagentSubagent.getExtraSharedWritePaths({ global: true })).toEqual([
-      {
-        relativeDirPath: HERMESAGENT_GLOBAL_DIR,
-        relativeFilePath: "config.yaml",
-      },
+    // Every spelling the global profile root can take is declared, so the
+    // shared-write derivation is stable across platforms and HERMES_HOME.
+    expect(HermesagentSubagent.getExtraSharedWritePaths()).toEqual(
+      getHermesagentSharedConfigWritePaths(),
+    );
+    expect(getHermesagentSharedConfigWritePaths().map((path) => path.relativeDirPath)).toEqual([
+      HERMESAGENT_GLOBAL_DIR,
+      HERMESAGENT_GLOBAL_WIN32_DIR,
+      ".",
     ]);
   });
 });

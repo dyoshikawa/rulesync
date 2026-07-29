@@ -16,6 +16,7 @@ import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { findFilesByGlobs, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
@@ -23,6 +24,7 @@ import {
   getHermesagentRelativeDirPath,
   getHermesagentRelativeFilePath,
   getHermesagentRulesyncOutputRoot,
+  getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
 import {
   applySharedConfigPatch,
@@ -258,19 +260,12 @@ export class HermesagentCommand extends ToolCommand {
     };
   }
 
-  static getExtraSharedWritePaths({ global = false }: { global?: boolean } = {}): {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  }[] {
-    return [
-      {
-        relativeDirPath: getHermesagentRelativeDirPath({
-          global,
-          relativeDirPath: HERMESAGENT_GLOBAL_DIR,
-        }),
-        relativeFilePath: basename(HERMESAGENT_CONFIG_FILE_PATH),
-      },
-    ];
+  /**
+   * `config.yaml` under every spelling the global profile root can take.
+   * @see getHermesagentSharedConfigWritePaths
+   */
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return getHermesagentSharedConfigWritePaths();
   }
 
   static async validateRulesyncCommands({

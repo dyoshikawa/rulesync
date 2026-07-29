@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
+import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -79,7 +80,7 @@ const commandsGlobalTargets = [
   // Hermes commands are global plugin-backed slash commands, separate from skills.
   {
     target: "hermesagent",
-    outputPath: join(".hermes", "rulesync", "commands", "review-pr.json"),
+    outputPath: join(getHermesagentGlobalDir(), "rulesync", "commands", "review-pr.json"),
   },
   { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
   { target: "rovodev", outputPath: join(".rovodev", "prompts", "review-pr.md") },
@@ -349,9 +350,9 @@ describe("E2E: commands (global mode)", () => {
     });
 
     const plugin = await readFileContent(
-      join(homeDir, ".hermes", "plugins", "rulesync-commands", "__init__.py"),
+      join(homeDir, getHermesagentGlobalDir(), "plugins", "rulesync-commands", "__init__.py"),
     );
-    const config = await readFileContent(join(homeDir, ".hermes", "config.yaml"));
+    const config = await readFileContent(join(homeDir, getHermesagentGlobalDir(), "config.yaml"));
     expect(plugin).toContain("ctx.register_command(slug, handler, description)");
     expect(plugin).toContain('"delegate_task"');
     expect(plugin).toContain('Path(__file__).resolve().parents[2] / "rulesync" / "commands"');
@@ -368,7 +369,7 @@ describe("E2E: commands (global mode)", () => {
       '---\ndescription: "Review a pull request"\ntargets: ["hermesagent"]\n---\nReview it.\n',
     );
     await writeFileContent(
-      join(homeDir, ".hermes", "config.yaml"),
+      join(homeDir, getHermesagentGlobalDir(), "config.yaml"),
       "plugins:\n  enabled:\n    - existing-plugin\n",
     );
 
@@ -388,9 +389,11 @@ describe("E2E: commands (global mode)", () => {
     });
 
     expect(
-      await fileExists(join(homeDir, ".hermes", "plugins", "rulesync-commands", "__init__.py")),
+      await fileExists(
+        join(homeDir, getHermesagentGlobalDir(), "plugins", "rulesync-commands", "__init__.py"),
+      ),
     ).toBe(false);
-    const config = await readFileContent(join(homeDir, ".hermes", "config.yaml"));
+    const config = await readFileContent(join(homeDir, getHermesagentGlobalDir(), "config.yaml"));
     expect(config).toContain("- existing-plugin");
     expect(config).not.toContain("rulesync-commands");
   });

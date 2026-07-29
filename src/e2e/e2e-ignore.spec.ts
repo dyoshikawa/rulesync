@@ -17,6 +17,7 @@ import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-path
 import { getZedGlobalDir, ZED_SETTINGS_FILE_NAME } from "../constants/zed-paths.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -126,7 +127,9 @@ credentials/
       if (target === "hermesagent") {
         expect(await readFileContent(join(hermesHome, "config.yaml"))).toContain("rulesync-ignore");
         expect(await fileExists(join(hermesHome, ".env"))).toBe(false);
-        expect(await fileExists(join(homeDir, ".hermes", "config.yaml"))).toBe(false);
+        expect(await fileExists(join(homeDir, getHermesagentGlobalDir(), "config.yaml"))).toBe(
+          false,
+        );
       }
     },
   );
@@ -148,8 +151,8 @@ credentials/
     expect(
       await fileExists(join(testDir, ".hermes", "plugins", "rulesync-ignore", "__init__.py")),
     ).toBe(false);
-    expect(await fileExists(join(homeDir, ".hermes", "config.yaml"))).toBe(false);
-    expect(await fileExists(join(homeDir, ".hermes", ".env"))).toBe(false);
+    expect(await fileExists(join(homeDir, getHermesagentGlobalDir(), "config.yaml"))).toBe(false);
+    expect(await fileExists(join(homeDir, getHermesagentGlobalDir(), ".env"))).toBe(false);
 
     await runGenerate({
       target: "hermesagent",

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -665,7 +666,7 @@ const skillsGlobalTargets = [
   {
     // Hermes Agent reads skills from ~/.hermes/skills/ (global only).
     target: "hermesagent",
-    outputPath: join(".hermes", "skills", "test-skill", "SKILL.md"),
+    outputPath: join(getHermesagentGlobalDir(), "skills", "test-skill", "SKILL.md"),
   },
   {
     // Kiro reads global skills from ~/.kiro/skills/.
@@ -697,7 +698,7 @@ describe("E2E: skills (global mode)", () => {
   it("should import Hermes skill metadata into a target override", async () => {
     const homeDir = getHomeDir();
     await writeFileContent(
-      join(homeDir, ".hermes", "skills", "test-skill", "SKILL.md"),
+      join(homeDir, getHermesagentGlobalDir(), "skills", "test-skill", "SKILL.md"),
       [
         "---",
         "name: test-skill",

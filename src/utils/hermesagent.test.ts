@@ -3,10 +3,12 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  getHermesagentGlobalDir,
   getHermesagentHome,
   getHermesagentRelativeDirPath,
   getHermesagentRelativeFilePath,
   getHermesagentRulesyncOutputRoot,
+  getHermesagentSharedConfigWritePaths,
   resolveHermesagentOutputRoot,
 } from "./hermesagent.js";
 
@@ -28,7 +30,7 @@ describe("Hermes Agent profile paths", () => {
       "/default-home",
     );
     expect(getHermesagentRelativeDirPath({ global: true, relativeDirPath: ".hermes/skills" })).toBe(
-      join(".hermes", "skills"),
+      join(getHermesagentGlobalDir(), "skills"),
     );
 
     process.env.HERMES_HOME = "   ";
@@ -62,6 +64,43 @@ describe("Hermes Agent profile paths", () => {
     expect(() =>
       getHermesagentRelativeFilePath({ global: true, relativeFilePath: "config.yaml" }),
     ).toThrow("Hermes Agent global path must be within .hermes");
+    // A `..` segment that does not escape `.hermes` on its own is still
+    // rejected, matching the codebase-standard checkPathTraversal semantics.
+    expect(() =>
+      getHermesagentRelativeDirPath({
+        global: true,
+        relativeDirPath: ".hermes/skills/../../.hermes/plugins",
+      }),
+    ).toThrow("Hermes Agent global path must be within .hermes");
+  });
+
+  it("follows the platform default profile directory when HERMES_HOME is unset", () => {
+    delete process.env.HERMES_HOME;
+
+    // Upstream defaults to %LOCALAPPDATA%\hermes on win32 and ~/.hermes elsewhere.
+    expect(getHermesagentGlobalDir()).toBe(
+      process.platform === "win32" ? join("AppData", "Local", "hermes") : ".hermes",
+    );
+    expect(
+      getHermesagentRelativeFilePath({ global: true, relativeFilePath: ".hermes/config.yaml" }),
+    ).toBe(join(getHermesagentGlobalDir(), "config.yaml"));
+  });
+
+  it("declares every config.yaml spelling regardless of platform and HERMES_HOME", () => {
+    // The shared-write derivation runs at module load, so the declared set must
+    // not depend on the ambient environment or the drift guards go blind.
+    const declared = getHermesagentSharedConfigWritePaths().map((path) => path.relativeDirPath);
+    process.env.HERMES_HOME = "/custom-hermes";
+
+    expect(declared).toEqual([".hermes", join("AppData", "Local", "hermes"), "."]);
+    expect(getHermesagentSharedConfigWritePaths().map((path) => path.relativeDirPath)).toEqual(
+      declared,
+    );
+    expect(
+      declared.includes(
+        getHermesagentRelativeDirPath({ global: true, relativeDirPath: ".hermes" }),
+      ),
+    ).toBe(true);
   });
 
   it("keeps project paths and the global RuleSync source root separate", () => {

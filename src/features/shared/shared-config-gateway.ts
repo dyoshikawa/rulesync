@@ -262,6 +262,8 @@ export type SharedConfigFileDeclaration = {
 // separators, independent of the platform-specific path constants.
 export const CLAUDE_SETTINGS_SHARED_FILE_KEY = ".claude/settings.json";
 export const HERMES_CONFIG_SHARED_FILE_KEY = ".hermes/config.yaml";
+export const HERMES_WIN32_CONFIG_SHARED_FILE_KEY = "AppData/Local/hermes/config.yaml";
+export const HERMES_HOME_CONFIG_SHARED_FILE_KEY = "config.yaml";
 export const TAKT_CONFIG_SHARED_FILE_KEY = ".takt/config.yaml";
 export const CODEXCLI_CONFIG_SHARED_FILE_KEY = ".codex/config.toml";
 export const GROKCLI_CONFIG_SHARED_FILE_KEY = ".grok/config.toml";
@@ -311,6 +313,41 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     },
   },
   [HERMES_CONFIG_SHARED_FILE_KEY]: {
+    format: "yaml",
+    features: {
+      // The plugins block is recomputed from the existing file (enabled list
+      // appended) before being applied, so the whole key is owned here.
+      commands: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
+      subagents: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      // Deep-merged so `approvals.mode`-style user keys coexist with generated
+      // `approvals.deny`; the `permissions` round-trip blob is an authoritative
+      // snapshot and must not resurrect deleted rules.
+      permissions: { kind: "deep-merge", replaceKeys: ["permissions"] },
+    },
+  },
+  // The same Hermes config under the other two spellings its profile root can
+  // take: `%LOCALAPPDATA%\hermes` (the win32 default) and the profile root
+  // itself when `HERMES_HOME` is set. All three are declared unconditionally so
+  // the derived shared-file keys — and therefore the drift guards checked
+  // against this table — do not depend on the ambient platform or environment.
+  [HERMES_WIN32_CONFIG_SHARED_FILE_KEY]: {
+    format: "yaml",
+    features: {
+      // The plugins block is recomputed from the existing file (enabled list
+      // appended) before being applied, so the whole key is owned here.
+      commands: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
+      subagents: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      // Deep-merged so `approvals.mode`-style user keys coexist with generated
+      // `approvals.deny`; the `permissions` round-trip blob is an authoritative
+      // snapshot and must not resurrect deleted rules.
+      permissions: { kind: "deep-merge", replaceKeys: ["permissions"] },
+    },
+  },
+  [HERMES_HOME_CONFIG_SHARED_FILE_KEY]: {
     format: "yaml",
     features: {
       // The plugins block is recomputed from the existing file (enabled list

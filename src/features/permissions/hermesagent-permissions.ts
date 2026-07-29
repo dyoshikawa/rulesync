@@ -8,6 +8,7 @@ import {
   RULESYNC_PERMISSIONS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   type PermissionAction,
@@ -18,6 +19,7 @@ import { readFileContent } from "../../utils/file.js";
 import {
   getHermesagentRelativeDirPath,
   getHermesagentRulesyncOutputRoot,
+  getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
@@ -186,6 +188,14 @@ export class HermesagentPermissions extends ToolPermissions {
       }),
       relativeFilePath: HERMESAGENT_CONFIG_FILE_NAME,
     };
+  }
+
+  /**
+   * `config.yaml` under every spelling the global profile root can take.
+   * @see getHermesagentSharedConfigWritePaths
+   */
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return getHermesagentSharedConfigWritePaths();
   }
 
   constructor(params: HermesagentPermissionsParams) {
