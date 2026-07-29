@@ -386,11 +386,11 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     },
   },
   // VS Code workspace settings (`.vscode/settings.json`): a general-purpose
-  // user/project settings file. Copilot permissions owns only the single flat
-  // dotted key `chat.tools.terminal.autoApprove` (VS Code stores dotted setting
-  // keys flat at the top level); every unrelated editor setting is preserved by
-  // the shallow merge. The Copilot MCP feature writes a SEPARATE file
-  // (`.vscode/mcp.json`), so this file has a single writer.
+  // user/project settings file. Copilot permissions owns only the three flat
+  // dotted `chat.tools.*.autoApprove` keys (VS Code stores dotted setting keys
+  // flat at the top level); every unrelated editor setting is preserved by the
+  // shallow merge. The Copilot MCP feature writes a SEPARATE file
+  // (`.vscode/mcp.json`, declared just below), so this file has a single writer.
   ".vscode/settings.json": {
     format: "jsonc",
     // A general-purpose user file we promise to preserve untouched apart from
@@ -402,8 +402,32 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     features: {
       permissions: {
         kind: "replace-owned-keys",
-        ownedKeys: ["chat.tools.terminal.autoApprove"],
+        ownedKeys: [
+          "chat.tools.terminal.autoApprove",
+          "chat.tools.edits.autoApprove",
+          "chat.tools.urls.autoApprove",
+        ],
       },
+    },
+  },
+  // VS Code MCP config (`.vscode/mcp.json`): a JSONC file VS Code recommends
+  // committing. It has three documented top-level sections — `servers` (the one
+  // rulesync owns), `inputs` (secret prompts referenced as `${input:id}`) and
+  // `sandbox` (filesystem/network rules for sandboxed servers). Dropping an
+  // `inputs` entry would leave `${input:…}` unresolvable and the affected
+  // servers would fail to start, so everything but `servers` is preserved.
+  // VS Code's own "MCP: Add Server" scaffold starts with a comment line, hence
+  // the `jsonc` format.
+  // https://code.visualstudio.com/docs/agents/reference/mcp-configuration
+  ".vscode/mcp.json": {
+    format: "jsonc",
+    // Fail-closed like `.vscode/settings.json`: never read-modify-write a file
+    // we could not fully parse, so a partial parse cannot silently drop the
+    // user's `inputs` / `sandbox` on the write-back.
+    invalidRootPolicy: "error",
+    jsoncParseErrors: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["servers"] },
     },
   },
   // Qwen Code settings: `permissions` is recomputed from the existing file

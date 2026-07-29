@@ -49,6 +49,9 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       excludeAgent: z.optional(
         z.union([z.literal("code-review"), z.literal("cloud-agent"), z.literal("coding-agent")]),
       ),
+      // Display name shown in the VS Code UI for an `*.instructions.md` file.
+      // https://code.visualstudio.com/docs/agent-customization/custom-instructions
+      name: z.optional(z.string()),
     }),
   ),
   antigravity: z.optional(

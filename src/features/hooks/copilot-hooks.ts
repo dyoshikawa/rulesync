@@ -2,7 +2,12 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { COPILOT_HOOKS_DIR_PATH, COPILOT_HOOKS_FILE_NAME } from "../../constants/copilot-paths.js";
+import {
+  COPILOT_GLOBAL_HOOKS_DIR_PATH,
+  COPILOT_GLOBAL_HOOKS_FILE_NAME,
+  COPILOT_HOOKS_DIR_PATH,
+  COPILOT_HOOKS_FILE_NAME,
+} from "../../constants/copilot-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
@@ -164,7 +169,13 @@ export class CopilotHooks extends ToolHooks {
     });
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolHooksSettablePaths {
+    if (global) {
+      return {
+        relativeDirPath: COPILOT_GLOBAL_HOOKS_DIR_PATH,
+        relativeFilePath: COPILOT_GLOBAL_HOOKS_FILE_NAME,
+      };
+    }
     return {
       relativeDirPath: COPILOT_HOOKS_DIR_PATH,
       relativeFilePath: COPILOT_HOOKS_FILE_NAME,
@@ -185,6 +196,7 @@ export class CopilotHooks extends ToolHooks {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      global,
     });
   }
 
@@ -192,10 +204,11 @@ export class CopilotHooks extends ToolHooks {
     outputRoot = process.cwd(),
     rulesyncHooks,
     validate = true,
+    global = false,
   }: ToolHooksFromRulesyncHooksParams & {
     global?: boolean;
   }): Promise<CopilotHooks> {
-    const paths = CopilotHooks.getSettablePaths();
+    const paths = CopilotHooks.getSettablePaths({ global });
     const config = rulesyncHooks.getJson();
     const copilotHooks = canonicalToCopilotHooks(config);
     const fileContent = JSON.stringify({ version: 1, hooks: copilotHooks }, null, 2);
@@ -205,6 +218,7 @@ export class CopilotHooks extends ToolHooks {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      global,
     });
   }
 

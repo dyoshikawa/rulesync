@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { COPILOT_MCP_DIR, COPILOT_MCP_FILE_NAME } from "../../constants/copilot-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -14,13 +15,20 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
+/**
+ * `.vscode/mcp.json` has three documented top-level sections: `servers` (the
+ * one rulesync manages), `inputs` (secret prompts referenced as
+ * `${input:id}`) and `sandbox` (filesystem/network rules for sandboxed
+ * servers). Only `servers` is generated; the rest of the document is read back
+ * and preserved, since VS Code recommends committing this file and dropping an
+ * `inputs` entry would leave `${input:…}` unresolvable at startup.
+ *
+ * @see https://code.visualstudio.com/docs/agents/reference/mcp-configuration
+ */
 type CopilotMcpConfig = {
   servers?: McpServers;
+  [key: string]: unknown;
 };
-
-function convertToCopilotFormat(mcpServers: McpServers): CopilotMcpConfig {
-  return { servers: mcpServers };
-}
 
 function convertFromCopilotFormat(copilotConfig: CopilotMcpConfig): McpServers {
   return copilotConfig.servers ?? {};
@@ -65,17 +73,32 @@ export class CopilotMcp extends ToolMcp {
     });
   }
 
-  static fromRulesyncMcp({
+  static async fromRulesyncMcp({
     outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
-  }: ToolMcpFromRulesyncMcpParams): CopilotMcp {
-    const copilotConfig = convertToCopilotFormat(rulesyncMcp.getMcpServers());
+  }: ToolMcpFromRulesyncMcpParams): Promise<CopilotMcp> {
+    const paths = this.getSettablePaths();
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    // Read without initializing so this stays side-effect-free under
+    // `--dry-run`/`--check`; the actual write happens later in `writeAiFiles`.
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
+
     return new CopilotMcp({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: JSON.stringify(copilotConfig, null, 2),
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      // The shared-config gateway owns only `servers`, parses the file as the
+      // JSONC VS Code actually writes (its "MCP: Add Server" scaffold starts
+      // with a comment), and fails closed rather than overwriting a file it
+      // could not fully parse.
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "mcp",
+        existingContent,
+        patch: { servers: rulesyncMcp.getMcpServers() },
+        filePath,
+      }),
       validate,
     });
   }
