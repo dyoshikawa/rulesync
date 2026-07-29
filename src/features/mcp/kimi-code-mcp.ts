@@ -15,16 +15,14 @@ import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import {
+  getKimiCodeConfigSharedFileKey,
   getKimiCodeRelativeDirPath,
+  getKimiCodeSharedConfigWritePaths,
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
-import {
-  applySharedConfigPatch,
-  KIMI_CODE_CONFIG_SHARED_FILE_KEY,
-  parseSharedConfig,
-} from "../shared/shared-config-gateway.js";
+import { applySharedConfigPatch, parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -275,7 +273,7 @@ export class KimiCodeMcpConfigToml extends ToolFile {
     const existingContent = existing.content;
     const existingSection = existing.mcp;
     const fileContent = applySharedConfigPatch({
-      fileKey: KIMI_CODE_CONFIG_SHARED_FILE_KEY,
+      fileKey: getKimiCodeConfigSharedFileKey(),
       feature: "mcp",
       existingContent,
       patch: {
@@ -403,17 +401,8 @@ export class KimiCodeMcp extends ToolMcp {
    * derivation sees this feature as one of that file's writers — it is not a
    * settable path, since the servers themselves live in `mcp.json`.
    */
-  static getExtraSharedWritePaths({
-    global = false,
-  }: { global?: boolean } = {}): SharedWritePath[] {
-    return global
-      ? [
-          {
-            relativeDirPath: getKimiCodeRelativeDirPath({ global: true }),
-            relativeFilePath: KIMI_CODE_CONFIG_FILE_NAME,
-          },
-        ]
-      : [];
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return getKimiCodeSharedConfigWritePaths();
   }
 
   /**

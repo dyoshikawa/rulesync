@@ -269,6 +269,7 @@ export const CODEXCLI_CONFIG_SHARED_FILE_KEY = ".codex/config.toml";
 export const GROKCLI_CONFIG_SHARED_FILE_KEY = ".grok/config.toml";
 export const VIBE_CONFIG_SHARED_FILE_KEY = ".vibe/config.toml";
 export const KIMI_CODE_CONFIG_SHARED_FILE_KEY = ".kimi-code/config.toml";
+export const KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY = "config.toml";
 export const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
 export const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
 
@@ -300,6 +301,52 @@ export const sharedConfigFileKey = ({
  * lock-step with the writers derived from the processor registry, so an
  * undeclared writer fails CI instead of merging by accident.
  */
+/**
+ * Hermes writes one `config.yaml`, but its global profile root has three
+ * spellings (`~/.hermes`, the win32 `%LOCALAPPDATA%\hermes`, and `HERMES_HOME`
+ * itself). They are the same file with the same owners, so the declaration is
+ * written once and shared — a policy edit cannot land on one spelling only.
+ */
+const HERMES_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "yaml",
+  features: {
+    // The plugins block is recomputed from the existing file (enabled list
+    // appended) before being applied, so the whole key is owned here.
+    commands: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
+    subagents: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+    hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    // Deep-merged so `approvals.mode`-style user keys coexist with generated
+    // `approvals.deny`; the `permissions` round-trip blob is an authoritative
+    // snapshot and must not resurrect deleted rules.
+    permissions: { kind: "deep-merge", replaceKeys: ["permissions"] },
+  },
+};
+
+/**
+ * Kimi Code's user config: hooks owns the flat `hooks` array; permissions owns
+ * the ordered rule list and optional coarse default mode. `KIMI_CODE_HOME` can
+ * name the profile directory itself, so the file has two spellings that share
+ * one declaration — a policy edit cannot land on only one of them.
+ */
+const KIMI_CODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "toml",
+  invalidRootPolicy: "error",
+  features: {
+    hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    // `mcp` holds the global default MCP timeouts; the servers themselves
+    // live in `mcp.json`, so this feature reaches the file as an auxiliary
+    // writer (same shape as vibe hooks above).
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
+    permissions: {
+      kind: "replace-owned-keys",
+      // `tools` is Kimi's global tool allow/deny switch, a second enforcement
+      // layer alongside `permission.rules`.
+      ownedKeys: ["permission", "default_permission_mode", "tools"],
+    },
+  },
+};
+
 export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDeclaration>> = {
   [CLAUDE_SETTINGS_SHARED_FILE_KEY]: {
     format: "json",
@@ -312,56 +359,9 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "custom", policyFunction: "applyPermissions" },
     },
   },
-  [HERMES_CONFIG_SHARED_FILE_KEY]: {
-    format: "yaml",
-    features: {
-      // The plugins block is recomputed from the existing file (enabled list
-      // appended) before being applied, so the whole key is owned here.
-      commands: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
-      subagents: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
-      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      // Deep-merged so `approvals.mode`-style user keys coexist with generated
-      // `approvals.deny`; the `permissions` round-trip blob is an authoritative
-      // snapshot and must not resurrect deleted rules.
-      permissions: { kind: "deep-merge", replaceKeys: ["permissions"] },
-    },
-  },
-  // The same Hermes config under the other two spellings its profile root can
-  // take: `%LOCALAPPDATA%\hermes` (the win32 default) and the profile root
-  // itself when `HERMES_HOME` is set. All three are declared unconditionally so
-  // the derived shared-file keys — and therefore the drift guards checked
-  // against this table — do not depend on the ambient platform or environment.
-  [HERMES_WIN32_CONFIG_SHARED_FILE_KEY]: {
-    format: "yaml",
-    features: {
-      // The plugins block is recomputed from the existing file (enabled list
-      // appended) before being applied, so the whole key is owned here.
-      commands: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
-      subagents: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
-      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      // Deep-merged so `approvals.mode`-style user keys coexist with generated
-      // `approvals.deny`; the `permissions` round-trip blob is an authoritative
-      // snapshot and must not resurrect deleted rules.
-      permissions: { kind: "deep-merge", replaceKeys: ["permissions"] },
-    },
-  },
-  [HERMES_HOME_CONFIG_SHARED_FILE_KEY]: {
-    format: "yaml",
-    features: {
-      // The plugins block is recomputed from the existing file (enabled list
-      // appended) before being applied, so the whole key is owned here.
-      commands: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
-      subagents: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
-      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      // Deep-merged so `approvals.mode`-style user keys coexist with generated
-      // `approvals.deny`; the `permissions` round-trip blob is an authoritative
-      // snapshot and must not resurrect deleted rules.
-      permissions: { kind: "deep-merge", replaceKeys: ["permissions"] },
-    },
-  },
+  [HERMES_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,
+  [HERMES_WIN32_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,
+  [HERMES_HOME_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,
   [TAKT_CONFIG_SHARED_FILE_KEY]: {
     format: "yaml",
     // config.yaml is the user's primary Takt config; refusing to parse a
@@ -647,25 +647,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       },
     },
   },
-  // Kimi Code's user config: hooks owns the flat `hooks` array; permissions
-  // owns the ordered rule list and optional coarse default mode.
-  [KIMI_CODE_CONFIG_SHARED_FILE_KEY]: {
-    format: "toml",
-    invalidRootPolicy: "error",
-    features: {
-      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      // `mcp` holds the global default MCP timeouts; the servers themselves
-      // live in `mcp.json`, so this feature reaches the file as an auxiliary
-      // writer (same shape as vibe hooks above).
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
-      permissions: {
-        kind: "replace-owned-keys",
-        // `tools` is Kimi's global tool allow/deny switch, a second enforcement
-        // layer alongside `permission.rules`.
-        ownedKeys: ["permission", "default_permission_mode", "tools"],
-      },
-    },
-  },
+  [KIMI_CODE_CONFIG_SHARED_FILE_KEY]: KIMI_CODE_CONFIG_DECLARATION,
+  [KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY]: KIMI_CODE_CONFIG_DECLARATION,
   // Reasonix project config (`./reasonix.toml`): mcp owns `plugins`;
   // permissions owns `permissions`/`sandbox`/`agent`. All three are recomputed
   // from the existing file (unmanaged entries and sibling override keys

@@ -5,6 +5,7 @@ import {
   HERMESAGENT_GLOBAL_DIR,
   HERMESAGENT_GLOBAL_WIN32_DIR,
 } from "../constants/hermesagent-paths.js";
+import { sharedConfigFileKey } from "../features/shared/shared-config-gateway.js";
 import type { SharedWritePath } from "../lib/shared-file-derive.js";
 import { checkPathTraversal, getHomeDirectory } from "./file.js";
 
@@ -110,6 +111,22 @@ export function getHermesagentSharedConfigWritePaths(): SharedWritePath[] {
     // config sits at the root with no directory component.
     { relativeDirPath: ".", relativeFilePath: HERMESAGENT_CONFIG_FILE_NAME },
   ];
+}
+
+/**
+ * The `SHARED_CONFIG_OWNERSHIP` key of the `config.yaml` this scope actually
+ * writes. All three spellings carry the same declaration, but passing the key of
+ * the file being written keeps the write path and the drift guards reading the
+ * same entry.
+ */
+export function getHermesagentConfigSharedFileKey({ global }: { global: boolean }): string {
+  return sharedConfigFileKey({
+    relativeDirPath: getHermesagentRelativeDirPath({
+      global,
+      relativeDirPath: HERMESAGENT_GLOBAL_DIR,
+    }),
+    relativeFilePath: HERMESAGENT_CONFIG_FILE_NAME,
+  });
 }
 
 export function getHermesagentRulesyncOutputRoot({

@@ -17,6 +17,7 @@ import {
 } from "../../types/permissions.js";
 import { readFileContent } from "../../utils/file.js";
 import {
+  getHermesagentConfigSharedFileKey,
   getHermesagentRelativeDirPath,
   getHermesagentRulesyncOutputRoot,
   getHermesagentSharedConfigWritePaths,
@@ -24,7 +25,6 @@ import {
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  HERMES_CONFIG_SHARED_FILE_KEY,
   mergeSharedConfigDeep,
   parseSharedConfig,
   stringifySharedConfig,
@@ -242,7 +242,7 @@ export class HermesagentPermissions extends ToolPermissions {
 
   setFileContent(fileContent: string): void {
     this.fileContent = applySharedConfigPatch({
-      fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+      fileKey: getHermesagentConfigSharedFileKey({ global: this.global }),
       feature: "permissions",
       existingContent: fileContent,
       patch: parseSharedConfig({ format: "yaml", fileContent: this.fileContent }),

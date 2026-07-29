@@ -16,6 +16,7 @@ import {
 } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import {
+  getHermesagentConfigSharedFileKey,
   getHermesagentRelativeDirPath,
   getHermesagentRulesyncOutputRoot,
   getHermesagentSharedConfigWritePaths,
@@ -24,7 +25,6 @@ import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import {
   applySharedConfigPatch,
-  HERMES_CONFIG_SHARED_FILE_KEY,
   parseSharedConfig,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
@@ -324,7 +324,7 @@ export class HermesagentHooks extends ToolHooks {
 
   setFileContent(fileContent: string): void {
     this.fileContent = applySharedConfigPatch({
-      fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+      fileKey: getHermesagentConfigSharedFileKey({ global: this.global }),
       feature: "hooks",
       existingContent: fileContent,
       patch: parseSharedConfig({ format: "yaml", fileContent: this.fileContent }),

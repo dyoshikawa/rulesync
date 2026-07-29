@@ -5,6 +5,7 @@ import {
   RULESYNC_HOOKS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_KIMI_CODE_EVENT_NAMES,
@@ -16,13 +17,14 @@ import {
 } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import {
+  getKimiCodeConfigSharedFileKey,
   getKimiCodeRelativeDirPath,
+  getKimiCodeSharedConfigWritePaths,
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   applySharedConfigPatch,
-  KIMI_CODE_CONFIG_SHARED_FILE_KEY,
   parseSharedConfig,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
@@ -190,6 +192,14 @@ export class KimiCodeHooks extends ToolHooks {
     return false;
   }
 
+  /**
+   * `config.toml` under both spellings its directory can take.
+   * @see getKimiCodeSharedConfigWritePaths
+   */
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return getKimiCodeSharedConfigWritePaths();
+  }
+
   shouldMergeExistingFileContent(): boolean {
     return true;
   }
@@ -197,7 +207,7 @@ export class KimiCodeHooks extends ToolHooks {
   setFileContent(fileContent: string): void {
     const paths = KimiCodeHooks.getSettablePaths({ global: this.global });
     this.fileContent = applySharedConfigPatch({
-      fileKey: KIMI_CODE_CONFIG_SHARED_FILE_KEY,
+      fileKey: getKimiCodeConfigSharedFileKey(),
       feature: "hooks",
       existingContent: fileContent,
       patch: parseSharedConfig({ format: "toml", fileContent: this.fileContent }),

@@ -26,6 +26,11 @@ export const HERMESAGENT_GLOBAL_DIR = ".hermes";
  * Home-relative global profile root on Windows: upstream defaults to
  * `%LOCALAPPDATA%\hermes` there, not `~/.hermes`.
  * Resolve it through `getHermesagentGlobalDir()` rather than reading it directly.
+ *
+ * Home-relative rather than read from `LOCALAPPDATA`, matching how every other
+ * Windows global path in rulesync is spelled (`ZED_GLOBAL_WIN32_DIR`,
+ * `WARP_WIN32_DIR`). A profile with `LOCALAPPDATA` redirected elsewhere is not
+ * followed; those users should set `HERMES_HOME` explicitly.
  */
 export const HERMESAGENT_GLOBAL_WIN32_DIR = join("AppData", "Local", "hermes");
 

@@ -13,15 +13,12 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import {
+  getHermesagentConfigSharedFileKey,
   getHermesagentRelativeDirPath,
   getHermesagentRulesyncOutputRoot,
   getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
-import {
-  applySharedConfigPatch,
-  HERMES_CONFIG_SHARED_FILE_KEY,
-  parseSharedConfig,
-} from "../shared/shared-config-gateway.js";
+import { applySharedConfigPatch, parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -123,7 +120,13 @@ def register(ctx):
 `;
 }
 
-function getEnabledPluginConfigContent(currentContent: string): string {
+function getEnabledPluginConfigContent({
+  currentContent,
+  global,
+}: {
+  currentContent: string;
+  global: boolean;
+}): string {
   const config = parseSharedConfig({ format: "yaml", fileContent: currentContent });
   const plugins =
     config.plugins && typeof config.plugins === "object"
@@ -132,7 +135,7 @@ function getEnabledPluginConfigContent(currentContent: string): string {
   const enabled = Array.isArray(plugins.enabled) ? plugins.enabled : [];
 
   return applySharedConfigPatch({
-    fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+    fileKey: getHermesagentConfigSharedFileKey({ global }),
     feature: "subagents",
     existingContent: currentContent,
     patch: {
@@ -343,7 +346,9 @@ export class HermesagentSubagent extends ToolSubagent {
 
   setFileContent(newFileContent: string): void {
     if (this.getRelativeFilePath() === basename(HERMESAGENT_CONFIG_FILE_PATH)) {
-      super.setFileContent(getEnabledPluginConfigContent(newFileContent));
+      super.setFileContent(
+        getEnabledPluginConfigContent({ currentContent: newFileContent, global: this.global }),
+      );
       return;
     }
 
@@ -362,7 +367,10 @@ export class HermesagentSubagent extends ToolSubagent {
     }
 
     if (this.getRelativeFilePath() === basename(HERMESAGENT_CONFIG_FILE_PATH)) {
-      return getEnabledPluginConfigContent(super.getFileContent());
+      return getEnabledPluginConfigContent({
+        currentContent: super.getFileContent(),
+        global: this.global,
+      });
     }
 
     return super.getFileContent();

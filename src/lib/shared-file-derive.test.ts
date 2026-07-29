@@ -213,6 +213,11 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        "config.toml": [
+          "hooks",
+          "mcp",
+          "permissions",
+        ],
         "config.yaml": [
           "commands",
           "hooks",
