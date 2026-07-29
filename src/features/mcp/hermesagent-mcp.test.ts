@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { getHermesagentGlobalDir } from "../../utils/hermesagent.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { HermesagentMcp } from "./hermesagent-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -751,6 +750,11 @@ mcp_servers:
 });
 
 describe("HermesagentMcp global settable paths", () => {
+  // Pinned as literals rather than re-calling getHermesagentGlobalDir(), so the
+  // platform branch itself is asserted and not merely restated.
+  const expectedGlobalDir =
+    process.platform === "win32" ? join("AppData", "Local", "hermes") : ".hermes";
+
   const originalHermesHome = process.env.HERMES_HOME;
 
   afterEach(() => {
@@ -762,7 +766,7 @@ describe("HermesagentMcp global settable paths", () => {
     delete process.env.HERMES_HOME;
 
     expect(HermesagentMcp.getSettablePaths({ global: true })).toEqual({
-      relativeDirPath: getHermesagentGlobalDir(),
+      relativeDirPath: expectedGlobalDir,
       relativeFilePath: "config.yaml",
     });
   });

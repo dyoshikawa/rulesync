@@ -1,6 +1,7 @@
+import { join } from "node:path";
+
 import { afterEach, describe, expect, it } from "vitest";
 
-import { getHermesagentGlobalDir } from "../../utils/hermesagent.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentPermissions } from "./hermesagent-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -344,6 +345,11 @@ security:
 });
 
 describe("HermesagentPermissions global settable paths", () => {
+  // Pinned as literals rather than re-calling getHermesagentGlobalDir(), so the
+  // platform branch itself is asserted and not merely restated.
+  const expectedGlobalDir =
+    process.platform === "win32" ? join("AppData", "Local", "hermes") : ".hermes";
+
   const originalHermesHome = process.env.HERMES_HOME;
 
   afterEach(() => {
@@ -355,7 +361,7 @@ describe("HermesagentPermissions global settable paths", () => {
     delete process.env.HERMES_HOME;
 
     expect(HermesagentPermissions.getSettablePaths({ global: true })).toEqual({
-      relativeDirPath: getHermesagentGlobalDir(),
+      relativeDirPath: expectedGlobalDir,
       relativeFilePath: "config.yaml",
     });
   });

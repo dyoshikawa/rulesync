@@ -11,7 +11,6 @@ import {
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { getHermesagentGlobalDir } from "../../utils/hermesagent.js";
 import { getHermesagentSharedConfigWritePaths } from "../../utils/hermesagent.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
@@ -170,6 +169,11 @@ plugins:
 });
 
 describe("HermesagentSubagent global settable paths", () => {
+  // Pinned as literals rather than re-calling getHermesagentGlobalDir(), so the
+  // platform branch itself is asserted and not merely restated.
+  const expectedGlobalDir =
+    process.platform === "win32" ? join("AppData", "Local", "hermes") : ".hermes";
+
   const originalHermesHome = process.env.HERMES_HOME;
 
   afterEach(() => {
@@ -181,7 +185,7 @@ describe("HermesagentSubagent global settable paths", () => {
     delete process.env.HERMES_HOME;
 
     expect(HermesagentSubagent.getSettablePaths({ global: true })).toEqual({
-      relativeDirPath: join(getHermesagentGlobalDir(), "rulesync", "subagents"),
+      relativeDirPath: join(expectedGlobalDir, "rulesync", "subagents"),
     });
   });
 
