@@ -503,10 +503,22 @@ Review the diff for injection vulnerabilities, hardcoded secrets, and unsafe
 deserialization. Report each finding with a file and line reference.
 ```
 
-Amp, Hermes Agent and Takt consume checks. Amp receives one Markdown file per check:
+Amp, Cursor, Hermes Agent and Takt consume checks. Amp receives one Markdown file per check:
 
 - **Project scope:** `.agents/checks/<name>.md`
 - **Global scope** (`--global`): `~/.config/amp/checks/<name>.md`
+
+For Cursor, checks are [Bugbot](https://cursor.com/docs/bugbot) code review instructions, and Bugbot reads one aggregated instruction file per directory rather than a file per check — so every check targeting Cursor collapses into the repository-root `.cursor/BUGBOT.md`. Each check becomes one section: an HTML-comment marker carrying the check name, an `## <name>` heading, and the check body as the instruction text (the `description` is used when the body is empty). Bugbot reads the file as free prose, so a check's `severity` and `tools` have no equivalent there — they are not written and do not come back on import, and neither is `description` whenever the check also has a body. Project scope only: Bugbot reads repository files and there is no user-level instruction file. Example output:
+
+```md
+<!-- rulesync:check:security -->
+
+## security
+
+Review the diff for injection vulnerabilities.
+```
+
+On import the markers split the file back into one check per section, each with `targets: ["*"]` because Bugbot instructions are plain prose that applies anywhere. Content sitting ahead of the first marker — and a hand-written `BUGBOT.md` with no markers at all — is imported as a single `bugbot` check, so nothing in the file is dropped. Bugbot also merges nested `<dir>/.cursor/BUGBOT.md` files found while traversing upward from changed files, but rulesync check sources carry no directory-placement semantics, so only the root file is generated.
 
 For Hermes Agent, Rulesync writes project-local JSON specs under `.hermes/plugins/rulesync-checks/checks/` and a `rulesync-checks` plugin beside them. Its one-shot [`pre_verify` hook](https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks/#pre-verify) fires only for coding turns with changed paths and `attempt == 0`, then asks Hermes to run all configured checks before finishing. `tools` is preserved as advisory guidance because Hermes does not enforce an Amp-style per-check tool allowlist. Run Hermes with the project plugin explicitly trusted for that invocation:
 

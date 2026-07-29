@@ -15,7 +15,7 @@ const logger = new ConsoleLogger({ verbose: false, silent: true });
 
 describe("ChecksProcessor.getToolTargets", () => {
   it("should return project-scoped check targets", () => {
-    expect(ChecksProcessor.getToolTargets()).toEqual(["amp", "hermesagent", "takt"]);
+    expect(ChecksProcessor.getToolTargets()).toEqual(["amp", "cursor", "hermesagent", "takt"]);
   });
 
   it("should return amp for global scope", () => {
@@ -28,6 +28,7 @@ describe("ChecksProcessor.getToolTargets", () => {
 
   it("should expose the amp factory", () => {
     expect(ChecksProcessor.getFactory("amp")).toBeDefined();
+    expect(ChecksProcessor.getFactory("cursor")).toBeDefined();
     expect(ChecksProcessor.getFactory("claudecode")).toBeUndefined();
   });
 });
