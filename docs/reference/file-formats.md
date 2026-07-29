@@ -160,10 +160,14 @@ Example:
 - `cacheTtl` (optional): Number of seconds to cache a successful hook result. Forwarded to Kiro CLI as `cache_ttl_seconds`; `0` disables caching and Kiro never caches `AgentSpawn` hooks.
 - `failClosed` (optional): Boolean. When `true`, a hook failure (crash, timeout, invalid JSON) blocks the action instead of allowing it through. Passed through to Cursor's `.cursor/hooks.json` and to JetBrains Junie's `~/.junie/config.json` (as Junie's equivalently-named `blockOnError` flag).
 - `async` (optional): Boolean. When `true`, the hook command runs in the background without blocking. Forwarded to Qwen Code (`.qwen/settings.json`) and JetBrains Junie (`~/.junie/config.json`, same field name).
-- `shell` (optional): Either `"bash"` or `"powershell"` — the only two interpreter values any tool accepts. Forwarded to Qwen Code command hooks.
+- `shell` (optional): Either `"bash"` or `"powershell"` — the only two interpreter values any tool accepts. Forwarded to Qwen Code and Claude Code command hooks. Like `args`, `async` and `asyncRewake`, it is documented on command hooks only, so it is not emitted on a hook of another type.
 - `url` / `headers` / `allowedEnvVars` (optional, `http` hooks): the POST target URL, request headers (values support `$VAR` interpolation), and the env-var allowlist for that interpolation. Forwarded to Claude Code and Qwen Code http hooks.
 - `server` / `tool` / `input` (optional, `mcp_tool` hooks): the configured MCP server name, the tool to call on it, and the (arbitrary JSON) arguments, whose string values support `${path}` substitution from the hook input. Forwarded to Claude Code mcp_tool hooks.
 - `model` (optional, `prompt` / `agent` hooks): the model used for evaluation (defaults to a fast model). Forwarded to Claude Code prompt/agent hooks.
+- `args` (optional, `command` hooks): an argument list. When present — an empty list counts, and is the form the Claude Code docs use — the tool spawns `command` directly as an executable with these arguments. There is no shell, so Rulesync writes the project-directory prefix as the braced placeholder `${CLAUDE_PROJECT_DIR}/…` that Claude Code substitutes itself, rather than the quoted shell form. Forwarded to Claude Code and AugmentCode. Only `command` is prefixed; entries of `args` are passed through exactly as written.
+- `asyncRewake` (optional): boolean. Like `async`, but wakes Claude when the hook exits with code 2. Forwarded to Claude Code command hooks.
+- `once` (optional): boolean. Run the hook once per session, then remove it. Forwarded to Claude Code (honored in skill frontmatter; accepted but ignored in settings files) and Qwen Code http hooks.
+- `continueOnBlock` (optional): boolean. Feed a blocking hook's rejection reason back to the model and continue the turn instead of ending it. Forwarded to Claude Code.
 - `commandWindows` (optional): a Windows-only override for `command`, so one hook set can be cross-platform. Forwarded to Codex CLI command hooks (`.codex/hooks.json`), which is the only tool that accepts it.
 - `statusMessage` (optional): the progress text shown while the hook runs. Forwarded to Qwen Code (command and http hooks) and to Codex CLI command hooks.
 - `if` (optional): a single permission rule (same syntax as `settings.json` permission rules, e.g. `"Bash(rm *)"`) that filters a hook by tool arguments in addition to the tool name. Forwarded to Claude Code, where it is evaluated only on tool events (`preToolUse`, `postToolUse`, `postToolUseFailure`, `permissionRequest`, `permissionDenied`); it round-trips as an opaque string.
@@ -220,10 +224,11 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 | `configChange`         |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 | `cwdChanged`           |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 | `fileChanged`          |   —    |     ✅      |    ✅    |  ✅  |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
+| `directoryAdded`       |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 | `elicitation`          |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 | `elicitationResult`    |   —    |     ✅      |    —     |  —   |    —    |      —      |       —       |     —      |     —     |     —      |  —   |        —        |        —        |   —   |      —      |   —   |
 
-> **Note:** `worktreeCreate`, `worktreeRemove`, `messageDisplay`, `postToolBatch`, `taskCreated`, `taskCompleted`, `teammateIdle`, and `cwdChanged` are Claude Code events that do not support the `matcher` field (they fire on every occurrence). Any matcher defined in the config is ignored for these events.
+> **Note:** `beforeSubmitPrompt`, `stop`, `worktreeCreate`, `worktreeRemove`, `messageDisplay`, `postToolBatch`, `taskCreated`, `taskCompleted`, `teammateIdle`, and `cwdChanged` are the Claude Code events the [matcher table](https://code.claude.com/docs/en/hooks) lists as not supporting the `matcher` field (they fire on every occurrence). A matcher authored on one of them is dropped with a warning rather than written into `settings.json` to be ignored. `directoryAdded` is treated the same way for now: the event is announced in the 2.1.219 changelog but has no row in the docs' event table yet, so its matcher support is unknown.
 
 > **Note:** Rulesync implements OpenCode hooks as a plugin at `.opencode/plugins/rulesync-hooks.js` and Kilo hooks as a plugin at `.kilo/plugins/rulesync-hooks.js`, so importing from OpenCode/Kilo to rulesync is not supported. Both only support command-type hooks (not prompt-type).
 
@@ -594,6 +599,7 @@ claudecode: # for claudecode-specific parameters
     - "pr_number"
   context: fork # (optional) set to "fork" to run the skill in a forked subagent context
   agent: code-reviewer # (optional) subagent type to use when context: fork
+  background: false # (optional, context: fork only) wait for the forked subagent in the invoking turn instead of backgrounding it (default true)
   shell: bash # (optional) shell for ! command blocks: bash (default) or powershell
   hooks: # (optional) hooks scoped to the skill's lifecycle (free-form per the Claude Code docs)
     PreToolUse:

@@ -73,6 +73,140 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.afterFileEdit).toBeUndefined();
     });
 
+    it("should emit the documented per-handler fields and the DirectoryAdded event", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          directoryAdded: [{ command: "on-add-dir.sh" }],
+          preToolUse: [
+            {
+              command: "node",
+              args: ["./scripts/check.js", "--strict"],
+              async: true,
+              asyncRewake: true,
+              shell: "bash",
+              statusMessage: "Checking",
+              once: true,
+              continueOnBlock: true,
+            },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      expect(parsed.hooks.DirectoryAdded).toBeDefined();
+      expect(parsed.hooks.PreToolUse[0].hooks[0]).toMatchObject({
+        type: "command",
+        command: "node",
+        args: ["./scripts/check.js", "--strict"],
+        async: true,
+        asyncRewake: true,
+        shell: "bash",
+        statusMessage: "Checking",
+        once: true,
+        continueOnBlock: true,
+      });
+    });
+
+    it("should use the braced placeholder for an exec-form command", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            // No shell to strip the quotes the shell form adds, but Claude Code
+            // substitutes the braced placeholder itself. An empty `args` selects
+            // the exec form too — the docs' own example is `"args": []`.
+            { command: "./scripts/exec.sh", args: ["--strict"] },
+            { command: "./scripts/empty-args.sh", args: [] },
+            { command: "./scripts/shell-form.sh" },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const hooks = JSON.parse(claudecodeHooks.getFileContent()).hooks.PreToolUse[0].hooks;
+      expect(hooks[0].command).toBe("${CLAUDE_PROJECT_DIR}/scripts/exec.sh");
+      expect(hooks[1].command).toBe("${CLAUDE_PROJECT_DIR}/scripts/empty-args.sh");
+      expect(hooks[2].command).toBe('"$CLAUDE_PROJECT_DIR"/scripts/shell-form.sh');
+    });
+
+    it("should keep command-only fields off non-command hooks", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          // `args`, `async`, `asyncRewake` and `shell` are documented on command
+          // hooks only; `statusMessage` and `once` are common to every type.
+          preToolUse: [
+            {
+              type: "http",
+              url: "https://example.com/hook",
+              args: ["--strict"],
+              async: true,
+              asyncRewake: true,
+              shell: "bash",
+              statusMessage: "Calling",
+              once: true,
+            },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const hook = JSON.parse(claudecodeHooks.getFileContent()).hooks.PreToolUse[0].hooks[0];
+      expect(hook.args).toBeUndefined();
+      expect(hook.async).toBeUndefined();
+      expect(hook.asyncRewake).toBeUndefined();
+      expect(hook.shell).toBeUndefined();
+      expect(hook.statusMessage).toBe("Calling");
+      expect(hook.once).toBe(true);
+    });
+
     it("should emit http/mcp_tool/agent hooks with their type-specific payload fields", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
@@ -510,6 +644,52 @@ describe("ClaudecodeHooks", () => {
       );
     });
 
+    it("should import DirectoryAdded and the per-handler fields, undoing the exec-form prefix", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            DirectoryAdded: [{ hooks: [{ command: "on-add-dir.sh" }] }],
+            PreToolUse: [
+              {
+                hooks: [
+                  {
+                    type: "command",
+                    command: "${CLAUDE_PROJECT_DIR}/scripts/check.js",
+                    args: ["--strict"],
+                    async: true,
+                    asyncRewake: true,
+                    shell: "bash",
+                    statusMessage: "Checking",
+                    once: true,
+                    continueOnBlock: true,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const parsed = claudecodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.directoryAdded).toBeDefined();
+      expect(parsed.hooks.preToolUse?.[0]).toMatchObject({
+        type: "command",
+        // The braced placeholder generate wrote comes back as the relative path.
+        command: "./scripts/check.js",
+        args: ["--strict"],
+        async: true,
+        asyncRewake: true,
+        shell: "bash",
+        statusMessage: "Checking",
+        once: true,
+        continueOnBlock: true,
+      });
+    });
+
     it("should convert Claude PascalCase hooks to canonical camelCase", () => {
       const claudecodeHooks = new ClaudecodeHooks({
         outputRoot: testDir,
@@ -880,6 +1060,47 @@ describe("ClaudecodeHooks", () => {
       const parsed = JSON.parse(content);
       expect(parsed.hooks.MessageDisplay).toBeDefined();
       expect(parsed.hooks.MessageDisplay[0].matcher).toBeUndefined();
+    });
+
+    it("should drop a matcher on UserPromptSubmit and Stop, which take none", async () => {
+      // Both are in the docs' no-matcher table; before, a matcher authored on
+      // them was written into settings.json and silently ignored upstream.
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const config = {
+        version: 1,
+        hooks: {
+          beforeSubmitPrompt: [{ command: "prompt.sh", matcher: "*.js" }],
+          stop: [{ command: "stop.sh", matcher: "*.ts" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      expect(parsed.hooks.UserPromptSubmit[0].matcher).toBeUndefined();
+      expect(parsed.hooks.Stop[0].matcher).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('matcher "*.js" on "beforeSubmitPrompt" hook will be ignored'),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('matcher "*.ts" on "stop" hook will be ignored'),
+      );
     });
 
     it("should warn when matcher is defined on worktree events", async () => {

@@ -44,8 +44,10 @@ export type ToolHooksConverterConfig = {
    * any other value is ignored so a malformed field can't leak through.
    */
   booleanPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "failClosed" | "async";
+    readonly canonical: "failClosed" | "async" | "once" | "asyncRewake" | "continueOnBlock";
     readonly tool: string;
+    /** Emit only on `command` hooks, for a field the tool documents there only. */
+    readonly commandOnly?: boolean;
   }>;
   /**
    * Per-hook string fields to carry through the round-trip, each mapping a
@@ -55,8 +57,10 @@ export type ToolHooksConverterConfig = {
    * for tool-specific opaque strings such as Claude Code's `if` condition.
    */
   stringPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "if" | "statusMessage" | "commandWindows";
+    readonly canonical: "if" | "statusMessage" | "commandWindows" | "shell";
     readonly tool: string;
+    /** Emit only on `command` hooks, for a field the tool documents there only. */
+    readonly commandOnly?: boolean;
   }>;
   /**
    * Per-hook string-array fields to carry through the round-trip. Only arrays
@@ -66,6 +70,8 @@ export type ToolHooksConverterConfig = {
   arrayPassthroughFields?: ReadonlyArray<{
     readonly canonical: "args";
     readonly tool: string;
+    /** Emit only on `command` hooks, for a field the tool documents there only. */
+    readonly commandOnly?: boolean;
   }>;
   /**
    * Fields that live on the *matcher group* rather than on a hook. They are
@@ -139,6 +145,15 @@ function groupDefinitionsByMatcher(
   return byMatcher;
 }
 
+/** `$CLAUDE_PROJECT_DIR` -> `${CLAUDE_PROJECT_DIR}`, the form the tool substitutes. */
+function bracePlaceholder(projectDirVar: string): string {
+  return `\${${projectDirVar.replace(/^\$/, "")}}`;
+}
+
+function stripSurroundingQuotes(value: string): string {
+  return value.replace(/^(["'])(.*)\1$/, "$2").replace(/^["']/, "");
+}
+
 /**
  * Apply the optional project directory variable prefix to a command string.
  */
@@ -158,6 +173,12 @@ function applyCommandPrefix({
     (posix.isAbsolute(unquotedCommand) ||
       win32.isAbsolute(unquotedCommand) ||
       unquotedCommand.startsWith("~/"));
+  // The exec form is `args` being *present* — an empty array selects it too,
+  // and the docs' own example uses `"args": []`. Only checked for tools that
+  // actually emit `args`; for the rest `command` stays a shell string.
+  const emitsArgs =
+    converterConfig.arrayPassthroughFields?.some(({ canonical }) => canonical === "args") ?? false;
+  const isExecForm = emitsArgs && Array.isArray(def.args);
   const shouldPrefix =
     converterConfig.projectDirVar !== "" &&
     typeof trimmedCommand === "string" &&
@@ -176,6 +197,12 @@ function applyCommandPrefix({
   // inside it so the quoted project root and quoted relative path concatenate
   // into one shell word: "$PROJECT_DIR"/"scripts/my hook.sh".
   const relativeCommand = trimmedCommand.replace(/^(["'])\.\//, "$1").replace(/^\.\//, "");
+  if (isExecForm) {
+    // No shell here, so the quotes would become part of the file name. The
+    // braced placeholder is what the tool substitutes itself, and it needs no
+    // quoting because each argument is passed through verbatim.
+    return `${bracePlaceholder(converterConfig.projectDirVar)}/${stripSurroundingQuotes(relativeCommand)}`;
+  }
   return `"${converterConfig.projectDirVar}"/${relativeCommand}`;
 }
 
@@ -186,14 +213,19 @@ function applyCommandPrefix({
  */
 function emitBooleanPassthroughFields({
   def,
+  hookType,
   converterConfig,
 }: {
   def: HooksConfig["hooks"][string][number];
+  hookType: HookType;
   converterConfig: ToolHooksConverterConfig;
 }): Record<string, boolean> {
   return Object.fromEntries(
     (converterConfig.booleanPassthroughFields ?? [])
-      .filter(({ canonical }) => typeof def[canonical] === "boolean")
+      .filter(({ canonical, commandOnly }) => {
+        if (commandOnly === true && hookType !== "command") return false;
+        return typeof def[canonical] === "boolean";
+      })
       .map(({ canonical, tool }) => [tool, def[canonical] as boolean]),
   );
 }
@@ -223,14 +255,19 @@ function importBooleanPassthroughFields({
  */
 function emitStringPassthroughFields({
   def,
+  hookType,
   converterConfig,
 }: {
   def: HooksConfig["hooks"][string][number];
+  hookType: HookType;
   converterConfig: ToolHooksConverterConfig;
 }): Record<string, string> {
   return Object.fromEntries(
     (converterConfig.stringPassthroughFields ?? [])
-      .filter(({ canonical }) => typeof def[canonical] === "string" && def[canonical] !== "")
+      .filter(({ canonical, commandOnly }) => {
+        if (commandOnly === true && hookType !== "command") return false;
+        return typeof def[canonical] === "string" && def[canonical] !== "";
+      })
       .map(({ canonical, tool }) => [tool, def[canonical] as string]),
   );
 }
@@ -259,14 +296,19 @@ function importStringPassthroughFields({
  */
 function emitArrayPassthroughFields({
   def,
+  hookType,
   converterConfig,
 }: {
   def: HooksConfig["hooks"][string][number];
+  hookType: HookType;
   converterConfig: ToolHooksConverterConfig;
 }): Record<string, string[]> {
   return Object.fromEntries(
     (converterConfig.arrayPassthroughFields ?? [])
-      .filter(({ canonical }) => isStringArray(def[canonical]))
+      .filter(({ canonical, commandOnly }) => {
+        if (commandOnly === true && hookType !== "command") return false;
+        return isStringArray(def[canonical]);
+      })
       .map(({ canonical, tool }) => [tool, def[canonical] as string[]]),
   );
 }
@@ -420,9 +462,9 @@ function buildToolHooks({
       // Spread the boolean and string passthrough fields first so the
       // explicitly-handled core fields below always win: a misconfigured `tool`
       // name (e.g. mapping onto "type"/"command") can never silently shadow them.
-      ...emitBooleanPassthroughFields({ def, converterConfig }),
-      ...emitStringPassthroughFields({ def, converterConfig }),
-      ...emitArrayPassthroughFields({ def, converterConfig }),
+      ...emitBooleanPassthroughFields({ def, hookType, converterConfig }),
+      ...emitStringPassthroughFields({ def, hookType, converterConfig }),
+      ...emitArrayPassthroughFields({ def, hookType, converterConfig }),
       type: hookType,
       ...(command !== undefined && command !== null && { command }),
       ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
@@ -530,6 +572,12 @@ function stripCommandPrefix({
   const quotedPrefix = `"${converterConfig.projectDirVar}"/`;
   if (cmd.startsWith(quotedPrefix)) {
     return `./${cmd.slice(quotedPrefix.length)}`;
+  }
+  // The exec form's braced placeholder, so a generated hook round-trips back to
+  // the relative command it was authored as.
+  const bracedPrefix = `${bracePlaceholder(converterConfig.projectDirVar)}/`;
+  if (cmd.startsWith(bracedPrefix)) {
+    return `./${cmd.slice(bracedPrefix.length)}`;
   }
   if (cmd.includes(`${converterConfig.projectDirVar}/`)) {
     const escapedVar = converterConfig.projectDirVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
