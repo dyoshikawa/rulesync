@@ -9,7 +9,7 @@ import {
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { OpencodeMcp } from "./opencode-mcp.js";
+import { isOpencodeTransportServer, OpencodeMcp } from "./opencode-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("OpencodeMcp", () => {
@@ -2378,7 +2378,7 @@ describe("OpencodeMcp", () => {
       const server = exported.mcp?.["test-server"];
       expect(server).toBeDefined();
       expect(server?.type).toBe("local");
-      if (server?.type === "local") {
+      if (server && isOpencodeTransportServer(server) && server.type === "local") {
         expect(server.environment?.API_KEY).toBe("{env:MY_API_KEY}");
         expect(server.environment?.DEBUG).toBe("true");
       }
@@ -2449,7 +2449,7 @@ describe("OpencodeMcp", () => {
       const server = exported.mcp?.["remote-server"];
       expect(server).toBeDefined();
       expect(server?.type).toBe("remote");
-      if (server?.type === "remote") {
+      if (server && isOpencodeTransportServer(server) && server.type === "remote") {
         expect(server.headers?.Authorization).toBe("Bearer {env:API_KEY}");
       }
     });
@@ -2539,7 +2539,7 @@ describe("OpencodeMcp", () => {
       const opencodeJson = opencodeMcp.getJson();
       const server = opencodeJson.mcp?.["remote-server"];
       expect(server?.type).toBe("remote");
-      if (server?.type === "remote") {
+      if (server && isOpencodeTransportServer(server) && server.type === "remote") {
         expect(server.headers?.Authorization).toBe("Bearer {env:API_KEY}");
         expect(server.headers?.["X-Custom"]).toBe("static-value");
       }
@@ -2690,6 +2690,44 @@ describe("OpencodeMcp", () => {
         url: "https://example.com/mcp",
         enabled: true,
       });
+    });
+  });
+  describe("legacy {enabled}-only entries", () => {
+    it("imports a bare toggle without aborting the servers beside it", async () => {
+      const opencodeMcp = new OpencodeMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify({
+          mcp: {
+            "builtin-server": { enabled: false },
+            "local-one": { type: "local", command: ["bun", "x", "srv"] },
+          },
+        }),
+      });
+
+      const imported = JSON.parse(opencodeMcp.toRulesyncMcp().getFileContent());
+
+      // The toggle names a server another config layer defines, so it carries
+      // no transport and lands in the block only OpenCode reads, with just its
+      // state crossing over.
+      expect(imported.opencode.mcpServers["builtin-server"]).toEqual({ disabled: true });
+      // The valid server beside it used to be lost with the whole import.
+      expect(imported.mcpServers["local-one"]).toMatchObject({ type: "stdio", command: "bun" });
+    });
+
+    it("still rejects a malformed transport entry that happens to carry enabled", () => {
+      expect(
+        () =>
+          new OpencodeMcp({
+            outputRoot: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: "opencode.json",
+            fileContent: JSON.stringify({
+              mcp: { broken: { type: "remote", enabled: true } },
+            }),
+          }),
+      ).toThrow();
     });
   });
 });

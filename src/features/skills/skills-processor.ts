@@ -84,6 +84,13 @@ type ToolSkillFactory = {
     forDeletion(params: ToolSkillForDeletionParams): ToolSkill;
     getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths;
     /**
+     * Optional import-only hook for roots that cannot be known statically
+     * because they are configured in the tool's own config file (e.g.
+     * OpenCode's `skills.paths`). Appended after the declared import roots, so
+     * a skill of the same name found in a managed root still wins.
+     */
+    getConfiguredImportRoots?(params: { outputRoot: string; global: boolean }): Promise<string[]>;
+    /**
      * Optional content-aware ownership filter for tools whose skills directory
      * is shared with another feature's output (e.g. Reasonix subagent profiles
      * living in `.reasonix/skills/` next to regular skills). When present, the
@@ -617,7 +624,13 @@ export class SkillsProcessor extends DirFeatureProcessor {
   async loadToolDirs(): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
-    const roots = toolSkillImportRoots(paths);
+    const configuredRoots = factory.class.getConfiguredImportRoots
+      ? await factory.class.getConfiguredImportRoots({
+          outputRoot: this.outputRoot,
+          global: this.global,
+        })
+      : [];
+    const roots = [...toolSkillImportRoots(paths), ...configuredRoots];
 
     const seenSkillNames = new Set<string>();
     const toolSkills: ToolSkill[] = [];

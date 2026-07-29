@@ -92,6 +92,66 @@ describe("OpencodeHooks", () => {
       expect(content).not.toContain("pre-prompt.sh");
     });
 
+    it("emits the compaction, error and file-watcher events", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            postCompact: [{ command: "after-compact.sh" }],
+            afterError: [{ command: "on-error.sh" }],
+            fileChanged: [{ command: "on-change.sh" }],
+            // A named `(input, output)` hook, not an `event.type` dispatch.
+            preCompact: [{ command: "before-compact.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const content = OpencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      }).getFileContent();
+
+      expect(content).toContain('event.type === "session.compacted"');
+      expect(content).toContain("after-compact.sh");
+      expect(content).toContain('event.type === "session.error"');
+      expect(content).toContain("on-error.sh");
+      expect(content).toContain('event.type === "file.watcher.updated"');
+      expect(content).toContain("on-change.sh");
+
+      expect(content).toContain('"experimental.session.compacting": async (input) => {');
+      expect(content).toContain("before-compact.sh");
+      expect(content).not.toContain('event.type === "experimental.session.compacting"');
+    });
+
+    it("drops a matcher on the compaction hook, which has nothing to match on", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { preCompact: [{ command: "before-compact.sh", matcher: "Edit" }] },
+        }),
+        validate: false,
+      });
+
+      const content = OpencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      }).getFileContent();
+
+      // `input.tool` does not exist on a compaction hook's input, so the
+      // matcher is dropped rather than compiled against a missing field.
+      expect(content).toContain("before-compact.sh");
+      expect(content).not.toContain("input.tool");
+    });
+
     it("should generate tool event handlers with matcher support", () => {
       const config = {
         version: 1,

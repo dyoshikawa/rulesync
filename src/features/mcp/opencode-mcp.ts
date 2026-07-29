@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { parse as parseJsonc } from "jsonc-parser";
-import { z } from "zod/mini";
+import { refine, z } from "zod/mini";
 
 import {
   OPENCODE_GLOBAL_DIR,
@@ -66,10 +66,48 @@ const OpencodeMcpRemoteServerSchema = z.looseObject({
   enabled: z._default(z.boolean(), true),
 });
 
-// OpenCode MCP server schema (local or remote)
+// Every field of the two transport schemas except `enabled`, which is what a
+// toggle entry carries.
+const OPENCODE_MCP_TRANSPORT_KEYS = [
+  ...Object.keys(OpencodeMcpLocalServerSchema.def.shape),
+  ...Object.keys(OpencodeMcpRemoteServerSchema.def.shape),
+].filter((key) => key !== "enabled");
+
+/**
+ * A bare toggle entry: `{"enabled": <bool>}` with no transport of its own,
+ * disabling a server another config layer defines. It is the third member of
+ * OpenCode's own `mcp` union in the published schema, described in-source as
+ * "the legacy `{ enabled: false }` form used to disable a server". Without this
+ * arm the union rejects the entry and the whole MCP import aborts — taking
+ * every valid server in the same file down with it.
+ *
+ * Loose, unlike the two transport arms, so a key OpenCode adds to a toggle
+ * later does not bring that abort back — but refined to reject anything
+ * carrying a key only a transport entry has. A plain loose arm would sit under
+ * a malformed `local` or `remote` entry that happens to carry `enabled` and
+ * swallow it, dropping its command, URL, or headers without a word instead of
+ * failing the way it does today. Mirrors {@link KiloMcpToggleSchema}.
+ *
+ * @see https://opencode.ai/config.json
+ */
+const OpencodeMcpToggleSchema = z
+  .looseObject({
+    enabled: z.boolean(),
+  })
+  .check(
+    refine(
+      (entry) => OPENCODE_MCP_TRANSPORT_KEYS.every((key) => !(key in entry)),
+      'not a valid OpenCode MCP server: expected a local server ({type: "local", command: [...]}), ' +
+        'a remote server ({type: "remote", url: "..."}), or a bare toggle ({enabled: <bool>}) ' +
+        "carrying no field of either",
+    ),
+  );
+
+// OpenCode MCP server schema (local, remote, or a toggle for a server defined elsewhere)
 const OpencodeMcpServerSchema = z.union([
   OpencodeMcpLocalServerSchema,
   OpencodeMcpRemoteServerSchema,
+  OpencodeMcpToggleSchema,
 ]);
 
 // Use looseObject to allow additional properties like model, provider, agent,
@@ -82,6 +120,20 @@ const OpencodeConfigSchema = z.looseObject({
 
 type OpencodeConfig = z.infer<typeof OpencodeConfigSchema>;
 type OpencodeMcpServer = z.infer<typeof OpencodeMcpServerSchema>;
+type OpencodeMcpTransportServer =
+  | z.infer<typeof OpencodeMcpLocalServerSchema>
+  | z.infer<typeof OpencodeMcpRemoteServerSchema>;
+
+/**
+ * Tell the two transport arms from a toggle entry. Both carry a `type` literal
+ * and a toggle never does — the schema refuses one that tries — but the toggle
+ * arm is loose, so its index signature hides that from `in` narrowing.
+ */
+export function isOpencodeTransportServer(
+  server: OpencodeMcpServer,
+): server is OpencodeMcpTransportServer {
+  return server.type === "local" || server.type === "remote";
+}
 
 /**
  * Convert OpenCode native format back to standard MCP format
@@ -122,6 +174,25 @@ function convertFromOpencodeFormat(
   };
 }
 
+/** Split the shared top-level `tools` map into this server's own two lists. */
+function splitOpencodeServerTools(
+  serverName: string,
+  tools: Record<string, boolean> | undefined,
+): { enabledTools: string[]; disabledTools: string[] } {
+  const enabledTools: string[] = [];
+  const disabledTools: string[] = [];
+  const prefix = `${serverName}_`;
+
+  for (const [toolName, enabled] of Object.entries(tools ?? {})) {
+    if (!toolName.startsWith(prefix)) {
+      continue;
+    }
+    const toolSuffix = toolName.slice(prefix.length);
+    (enabled ? enabledTools : disabledTools).push(toolSuffix);
+  }
+  return { enabledTools, disabledTools };
+}
+
 function convertOpencodeServers(
   opencodeMcp: Record<string, OpencodeMcpServer>,
   tools?: Record<string, boolean>,
@@ -133,22 +204,21 @@ function convertOpencodeServers(
         Object.entries(serverConfig).filter(([key]) => !OPENCODE_KNOWN_SERVER_KEYS.has(key)),
       );
 
-      // Extract enabledTools and disabledTools from top-level tools map
-      const enabledTools: string[] = [];
-      const disabledTools: string[] = [];
-      const prefix = `${serverName}_`;
+      const { enabledTools, disabledTools } = splitOpencodeServerTools(serverName, tools);
 
-      if (tools) {
-        for (const [toolName, enabled] of Object.entries(tools)) {
-          if (toolName.startsWith(prefix)) {
-            const toolSuffix = toolName.slice(prefix.length);
-            if (enabled) {
-              enabledTools.push(toolSuffix);
-            } else {
-              disabledTools.push(toolSuffix);
-            }
-          }
-        }
+      if (!isOpencodeTransportServer(serverConfig)) {
+        // A toggle entry names a server another config layer defines, so there
+        // is no transport to import — only its enabled state crosses over. The
+        // write side then skips it, exactly as it does a transport-less server.
+        return [
+          serverName,
+          {
+            ...extraFields,
+            disabled: serverConfig.enabled === false,
+            ...(enabledTools.length > 0 && { enabledTools }),
+            ...(disabledTools.length > 0 && { disabledTools }),
+          },
+        ];
       }
 
       if (serverConfig.type === "remote") {

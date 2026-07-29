@@ -492,4 +492,40 @@ Body content.`;
       expect(result.success).toBe(true);
     });
   });
+  describe("getConfiguredImportRoots", () => {
+    it("returns the skills.paths entries opencode.json configures", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ skills: { paths: ["docs/skills", "vendor/skills"] } }),
+      );
+
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
+      ).resolves.toEqual(["docs/skills", "vendor/skills"]);
+    });
+
+    it("drops absolute paths and paths escaping the output root", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          skills: { paths: ["/etc/skills", "../outside", "", 42, "ok/skills"] },
+        }),
+      );
+
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
+      ).resolves.toEqual(["ok/skills"]);
+    });
+
+    it("returns nothing when the config has no skills.paths", async () => {
+      await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ skills: {} }));
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
+      ).resolves.toEqual([]);
+
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: join(testDir, "nowhere") }),
+      ).resolves.toEqual([]);
+    });
+  });
 });

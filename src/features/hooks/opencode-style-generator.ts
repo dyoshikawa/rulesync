@@ -1,6 +1,22 @@
 import { HooksConfig, CONTROL_CHARS } from "../../types/hooks.js";
 
-const NAMED_HOOKS = new Set(["tool.execute.before", "tool.execute.after"]);
+/**
+ * Tool events emitted as named `(input, ...)` hooks rather than through the
+ * generic `event.type` dispatch, mapped to the expression a hook's `matcher`
+ * regex is tested against — or `null` when the hook has no matchable subject,
+ * in which case a matcher is dropped rather than compiled against a field that
+ * does not exist.
+ *
+ * `experimental.session.compacting` receives `(input, output)` and exposes no
+ * per-invocation identifier worth matching on, so it takes `null`.
+ *
+ * @see https://opencode.ai/docs/plugins/
+ */
+const NAMED_HOOK_MATCHER_SUBJECTS: Record<string, string | null> = {
+  "tool.execute.before": "input.tool",
+  "tool.execute.after": "input.tool",
+  "experimental.session.compacting": null,
+};
 
 function escapeForTemplateLiteral(command: string): string {
   return command.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
@@ -55,7 +71,8 @@ function collectOpencodeStyleHandlers({
     }
 
     if (handlers.length > 0) {
-      const grouped = NAMED_HOOKS.has(toolEvent) ? namedEventHandlers : genericEventHandlers;
+      const grouped =
+        toolEvent in NAMED_HOOK_MATCHER_SUBJECTS ? namedEventHandlers : genericEventHandlers;
       const existing = grouped[toolEvent];
       if (existing) {
         existing.push(...handlers);
@@ -91,14 +108,15 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
 function buildNamedEventBodyLines(namedEventHandlers: HandlerGroup): string[] {
   const bodyLines: string[] = [];
   for (const [eventName, handlers] of Object.entries(namedEventHandlers)) {
+    const matcherSubject = NAMED_HOOK_MATCHER_SUBJECTS[eventName] ?? null;
     bodyLines.push(`    "${eventName}": async (input) => {`);
     for (const handler of handlers) {
       const escapedCommand = escapeForTemplateLiteral(handler.command);
-      if (handler.matcher) {
+      if (handler.matcher && matcherSubject !== null) {
         const safeMatcher = validateAndSanitizeMatcher(handler.matcher);
         bodyLines.push("      {");
         bodyLines.push(`        const __re = new RegExp("${safeMatcher}");`);
-        bodyLines.push(`        if (__re.test(input.tool)) {`);
+        bodyLines.push(`        if (__re.test(${matcherSubject})) {`);
         bodyLines.push(`          await $\`${escapedCommand}\`;`);
         bodyLines.push("        }");
         bodyLines.push("      }");
