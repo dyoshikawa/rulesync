@@ -90,8 +90,18 @@ describe("E2E: generate --watch", () => {
     }
 
     const exitCode = await waitForExit(child);
-    expect(exitCode).toBe(0);
-    expect(output).toContain("Stopped watching.");
+
+    // Windows has no signal delivery: `child.kill("SIGINT")` terminates the
+    // process outright, so the handler never runs and the exit code is null.
+    // A real Ctrl+C in a Windows console still reaches Node as SIGINT, which
+    // is the path the graceful-shutdown handler exists for; only this
+    // programmatic kill cannot exercise it.
+    if (process.platform === "win32") {
+      expect(exitCode).toBeNull();
+    } else {
+      expect(exitCode).toBe(0);
+      expect(output).toContain("Stopped watching.");
+    }
   });
 
   it("rejects --watch combined with --check", async () => {
