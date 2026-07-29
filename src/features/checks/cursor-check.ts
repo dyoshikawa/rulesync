@@ -3,7 +3,12 @@ import { join } from "node:path";
 import { CURSOR_BUGBOT_FILE_NAME, CURSOR_DIR } from "../../constants/cursor-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { hasHandWrittenContent, renderCheckFile, splitCheckFile } from "./aggregated-check-file.js";
+import {
+  hasHandWrittenPreamble,
+  isOnlyGeneratedSections,
+  renderCheckFile,
+  splitCheckFile,
+} from "./aggregated-check-file.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import {
   ToolCheck,
@@ -79,7 +84,7 @@ export class CursorCheck extends ToolCheck {
     if (fileContent === null) {
       return true;
     }
-    return !hasHandWrittenContent(fileContent);
+    return isOnlyGeneratedSections(fileContent);
   }
 
   static override fromRulesyncCheck(_params: ToolCheckFromRulesyncCheckParams): CursorCheck {
@@ -107,7 +112,7 @@ export class CursorCheck extends ToolCheck {
     // say so before hand-written instructions go away — the deletion guard
     // protects them, but generating over them cannot.
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    if (hasHandWrittenContent(existingContent)) {
+    if (hasHandWrittenPreamble(existingContent)) {
       logger?.warn(
         `Cursor checks: ${filePath} holds instructions rulesync did not write, and generating ` +
           `replaces the whole file. Run \`rulesync import --targets cursor --features checks\` ` +

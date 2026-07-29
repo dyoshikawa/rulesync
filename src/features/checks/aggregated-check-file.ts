@@ -60,19 +60,29 @@ export function findCheckMarkers(fileContent: string): CheckMarker[] {
 }
 
 /**
- * Whether the file holds instruction text rulesync did not write: content ahead
- * of the first marker, or a file carrying no marker at all. Both the "generating
- * replaces this" warning and the deletion guard turn on this question.
+ * Whether the file holds instruction text ahead of the first marker — the
+ * question the "generating replaces this" warning asks. A file with no marker
+ * at all is entirely hand-written, so it qualifies; an empty one does not,
+ * since there is nothing to replace.
  */
-export function hasHandWrittenContent(fileContent: string): boolean {
-  if (fileContent.trim().length === 0) {
-    return false;
-  }
+export function hasHandWrittenPreamble(fileContent: string): boolean {
+  const firstMarkerStart = findCheckMarkers(fileContent)[0]?.start ?? fileContent.length;
+  return fileContent.slice(0, firstMarkerStart).trim().length > 0;
+}
+
+/**
+ * Whether the file is nothing but sections rulesync generated — the question
+ * the deletion guard asks, and a stricter one than
+ * {@link hasHandWrittenPreamble}. A file carrying no marker at all is not
+ * rulesync's to remove even when it is empty: rulesync never wrote it, so an
+ * empty one is somebody's placeholder rather than our leftover.
+ */
+export function isOnlyGeneratedSections(fileContent: string): boolean {
   const firstMarkerStart = findCheckMarkers(fileContent)[0]?.start;
   if (firstMarkerStart === undefined) {
-    return true;
+    return false;
   }
-  return fileContent.slice(0, firstMarkerStart).trim().length > 0;
+  return fileContent.slice(0, firstMarkerStart).trim().length === 0;
 }
 
 /**

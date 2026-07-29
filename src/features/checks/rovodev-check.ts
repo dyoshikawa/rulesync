@@ -3,7 +3,12 @@ import { join } from "node:path";
 import { ROVODEV_DIR, ROVODEV_REVIEW_AGENT_FILE_NAME } from "../../constants/rovodev-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { hasHandWrittenContent, renderCheckFile, splitCheckFile } from "./aggregated-check-file.js";
+import {
+  hasHandWrittenPreamble,
+  isOnlyGeneratedSections,
+  renderCheckFile,
+  splitCheckFile,
+} from "./aggregated-check-file.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import {
   ToolCheck,
@@ -68,7 +73,7 @@ export class RovodevCheck extends ToolCheck {
     if (fileContent === null) {
       return true;
     }
-    return !hasHandWrittenContent(fileContent);
+    return isOnlyGeneratedSections(fileContent);
   }
 
   static override fromRulesyncCheck(_params: ToolCheckFromRulesyncCheckParams): RovodevCheck {
@@ -96,7 +101,7 @@ export class RovodevCheck extends ToolCheck {
     // say so before hand-written instructions go away — the deletion guard
     // protects them, but generating over them cannot.
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    if (hasHandWrittenContent(existingContent)) {
+    if (hasHandWrittenPreamble(existingContent)) {
       logger?.warn(
         `Rovo Dev checks: ${filePath} holds instructions rulesync did not write, and generating ` +
           `replaces the whole file. Run \`rulesync import --targets rovodev --features checks\` ` +

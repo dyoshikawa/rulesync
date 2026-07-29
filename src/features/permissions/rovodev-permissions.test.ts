@@ -282,6 +282,12 @@ describe("RovodevPermissions", () => {
             open_files: "allow",
             expand_folder: "allow",
             expand_code_chunks: "allow",
+            // Every key of the `read` category has to say `allow` for the
+            // catch-all to be `allow`; a silent one counts as the implicit
+            // level. Set them here so this test isolates the nested-vs-legacy
+            // precedence question rather than re-testing that fallback.
+            getJiraIssue: "allow",
+            getConfluencePage: "allow",
             tools: { grep: "allow" },
           },
         }),
@@ -709,6 +715,82 @@ describe("RovodevPermissions", () => {
       const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
 
       expect(imported.permission["*"]).toEqual({ "*": "deny" });
+    });
+  });
+
+  describe("import falls back to the implicit level for silent tool keys", () => {
+    it("does not widen a category from one 'always allow' answer", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      // The shape Rovo Dev leaves behind when the user answers "always allow"
+      // to a single create_file prompt.
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { tools: { create_file: "allow" } } }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      // Rovo Dev's own default for the silent siblings is `ask`, so the category
+      // collapses to `ask` rather than handing every mutation tool an `allow`.
+      expect(imported.permission.edit["*"]).toBe("ask");
+    });
+
+    it("uses the file's own default as the implicit level", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { default: "deny", tools: { create_file: "allow" } } }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      expect(imported.permission.edit["*"]).toBe("deny");
+    });
+
+    it("still imports a fully stated category at its stated level", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({
+          toolPermissions: {
+            tools: {
+              find_and_replace_code: "allow",
+              create_file: "allow",
+              delete_file: "allow",
+              move_file: "allow",
+              createTechnicalPlan: "allow",
+              createJiraIssue: "allow",
+              updateJiraIssue: "allow",
+              createConfluencePage: "allow",
+              updateConfluencePage: "allow",
+            },
+          },
+        }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      expect(imported.permission.edit["*"]).toBe("allow");
+    });
+
+    it("invents no rule for a category the file says nothing about", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { tools: { grep: "deny" } } }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: true });
+      const imported = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      expect(imported.permission.edit).toBeUndefined();
     });
   });
 });
