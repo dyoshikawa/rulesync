@@ -416,6 +416,8 @@ describe("E2E: subagents (import)", () => {
 
   it.each([
     { target: "claudecode", sourcePath: join(".claude", "agents", "planner.md") },
+    { target: "antigravity-cli", sourcePath: join(".agents", "agents", "planner.md") },
+    { target: "antigravity-ide", sourcePath: join(".agents", "agents", "planner.md") },
     { target: "cursor", sourcePath: join(".cursor", "agents", "planner.md") },
     { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
     { target: "kimi-code", sourcePath: join(".kimi-code", "agents", "planner.md") },

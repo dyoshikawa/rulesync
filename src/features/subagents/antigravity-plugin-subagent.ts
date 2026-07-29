@@ -15,6 +15,10 @@ export class AntigravityPluginSubagent extends AntigravitySharedSubagent {
     return "antigravity-plugin";
   }
 
+  protected static override getReadSectionKeys(): ToolTarget[] {
+    return [...super.getReadSectionKeys(), "antigravity-plugin"];
+  }
+
   static override getSettablePaths(): ToolSubagentSettablePaths {
     return { relativeDirPath: ANTIGRAVITY_PLUGIN_AGENTS_DIR };
   }

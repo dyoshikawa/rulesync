@@ -68,7 +68,9 @@ export type AntigravitySharedSubagentParams = {
  * system prompt.
  *
  * Concrete subclasses only supply the rulesync target name they answer to via
- * {@link AntigravitySharedSubagent.getToolTarget}.
+ * {@link AntigravitySharedSubagent.getToolTarget} and, where the shared file is
+ * not involved, the sections they read via
+ * {@link AntigravitySharedSubagent.getReadSectionKeys}.
  *
  * @see https://antigravity.google/docs/subagents
  */
@@ -88,7 +90,8 @@ export class AntigravitySharedSubagent extends ToolSubagent {
 
     super({
       ...rest,
-      fileContent: fileContent ?? stringifyFrontmatter(body, frontmatter),
+      fileContent:
+        fileContent ?? stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true }),
     });
     this.frontmatter = frontmatter;
     this.body = body;
@@ -97,6 +100,22 @@ export class AntigravitySharedSubagent extends ToolSubagent {
   /** The rulesync target name this subagent answers to. */
   protected static getToolTarget(): ToolTarget {
     throw new Error("Please implement this method in the subclass.");
+  }
+
+  /**
+   * Tool-specific sections this target reads, in increasing precedence order.
+   *
+   * `antigravity-ide` and `antigravity-cli` write the very same file, so a
+   * target that read only its own section would silently drop the other's keys
+   * — and which one survived would depend on `--targets` order. Every target
+   * therefore merges the shared `antigravity-ide` → `antigravity-cli` sections
+   * (the CLI block wins, matching the fixed order the MCP feature already uses
+   * for the same shared-output reason), and the plugin target layers its own
+   * section on top of that. Only `getToolTarget()` decides which section an
+   * import writes back into.
+   */
+  protected static getReadSectionKeys(): ToolTarget[] {
+    return ["antigravity-ide", "antigravity-cli"];
   }
 
   static getSettablePaths({
@@ -123,7 +142,9 @@ export class AntigravitySharedSubagent extends ToolSubagent {
       name,
       description,
       // `tools` / `model` and every tool-specific key round-trip through the
-      // section named after the target that read the file.
+      // section named after the target that read the file; every Antigravity
+      // target reads that section back (see getReadSectionKeys), so importing
+      // through one target and generating for another loses nothing.
       ...(Object.keys(restFields).length > 0 && {
         [(this.constructor as typeof AntigravitySharedSubagent).getToolTarget()]: restFields,
       }),
@@ -146,10 +167,11 @@ export class AntigravitySharedSubagent extends ToolSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const toolSection = this.filterToolSpecificSection(
-      rulesyncFrontmatter[this.getToolTarget()] ?? {},
-      ["name", "description"],
-    );
+    const mergedSection = Object.assign(
+      {},
+      ...this.getReadSectionKeys().map((key) => rulesyncFrontmatter[key] ?? {}),
+    ) as Record<string, unknown>;
+    const toolSection = this.filterToolSpecificSection(mergedSection, ["name", "description"]);
 
     const rawFrontmatter = {
       name: rulesyncFrontmatter.name,
@@ -177,7 +199,7 @@ export class AntigravitySharedSubagent extends ToolSubagent {
       body,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
-      fileContent: stringifyFrontmatter(body, frontmatter),
+      fileContent: stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true }),
       validate,
       global,
     });

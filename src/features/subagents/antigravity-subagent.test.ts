@@ -139,6 +139,21 @@ describe("Antigravity custom agents", () => {
         expect(subagent.getFrontmatter().description).toBe("Plans tasks");
       });
 
+      it("reads the other shared target's section, since both write the same file", () => {
+        const otherKey = key === "antigravity-cli" ? "antigravity-ide" : "antigravity-cli";
+        const subagent = SubagentClass.fromRulesyncSubagent({
+          relativeDirPath: PROJECT_DIR,
+          rulesyncSubagent: buildRulesyncSubagent({
+            description: "Plans tasks",
+            sectionKey: otherKey,
+            section: { model: "pro", tools: ["view_file"] },
+          }),
+        }) as AntigravitySharedSubagent;
+
+        expect(subagent.getFrontmatter().model).toBe("pro");
+        expect(subagent.getFrontmatter().tools).toEqual(["view_file"]);
+      });
+
       it("writes to the shared global dir when global is set", () => {
         const subagent = SubagentClass.fromRulesyncSubagent({
           relativeDirPath: GLOBAL_DIR,
@@ -210,6 +225,54 @@ describe("Antigravity custom agents", () => {
     });
   });
 
+  describe("shared-file section precedence", () => {
+    const bothSections = new RulesyncSubagent({
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "planner.md",
+      frontmatter: {
+        targets: ["*"],
+        name: "planner",
+        description: "Plans tasks",
+        "antigravity-ide": { model: "flash", mainAgent: false },
+        "antigravity-cli": { model: "pro" },
+        "antigravity-plugin": { commandExecutionPolicy: "off" },
+      },
+      body: "Body.",
+    });
+
+    it.each([AntigravityCliSubagent, AntigravityIdeSubagent])(
+      "resolves both shared sections identically, CLI winning, for %p",
+      (SubagentClass) => {
+        const frontmatter = (
+          SubagentClass.fromRulesyncSubagent({
+            relativeDirPath: PROJECT_DIR,
+            rulesyncSubagent: bothSections,
+          }) as AntigravitySharedSubagent
+        ).getFrontmatter();
+
+        // Same output regardless of which target generated it — the two share
+        // the very same file, so generation order must not change its content.
+        expect(frontmatter.model).toBe("pro");
+        expect(frontmatter.mainAgent).toBe(false);
+        // The plugin bundle is a different file, so its section stays out.
+        expect(frontmatter.commandExecutionPolicy).toBeUndefined();
+      },
+    );
+
+    it("layers the plugin section on top of the shared ones", () => {
+      const frontmatter = (
+        AntigravityPluginSubagent.fromRulesyncSubagent({
+          relativeDirPath: "agents",
+          rulesyncSubagent: bothSections,
+        }) as AntigravitySharedSubagent
+      ).getFrontmatter();
+
+      expect(frontmatter.model).toBe("pro");
+      expect(frontmatter.mainAgent).toBe(false);
+      expect(frontmatter.commandExecutionPolicy).toBe("off");
+    });
+  });
+
   describe("AntigravityPluginSubagent", () => {
     it("writes into the plugin bundle agents dir and answers to its own target", () => {
       expect(AntigravityPluginSubagent.getSettablePaths().relativeDirPath).toBe("agents");
@@ -237,5 +300,36 @@ describe("Antigravity custom agents", () => {
         subagent: false,
       });
     });
+
+    it("generates into and loads back from the bundle dir", async () => {
+      const generated = AntigravityPluginSubagent.fromRulesyncSubagent({
+        relativeDirPath: "agents",
+        rulesyncSubagent: buildRulesyncSubagent({ description: "Plans tasks" }),
+      });
+      expect(generated.getRelativeDirPath()).toBe("agents");
+
+      await writeFileContent(join(testDir, "agents", "planner.md"), generated.getFileContent());
+      const loaded = await AntigravityPluginSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "planner.md",
+      });
+      expect(loaded).toBeInstanceOf(AntigravityPluginSubagent);
+      expect(loaded.getFrontmatter().name).toBe("planner");
+    });
+  });
+
+  describe("forDeletion", () => {
+    it.each([AntigravityCliSubagent, AntigravityIdeSubagent, AntigravityPluginSubagent])(
+      "builds an empty placeholder without validating for %p",
+      (SubagentClass) => {
+        const subagent = SubagentClass.forDeletion({
+          relativeDirPath: PROJECT_DIR,
+          relativeFilePath: "planner.md",
+        });
+
+        expect(subagent).toBeInstanceOf(SubagentClass);
+        expect(subagent.getFileContent()).toBe("");
+      },
+    );
   });
 });
