@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
 
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentPermissions } from "./hermesagent-permissions.js";
@@ -339,5 +341,37 @@ security:
 
     const roundTripped = JSON.parse(reimported.toRulesyncPermissions().getFileContent());
     expect(roundTripped).toEqual(canonical);
+  });
+});
+
+describe("HermesagentPermissions global settable paths", () => {
+  // Pinned as literals rather than re-calling getHermesagentGlobalDir(), so the
+  // platform branch itself is asserted and not merely restated.
+  const expectedGlobalDir =
+    process.platform === "win32" ? join("AppData", "Local", "hermes") : ".hermes";
+
+  const originalHermesHome = process.env.HERMES_HOME;
+
+  afterEach(() => {
+    if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
+    else process.env.HERMES_HOME = originalHermesHome;
+  });
+
+  it("anchors global paths on the platform profile directory when HERMES_HOME is unset", () => {
+    delete process.env.HERMES_HOME;
+
+    expect(HermesagentPermissions.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: expectedGlobalDir,
+      relativeFilePath: "config.yaml",
+    });
+  });
+
+  it("drops the .hermes prefix when HERMES_HOME names the profile root itself", () => {
+    process.env.HERMES_HOME = "/custom-hermes";
+
+    expect(HermesagentPermissions.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: ".",
+      relativeFilePath: "config.yaml",
+    });
   });
 });

@@ -6,15 +6,19 @@ import {
   getKimiCodeConfigSharedFileKey,
   getKimiCodeHome,
   getKimiCodeRelativeDirPath,
+  getKimiCodeRulesyncOutputRoot,
   getKimiCodeSharedConfigWritePaths,
 } from "./kimi-code.js";
 
 describe("Kimi Code profile paths", () => {
   const originalKimiHome = process.env.KIMI_CODE_HOME;
+  const originalHomeDir = process.env.HOME_DIR;
 
   afterEach(() => {
     if (originalKimiHome === undefined) delete process.env.KIMI_CODE_HOME;
     else process.env.KIMI_CODE_HOME = originalKimiHome;
+    if (originalHomeDir === undefined) delete process.env.HOME_DIR;
+    else process.env.HOME_DIR = originalHomeDir;
   });
 
   it("treats KIMI_CODE_HOME as the profile root itself", () => {
@@ -45,5 +49,23 @@ describe("Kimi Code profile paths", () => {
 
     process.env.KIMI_CODE_HOME = "/custom-kimi";
     expect(getKimiCodeConfigSharedFileKey({ global: true })).toBe("config.toml");
+  });
+
+  it("keeps the rulesync source root under the rulesync home when the override is set", () => {
+    // KIMI_CODE_HOME redirects Kimi's own output, but the `.rulesync/` sources
+    // imported back out of it belong to the project, not the Kimi profile.
+    process.env.HOME_DIR = "/rulesync-home";
+    process.env.KIMI_CODE_HOME = "/custom-kimi";
+    expect(getKimiCodeRulesyncOutputRoot({ nativeOutputRoot: "/custom-kimi", global: true })).toBe(
+      "/rulesync-home",
+    );
+    expect(getKimiCodeRulesyncOutputRoot({ nativeOutputRoot: "/project", global: false })).toBe(
+      "/project",
+    );
+
+    delete process.env.KIMI_CODE_HOME;
+    expect(getKimiCodeRulesyncOutputRoot({ nativeOutputRoot: "/home", global: true })).toBe(
+      "/home",
+    );
   });
 });

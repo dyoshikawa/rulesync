@@ -123,6 +123,12 @@ rulesync generate --dry-run --targets claudecode --features rules
 rulesync generate --check --targets "*" --features "*"
 ```
 
+### Tool home overrides win over the output root in global scope
+
+Two tools read their profile location from an environment variable: Hermes Agent (`HERMES_HOME`) and Kimi Code (`KIMI_CODE_HOME`). When one of them is set, `generate --global` and `convert --global` write that tool's output under it, **overriding both `outputRoots` and an explicit `--output-roots`** for that target. See [Supported Tools](./supported-tools.md) for what each profile root contains. This is deliberate — the variable names where the tool itself looks, so honoring the flag instead would produce files the tool never reads. Every other target still uses the configured output root.
+
+The override must be a usable directory: an empty value is ignored (the default profile location applies), and a value that is the filesystem root or an unnormalized path is rejected with an error naming the variable.
+
 ### Shared config files are never created empty
 
 Some outputs are files Rulesync merges into rather than owns, because the tool (or you) keeps unrelated settings there: `.amp/settings.json(c)`, `.antigravity/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, `.codex/config.toml`, `.devin/config.json`, `.factory/settings.json`, `.grok/config.toml`, `.vibe/config.toml`, `.vscode/settings.json`, `.zed/settings.json`, `kilo.json(c)`, `opencode.json(c)`, and `reasonix.toml`. These are deliberately **not** added to `.gitignore` by `rulesync gitignore`, so that settings you hand-author in them stay version-controlled.

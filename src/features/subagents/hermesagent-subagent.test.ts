@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 
 import {
   HERMESAGENT_GLOBAL_DIR,
@@ -165,5 +165,35 @@ plugins:
       HERMESAGENT_GLOBAL_WIN32_DIR,
       ".",
     ]);
+  });
+});
+
+describe("HermesagentSubagent global settable paths", () => {
+  // Pinned as literals rather than re-calling getHermesagentGlobalDir(), so the
+  // platform branch itself is asserted and not merely restated.
+  const expectedGlobalDir =
+    process.platform === "win32" ? join("AppData", "Local", "hermes") : ".hermes";
+
+  const originalHermesHome = process.env.HERMES_HOME;
+
+  afterEach(() => {
+    if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
+    else process.env.HERMES_HOME = originalHermesHome;
+  });
+
+  test("anchors global paths on the platform profile directory when HERMES_HOME is unset", () => {
+    delete process.env.HERMES_HOME;
+
+    expect(HermesagentSubagent.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: join(expectedGlobalDir, "rulesync", "subagents"),
+    });
+  });
+
+  test("drops the .hermes prefix when HERMES_HOME names the profile root itself", () => {
+    process.env.HERMES_HOME = "/custom-hermes";
+
+    expect(HermesagentSubagent.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: join("rulesync", "subagents"),
+    });
   });
 });

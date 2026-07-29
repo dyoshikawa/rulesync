@@ -770,6 +770,9 @@ async function generateIgnoreCore(params: {
           // leftover from before `outputRoots` was always resolved to absolute
           // paths in `ConfigResolver`; with that change it is now consistent
           // to pass the same `outputRoot` value the other processors receive.
+          // No `resolveToolOutputRoot` either: the tools with a home override
+          // (hermesagent, kimi-code) are not global ignore targets, so there is
+          // nothing to redirect. Route through it if that ever changes.
           outputRoot,
           inputRoot: config.getInputRoot(),
           toolTarget,
@@ -1169,7 +1172,11 @@ async function generateChecksCore(params: {
       }
 
       const processor = new ChecksProcessor({
-        outputRoot: outputRoot,
+        outputRoot: resolveToolOutputRoot({
+          outputRoot,
+          toolTarget,
+          global: config.getGlobal(),
+        }),
         inputRoot: config.getInputRoot(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
