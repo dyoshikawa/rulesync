@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
@@ -159,6 +160,61 @@ describe("CopilotcliHooks", () => {
       expect(imported.toRulesyncHooks().getJson().hooks.userPromptExpansion?.[0]?.command).toBe(
         "echo transformed",
       );
+    });
+
+    it("writes the portable command field unless a shell is selected", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            // No `shell` selector: the output must be identical on every
+            // platform, so the portable field is written.
+            sessionStart: [{ command: "echo portable" }],
+            sessionEnd: [{ command: "echo win", shell: "powershell" }],
+            preToolUse: [{ command: "echo nix", shell: "bash" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      expect(parsed.hooks.sessionStart[0]).toMatchObject({ command: "echo portable" });
+      expect(parsed.hooks.sessionStart[0].bash).toBeUndefined();
+      expect(parsed.hooks.sessionStart[0].powershell).toBeUndefined();
+      expect(parsed.hooks.sessionEnd[0]).toMatchObject({ powershell: "echo win" });
+      expect(parsed.hooks.preToolUse[0]).toMatchObject({ bash: "echo nix" });
+    });
+
+    it("drops a matcher on an event that does not honor one, naming all six that do", async () => {
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { userPromptExpansion: [{ matcher: "ignored", command: "echo x" }] },
+        }),
+        validate: false,
+      });
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        logger,
+      });
+
+      expect(JSON.parse(hooks.getFileContent()).hooks.userPromptTransformed[0].matcher).toBe(
+        undefined,
+      );
+      const warning = logger.warn.mock.calls.flat().join(" ");
+      expect(warning).toContain("preToolUse");
+      expect(warning).toContain("subagentStart");
     });
 
     it("round-trips a preToolUse matcher through import and export", async () => {
@@ -457,7 +513,10 @@ describe("CopilotcliHooks", () => {
       const json = hooks.toRulesyncHooks().getJson();
       expect(json.hooks.sessionStart?.[0]?.command).toBe("echo portable");
       expect(json.hooks.sessionStart?.[0]?.timeout).toBe(45);
+      // A portable entry stays portable: no shell selector is invented for it.
+      expect(json.hooks.sessionStart?.[0]?.shell).toBeUndefined();
       expect(json.hooks.sessionEnd?.[0]?.command).toBe("echo bash");
+      expect(json.hooks.sessionEnd?.[0]?.shell).toBe("bash");
       expect(json.hooks.preToolUse?.[0]?.timeout).toBe(10);
     });
 

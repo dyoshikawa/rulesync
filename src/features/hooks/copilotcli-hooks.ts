@@ -46,8 +46,10 @@ import {
  * - `command` — the `bash` / `powershell` command-field shape with optional
  *   `timeoutSec`, plus optional `cwd` / `env`. Upstream also accepts the
  *   portable `command` field (copied to both shells when neither is present)
- *   and `timeout` as an alias for `timeoutSec`; rulesync reads both on import
- *   and normalizes to the platform-specific field on generate.
+ *   and `timeout` as an alias for `timeoutSec`; rulesync reads both on import.
+ *   On generate the canonical `shell` selector picks `bash` or `powershell`,
+ *   and without it the portable `command` field is written — so the generated
+ *   file does not depend on the machine rulesync ran on.
  * - `prompt` — a `prompt` string (Copilot CLI only honors prompt hooks on
  *   `sessionStart`, so prompt hooks on other events are skipped).
  * - `http` — `url` / `headers` / `allowedEnvVars` with optional `timeoutSec`.
@@ -183,13 +185,11 @@ function buildCopilotCliEntriesForEvent({
   eventName,
   definitions,
   canonicalSchemaKeys,
-  commandField,
   logger,
 }: {
   eventName: string;
   definitions: HooksConfig["hooks"][string];
   canonicalSchemaKeys: string[];
-  commandField: "bash" | "powershell";
   logger?: Logger;
 }): CopilotCliHookEntry[] {
   const matcherSupported = COPILOTCLI_MATCHER_EVENTS.has(eventName);
@@ -237,6 +237,11 @@ function buildCopilotCliEntriesForEvent({
       });
     } else if (hookType === "command") {
       // `env` is a canonical field Copilot CLI supports natively on command hooks.
+      // The canonical `shell` selector picks the shell-specific field; without
+      // it the portable `command` field is written, which upstream copies to
+      // both `bash` and `powershell`. Keying off `shell` rather than
+      // `process.platform` keeps the generated file identical on every machine.
+      const commandField = def.shell ?? "command";
       entries.push({
         type: "command",
         ...matcherPart,
@@ -256,8 +261,6 @@ function canonicalToCopilotCliHooks(
   logger?: Logger,
 ): Record<string, CopilotCliHookEntry[]> {
   const canonicalSchemaKeys = Object.keys(HookDefinitionSchema.shape);
-  const isWindows = process.platform === "win32";
-  const commandField = isWindows ? "powershell" : "bash";
   // `copilotcli` falls back to the shared `copilot.hooks` override key when no
   // `copilotcli.hooks` block is present, then lets `copilotcli.hooks` win on
   // conflicts.
@@ -273,7 +276,6 @@ function canonicalToCopilotCliHooks(
       eventName,
       definitions,
       canonicalSchemaKeys,
-      commandField,
       logger,
     });
     if (entries.length > 0) {
@@ -294,7 +296,17 @@ function importPassthrough(entry: CopilotCliHookEntry): Record<string, unknown> 
   return passthrough;
 }
 
-function resolveImportCommand(entry: CopilotCliHookEntry, logger?: Logger): string | undefined {
+/**
+ * Resolve the canonical command and its `shell` selector from an imported entry.
+ *
+ * A shell-specific field carries its `shell` through so re-export writes the
+ * same field back. An entry using only the portable `command` field leaves
+ * `shell` unset, which re-export renders as the portable field again.
+ */
+function resolveImportCommand(
+  entry: CopilotCliHookEntry,
+  logger?: Logger,
+): { command?: string; shell?: "bash" | "powershell" } {
   const hasBash = typeof entry.bash === "string";
   const hasPowershell = typeof entry.powershell === "string";
   if (hasBash && hasPowershell) {
@@ -304,15 +316,17 @@ function resolveImportCommand(entry: CopilotCliHookEntry, logger?: Logger): stri
     logger?.warn(
       `Copilot CLI hook has both bash and powershell commands; using ${chosen} and ignoring ${ignored} on this platform.`,
     );
-    return isWindows ? entry.powershell : entry.bash;
+    return isWindows
+      ? { command: entry.powershell, shell: "powershell" }
+      : { command: entry.bash, shell: "bash" };
   } else if (hasBash) {
-    return entry.bash;
+    return { command: entry.bash, shell: "bash" };
   } else if (hasPowershell) {
-    return entry.powershell;
+    return { command: entry.powershell, shell: "powershell" };
   }
   // Portable `command` is the documented cross-platform fallback used when
   // neither shell-specific field is present.
-  return typeof entry.command === "string" ? entry.command : undefined;
+  return typeof entry.command === "string" ? { command: entry.command } : {};
 }
 
 function copilotCliHooksToCanonical(rawHooks: unknown, logger?: Logger): HooksConfig["hooks"] {
@@ -344,10 +358,11 @@ function copilotCliHooksToCanonical(rawHooks: unknown, logger?: Logger): HooksCo
       } else if (entry.type === "http") {
         defs.push({ type: "http", ...matcherPart, ...timeoutPart, ...passthrough });
       } else {
-        const command = resolveImportCommand(entry, logger);
+        const { command, shell } = resolveImportCommand(entry, logger);
         defs.push({
           type: "command",
           ...(command !== undefined && { command }),
+          ...(shell !== undefined && { shell }),
           ...matcherPart,
           ...timeoutPart,
           ...passthrough,
