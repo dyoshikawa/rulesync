@@ -8,6 +8,7 @@ import {
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
+import { toReasonixStringArray, toReasonixTable } from "../shared/reasonix-config-table.js";
 import {
   applyIgnoreReadDenies,
   buildReadDenyEntry,
@@ -29,11 +30,8 @@ import {
 
 export type ReasonixIgnoreParams = ToolIgnoreParams;
 
-const toStringArray = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
-
 const permissionsTableOf = (document: SharedConfigDocument): Record<string, unknown> =>
-  isPlainObject(document.permissions) ? document.permissions : {};
+  toReasonixTable(document.permissions);
 
 /**
  * Reshape the parsed TOML document into the `permissions.allow/ask/deny` shape
@@ -48,9 +46,9 @@ const asClaudeStyleSettings = (document: SharedConfigDocument): ClaudeSettingsJs
     ...document,
     permissions: {
       ...table,
-      allow: toStringArray(table.allow),
-      ask: toStringArray(table.ask),
-      deny: toStringArray(table.deny),
+      allow: toReasonixStringArray(table.allow),
+      ask: toReasonixStringArray(table.ask),
+      deny: toReasonixStringArray(table.deny),
     },
   };
 };
@@ -84,7 +82,7 @@ export class ReasonixIgnore extends ToolIgnore {
     super(params);
 
     const document = parseSharedConfig({ format: "toml", fileContent: this.fileContent });
-    this.patterns = toStringArray(permissionsTableOf(document).deny);
+    this.patterns = toReasonixStringArray(permissionsTableOf(document).deny);
   }
 
   static getSettablePaths({

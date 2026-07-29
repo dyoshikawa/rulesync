@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { parse as parseToml } from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -8,10 +9,12 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { ClaudecodeIgnore } from "../features/ignore/claudecode-ignore.js";
+import { ReasonixIgnore } from "../features/ignore/reasonix-ignore.js";
 import { RulesyncIgnore } from "../features/ignore/rulesync-ignore.js";
 import { KiloMcp } from "../features/mcp/kilo-mcp.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { ClaudecodePermissions } from "../features/permissions/claudecode-permissions.js";
+import { ReasonixPermissions } from "../features/permissions/reasonix-permissions.js";
 import { RulesyncPermissions } from "../features/permissions/rulesync-permissions.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { readFileContent, writeFileContent } from "../utils/file.js";
@@ -77,6 +80,77 @@ describe("shared output file data-loss regressions", () => {
       expect(settings.permissions.deny).toContain("Read(.env)");
       expect(settings.permissions.deny).toContain("Read(secrets/**)");
       expect(settings.permissions.deny).toContain("Bash(rm *)");
+    });
+  });
+
+  describe("reasonix.toml (ignore before permissions)", () => {
+    const writeIgnore = async (): Promise<void> => {
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: ".env\nsecrets/**",
+      });
+      const ignore = await ReasonixIgnore.fromRulesyncIgnore({
+        outputRoot: testDir,
+        rulesyncIgnore,
+      });
+      await writeFileContent(ignore.getFilePath(), ignore.getFileContent());
+    };
+
+    const writePermissions = async (permission: Record<string, unknown>): Promise<void> => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission }),
+      });
+      const permissions = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      await writeFileContent(permissions.getFilePath(), permissions.getFileContent());
+    };
+
+    const readConfig = async (): Promise<{ permissions?: { deny?: string[] } }> =>
+      parseToml(await readFileContent(join(testDir, "reasonix.toml"))) as {
+        permissions?: { deny?: string[] };
+      };
+
+    it("preserves ignore-written Read deny entries when permissions writes afterward", async () => {
+      await writeIgnore();
+      // "read" is NOT managed by this permissions config, so the ignore-written
+      // Read deny entries must survive alongside the Bash entry.
+      await writePermissions({ bash: { "rm *": "deny" } });
+
+      const config = await readConfig();
+      expect(config.permissions?.deny).toContain("Read(.env)");
+      expect(config.permissions?.deny).toContain("Read(secrets/**)");
+      expect(config.permissions?.deny).toContain("Bash(rm *)");
+    });
+
+    it("lets permissions' explicit Read rules win over ignore-derived denies", async () => {
+      await writeIgnore();
+      // Documented cross-feature rule (same as .claude/settings.json): once the
+      // permissions config manages the `read` category, its rules are
+      // authoritative and the ignore-derived Read denies are replaced.
+      await writePermissions({ read: { "**/*.pem": "deny" } });
+
+      const config = await readConfig();
+      expect(config.permissions?.deny).toEqual(["Read(**/*.pem)"]);
+    });
+
+    it("preserves the mcp plugins block written before either feature", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        '[[plugins]]\nname = "example"\ncommand = "node"\n',
+      );
+      await writeIgnore();
+      await writePermissions({ bash: { "rm *": "deny" } });
+
+      const config = (await readConfig()) as Awaited<ReturnType<typeof readConfig>> & {
+        plugins?: unknown[];
+      };
+      expect(config.plugins).toEqual([{ name: "example", command: "node" }]);
+      expect(config.permissions?.deny).toContain("Read(.env)");
     });
   });
 

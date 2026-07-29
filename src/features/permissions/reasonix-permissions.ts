@@ -12,6 +12,10 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import {
+  toReasonixStringArray as toStringArray,
+  toReasonixTable as toPermissionsTable,
+} from "../shared/reasonix-config-table.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -107,20 +111,6 @@ function parseReasonixConfig(fileContent: string): ReasonixConfig {
     return {};
   }
   return { ...(parsed as Record<string, unknown>) };
-}
-
-function toStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter((entry): entry is string => typeof entry === "string");
-}
-
-function toPermissionsTable(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-  return { ...(value as Record<string, unknown>) };
 }
 
 // The `[agent]` sub-keys the `reasonix` override authors and round-trips. The
