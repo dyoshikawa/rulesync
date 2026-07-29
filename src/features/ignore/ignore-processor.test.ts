@@ -442,6 +442,7 @@ describe("IgnoreProcessor", () => {
         "kiro-cli",
         "kiro-ide",
         "reasonix",
+        "zed",
       ]);
     });
   });

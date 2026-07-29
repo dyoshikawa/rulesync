@@ -43,7 +43,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Warp                      | warp               |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  |       |     🌏      |        |
 | Replit                    | replit             |  ✅   |        |          |          |           | ✅ 🌏  |       |             |        |
 | Pi Coding Agent           | pi                 | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |             |        |
-| Zed                       | zed                | ✅ 🌏 |   ✅   |  ✅ 🌏   |          |           | ✅ 🌏  |       |    ✅ 🌏    |        |
+| Zed                       | zed                | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |          |           | ✅ 🌏  |       |    ✅ 🌏    |        |
 
 <!-- SUPPORTED_TOOLS_DOCS:END -->
 

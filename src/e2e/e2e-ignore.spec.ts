@@ -14,6 +14,7 @@ import {
   REASONIX_PROJECT_PERMISSIONS_FILE_NAME,
 } from "../constants/reasonix-paths.js";
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import { getZedGlobalDir, ZED_SETTINGS_FILE_NAME } from "../constants/zed-paths.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
@@ -296,6 +297,10 @@ describe("E2E: ignore (global mode)", () => {
     {
       target: "reasonix",
       outputPath: join(REASONIX_GLOBAL_DIR, REASONIX_GLOBAL_PERMISSIONS_FILE_NAME),
+    },
+    {
+      target: "zed",
+      outputPath: join(getZedGlobalDir(), ZED_SETTINGS_FILE_NAME),
     },
   ] as const;
 

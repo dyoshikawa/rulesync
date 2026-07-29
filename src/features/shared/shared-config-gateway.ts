@@ -368,10 +368,12 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
     },
   },
-  // Global scope of the Zed settings above (ignore is project-scope-only).
+  // Global scope of the Zed settings above. `private_files` is a worktree
+  // setting, so Zed reads it from the user settings file too.
   ".config/zed/settings.json": {
     format: "json",
     features: {
+      ignore: { kind: "replace-owned-keys", ownedKeys: ["private_files"] },
       mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
     },
@@ -381,6 +383,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   "AppData/Roaming/Zed/settings.json": {
     format: "json",
     features: {
+      ignore: { kind: "replace-owned-keys", ownedKeys: ["private_files"] },
       mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
     },

@@ -7,6 +7,11 @@ import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import {
+  getZedGlobalDir,
+  ZED_GLOBAL_DIR,
+  ZED_GLOBAL_WIN32_DIR,
+} from "../../constants/zed-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -126,6 +131,30 @@ describe("ZedIgnore", () => {
         relativeFilePath: "settings.json",
       });
     });
+
+    it("should return the platform-aware user config dir in global mode", () => {
+      const paths = ZedIgnore.getSettablePaths({ global: true });
+
+      expect(paths).toEqual({
+        relativeDirPath: getZedGlobalDir(),
+        relativeFilePath: "settings.json",
+      });
+    });
+  });
+
+  describe("getExtraSharedWritePaths", () => {
+    it("should declare no extra paths in project mode", () => {
+      expect(ZedIgnore.getExtraSharedWritePaths()).toEqual([]);
+    });
+
+    it("should declare the other platform's global settings file", () => {
+      expect(ZedIgnore.getExtraSharedWritePaths({ global: true })).toEqual([
+        {
+          relativeDirPath: process.platform === "win32" ? ZED_GLOBAL_DIR : ZED_GLOBAL_WIN32_DIR,
+          relativeFilePath: "settings.json",
+        },
+      ]);
+    });
   });
 
   describe("isDeletable", () => {
@@ -231,7 +260,7 @@ describe("ZedIgnore", () => {
       expect(jsonValue.private_files).toEqual(["*.log", ".env", "node_modules/**"]);
     });
 
-    it("should preserve existing private_files while adding new ones", async () => {
+    it("should replace existing private_files so removed patterns are retracted", async () => {
       const existingJsonContent = JSON.stringify(
         {
           private_files: ["existing.log", "*.log"],
@@ -256,7 +285,7 @@ describe("ZedIgnore", () => {
       });
 
       const jsonValue = JSON.parse(zedIgnore.getFileContent());
-      expect(jsonValue.private_files).toEqual(["*.log", "existing.log", "node_modules/**"]);
+      expect(jsonValue.private_files).toEqual(["*.log", "node_modules/**"]);
     });
 
     it("should handle patterns with comments and empty lines", async () => {
@@ -305,7 +334,7 @@ describe("ZedIgnore", () => {
       const jsonValue = JSON.parse(zedIgnore.getFileContent());
       expect(jsonValue.other).toBe("property");
       expect(jsonValue.another).toBe("value");
-      expect(jsonValue.private_files).toEqual(["*.log", "secret.txt"]);
+      expect(jsonValue.private_files).toEqual(["*.log"]);
     });
 
     it("should remove duplicates and sort patterns", async () => {
@@ -333,7 +362,7 @@ describe("ZedIgnore", () => {
       });
 
       const jsonValue = JSON.parse(zedIgnore.getFileContent());
-      expect(jsonValue.private_files).toEqual(["*.log", "a.txt", "b.txt", "z.txt"]);
+      expect(jsonValue.private_files).toEqual(["*.log", "a.txt", "b.txt"]);
     });
 
     it("should handle Windows line endings", async () => {
@@ -351,6 +380,33 @@ describe("ZedIgnore", () => {
 
       const jsonValue = JSON.parse(zedIgnore.getFileContent());
       expect(jsonValue.private_files).toEqual(["*.log", ".env", "node_modules/**"]);
+    });
+
+    it("should write to the global settings file and preserve unrelated keys in global mode", async () => {
+      const globalDir = join(testDir, getZedGlobalDir());
+      await ensureDir(globalDir);
+      await writeFileContent(
+        join(globalDir, "settings.json"),
+        JSON.stringify({ theme: "One Dark", private_files: ["stale.txt"] }, null, 2),
+      );
+
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "*.log\n.env",
+      });
+
+      const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
+        outputRoot: testDir,
+        rulesyncIgnore,
+        global: true,
+      });
+
+      expect(zedIgnore.getRelativeDirPath()).toBe(getZedGlobalDir());
+      expect(zedIgnore.getRelativeFilePath()).toBe("settings.json");
+      const jsonValue = JSON.parse(zedIgnore.getFileContent());
+      expect(jsonValue.theme).toBe("One Dark");
+      expect(jsonValue.private_files).toEqual(["*.log", ".env"]);
     });
 
     it("should create new JSON file when none exists", async () => {

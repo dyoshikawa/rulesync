@@ -80,7 +80,13 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
 ]);
 
 const ignoreProcessorToolTargets: ToolTarget[] = [...toolIgnoreFactories.keys()];
-const ignoreProcessorGlobalToolTargets: ToolTarget[] = ["kiro", "kiro-cli", "kiro-ide", "reasonix"];
+const ignoreProcessorGlobalToolTargets: ToolTarget[] = [
+  "kiro",
+  "kiro-cli",
+  "kiro-ide",
+  "reasonix",
+  "zed",
+];
 
 type GetFactory = (target: IgnoreProcessorToolTarget) => ToolIgnoreFactory;
 
