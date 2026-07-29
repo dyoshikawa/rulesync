@@ -104,6 +104,7 @@ type ToolCommandFactory = {
     validateRulesyncCommands?(params: {
       inputRoot: string;
       rulesyncCommands: RulesyncCommand[];
+      logger: Logger;
     }): Promise<void> | void;
   };
   meta: {
@@ -665,6 +666,7 @@ export class CommandsProcessor extends FeatureProcessor {
     await factory.class.validateRulesyncCommands?.({
       inputRoot: this.inputRoot,
       rulesyncCommands,
+      logger: this.logger,
     });
     const flattenedPathOrigins = new Map<string, string>();
 

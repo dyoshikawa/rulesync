@@ -3,11 +3,24 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GROKCLI_COMMANDS_DIR_PATH } from "../../constants/grokcli-paths.js";
-import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { GrokcliCommand } from "./grokcli-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
+
+const commandNamed = (name: string): RulesyncCommand =>
+  new RulesyncCommand({
+    fileContent: "",
+    relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+    relativeFilePath: `${name}.md`,
+    frontmatter: { targets: ["*"], description: "d" },
+    body: "b",
+  });
 
 describe("GrokcliCommand", () => {
   let testDir: string;
@@ -113,6 +126,44 @@ describe("GrokcliCommand", () => {
       expect(command.getBody()).toBe("Review $ARGUMENTS");
     });
 
+    it("should flatten a nested command onto its basename", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        fileContent: "",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("git", "commit.md"),
+        frontmatter: { targets: ["*"], description: "d" },
+        body: "b",
+      });
+
+      // Grok's scan is flat, so the processor is configured with
+      // `supportsSubdirectory: false` and hands the adapter a flattened path.
+      const command = GrokcliCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: rulesyncCommand.withRelativeFilePath("commit.md"),
+      });
+
+      expect(command.getRelativeFilePath()).toBe("commit.md");
+      expect(command.getRelativeDirPath()).toBe(GROKCLI_COMMANDS_DIR_PATH);
+    });
+
+    it("should use the same relative dir in global scope", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        fileContent: "",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "review.md",
+        frontmatter: { targets: ["*"], description: "d" },
+        body: "b",
+      });
+
+      const command = GrokcliCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+        global: true,
+      });
+
+      expect(command.getRelativeDirPath()).toBe(GROKCLI_COMMANDS_DIR_PATH);
+    });
+
     it("should let the grokcli section override the shared description", () => {
       const rulesyncCommand = new RulesyncCommand({
         fileContent: "",
@@ -152,8 +203,17 @@ describe("GrokcliCommand", () => {
         body: "b",
       });
 
+      const wildcard = new RulesyncCommand({
+        fileContent: "",
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "c.md",
+        frontmatter: { targets: ["*"], description: "d" },
+        body: "b",
+      });
+
       expect(GrokcliCommand.isTargetedByRulesyncCommand(targeted)).toBe(true);
       expect(GrokcliCommand.isTargetedByRulesyncCommand(notTargeted)).toBe(false);
+      expect(GrokcliCommand.isTargetedByRulesyncCommand(wildcard)).toBe(true);
     });
   });
 
@@ -184,16 +244,108 @@ describe("GrokcliCommand", () => {
       expect(command.getBody()).toBe("Deploy to $1");
     });
 
-    it("should throw on invalid frontmatter", async () => {
+    it("should throw when description is not a string", async () => {
       await ensureDir(join(testDir, GROKCLI_COMMANDS_DIR_PATH));
       await writeFileContent(
-        join(testDir, GROKCLI_COMMANDS_DIR_PATH, "bad.md"),
-        ["---", "description: 1", 'user-invocable: "yes"', "---", "", "body"].join("\n"),
+        join(testDir, GROKCLI_COMMANDS_DIR_PATH, "bad-description.md"),
+        ["---", "description: 1", "---", "", "body"].join("\n"),
       );
 
       await expect(
-        GrokcliCommand.fromFile({ outputRoot: testDir, relativeFilePath: "bad.md" }),
+        GrokcliCommand.fromFile({ outputRoot: testDir, relativeFilePath: "bad-description.md" }),
       ).rejects.toThrow(/Invalid frontmatter/);
+    });
+
+    it("should throw when user-invocable is not a boolean", async () => {
+      await ensureDir(join(testDir, GROKCLI_COMMANDS_DIR_PATH));
+      await writeFileContent(
+        join(testDir, GROKCLI_COMMANDS_DIR_PATH, "bad-flag.md"),
+        ["---", "description: ok", 'user-invocable: "yes"', "---", "", "body"].join("\n"),
+      );
+
+      await expect(
+        GrokcliCommand.fromFile({ outputRoot: testDir, relativeFilePath: "bad-flag.md" }),
+      ).rejects.toThrow(/Invalid frontmatter/);
+    });
+
+    it("should preserve unknown frontmatter keys", async () => {
+      await ensureDir(join(testDir, GROKCLI_COMMANDS_DIR_PATH));
+      await writeFileContent(
+        join(testDir, GROKCLI_COMMANDS_DIR_PATH, "extra.md"),
+        ["---", "description: ok", "model: grok-4", "---", "", "body"].join("\n"),
+      );
+
+      const command = await GrokcliCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "extra.md",
+      });
+
+      expect(command.getFrontmatter()).toEqual({ description: "ok", model: "grok-4" });
+    });
+  });
+
+  describe("validate", () => {
+    it("should succeed for valid frontmatter", () => {
+      const command = new GrokcliCommand({
+        outputRoot: testDir,
+        relativeDirPath: GROKCLI_COMMANDS_DIR_PATH,
+        relativeFilePath: "ok.md",
+        frontmatter: { description: "ok" },
+        body: "body",
+      });
+
+      expect(command.validate()).toEqual({ success: true, error: null });
+    });
+
+    it("should fail for frontmatter that skipped construction-time validation", () => {
+      const command = new GrokcliCommand({
+        outputRoot: testDir,
+        relativeDirPath: GROKCLI_COMMANDS_DIR_PATH,
+        relativeFilePath: "bad.md",
+        frontmatter: { description: 1 as unknown as string },
+        body: "body",
+        validate: false,
+      });
+
+      const result = command.validate();
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toMatch(/Invalid frontmatter/);
+    });
+  });
+
+  describe("validateRulesyncCommands", () => {
+    it("should warn when a skill shadows a same-named command", async () => {
+      await ensureDir(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review"));
+      await writeFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "SKILL.md"),
+        ["---", "name: review", "description: d", "---", "", "body"].join("\n"),
+      );
+      const logger = { warn: vi.fn() };
+
+      await GrokcliCommand.validateRulesyncCommands({
+        inputRoot: testDir,
+        rulesyncCommands: [commandNamed("review")],
+        logger: logger as unknown as Logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("review"));
+    });
+
+    it("should stay quiet when no skill matches a command name", async () => {
+      await ensureDir(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "deploy"));
+      await writeFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "deploy", "SKILL.md"),
+        ["---", "name: deploy", "description: d", "---", "", "body"].join("\n"),
+      );
+      const logger = { warn: vi.fn() };
+
+      await GrokcliCommand.validateRulesyncCommands({
+        inputRoot: testDir,
+        rulesyncCommands: [commandNamed("review")],
+        logger: logger as unknown as Logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 

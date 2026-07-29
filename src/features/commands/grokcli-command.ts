@@ -1,12 +1,14 @@
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { z } from "zod/mini";
 
 import { GROKCLI_COMMANDS_DIR_PATH } from "../../constants/grokcli-paths.js";
+import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { findFilesByGlobs, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -118,6 +120,11 @@ export class GrokcliCommand extends ToolCommand {
   }: ToolCommandFromRulesyncCommandParams): GrokcliCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
+    // `user-invocable` / `disable-model-invocation` are read from the `grokcli`
+    // section only, not from a shared root key the way `GrokcliSkill` reads
+    // them: the canonical command frontmatter has no root-level equivalent (it
+    // carries `targets` and `description` and nothing else), so this matches
+    // how every other commands adapter handles its tool-only keys.
     const grokcliFields = rulesyncFrontmatter.grokcli ?? {};
 
     const grokcliFrontmatter: GrokcliCommandFrontmatter = {
@@ -160,6 +167,47 @@ export class GrokcliCommand extends ToolCommand {
       rulesyncCommand,
       toolTarget: "grokcli",
     });
+  }
+
+  /**
+   * Warn when a rulesync skill would shadow a rulesync command.
+   *
+   * Grok collects skills before commands and lets skills win name collisions,
+   * so `.grok/skills/<name>/` makes `.grok/commands/<name>.md` unreachable.
+   * Both files are still written correctly — nothing is overwritten and no
+   * output is lost — so this warns rather than failing the run the way the
+   * Hermes check does, where the two surfaces really do write the same path.
+   */
+  static async validateRulesyncCommands({
+    inputRoot,
+    rulesyncCommands,
+    logger,
+  }: {
+    inputRoot: string;
+    rulesyncCommands: RulesyncCommand[];
+    logger: Logger;
+  }): Promise<void> {
+    const commandNames = new Set(
+      rulesyncCommands
+        .filter((command) => this.isTargetedByRulesyncCommand(command))
+        // The scan is flat, so the reachable name is always the basename.
+        .map((command) => basename(command.getRelativeFilePath(), ".md")),
+    );
+    if (commandNames.size === 0) return;
+
+    const skillsRoot = join(inputRoot, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+    const skillFiles = await findFilesByGlobs(join(skillsRoot, "**", "SKILL.md"));
+    const shadowed = skillFiles
+      .map((filePath) => basename(dirname(filePath)))
+      .filter((skillName) => commandNames.has(skillName));
+
+    if (shadowed.length > 0) {
+      logger.warn(
+        `Grok CLI resolves skills before commands, so these skills shadow the same-named ` +
+          `commands, which will never be reachable: ${[...new Set(shadowed)].toSorted().join(", ")}. ` +
+          `Rename either side to make both invocable.`,
+      );
+    }
   }
 
   static async fromFile({
