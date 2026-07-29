@@ -132,6 +132,122 @@ describe("ClaudecodePermissions", () => {
       expect(content.permissions.deny).toContain("Bash(rm *)");
     });
 
+    it("should emit path rules in the forms Claude Code actually matches", async () => {
+      // File permission checks match only Edit(path) and Read(path); a
+      // Write/NotebookEdit/Glob rule with a path is never matched and warns at
+      // startup. https://code.claude.com/docs/en/permissions
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            write: { "docs/**": "deny", "*": "ask" },
+            notebookedit: { "notebooks/**": "deny" },
+            glob: { "secrets/**": "deny" },
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.permissions.deny).toEqual([
+        "Edit(docs/**)",
+        "Edit(notebooks/**)",
+        "Read(secrets/**)",
+      ]);
+      // A tool-name rule with no path matches everywhere and is left alone.
+      expect(content.permissions.ask).toEqual(["Write"]);
+    });
+
+    it("should replace the warned forms an earlier generate left behind", async () => {
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({ permissions: { deny: ["Write(docs/**)", "Glob(secrets/**)"] } }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            write: { "docs/**": "deny" },
+            glob: { "secrets/**": "deny" },
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).permissions.deny).toEqual([
+        "Edit(docs/**)",
+        "Read(secrets/**)",
+      ]);
+    });
+
+    it("should warn when two categories resolve to one entry with different actions", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            edit: { "docs/**": "allow" },
+            write: { "docs/**": "deny" },
+          },
+        }),
+      });
+
+      await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('both resolve to "Edit(docs/**)"'),
+      );
+    });
+
+    it("should merge the claudecode sandbox override into the settings top level", async () => {
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({
+          model: "opus",
+          sandbox: { credentials: "keep", network: { deniedDomains: ["evil.test"] } },
+        }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "npm *": "allow" } },
+          claudecode: { sandbox: { network: { strictAllowlist: true } } },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // Sibling keys survive; an authored subtree replaces the existing one.
+      expect(content.model).toBe("opus");
+      expect(content.sandbox).toEqual({
+        credentials: "keep",
+        network: { strictAllowlist: true },
+      });
+    });
+
     it("should handle multiple tool categories", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -544,6 +660,26 @@ describe("ClaudecodePermissions", () => {
   });
 
   describe("toRulesyncPermissions", () => {
+    it("should route the sandbox subtree back into the claudecode override", () => {
+      const instance = new ClaudecodePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { deny: ["Edit(docs/**)"], defaultMode: "acceptEdits" },
+          sandbox: { network: { strictAllowlist: true } },
+          model: "opus",
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.claudecode.sandbox).toEqual({ network: { strictAllowlist: true } });
+      // The sibling override field still round-trips alongside it.
+      expect(config.claudecode.permissions).toEqual({ defaultMode: "acceptEdits" });
+      // A settings key this feature does not own is not swept into the override.
+      expect(config.claudecode.model).toBeUndefined();
+    });
+
     it("routes non-list permissions fields into the claudecode override on import", () => {
       const instance = new ClaudecodePermissions({
         relativeDirPath: ".claude",
