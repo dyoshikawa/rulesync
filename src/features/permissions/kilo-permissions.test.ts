@@ -12,6 +12,13 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { KiloPermissions } from "./kilo-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
+const withSandbox = (sandbox: Record<string, unknown>): RulesyncPermissions =>
+  new RulesyncPermissions({
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+    fileContent: JSON.stringify({ permission: {}, kilo: { sandbox } }),
+  });
+
 describe("KiloPermissions", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -460,5 +467,171 @@ describe("KiloPermissions", () => {
         rulesyncPermissions,
       }),
     ).rejects.toThrow(/Failed to parse Kilo Code config/);
+  });
+  describe("sandbox override", () => {
+    it("should write the tighten-only keys at project scope", async () => {
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withSandbox({ enabled: true, network: "deny" }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({
+        enabled: true,
+        network: "deny",
+      });
+    });
+
+    it("should drop global-only keys at project scope with a warning", async () => {
+      const logger = createMockLogger();
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withSandbox({
+          enabled: true,
+          allowed_hosts: ["example.com:443"],
+          writable_paths: ["/tmp"],
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({ enabled: true });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("allowed_hosts, writable_paths"),
+      );
+    });
+
+    it("should write every key at global scope", async () => {
+      await ensureDir(join(testDir, ".config", "kilo"));
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withSandbox({
+          enabled: true,
+          network: "deny",
+          allowed_hosts: ["example.com:443"],
+          writable_paths: ["/tmp"],
+        }),
+        global: true,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({
+        enabled: true,
+        network: "deny",
+        allowed_hosts: ["example.com:443"],
+        writable_paths: ["/tmp"],
+      });
+    });
+
+    it("should preserve sibling sandbox keys the user set directly", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.jsonc"),
+        JSON.stringify({ sandbox: { enabled: false, custom_key: 1 } }),
+      );
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withSandbox({ enabled: true }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({
+        enabled: true,
+        custom_key: 1,
+      });
+    });
+
+    it("should leave an existing sandbox block alone when nothing authors it", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.jsonc"),
+        JSON.stringify({ sandbox: { enabled: true } }),
+      );
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { bash: { "*": "ask" } } }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({ enabled: true });
+    });
+
+    it("should not materialize an empty sandbox when every authored key is dropped", async () => {
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withSandbox({ allowed_hosts: ["example.com"] }),
+      });
+
+      expect(JSON.parse(instance.getFileContent())).not.toHaveProperty("sandbox");
+    });
+
+    it("should preserve sibling sandbox keys at global scope too", async () => {
+      await ensureDir(join(testDir, ".config", "kilo"));
+      await writeFileContent(
+        join(testDir, ".config", "kilo", "kilo.jsonc"),
+        JSON.stringify({ sandbox: { allowed_hosts: ["kept.example.com"], custom_key: 1 } }),
+      );
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withSandbox({ enabled: true, writable_paths: ["/tmp"] }),
+        global: true,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({
+        enabled: true,
+        writable_paths: ["/tmp"],
+        allowed_hosts: ["kept.example.com"],
+        custom_key: 1,
+      });
+    });
+
+    it("should not abort the run when the existing sandbox is not an object", async () => {
+      await writeFileContent(join(testDir, "kilo.jsonc"), JSON.stringify({ sandbox: true }));
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { bash: { "*": "ask" } } }),
+        }),
+      });
+
+      // rulesync does not manage this value, so it passes through untouched
+      // rather than failing the whole Kilo generate.
+      expect(JSON.parse(instance.getFileContent()).sandbox).toBe(true);
+    });
+
+    it("should round-trip the sandbox block into the kilo override on import", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.jsonc"),
+        JSON.stringify({
+          permission: { bash: "ask" },
+          sandbox: { enabled: true, allowed_hosts: ["example.com"] },
+        }),
+      );
+
+      const instance = await KiloPermissions.fromFile({ outputRoot: testDir });
+      const imported = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+
+      expect(imported.kilo.sandbox).toEqual({
+        enabled: true,
+        allowed_hosts: ["example.com"],
+      });
+    });
+
+    it("should not add a kilo override when there is no sandbox or Kilo-only key", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.jsonc"),
+        JSON.stringify({ permission: { bash: "ask" } }),
+      );
+
+      const instance = await KiloPermissions.fromFile({ outputRoot: testDir });
+      const imported = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+
+      expect(imported.kilo).toBeUndefined();
+    });
   });
 });

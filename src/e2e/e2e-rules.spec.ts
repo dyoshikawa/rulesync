@@ -1270,4 +1270,61 @@ globs: ["src/**/*"]
     );
     expect(nonRootContent).toContain("Global Roo Rule");
   });
+
+  it("should generate kilo non-root rules into ~/.kilo/rules in global mode", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+description: "Global root rule"
+globs: ["**/*"]
+---
+
+# Global Kilo Root
+`,
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
+      `---
+targets: ["*"]
+description: "Global detail rule"
+globs: ["src/**/*"]
+---
+
+# Global Kilo Detail
+`,
+    );
+
+    // Pre-seed the global config so the assertion below distinguishes "no
+    // registration happened" from "no writer for this file ran at all".
+    await writeFileContent(
+      join(homeDir, ".config", "kilo", "kilo.jsonc"),
+      JSON.stringify({ model: "x" }),
+    );
+
+    await runGenerate({
+      target: "kilo",
+      features: "rules",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Kilo's own asymmetry: the global root file is under ~/.config/kilo while
+    // the global rules directory is ~/.kilo/rules, which Kilo auto-discovers on
+    // config load — so no `instructions` registration accompanies it.
+    expect(await readFileContent(join(homeDir, ".config", "kilo", "AGENTS.md"))).toContain(
+      "Global Kilo Root",
+    );
+    expect(await readFileContent(join(homeDir, ".kilo", "rules", "detail.md"))).toContain(
+      "Global Kilo Detail",
+    );
+    const globalConfig = JSON.parse(
+      await readFileContent(join(homeDir, ".config", "kilo", "kilo.jsonc")),
+    );
+    expect(globalConfig).toEqual({ model: "x" });
+  });
 });
