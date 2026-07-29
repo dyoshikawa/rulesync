@@ -7,11 +7,7 @@ import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import {
-  getZedGlobalDir,
-  ZED_GLOBAL_DIR,
-  ZED_GLOBAL_WIN32_DIR,
-} from "../../constants/zed-paths.js";
+import { getZedGlobalDir, getZedOtherPlatformGlobalDir } from "../../constants/zed-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -150,7 +146,7 @@ describe("ZedIgnore", () => {
     it("should declare the other platform's global settings file", () => {
       expect(ZedIgnore.getExtraSharedWritePaths({ global: true })).toEqual([
         {
-          relativeDirPath: process.platform === "win32" ? ZED_GLOBAL_DIR : ZED_GLOBAL_WIN32_DIR,
+          relativeDirPath: getZedOtherPlatformGlobalDir(),
           relativeFilePath: "settings.json",
         },
       ]);
@@ -409,6 +405,32 @@ describe("ZedIgnore", () => {
       expect(jsonValue.private_files).toEqual(["*.log", ".env"]);
     });
 
+    it("should remove private_files entirely when no patterns remain", async () => {
+      const zedDir = join(testDir, ".zed");
+      await ensureDir(zedDir);
+      await writeFileContent(
+        join(zedDir, "settings.json"),
+        JSON.stringify({ theme: "One Dark", private_files: ["stale.txt"] }, null, 2),
+      );
+
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "# only a comment\n\n",
+      });
+
+      const zedIgnore = await ZedIgnore.fromRulesyncIgnore({
+        outputRoot: testDir,
+        rulesyncIgnore,
+      });
+
+      // An empty array would replace Zed's populated default `private_files`
+      // wholesale and switch its secret redaction off, so the key is dropped.
+      const jsonValue = JSON.parse(zedIgnore.getFileContent());
+      expect(jsonValue).not.toHaveProperty("private_files");
+      expect(jsonValue.theme).toBe("One Dark");
+    });
+
     it("should create new JSON file when none exists", async () => {
       const rulesyncIgnore = new RulesyncIgnore({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -469,6 +491,23 @@ describe("ZedIgnore", () => {
       expect(zedIgnore.getRelativeDirPath()).toBe(".zed");
       expect(zedIgnore.getRelativeFilePath()).toBe("settings.json");
       expect(zedIgnore.getPatterns()).toEqual(["*.log", "node_modules/**"]);
+    });
+
+    it("should read the global settings file and import its patterns", async () => {
+      const globalDir = join(testDir, getZedGlobalDir());
+      await ensureDir(globalDir);
+      await writeFileContent(
+        join(globalDir, "settings.json"),
+        JSON.stringify({ theme: "One Dark", private_files: ["private/", "*.pem"] }, null, 2),
+      );
+
+      const zedIgnore = await ZedIgnore.fromFile({
+        outputRoot: testDir,
+        global: true,
+      });
+
+      expect(zedIgnore.getRelativeDirPath()).toBe(getZedGlobalDir());
+      expect(zedIgnore.toRulesyncIgnore().getFileContent()).toBe("private/\n*.pem");
     });
 
     it("should read file with validation enabled by default", async () => {

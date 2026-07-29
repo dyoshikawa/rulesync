@@ -11,6 +11,15 @@ export const ZED_GLOBAL_WIN32_DIR = join("AppData", "Roaming", "Zed");
 export function getZedGlobalDir(): string {
   return process.platform === "win32" ? ZED_GLOBAL_WIN32_DIR : ZED_GLOBAL_DIR;
 }
+
+/**
+ * The global config dir of the OTHER platform. `getZedGlobalDir()` resolves one
+ * spelling per platform, but the shared-write derivation (and the gateway
+ * ownership table it is checked against) must know both on every platform.
+ */
+export function getZedOtherPlatformGlobalDir(): string {
+  return process.platform === "win32" ? ZED_GLOBAL_DIR : ZED_GLOBAL_WIN32_DIR;
+}
 export const ZED_SETTINGS_FILE_NAME = "settings.json";
 export const ZED_RULE_FILE_NAME = ".rules";
 export const ZED_GLOBAL_RULE_FILE_NAME = "AGENTS.md";

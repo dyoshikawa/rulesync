@@ -4,9 +4,8 @@ import { z } from "zod/mini";
 
 import {
   getZedGlobalDir,
+  getZedOtherPlatformGlobalDir,
   ZED_DIR,
-  ZED_GLOBAL_DIR,
-  ZED_GLOBAL_WIN32_DIR,
   ZED_SETTINGS_FILE_NAME,
 } from "../../constants/zed-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
@@ -176,12 +175,7 @@ export class ZedPermissions extends ToolPermissions {
       : { relativeDirPath: ZED_DIR, relativeFilePath: ZED_SETTINGS_FILE_NAME };
   }
 
-  /**
-   * The global settings file of the OTHER platform: `getSettablePaths` resolves
-   * `~/.config/zed` vs `%APPDATA%\Zed` per platform, but the shared-write
-   * derivation (and the gateway ownership table it is checked against) must
-   * know both spellings on every platform.
-   */
+  /** @see getZedOtherPlatformGlobalDir */
   static getExtraSharedWritePaths({
     global = false,
   }: { global?: boolean } = {}): SharedWritePath[] {
@@ -190,7 +184,7 @@ export class ZedPermissions extends ToolPermissions {
     }
     return [
       {
-        relativeDirPath: process.platform === "win32" ? ZED_GLOBAL_DIR : ZED_GLOBAL_WIN32_DIR,
+        relativeDirPath: getZedOtherPlatformGlobalDir(),
         relativeFilePath: ZED_SETTINGS_FILE_NAME,
       },
     ];

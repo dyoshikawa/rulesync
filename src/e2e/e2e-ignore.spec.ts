@@ -335,6 +335,26 @@ describe("E2E: ignore (global mode)", () => {
     },
   );
 
+  it("should import the Zed user-level private_files list", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, getZedGlobalDir(), ZED_SETTINGS_FILE_NAME),
+      JSON.stringify({ theme: "One Dark", private_files: ["private/", "*.pem"] }, null, 2),
+    );
+
+    await runImport({
+      target: "zed",
+      features: "ignore",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = await readFileContent(join(projectDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH));
+    expect(imported).toContain("private/");
+    expect(imported).toContain("*.pem");
+  });
+
   it("should import the Kiro CLI user-level ignore file", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

@@ -355,11 +355,12 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       },
     },
   },
-  // Zed settings: each feature holds an exclusive top-level key. Blocks whose
-  // final value depends on existing entries (`private_files` appends patterns,
-  // `agent.tool_permissions.tools` keeps user entries for unmanaged tools and
-  // `agent` siblings) are recomputed from the existing file before being
-  // applied, so the whole key is owned here.
+  // Zed settings: each feature holds an exclusive top-level key. `private_files`
+  // is recomputed from `.rulesync/.aiignore` alone, so a pattern deleted there is
+  // retracted here. Blocks whose final value depends on existing entries
+  // (`agent.tool_permissions.tools` keeps user entries for unmanaged tools, and
+  // `agent` siblings are carried over) are recomputed from the existing file
+  // before being applied, so the whole key is owned here either way.
   ".zed/settings.json": {
     format: "json",
     features: {

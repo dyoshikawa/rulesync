@@ -2,9 +2,8 @@ import { join } from "node:path";
 
 import {
   getZedGlobalDir,
+  getZedOtherPlatformGlobalDir,
   ZED_DIR,
-  ZED_GLOBAL_DIR,
-  ZED_GLOBAL_WIN32_DIR,
   ZED_SETTINGS_FILE_NAME,
 } from "../../constants/zed-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
@@ -44,21 +43,16 @@ export class ZedIgnore extends ToolIgnore {
     };
   }
 
-  /**
-   * The global settings file of the OTHER platform: `getSettablePaths` resolves
-   * `~/.config/zed` vs `%APPDATA%\Zed` per platform, but the shared-write
-   * derivation (and the gateway ownership table it is checked against) must
-   * know both spellings on every platform.
-   */
+  /** @see getZedOtherPlatformGlobalDir */
   static getExtraSharedWritePaths({
     global = false,
-  }: { global?: boolean } = {}): SharedWritePath[] {
+  }: ToolIgnoreSettablePathsParams = {}): SharedWritePath[] {
     if (!global) {
       return [];
     }
     return [
       {
-        relativeDirPath: process.platform === "win32" ? ZED_GLOBAL_DIR : ZED_GLOBAL_WIN32_DIR,
+        relativeDirPath: getZedOtherPlatformGlobalDir(),
         relativeFilePath: ZED_SETTINGS_FILE_NAME,
       },
     ];
@@ -81,7 +75,9 @@ export class ZedIgnore extends ToolIgnore {
     const fileContent = rulesyncPatterns.join("\n");
 
     return new RulesyncIgnore({
-      outputRoot: this.outputRoot,
+      // The rulesync source always belongs to the project, even when the
+      // settings.json it was imported from lives in the user config dir.
+      outputRoot: ".",
       relativeDirPath: RulesyncIgnore.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath: RulesyncIgnore.getSettablePaths().recommended.relativeFilePath,
       fileContent,
@@ -110,7 +106,12 @@ export class ZedIgnore extends ToolIgnore {
     // is authoritative: a pattern deleted from `.rulesync/.aiignore` is
     // retracted from settings.json instead of surviving forever. Every other
     // key in the file is preserved by the gateway.
-    const managedPatterns = [...new Set(patterns)].toSorted();
+    //
+    // With no patterns at all the key is REMOVED rather than written as `[]`:
+    // Zed's default `private_files` (`**/.env*`, `**/*.pem`, …) is replaced
+    // wholesale by any value the user or project sets, so an empty array would
+    // switch its secret redaction off entirely.
+    const managedPatterns = patterns.length > 0 ? [...new Set(patterns)].toSorted() : undefined;
 
     return new ZedIgnore({
       outputRoot,
