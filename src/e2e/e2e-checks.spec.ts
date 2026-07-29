@@ -19,6 +19,11 @@ const checksGenerateTargets = [
     outputPath: join(".agents", "checks", "security.md"),
   },
   {
+    // Bugbot reads one aggregated instruction file rather than per-check files.
+    target: "cursor",
+    outputPath: join(".cursor", "BUGBOT.md"),
+  },
+  {
     target: "hermesagent",
     outputPath: join(".hermes", "plugins", "rulesync-checks", "checks", "security.json"),
   },
@@ -80,6 +85,13 @@ Look for injection vulnerabilities.
         // One quality gate per check, in the shared config's owned block.
         expect(generatedContent).toContain("workflow_overrides:");
         expect(generatedContent).toContain("quality_gates:");
+        expect(generatedContent).toContain("Look for injection vulnerabilities.");
+        return;
+      }
+      if (target === "cursor") {
+        // One marked-up section per check, keyed by the source file basename.
+        expect(generatedContent).toContain("<!-- rulesync:check:security -->");
+        expect(generatedContent).toContain("## security");
         expect(generatedContent).toContain("Look for injection vulnerabilities.");
         return;
       }

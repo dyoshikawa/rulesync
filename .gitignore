@@ -402,6 +402,7 @@ rulesync.local.jsonc
 **/.vibeignore
 **/.warpindexingignore
 **/.agents/checks/
+**/.cursor/BUGBOT.md
 **/.hermes/plugins/rulesync-checks/checks/
 !.rulesync/.aiignore
 # End of Rulesync

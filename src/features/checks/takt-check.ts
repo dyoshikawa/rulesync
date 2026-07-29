@@ -17,6 +17,7 @@ import {
   parseSharedConfig,
   TAKT_CONFIG_SHARED_FILE_KEY,
 } from "../shared/shared-config-gateway.js";
+import { slugifyCheckName } from "./check-slug.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import {
   ToolCheck,
@@ -240,19 +241,6 @@ function toRulesyncCheckFromGate({
   });
 }
 
-function slugify(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 48)
-      // Again after the slice, so a cut landing on a separator does not leave a
-      // name like `foo--1.md`.
-      .replace(/-+$/, "")
-  );
-}
-
 function slugForGate({
   gate,
   index,
@@ -270,11 +258,11 @@ function slugForGate({
         : typeof gate.command === "string"
           ? gate.command
           : "";
-  const slug = slugify(source);
+  const slug = slugifyCheckName(source);
   // The scope name comes from someone else's config.yaml on import, so it goes
   // through the same slug rules as the gate text: a raw `feature/review` would
   // write a nested file the loader (a flat listing) never reads back.
-  const prefix = scope ? `${slugify(scope.name)}-` : "";
+  const prefix = scope ? `${slugifyCheckName(scope.name)}-` : "";
   // The index keeps two gates that slugify the same from overwriting each other.
   return `${prefix}${slug.length > 0 ? slug : "quality-gate"}-${index + 1}`;
 }
