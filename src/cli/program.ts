@@ -6,6 +6,7 @@ import type { Logger } from "../utils/logger.js";
 import { parseCommaSeparatedList } from "../utils/parse-comma-separated-list.js";
 import { addCommand, type AddCommandOptions } from "./commands/add.js";
 import { convertCommand, ConvertOptions } from "./commands/convert.js";
+import { doctorCommand, type DoctorOptions } from "./commands/doctor.js";
 import { fetchCommand } from "./commands/fetch.js";
 import { generateCommand, GenerateOptions } from "./commands/generate.js";
 import { gitignoreCommand } from "./commands/gitignore.js";
@@ -297,6 +298,21 @@ export function createProgram(): Command {
     .action(
       wrapCommand("generate", "GENERATION_FAILED", async (logger, options) => {
         await generateCommand(logger, options as GenerateOptions);
+      }),
+    );
+
+  program
+    .command("doctor")
+    .description(
+      "Diagnose the rulesync configuration for common problems (read-only, never writes files)",
+    )
+    .option("-c, --config <path>", "Path to configuration file")
+    .option("--strict", "Treat warnings as errors (exit with code 1)")
+    .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
+    .action(
+      wrapCommand("doctor", "DOCTOR_FAILED", async (logger, options) => {
+        await doctorCommand(logger, options as DoctorOptions);
       }),
     );
 

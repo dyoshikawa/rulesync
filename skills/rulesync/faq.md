@@ -1,5 +1,9 @@
 # FAQ
 
+## `rulesync generate` doesn't produce what I expect
+
+Run `rulesync doctor` first. It performs read-only diagnostics on `rulesync.jsonc` and `rulesync.local.jsonc` and reports problems the generator silently tolerates — most importantly misspelled or unknown configuration keys (the config schema is non-strict, so a typo like `"target"` instead of `"targets"` is otherwise ignored and generation quietly falls back to defaults). See the [Doctor Command](./cli-commands.md#doctor-command) reference for the full list of checks.
+
 ## The generated `.mcp.json` doesn't work properly in Claude Code
 
 You can try adding the following to `.claude/settings.json` or `.claude/settings.local.json`:

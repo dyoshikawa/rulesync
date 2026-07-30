@@ -73,6 +73,12 @@ rulesync gitignore --targets claudecode,copilot
 # Add only specific feature entries to .gitignore
 rulesync gitignore --targets copilot --features rules,commands
 
+# Diagnose the configuration files for common problems (read-only)
+rulesync doctor
+
+# Diagnose and fail CI on warnings too
+rulesync doctor --strict
+
 # Update rulesync to the latest version (single-binary installs)
 rulesync update
 
@@ -371,3 +377,53 @@ rulesync convert --from cursor --to copilot,claudecode --dry-run
 - When `--features` is omitted, the command attempts every feature the source tool supports.
 - Passing the source tool inside `--to` is rejected, because converting a tool onto itself is lossy.
 - With `--dry-run`, no destination files are written; the command prints a summary prefixed with `[DRY RUN]` listing what would have been converted.
+
+## Doctor Command
+
+The `doctor` command runs read-only diagnostics against the configuration files (`rulesync.jsonc` and `rulesync.local.jsonc`) and reports problems grouped by severity (`error` / `warning` / `info`). It never writes files, which makes it a safe first step when generation does not behave as expected, and a cheap CI guard.
+
+It is especially useful for catching **silently ignored configuration**: the config schema is non-strict, so a misspelled key such as `"target"` instead of `"targets"` is normally swallowed without any error. `doctor` reports every unknown key with a "did you mean" suggestion.
+
+### Checks
+
+- JSONC parse errors, reported with line and column.
+- Unknown or misspelled top-level keys, with a "did you mean" suggestion.
+- Unknown tool targets and features (array and object forms), with the nearest valid name suggested.
+- Deprecated features (`ignore`, superseded by `permissions`).
+- Object-form `targets` combined with `features` — including the case where the conflict only appears after merging `rulesync.jsonc` with `rulesync.local.jsonc`.
+- Conflicting target pairs (e.g. `claudecode` + `claudecode-legacy`).
+- `$schema` presence and whether it points at the current config schema URL.
+- Structural schema violations on any other key (wrong types, malformed `sources` entries).
+- `sources[].tokenEnv` naming an environment variable that is not set.
+- `inputRoot` pointing at a directory that does not exist.
+
+### Options
+
+| Option                | Description                       | Default          |
+| --------------------- | --------------------------------- | ---------------- |
+| `--config, -c <path>` | Path to configuration file        | `rulesync.jsonc` |
+| `--strict`            | Treat warnings as errors (exit 1) | `false`          |
+| `--verbose, -V`       | Verbose output                    | `false`          |
+| `--silent, -s`        | Suppress all output               | `false`          |
+
+### Examples
+
+```bash
+# Diagnose the project configuration
+rulesync doctor
+
+# Fail CI on warnings too
+rulesync doctor --strict
+
+# Machine-readable output for editors and CI
+rulesync --json doctor
+
+# Diagnose a configuration file at a custom location
+rulesync doctor --config ./configs/rulesync.jsonc
+```
+
+### Behavior
+
+- Exits with code `1` when any `error`-severity diagnostic is present (or any `warning` with `--strict`), and `0` otherwise.
+- With the global `--json` flag, diagnostics and a severity summary are emitted as structured JSON: in `data` on success (exit 0), and in `error.details` of the standard error document (code `DOCTOR_FAILED`) on failure.
+- A missing configuration file is reported as `info` only — rulesync runs fine with built-in defaults.

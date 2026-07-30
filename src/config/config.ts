@@ -30,7 +30,11 @@ import {
 } from "../types/tool-targets.js";
 import { hasControlCharacters } from "../utils/validation.js";
 
-const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
+/**
+ * Key accepted alongside feature names in the per-feature object form of
+ * `targets`. Exported so `rulesync doctor` treats the same key as valid.
+ */
+export const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
 
 /**
  * Schema for a single source entry in the sources array.
@@ -207,9 +211,11 @@ function normalizeConfigFilePath({
 }
 
 /**
- * Conflicting target pairs that cannot be used together
+ * Conflicting target pairs that cannot be used together.
+ * Exported so `rulesync doctor` can report the same conflicts as diagnostics
+ * without duplicating the list.
  */
-const CONFLICTING_TARGET_PAIRS: Array<[string, string]> = [
+export const CONFLICTING_TARGET_PAIRS: Array<[string, string]> = [
   ["augmentcode", "augmentcode-legacy"],
   ["claudecode", "claudecode-legacy"],
 ];

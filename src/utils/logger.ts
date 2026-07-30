@@ -1,4 +1,4 @@
-import { ErrorCodes, JsonOutput } from "../types/json-output.js";
+import { CLIError, ErrorCodes, JsonOutput } from "../types/json-output.js";
 import { isEnvTest } from "./vitest.js";
 
 export type JsonErrorInfo = {
@@ -206,6 +206,10 @@ export class JsonLogger extends BaseLogger implements Logger {
 
     if (this._verbose && message instanceof Error && message.stack) {
       errorInfo.stack = message.stack;
+    }
+
+    if (message instanceof CLIError && message.details !== undefined) {
+      errorInfo.details = message.details;
     }
 
     this.outputJson(false, errorInfo);
