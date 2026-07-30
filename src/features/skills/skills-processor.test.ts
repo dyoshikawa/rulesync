@@ -682,6 +682,7 @@ Missing description`,
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining(join(".agents", "skills", "bad-skill")),
       );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("description"));
     });
 
     it("should skip an agentsskills skill with unparseable YAML and import the rest", async () => {
@@ -719,6 +720,7 @@ Unquoted colon`,
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining(join(".agents", "skills", "bad-yaml")),
       );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("indentation"));
     });
 
     it("should still abort import for non-lenient tools when a declared-root skill is invalid", async () => {
@@ -737,7 +739,7 @@ name: bad-skill
 Missing description`,
       );
 
-      await expect(processor.loadToolDirs()).rejects.toThrow();
+      await expect(processor.loadToolDirs()).rejects.toThrow(/Invalid frontmatter/);
     });
   });
 

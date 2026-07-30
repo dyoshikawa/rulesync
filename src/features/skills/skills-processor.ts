@@ -120,9 +120,11 @@ type ToolSkillFactory = {
     /** Whether the tool supports global (user-level) skills */
     supportsGlobal: boolean;
     /**
-     * When true, a skill directory that fails to load on import (unparseable
-     * YAML, invalid frontmatter) is warned about and skipped instead of
-     * aborting the whole import run.
+     * When true, a skill directory that fails to load on import — for any
+     * reason (unparseable YAML, invalid frontmatter, unreadable files) — is
+     * warned about and skipped instead of aborting the whole import run.
+     * Applies to directory-form skills only; `fromFlatFile` loaders are not
+     * covered.
      */
     lenientImport?: boolean;
   };
