@@ -107,5 +107,9 @@ describe("E2E: doctor", () => {
     expect(parsed.success).toBe(false);
     expect(parsed.command).toBe("doctor");
     expect(parsed.error).toMatchObject({ code: "DOCTOR_FAILED" });
+    expect(parsed.error.details.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "config/unknown-target" })]),
+    );
+    expect(parsed.error.details.summary).toMatchObject({ errors: 1 });
   });
 });

@@ -774,7 +774,12 @@ export async function doctorCommand(logger: Logger, options: DoctorOptions): Pro
 
   const summary = `${errorCount} error(s), ${warningCount} warning(s), ${infoCount} info(s)`;
   if (errorCount > 0 || (options.strict === true && warningCount > 0)) {
-    throw new CLIError(`Doctor found problems: ${summary}.`, ErrorCodes.DOCTOR_FAILED);
+    // Attach the diagnostics as structured details so `--json` consumers still
+    // receive them on failure — the JSON error document drops captured data.
+    throw new CLIError(`Doctor found problems: ${summary}.`, ErrorCodes.DOCTOR_FAILED, 1, {
+      diagnostics,
+      summary: { errors: errorCount, warnings: warningCount, infos: infoCount },
+    });
   }
   if (warningCount > 0) {
     logger.warn(`Doctor finished with ${summary}.`);

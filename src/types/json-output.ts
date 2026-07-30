@@ -29,7 +29,7 @@ type JsonError = {
   code: string;
   /** Human-readable error message */
   message: string;
-  /** Additional error details (only included with --verbose) */
+  /** Additional structured error details (e.g. `CLIError.details`) */
   details?: unknown;
   /** Stack trace (only included with --verbose) */
   stack?: string;
@@ -67,6 +67,12 @@ export class CLIError extends Error {
     message: string,
     public code: ErrorCode = ErrorCodes.UNKNOWN_ERROR,
     public exitCode: number = 1,
+    /**
+     * Structured payload propagated into the JSON error document
+     * (`error.details`) so `--json` consumers keep machine-readable context
+     * on failure (e.g. `doctor` diagnostics).
+     */
+    public details?: unknown,
   ) {
     super(message);
     this.name = "CLIError";
