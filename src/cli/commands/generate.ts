@@ -1,10 +1,22 @@
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
+import type { Config } from "../../config/config.js";
 import { checkRulesyncDirExists, generate, type GenerateResult } from "../../lib/generate.js";
+import {
+  buildConfigFilePaths,
+  buildWatchTargets,
+  formatTriggerPaths,
+  WatchScheduler,
+  watchTargets,
+} from "../../lib/watch.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
+import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
-export type GenerateOptions = ConfigResolverResolveParams;
+export type GenerateOptions = ConfigResolverResolveParams & {
+  /** Keep running and regenerate whenever a rulesync source file changes. */
+  watch?: boolean;
+};
 
 /**
  * Log feature generation result with appropriate prefix based on dry run mode.
@@ -91,7 +103,25 @@ function buildSummaryParts(result: GenerateResult): string[] {
 }
 
 export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
-  const config = await ConfigResolver.resolve(options, { logger });
+  if (options.watch) {
+    await generateWatchCommand(logger, options);
+    return;
+  }
+  await generateOnce(logger, options);
+}
+
+/**
+ * Runs one generation. `resolvedConfig` lets a caller that already resolved
+ * the configuration (watch mode's startup validation) reuse it instead of
+ * paying for a second resolution — and, more importantly, instead of emitting
+ * the resolver's warnings twice.
+ */
+async function generateOnce(
+  logger: Logger,
+  options: GenerateOptions,
+  { resolvedConfig }: { resolvedConfig?: Config } = {},
+): Promise<void> {
+  const config = resolvedConfig ?? (await ConfigResolver.resolve(options, { logger }));
 
   const check = config.getCheck();
 
@@ -189,4 +219,106 @@ export async function generateCommand(logger: Logger, options: GenerateOptions):
   } else {
     logger.success(`🎉 All done! Written ${totalGenerated} file(s) total (${parts.join(" + ")})`);
   }
+}
+
+/**
+ * Rejects flag combinations that contradict a long-running watch: `--check`
+ * and `--dry-run` are one-shot verification modes (the former is meant to exit
+ * non-zero), and `--json` buffers a single result document until the command
+ * returns, which never happens while watching.
+ */
+export function assertWatchModeCompatible({
+  isCheck,
+  isDryRun,
+  isJsonMode,
+}: {
+  isCheck: boolean;
+  isDryRun: boolean;
+  isJsonMode: boolean;
+}): void {
+  const conflicts = [
+    isCheck ? "--check" : undefined,
+    isDryRun ? "--dry-run" : undefined,
+    isJsonMode ? "--json" : undefined,
+  ].filter((flag): flag is string => flag !== undefined);
+
+  if (conflicts.length > 0) {
+    throw new CLIError(
+      `--watch cannot be combined with ${conflicts.join(", ")}.`,
+      ErrorCodes.VALIDATION_FAILED,
+    );
+  }
+}
+
+async function generateWatchCommand(logger: Logger, options: GenerateOptions): Promise<void> {
+  // Resolve once up front so the incompatible-mode check also covers values
+  // coming from the config file, not just CLI flags.
+  const config = await ConfigResolver.resolve(options, { logger });
+  assertWatchModeCompatible({
+    isCheck: config.getCheck(),
+    isDryRun: config.getDryRun(),
+    isJsonMode: logger.jsonMode,
+  });
+
+  const inputRoot = config.getInputRoot();
+  // Take the path the resolver actually loaded rather than re-deriving it:
+  // the two differ when `inputRoot` comes from the configuration file itself.
+  const configFilePath = config.getConfigFilePath();
+  const configFilePaths = buildConfigFilePaths({ configFilePath });
+
+  // Run once before watching so a missing `.rulesync` directory (or any other
+  // configuration error) fails fast instead of starting an idle watcher.
+  await generateOnce(logger, options, { resolvedConfig: config });
+
+  const targets = buildWatchTargets({ inputRoot, configFilePath });
+
+  const scheduler = new WatchScheduler({
+    run: async ({ triggers }) => {
+      logger.info(`\nChange detected: ${formatTriggerPaths({ triggers, baseDir: inputRoot })}`);
+      if (triggers.some((trigger) => configFilePaths.has(trigger))) {
+        logger.warn(
+          "Configuration file changed. The set of watched paths is fixed at startup — restart 'rulesync generate --watch' if you changed 'inputRoot' or the configuration file location.",
+        );
+      }
+      await generateOnce(logger, options);
+    },
+    onError: ({ error }) => {
+      logger.error(`Generation failed: ${formatError(error)}`);
+      logger.info("Still watching for changes...");
+    },
+  });
+
+  const handle = watchTargets({
+    targets,
+    onChange: ({ path }) => {
+      scheduler.notify({ path });
+    },
+    onError: ({ error, directory }) => {
+      logger.error(`Watch error on ${directory}: ${formatError(error)}`);
+    },
+  });
+
+  logger.info(
+    `\nWatching for changes in:\n${targets.map((target) => `    ${target.directory}`).join("\n")}`,
+  );
+  logger.info("Press Ctrl+C to stop.");
+
+  await new Promise<void>((resolveShutdown) => {
+    const shutdown = (): void => {
+      process.off("SIGINT", shutdown);
+      process.off("SIGTERM", shutdown);
+      handle.close();
+      void scheduler
+        .close()
+        .catch((error: unknown) => {
+          logger.error(`Failed to stop the watcher cleanly: ${formatError(error)}`);
+        })
+        .finally(() => {
+          logger.info("\nStopped watching.");
+          resolveShutdown();
+        });
+    };
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+  });
 }

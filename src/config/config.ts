@@ -1,7 +1,8 @@
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 
 import { minLength, optional, refine, z } from "zod/mini";
 
+import { RULESYNC_CONFIG_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import {
   ALL_FEATURES,
   Feature,
@@ -150,6 +151,11 @@ export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & 
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
   configFileTargets?: ToolTarget[];
+  // Absolute path of the configuration file this config was loaded from. Set
+  // by `ConfigResolver`; it is process state rather than a user-settable
+  // option, so it deliberately stays out of `ConfigParamsSchema` (and thus out
+  // of the `rulesync.jsonc` schema).
+  configFilePath?: string;
 };
 
 const PartialConfigParamsSchema = z.partial(ConfigParamsSchema);
@@ -179,6 +185,26 @@ export type RequiredConfigParams = Omit<InferredRequiredConfigParams, "targets" 
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
 };
+
+/**
+ * Normalizes the configuration file location to an absolute path.
+ *
+ * `ConfigResolver` always supplies the path it actually loaded; the fallback
+ * only covers direct programmatic construction, where the conventional
+ * location next to the input root is the best guess.
+ */
+function normalizeConfigFilePath({
+  configFilePath,
+  inputRoot,
+}: {
+  configFilePath: string | undefined;
+  inputRoot: string;
+}): string {
+  if (configFilePath === undefined) {
+    return join(inputRoot, RULESYNC_CONFIG_RELATIVE_FILE_PATH);
+  }
+  return isAbsolute(configFilePath) ? configFilePath : resolve(configFilePath);
+}
 
 /**
  * Conflicting target pairs that cannot be used together
@@ -283,6 +309,7 @@ export class Config {
   private readonly dryRun: boolean;
   private readonly check: boolean;
   private readonly inputRoot: string;
+  private readonly configFilePath: string;
   private readonly sources: SourceEntry[];
 
   constructor({
@@ -302,6 +329,7 @@ export class Config {
     dryRun,
     check,
     inputRoot,
+    configFilePath,
     sources,
     configFileTargets,
   }: ConfigParams) {
@@ -375,6 +403,10 @@ export class Config {
         : isAbsolute(inputRoot)
           ? inputRoot
           : resolve(inputRoot);
+    this.configFilePath = normalizeConfigFilePath({
+      configFilePath,
+      inputRoot: this.inputRoot,
+    });
     this.sources = sources ?? [];
   }
 
@@ -678,6 +710,15 @@ export class Config {
    */
   public getInputRoot(): string {
     return this.inputRoot;
+  }
+
+  /**
+   * Returns the absolute path of the configuration file this config was
+   * resolved from. The file itself may not exist — `rulesync` runs fine
+   * without one — so callers must treat this as a location, not a guarantee.
+   */
+  public getConfigFilePath(): string {
+    return this.configFilePath;
   }
 
   public getSources(): SourceEntry[] {

@@ -1,7 +1,8 @@
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { RULESYNC_CONFIG_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { ALL_FEATURES } from "../types/features.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
 import {
@@ -438,6 +439,25 @@ describe("Config", () => {
       const parent = resolve(originalCwd, "..");
       process.chdir(parent);
       expect(config.getInputRoot()).toBe(expected);
+    });
+  });
+
+  describe("getConfigFilePath", () => {
+    it("keeps the absolute path supplied by the resolver", () => {
+      const configFilePath = resolve(process.cwd(), "packages", "app", "rulesync.jsonc");
+      const config = createConfig({ configFilePath });
+      expect(config.getConfigFilePath()).toBe(configFilePath);
+    });
+
+    it("falls back to the conventional location next to the input root", () => {
+      const inputRoot = resolve(process.cwd(), "central-rules");
+      const config = createConfig({ inputRoot });
+      expect(config.getConfigFilePath()).toBe(join(inputRoot, RULESYNC_CONFIG_RELATIVE_FILE_PATH));
+    });
+
+    it("resolves a relative path to absolute", () => {
+      const config = createConfig({ configFilePath: "./nested/rulesync.jsonc" });
+      expect(config.getConfigFilePath()).toBe(resolve(process.cwd(), "nested/rulesync.jsonc"));
     });
   });
 

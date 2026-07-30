@@ -103,6 +103,7 @@ The `generate` command reads source files from `.rulesync/` and writes AI tool c
 | `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                                                   | `false`               |
 | `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                                                      | `false`               |
 | `--delete`                  | Delete existing generated files before writing                                                                             | From `rulesync.jsonc` |
+| `--watch, -w`               | Keep running and regenerate whenever rulesync source files change                                                          | `false`               |
 
 ### Examples
 
@@ -121,7 +122,21 @@ rulesync generate --dry-run --targets claudecode --features rules
 
 # CI check: fail if generated files are not up to date
 rulesync generate --check --targets "*" --features "*"
+
+# Watch mode: regenerate on every change to the sources
+rulesync generate --watch
 ```
+
+### Watch mode
+
+`generate --watch` runs one generation immediately and then keeps running, regenerating whenever the rulesync sources change. It is meant for iterating on rules, commands, subagents or skills without re-running the command by hand.
+
+- **What is watched**: the `.rulesync/` source tree (recursively) plus the configuration files next to it (`rulesync.jsonc` and `rulesync.local.jsonc`, or the file passed to `--config`). Generated output is never watched, so a regeneration cannot re-trigger the watcher.
+- **Debouncing**: bursts of file-system events (editor save storms, `git checkout` switching many files) are coalesced into a single regeneration after a short quiet period. Changes that arrive while a generation is running trigger exactly one follow-up run.
+- **Errors keep the watcher alive**: a failing generation (e.g. invalid frontmatter saved mid-edit) is reported and watching continues; the process does not exit.
+- **Configuration changes**: editing the configuration file triggers a regeneration, and the new values apply to it because the configuration is re-resolved on every run. The **set of watched paths is fixed at startup**, so changing `inputRoot` (or the location of the configuration file itself) requires restarting the command. A warning is printed whenever the configuration file changes as a reminder.
+- **Incompatible flags**: `--watch` cannot be combined with `--check`, `--dry-run` or `--json`. The first two are one-shot verification modes and `--json` emits a single result document when the command exits, which never happens while watching.
+- **Stopping**: `Ctrl+C` (`SIGINT`) or `SIGTERM` closes the watchers and exits normally.
 
 ### Tool home overrides win over the output root in global scope
 
