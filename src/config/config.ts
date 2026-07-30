@@ -207,9 +207,11 @@ function normalizeConfigFilePath({
 }
 
 /**
- * Conflicting target pairs that cannot be used together
+ * Conflicting target pairs that cannot be used together.
+ * Exported so `rulesync doctor` can report the same conflicts as diagnostics
+ * without duplicating the list.
  */
-const CONFLICTING_TARGET_PAIRS: Array<[string, string]> = [
+export const CONFLICTING_TARGET_PAIRS: Array<[string, string]> = [
   ["augmentcode", "augmentcode-legacy"],
   ["claudecode", "claudecode-legacy"],
 ];
