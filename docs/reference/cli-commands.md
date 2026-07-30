@@ -425,5 +425,5 @@ rulesync doctor --config ./configs/rulesync.jsonc
 ### Behavior
 
 - Exits with code `1` when any `error`-severity diagnostic is present (or any `warning` with `--strict`), and `0` otherwise.
-- With the global `--json` flag, diagnostics and a severity summary are emitted as structured JSON.
+- With the global `--json` flag, diagnostics and a severity summary are emitted as structured JSON on success (exit 0); on failure the standard error document is emitted with code `DOCTOR_FAILED` and the severity summary in its message.
 - A missing configuration file is reported as `info` only — rulesync runs fine with built-in defaults.

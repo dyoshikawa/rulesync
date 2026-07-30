@@ -19,6 +19,16 @@ export const ALL_FEATURES = [
 
 export const ALL_FEATURES_WITH_WILDCARD = [...ALL_FEATURES, "*"] as const;
 
+/**
+ * Features that remain accepted for compatibility but are superseded by a
+ * newer feature. Maps each deprecated feature to its replacement; consumers
+ * (e.g. `rulesync doctor`) derive their deprecation warnings from this map so
+ * the set cannot drift from the schema above.
+ */
+export const DEPRECATED_FEATURE_REPLACEMENTS: Readonly<Record<string, string>> = {
+  ignore: "permissions",
+};
+
 const ACTIVE_FEATURES = [
   ...ACTIVE_FEATURES_BEFORE_IGNORE,
   ...ACTIVE_FEATURES_AFTER_IGNORE,

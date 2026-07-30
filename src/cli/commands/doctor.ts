@@ -5,14 +5,14 @@ import { type ParseError, parse as parseJsonc, printParseErrorCode } from "jsonc
 import {
   CONFLICTING_TARGET_PAIRS,
   ConfigFileSchema,
-  assertTargetsFeaturesExclusive,
+  GITIGNORE_DESTINATION_KEY,
 } from "../../config/config.js";
 import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_CONFIG_SCHEMA_URL,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
 } from "../../constants/rulesync-paths.js";
-import { ALL_FEATURES } from "../../types/features.js";
+import { ALL_FEATURES, DEPRECATED_FEATURE_REPLACEMENTS } from "../../types/features.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
 import { directoryExists, fileExists, readFileContent, resolvePath } from "../../utils/file.js";
@@ -47,7 +47,7 @@ export type DoctorOptions = {
 };
 
 /** Per-feature object form also accepts a gitignore destination override. */
-const PER_FEATURE_EXTRA_KEYS = ["gitignoreDestination"] as const;
+const PER_FEATURE_EXTRA_KEYS = [GITIGNORE_DESTINATION_KEY] as const;
 
 const KNOWN_CONFIG_KEYS = Object.keys(ConfigFileSchema.shape);
 
@@ -161,13 +161,14 @@ function checkFeatureName({
   file: string;
   context: string;
 }): DoctorDiagnostic | undefined {
-  if (name === "ignore") {
+  const replacement = DEPRECATED_FEATURE_REPLACEMENTS[name];
+  if (replacement !== undefined) {
     return {
       severity: "warning",
       code: "config/deprecated-feature",
       file,
-      message: `Feature 'ignore' in ${context} is deprecated.`,
-      hint: "Use the 'permissions' feature instead.",
+      message: `Feature '${name}' in ${context} is deprecated.`,
+      hint: `Use the '${replacement}' feature instead.`,
     };
   }
   if ((ALL_FEATURES as readonly string[]).includes(name)) return undefined;
@@ -573,6 +574,9 @@ export function collectMergedConfigDiagnostics({
   localFile: string;
 }): DoctorDiagnostic[] {
   if (baseConfig === undefined || localConfig === undefined) return [];
+  // The merged object-form-`targets` + `features` state is the same invalid
+  // combination `assertTargetsFeaturesExclusive` rejects at generate time,
+  // detected here on the post-merge (local ?? base) values.
   const mergedTargets = localConfig.targets ?? baseConfig.targets;
   const mergedFeatures = localConfig.features ?? baseConfig.features;
   if (!isPlainObject(mergedTargets) || mergedFeatures === undefined) return [];
@@ -582,31 +586,31 @@ export function collectMergedConfigDiagnostics({
     (isPlainObject(baseConfig.targets) && baseConfig.features !== undefined) ||
     (isPlainObject(localConfig.targets) && localConfig.features !== undefined);
   if (conflictWithinOneFile) return [];
-  try {
-    // Reuse the runtime assertion to stay in lockstep with generate-time
-    // behavior; it throws for the merged object-form + features state.
-    assertTargetsFeaturesExclusive({
-      targets: mergedTargets as never,
-      features: mergedFeatures as never,
-    });
-    return [];
-  } catch {
-    return [
-      {
-        severity: "error",
-        code: "config/targets-features-conflict",
-        file: localFile,
-        message:
-          `Merging '${baseFile}' with '${localFile}' combines object-form 'targets' ` +
-          "with 'features', which is invalid.",
-        hint: "Remove the conflicting field from one of the two files.",
-      },
-    ];
-  }
+  return [
+    {
+      severity: "error",
+      code: "config/targets-features-conflict",
+      file: localFile,
+      message:
+        `Merging '${baseFile}' with '${localFile}' combines object-form 'targets' ` +
+        "with 'features', which is invalid.",
+      hint: "Remove the conflicting field from one of the two files.",
+    },
+  ];
 }
 
 function severityRank(severity: DoctorSeverity): number {
   return severity === "error" ? 0 : severity === "warning" ? 1 : 2;
+}
+
+/**
+ * Strips control characters (including ANSI escape sequences) so key names and
+ * values copied out of an untrusted config file cannot inject terminal escape
+ * codes into the diagnostic output.
+ */
+function stripControlCharacters(text: string): string {
+  // oxlint-disable-next-line no-control-regex
+  return text.replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, "");
 }
 
 function formatDiagnostic(diagnostic: DoctorDiagnostic): string {
@@ -616,15 +620,20 @@ function formatDiagnostic(diagnostic: DoctorDiagnostic): string {
       : "";
   const label =
     diagnostic.severity === "error" ? "✖" : diagnostic.severity === "warning" ? "⚠" : "ℹ";
-  const hint = diagnostic.hint === undefined ? "" : `\n    ↳ ${diagnostic.hint}`;
-  return `${label} ${diagnostic.file}${position} [${diagnostic.code}] ${diagnostic.message}${hint}`;
+  const hint =
+    diagnostic.hint === undefined ? "" : `\n    ↳ ${stripControlCharacters(diagnostic.hint)}`;
+  return `${label} ${stripControlCharacters(diagnostic.file)}${position} [${diagnostic.code}] ${stripControlCharacters(diagnostic.message)}${hint}`;
 }
 
-async function parseConfigFileForMerge(
-  filePath: string,
-): Promise<Record<string, unknown> | undefined> {
-  if (!(await fileExists(filePath))) return undefined;
-  const content = await readFileContent(filePath);
+/**
+ * Re-parses an already-read config file's content for the cross-file checks.
+ * Returns undefined when the content is unparseable or not an object — the
+ * per-file checks have already reported those states.
+ */
+function parseConfigObjectForMerge(
+  content: string | undefined,
+): Record<string, unknown> | undefined {
+  if (content === undefined) return undefined;
   const errors: ParseError[] = [];
   const parsed: unknown = parseJsonc(content, errors, { allowTrailingComma: true });
   if (errors.length > 0 || !isPlainObject(parsed)) return undefined;
@@ -668,6 +677,10 @@ function reportDiagnostics({
   logger: Logger;
   diagnostics: DoctorDiagnostic[];
 }): void {
+  // In JSON mode the diagnostics travel via `captureData`; going through
+  // `logger.error` here would emit the error document early (JsonLogger
+  // prints on the first error call) with a generic code.
+  if (logger.jsonMode) return;
   for (const diagnostic of diagnostics) {
     const formatted = formatDiagnostic(diagnostic);
     if (diagnostic.severity === "error") {
@@ -712,14 +725,18 @@ export async function doctorCommand(logger: Logger, options: DoctorOptions): Pro
     });
   }
 
+  // Read each file once; the same content feeds the per-file checks and the
+  // cross-file merge checks below.
+  const fileContents = new Map<string, string>();
   for (const filePath of [validatedConfigPath, localConfigPath]) {
     if (!(await fileExists(filePath))) continue;
     const content = await readFileContent(filePath);
+    fileContents.set(filePath, content);
     diagnostics.push(...collectConfigFileDiagnostics({ file: toDisplayPath(filePath), content }));
   }
 
-  const baseConfig = await parseConfigFileForMerge(validatedConfigPath);
-  const localConfig = await parseConfigFileForMerge(localConfigPath);
+  const baseConfig = parseConfigObjectForMerge(fileContents.get(validatedConfigPath));
+  const localConfig = parseConfigObjectForMerge(fileContents.get(localConfigPath));
   diagnostics.push(
     ...collectMergedConfigDiagnostics({
       baseConfig,

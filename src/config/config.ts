@@ -30,7 +30,11 @@ import {
 } from "../types/tool-targets.js";
 import { hasControlCharacters } from "../utils/validation.js";
 
-const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
+/**
+ * Key accepted alongside feature names in the per-feature object form of
+ * `targets`. Exported so `rulesync doctor` treats the same key as valid.
+ */
+export const GITIGNORE_DESTINATION_KEY = "gitignoreDestination";
 
 /**
  * Schema for a single source entry in the sources array.

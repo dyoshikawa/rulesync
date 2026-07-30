@@ -1,3 +1,4 @@
+// cspell:ignore cursorr rulez somethingelse -- deliberate typos used as fixtures
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
