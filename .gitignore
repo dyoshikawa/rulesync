@@ -231,6 +231,7 @@ rulesync.local.jsonc
 **/.claude/settings.local.json
 **/.claude/memories/
 **/.opencode/package-lock.json
+**/.devin/mcp_config.local.json
 **/.rovodev/.rulesync/
 **/.takt/runs/
 **/.takt/tasks/
@@ -370,6 +371,7 @@ rulesync.local.jsonc
 **/.qwen/settings.json
 **/.roo/mcp.json
 **/.warp/.mcp.json
+**/.devin/mcp_config.json
 **/.amp/plugins/rulesync-hooks.ts
 **/.agents/hooks.json
 **/.cursor/hooks.json

@@ -500,18 +500,17 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   // Devin config: `permissions` is recomputed from the existing file
   // (unmanaged-scope entries preserved) before being applied. Hooks are
-  // global-scope-only, so they appear only under `.config/devin/`.
+  // global-scope-only, so they appear only under `.config/devin/`. MCP left
+  // this file in v3000.3 for the dedicated (rulesync-owned) mcp_config.json.
   ".devin/config.json": {
     format: "json",
     features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
     },
   },
   ".config/devin/config.json": {
     format: "json",
     features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
     },
