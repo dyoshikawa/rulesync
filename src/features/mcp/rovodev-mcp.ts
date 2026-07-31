@@ -1,12 +1,23 @@
 import { join } from "node:path";
 
-import { ROVODEV_DIR, ROVODEV_MCP_FILE_NAME } from "../../constants/rovodev-paths.js";
+import {
+  ROVODEV_CONFIG_FILE_NAME,
+  ROVODEV_DIR,
+  ROVODEV_MCP_FILE_NAME,
+} from "../../constants/rovodev-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
+import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { isPlainObject } from "../../utils/type-guards.js";
+import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
+import {
+  ROVODEV_CONFIG_SHARED_FILE_KEY,
+  applySharedConfigPatch,
+  parseSharedConfig,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -40,9 +51,13 @@ function parseRovodevMcpJson(
 }
 
 /**
- * Rovodev MCP: global only at ~/.rovodev/mcp.json.
- * Same shape as Cursor: { mcpServers: { ... } }. See Rovodev MCP docs.
- * Project-level MCP is not supported; use --global when generating.
+ * Rovodev MCP: `~/.rovodev/mcp.json` (global) and the repo-committed project
+ * `.rovodev/mcp.json` documented by the Bitbucket Cloud Agentic Pipelines
+ * guide ("Register your MCP server in `.rovodev/mcp.json`", referenced via
+ * `mcp.mcpConfigPath`). Same shape as Cursor: { mcpServers: { ... } }.
+ * A server the canonical config marks `disabled: true` is still written here
+ * and switched off through `mcp.disabledMcpServers` in the sibling
+ * `config.yml` — the file Rovo Dev actually consults for disabling.
  */
 
 /**
@@ -78,18 +93,11 @@ function toRovodevServer(
   server: Record<string, unknown>,
   logger?: Logger,
 ): Record<string, unknown> | null {
-  // `disabled` is dropped either way: `mcp.json` has no such key, so keeping a
-  // `false` would suggest the file is where a server is switched on and off.
-  const { type, transport, disabled, ...rest } = server;
-  // Rovo Dev disables a server through `mcp.disabledMcpServers` in `config.yml`,
-  // not through a per-server key in `mcp.json`, so a `disabled` server written
-  // here would simply run. Omit it instead — the same end state, fail-closed.
-  if (disabled === true) {
-    logger?.warn(
-      `Rovo Dev MCP: skipping "${name}" because it is disabled and mcp.json has no disable flag.`,
-    );
-    return null;
-  }
+  // `disabled` is dropped from the entry: `mcp.json` has no such key. The
+  // toggle itself is written to `mcp.disabledMcpServers` in `config.yml` by
+  // `getAuxiliaryFiles`, so the server definition survives and can be
+  // re-enabled without re-authoring it.
+  const { type, transport, disabled: _disabled, ...rest } = server;
   const declared =
     typeof transport === "string" ? transport : typeof type === "string" ? type : undefined;
   if (declared === undefined) {
@@ -119,6 +127,54 @@ function fromRovodevServer(server: Record<string, unknown>): Record<string, unkn
   // strict enum, so writing it through would make `.rulesync/mcp.json` fail to
   // parse on the next run — for every target, not just this one.
   return mapped === undefined ? rest : { ...rest, type: mapped };
+}
+
+/**
+ * Read the `mcp.disabledMcpServers` names from the sibling `config.yml`
+ * (same scope root as `mcp.json`). Returns [] when the file is missing or
+ * malformed — a broken config must not stop the servers being imported.
+ */
+async function readDisabledMcpServerNames({
+  outputRoot,
+}: {
+  outputRoot: string;
+}): Promise<string[]> {
+  const content = await readFileContentOrNull(
+    join(outputRoot, ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME),
+  );
+  if (content === null) {
+    return [];
+  }
+  try {
+    const parsed = parseSharedConfig({
+      format: "yaml",
+      fileContent: content,
+      filePath: join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME),
+    });
+    const mcpBlock = isRecord(parsed.mcp) ? parsed.mcp : {};
+    return isStringArray(mcpBlock.disabledMcpServers) ? mcpBlock.disabledMcpServers : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Auxiliary writer for the `mcp:` block of `.rovodev/config.yml` (project) /
+ * `~/.rovodev/config.yml` (global). Carries `disabledMcpServers` — the key
+ * Rovo Dev actually consults to switch a server off — recomputed from the
+ * existing block so user keys (`mcpConfigPath`, `allowedMcpServers`, ...) and
+ * disabled names for servers rulesync does not manage survive.
+ */
+export class RovodevMcpConfigYaml extends ToolFile {
+  override isDeletable(): boolean {
+    // Shared with the permissions feature and the user's own settings; only
+    // the `mcp` key is rulesync-managed here.
+    return false;
+  }
+
+  validate(): ValidationResult {
+    return { success: true, error: null };
+  }
 }
 
 export class RovodevMcp extends ToolMcp {
@@ -157,14 +213,24 @@ export class RovodevMcp extends ToolMcp {
     validate = true,
     global = false,
   }: ToolMcpFromFileParams): Promise<RovodevMcp> {
-    if (!global) {
-      throw new Error("Rovodev MCP is global-only; use --global to sync ~/.rovodev/mcp.json");
-    }
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
     const json = parseRovodevMcpJson(fileContent, paths.relativeDirPath, paths.relativeFilePath);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
+
+    // Rovo Dev disables servers through `mcp.disabledMcpServers` in the
+    // sibling `config.yml`. Overlay `disabled: true` on the named entries so
+    // import round-trips the toggle into the canonical config.
+    const disabledNames = await readDisabledMcpServerNames({ outputRoot });
+    if (disabledNames.length > 0 && isMcpServers(newJson.mcpServers)) {
+      for (const name of disabledNames) {
+        const server = (newJson.mcpServers as Record<string, unknown>)[name];
+        if (isPlainObject(server)) {
+          (newJson.mcpServers as Record<string, unknown>)[name] = { ...server, disabled: true };
+        }
+      }
+    }
 
     return new RovodevMcp({
       outputRoot,
@@ -183,9 +249,6 @@ export class RovodevMcp extends ToolMcp {
     global = false,
     logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<RovodevMcp> {
-    if (!global) {
-      throw new Error("Rovodev MCP is global-only; use --global to sync ~/.rovodev/mcp.json");
-    }
     const paths = this.getSettablePaths({ global });
 
     const fileContent =
@@ -216,6 +279,93 @@ export class RovodevMcp extends ToolMcp {
       validate,
       global,
     });
+  }
+
+  /**
+   * `mcp.disabledMcpServers` lives in the shared `config.yml` the permissions
+   * feature also writes. Declared here so the write-order derivation sees this
+   * feature as one of that file's writers — it is not a settable path, since
+   * the servers themselves live in `mcp.json`.
+   */
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return [{ relativeDirPath: ROVODEV_DIR, relativeFilePath: ROVODEV_CONFIG_FILE_NAME }];
+  }
+
+  static override async getAuxiliaryFiles({
+    outputRoot = process.cwd(),
+    global = false,
+    rulesyncMcp,
+    logger,
+  }: {
+    outputRoot?: string;
+    global?: boolean;
+    rulesyncMcp: RulesyncMcp;
+    logger?: Logger;
+  }): Promise<ToolFile[]> {
+    const targeted = rulesyncMcp.forTarget({ toolTarget: "rovodev", logger });
+    const servers = targeted.getMcpServers();
+    const managedNames = Object.keys(servers);
+    const disabledNames = managedNames.filter((name) => {
+      const server = servers[name];
+      return isRecord(server) && server.disabled === true;
+    });
+
+    const configPath = join(outputRoot, ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME);
+    const existingContent = (await readFileContentOrNull(configPath)) ?? "";
+    let existingParsed: Record<string, unknown>;
+    try {
+      existingParsed = parseSharedConfig({
+        format: "yaml",
+        fileContent: existingContent,
+        filePath: join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME),
+      });
+    } catch (error) {
+      // Skip only this file: the servers in `mcp.json` must still be written
+      // even when a hand-edited `config.yml` cannot be parsed.
+      logger?.warn(`Skipping the Rovo Dev mcp.disabledMcpServers update: ${formatError(error)}`);
+      return [];
+    }
+
+    const existingMcp = isRecord(existingParsed.mcp) ? { ...existingParsed.mcp } : {};
+    const existingDisabled = isStringArray(existingMcp.disabledMcpServers)
+      ? existingMcp.disabledMcpServers
+      : [];
+    // rulesync owns the toggle for the servers it manages; names it does not
+    // manage keep their existing state.
+    const managedNameSet = new Set(managedNames);
+    const mergedDisabled = [
+      ...existingDisabled.filter((name) => !managedNameSet.has(name)),
+      ...disabledNames,
+    ].toSorted();
+
+    if (mergedDisabled.length > 0) {
+      existingMcp.disabledMcpServers = mergedDisabled;
+    } else {
+      delete existingMcp.disabledMcpServers;
+    }
+    // Nothing to write and nothing to clean up: do not create or touch the
+    // shared config just to hold an empty block.
+    if (mergedDisabled.length === 0 && existingContent.trim() === "") {
+      return [];
+    }
+
+    const fileContent = applySharedConfigPatch({
+      fileKey: ROVODEV_CONFIG_SHARED_FILE_KEY,
+      feature: "mcp",
+      existingContent,
+      patch: { mcp: Object.keys(existingMcp).length > 0 ? existingMcp : undefined },
+      filePath: join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME),
+    });
+
+    return [
+      new RovodevMcpConfigYaml({
+        outputRoot,
+        relativeDirPath: ROVODEV_DIR,
+        relativeFilePath: ROVODEV_CONFIG_FILE_NAME,
+        fileContent,
+        global,
+      }),
+    ];
   }
 
   toRulesyncMcp(): RulesyncMcp {

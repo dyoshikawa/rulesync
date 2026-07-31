@@ -47,34 +47,23 @@ describe("RovodevMcp", () => {
     });
   });
 
-  describe("global-only enforcement", () => {
-    it("should throw fromFile when global is false", async () => {
-      await expect(
-        RovodevMcp.fromFile({
-          outputRoot: testDir,
-          validate: true,
-          global: false,
-        }),
-      ).rejects.toThrow("Rovodev MCP is global-only; use --global to sync ~/.rovodev/mcp.json");
-    });
-
-    it("should throw fromRulesyncMcp when global is false", async () => {
+  describe("project scope", () => {
+    it("should read and write the project .rovodev/mcp.json without --global", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_MCP_FILE_NAME,
-        fileContent: JSON.stringify({ mcpServers: {} }),
+        fileContent: JSON.stringify({ mcpServers: { srv: { command: "node" } } }),
         validate: true,
       });
 
-      await expect(
-        RovodevMcp.fromRulesyncMcp({
-          outputRoot: testDir,
-          rulesyncMcp,
-          validate: true,
-          global: false,
-        }),
-      ).rejects.toThrow("Rovodev MCP is global-only; use --global to sync ~/.rovodev/mcp.json");
+      const mcp = await RovodevMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      expect(mcp.getRelativeDirPath()).toBe(".rovodev");
+      const json = JSON.parse(mcp.getFileContent());
+      expect(json.mcpServers.srv.command).toBe("node");
+
+      const imported = await RovodevMcp.fromFile({ outputRoot: testDir, validate: true });
+      expect(imported).toBeInstanceOf(RovodevMcp);
     });
   });
 
@@ -315,18 +304,18 @@ describe("RovodevMcp", () => {
       ).toBe(true);
     });
 
-    it("skips a disabled server, which mcp.json cannot express", async () => {
+    it("writes a disabled server to mcp.json and toggles it via config.yml", async () => {
       // Rovo Dev disables servers through `mcp.disabledMcpServers` in
-      // config.yml, so an entry written here would simply run.
-      const logger = createMockLogger();
+      // config.yml, so the definition is written here (minus the flag) and the
+      // toggle goes to the auxiliary config.yml writer.
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({
           mcpServers: {
-            off: { type: "http", url: "https://example.com/mcp", disabled: true },
-            on: { type: "http", url: "https://example.com/mcp", disabled: false },
+            "off-server": { type: "http", url: "https://example.com/mcp", disabled: true },
+            "on-server": { type: "http", url: "https://example.com/mcp", disabled: false },
           },
         }),
       });
@@ -335,17 +324,80 @@ describe("RovodevMcp", () => {
         outputRoot: testDir,
         rulesyncMcp,
         global: true,
-        logger,
       });
 
       const servers = JSON.parse(rovodevMcp.getFileContent()).mcpServers;
-      expect(servers.off).toBeUndefined();
-      // `disabled: false` is dropped too — mcp.json is not where a Rovo Dev
-      // server is switched on and off.
-      expect(servers.on).toEqual({ transport: "http", url: "https://example.com/mcp" });
-      expect(
-        logger.warn.mock.calls.some(([message]) => String(message).includes('skipping "off"')),
-      ).toBe(true);
+      // `disabled` is dropped from the entries — mcp.json is not where a Rovo
+      // Dev server is switched on and off — but the definition survives.
+      expect(servers["off-server"]).toEqual({ transport: "http", url: "https://example.com/mcp" });
+      expect(servers["on-server"]).toEqual({ transport: "http", url: "https://example.com/mcp" });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp,
+      });
+      expect(auxiliary).toHaveLength(1);
+      expect(auxiliary[0]!.getRelativeFilePath()).toBe("config.yml");
+      expect(auxiliary[0]!.getFileContent()).toContain("disabledMcpServers");
+      expect(auxiliary[0]!.getFileContent()).toContain("- off-server");
+      expect(auxiliary[0]!.getFileContent()).not.toContain("- on-server");
+    });
+
+    it("preserves user mcp keys and unmanaged disabled names in config.yml", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        [
+          "mcp:",
+          "  mcpConfigPath: .rovodev/mcp.json",
+          "  disabledMcpServers:",
+          "    - user-server",
+          "    - managed",
+        ].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { managed: { command: "node" } },
+        }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+      const content = auxiliary[0]!.getFileContent();
+      // rulesync owns the toggle for managed servers (the enabled `managed`
+      // entry is removed), unmanaged names and user keys survive.
+      expect(content).toContain("mcpConfigPath: .rovodev/mcp.json");
+      expect(content).toContain("- user-server");
+      expect(content).not.toContain("- managed");
+    });
+
+    it("round-trips the disabled toggle on import", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            "off-server": { transport: "http", url: "https://example.com/mcp" },
+            "on-server": { command: "node" },
+          },
+        }),
+      );
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        ["mcp:", "  disabledMcpServers:", "    - off-server"].join("\n"),
+      );
+
+      const imported = await RovodevMcp.fromFile({ outputRoot: testDir, validate: true });
+      const parsed = JSON.parse(imported.toRulesyncMcp().getFileContent());
+      expect(parsed.mcpServers["off-server"].disabled).toBe(true);
+      expect(parsed.mcpServers["on-server"].disabled).toBeUndefined();
     });
 
     it("reads the transport key back as the canonical type", () => {

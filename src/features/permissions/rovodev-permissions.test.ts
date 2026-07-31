@@ -66,21 +66,30 @@ describe("RovodevPermissions", () => {
     });
   });
 
-  describe("global-only enforcement", () => {
-    it("throws on non-global fromRulesyncPermissions", async () => {
-      await expect(
-        RovodevPermissions.fromRulesyncPermissions({
-          outputRoot: testDir,
-          rulesyncPermissions: rulesyncPermissions({ bash: { "*": "ask" } }),
-          global: false,
-        }),
-      ).rejects.toThrow(/global-only/);
+  describe("project scope", () => {
+    it("writes the repo-committed .rovodev/config.yml without --global", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "*": "ask" } }),
+        global: false,
+      });
+
+      expect(perms.getRelativeDirPath()).toBe(".rovodev");
+      expect(perms.getRelativeFilePath()).toBe("config.yml");
+      const parsed = load(perms.getFileContent()) as any;
+      expect(parsed.toolPermissions.bash.default).toBe("ask");
     });
 
-    it("throws on non-global fromFile", async () => {
-      await expect(
-        RovodevPermissions.fromFile({ outputRoot: testDir, global: false }),
-      ).rejects.toThrow(/global-only/);
+    it("reads the project config.yml without --global", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        ["toolPermissions:", "  bash:", "    default: deny"].join("\n"),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: false });
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash["*"]).toBe("deny");
     });
   });
 

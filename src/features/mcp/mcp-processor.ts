@@ -503,7 +503,10 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     {
       class: RovodevMcp,
       meta: {
-        supportsProject: false,
+        // Project `.rovodev/mcp.json` is the repo-committed surface the
+        // Bitbucket Cloud Agentic Pipelines guide documents alongside the
+        // global `~/.rovodev/mcp.json`.
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
