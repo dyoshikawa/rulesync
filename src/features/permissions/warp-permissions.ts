@@ -56,6 +56,27 @@ const WARP_OVERRIDE_KEYS = [
   "agent_mode_execute_readonly_commands",
 ] as const;
 
+// Permission keys of the `default` execution profile that the nested
+// `warp.execution_profile` override authors and that round-trip back into it
+// on import (`ExecutionProfileFile` in the Warp repository's
+// `app/src/ai/execution_profiles/config.rs`). Profile-management keys (name,
+// model overrides, context window limit, plan sync, web search toggle) are
+// deliberately not lifted — they are not permissions.
+const WARP_EXECUTION_PROFILE_OVERRIDE_KEY = "execution_profile";
+const WARP_EXECUTION_PROFILE_KEYS = [
+  "read_files",
+  "apply_code_diffs",
+  "execute_commands",
+  "mcp_permissions",
+  "write_to_pty",
+  "ask_user_question",
+  "run_agents",
+  "computer_use",
+  "directory_allowlist",
+  "mcp_allowlist",
+  "mcp_denylist",
+] as const;
+
 /**
  * Warp's `settings.toml` lives in a different directory per platform (Stable
  * channel). The home directory is resolved by the processor through
@@ -114,7 +135,14 @@ function warpSettingsDir(): string {
  * through the `warp` override namespace (see `WarpPermissionsOverrideSchema`):
  * on **import** they are lifted from `settings.toml` into the override, and on
  * **export** they are merged back into `[agents.profiles]` (the override wins).
- * MCP allow/deny is a separate surface not modeled here.
+ *
+ * On migrated installs those legacy keys are inert; their execution-profile
+ * counterparts (`read_files` / `apply_code_diffs` / `execute_commands`
+ * action permissions, `directory_allowlist`, `mcp_allowlist` /
+ * `mcp_denylist`) are authored through the nested `warp.execution_profile`
+ * override, merged into the `default` record of
+ * `[agents.execution_profiles.<id>]` under the same collection-exists guard as
+ * the command lists, and lifted back from the `default` profile on import.
  *
  * The `settings.toml` file holds all of Warp's settings, so the
  * `[agents.profiles]` block is merged in place and the file is never deleted.
@@ -195,9 +223,17 @@ export class WarpPermissions extends ToolPermissions {
     // Overlay the Warp-scoped override's autonomy keys onto `[agents.profiles]`
     // first (verbatim, so forward-compat keys pass through), then set the
     // rulesync-owned command lists below so they always win over the override.
+    // The nested `execution_profile` block targets the execution-profile
+    // collection instead and must not leak into `[agents.profiles]`.
     const override = config.warp;
+    const executionProfileOverride =
+      isRecord(override) && isRecord(override[WARP_EXECUTION_PROFILE_OVERRIDE_KEY])
+        ? override[WARP_EXECUTION_PROFILE_OVERRIDE_KEY]
+        : undefined;
     if (isRecord(override)) {
-      Object.assign(profiles, override);
+      const { [WARP_EXECUTION_PROFILE_OVERRIDE_KEY]: _executionProfile, ...legacyOverride } =
+        override;
+      Object.assign(profiles, legacyOverride);
     }
 
     const mergedAllow = uniq(allow.toSorted());
@@ -215,45 +251,13 @@ export class WarpPermissions extends ToolPermissions {
 
     agents.profiles = profiles;
 
-    // On migrated installs the legacy `[agents.profiles]` keys above are inert:
-    // runtime enforcement reads the active `[agents.execution_profiles.<id>]`
-    // record. Merge the command lists into the `default` profile in place so
-    // every other profile key and profile ID survives. When the collection does
-    // not exist yet the install is un-migrated — the legacy keys are still live
-    // there, and creating the collection ourselves would mark Warp's one-shot
-    // migration complete early and strand the user's other legacy settings
-    // (file-read allowlist, preferred model), so it is deliberately left unset.
-    if (isRecord(agents[EXECUTION_PROFILES_KEY])) {
-      const executionProfiles = { ...agents[EXECUTION_PROFILES_KEY] };
-      const defaultProfile = isRecord(executionProfiles[DEFAULT_PROFILE_KEY])
-        ? { ...executionProfiles[DEFAULT_PROFILE_KEY] }
-        : {};
-      if (mergedAllow.length > 0) {
-        defaultProfile[PROFILE_ALLOWLIST_KEY] = mergedAllow;
-      } else {
-        delete defaultProfile[PROFILE_ALLOWLIST_KEY];
-      }
-      if (mergedDeny.length > 0) {
-        defaultProfile[PROFILE_DENYLIST_KEY] = mergedDeny;
-      } else {
-        delete defaultProfile[PROFILE_DENYLIST_KEY];
-      }
-      executionProfiles[DEFAULT_PROFILE_KEY] = defaultProfile;
-      agents[EXECUTION_PROFILES_KEY] = executionProfiles;
-
-      // Runtime enforcement reads the *active* profile, and rulesync manages
-      // only `default` — deny rules are silently unenforced while another
-      // profile is active, which is worth a heads-up.
-      const otherProfileIds = Object.keys(executionProfiles).filter(
-        (id) => id !== DEFAULT_PROFILE_KEY,
-      );
-      if (mergedDeny.length > 0 && otherProfileIds.length > 0 && logger) {
-        logger.warn(
-          `Warp command deny rules were written to the 'default' execution profile only; ` +
-            `they are not enforced while another profile (${otherProfileIds.join(", ")}) is active.`,
-        );
-      }
-    }
+    mergeIntoDefaultExecutionProfile({
+      agents,
+      mergedAllow,
+      mergedDeny,
+      executionProfileOverride,
+      logger,
+    });
 
     settings.agents = agents;
 
@@ -319,6 +323,18 @@ export class WarpPermissions extends ToolPermissions {
       if (profiles[key] !== undefined) warpOverride[key] = profiles[key];
     }
 
+    // Lift the `default` execution profile's autonomy keys into the nested
+    // `execution_profile` override so they round-trip on migrated installs.
+    if (defaultProfile) {
+      const executionProfileOverride: Record<string, unknown> = {};
+      for (const key of WARP_EXECUTION_PROFILE_KEYS) {
+        if (defaultProfile[key] !== undefined) executionProfileOverride[key] = defaultProfile[key];
+      }
+      if (Object.keys(executionProfileOverride).length > 0) {
+        warpOverride[WARP_EXECUTION_PROFILE_OVERRIDE_KEY] = executionProfileOverride;
+      }
+    }
+
     const result: Record<string, unknown> = { ...config };
     if (Object.keys(warpOverride).length > 0) {
       result.warp = warpOverride;
@@ -346,6 +362,81 @@ export class WarpPermissions extends ToolPermissions {
       validate: false,
       global: true,
     });
+  }
+}
+
+/**
+ * On migrated installs the legacy `[agents.profiles]` keys are inert: runtime
+ * enforcement reads the active `[agents.execution_profiles.<id>]` record.
+ * Merge the command lists (and the `warp.execution_profile` override's
+ * autonomy keys) into the `default` profile in place so every other profile
+ * key and profile ID survives. When the collection does not exist yet the
+ * install is un-migrated — the legacy keys are still live there, and creating
+ * the collection ourselves would mark Warp's one-shot migration complete early
+ * and strand the user's other legacy settings (file-read allowlist, preferred
+ * model), so it is deliberately left unset and the override is skipped with a
+ * warning instead.
+ */
+function mergeIntoDefaultExecutionProfile({
+  agents,
+  mergedAllow,
+  mergedDeny,
+  executionProfileOverride,
+  logger,
+}: {
+  agents: Record<string, unknown>;
+  mergedAllow: string[];
+  mergedDeny: string[];
+  executionProfileOverride: Record<string, unknown> | undefined;
+  logger?: Logger;
+}): void {
+  const hasOverrideKeys =
+    executionProfileOverride !== undefined && Object.keys(executionProfileOverride).length > 0;
+
+  if (!isRecord(agents[EXECUTION_PROFILES_KEY])) {
+    if (hasOverrideKeys && logger) {
+      logger.warn(
+        `The warp.execution_profile permissions override was skipped: settings.toml has no ` +
+          `[agents.execution_profiles] collection yet (un-migrated install). Open Warp once to ` +
+          `run its settings migration, then re-run rulesync generate.`,
+      );
+    }
+    return;
+  }
+
+  const executionProfiles = { ...agents[EXECUTION_PROFILES_KEY] };
+  const defaultProfile = isRecord(executionProfiles[DEFAULT_PROFILE_KEY])
+    ? { ...executionProfiles[DEFAULT_PROFILE_KEY] }
+    : {};
+  // Autonomy keys from the `warp.execution_profile` override merge first
+  // (verbatim, so forward-compat keys like `write_to_pty` pass through); the
+  // rulesync-owned command lists below always win over the override.
+  if (executionProfileOverride) {
+    Object.assign(defaultProfile, executionProfileOverride);
+  }
+  if (mergedAllow.length > 0) {
+    defaultProfile[PROFILE_ALLOWLIST_KEY] = mergedAllow;
+  } else {
+    delete defaultProfile[PROFILE_ALLOWLIST_KEY];
+  }
+  if (mergedDeny.length > 0) {
+    defaultProfile[PROFILE_DENYLIST_KEY] = mergedDeny;
+  } else {
+    delete defaultProfile[PROFILE_DENYLIST_KEY];
+  }
+  executionProfiles[DEFAULT_PROFILE_KEY] = defaultProfile;
+  agents[EXECUTION_PROFILES_KEY] = executionProfiles;
+
+  // Runtime enforcement reads the *active* profile, and rulesync manages only
+  // `default` — deny rules and override keys are silently unenforced while
+  // another profile is active, which is worth a heads-up.
+  const otherProfileIds = Object.keys(executionProfiles).filter((id) => id !== DEFAULT_PROFILE_KEY);
+  if ((mergedDeny.length > 0 || hasOverrideKeys) && otherProfileIds.length > 0 && logger) {
+    logger.warn(
+      `Warp command deny rules and execution_profile override keys were written to the ` +
+        `'default' execution profile only; they are not enforced while another profile ` +
+        `(${otherProfileIds.join(", ")}) is active.`,
+    );
   }
 }
 

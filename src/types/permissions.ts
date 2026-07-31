@@ -332,12 +332,51 @@ export type FactorydroidPermissionsOverride = z.infer<typeof FactorydroidPermiss
  * `agent_mode_execute_readonly_commands` (a read-only auto-execution boolean).
  * Fields placed here are merged into `[agents.profiles]` of Warp's global
  * `settings.toml`, while the shared `permission` block continues to drive the
- * `agent_mode_command_execution_allowlist`/`_denylist` command regex arrays.
- * Warp permissions are global-only.
+ * command regex arrays (legacy `agent_mode_command_execution_allowlist`/
+ * `_denylist` plus the `default` execution profile's `command_allowlist`/
+ * `command_denylist`). On migrated installs the `[agents.profiles]` keys are
+ * inert; their execution-profile counterparts are authored via the nested
+ * `execution_profile` block instead, which is merged into the `default` record
+ * of `[agents.execution_profiles.<id>]`. Warp permissions are global-only.
  *
  * @example
- * { "agent_mode_coding_permissions": "always_allow_reading", "agent_mode_execute_readonly_commands": true }
+ * {
+ *   "agent_mode_coding_permissions": "always_allow_reading",
+ *   "agent_mode_execute_readonly_commands": true,
+ *   "execution_profile": { "read_files": "always_allow", "mcp_denylist": ["untrusted-server"] }
+ * }
  */
+/**
+ * Per-action autonomy value of Warp's execution profiles
+ * (`FileActionPermission` in the Warp repository's
+ * `app/src/ai/execution_profiles/config.rs`, serialized snake_case).
+ */
+const WarpFileActionPermissionSchema = z.enum(["agent_decides", "always_allow", "always_ask"]);
+
+/**
+ * Permission keys of the `default` record in Warp's
+ * `[agents.execution_profiles.<id>]` collection (the surface runtime
+ * enforcement reads on migrated installs). Loose so forward-compat keys pass
+ * through verbatim. The rulesync-owned `command_allowlist`/`command_denylist`
+ * are driven by the shared `permission.bash` block and always win over values
+ * placed here.
+ *
+ * @see https://github.com/warpdotdev/warp/blob/main/app/src/ai/execution_profiles/config.rs (`ExecutionProfileFile`)
+ */
+const WarpExecutionProfileOverrideSchema = z.looseObject({
+  read_files: z.optional(WarpFileActionPermissionSchema),
+  apply_code_diffs: z.optional(WarpFileActionPermissionSchema),
+  execute_commands: z.optional(WarpFileActionPermissionSchema),
+  mcp_permissions: z.optional(WarpFileActionPermissionSchema),
+  write_to_pty: z.optional(z.enum(["always_allow", "always_ask", "ask_on_first_write"])),
+  ask_user_question: z.optional(z.enum(["never", "ask_except_in_auto_approve", "always_ask"])),
+  run_agents: z.optional(z.enum(["never_allow", "always_allow", "always_ask"])),
+  computer_use: z.optional(z.enum(["never", "always_ask", "always_allow"])),
+  directory_allowlist: z.optional(z.array(z.string())),
+  mcp_allowlist: z.optional(z.array(z.string())),
+  mcp_denylist: z.optional(z.array(z.string())),
+});
+
 const WarpPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   // @see https://docs.warp.dev/terminal/settings/all-settings/
@@ -346,6 +385,9 @@ const WarpPermissionsOverrideSchema = z.looseObject({
   ),
   agent_mode_coding_file_read_allowlist: z.optional(z.array(z.string())),
   agent_mode_execute_readonly_commands: z.optional(z.boolean()),
+  // Merged into the `default` execution profile, not `[agents.profiles]` —
+  // see the adapter for the collection-exists guard.
+  execution_profile: z.optional(WarpExecutionProfileOverrideSchema),
 });
 export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
 
