@@ -361,7 +361,11 @@ describe("watchTargets", () => {
           await waitFor(() => changed.length > 0);
 
           changed.length = 0;
-          await writeFile(join(watchedDir, "rules", "after-rearm.md"), "# after\n", "utf8");
+          // Probe at the watched root, not inside `rules/`: the re-attached
+          // recursive watcher may register the freshly recreated subdirectory
+          // late (kernel-level inotify race on loaded runners), and this test
+          // asserts re-attachment, not recursive subdirectory coverage.
+          await writeFile(join(watchedDir, "after-rearm.md"), "# after\n", "utf8");
           await waitFor(() => changed.some((path) => path.includes("after-rearm.md")));
         } finally {
           handle.close();
