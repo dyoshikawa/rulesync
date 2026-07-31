@@ -312,11 +312,12 @@ describe("RovodevRule", () => {
 
       expect(rovodevRule.isLocalRoot()).toBe(true);
 
-      const rulesyncRule = rovodevRule.toLocalRootRulesyncRule();
+      const rulesyncRule = rovodevRule.toLocalRootRulesyncRule({ targets: ["rovodev"] });
 
       expect(rulesyncRule.getRelativeFilePath()).toBe("AGENTS.local.md");
       expect(rulesyncRule.getFrontmatter().localRoot).toBe(true);
       expect(rulesyncRule.getFrontmatter().root).toBe(false);
+      expect(rulesyncRule.getFrontmatter().targets).toEqual(["rovodev"]);
       expect(rulesyncRule.getBody()).toBe("# Local only");
     });
 

@@ -249,8 +249,14 @@ export abstract class ToolRule extends ToolFile {
    * (`CLAUDE.local.md`, `AGENTS.local.md`, ...), which the derived `.gitignore`
    * already covers via `.rulesync/rules/*.local.md`, so personal content stays
    * untracked after import.
+   *
+   * `targets` is scoped to the importing tool rather than `"*"`. A wildcard
+   * would spread the personal content to every tool on the next generate —
+   * including being appended into the committed root file of tools without a
+   * separate local file — and a multi-target import would produce several
+   * wildcard localRoot rules, which the per-target validation rejects.
    */
-  toLocalRootRulesyncRule(): RulesyncRule {
+  toLocalRootRulesyncRule({ targets }: { targets: ToolTarget[] }): RulesyncRule {
     return new RulesyncRule({
       outputRoot: this.getOutputRoot(),
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -258,7 +264,7 @@ export abstract class ToolRule extends ToolFile {
       frontmatter: {
         root: false,
         localRoot: true,
-        targets: ["*"],
+        targets,
         globs: [],
       },
       body: this.getFileContent(),

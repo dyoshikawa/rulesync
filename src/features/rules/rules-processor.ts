@@ -1478,9 +1478,11 @@ As this project's AI coding tool, you must follow the additional conventions bel
 
     const rulesyncRules = toolRules.map((toolRule) => {
       // A tool's separate personal local-root file maps back to a canonical
-      // `localRoot: true` rule instead of the tool class's regular mapping.
+      // `localRoot: true` rule instead of the tool class's regular mapping,
+      // scoped to this tool so the personal content does not spread to other
+      // tools' (possibly committed) root files on the next generate.
       if (toolRule.isLocalRoot()) {
-        return toolRule.toLocalRootRulesyncRule();
+        return toolRule.toLocalRootRulesyncRule({ targets: [this.toolTarget] });
       }
       return toolRule.toRulesyncRule();
     });

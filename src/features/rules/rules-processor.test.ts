@@ -1889,7 +1889,62 @@ Content that would fail parsing`;
       const frontmatter = (localRule as RulesyncRule).getFrontmatter();
       expect(frontmatter.localRoot).toBe(true);
       expect(frontmatter.root).toBe(false);
+      // Scoped to the importing tool: a wildcard would spread the personal
+      // content into other tools' committed root files on the next generate.
+      expect(frontmatter.targets).toEqual(["claudecode"]);
       expect((localRule as RulesyncRule).getBody().trim()).toBe("# Personal local rules");
+    });
+
+    it("should import CLAUDE.local.md scoped to claudecode-legacy for claudecode-legacy", async () => {
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Root");
+      await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Personal local rules");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode-legacy",
+      });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const localRule = findLocalRule(rulesyncFiles, "CLAUDE.local.md");
+      expect(localRule).toBeInstanceOf(RulesyncRule);
+      const frontmatter = (localRule as RulesyncRule).getFrontmatter();
+      expect(frontmatter.localRoot).toBe(true);
+      expect(frontmatter.targets).toEqual(["claudecode-legacy"]);
+    });
+
+    it("should keep generate working after importing local files from multiple tools", async () => {
+      // Import from claudecode and qwencode into the same .rulesync/rules/
+      // directory, then run the per-target validation that generate performs.
+      // With per-tool targets each target sees exactly one localRoot rule; a
+      // wildcard would make every generate throw "Multiple localRoot rules".
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Root");
+      await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Claude personal");
+      await writeFileContent(join(testDir, "QWEN.md"), "# Root");
+      await ensureDir(join(testDir, ".qwen"));
+      await writeFileContent(join(testDir, ".qwen", "QWEN.local.md"), "# Qwen personal");
+
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      for (const toolTarget of ["claudecode", "qwencode"] as const) {
+        const importProcessor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget });
+        const rulesyncFiles = await importProcessor.convertToolFilesToRulesyncFiles(
+          await importProcessor.loadToolFiles(),
+        );
+        for (const rulesyncFile of rulesyncFiles) {
+          await writeFileContent(
+            join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, rulesyncFile.getRelativeFilePath()),
+            rulesyncFile.getFileContent(),
+          );
+        }
+      }
+
+      for (const toolTarget of ["claudecode", "qwencode"] as const) {
+        const generateProcessor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget });
+        const loaded = await generateProcessor.loadRulesyncFiles();
+        expect(loaded.length).toBeGreaterThan(0);
+      }
     });
 
     it("should import .qwen/QWEN.local.md as a localRoot rulesync rule for qwencode", async () => {
@@ -1963,6 +2018,35 @@ Content that would fail parsing`;
       const localRule = findLocalRule(rulesyncFiles, "CLAUDE.local.md");
       expect(localRule).toBeInstanceOf(RulesyncRule);
       expect((localRule as RulesyncRule).getBody().trim()).toBe("# Local from .claude");
+    });
+
+    it("should drop the source tool's local file when converting to another tool", async () => {
+      // convert (tool → tool) shares this import path. The imported localRoot
+      // rule targets the source tool only, so the destination tool must not
+      // fold the personal content into its own (possibly committed) files.
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Root");
+      await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Claude personal");
+
+      const sourceProcessor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const rulesyncFiles = await sourceProcessor.convertToolFilesToRulesyncFiles(
+        await sourceProcessor.loadToolFiles(),
+      );
+      expect(findLocalRule(rulesyncFiles, "CLAUDE.local.md")).toBeInstanceOf(RulesyncRule);
+
+      const destProcessor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "qwencode",
+      });
+      const toolFiles = await destProcessor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+
+      const fileContents = toolFiles.map((file) => file.getFileContent()).join("\n");
+      expect(toolFiles.some((file) => file.getRelativeFilePath() === "QWEN.local.md")).toBe(false);
+      expect(fileContents).not.toContain("# Claude personal");
     });
 
     it("should NOT import CLAUDE.local.md in global mode", async () => {
