@@ -364,11 +364,12 @@ export const toolPermissionsFactories = new Map<
     {
       class: RovodevPermissions,
       meta: {
-        // Rovo Dev CLI reads tool permissions only from the global
-        // `~/.rovodev/config.yml` (`toolPermissions` block); there is no
-        // project-scoped Rovo Dev permissions file (mirrors the Rovodev MCP
-        // adapter).
-        supportsProject: false,
+        // Rovo Dev reads the `toolPermissions` block of `config.yml` at both
+        // scopes: the global `~/.rovodev/config.yml`, and the repo-committed
+        // project `.rovodev/config.yml` documented by the Bitbucket Cloud
+        // Agentic Pipelines guide (referenced via `config.path`, or
+        // the `--config-file` CLI flag).
+        supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
       },

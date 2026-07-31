@@ -11,6 +11,10 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
+import {
+  ROVODEV_CONFIG_SHARED_FILE_KEY,
+  applySharedConfigPatch,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -19,9 +23,6 @@ import {
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
-
-const ROVODEV_GLOBAL_ONLY_MESSAGE =
-  "Rovodev permissions are global-only; use --global to sync ~/.rovodev/config.yml";
 
 // The catch-all pattern in a rulesync category. It maps to a Rovo Dev per-tool
 // default level (or `bash.default`) rather than to a `bash.commands[]` regex.
@@ -160,9 +161,12 @@ type RovodevToolPermissions = {
 /**
  * Permissions adapter for Rovo Dev CLI.
  *
- * Rovo Dev reads tool permissions from the `toolPermissions` block of the global
- * `~/.rovodev/config.yml`. This surface is **global only** — there is no
- * project-scoped Rovo Dev permissions file (mirrors the Rovodev MCP adapter).
+ * Rovo Dev reads tool permissions from the `toolPermissions` block of
+ * `config.yml` — the global `~/.rovodev/config.yml`, and since the Bitbucket
+ * Cloud Agentic Pipelines docs, also the repo-committed project
+ * `.rovodev/config.yml` (referenced from `bitbucket-pipelines.yml` via
+ * `config.path`, or the `--config-file` CLI flag). Both scopes use the
+ * same relative path, resolved against the project root or home directory.
  *
  * Rovo Dev's three levels (`allow`/`ask`/`deny`) are an exact 1:1 with rulesync's
  * canonical action enum, so action values pass through verbatim.
@@ -216,9 +220,6 @@ export class RovodevPermissions extends ToolPermissions {
     validate = true,
     global = false,
   }: ToolPermissionsFromFileParams): Promise<RovodevPermissions> {
-    if (!global) {
-      throw new Error(ROVODEV_GLOBAL_ONLY_MESSAGE);
-    }
     const paths = RovodevPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "";
@@ -228,7 +229,7 @@ export class RovodevPermissions extends ToolPermissions {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
-      global: true,
+      global,
     });
   }
 
@@ -238,9 +239,6 @@ export class RovodevPermissions extends ToolPermissions {
     logger,
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<RovodevPermissions> {
-    if (!global) {
-      throw new Error(ROVODEV_GLOBAL_ONLY_MESSAGE);
-    }
     const paths = RovodevPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     // Read without initializing so a dry-run/check does not create the user's
@@ -275,18 +273,28 @@ export class RovodevPermissions extends ToolPermissions {
       logger,
     });
     // `undefined` means the block is not this run's to touch, so a `config.yml`
-    // without one does not gain an empty `toolPermissions:`.
-    if (resolvedToolPermissions !== undefined) {
-      config.toolPermissions = resolvedToolPermissions;
-    }
+    // without one does not gain an empty `toolPermissions:`. The write goes
+    // through the shared-config gateway: the MCP feature also patches this
+    // file (its `mcp.disabledMcpServers` auxiliary write), so both writers
+    // must declare ownership instead of hand-rolling the merge.
+    const fileContent =
+      resolvedToolPermissions !== undefined
+        ? applySharedConfigPatch({
+            fileKey: ROVODEV_CONFIG_SHARED_FILE_KEY,
+            feature: "permissions",
+            existingContent,
+            patch: { toolPermissions: resolvedToolPermissions },
+            filePath,
+          })
+        : dump(config);
 
     return new RovodevPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: dump(config),
+      fileContent,
       validate: true,
-      global: true,
+      global,
     });
   }
 

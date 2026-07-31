@@ -272,6 +272,7 @@ export const KIMI_CODE_CONFIG_SHARED_FILE_KEY = ".kimi-code/config.toml";
 export const KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY = "config.toml";
 export const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
 export const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
+export const ROVODEV_CONFIG_SHARED_FILE_KEY = ".rovodev/config.yml";
 
 /**
  * Build the `SHARED_CONFIG_OWNERSHIP` lookup key from a tool's settable paths.
@@ -670,6 +671,21 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
       mcp: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions", "sandbox", "agent"] },
+    },
+  },
+  [ROVODEV_CONFIG_SHARED_FILE_KEY]: {
+    format: "yaml",
+    features: {
+      // The `mcp` block is recomputed from the existing file before being
+      // applied (only `disabledMcpServers` is rulesync-managed; user keys like
+      // `mcpConfigPath`/`allowedMcpServers` are carried over), so the whole
+      // key is owned here — same shape as the Hermes plugins writer. The
+      // servers themselves live in `mcp.json`; this feature reaches the file
+      // as an auxiliary writer.
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
+      // Likewise recomputed: the generated levels are merged over the existing
+      // `toolPermissions` block before the patch is applied.
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["toolPermissions"] },
     },
   },
 };

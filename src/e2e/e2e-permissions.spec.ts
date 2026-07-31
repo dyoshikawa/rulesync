@@ -51,6 +51,7 @@ const permissionsGenerateTargets = [
   "grokcli",
   "takt",
   "claudecode",
+  "rovodev",
 ] as const;
 
 // Permissions targets exercised by the global-scope generate `it`s below.
@@ -117,6 +118,21 @@ describe("E2E: permissions", () => {
       }
     },
   );
+
+  it("should generate rovodev permissions into the repo-committed .rovodev/config.yml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { bash: { "*": "ask", "git status": "allow" } } }, null, 2),
+    );
+
+    await runGenerate({ target: "rovodev", features: "permissions" });
+
+    const content = await readFileContent(join(testDir, ".rovodev", "config.yml"));
+    expect(content).toContain("toolPermissions");
+    expect(content).toContain("default: ask");
+  });
 
   it("should generate claudecode permissions into .claude/settings.json", async () => {
     const testDir = getTestDir();

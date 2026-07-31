@@ -31,6 +31,10 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".devin/config.json",
   ".factory/settings.json",
   ".grok/config.toml",
+  // Both Rovo Dev project files are documented as repo-committed surfaces
+  // (Bitbucket Cloud Agentic Pipelines), so neither is gitignored.
+  ".rovodev/config.yml",
+  ".rovodev/mcp.json",
   ".vibe/config.toml",
   "reasonix.toml",
   ".vscode/settings.json",

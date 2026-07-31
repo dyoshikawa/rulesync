@@ -182,6 +182,10 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        ".rovodev/config.yml": [
+          "mcp",
+          "permissions",
+        ],
         ".takt/config.yaml": [
           "checks",
           "mcp",
