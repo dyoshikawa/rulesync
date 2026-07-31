@@ -131,8 +131,35 @@ export class DevinMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<DevinMcp> {
     const paths = this.getSettablePaths({ global });
+
+    // Devin's own auto-migration (and `devin mcp add`) writes user servers
+    // into this same file, so an unmanaged entry about to be dropped by the
+    // whole-file rewrite deserves a heads-up: import it first or move it to
+    // the personal mcp_config.local.json, which rulesync never touches.
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = await readFileContentOrNull(filePath);
+    if (existingContent !== null && logger) {
+      const existingJson = this.parseJsonOrThrow(
+        existingContent,
+        paths.relativeDirPath,
+        paths.relativeFilePath,
+      );
+      const existingServers =
+        existingJson.mcpServers && typeof existingJson.mcpServers === "object"
+          ? Object.keys(existingJson.mcpServers)
+          : [];
+      const managedServers = new Set(Object.keys(rulesyncMcp.getMcpServers()));
+      const dropped = existingServers.filter((name) => !managedServers.has(name));
+      if (dropped.length > 0) {
+        logger.warn(
+          `Devin MCP servers not managed by rulesync will be removed from ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${dropped.join(", ")}. ` +
+            `Run 'rulesync import' first to keep them, or move them to mcp_config.local.json.`,
+        );
+      }
+    }
 
     return new DevinMcp({
       outputRoot,

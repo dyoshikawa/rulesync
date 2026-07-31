@@ -70,9 +70,9 @@ const DEVIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  * - Project scope: `.devin/hooks.v1.json`. This is a standalone file whose top
  *   level IS the event map (no wrapper key).
  * - Global scope: `~/.config/devin/config.json` under the `"hooks"` key. This
- *   file is shared with the MCP (`mcpServers`) and permissions (`permissions`)
- *   features, so reads and writes merge into the existing JSON and the file is
- *   never deleted in global mode.
+ *   file is shared with the permissions (`permissions`) feature (MCP moved to
+ *   the dedicated mcp_config.json in v3000.3), so reads and writes merge into
+ *   the existing JSON and the file is never deleted in global mode.
  *
  * @see https://docs.devin.ai/cli/extensibility/hooks/overview
  */
@@ -147,7 +147,7 @@ export class DevinHooks extends ToolHooks {
     let fileContent: string;
     if (global) {
       // Global hooks live under the `hooks` key of the shared config.json, which
-      // also carries `mcpServers` / `permissions` from the other features, so
+      // also carries `permissions` from the permissions feature, so
       // read-modify-write and preserve the sibling keys.
       const existingContent =
         (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);

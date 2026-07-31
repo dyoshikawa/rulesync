@@ -6,6 +6,7 @@ import {
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { DevinMcp } from "./devin-mcp.js";
@@ -455,6 +456,36 @@ describe("DevinMcp", () => {
       expect(devinMcp.getJson()).toEqual({
         mcpServers: { "new-server": { command: "python", args: ["new.py"] } },
       });
+    });
+
+    it("should warn about unmanaged servers about to be dropped from mcp_config.json", async () => {
+      const devinDir = join(testDir, ".devin");
+      await ensureDir(devinDir);
+      // Devin's auto-migration (or `devin mcp add`) may have written user
+      // servers into the same file rulesync now owns.
+      await writeFileContent(
+        join(devinDir, "mcp_config.json"),
+        JSON.stringify({
+          mcpServers: {
+            "user-server": { command: "node", args: ["user.js"] },
+            managed: { command: "echo" },
+          },
+        }),
+      );
+      const logger = createMockLogger();
+
+      await DevinMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({ mcpServers: { managed: { command: "echo" } } }),
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("user-server"));
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("managed,"));
     });
 
     it("should handle empty mcpServers object", async () => {

@@ -779,7 +779,7 @@ describe("E2E: hooks (global mode)", () => {
     const homeDir = getHomeDir();
 
     // In global mode Devin hooks live under the `hooks` key of
-    // ~/.config/devin/config.json (shared with mcp/permissions).
+    // ~/.config/devin/config.json (shared with permissions).
     const hooksContent = JSON.stringify(
       {
         version: 1,

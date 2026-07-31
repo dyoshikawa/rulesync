@@ -563,10 +563,11 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     {
       class: DevinMcp,
       meta: {
-        // Devin Local reads MCP servers from the `mcpServers` key of its native
-        // config file: `.devin/config.json` (project) and
-        // `~/.config/devin/config.json` (global). Each server may carry a
-        // `disabledTools` array, but Devin has no `enabledTools` concept.
+        // Devin Local reads MCP servers from the `mcpServers` key of its
+        // dedicated config file (since v3000.3): `.devin/mcp_config.json`
+        // (project) and `~/.config/devin/mcp_config.json` (global). Each server
+        // may carry a `disabledTools` array, but Devin has no `enabledTools`
+        // concept.
         supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
