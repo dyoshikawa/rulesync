@@ -147,6 +147,29 @@ describe("ReasonixRule", () => {
       expect(rulesyncRule.getBody()).toBe("# Nested");
     });
 
+    it("should refuse to write a nested file outside the project via subprojectPath traversal", () => {
+      const rule = ReasonixRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: "evil.md",
+          frontmatter: {
+            root: false,
+            targets: ["reasonix"],
+            description: "",
+            globs: [],
+            agentsmd: { subprojectPath: "../../outside" },
+          },
+          body: "# Evil",
+          validate: false,
+        }),
+      });
+
+      // AiFile.getFilePath enforces outputRoot containment at write time.
+      expect(() => rule.getFilePath()).toThrow(/Path traversal detected/);
+    });
+
     it("should exclude the root file and dependency dirs from the nested scan patterns", () => {
       const patterns = ReasonixRule.getNestedFilePatterns({ outputRoot: "/proj" });
       expect(patterns.include).toEqual(["/proj/**/REASONIX.md"]);

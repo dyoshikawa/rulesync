@@ -12,6 +12,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import {
   toReasonixStringArray as toStringArray,
   toReasonixTable as toPermissionsTable,
@@ -68,10 +69,6 @@ function toCanonicalToolName(reasonixName: string): string {
 }
 
 /**
- * Parse a Reasonix permission entry like "Bash(npm run *)" into tool name and pattern.
- * If no parentheses, returns the tool name with "*" as the pattern.
- */
-/**
  * Whether an entry uses the first-class `Tool=<literal>` exact-command form
  * (SPEC §3.7, v1.18.0): metacharacters in the literal are ordinary characters
  * and only the identical complete command matches. These entries have no
@@ -88,6 +85,10 @@ function isReasonixExactCommandEntry(entry: string): boolean {
   return parenIndex === -1 || eqIndex < parenIndex;
 }
 
+/**
+ * Parse a Reasonix permission entry like "Bash(npm run *)" into tool name and pattern.
+ * If no parentheses, returns the tool name with "*" as the pattern.
+ */
 function parseReasonixPermissionEntry(entry: string): { toolName: string; pattern: string } {
   const parenIndex = entry.indexOf("(");
   if (parenIndex === -1) {
@@ -231,18 +232,24 @@ export class ReasonixPermissions extends ToolPermissions {
       Object.keys(config.permission).map((category) => toReasonixToolName(category)),
     );
 
-    // Read existing permission arrays and preserve entries for tools NOT in
-    // the permissions config. Exact `Tool=<literal>` entries are always
-    // preserved regardless of the tool being managed — Reasonix writes them
-    // itself as remembered approvals, and dropping them would revoke grants
-    // the canonical glob rules cannot re-express.
-    const isPreserved = (entry: string): boolean =>
-      isReasonixExactCommandEntry(entry) ||
-      !managedToolNames.has(parseReasonixPermissionEntry(entry).toolName);
+    // The override's raw arrays are merged verbatim below — the authoring path
+    // for exact `Bash=<literal>` rules (and any other entry syntax rulesync
+    // does not translate). An entry named in ANY raw array is owned by the
+    // override, so its on-disk copies in the other arrays are dropped: moving
+    // an entry from rawAllow to rawDeny must not leave a stale allow beside
+    // the intended deny.
+    const override = config.reasonix;
+    const rawAllow = toStringArray(override?.rawAllow);
+    const rawAsk = toStringArray(override?.rawAsk);
+    const rawDeny = toStringArray(override?.rawDeny);
+    const rawOwnedEntries = new Set([...rawAllow, ...rawAsk, ...rawDeny]);
+
     const existingPermissions = toPermissionsTable(parsed.permissions);
-    const preservedAllow = toStringArray(existingPermissions.allow).filter(isPreserved);
-    const preservedAsk = toStringArray(existingPermissions.ask).filter(isPreserved);
-    const preservedDeny = toStringArray(existingPermissions.deny).filter(isPreserved);
+    const {
+      allow: preservedAllow,
+      ask: preservedAsk,
+      deny: preservedDeny,
+    } = preserveExistingEntries({ existingPermissions, managedToolNames, rawOwnedEntries, logger });
 
     // Warn when permissions feature overwrites ignore-generated Read(...) deny entries
     if (logger && managedToolNames.has("Read")) {
@@ -261,14 +268,6 @@ export class ReasonixPermissions extends ToolPermissions {
     // rulesync's canonical permissions model, so any existing value is
     // preserved untouched via this spread rather than being managed here.
     const mergedPermissions: ReasonixPermissionsTable = { ...existingPermissions };
-
-    // The override's raw arrays are merged verbatim — the authoring path for
-    // exact `Bash=<literal>` rules (and any other entry syntax rulesync does
-    // not translate).
-    const override = config.reasonix;
-    const rawAllow = toStringArray(override?.rawAllow);
-    const rawAsk = toStringArray(override?.rawAsk);
-    const rawDeny = toStringArray(override?.rawDeny);
 
     setOrDeleteEntries(mergedPermissions, "allow", [...preservedAllow, ...allow, ...rawAllow]);
     setOrDeleteEntries(mergedPermissions, "ask", [...preservedAsk, ...ask, ...rawAsk]);
@@ -397,6 +396,49 @@ export class ReasonixPermissions extends ToolPermissions {
       validate: false,
     });
   }
+}
+
+/**
+ * Preserve existing permission entries rulesync does not manage: entries for
+ * tools NOT in the permissions config, plus exact `Tool=<literal>` entries not
+ * owned by the override's raw arrays — Reasonix writes those itself as
+ * remembered approvals, and dropping them would revoke grants the canonical
+ * glob rules cannot re-express. Remove one by deleting it from `reasonix.toml`
+ * (or by naming it in a raw array, which takes ownership). Preserved exact
+ * entries are logged so the kept-alive grants stay visible.
+ */
+function preserveExistingEntries({
+  existingPermissions,
+  managedToolNames,
+  rawOwnedEntries,
+  logger,
+}: {
+  existingPermissions: ReasonixPermissionsTable;
+  managedToolNames: Set<string>;
+  rawOwnedEntries: Set<string>;
+  logger?: Logger;
+}): { allow: string[]; ask: string[]; deny: string[] } {
+  const isPreserved = (entry: string): boolean => {
+    if (isReasonixExactCommandEntry(entry)) {
+      return !rawOwnedEntries.has(entry);
+    }
+    return !managedToolNames.has(parseReasonixPermissionEntry(entry).toolName);
+  };
+  const allow = toStringArray(existingPermissions.allow).filter(isPreserved);
+  const ask = toStringArray(existingPermissions.ask).filter(isPreserved);
+  const deny = toStringArray(existingPermissions.deny).filter(isPreserved);
+
+  const preservedExact = [...allow, ...ask, ...deny].filter((entry) =>
+    isReasonixExactCommandEntry(entry),
+  );
+  if (preservedExact.length > 0) {
+    logger?.info(
+      `Preserving ${preservedExact.length} exact Reasonix permission entries ` +
+        `(remembered approvals): ${preservedExact.join(", ")}`,
+    );
+  }
+
+  return { allow, ask, deny };
 }
 
 /** Sort, dedupe and set a permissions array key, deleting it when empty. */

@@ -142,6 +142,49 @@ describe("ReasonixPermissions", () => {
       expect(parsed.permissions.allow).toContain("Bash=go test ./...");
     });
 
+    it("should let a raw-array entry own its on-disk copies in other arrays", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", 'allow = ["Bash=terraform apply"]'].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {},
+          reasonix: { rawDeny: ["Bash=terraform apply"] },
+        }),
+      });
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      // Moving the entry from allow to rawDeny must not leave a stale allow
+      // copy beside the intended deny.
+      expect(parsed.permissions.allow).toBeUndefined();
+      expect(parsed.permissions.deny).toEqual(["Bash=terraform apply"]);
+    });
+
+    it("should not treat an = inside a glob pattern as an exact-command entry", () => {
+      const instance = new ReasonixPermissions({
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: [
+          "[permissions]",
+          'allow = ["Bash(FOO=bar npm *)", "WebFetch(domain=example.com)"]',
+        ].join("\n"),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson() as Record<string, any>;
+      expect(config.permission.bash).toEqual({ "FOO=bar npm *": "allow" });
+      expect(config.permission.webfetch).toEqual({ "domain=example.com": "allow" });
+      expect(config.reasonix?.rawAllow).toBeUndefined();
+    });
+
     it("should map canonical tool categories to Claude Code-style PascalCase families", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
