@@ -3,6 +3,7 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -26,6 +27,12 @@ function profilesOf(tomlContent: string): Record<string, unknown> {
   const parsed = smolToml.parse(tomlContent);
   const agents = isRecord(parsed.agents) ? parsed.agents : {};
   return isRecord(agents.profiles) ? agents.profiles : {};
+}
+
+function executionProfilesOf(tomlContent: string): Record<string, unknown> | undefined {
+  const parsed = smolToml.parse(tomlContent);
+  const agents = isRecord(parsed.agents) ? parsed.agents : {};
+  return isRecord(agents.execution_profiles) ? agents.execution_profiles : undefined;
 }
 
 describe("WarpPermissions", () => {
@@ -222,6 +229,117 @@ describe("WarpPermissions", () => {
       expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
       expect(isRecord(parsed.ui) && parsed.ui.theme).toBe("dark");
     });
+
+    it("merges the command lists into the default execution profile on a migrated install", async () => {
+      const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.toml"),
+        [
+          "[agents.execution_profiles.default]",
+          'name = "Default"',
+          'execute_commands = "always_ask"',
+          'command_allowlist = ["stale .*"]',
+          "",
+          "[agents.execution_profiles.code-review]",
+          'name = "Code Review"',
+          'read_files = "always_allow"',
+          "",
+        ].join("\n"),
+      );
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { "git .*": "allow", "rm -rf .*": "deny" },
+        }),
+        global: true,
+      });
+
+      const executionProfiles = executionProfilesOf(perms.getFileContent());
+      expect(executionProfiles).toBeDefined();
+      const defaultProfile = executionProfiles?.default as Record<string, unknown>;
+      expect(defaultProfile.command_allowlist).toEqual(["git .*"]);
+      expect(defaultProfile.command_denylist).toEqual(["rm -rf .*"]);
+      // Other keys of the default profile and other profile IDs survive.
+      expect(defaultProfile.name).toBe("Default");
+      expect(defaultProfile.execute_commands).toBe("always_ask");
+      const otherProfile = executionProfiles?.["code-review"] as Record<string, unknown>;
+      expect(otherProfile.name).toBe("Code Review");
+      expect(otherProfile.read_files).toBe("always_allow");
+      // The legacy block is still written for old clients.
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
+      expect(profiles[DENYLIST_KEY]).toEqual(["rm -rf .*"]);
+    });
+
+    it("removes stale profile command lists when the rulesync config has none", async () => {
+      const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.toml"),
+        [
+          "[agents.execution_profiles.default]",
+          'name = "Default"',
+          'command_allowlist = ["stale .*"]',
+          'command_denylist = ["stale-deny .*"]',
+          "",
+        ].join("\n"),
+      );
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({}),
+        global: true,
+      });
+
+      const executionProfiles = executionProfilesOf(perms.getFileContent());
+      const defaultProfile = executionProfiles?.default as Record<string, unknown>;
+      expect(defaultProfile.command_allowlist).toBeUndefined();
+      expect(defaultProfile.command_denylist).toBeUndefined();
+      expect(defaultProfile.name).toBe("Default");
+    });
+
+    it("warns when deny rules are written while non-default execution profiles exist", async () => {
+      const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.toml"),
+        [
+          "[agents.execution_profiles.default]",
+          'name = "Default"',
+          "",
+          "[agents.execution_profiles.code-review]",
+          'name = "Code Review"',
+          "",
+        ].join("\n"),
+      );
+      const logger = createMockLogger();
+
+      await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "rm -rf .*": "deny" } }),
+        logger,
+        global: true,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("code-review"));
+    });
+
+    it("does not create the execution-profile collection on an un-migrated install", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "git .*": "allow" } }),
+        global: true,
+      });
+
+      // Creating the collection would mark Warp's one-shot migration complete
+      // early and strand the user's other legacy settings; the legacy keys are
+      // still live on an un-migrated install.
+      expect(executionProfilesOf(perms.getFileContent())).toBeUndefined();
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
+    });
   });
 
   describe("toRulesyncPermissions round-trip", () => {
@@ -244,6 +362,65 @@ describe("WarpPermissions", () => {
       expect(config.permission.bash["rm -rf .*"]).toBe("deny");
       // A pattern in both lists resolves to deny.
       expect(config.permission.bash["shared .*"]).toBe("deny");
+    });
+
+    it("prefers the default execution profile's command lists over stale legacy keys", () => {
+      const content = [
+        "[agents.profiles]",
+        `${ALLOWLIST_KEY} = ["stale .*"]`,
+        `${DENYLIST_KEY} = ["stale-deny .*"]`,
+        "",
+        "[agents.execution_profiles.default]",
+        'name = "Default"',
+        'command_allowlist = ["git .*"]',
+        'command_denylist = ["rm -rf .*"]',
+        "",
+      ].join("\n");
+      const perms = new WarpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".config/warp-terminal",
+        relativeFilePath: "settings.toml",
+        fileContent: content,
+      });
+
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash["git .*"]).toBe("allow");
+      expect(config.permission.bash["rm -rf .*"]).toBe("deny");
+      expect(config.permission.bash["stale .*"]).toBeUndefined();
+      expect(config.permission.bash["stale-deny .*"]).toBeUndefined();
+    });
+
+    it("falls back to the legacy keys when the collection lacks a default record", () => {
+      const content = [
+        "[agents.profiles]",
+        `${ALLOWLIST_KEY} = ["git .*"]`,
+        "",
+        "[agents.execution_profiles.code-review]",
+        'name = "Code Review"',
+        "",
+      ].join("\n");
+      const perms = new WarpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".config/warp-terminal",
+        relativeFilePath: "settings.toml",
+        fileContent: content,
+      });
+
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash["git .*"]).toBe("allow");
+    });
+
+    it("falls back to the legacy keys when no execution-profile collection exists", () => {
+      const content = ["[agents.profiles]", `${ALLOWLIST_KEY} = ["git .*"]`, ""].join("\n");
+      const perms = new WarpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".config/warp-terminal",
+        relativeFilePath: "settings.toml",
+        fileContent: content,
+      });
+
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash["git .*"]).toBe("allow");
     });
 
     it("lifts the file-read/read-only autonomy keys into the warp override", () => {

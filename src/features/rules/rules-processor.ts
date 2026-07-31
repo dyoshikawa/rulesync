@@ -785,8 +785,11 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: WarpRule,
       meta: {
+        // Warp reads project rules from the root AGENTS.md and a global rules
+        // file from ~/.agents/AGENTS.md (also used from remote hosts in SSH
+        // sessions). https://docs.warp.dev/terminal/settings/file-locations/
         extension: "md",
-        supportsGlobal: false,
+        supportsGlobal: true,
         ruleDiscoveryMode: "toon",
         collisionPolicy: "fold",
       },

@@ -131,6 +131,22 @@ describe("WarpRule", () => {
       expect(warpRule.getFilePath()).toBe(join(testDir, "AGENTS.md"));
     });
 
+    it("should read the global rules file from .agents/AGENTS.md in global mode", async () => {
+      const globalContent = "# Global Warp Rules";
+      await writeFileContent(join(testDir, ".agents", "AGENTS.md"), globalContent);
+
+      const warpRule = await WarpRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "AGENTS.md",
+        global: true,
+      });
+
+      expect(warpRule.isRoot()).toBe(true);
+      expect(warpRule.getRelativeDirPath()).toBe(".agents");
+      expect(warpRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(warpRule.getFileContent()).toBe(globalContent);
+    });
+
     it("should always read the root AGENTS.md, ignoring the requested relativeFilePath", async () => {
       // Warp reads rules only from the root AGENTS.md; fromFile therefore reads
       // that file regardless of the relativeFilePath it is asked for.
@@ -393,6 +409,16 @@ describe("WarpRule", () => {
       });
 
       // Warp does not read `.warp/memories/`, so there is no non-root location.
+      expect(paths.nonRoot).toBeUndefined();
+    });
+
+    it("should return the .agents/AGENTS.md root path in global mode", () => {
+      const paths = WarpRule.getSettablePaths({ global: true });
+
+      expect(paths.root).toEqual({
+        relativeDirPath: ".agents",
+        relativeFilePath: "AGENTS.md",
+      });
       expect(paths.nonRoot).toBeUndefined();
     });
 

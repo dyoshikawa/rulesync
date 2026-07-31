@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { WARP_RULE_FILE_NAME } from "../../constants/warp-paths.js";
+import { WARP_GLOBAL_RULE_DIR, WARP_RULE_FILE_NAME } from "../../constants/warp-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -25,7 +25,12 @@ export type WarpRuleParams = AiFileParams & {
  * `./AGENTS.md` by the RulesProcessor; there is no separate non-root output
  * location (`nonRoot` is `undefined`).
  *
+ * In global mode, Warp reads a third rule source from `~/.agents/AGENTS.md`
+ * (the cross-tool agent config directory), indexed like project rules and also
+ * used from remote hosts in SSH sessions. The same root-fold policy applies.
+ *
  * @see https://docs.warp.dev/agent-platform/capabilities/rules/
+ * @see https://docs.warp.dev/terminal/settings/file-locations/
  */
 export type WarpRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   root: {
@@ -44,12 +49,20 @@ export class WarpRule extends ToolRule {
     });
   }
 
-  static getSettablePaths(
-    _options: {
-      global?: boolean;
-      excludeToolDir?: boolean;
-    } = {},
-  ): WarpRuleSettablePaths {
+  static getSettablePaths({
+    global = false,
+  }: {
+    global?: boolean;
+    excludeToolDir?: boolean;
+  } = {}): WarpRuleSettablePaths {
+    if (global) {
+      return {
+        root: {
+          relativeDirPath: WARP_GLOBAL_RULE_DIR,
+          relativeFilePath: WARP_RULE_FILE_NAME,
+        },
+      };
+    }
     return {
       root: {
         relativeDirPath: ".",
@@ -64,8 +77,9 @@ export class WarpRule extends ToolRule {
     // `relativeFilePath` is ignored and the root file is read.
     relativeFilePath: _relativeFilePath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<WarpRule> {
-    const { root } = this.getSettablePaths();
+    const { root } = this.getSettablePaths({ global });
     const relativePath = join(root.relativeDirPath, root.relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
 
@@ -83,8 +97,9 @@ export class WarpRule extends ToolRule {
     outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): WarpRule {
-    const { root } = this.getSettablePaths();
+    const { root } = this.getSettablePaths({ global });
     const isRoot = rulesyncRule.getFrontmatter().root ?? false;
 
     // Both root and non-root rules target the single root `./AGENTS.md`; the
@@ -112,8 +127,9 @@ export class WarpRule extends ToolRule {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolRuleForDeletionParams): WarpRule {
-    const { root } = this.getSettablePaths();
+    const { root } = this.getSettablePaths({ global });
     const isRoot =
       relativeFilePath === root.relativeFilePath && relativeDirPath === root.relativeDirPath;
 

@@ -27,10 +27,25 @@ import {
 const WARP_GLOBAL_ONLY_MESSAGE =
   "Warp permissions are global-only; use --global to sync Warp's settings.toml";
 
-// Keys under the `[agents.profiles]` table that hold the command permission
-// regex arrays. https://docs.warp.dev/agent-platform/capabilities/agent-profiles-permissions/
+// Legacy keys under the `[agents.profiles]` table that hold the command
+// permission regex arrays. Since file-backed execution profiles went Stable
+// (2026-07-28) these are consumed only once by Warp's one-shot migration into
+// the `default` execution profile and are otherwise ignored — they are still
+// written for un-migrated installs and old clients, but can no longer be the
+// only output. https://docs.warp.dev/agent-platform/capabilities/agent-profiles-permissions/
 const ALLOWLIST_KEY = "agent_mode_command_execution_allowlist";
 const DENYLIST_KEY = "agent_mode_command_execution_denylist";
+
+// Current permission surface: the `[agents.execution_profiles.<id>]` collection
+// in `settings.toml`. Runtime allow/denylist enforcement reads the active
+// execution profile; the reserved `default` key identifies the default profile.
+// Profiles fill missing fields with defaults on load, so a partial record
+// stays valid.
+// https://github.com/warpdotdev/warp/blob/main/specs/file-backed-execution-profile-collection/TECH.md
+const EXECUTION_PROFILES_KEY = "execution_profiles";
+const DEFAULT_PROFILE_KEY = "default";
+const PROFILE_ALLOWLIST_KEY = "command_allowlist";
+const PROFILE_DENYLIST_KEY = "command_denylist";
 
 // File-read/read-only autonomy keys under `[agents.profiles]` that the `warp`
 // override authors and that round-trip back into it on import. rulesync still
@@ -67,11 +82,21 @@ function warpSettingsDir(): string {
 /**
  * Permissions adapter for Warp.
  *
- * Warp gates **shell command** execution through two regex arrays under the
- * `[agents.profiles]` table of the global user `settings.toml`:
- * - `agent_mode_command_execution_allowlist` — commands that auto-execute.
- * - `agent_mode_command_execution_denylist` — commands that always require
- *   permission (the denylist wins over the allowlist).
+ * Warp gates **shell command** execution through two regex arrays in the
+ * global user `settings.toml`. Since file-backed execution profiles went
+ * Stable (2026-07-28) the authoritative surface is the `default` record of the
+ * `[agents.execution_profiles.<id>]` collection:
+ * - `command_allowlist` — commands that auto-execute.
+ * - `command_denylist` — commands that always require permission (the denylist
+ *   wins over the allowlist).
+ *
+ * The legacy `[agents.profiles]` keys
+ * (`agent_mode_command_execution_allowlist` / `denylist`) are consumed only
+ * once by Warp's one-shot migration and are ignored afterwards. Both surfaces
+ * are written: the legacy block keeps un-migrated installs and old clients
+ * working, and the `default` execution profile (merged in place, only when the
+ * collection already exists) keeps migrated installs enforcing the lists.
+ * Import prefers the execution profile and falls back to the legacy keys.
  *
  * This surface is **global only** — there is no project-scoped Warp permissions
  * file. rulesync's canonical `permission.bash` patterns map directly (`allow` →
@@ -189,6 +214,47 @@ export class WarpPermissions extends ToolPermissions {
     }
 
     agents.profiles = profiles;
+
+    // On migrated installs the legacy `[agents.profiles]` keys above are inert:
+    // runtime enforcement reads the active `[agents.execution_profiles.<id>]`
+    // record. Merge the command lists into the `default` profile in place so
+    // every other profile key and profile ID survives. When the collection does
+    // not exist yet the install is un-migrated — the legacy keys are still live
+    // there, and creating the collection ourselves would mark Warp's one-shot
+    // migration complete early and strand the user's other legacy settings
+    // (file-read allowlist, preferred model), so it is deliberately left unset.
+    if (isRecord(agents[EXECUTION_PROFILES_KEY])) {
+      const executionProfiles = { ...agents[EXECUTION_PROFILES_KEY] };
+      const defaultProfile = isRecord(executionProfiles[DEFAULT_PROFILE_KEY])
+        ? { ...executionProfiles[DEFAULT_PROFILE_KEY] }
+        : {};
+      if (mergedAllow.length > 0) {
+        defaultProfile[PROFILE_ALLOWLIST_KEY] = mergedAllow;
+      } else {
+        delete defaultProfile[PROFILE_ALLOWLIST_KEY];
+      }
+      if (mergedDeny.length > 0) {
+        defaultProfile[PROFILE_DENYLIST_KEY] = mergedDeny;
+      } else {
+        delete defaultProfile[PROFILE_DENYLIST_KEY];
+      }
+      executionProfiles[DEFAULT_PROFILE_KEY] = defaultProfile;
+      agents[EXECUTION_PROFILES_KEY] = executionProfiles;
+
+      // Runtime enforcement reads the *active* profile, and rulesync manages
+      // only `default` — deny rules are silently unenforced while another
+      // profile is active, which is worth a heads-up.
+      const otherProfileIds = Object.keys(executionProfiles).filter(
+        (id) => id !== DEFAULT_PROFILE_KEY,
+      );
+      if (mergedDeny.length > 0 && otherProfileIds.length > 0 && logger) {
+        logger.warn(
+          `Warp command deny rules were written to the 'default' execution profile only; ` +
+            `they are not enforced while another profile (${otherProfileIds.join(", ")}) is active.`,
+        );
+      }
+    }
+
     settings.agents = agents;
 
     return new WarpPermissions({
@@ -214,8 +280,35 @@ export class WarpPermissions extends ToolPermissions {
 
     const agents = isRecord(settings.agents) ? settings.agents : {};
     const profiles = isRecord(agents.profiles) ? agents.profiles : {};
-    const allow = isStringArray(profiles[ALLOWLIST_KEY]) ? profiles[ALLOWLIST_KEY] : [];
-    const deny = isStringArray(profiles[DENYLIST_KEY]) ? profiles[DENYLIST_KEY] : [];
+
+    // Prefer the current surface: on a migrated install the `default`
+    // execution profile is what runtime enforcement actually reads, and its
+    // command lists may have diverged from the stale legacy keys. Fall back to
+    // the legacy `[agents.profiles]` keys only when there is no `default`
+    // execution-profile record (an un-migrated install; a collection without
+    // `default` is invalid to Warp and treated the same way).
+    const executionProfiles = isRecord(agents[EXECUTION_PROFILES_KEY])
+      ? agents[EXECUTION_PROFILES_KEY]
+      : undefined;
+    const defaultProfile =
+      executionProfiles && isRecord(executionProfiles[DEFAULT_PROFILE_KEY])
+        ? executionProfiles[DEFAULT_PROFILE_KEY]
+        : undefined;
+
+    const allow = defaultProfile
+      ? isStringArray(defaultProfile[PROFILE_ALLOWLIST_KEY])
+        ? defaultProfile[PROFILE_ALLOWLIST_KEY]
+        : []
+      : isStringArray(profiles[ALLOWLIST_KEY])
+        ? profiles[ALLOWLIST_KEY]
+        : [];
+    const deny = defaultProfile
+      ? isStringArray(defaultProfile[PROFILE_DENYLIST_KEY])
+        ? defaultProfile[PROFILE_DENYLIST_KEY]
+        : []
+      : isStringArray(profiles[DENYLIST_KEY])
+        ? profiles[DENYLIST_KEY]
+        : [];
 
     const config = convertWarpToRulesyncPermissions({ allow, deny });
 

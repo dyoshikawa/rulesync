@@ -1236,6 +1236,7 @@ Content that would fail parsing`;
         "rovodev",
         "takt",
         "vibe",
+        "warp",
         "devin",
         "zed",
       ]);
@@ -1287,12 +1288,12 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kiro-cli");
       expect(globalTargets).toContain("kiro-ide");
       expect(globalTargets).toContain("reasonix");
-      expect(globalTargets.length).toBe(30);
+      expect(globalTargets).toContain("warp");
+      expect(globalTargets.length).toBe(31);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
       expect(globalTargets).not.toContain("hermesagent");
-      expect(globalTargets).not.toContain("warp");
     });
   });
 
@@ -2977,6 +2978,7 @@ targets: ["claudecode"]
         "kimi-code",
         "pi",
         "reasonix",
+        "warp",
       ]);
     });
 

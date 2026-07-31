@@ -871,6 +871,7 @@ const rulesGlobalTargets = [
   { target: "grokcli", outputPath: join(".grok", "AGENTS.md") },
   { target: "amp", outputPath: join(".config", "amp", "AGENTS.md") },
   { target: "cline", outputPath: join(".agents", "AGENTS.md") },
+  { target: "warp", outputPath: join(".agents", "AGENTS.md") },
   { target: "antigravity-ide", outputPath: join(".gemini", "GEMINI.md") },
   { target: "antigravity-cli", outputPath: join(".gemini", "GEMINI.md") },
   { target: "goose", outputPath: join(".config", "goose", ".goosehints") },

@@ -2,22 +2,26 @@
 
 ## Official Docs
 
-| Feature       | Official docs                                             | Upstream surface                                                                |
-| ------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| index         | `https://docs.warp.dev/`                                  | Warp documentation index                                                        |
-| `rules`       | `https://docs.warp.dev/agent-platform/capabilities/rules` | Global Rules, Project Rules, `AGENTS.md`, `WARP.md`, imported legacy rule files |
-| `ignore`      | No dedicated upstream ignore surface in map               | No Rulesync-supported Warp ignore target in map                                 |
-| `mcp`         | No dedicated upstream MCP surface in map                  | No Rulesync-supported Warp MCP target in map                                    |
-| `commands`    | No dedicated upstream commands surface in map             | No Rulesync-supported Warp commands target in map                               |
-| `subagents`   | No dedicated upstream subagents surface in map            | No Rulesync-supported Warp subagents target in map                              |
-| `skills`      | No dedicated upstream skills surface in map               | No Rulesync-supported Warp skills target in map                                 |
-| `hooks`       | No dedicated upstream hooks surface in map                | No Rulesync-supported Warp hooks target in map                                  |
-| `permissions` | No dedicated upstream permissions surface in map          | No Rulesync-supported Warp permissions target in map                            |
+| Feature       | Official docs                                                        | Upstream surface                                                                                         |
+| ------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| index         | `https://docs.warp.dev/`                                             | Warp documentation index                                                                                 |
+| `rules`       | `https://docs.warp.dev/agent-platform/capabilities/rules`            | Global Rules, Project Rules, `AGENTS.md`, `WARP.md`, global `~/.agents/AGENTS.md`, imported legacy rules |
+| `ignore`      | `https://docs.warp.dev/agent-platform/capabilities/codebase-context` | `.warpindexingignore` (project root, gitignore syntax)                                                   |
+| `mcp`         | `https://docs.warp.dev/agent-platform/mcp`                           | `.warp/.mcp.json` (project) and `~/.agents/.mcp.json` (global)                                           |
+| `commands`    | `https://docs.warp.dev/agent-platform/capabilities/skills`           | Emitted onto the native skills surface (`/{skill-name}` invocation)                                      |
+| `subagents`   | No dedicated upstream subagents surface in map                       | No Rulesync-supported Warp subagents target in map (child agents are runtime constructs, no file format) |
+| `skills`      | `https://docs.warp.dev/agent-platform/capabilities/skills`           | `.warp/skills/` (first in local discovery precedence) and `.agents/skills/`                              |
+| `hooks`       | No dedicated upstream hooks surface in map                           | No Rulesync-supported Warp hooks target in map (no local hook surface)                                   |
+| `permissions` | `https://docs.warp.dev/terminal/settings/all-settings`               | `settings.toml` `[agents.execution_profiles.<id>]` (current) and legacy `[agents.profiles]` keys         |
 
 ## Client Anchors
 
 Common adapter paths: `rulesync-source-map.md`.
 
-| Surface | Anchor                                                                                    |
-| ------- | ----------------------------------------------------------------------------------------- |
-| `rules` | `AGENTS.md` / `WARP.md` style project rule conversion and target gating in `warp-rule.ts` |
+| Surface       | Anchor                                                                                                                |
+| ------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `rules`       | `AGENTS.md` / `WARP.md` style project rule conversion, global `~/.agents/AGENTS.md`, target gating in `warp-rule.ts`  |
+| `ignore`      | `.warpindexingignore` emission in `warp-ignore.ts`                                                                    |
+| `mcp`         | `.warp/.mcp.json` emission in `warp-mcp.ts`                                                                           |
+| `skills`      | `.warp/skills/` emission in `warp-skill.ts` (commands ride the same surface)                                          |
+| `permissions` | `command_allowlist` / `command_denylist` in the `default` execution profile plus legacy keys in `warp-permissions.ts` |

@@ -7,6 +7,10 @@ export const WARP_LINUX_DIR = join(".config", "warp-terminal");
 // (i.e. AppData/Local ... /config), per Warp's documented file locations.
 export const WARP_WIN32_DIR = join("AppData", "Local", "warp", "Warp", "config");
 export const WARP_RULE_FILE_NAME = "AGENTS.md";
+// Warp reads a global rules file from `~/.agents/AGENTS.md` (the cross-tool
+// agent config directory), alongside project rules and Warp Drive rules.
+// @see https://docs.warp.dev/terminal/settings/file-locations/
+export const WARP_GLOBAL_RULE_DIR = ".agents";
 export const WARP_MCP_FILE_NAME = ".mcp.json";
 export const WARP_PERMISSIONS_FILE_NAME = "settings.toml";
 // Warp excludes files from agent codebase indexing/context via a project-scoped
