@@ -6,6 +6,7 @@ import type { Logger } from "../utils/logger.js";
 import { parseCommaSeparatedList } from "../utils/parse-comma-separated-list.js";
 import { addCommand, type AddCommandOptions } from "./commands/add.js";
 import { convertCommand, ConvertOptions } from "./commands/convert.js";
+import { docsCommand, type DocsOptions } from "./commands/docs.js";
 import { doctorCommand, type DoctorOptions } from "./commands/doctor.js";
 import { fetchCommand } from "./commands/fetch.js";
 import { generateCommand, GenerateOptions } from "./commands/generate.js";
@@ -313,6 +314,21 @@ export function createProgram(): Command {
     .action(
       wrapCommand("doctor", "DOCTOR_FAILED", async (logger, options) => {
         await doctorCommand(logger, options as DoctorOptions);
+      }),
+    );
+
+  program
+    .command("docs [document]")
+    .description(
+      "Print bundled documentation: a document by identifier (e.g. guide/configuration), the list of documents, or --search results",
+    )
+    .option("--search <text>", "Search the bundled documentation and print ranked matches")
+    .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
+    .action(
+      wrapCommand("docs", "DOCS_FAILED", async (logger, options, _globalOpts, positionalArgs) => {
+        const document = positionalArgs[0] as string | undefined;
+        await docsCommand(logger, document, options as DocsOptions);
       }),
     );
 

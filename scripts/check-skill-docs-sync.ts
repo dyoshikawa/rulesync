@@ -11,7 +11,7 @@ function main(): void {
   } catch (error) {
     // oxlint-disable-next-line no-console
     console.error(
-      `skills/rulesync/ is out of sync with docs/. Run "pnpm tsx scripts/sync-skill-docs.ts" and commit the result.\n${formatError(error)}`,
+      `skills/rulesync/ must contain only SKILL.md. Run "pnpm tsx scripts/sync-skill-docs.ts" and commit the result.\n${formatError(error)}`,
     );
     process.exit(1);
   }

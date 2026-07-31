@@ -427,3 +427,33 @@ rulesync doctor --config ./configs/rulesync.jsonc
 - Exits with code `1` when any `error`-severity diagnostic is present (or any `warning` with `--strict`), and `0` otherwise.
 - With the global `--json` flag, diagnostics and a severity summary are emitted as structured JSON: in `data` on success (exit 0), and in `error.details` of the standard error document (code `DOCTOR_FAILED`) on failure.
 - A missing configuration file is reported as `info` only — rulesync runs fine with built-in defaults.
+
+## Docs Command
+
+The `docs` command prints the bundled Rulesync documentation to standard output, so both humans and coding agents can retrieve it directly in the terminal without browsing the repository or website. The documentation is embedded in the CLI at build time, so it works in installed npm distributions and compiled binaries alike.
+
+Document identifiers follow the `docs/` hierarchy without the `docs/` prefix or the `.md` extension (both are accepted and stripped when supplied). Identifiers that try to escape the bundled tree — absolute paths, drive letters, `..` segments — are rejected.
+
+### Usage
+
+```bash
+# List every available document identifier
+rulesync docs
+
+# Print a document (top-level or nested)
+rulesync docs faq
+rulesync docs guide/configuration
+
+# Ranked full-text search across the bundled documentation
+rulesync docs --search "global mode"
+```
+
+### Search
+
+`--search <text>` builds an in-memory BM25+ index (via MiniSearch) over document paths, titles, headings, and body content, with stronger boosts for titles and headings. Up to 10 results are printed, one per line, as `<document> — <matching context>`. Matching is exact-term; no prefix or fuzzy expansion is applied.
+
+### Behavior
+
+- `rulesync docs` with no argument lists all document identifiers, one per line, sorted.
+- A missing document, an invalid identifier, an empty search text, a search with no matches, or combining a document argument with `--search` each exit with code 1 and an explanatory error.
+- Document output is printed verbatim, so it can be piped to other tools.

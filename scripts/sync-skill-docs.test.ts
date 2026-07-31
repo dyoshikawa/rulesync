@@ -1,191 +1,57 @@
-import { describe, expect, it } from "vitest";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
-import {
-  assertFlatMirrorLinksResolve,
-  removeVitepressSyntax,
-  rewriteRelativeLinksForFlatMirror,
-} from "./sync-skill-docs.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-describe("removeVitepressSyntax", () => {
-  it("converts ::: details block and bumps internal headings", () => {
-    const input = ["::: details My Details", "### Inner Heading", "Some content", ":::"].join("\n");
+import { syncSkillDocs } from "./sync-skill-docs.js";
 
-    const result = removeVitepressSyntax(input);
-    expect(result).toContain("#### My Details");
-    expect(result).toContain("#### Inner Heading");
-    expect(result).not.toContain(":::");
+describe("syncSkillDocs", () => {
+  const testRoot = join(
+    process.cwd(),
+    "tmp",
+    "tests",
+    "projects",
+    `sync-skill-docs-${process.pid}`,
+  );
+  const skillDir = join(testRoot, "skills", "rulesync");
+
+  beforeEach(() => {
+    mkdirSync(skillDir, { recursive: true });
+    vi.spyOn(process, "cwd").mockReturnValue(testRoot);
   });
 
-  it("converts ::: tip to blockquote with default title", () => {
-    const input = "::: tip\nSome tip content\n:::";
-    const result = removeVitepressSyntax(input);
-    expect(result).toContain("> **Tip:**");
-    expect(result).not.toContain(":::");
+  afterEach(() => {
+    vi.restoreAllMocks();
+    rmSync(testRoot, { recursive: true, force: true });
   });
 
-  it("converts ::: tip with custom title", () => {
-    const input = "::: tip Custom Title\nContent\n:::";
-    const result = removeVitepressSyntax(input);
-    expect(result).toContain("> **Custom Title:**");
+  it("prunes every file except SKILL.md", () => {
+    writeFileSync(join(skillDir, "SKILL.md"), "# Rulesync\n");
+    writeFileSync(join(skillDir, "faq.md"), "# stale mirror\n");
+    writeFileSync(join(skillDir, "configuration.md"), "# stale mirror\n");
+    mkdirSync(join(skillDir, "nested"));
+    writeFileSync(join(skillDir, "nested", "extra.md"), "# stale\n");
+
+    const { removed } = syncSkillDocs();
+
+    expect(removed.toSorted()).toEqual(["configuration.md", "faq.md", "nested"]);
+    expect(readdirSync(skillDir)).toEqual(["SKILL.md"]);
+    expect(existsSync(join(skillDir, "nested"))).toBe(false);
   });
 
-  it("converts ::: warning to blockquote", () => {
-    const input = "::: warning\nBe careful\n:::";
-    const result = removeVitepressSyntax(input);
-    expect(result).toContain("> **Warning:**");
+  it("is a no-op when only SKILL.md exists", () => {
+    writeFileSync(join(skillDir, "SKILL.md"), "# Rulesync\n");
+
+    const { removed } = syncSkillDocs();
+
+    expect(removed).toEqual([]);
+    expect(readdirSync(skillDir)).toEqual(["SKILL.md"]);
   });
 
-  it("converts ::: info to blockquote", () => {
-    const input = "::: info\nInformation\n:::";
-    const result = removeVitepressSyntax(input);
-    expect(result).toContain("> **Info:**");
-  });
+  it("throws when SKILL.md is missing instead of emptying the directory", () => {
+    writeFileSync(join(skillDir, "faq.md"), "# stale mirror\n");
 
-  it("converts ::: danger to blockquote", () => {
-    const input = "::: danger\nDangerous\n:::";
-    const result = removeVitepressSyntax(input);
-    expect(result).toContain("> **Danger:**");
-  });
-
-  it("does not remove ::: inside code blocks", () => {
-    const input = ["```markdown", "::: tip", "This is inside a code block", ":::", "```"].join(
-      "\n",
-    );
-
-    // The regex operates line-by-line, so ::: inside code blocks will
-    // unfortunately be matched. This test documents current behavior.
-    const result = removeVitepressSyntax(input);
-    // Code block fences should remain
-    expect(result).toContain("```markdown");
-    expect(result).toContain("```");
-  });
-
-  it("collapses 3+ consecutive blank lines to 2", () => {
-    const input = "Line 1\n\n\n\n\nLine 2";
-    const result = removeVitepressSyntax(input);
-    expect(result).toBe("Line 1\n\n\nLine 2");
-  });
-
-  it("preserves content without VitePress syntax", () => {
-    const input = "# Title\n\nSome regular markdown content.\n\n## Section\n\nMore content.";
-    const result = removeVitepressSyntax(input);
-    expect(result).toBe(input);
-  });
-
-  it("bumps ## to ### inside details blocks", () => {
-    const input = ["::: details Expandable", "## H2 Inside", "### H3 Inside", ":::"].join("\n");
-
-    const result = removeVitepressSyntax(input);
-    expect(result).toContain("#### Expandable");
-    expect(result).toContain("### H2 Inside");
-    expect(result).toContain("#### H3 Inside");
-  });
-
-  it("handles nested admonition inside details block", () => {
-    const input = [
-      "::: details Outer",
-      "::: tip",
-      "Inner tip content",
-      ":::",
-      "More content after tip",
-      ":::",
-    ].join("\n");
-
-    const result = removeVitepressSyntax(input);
-    expect(result).toContain("#### Outer");
-    expect(result).toContain("> **Tip:**");
-    expect(result).toContain("More content after tip");
-    expect(result).not.toContain(":::");
-  });
-});
-
-describe("rewriteRelativeLinksForFlatMirror", () => {
-  it("collapses parent-directory links to sibling links", () => {
-    const input = "See the [FAQ](../faq.md#some-anchor) for details.";
-    const result = rewriteRelativeLinksForFlatMirror(input);
-    expect(result).toBe("See the [FAQ](./faq.md#some-anchor) for details.");
-  });
-
-  it("collapses links with directory segments to sibling links", () => {
-    const input = "See [File Formats](../reference/file-formats.md#symlinks).";
-    const result = rewriteRelativeLinksForFlatMirror(input);
-    expect(result).toBe("See [File Formats](./file-formats.md#symlinks).");
-  });
-
-  it("keeps same-directory links unchanged", () => {
-    const input = "See [Command Syntax](./command-syntax.md).";
-    const result = rewriteRelativeLinksForFlatMirror(input);
-    expect(result).toBe(input);
-  });
-
-  it("keeps external and anchor-only links unchanged", () => {
-    const input = "See [docs](https://example.com/docs/faq.md) and [above](#section).";
-    const result = rewriteRelativeLinksForFlatMirror(input);
-    expect(result).toBe(input);
-  });
-
-  it("rewrites multiple links in one document", () => {
-    const input = "[A](../faq.md) then [B](../reference/file-formats.md) then [C](./local.md).";
-    const result = rewriteRelativeLinksForFlatMirror(input);
-    expect(result).toBe("[A](./faq.md) then [B](./file-formats.md) then [C](./local.md).");
-  });
-
-  it("collapses same-directory-prefixed links that still contain directory segments", () => {
-    const input = "See [Guide](./guide/x.md#top).";
-    const result = rewriteRelativeLinksForFlatMirror(input);
-    expect(result).toBe("See [Guide](./x.md#top).");
-  });
-
-  it("preserves markdown link titles while collapsing", () => {
-    const input = 'See [FAQ](../faq.md#anchor "The FAQ").';
-    const result = rewriteRelativeLinksForFlatMirror(input);
-    expect(result).toBe('See [FAQ](./faq.md#anchor "The FAQ").');
-  });
-});
-
-describe("assertFlatMirrorLinksResolve", () => {
-  it("passes when all relative links resolve to mirrored files", () => {
-    const files = new Map([
-      ["faq.md", "# FAQ"],
-      ["guide.md", "See the [FAQ](./faq.md#anchor) and [bare](faq.md)."],
-    ]);
-    expect(() => assertFlatMirrorLinksResolve({ files })).not.toThrow();
-  });
-
-  it("ignores external, mailto, and anchor-only links", () => {
-    const files = new Map([
-      ["guide.md", "[ext](https://example.com/x.md) [mail](mailto:a@b.md) [top](#top)"],
-    ]);
-    expect(() => assertFlatMirrorLinksResolve({ files })).not.toThrow();
-  });
-
-  it("throws when a link targets a file missing from the mirror", () => {
-    const files = new Map([["guide.md", "See [missing](./missing.md)."]]);
-    expect(() => assertFlatMirrorLinksResolve({ files })).toThrow(
-      /does not resolve to a mirrored file/,
-    );
-  });
-
-  it("throws when a link still contains directory segments", () => {
-    const files = new Map([
-      ["faq.md", "# FAQ"],
-      ["guide.md", "See [FAQ](../faq.md)."],
-    ]);
-    expect(() => assertFlatMirrorLinksResolve({ files })).toThrow(/not a flat sibling link/);
-  });
-
-  it("throws for bare directory-segment links without a dot prefix", () => {
-    const files = new Map([
-      ["x.md", "# X"],
-      ["guide.md", "See [X](guide/x.md)."],
-    ]);
-    expect(() => assertFlatMirrorLinksResolve({ files })).toThrow(/not a flat sibling link/);
-  });
-
-  it("validates links that carry a markdown title", () => {
-    const files = new Map([["guide.md", 'See [missing](./missing.md "Title").']]);
-    expect(() => assertFlatMirrorLinksResolve({ files })).toThrow(
-      /does not resolve to a mirrored file/,
-    );
+    expect(() => syncSkillDocs()).toThrow(/SKILL\.md is missing/);
+    expect(existsSync(join(skillDir, "faq.md"))).toBe(true);
   });
 });

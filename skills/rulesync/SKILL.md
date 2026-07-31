@@ -10,7 +10,7 @@ targets: ["*"]
 
 # Rulesync
 
-Rulesync generates and synchronizes AI rule configuration files across 20+ coding tools (Claude Code, Cursor, Copilot, Windsurf, Cline, Gemini CLI, and more) from a single set of unified rule files in `.rulesync/`.
+Rulesync generates and synchronizes AI rule configuration files across 20+ coding tools (Claude Code, Cursor, Copilot, Cline, Gemini CLI, and more) from a single set of unified rule files in `.rulesync/`.
 
 ## Quick Start
 
@@ -49,11 +49,21 @@ rulesync generate --targets "*" --features "*"
 | `rulesync generate --check`                      | CI check that generated files are up to date     |
 | `rulesync generate --dry-run`                    | Preview changes without writing files            |
 | `rulesync generate --watch`                      | Regenerate whenever source files change          |
+| `rulesync docs [document]`                       | Print bundled documentation                      |
+| `rulesync docs --search <text>`                  | Search the bundled documentation                 |
 
 ## Detailed Reference
 
-- [Installation](./installation.md), [Quick Start](./quick-start.md)
-- [Why Rulesync?](./why-rulesync.md), [Configuration](./configuration.md), [Plugin Packaging](./plugin-packaging.md), [Global Mode](./global-mode.md), [Separate Input Root](./separate-input-root.md), [Simulated Features](./simulated-features.md), [Declarative Sources](./declarative-sources.md), [Official Skills](./official-skills.md), [Dry Run](./dry-run.md), [Case Studies](./case-studies.md)
-- [Supported Tools](./supported-tools.md), [CLI Commands](./cli-commands.md), [File Formats](./file-formats.md), [Command Syntax](./command-syntax.md), [MCP Server](./mcp-server.md)
-- [Programmatic API](./programmatic-api.md)
-- [FAQ](./faq.md)
+The complete Rulesync documentation is bundled with the CLI. **Consult it with
+`rulesync docs` before answering Rulesync-specific questions or performing
+unfamiliar Rulesync operations** — it is the canonical detailed reference.
+
+- `rulesync docs` — list every available document identifier
+- `rulesync docs <document>` — print one document, e.g. `rulesync docs faq` or
+  `rulesync docs guide/configuration`
+- `rulesync docs --search <text>` — ranked full-text search across the
+  documentation, e.g. `rulesync docs --search "global mode"`
+
+Useful starting points: `getting-started/quick-start`, `guide/configuration`,
+`reference/cli-commands`, `reference/supported-tools`, `reference/file-formats`,
+`faq`.

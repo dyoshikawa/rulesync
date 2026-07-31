@@ -19,7 +19,8 @@
     ".git/**",
     ".gitignore",
     "docs/**",
-    ".rulesync/**"
+    ".rulesync/**",
+    "src/generated/**"
   ],
   "words": [
     "PKCE",
@@ -403,6 +404,7 @@
     "TOCTOU",
     "worktree",
     "Worktree",
-    "zedignore"
+    "zedignore",
+    "minisearch"
   ]
 }
