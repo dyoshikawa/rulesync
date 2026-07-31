@@ -291,113 +291,131 @@ describe("formatTriggerPaths", () => {
 });
 
 describe("watchTargets", () => {
-  it("forwards changes under a recursively watched directory", async () => {
-    const { testDir, cleanup } = await setupTestDirectory();
-    try {
-      const rulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH, "rules");
-      await mkdir(rulesDir, { recursive: true });
+  // The fs.watch integration tests depend on OS event delivery, which can
+  // stall for seconds on loaded CI runners; the default 5s per-test timeout
+  // has produced repeated flakes there (each `waitFor` already polls with its
+  // own 10s budget).
+  const FS_EVENT_TEST_TIMEOUT_MS = 20000;
 
-      const changed: string[] = [];
-      const handle = watchTargets({
-        targets: [{ directory: join(testDir, RULESYNC_RELATIVE_DIR_PATH), recursive: true }],
-        onChange: ({ path }) => {
-          changed.push(path);
-        },
-        onError: () => {},
-      });
-
+  it(
+    "forwards changes under a recursively watched directory",
+    { timeout: FS_EVENT_TEST_TIMEOUT_MS },
+    async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
       try {
-        await writeFile(join(rulesDir, "watched.md"), "# watched\n", "utf8");
-        await waitFor(() => changed.some((path) => path.includes("watched.md")));
-      } finally {
-        handle.close();
-      }
-    } finally {
-      await cleanup();
-    }
-  });
+        const rulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH, "rules");
+        await mkdir(rulesDir, { recursive: true });
 
-  it("re-attaches after the watched directory is deleted and recreated", async () => {
-    const { testDir, cleanup } = await setupTestDirectory();
-    try {
-      const watchedDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
-      await mkdir(join(watchedDir, "rules"), { recursive: true });
-
-      const changed: string[] = [];
-      const handle = watchTargets({
-        targets: [{ directory: watchedDir, recursive: true }],
-        onChange: ({ path }) => {
-          changed.push(path);
-        },
-        onError: () => {},
-        rearmIntervalMs: 25,
-      });
-
-      try {
-        // A branch switch that drops `.rulesync/` kills the underlying inode
-        // watch; without re-arming, nothing below would ever be reported.
-        await rm(watchedDir, { recursive: true, force: true });
-        await waitFor(() => changed.length > 0);
-
-        changed.length = 0;
-        await mkdir(join(watchedDir, "rules"), { recursive: true });
-        await waitFor(() => changed.length > 0);
-
-        changed.length = 0;
-        await writeFile(join(watchedDir, "rules", "after-rearm.md"), "# after\n", "utf8");
-        await waitFor(() => changed.some((path) => path.includes("after-rearm.md")));
-      } finally {
-        handle.close();
-      }
-    } finally {
-      await cleanup();
-    }
-  });
-
-  it("re-attaches a filtered target after its directory is deleted and recreated", async () => {
-    const { testDir, cleanup } = await setupTestDirectory();
-    try {
-      const configDir = join(testDir, "packages", "app");
-      await mkdir(configDir, { recursive: true });
-
-      const changed: string[] = [];
-      const handle = watchTargets({
-        targets: [
-          {
-            directory: configDir,
-            recursive: false,
-            include: (relativePath) => relativePath === RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+        const changed: string[] = [];
+        const handle = watchTargets({
+          targets: [{ directory: join(testDir, RULESYNC_RELATIVE_DIR_PATH), recursive: true }],
+          onChange: ({ path }) => {
+            changed.push(path);
           },
-        ],
-        onChange: ({ path }) => {
-          changed.push(path);
-        },
-        onError: () => {},
-        rearmIntervalMs: 25,
-      });
+          onError: () => {},
+        });
 
+        try {
+          await writeFile(join(rulesDir, "watched.md"), "# watched\n", "utf8");
+          await waitFor(() => changed.some((path) => path.includes("watched.md")));
+        } finally {
+          handle.close();
+        }
+      } finally {
+        await cleanup();
+      }
+    },
+  );
+
+  it(
+    "re-attaches after the watched directory is deleted and recreated",
+    { timeout: FS_EVENT_TEST_TIMEOUT_MS },
+    async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
       try {
-        // The last event a deleted directory emits names the directory
-        // itself, which the include filter rejects — re-arming must still
-        // kick in.
-        await rm(configDir, { recursive: true, force: true });
+        const watchedDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+        await mkdir(join(watchedDir, "rules"), { recursive: true });
+
+        const changed: string[] = [];
+        const handle = watchTargets({
+          targets: [{ directory: watchedDir, recursive: true }],
+          onChange: ({ path }) => {
+            changed.push(path);
+          },
+          onError: () => {},
+          rearmIntervalMs: 25,
+        });
+
+        try {
+          // A branch switch that drops `.rulesync/` kills the underlying inode
+          // watch; without re-arming, nothing below would ever be reported.
+          await rm(watchedDir, { recursive: true, force: true });
+          await waitFor(() => changed.length > 0);
+
+          changed.length = 0;
+          await mkdir(join(watchedDir, "rules"), { recursive: true });
+          await waitFor(() => changed.length > 0);
+
+          changed.length = 0;
+          await writeFile(join(watchedDir, "rules", "after-rearm.md"), "# after\n", "utf8");
+          await waitFor(() => changed.some((path) => path.includes("after-rearm.md")));
+        } finally {
+          handle.close();
+        }
+      } finally {
+        await cleanup();
+      }
+    },
+  );
+
+  it(
+    "re-attaches a filtered target after its directory is deleted and recreated",
+    { timeout: FS_EVENT_TEST_TIMEOUT_MS },
+    async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        const configDir = join(testDir, "packages", "app");
         await mkdir(configDir, { recursive: true });
 
-        changed.length = 0;
-        await waitFor(() => changed.length > 0);
+        const changed: string[] = [];
+        const handle = watchTargets({
+          targets: [
+            {
+              directory: configDir,
+              recursive: false,
+              include: (relativePath) => relativePath === RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+            },
+          ],
+          onChange: ({ path }) => {
+            changed.push(path);
+          },
+          onError: () => {},
+          rearmIntervalMs: 25,
+        });
 
-        changed.length = 0;
-        await writeFile(join(configDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH), "{}\n", "utf8");
-        await waitFor(() =>
-          changed.some((path) => path.endsWith(RULESYNC_CONFIG_RELATIVE_FILE_PATH)),
-        );
+        try {
+          // The last event a deleted directory emits names the directory
+          // itself, which the include filter rejects — re-arming must still
+          // kick in.
+          await rm(configDir, { recursive: true, force: true });
+          await mkdir(configDir, { recursive: true });
+
+          changed.length = 0;
+          await waitFor(() => changed.length > 0);
+
+          changed.length = 0;
+          await writeFile(join(configDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH), "{}\n", "utf8");
+          await waitFor(() =>
+            changed.some((path) => path.endsWith(RULESYNC_CONFIG_RELATIVE_FILE_PATH)),
+          );
+        } finally {
+          handle.close();
+        }
       } finally {
-        handle.close();
+        await cleanup();
       }
-    } finally {
-      await cleanup();
-    }
-  });
+    },
+  );
 
   it("re-attaches when the watched directory is replaced before its delete event arrives", async () => {
     const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
