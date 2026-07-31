@@ -86,6 +86,7 @@ describe("IgnoreProcessor", () => {
         "kiro",
         "qwencode",
         "roo",
+        "zoocode",
         "devin",
       ] as const;
 
@@ -308,6 +309,7 @@ describe("IgnoreProcessor", () => {
         "kiro",
         "qwencode",
         "roo",
+        "zoocode",
         "devin",
       ] as const;
 
@@ -427,6 +429,7 @@ describe("IgnoreProcessor", () => {
         "qwencode",
         "reasonix",
         "roo",
+        "zoocode",
         "devin",
         "vibe",
         "warp",

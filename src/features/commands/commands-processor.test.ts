@@ -1239,6 +1239,7 @@ describe("CommandsProcessor", () => {
           "qwencode",
           "reasonix",
           "roo",
+          "zoocode",
           "rovodev",
           "takt",
           "devin",
@@ -1274,6 +1275,7 @@ describe("CommandsProcessor", () => {
           "qwencode",
           "reasonix",
           "roo",
+          "zoocode",
           "rovodev",
           "takt",
           "devin",
@@ -1308,6 +1310,7 @@ describe("CommandsProcessor", () => {
           "qwencode",
           "reasonix",
           "roo",
+          "zoocode",
           "rovodev",
           "takt",
           "devin",
@@ -1343,6 +1346,7 @@ describe("CommandsProcessor", () => {
         "junie",
         "kilo",
         "roo",
+        "zoocode",
       ];
 
       for (const target of targets) {

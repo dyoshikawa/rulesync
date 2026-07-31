@@ -34,6 +34,14 @@ export const RulesyncSubagentFrontmatterSchema = z.looseObject({
       groups: z.optional(z.array(z.unknown())),
     }),
   ),
+  // Zoo Code (community continuation of Roo Code): shared mode fields ride the
+  // `roo:` section above; this section carries only the post-fork divergence.
+  zoocode: z.optional(
+    z.looseObject({
+      /** Per-mode MCP server allowlist (Zoo Code v3.60.0+); omitted = all. */
+      allowedMcpServers: z.optional(z.array(z.string())),
+    }),
+  ),
   vibe: z.optional(
     z.looseObject({
       agent_type: z.optional(z.enum(["agent", "subagent"])),

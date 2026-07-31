@@ -1001,6 +1001,7 @@ describe("RulesProcessor", () => {
         "opencode",
         "qwencode",
         "roo",
+        "zoocode",
         "takt",
         "warp",
         "devin",
@@ -1286,6 +1287,7 @@ Content that would fail parsing`;
         "reasonix",
         "roo",
         "rovodev",
+        "zoocode",
         "takt",
         "vibe",
         "warp",
@@ -1341,7 +1343,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kiro-ide");
       expect(globalTargets).toContain("reasonix");
       expect(globalTargets).toContain("warp");
-      expect(globalTargets.length).toBe(31);
+      expect(globalTargets.length).toBe(32);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

@@ -24,6 +24,7 @@ const commandsGenerateTargets = [
   { target: "cline", outputPath: join(".clinerules", "workflows", "review-pr.md") },
   { target: "kilo", outputPath: join(".kilo", "commands", "review-pr.md") },
   { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
+  { target: "zoocode", outputPath: join(".roo", "commands", "review-pr.md") },
   { target: "kiro", outputPath: join(".kiro", "prompts", "review-pr.md") },
   { target: "kiro-cli", outputPath: join(".kiro", "prompts", "review-pr.md") },
   { target: "kiro-ide", outputPath: join(".kiro", "prompts", "review-pr.md") },
@@ -77,6 +78,7 @@ const commandsGlobalTargets = [
   { target: "grokcli", outputPath: join(".grok", "commands", "review-pr.md") },
   { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
   { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
+  { target: "zoocode", outputPath: join(".roo", "commands", "review-pr.md") },
   // Hermes commands are global plugin-backed slash commands, separate from skills.
   {
     target: "hermesagent",

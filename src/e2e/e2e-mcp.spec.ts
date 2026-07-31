@@ -45,6 +45,7 @@ const mcpGenerateTargets = [
   { target: "kilo", outputPath: "kilo.jsonc" },
   { target: "kimi-code", outputPath: join(".kimi-code", "mcp.json") },
   { target: "roo", outputPath: join(".roo", "mcp.json") },
+  { target: "zoocode", outputPath: join(".roo", "mcp.json") },
   { target: "kiro", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "settings", "mcp.json") },

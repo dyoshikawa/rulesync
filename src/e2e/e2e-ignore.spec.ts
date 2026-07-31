@@ -42,6 +42,7 @@ const ignoreGenerateTargets = [
   { target: "cline", outputPath: ".clineignore", format: "plaintext" as const },
   { target: "kilo", outputPath: ".kilocodeignore", format: "plaintext" as const },
   { target: "roo", outputPath: ".rooignore", format: "plaintext" as const },
+  { target: "zoocode", outputPath: ".rooignore", format: "plaintext" as const },
   { target: "qwencode", outputPath: ".qwenignore", format: "plaintext" as const },
   { target: "kiro", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },
   { target: "kiro-cli", outputPath: KIRO_IGNORE_FILE_NAME, format: "plaintext" as const },

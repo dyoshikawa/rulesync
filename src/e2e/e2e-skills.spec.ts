@@ -78,6 +78,10 @@ const skillsGenerateTargets = [
     outputPath: join(".roo", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "zoocode",
+    outputPath: join(".roo", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "rovodev",
     outputPath: join(".rovodev", "skills", "test-skill", "SKILL.md"),
   },
@@ -617,6 +621,10 @@ const skillsGlobalTargets = [
   },
   {
     target: "roo",
+    outputPath: join(".roo", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "zoocode",
     outputPath: join(".roo", "skills", "test-skill", "SKILL.md"),
   },
   {

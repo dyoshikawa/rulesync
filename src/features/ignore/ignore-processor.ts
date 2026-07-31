@@ -73,6 +73,8 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["qwencode", { class: QwencodeIgnore }],
   ["reasonix", { class: ReasonixIgnore }],
   ["roo", { class: RooIgnore }],
+  // Zoo Code keeps Roo's `.rooignore`; the class is shared (mirrors kiro-ide).
+  ["zoocode", { class: RooIgnore }],
   ["devin", { class: DevinIgnore }],
   ["vibe", { class: VibeIgnore }],
   ["warp", { class: WarpIgnore }],

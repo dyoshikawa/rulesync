@@ -41,6 +41,7 @@ export const rulesProcessorToolTargetTuple = [
   "warp",
   "devin",
   "zed",
+  "zoocode",
 ] as const;
 
 export const ignoreProcessorToolTargetTuple = [
@@ -64,6 +65,7 @@ export const ignoreProcessorToolTargetTuple = [
   "vibe",
   "warp",
   "zed",
+  "zoocode",
 ] as const;
 
 export const mcpProcessorToolTargetTuple = [
@@ -102,6 +104,7 @@ export const mcpProcessorToolTargetTuple = [
   "warp",
   "devin",
   "zed",
+  "zoocode",
 ] as const;
 
 export const commandsProcessorToolTargetTuple = [
@@ -134,6 +137,7 @@ export const commandsProcessorToolTargetTuple = [
   "takt",
   "devin",
   "warp",
+  "zoocode",
 ] as const;
 
 export const subagentsProcessorToolTargetTuple = [
@@ -169,6 +173,7 @@ export const subagentsProcessorToolTargetTuple = [
   "rovodev",
   "takt",
   "vibe",
+  "zoocode",
 ] as const;
 
 export const skillsProcessorToolTargetTuple = [
@@ -211,6 +216,7 @@ export const skillsProcessorToolTargetTuple = [
   "warp",
   "devin",
   "zed",
+  "zoocode",
 ] as const;
 
 export const hooksProcessorToolTargetTuple = [
