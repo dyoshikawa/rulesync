@@ -326,6 +326,107 @@ describe("WarpPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("code-review"));
     });
 
+    it("merges the execution_profile override into the default profile on a migrated install", async () => {
+      const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.toml"),
+        [
+          "[agents.execution_profiles.default]",
+          'name = "Default"',
+          'read_files = "always_ask"',
+          "",
+        ].join("\n"),
+      );
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash: { "git .*": "allow" } },
+            warp: {
+              execution_profile: {
+                read_files: "always_allow",
+                directory_allowlist: ["/home/me/projects"],
+                mcp_denylist: ["untrusted-server"],
+                write_to_pty: "always_ask",
+              },
+            },
+          }),
+        }),
+        global: true,
+      });
+
+      const executionProfiles = executionProfilesOf(perms.getFileContent());
+      const defaultProfile = executionProfiles?.default as Record<string, unknown>;
+      expect(defaultProfile.read_files).toBe("always_allow");
+      expect(defaultProfile.directory_allowlist).toEqual(["/home/me/projects"]);
+      expect(defaultProfile.mcp_denylist).toEqual(["untrusted-server"]);
+      // Forward-compat keys pass through verbatim.
+      expect(defaultProfile.write_to_pty).toBe("always_ask");
+      // Command lists stay rulesync-owned and other profile keys survive.
+      expect(defaultProfile.command_allowlist).toEqual(["git .*"]);
+      expect(defaultProfile.name).toBe("Default");
+      // The nested block does not leak into the legacy [agents.profiles] table.
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles.execution_profile).toBeUndefined();
+      expect(profiles.read_files).toBeUndefined();
+    });
+
+    it("keeps rulesync ownership of the command lists over an execution_profile override", async () => {
+      const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.toml"),
+        ["[agents.execution_profiles.default]", 'name = "Default"', ""].join("\n"),
+      );
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash: { "git .*": "allow" } },
+            warp: {
+              execution_profile: { command_allowlist: ["override .*"] },
+            },
+          }),
+        }),
+        global: true,
+      });
+
+      const executionProfiles = executionProfilesOf(perms.getFileContent());
+      const defaultProfile = executionProfiles?.default as Record<string, unknown>;
+      expect(defaultProfile.command_allowlist).toEqual(["git .*"]);
+    });
+
+    it("warns and skips the execution_profile override on an un-migrated install", async () => {
+      const logger = createMockLogger();
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash: { "git .*": "allow" } },
+            warp: { execution_profile: { read_files: "always_allow" } },
+          }),
+        }),
+        logger,
+        global: true,
+      });
+
+      expect(executionProfilesOf(perms.getFileContent())).toBeUndefined();
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("warp.execution_profile"),
+        ),
+      ).toBe(true);
+    });
+
     it("does not create the execution-profile collection on an un-migrated install", async () => {
       const perms = await WarpPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -478,6 +579,76 @@ describe("WarpPermissions", () => {
       expect(config.warp).toEqual({
         agent_mode_coding_permissions: "always_allow_reading",
         agent_mode_execute_readonly_commands: true,
+      });
+    });
+
+    it("lifts the default profile's autonomy keys into the execution_profile override", () => {
+      const content = [
+        "[agents.execution_profiles.default]",
+        'name = "Default"',
+        'read_files = "always_allow"',
+        'execute_commands = "agent_decides"',
+        'directory_allowlist = ["/home/me/projects"]',
+        'mcp_denylist = ["untrusted-server"]',
+        'command_allowlist = ["git .*"]',
+        "",
+      ].join("\n");
+      const perms = new WarpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".config/warp-terminal",
+        relativeFilePath: "settings.toml",
+        fileContent: content,
+      });
+
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash["git .*"]).toBe("allow");
+      expect(config.warp.execution_profile).toEqual({
+        read_files: "always_allow",
+        execute_commands: "agent_decides",
+        directory_allowlist: ["/home/me/projects"],
+        mcp_denylist: ["untrusted-server"],
+      });
+      // Profile-management keys are not permissions and are not lifted.
+      expect(config.warp.execution_profile.name).toBeUndefined();
+    });
+
+    it("round-trips the execution_profile override through export and re-import", async () => {
+      const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.toml"),
+        ["[agents.execution_profiles.default]", 'name = "Default"', ""].join("\n"),
+      );
+
+      const exported = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash: { "git .*": "allow" } },
+            warp: {
+              execution_profile: {
+                read_files: "always_allow",
+                mcp_allowlist: ["trusted-server"],
+              },
+            },
+          }),
+        }),
+        global: true,
+      });
+
+      const reimported = new WarpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".config/warp-terminal",
+        relativeFilePath: "settings.toml",
+        fileContent: exported.getFileContent(),
+      });
+
+      const config = JSON.parse(reimported.toRulesyncPermissions().getFileContent());
+      expect(config.warp.execution_profile).toEqual({
+        read_files: "always_allow",
+        mcp_allowlist: ["trusted-server"],
       });
     });
 
