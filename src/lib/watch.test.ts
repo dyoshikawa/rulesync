@@ -533,11 +533,55 @@ describe("watchTargets", () => {
         // Simulate a delete+recreate whose delete event was not delivered
         // yet: the path still exists, but its inode no longer matches the
         // one recorded at attach time. An events-only existence check would
-        // keep the dead watcher forever; the inode comparison must re-arm.
-        statSyncMock.mockReturnValue({ ino: 999_999_999n });
+        // keep the dead watcher forever; the identity comparison must re-arm.
+        statSyncMock.mockReturnValue({ ino: 999_999_999n, birthtimeNs: 1n });
         // Any event — even one the include filter rejects — runs the
         // liveness check.
         await writeFile(join(configDir, "decoy.md"), "# decoy\n", "utf8");
+        await waitFor(() => changed.includes(configDir));
+      } finally {
+        statSyncMock.mockImplementation(actual.statSync);
+        handle.close();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("re-attaches when the recreated directory reuses the watched inode", async () => {
+    const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const configDir = join(testDir, "packages", "app");
+      await mkdir(configDir, { recursive: true });
+      const attachStats = actual.statSync(configDir, { bigint: true });
+
+      const changed: string[] = [];
+      const handle = watchTargets({
+        targets: [
+          {
+            directory: configDir,
+            recursive: false,
+            include: (relativePath) => relativePath === RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+          },
+        ],
+        onChange: ({ path }) => {
+          changed.push(path);
+        },
+        onError: () => {},
+        rearmIntervalMs: 25,
+      });
+
+      try {
+        // ext4 hands a freed inode number to the next allocation, so a
+        // deleted and recreated directory can present the inode recorded at
+        // attach time while the watch is bound to the dead one — the exact
+        // state a bare inode comparison cannot see. The creation time still
+        // differs, so the liveness sweep must detach and re-arm.
+        statSyncMock.mockReturnValue({
+          ino: attachStats.ino,
+          birthtimeNs: attachStats.birthtimeNs + 1n,
+        });
         await waitFor(() => changed.includes(configDir));
       } finally {
         statSyncMock.mockImplementation(actual.statSync);

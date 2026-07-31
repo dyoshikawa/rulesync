@@ -137,15 +137,25 @@ export type WatchHandle = {
 export const DEFAULT_WATCH_REARM_INTERVAL_MS = 500;
 
 /**
- * Inode of the path, or undefined when it is missing, unreadable, or the
- * platform reports no usable inode (Windows file systems without file IDs
- * report 0). Bigint stats avoid inode truncation on platforms with 64-bit
- * inode numbers.
+ * Identity of the directory behind the path, or undefined when it is missing,
+ * unreadable, or the platform reports no usable inode (Windows file systems
+ * without file IDs report 0). Bigint stats avoid inode truncation on
+ * platforms with 64-bit inode numbers.
+ *
+ * The inode alone is not a reliable identity: ext4 hands a freed inode number
+ * to the next allocation in the same block group, so a deleted and quickly
+ * recreated directory can present the watcher's recorded inode while the
+ * watch is bound to the dead one. Creation time separates the two
+ * generations; file systems that do not report it (birthtime of 0) fall back
+ * to the inode alone.
  */
-function statIno(path: string): bigint | undefined {
+function statIdentity(path: string): string | undefined {
   try {
-    const ino = statSync(path, { bigint: true }).ino;
-    return ino === 0n ? undefined : ino;
+    const stats = statSync(path, { bigint: true });
+    if (stats.ino === 0n) {
+      return undefined;
+    }
+    return stats.birthtimeNs ? `${stats.ino}:${stats.birthtimeNs}` : `${stats.ino}`;
   } catch {
     return undefined;
   }
@@ -175,17 +185,17 @@ function watchTargetWithRearm({
   rearmIntervalMs: number;
 }): WatchHandle {
   let watcher: FSWatcher | undefined;
-  let watchedIno: bigint | undefined;
+  let watchedIdentity: string | undefined;
   let rearmTimer: ReturnType<typeof setInterval> | undefined;
   let closed = false;
 
   const attach = (): void => {
     // Stat before watching so a delete+recreate between the two calls leaves
-    // `watchedIno` on the old inode: the next liveness check then sees a
-    // mismatch and self-heals with one extra re-attach. The opposite order
-    // would record the new inode for a watcher bound to the dead one,
-    // silencing the watch permanently.
-    const ino = statIno(target.directory);
+    // `watchedIdentity` on the old directory: the next liveness check then
+    // sees a mismatch and self-heals with one extra re-attach. The opposite
+    // order would record the new identity for a watcher bound to the dead
+    // one, silencing the watch permanently.
+    const identity = statIdentity(target.directory);
     const created = fsWatch(
       target.directory,
       { recursive: target.recursive, persistent: true },
@@ -215,7 +225,7 @@ function watchTargetWithRearm({
       verifyStillWatching();
     });
     watcher = created;
-    watchedIno = ino;
+    watchedIdentity = identity;
   };
 
   const scheduleRearm = (): void => {
@@ -250,11 +260,15 @@ function watchTargetWithRearm({
       // and recreated before the delete event is delivered (fast branch
       // switches, slow CI event queues), the path exists again but the watch
       // is still bound to the dead inode and would never fire again. Compare
-      // inodes to detect the replacement; an unreadable stat on either side
-      // falls back to treating the watcher as alive, matching the previous
-      // behavior.
-      const currentIno = statIno(target.directory);
-      if (currentIno === undefined || watchedIno === undefined || currentIno === watchedIno) {
+      // identities (inode plus creation time) to detect the replacement; an
+      // unreadable stat on either side falls back to treating the watcher as
+      // alive, matching the previous behavior.
+      const currentIdentity = statIdentity(target.directory);
+      if (
+        currentIdentity === undefined ||
+        watchedIdentity === undefined ||
+        currentIdentity === watchedIdentity
+      ) {
         return;
       }
     }
