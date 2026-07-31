@@ -723,6 +723,110 @@ Unquoted colon`,
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("indentation"));
     });
 
+    it("should import the .agents/skills interop root leniently for non-lenient tools", async () => {
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "rovodev",
+      });
+      const nativeDir = join(testDir, ".rovodev", "skills", "native-skill");
+      const interopBadDir = join(testDir, ".agents", "skills", "bad-skill");
+      await ensureDir(nativeDir);
+      await ensureDir(interopBadDir);
+      await writeFileContent(
+        join(nativeDir, "SKILL.md"),
+        `---
+name: native-skill
+description: A conformant skill
+---
+Native body`,
+      );
+      await writeFileContent(
+        join(interopBadDir, "SKILL.md"),
+        `---
+name: bad-skill
+---
+Missing description`,
+      );
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(join(".agents", "skills", "bad-skill")),
+      );
+    });
+
+    it("should import leniently when the interop root is the tool's primary root (codexcli)", async () => {
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+      });
+      const goodDir = join(testDir, ".agents", "skills", "good-skill");
+      const badDir = join(testDir, ".agents", "skills", "bad-skill");
+      await ensureDir(goodDir);
+      await ensureDir(badDir);
+      await writeFileContent(
+        join(goodDir, "SKILL.md"),
+        `---
+name: good-skill
+description: A conformant skill
+---
+Good body`,
+      );
+      await writeFileContent(
+        join(badDir, "SKILL.md"),
+        `---
+name: bad-skill
+description: "unterminated
+---
+Broken YAML`,
+      );
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(join(".agents", "skills", "bad-skill")),
+      );
+    });
+
+    it("should skip a broken flat-file skill in the interop root instead of aborting (kimi-code)", async () => {
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "kimi-code",
+      });
+      const interopDir = join(testDir, ".agents", "skills");
+      await ensureDir(interopDir);
+      await writeFileContent(
+        join(interopDir, "good-flat.md"),
+        `---
+name: good-flat
+description: A conformant flat skill
+---
+Good flat body`,
+      );
+      await writeFileContent(
+        join(interopDir, "bad-flat.md"),
+        `---
+description: "unterminated
+---
+Broken YAML`,
+      );
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(join(".agents", "skills", "bad-flat.md")),
+      );
+    });
+
     it("should still abort import for non-lenient tools when a declared-root skill is invalid", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),

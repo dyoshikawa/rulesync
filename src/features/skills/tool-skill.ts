@@ -1,8 +1,10 @@
 import { join } from "node:path";
 
+import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
+import { AMP_SKILLS_GLOBAL_DIR } from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { AiDir } from "../../types/ai-dir.js";
-import { fileExists, readFileContent } from "../../utils/file.js";
+import { fileExists, readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatter } from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
@@ -38,6 +40,25 @@ export type ToolSkillSettablePaths = {
 /** Ordered skill directory roots: primary first. */
 export function toolSkillSearchRoots(paths: ToolSkillSettablePaths): string[] {
   return [paths.relativeDirPath, ...(paths.alternativeSkillRoots ?? [])];
+}
+
+/**
+ * The Agent Skills interoperability roots: project `.agents/skills/`, global
+ * `~/.agents/skills/` (same relative path, home output root), and Amp's global
+ * equivalent `~/.config/agents/skills/`. Foreign-authored — potentially
+ * non-conformant — skills are the most likely to live here, so every tool that
+ * scans one of these roots imports it leniently (skip-and-warn per skill), per
+ * the Agent Skills client-implementation guide, while keeping fail-fast
+ * behavior for its own native root.
+ * https://agentskills.io/client-implementation/adding-skills-support
+ */
+const AGENT_SKILLS_INTEROP_ROOTS: ReadonlySet<string> = new Set([
+  toPosixPath(AGENTSMD_SKILLS_DIR_PATH),
+  toPosixPath(AMP_SKILLS_GLOBAL_DIR),
+]);
+
+export function isAgentSkillsInteropRoot(relativeDirPath: string): boolean {
+  return AGENT_SKILLS_INTEROP_ROOTS.has(toPosixPath(relativeDirPath));
 }
 
 /** Ordered import roots: managed roots first, followed by read-only discovery roots. */
