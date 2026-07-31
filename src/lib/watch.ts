@@ -260,14 +260,32 @@ function watchTargetWithRearm({
     }
     watcher.close();
     watcher = undefined;
+    // Report the disappearance the same way an OS delete event would have —
+    // liveness may have detected it purely by polling, with no event ever
+    // delivered. The scheduler debounces, so an extra notification after an
+    // event-driven detection is harmless.
+    onChange({ path: target.directory });
     scheduleRearm();
   };
 
   attach();
 
+  // Event-driven liveness checks alone are not enough: OS event delivery for
+  // a deleted watched directory can be arbitrarily late or dropped entirely
+  // (observed on loaded CI runners), leaving a dead watcher attached forever.
+  // A periodic sweep runs the same inode-based check on a timer, so a
+  // replaced or removed directory is detected within `rearmIntervalMs` even
+  // when no event ever arrives. `unref()` keeps the interval from holding the
+  // process open on its own.
+  const livenessTimer = setInterval(() => {
+    verifyStillWatching();
+  }, rearmIntervalMs);
+  livenessTimer.unref?.();
+
   return {
     close: () => {
       closed = true;
+      clearInterval(livenessTimer);
       if (rearmTimer !== undefined) {
         clearInterval(rearmTimer);
         rearmTimer = undefined;
