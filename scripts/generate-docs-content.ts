@@ -4,6 +4,8 @@ import { join, relative, sep } from "node:path";
 
 import { globbySync } from "globby";
 
+import { renderHookEventsMatrix } from "./hook-events-table.js";
+
 /**
  * Embed the canonical `docs/**\/*.md` hierarchy into a generated TypeScript
  * module so the `rulesync docs` command can serve it from every distribution
@@ -13,6 +15,20 @@ import { globbySync } from "globby";
 const repoRoot = join(import.meta.dirname, "..");
 const docsRoot = join(repoRoot, "docs");
 const outputPath = join(repoRoot, "src", "generated", "docs-content.ts");
+
+// Regenerate the derived hook-event matrix inside file-formats.md before
+// embedding, so a stale committed table fails the docs-content drift check.
+const hookMatrixPath = join(docsRoot, "reference", "file-formats.md");
+const hookMatrixSource = readFileSync(hookMatrixPath, "utf8");
+const hookMatrixRendered = renderHookEventsMatrix(hookMatrixSource);
+if (hookMatrixRendered !== hookMatrixSource) {
+  writeFileSync(hookMatrixPath, hookMatrixRendered, "utf8");
+  execFileSync("npx", ["oxfmt", relative(repoRoot, hookMatrixPath)], {
+    cwd: repoRoot,
+    stdio: "ignore",
+    shell: process.platform === "win32",
+  });
+}
 
 const filePaths = globbySync("**/*.md", {
   cwd: docsRoot,
