@@ -139,7 +139,7 @@ export class RooRule extends ToolRule {
    * Glob for the `separate-local-file` deletion; Roo reads `AGENTS.local.md`
    * at the project root, not under `.roo/` (mirrors rovodev).
    */
-  static getLocalRootDeletionGlob({
+  static getLocalRootFileGlob({
     outputRoot,
     fileName,
   }: {

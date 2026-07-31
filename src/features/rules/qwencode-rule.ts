@@ -355,7 +355,7 @@ export class QwencodeRule extends ToolRule {
    * The personal local context file lives under `.qwen/`, not at the project
    * root where the settable root path points, so override the deletion glob.
    */
-  static getLocalRootDeletionGlob({
+  static getLocalRootFileGlob({
     outputRoot,
     fileName,
   }: {

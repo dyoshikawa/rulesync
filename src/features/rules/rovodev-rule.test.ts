@@ -301,15 +301,18 @@ describe("RovodevRule", () => {
       expect(rulesyncRule.getFrontmatter().root).toBe(true);
     });
 
-    it("should map AGENTS.local.md to localRoot rulesync rule", () => {
+    it("should map AGENTS.local.md to localRoot rulesync rule via toLocalRootRulesyncRule", () => {
       const rovodevRule = new RovodevRule({
         relativeDirPath: ".",
         relativeFilePath: "AGENTS.local.md",
         fileContent: "# Local only",
         root: true,
+        localRoot: true,
       });
 
-      const rulesyncRule = rovodevRule.toRulesyncRule();
+      expect(rovodevRule.isLocalRoot()).toBe(true);
+
+      const rulesyncRule = rovodevRule.toLocalRootRulesyncRule({ targets: ["rovodev"] });
 
       expect(rulesyncRule.getRelativeFilePath()).toBe("AGENTS.local.md");
       expect(rulesyncRule.getFrontmatter().localRoot).toBe(true);
@@ -529,10 +532,10 @@ describe("RovodevRule", () => {
     });
   });
 
-  describe("getLocalRootDeletionGlob", () => {
+  describe("getLocalRootFileGlob", () => {
     it("points the separate-local-file glob at the project root, not under .rovodev/", () => {
       expect(
-        RovodevRule.getLocalRootDeletionGlob({ outputRoot: testDir, fileName: "AGENTS.local.md" }),
+        RovodevRule.getLocalRootFileGlob({ outputRoot: testDir, fileName: "AGENTS.local.md" }),
       ).toBe(join(testDir, "AGENTS.local.md"));
     });
   });

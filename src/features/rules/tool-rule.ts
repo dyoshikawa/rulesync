@@ -12,6 +12,12 @@ import { RulesyncRule } from "./rulesync-rule.js";
 
 export type ToolRuleParams = AiFileParams & {
   root?: boolean | undefined;
+  /**
+   * Marks a tool rule loaded from a tool's separate personal local-root file
+   * (e.g. `CLAUDE.local.md`, `AGENTS.local.md`, `.qwen/QWEN.local.md`) so the
+   * import flow maps it back to a canonical `localRoot: true` rulesync rule.
+   */
+  localRoot?: boolean | undefined;
   description?: string | undefined;
   globs?: string[] | undefined;
 };
@@ -113,12 +119,14 @@ type BuildToolRuleParamsResult = Omit<ToolRuleParams, "root"> & {
 
 export abstract class ToolRule extends ToolFile {
   protected readonly root: boolean;
+  protected readonly localRoot: boolean;
   protected readonly description?: string | undefined;
   protected readonly globs?: string[] | undefined;
 
-  constructor({ root = false, description, globs, ...rest }: ToolRuleParams) {
+  constructor({ root = false, localRoot = false, description, globs, ...rest }: ToolRuleParams) {
     super(rest);
     this.root = root;
+    this.localRoot = localRoot;
     this.description = description;
     this.globs = globs;
   }
@@ -228,6 +236,40 @@ export abstract class ToolRule extends ToolFile {
 
   isRoot(): boolean {
     return this.root;
+  }
+
+  isLocalRoot(): boolean {
+    return this.localRoot;
+  }
+
+  /**
+   * Convert a tool's separate personal local-root file (see
+   * {@link ToolRuleParams.localRoot}) back to a canonical `localRoot: true`
+   * rulesync rule. The rulesync file keeps the tool-side basename
+   * (`CLAUDE.local.md`, `AGENTS.local.md`, ...), which the derived `.gitignore`
+   * already covers via `.rulesync/rules/*.local.md`, so personal content stays
+   * untracked after import.
+   *
+   * `targets` is scoped to the importing tool rather than `"*"`. A wildcard
+   * would spread the personal content to every tool on the next generate —
+   * including being appended into the committed root file of tools without a
+   * separate local file — and a multi-target import would produce several
+   * wildcard localRoot rules, which the per-target validation rejects.
+   */
+  toLocalRootRulesyncRule({ targets }: { targets: ToolTarget[] }): RulesyncRule {
+    return new RulesyncRule({
+      outputRoot: this.getOutputRoot(),
+      relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+      relativeFilePath: this.getRelativeFilePath(),
+      frontmatter: {
+        root: false,
+        localRoot: true,
+        targets,
+        globs: [],
+      },
+      body: this.getFileContent(),
+      validate: true,
+    });
   }
 
   /**
