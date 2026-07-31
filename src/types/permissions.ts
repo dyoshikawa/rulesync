@@ -213,13 +213,23 @@ export type ClaudecodePermissionsOverride = z.infer<typeof ClaudecodePermissions
  * category; the shared `permission` block still drives the base permission and
  * allow/deny lists. Keyed by canonical category (e.g. `bash`, `edit`).
  *
+ * Vibe's top-level `enabled_tools` is an **exclusive** allowlist — when set,
+ * only the listed tools (name or pattern) are active and every other builtin
+ * and MCP tool is off. That narrowing cannot be derived from canonical `allow`
+ * rules (an allow grants one tool without revoking the rest), so the list is
+ * only ever authored explicitly here, verbatim in Vibe's tool-name vocabulary,
+ * and round-trips through this override on import.
+ *
  * @example
  * { "permission": { "bash": { "sensitive_patterns": ["rm *", "sudo *"] } } }
+ * @example
+ * { "enabled_tools": ["bash", "read_file", "grep"] }
  */
 const VibePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(
     z.record(z.string(), z.looseObject({ sensitive_patterns: z.optional(z.array(z.string())) })),
   ),
+  enabled_tools: z.optional(z.array(z.string())),
 });
 export type VibePermissionsOverride = z.infer<typeof VibePermissionsOverrideSchema>;
 

@@ -10,7 +10,9 @@ import type {
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import { warnIfGlobalVibeConfigIsShadowed } from "../shared/vibe-config-scope.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -117,6 +119,9 @@ export class VibePermissions extends ToolPermissions {
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<VibePermissions> {
     const paths = this.getSettablePaths({ global });
+    if (global) {
+      await warnIfGlobalVibeConfigIsShadowed(logger);
+    }
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const config = parseVibeConfig(existingContent);
@@ -138,55 +143,11 @@ export class VibePermissions extends ToolPermissions {
     }
 
     for (const [category, rules] of Object.entries(permission)) {
-      const vibeToolName = toVibeToolName(category);
-      const existingTool = toVibeToolConfig(tools[vibeToolName]);
-      const nextTool: VibeToolConfig = { ...existingTool };
-      const allow = new Set(toStringArray(existingTool.allow ?? existingTool.allowlist));
-      const deny = new Set(toStringArray(existingTool.deny ?? existingTool.denylist));
-
-      for (const [pattern, action] of Object.entries(rules)) {
-        if (pattern === "*") {
-          applyWildcardPermission({ action, toolConfig: nextTool });
-          if (action === "deny") {
-            disabledTools.add(vibeToolName);
-            enabledTools.delete(vibeToolName);
-          } else if (action === "allow") {
-            enabledTools.add(vibeToolName);
-            disabledTools.delete(vibeToolName);
-          }
-          continue;
-        }
-
-        if (action === "ask") {
-          logger?.warn(
-            `Vibe permissions do not support pattern-level "ask" rules. Skipping ${category}: ${pattern}`,
-          );
-          continue;
-        }
-
-        if (action === "allow") {
-          allow.add(pattern);
-        } else {
-          deny.add(pattern);
-        }
-      }
-
-      // Vibe's per-tool config honors `allowlist`/`denylist` (BaseToolConfig);
-      // the legacy `allow`/`deny` keys are tolerated (extra="allow") but never
-      // consulted. Emit the canonical keys and drop any legacy keys carried over
-      // from the existing file so a server is never left with both.
-      delete nextTool.allow;
-      delete nextTool.deny;
-      if (allow.size > 0) {
-        nextTool.allowlist = [...allow].toSorted();
-      }
-      if (deny.size > 0) {
-        nextTool.denylist = [...deny].toSorted();
-      }
-      tools[vibeToolName] = nextTool;
+      applyCategoryRules({ category, rules, tools, enabledTools, disabledTools, logger });
     }
 
-    applyVibeSensitivePatterns(tools, rulesyncPermissions.getJson().vibe);
+    const vibeOverride = rulesyncPermissions.getJson().vibe;
+    applyVibeSensitivePatterns(tools, vibeOverride);
 
     return new VibePermissions({
       outputRoot,
@@ -198,7 +159,7 @@ export class VibePermissions extends ToolPermissions {
         existingContent,
         patch: {
           tools,
-          enabled_tools: enabledTools.size > 0 ? [...enabledTools].toSorted() : undefined,
+          enabled_tools: resolveEnabledToolsPatch({ vibeOverride, enabledTools }),
           disabled_tools: disabledTools.size > 0 ? [...disabledTools].toSorted() : undefined,
         },
         filePath,
@@ -212,9 +173,11 @@ export class VibePermissions extends ToolPermissions {
     const permission: PermissionsConfig["permission"] = {};
     const vibeOverridePermission: Record<string, { sensitive_patterns: string[] }> = {};
 
-    for (const tool of toStringArray(this.toml.enabled_tools)) {
-      ensurePermission(permission, toCanonicalToolName(tool))["*"] = "allow";
-    }
+    // A non-empty `enabled_tools` is an exclusive allowlist ("if set, only
+    // these tools will be active"), not a set of allow grants — importing it
+    // as `"*": "allow"` misrepresented it. It is lifted verbatim into the
+    // `vibe` override below instead, so the narrowing round-trips honestly.
+    const enabledToolsList = toStringArray(this.toml.enabled_tools);
     for (const tool of toStringArray(this.toml.disabled_tools)) {
       ensurePermission(permission, toCanonicalToolName(tool))["*"] = "deny";
     }
@@ -251,10 +214,16 @@ export class VibePermissions extends ToolPermissions {
       }
     }
 
+    const vibeOverride: Record<string, unknown> = {};
+    if (Object.keys(vibeOverridePermission).length > 0) {
+      vibeOverride.permission = vibeOverridePermission;
+    }
+    if (enabledToolsList.length > 0) {
+      vibeOverride.enabled_tools = enabledToolsList;
+    }
+
     const json: PermissionsConfig =
-      Object.keys(vibeOverridePermission).length > 0
-        ? { permission, vibe: { permission: vibeOverridePermission } }
-        : { permission };
+      Object.keys(vibeOverride).length > 0 ? { permission, vibe: vibeOverride } : { permission };
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(json, null, 2),
@@ -313,6 +282,100 @@ function applyVibeSensitivePatterns(
   }
 }
 
+/**
+ * Translate one canonical category's rules into the tool's `[tools.<name>]`
+ * table and the top-level `disabled_tools` filter, mutating `tools` and the
+ * filter sets in place.
+ */
+function applyCategoryRules({
+  category,
+  rules,
+  tools,
+  enabledTools,
+  disabledTools,
+  logger,
+}: {
+  category: string;
+  rules: Record<string, PermissionAction>;
+  tools: Record<string, VibeToolConfig>;
+  enabledTools: Set<string>;
+  disabledTools: Set<string>;
+  logger?: Logger;
+}): void {
+  const vibeToolName = toVibeToolName(category);
+  const existingTool = toVibeToolConfig(tools[vibeToolName]);
+  const nextTool: VibeToolConfig = { ...existingTool };
+  const allow = new Set(toStringArray(existingTool.allow ?? existingTool.allowlist));
+  const deny = new Set(toStringArray(existingTool.deny ?? existingTool.denylist));
+
+  for (const [pattern, action] of Object.entries(rules)) {
+    if (pattern === "*") {
+      applyWildcardPermission({ action, toolConfig: nextTool });
+      if (action === "deny") {
+        disabledTools.add(vibeToolName);
+        enabledTools.delete(vibeToolName);
+      } else if (action === "allow") {
+        // Deliberately NOT added to `enabled_tools`: that key is an exclusive
+        // allowlist upstream ("if set, only these tools will be active"), so
+        // appending tools here to express an allow silently switched off every
+        // other builtin and MCP tool. The `[tools.<name>] permission =
+        // "always"` entry written above already expresses the allow completely.
+        disabledTools.delete(vibeToolName);
+      }
+      continue;
+    }
+
+    if (action === "ask") {
+      logger?.warn(
+        `Vibe permissions do not support pattern-level "ask" rules. Skipping ${category}: ${pattern}`,
+      );
+      continue;
+    }
+
+    if (action === "allow") {
+      allow.add(pattern);
+    } else {
+      deny.add(pattern);
+    }
+  }
+
+  // Vibe's per-tool config honors `allowlist`/`denylist` (BaseToolConfig);
+  // the legacy `allow`/`deny` keys are tolerated (extra="allow") but never
+  // consulted. Emit the canonical keys and drop any legacy keys carried over
+  // from the existing file so a server is never left with both.
+  delete nextTool.allow;
+  delete nextTool.deny;
+  if (allow.size > 0) {
+    nextTool.allowlist = [...allow].toSorted();
+  }
+  if (deny.size > 0) {
+    nextTool.denylist = [...deny].toSorted();
+  }
+  tools[vibeToolName] = nextTool;
+}
+
+/**
+ * `enabled_tools` is an exclusive allowlist and therefore only ever
+ * rulesync-authored explicitly, through `vibe.enabled_tools`. When the
+ * override declares it (even empty), rulesync owns the whole list; when it
+ * does not, the on-disk list survives minus the entries the caller's cleanup
+ * loop removed for rulesync-configured tools (which also migrates away the
+ * exclusive entries earlier rulesync versions wrote for allow rules).
+ */
+function resolveEnabledToolsPatch({
+  vibeOverride,
+  enabledTools,
+}: {
+  vibeOverride: VibePermissionsOverride | undefined;
+  enabledTools: Set<string>;
+}): string[] | undefined {
+  if (vibeOverride?.enabled_tools !== undefined) {
+    const declared = [...new Set(toStringArray(vibeOverride.enabled_tools))];
+    return declared.length > 0 ? declared.toSorted() : undefined;
+  }
+  return enabledTools.size > 0 ? [...enabledTools].toSorted() : undefined;
+}
+
 function parseVibeConfig(fileContent: string): VibeConfig {
   const parsed = smolToml.parse(fileContent || smolToml.stringify({}));
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -365,8 +428,12 @@ function applyWildcardPermission({
     toolConfig.permission = "always";
   } else if (action === "ask") {
     toolConfig.permission = "ask";
-  } else if (toolConfig.permission !== undefined) {
-    delete toolConfig.permission;
+  } else {
+    // Vibe's ToolPermission vocabulary is ALWAYS | NEVER | ASK, and Vibe's own
+    // plan-mode profile uses `permission = "never"`. Emitting it keeps the
+    // per-tool table meaningful (instead of an empty `[tools.<name>]`) and
+    // makes the round-trip symmetric — import already reads "never" as deny.
+    toolConfig.permission = "never";
   }
 }
 

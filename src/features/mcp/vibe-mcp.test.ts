@@ -330,4 +330,34 @@ describe("VibeMcp", () => {
     const imported = JSON.parse(vibeMcp.toRulesyncMcp().getFileContent());
     expect(imported.mcpServers.srv.disabledTools).toEqual(["danger"]);
   });
+
+  it("should preserve servers added outside rulesync (vibe mcp add) after the managed entries", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        "[[mcp_servers]]",
+        'name = "added-by-vibe-mcp-add"',
+        'transport = "streamable_http"',
+        'url = "https://example.com/mcp"',
+        "",
+        "[[mcp_servers]]",
+        'name = "managed"',
+        'command = "old-command"',
+      ].join("\n"),
+    );
+
+    const vibeMcp = await VibeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: buildRulesyncMcp({
+        testDir,
+        servers: { managed: { command: "node" } },
+      }),
+    });
+
+    const servers = (smolToml.parse(vibeMcp.getFileContent()) as any).mcp_servers;
+    expect(servers.map((server: any) => server.name)).toEqual(["managed", "added-by-vibe-mcp-add"]);
+    expect(servers[0].command).toBe("node");
+    expect(servers[1].url).toBe("https://example.com/mcp");
+  });
 });

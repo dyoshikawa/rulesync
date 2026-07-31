@@ -11,6 +11,7 @@ import {
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
+import { warnIfGlobalVibeConfigIsShadowed } from "../shared/vibe-config-scope.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -125,9 +126,13 @@ export class VibeMcp extends ToolMcp {
     outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
+    logger,
     global = false,
   }: ToolMcpFromRulesyncMcpParams): Promise<VibeMcp> {
     const paths = this.getSettablePaths({ global });
+    if (global) {
+      await warnIfGlobalVibeConfigIsShadowed(logger);
+    }
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     // Through the gateway rather than `parseVibeConfig`, so a malformed file
@@ -138,9 +143,19 @@ export class VibeMcp extends ToolMcp {
     );
     const existingByName = new Map(existingServers.map((server) => [server.name, server]));
 
-    const mcpServers = Object.entries(rulesyncMcp.getMcpServers()).map(([name, server]) =>
+    const rulesyncServers = rulesyncMcp.getMcpServers();
+    const managedNames = new Set(Object.keys(rulesyncServers));
+    const mcpServers = Object.entries(rulesyncServers).map(([name, server]) =>
       rulesyncMcpServerToVibe(name, server, existingByName.get(name)),
     );
+
+    // Servers added outside rulesync — most importantly through `vibe mcp add`
+    // (v2.23.0) and the `/mcp add` panel, which persist straight into this
+    // TOML — are preserved after the managed entries instead of being deleted
+    // by the whole-array replace. The flip side is documented: removing a
+    // server from `.rulesync/mcp.jsonc` no longer removes it from
+    // `config.toml`; delete it there (or via `vibe mcp remove`) as well.
+    const unmanagedServers = existingServers.filter((server) => !managedNames.has(server.name));
 
     return new VibeMcp({
       outputRoot,
@@ -150,7 +165,7 @@ export class VibeMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent,
-        patch: { mcp_servers: mcpServers },
+        patch: { mcp_servers: [...mcpServers, ...unmanagedServers] },
         filePath,
       }),
       validate,
