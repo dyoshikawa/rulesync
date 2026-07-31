@@ -3,11 +3,15 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { statSyncMock } = vi.hoisted(() => ({ statSyncMock: vi.fn() }));
+const { statSyncMock, fsWatchMock } = vi.hoisted(() => ({
+  statSyncMock: vi.fn(),
+  fsWatchMock: vi.fn(),
+}));
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
   statSyncMock.mockImplementation(actual.statSync);
-  return { ...actual, statSync: statSyncMock };
+  fsWatchMock.mockImplementation(actual.watch);
+  return { ...actual, statSync: statSyncMock, watch: fsWatchMock };
 });
 
 import {
@@ -416,6 +420,48 @@ describe("watchTargets", () => {
       }
     },
   );
+
+  it("detects a deleted directory by polling even when no fs event is ever delivered", async () => {
+    const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const watchedDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await mkdir(watchedDir, { recursive: true });
+
+      // Simulate an OS that never delivers events for this watcher (observed
+      // on loaded CI runners): the returned watcher is inert, so only the
+      // periodic liveness sweep can notice the deletion.
+      fsWatchMock.mockImplementation(
+        () =>
+          ({
+            close: () => {},
+            on: () => {},
+          }) as unknown as ReturnType<typeof actual.watch>,
+      );
+
+      const changed: string[] = [];
+      const handle = watchTargets({
+        targets: [{ directory: watchedDir, recursive: true }],
+        onChange: ({ path }) => {
+          changed.push(path);
+        },
+        onError: () => {},
+        rearmIntervalMs: 25,
+      });
+
+      try {
+        await rm(watchedDir, { recursive: true, force: true });
+        // The inert watcher emits nothing; the liveness timer must detach and
+        // report the disappearance on its own.
+        await waitFor(() => changed.includes(watchedDir));
+      } finally {
+        fsWatchMock.mockImplementation(actual.watch);
+        handle.close();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
 
   it("re-attaches when the watched directory is replaced before its delete event arrives", async () => {
     const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
