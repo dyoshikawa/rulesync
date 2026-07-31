@@ -239,6 +239,19 @@ export class WarpPermissions extends ToolPermissions {
       }
       executionProfiles[DEFAULT_PROFILE_KEY] = defaultProfile;
       agents[EXECUTION_PROFILES_KEY] = executionProfiles;
+
+      // Runtime enforcement reads the *active* profile, and rulesync manages
+      // only `default` — deny rules are silently unenforced while another
+      // profile is active, which is worth a heads-up.
+      const otherProfileIds = Object.keys(executionProfiles).filter(
+        (id) => id !== DEFAULT_PROFILE_KEY,
+      );
+      if (mergedDeny.length > 0 && otherProfileIds.length > 0 && logger) {
+        logger.warn(
+          `Warp command deny rules were written to the 'default' execution profile only; ` +
+            `they are not enforced while another profile (${otherProfileIds.join(", ")}) is active.`,
+        );
+      }
     }
 
     settings.agents = agents;
@@ -270,8 +283,9 @@ export class WarpPermissions extends ToolPermissions {
     // Prefer the current surface: on a migrated install the `default`
     // execution profile is what runtime enforcement actually reads, and its
     // command lists may have diverged from the stale legacy keys. Fall back to
-    // the legacy `[agents.profiles]` keys only when no execution-profile
-    // collection exists (un-migrated install).
+    // the legacy `[agents.profiles]` keys only when there is no `default`
+    // execution-profile record (an un-migrated install; a collection without
+    // `default` is invalid to Warp and treated the same way).
     const executionProfiles = isRecord(agents[EXECUTION_PROFILES_KEY])
       ? agents[EXECUTION_PROFILES_KEY]
       : undefined;
