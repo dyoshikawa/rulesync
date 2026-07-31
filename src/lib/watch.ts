@@ -1,4 +1,4 @@
-import { existsSync, type FSWatcher, watch as fsWatch } from "node:fs";
+import { existsSync, type FSWatcher, watch as fsWatch, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 
 import {
@@ -137,6 +137,19 @@ export type WatchHandle = {
 export const DEFAULT_WATCH_REARM_INTERVAL_MS = 500;
 
 /**
+ * Inode of the directory at `path`, or undefined when it is missing or
+ * unreadable. Bigint stats avoid inode truncation on platforms with
+ * 64-bit inode numbers.
+ */
+function statDirIno(path: string): bigint | undefined {
+  try {
+    return statSync(path, { bigint: true }).ino;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Watches one directory, re-attaching the underlying `fs.watch` if the
  * directory is deleted and later recreated.
  *
@@ -160,6 +173,7 @@ function watchTargetWithRearm({
   rearmIntervalMs: number;
 }): WatchHandle {
   let watcher: FSWatcher | undefined;
+  let watchedIno: bigint | undefined;
   let rearmTimer: ReturnType<typeof setInterval> | undefined;
   let closed = false;
 
@@ -193,6 +207,7 @@ function watchTargetWithRearm({
       verifyStillWatching();
     });
     watcher = created;
+    watchedIno = statDirIno(target.directory);
   };
 
   const scheduleRearm = (): void => {
@@ -219,8 +234,21 @@ function watchTargetWithRearm({
   };
 
   const verifyStillWatching = (): void => {
-    if (closed || watcher === undefined || existsSync(target.directory)) {
+    if (closed || watcher === undefined) {
       return;
+    }
+    if (existsSync(target.directory)) {
+      // A bare existence check is not enough: when the directory is deleted
+      // and recreated before the delete event is delivered (fast branch
+      // switches, slow CI event queues), the path exists again but the watch
+      // is still bound to the dead inode and would never fire again. Compare
+      // inodes to detect the replacement; an unreadable stat on either side
+      // falls back to treating the watcher as alive, matching the previous
+      // behavior.
+      const currentIno = statDirIno(target.directory);
+      if (currentIno === undefined || watchedIno === undefined || currentIno === watchedIno) {
+        return;
+      }
     }
     watcher.close();
     watcher = undefined;
