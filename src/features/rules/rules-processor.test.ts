@@ -86,6 +86,34 @@ describe("RulesProcessor", () => {
       expect(result[1]).toBeInstanceOf(CopilotRule);
     });
 
+    it("should emit a localRoot rule to .qwen/QWEN.local.md for qwencode", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "qwencode" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { targets: ["*"], root: true },
+          body: "Shared team instructions",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { targets: ["*"], localRoot: true },
+          body: "Personal overrides",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      const localRule = result.find((rule) => rule.getRelativeFilePath() === "QWEN.local.md");
+      expect(localRule).toBeDefined();
+      expect(localRule?.getRelativeDirPath()).toBe(".qwen");
+      expect(localRule?.getFileContent()).toBe("Personal overrides");
+    });
+
     it("should return empty array when no rules match the tool target", async () => {
       const processor = new RulesProcessor({ logger, toolTarget: "warp" });
 
@@ -1047,6 +1075,27 @@ Content that would fail parsing`;
       const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
       expect(filePaths).toContain("CLAUDE.md");
       expect(filePaths).toContain("CLAUDE.local.md");
+    });
+
+    it("should include .qwen/QWEN.local.md for deletion for qwencode", async () => {
+      await writeFileContent(join(testDir, "QWEN.md"), "# Root");
+      await writeFileContent(join(testDir, ".qwen", "QWEN.local.md"), "# Local");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "qwencode",
+      });
+
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
+
+      const filePaths = filesToDelete.map((f) =>
+        join(f.getRelativeDirPath(), f.getRelativeFilePath()),
+      );
+      expect(filePaths).toContain(join(".", "QWEN.md"));
+      expect(filePaths).toContain(join(".qwen", "QWEN.local.md"));
     });
 
     it("should include CLAUDE.local.md for deletion for claudecode-legacy", async () => {

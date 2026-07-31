@@ -226,6 +226,7 @@ docs/.vitepress/cache
 rulesync.local.jsonc
 **/AGENTS.local.md
 **/CLAUDE.local.md
+**/.qwen/QWEN.local.md
 **/.claude/CLAUDE.local.md
 **/.claude/*.lock
 **/.claude/settings.local.json

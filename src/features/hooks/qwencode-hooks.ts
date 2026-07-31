@@ -13,6 +13,7 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -38,6 +39,7 @@ function canonicalDefToQwencodeHook(
   const type = def.type ?? "command";
   const isHttp = type === "http";
   const isCommand = type === "command";
+  const isPrompt = type === "prompt";
   return {
     type,
     ...compact({
@@ -47,6 +49,11 @@ function canonicalDefToQwencodeHook(
       name: def.name,
       description: def.description,
       statusMessage: def.statusMessage,
+      // Prompt-only per-hook fields (Qwen Code PR #3388): the LLM prompt body
+      // (required upstream; `$ARGUMENTS` interpolation) and optional model
+      // override.
+      prompt: isPrompt ? def.prompt : undefined,
+      model: isPrompt ? def.model : undefined,
       // Command-only per-hook fields (Qwen Code PR #2827) — upstream documents
       // these for command hooks only, so gate on the command type explicitly.
       async: isCommand ? def.async : undefined,
@@ -69,7 +76,7 @@ function canonicalDefToQwencodeHook(
  * is needed here — commands are passed through verbatim and any such variable
  * reference stays intact for Qwen Code to expand.
  */
-function canonicalToQwencodeHooks(config: HooksConfig): Record<string, unknown[]> {
+function canonicalToQwencodeHooks(config: HooksConfig, logger?: Logger): Record<string, unknown[]> {
   const qwencodeSupported: Set<string> = new Set(QWENCODE_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
@@ -91,6 +98,13 @@ function canonicalToQwencodeHooks(config: HooksConfig): Record<string, unknown[]
     const byMatcher = new Map<string, HooksConfig["hooks"][string]>();
     for (const def of definitions) {
       if (!qwencodeSupportedTypes.has(def.type ?? "command")) continue;
+      // A prompt hook without a prompt body loads in Qwen Code and then fails
+      // silently at runtime, so surface the misconfiguration at generate time.
+      if (def.type === "prompt" && !def.prompt) {
+        logger?.warn(
+          `Qwen Code prompt hook on '${eventName}' has no 'prompt' field; Qwen Code will load it and fail it at runtime.`,
+        );
+      }
       const key = def.matcher ?? "";
       const list = byMatcher.get(key);
       if (list) list.push(def);
@@ -140,6 +154,10 @@ const QwencodeHookEntrySchema = z.looseObject({
   headers: z.optional(z.record(z.string(), z.string())),
   allowedEnvVars: z.optional(z.array(z.string())),
   once: z.optional(z.boolean()),
+  // Prompt-hook fields (Qwen Code PR #3388): the LLM prompt body (required
+  // upstream) and optional model override.
+  prompt: z.optional(z.string()),
+  model: z.optional(z.string()),
 });
 
 /**
@@ -156,52 +174,66 @@ const QwencodeMatcherEntrySchema = z.looseObject({
 /**
  * Convert a single parsed Qwen Code matcher group into canonical hook definitions.
  */
+function qwencodeHookEntryToCanonical({
+  hook,
+  sequential,
+  matcher,
+}: {
+  hook: z.infer<typeof QwencodeHookEntrySchema>;
+  sequential: boolean;
+  matcher: string | undefined;
+}): HooksConfig["hooks"][string][number] {
+  const h = hook;
+  // Preserve every documented Qwen Code hook type (`command`, `prompt`,
+  // `http`, `function`) instead of collapsing unknown types to `command`.
+  const hookType =
+    h.type === "command" || h.type === "prompt" || h.type === "http" || h.type === "function"
+      ? h.type
+      : "command";
+  const isHttp = hookType === "http";
+  const isCommand = hookType === "command";
+  const isPrompt = hookType === "prompt";
+  // The canonical schema restricts `shell` to the two values Qwen accepts;
+  // drop anything else rather than failing the whole import.
+  const shell = h.shell === "bash" || h.shell === "powershell" ? h.shell : undefined;
+  return {
+    type: hookType,
+    ...compact({
+      command: h.command,
+      url: h.url,
+      timeout: h.timeout,
+      name: h.name,
+      description: h.description,
+      // `statusMessage` applies to both command and http hooks.
+      statusMessage: h.statusMessage,
+      // Command-only per-hook fields (Qwen Code PR #2827) — command type only.
+      async: isCommand ? h.async : undefined,
+      env: isCommand ? h.env : undefined,
+      shell: isCommand ? shell : undefined,
+      // Http-only per-hook fields (Qwen Code PR #2827).
+      headers: isHttp ? h.headers : undefined,
+      allowedEnvVars: isHttp ? h.allowedEnvVars : undefined,
+      once: isHttp ? h.once : undefined,
+      // Prompt-only per-hook fields (Qwen Code PR #3388).
+      prompt: isPrompt ? h.prompt : undefined,
+      model: isPrompt ? h.model : undefined,
+      sequential: sequential ? true : undefined,
+      matcher,
+    }),
+  };
+}
+
 function qwencodeMatcherEntryToCanonical(
   entry: z.infer<typeof QwencodeMatcherEntrySchema>,
 ): HooksConfig["hooks"][string] {
-  const defs: HooksConfig["hooks"][string] = [];
-  const hooks = entry.hooks ?? [];
   const sequential = entry.sequential === true;
   const matcher =
     entry.matcher !== undefined && entry.matcher !== null && entry.matcher !== ""
       ? entry.matcher
       : undefined;
-  for (const h of hooks) {
-    // Preserve every documented Qwen Code hook type (`command`, `prompt`,
-    // `http`, `function`) instead of collapsing unknown types to `command`.
-    const hookType =
-      h.type === "command" || h.type === "prompt" || h.type === "http" || h.type === "function"
-        ? h.type
-        : "command";
-    const isHttp = hookType === "http";
-    const isCommand = hookType === "command";
-    // The canonical schema restricts `shell` to the two values Qwen accepts;
-    // drop anything else rather than failing the whole import.
-    const shell = h.shell === "bash" || h.shell === "powershell" ? h.shell : undefined;
-    defs.push({
-      type: hookType,
-      ...compact({
-        command: h.command,
-        url: h.url,
-        timeout: h.timeout,
-        name: h.name,
-        description: h.description,
-        // `statusMessage` applies to both command and http hooks.
-        statusMessage: h.statusMessage,
-        // Command-only per-hook fields (Qwen Code PR #2827) — command type only.
-        async: isCommand ? h.async : undefined,
-        env: isCommand ? h.env : undefined,
-        shell: isCommand ? shell : undefined,
-        // Http-only per-hook fields (Qwen Code PR #2827).
-        headers: isHttp ? h.headers : undefined,
-        allowedEnvVars: isHttp ? h.allowedEnvVars : undefined,
-        once: isHttp ? h.once : undefined,
-        sequential: sequential ? true : undefined,
-        matcher,
-      }),
-    });
-  }
-  return defs;
+  return (entry.hooks ?? []).map((hook) =>
+    qwencodeHookEntryToCanonical({ hook, sequential, matcher }),
+  );
 }
 
 /**
@@ -266,12 +298,13 @@ export class QwencodeHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
+    logger,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<QwencodeHooks> {
     const paths = QwencodeHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
     const config = rulesyncHooks.getJson();
-    const patch: Record<string, unknown> = { hooks: canonicalToQwencodeHooks(config) };
+    const patch: Record<string, unknown> = { hooks: canonicalToQwencodeHooks(config, logger) };
     // Round-trip Qwen Code's top-level switch that disables every hook.
     const disableAllHooks = config.qwencode?.disableAllHooks;
     if (typeof disableAllHooks === "boolean") {

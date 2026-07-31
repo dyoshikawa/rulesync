@@ -60,6 +60,9 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
 
   // Local-root rule files: materialized outside getSettablePaths.
   { target: "claudecode", feature: "rules", entry: `**/${CLAUDECODE_LOCAL_RULE_FILE_NAME}` },
+  // Qwen Code's personal project context file (v0.16.2): emitted for localRoot
+  // rules but must not be committed (Qwen Code does not gitignore it itself).
+  { target: "qwencode", feature: "rules", entry: "**/.qwen/QWEN.local.md" },
   {
     target: "claudecode",
     feature: "rules",
