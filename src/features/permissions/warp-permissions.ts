@@ -39,7 +39,8 @@ const DENYLIST_KEY = "agent_mode_command_execution_denylist";
 // Current permission surface: the `[agents.execution_profiles.<id>]` collection
 // in `settings.toml`. Runtime allow/denylist enforcement reads the active
 // execution profile; the reserved `default` key identifies the default profile.
-// Profiles use `#[serde(default)]`, so a partial record stays valid.
+// Profiles fill missing fields with defaults on load, so a partial record
+// stays valid.
 // https://github.com/warpdotdev/warp/blob/main/specs/file-backed-execution-profile-collection/TECH.md
 const EXECUTION_PROFILES_KEY = "execution_profiles";
 const DEFAULT_PROFILE_KEY = "default";
