@@ -21,7 +21,12 @@ function printLine(line: string): void {
  * Exit quietly when the consumer closes the pipe early (`rulesync docs faq |
  * head`); every other stream error keeps its default crash behavior.
  */
+let closedPipeTolerated = false;
 function tolerateClosedPipe(): void {
+  if (closedPipeTolerated) {
+    return;
+  }
+  closedPipeTolerated = true;
   process.stdout.once("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EPIPE") {
       process.exit(0);
@@ -97,7 +102,6 @@ function buildSearchIndex(): MiniSearch<{
 }> {
   const miniSearch = new MiniSearch({
     fields: ["id", "title", "headings", "body"],
-    storeFields: ["title"],
     searchOptions: {
       // Titles and headings identify a document better than a body mention.
       boost: { title: 4, headings: 3, id: 2 },
@@ -119,8 +123,8 @@ function buildSearchIndex(): MiniSearch<{
  *
  * - `rulesync docs` lists every available document identifier.
  * - `rulesync docs <document>` prints the document's Markdown verbatim.
- * - `rulesync docs --search <text>` prints ranked matches (path, score
- *   context snippet).
+ * - `rulesync docs --search <text>` prints ranked matches, one per line, as
+ *   `<document> — <matching context>`.
  *
  * Missing documents, empty/matchless searches, and combining a document
  * argument with `--search` are errors (non-zero exit via the thrown Error).
@@ -146,7 +150,7 @@ export async function docsCommand(
     }
     const terms = query.split(/\s+/);
     for (const result of results) {
-      const content = DOCS_CONTENT[result.id] ?? "";
+      const content = Object.hasOwn(DOCS_CONTENT, result.id) ? (DOCS_CONTENT[result.id] ?? "") : "";
       printLine(`${result.id} — ${contextSnippet(content, terms)}`);
     }
     logger.debug(`Found ${results.length} matching document(s).`);
@@ -164,10 +168,13 @@ export async function docsCommand(
   if (id === null) {
     throw new Error(`Invalid document identifier: '${document}'.`);
   }
-  const content = DOCS_CONTENT[id];
+  // `Object.hasOwn` keeps prototype keys such as `constructor` from leaking
+  // inherited values past the undefined check.
+  const content = Object.hasOwn(DOCS_CONTENT, id) ? DOCS_CONTENT[id] : undefined;
   if (content === undefined) {
     throw new Error(`Unknown document '${id}'. Run 'rulesync docs' to list documents.`);
   }
-  // Print verbatim so the output can be piped to other tools.
-  printLine(content);
+  // Print verbatim (the embedded content already ends with a newline) so the
+  // output can be piped to other tools.
+  process.stdout.write(content);
 }

@@ -457,3 +457,4 @@ rulesync docs --search "global mode"
 - `rulesync docs` with no argument lists all document identifiers, one per line, sorted.
 - A missing document, an invalid identifier, an empty search text, a search with no matches, or combining a document argument with `--search` each exit with code 1 and an explanatory error.
 - Document output is printed verbatim, so it can be piped to other tools.
+- The global `--json` flag is not supported (the command's output is raw Markdown, not a JSON document) and exits with code 1.

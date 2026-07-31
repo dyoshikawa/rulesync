@@ -23,7 +23,9 @@ const filePaths = globbySync("**/*.md", {
 const entries = filePaths
   .map((filePath) => {
     const id = filePath.split(sep).join("/").replace(/\.md$/, "");
-    const content = readFileSync(join(docsRoot, filePath), "utf8");
+    // Normalize line endings so a CRLF checkout (Windows autocrlf) cannot
+    // drift the generated file.
+    const content = readFileSync(join(docsRoot, filePath), "utf8").replaceAll("\r\n", "\n");
     return { id, content };
   })
   .toSorted((a, b) => (a.id < b.id ? -1 : 1));
@@ -44,6 +46,11 @@ const lines: string[] = [
 
 writeFileSync(outputPath, lines.join("\n"), "utf8");
 // Normalize to the repo's formatter so the drift check compares stable output.
-execFileSync("npx", ["oxfmt", relative(repoRoot, outputPath)], { cwd: repoRoot, stdio: "ignore" });
+execFileSync("npx", ["oxfmt", relative(repoRoot, outputPath)], {
+  cwd: repoRoot,
+  stdio: "ignore",
+  // npx is npx.cmd on Windows; a shell resolves it.
+  shell: process.platform === "win32",
+});
 // oxlint-disable-next-line no-console
 console.log(`Embedded ${entries.length} docs into ${relative(repoRoot, outputPath)}`);

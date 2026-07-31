@@ -326,7 +326,12 @@ export function createProgram(): Command {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
-      wrapCommand("docs", "DOCS_FAILED", async (logger, options, _globalOpts, positionalArgs) => {
+      wrapCommand("docs", "DOCS_FAILED", async (logger, options, globalOpts, positionalArgs) => {
+        // The command's product is raw Markdown on stdout; mixing it with the
+        // global --json envelope would break both consumers.
+        if (globalOpts.json) {
+          throw new Error("The docs command prints raw Markdown and does not support --json.");
+        }
         const document = positionalArgs[0] as string | undefined;
         await docsCommand(logger, document, options as DocsOptions);
       }),
