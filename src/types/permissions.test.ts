@@ -43,6 +43,52 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
     });
   });
 
+  describe("warp.execution_profile", () => {
+    it.each(["agent_decides", "always_allow", "always_ask"])(
+      "should accept action permission %s",
+      (value) => {
+        const result = RulesyncPermissionsFileSchema.safeParse(
+          withOverride({
+            warp: {
+              execution_profile: {
+                read_files: value,
+                execute_commands: value,
+                mcp_permissions: value,
+              },
+            },
+          }),
+        );
+        expect(result.success).toBe(true);
+      },
+    );
+
+    it("should accept the tool-specific enums and list keys", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({
+          warp: {
+            execution_profile: {
+              write_to_pty: "ask_on_first_write",
+              ask_user_question: "ask_except_in_auto_approve",
+              run_agents: "never_allow",
+              computer_use: "never",
+              directory_allowlist: ["/home/me/projects"],
+              mcp_allowlist: ["trusted"],
+              mcp_denylist: ["untrusted"],
+            },
+          },
+        }),
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject an unknown action permission value", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ warp: { execution_profile: { read_files: "sometimes" } } }),
+      );
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe("antigravity-cli.toolPermission", () => {
     it.each(["request-review", "proceed-in-sandbox", "always-proceed", "strict"])(
       "should accept %s",

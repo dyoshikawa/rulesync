@@ -351,7 +351,7 @@ describe("WarpPermissions", () => {
                 read_files: "always_allow",
                 directory_allowlist: ["/home/me/projects"],
                 mcp_denylist: ["untrusted-server"],
-                write_to_pty: "always_ask",
+                some_future_autonomy_key: "always_ask",
               },
             },
           }),
@@ -365,7 +365,7 @@ describe("WarpPermissions", () => {
       expect(defaultProfile.directory_allowlist).toEqual(["/home/me/projects"]);
       expect(defaultProfile.mcp_denylist).toEqual(["untrusted-server"]);
       // Forward-compat keys pass through verbatim.
-      expect(defaultProfile.write_to_pty).toBe("always_ask");
+      expect(defaultProfile.some_future_autonomy_key).toBe("always_ask");
       // Command lists stay rulesync-owned and other profile keys survive.
       expect(defaultProfile.command_allowlist).toEqual(["git .*"]);
       expect(defaultProfile.name).toBe("Default");
@@ -401,6 +401,60 @@ describe("WarpPermissions", () => {
       const executionProfiles = executionProfilesOf(perms.getFileContent());
       const defaultProfile = executionProfiles?.default as Record<string, unknown>;
       expect(defaultProfile.command_allowlist).toEqual(["git .*"]);
+    });
+
+    it("creates the default record inside an existing collection when it is missing", async () => {
+      const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.toml"),
+        ["[agents.execution_profiles.code-review]", 'name = "Code Review"', ""].join("\n"),
+      );
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash: { "git .*": "allow" } },
+            warp: { execution_profile: { read_files: "always_allow" } },
+          }),
+        }),
+        global: true,
+      });
+
+      // The collection already exists, so filling in the (required) default
+      // record does not complete Warp's migration early.
+      const executionProfiles = executionProfilesOf(perms.getFileContent());
+      const defaultProfile = executionProfiles?.default as Record<string, unknown>;
+      expect(defaultProfile.read_files).toBe("always_allow");
+      expect(defaultProfile.command_allowlist).toEqual(["git .*"]);
+      const otherProfile = executionProfiles?.["code-review"] as Record<string, unknown>;
+      expect(otherProfile.name).toBe("Code Review");
+    });
+
+    it("does not warn about an un-migrated install for an empty execution_profile override", async () => {
+      const logger = createMockLogger();
+      await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash: { "git .*": "allow" } },
+            warp: { execution_profile: {} },
+          }),
+        }),
+        logger,
+        global: true,
+      });
+
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("warp.execution_profile"),
+        ),
+      ).toBe(false);
     });
 
     it("warns and skips the execution_profile override on an un-migrated install", async () => {

@@ -56,16 +56,22 @@ const WARP_OVERRIDE_KEYS = [
   "agent_mode_execute_readonly_commands",
 ] as const;
 
-// Autonomy keys of the `default` execution profile that the nested
+// Permission keys of the `default` execution profile that the nested
 // `warp.execution_profile` override authors and that round-trip back into it
 // on import (`ExecutionProfileFile` in the Warp repository's
 // `app/src/ai/execution_profiles/config.rs`). Profile-management keys (name,
-// model overrides, ...) are deliberately not lifted — they are not permissions.
+// model overrides, context window limit, plan sync, web search toggle) are
+// deliberately not lifted — they are not permissions.
 const WARP_EXECUTION_PROFILE_OVERRIDE_KEY = "execution_profile";
 const WARP_EXECUTION_PROFILE_KEYS = [
   "read_files",
   "apply_code_diffs",
   "execute_commands",
+  "mcp_permissions",
+  "write_to_pty",
+  "ask_user_question",
+  "run_agents",
+  "computer_use",
   "directory_allowlist",
   "mcp_allowlist",
   "mcp_denylist",
@@ -384,8 +390,11 @@ function mergeIntoDefaultExecutionProfile({
   executionProfileOverride: Record<string, unknown> | undefined;
   logger?: Logger;
 }): void {
+  const hasOverrideKeys =
+    executionProfileOverride !== undefined && Object.keys(executionProfileOverride).length > 0;
+
   if (!isRecord(agents[EXECUTION_PROFILES_KEY])) {
-    if (executionProfileOverride && logger) {
+    if (hasOverrideKeys && logger) {
       logger.warn(
         `The warp.execution_profile permissions override was skipped: settings.toml has no ` +
           `[agents.execution_profiles] collection yet (un-migrated install). Open Warp once to ` +
@@ -419,13 +428,14 @@ function mergeIntoDefaultExecutionProfile({
   agents[EXECUTION_PROFILES_KEY] = executionProfiles;
 
   // Runtime enforcement reads the *active* profile, and rulesync manages only
-  // `default` — deny rules are silently unenforced while another profile is
-  // active, which is worth a heads-up.
+  // `default` — deny rules and override keys are silently unenforced while
+  // another profile is active, which is worth a heads-up.
   const otherProfileIds = Object.keys(executionProfiles).filter((id) => id !== DEFAULT_PROFILE_KEY);
-  if (mergedDeny.length > 0 && otherProfileIds.length > 0 && logger) {
+  if ((mergedDeny.length > 0 || hasOverrideKeys) && otherProfileIds.length > 0 && logger) {
     logger.warn(
-      `Warp command deny rules were written to the 'default' execution profile only; ` +
-        `they are not enforced while another profile (${otherProfileIds.join(", ")}) is active.`,
+      `Warp command deny rules and execution_profile override keys were written to the ` +
+        `'default' execution profile only; they are not enforced while another profile ` +
+        `(${otherProfileIds.join(", ")}) is active.`,
     );
   }
 }
