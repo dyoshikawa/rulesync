@@ -3,6 +3,7 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -299,6 +300,32 @@ describe("WarpPermissions", () => {
       expect(defaultProfile.name).toBe("Default");
     });
 
+    it("warns when deny rules are written while non-default execution profiles exist", async () => {
+      const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.toml"),
+        [
+          "[agents.execution_profiles.default]",
+          'name = "Default"',
+          "",
+          "[agents.execution_profiles.code-review]",
+          'name = "Code Review"',
+          "",
+        ].join("\n"),
+      );
+      const logger = createMockLogger();
+
+      await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "rm -rf .*": "deny" } }),
+        logger,
+        global: true,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("code-review"));
+    });
+
     it("does not create the execution-profile collection on an un-migrated install", async () => {
       const perms = await WarpPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -361,6 +388,26 @@ describe("WarpPermissions", () => {
       expect(config.permission.bash["rm -rf .*"]).toBe("deny");
       expect(config.permission.bash["stale .*"]).toBeUndefined();
       expect(config.permission.bash["stale-deny .*"]).toBeUndefined();
+    });
+
+    it("falls back to the legacy keys when the collection lacks a default record", () => {
+      const content = [
+        "[agents.profiles]",
+        `${ALLOWLIST_KEY} = ["git .*"]`,
+        "",
+        "[agents.execution_profiles.code-review]",
+        'name = "Code Review"',
+        "",
+      ].join("\n");
+      const perms = new WarpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".config/warp-terminal",
+        relativeFilePath: "settings.toml",
+        fileContent: content,
+      });
+
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash["git .*"]).toBe("allow");
     });
 
     it("falls back to the legacy keys when no execution-profile collection exists", () => {
