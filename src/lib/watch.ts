@@ -263,7 +263,7 @@ function watchTargetWithRearm({
     // Report the disappearance the same way an OS delete event would have —
     // liveness may have detected it purely by polling, with no event ever
     // delivered. The scheduler debounces, so an extra notification after an
-    // evented detection is harmless.
+    // event-driven detection is harmless.
     onChange({ path: target.directory });
     scheduleRearm();
   };
