@@ -491,6 +491,79 @@ describe("VibePermissions", () => {
     expect(parsed.enabled_tools).toEqual(["bash", "read_file"]);
   });
 
+  it("should clear the on-disk enabled_tools key when the override declares an empty list", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      'enabled_tools = ["bash", "custom_tool"]',
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "allow" } },
+          vibe: { enabled_tools: [] },
+        }),
+      }),
+    });
+
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+    expect(parsed.enabled_tools).toBeUndefined();
+  });
+
+  it("should warn when cleanup strips enabled_tools entries the override does not own", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), 'enabled_tools = ["bash"]');
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "rm -rf *": "deny" } } }),
+      }),
+      logger,
+    });
+
+    expect(
+      logger.warn.mock.calls.some(([message]) =>
+        String(message).includes("exclusive enabled_tools"),
+      ),
+    ).toBe(true);
+  });
+
+  it("should not warn about enabled_tools when the override owns the key", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), 'enabled_tools = ["bash"]');
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "allow" } },
+          vibe: { enabled_tools: ["bash", "read_file"] },
+        }),
+      }),
+      logger,
+    });
+
+    expect(
+      logger.warn.mock.calls.some(([message]) =>
+        String(message).includes("exclusive enabled_tools"),
+      ),
+    ).toBe(false);
+  });
+
   it("should round-trip enabled_tools through the vibe override on import", () => {
     const vibePermissions = new VibePermissions({
       outputRoot: testDir,

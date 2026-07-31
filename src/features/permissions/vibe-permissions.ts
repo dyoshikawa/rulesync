@@ -136,9 +136,12 @@ export class VibePermissions extends ToolPermissions {
     // stale enabled/disabled filters for those tools before reapplying the
     // current state. Filters for tools rulesync does not configure are kept as-is
     // (e.g. a user-defined `enabled_tools` entry for a Vibe-only tool).
+    const removedEnabledTools: string[] = [];
     for (const category of Object.keys(permission)) {
       const vibeToolName = toVibeToolName(category);
-      enabledTools.delete(vibeToolName);
+      if (enabledTools.delete(vibeToolName)) {
+        removedEnabledTools.push(vibeToolName);
+      }
       disabledTools.delete(vibeToolName);
     }
 
@@ -148,6 +151,21 @@ export class VibePermissions extends ToolPermissions {
 
     const vibeOverride = rulesyncPermissions.getJson().vibe;
     applyVibeSensitivePatterns(tools, vibeOverride);
+
+    // `enabled_tools` is exclusive, so removing an entry changes semantics for
+    // every OTHER tool too: an emptied list activates all tools, while a
+    // surviving list excludes the tools whose entries were just removed. The
+    // removal is intended migration for entries earlier rulesync versions
+    // wrote, but for a hand-authored exclusive list it is a silent flip — surface it
+    // unless the override takes explicit ownership of the key.
+    if (removedEnabledTools.length > 0 && vibeOverride?.enabled_tools === undefined && logger) {
+      logger.warn(
+        `Removed ${removedEnabledTools.join(", ")} from Vibe's exclusive enabled_tools list ` +
+          `(rulesync owns the tools it configures and no longer expresses allows through that ` +
+          `key). If the exclusive narrowing was intentional, declare the full list explicitly ` +
+          `via vibe.enabled_tools in .rulesync/permissions.jsonc.`,
+      );
+    }
 
     return new VibePermissions({
       outputRoot,
