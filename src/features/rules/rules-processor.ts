@@ -696,9 +696,13 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: ReasonixRule,
       meta: {
-        // Reasonix reads a single root `REASONIX.md` (project root or
-        // `~/.reasonix/REASONIX.md` global) and has no non-root instruction
-        // directory, so topic rules fold into the root file (mirrors codexcli).
+        // Reasonix reads the root `REASONIX.md` (project root or
+        // `~/.reasonix/REASONIX.md` global) and has no modular non-root
+        // instruction directory, so topic rules fold into the root file
+        // (mirrors codexcli) — except directory-scoped rules
+        // (`agentsmd.subprojectPath`), which Context Engine v2 (v1.18.0) loads
+        // per-directory and are emitted as nested `<dir>/REASONIX.md` files
+        // (imported back via `getNestedFilePatterns`).
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",

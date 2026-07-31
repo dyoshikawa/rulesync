@@ -1870,6 +1870,47 @@ Content that would fail parsing`;
     });
   });
 
+  describe("reasonix nested instruction files", () => {
+    it("should import nested REASONIX.md files alongside the root", async () => {
+      await writeFileContent(join(testDir, "REASONIX.md"), "# Root");
+      await writeFileContent(join(testDir, "packages", "api", "REASONIX.md"), "# API");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "reasonix" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const names = rulesyncFiles.map((file) => file.getRelativeFilePath());
+      expect(names).toContain("packages-api-reasonix.md");
+    });
+
+    it("should emit a subprojectPath rule as a nested file instead of folding it", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---\nroot: true\ntargets: ["reasonix"]\nglobs: ["**/*"]\n---\n# Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "api.md"),
+        `---\nroot: false\ntargets: ["reasonix"]\nglobs: ["packages/api/**/*"]\nagentsmd:\n  subprojectPath: "packages/api"\n---\n# API scoped`,
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "reasonix" });
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(
+        await processor.loadRulesyncFiles(),
+      );
+
+      const paths = toolFiles.map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+      expect(paths).toContain(join("packages", "api", "REASONIX.md"));
+      const root = toolFiles.find(
+        (file) => file.getRelativeDirPath() === "." && file.getRelativeFilePath() === "REASONIX.md",
+      );
+      expect(root?.getFileContent()).not.toContain("# API scoped");
+    });
+  });
+
   describe("localRoot import round-trip", () => {
     it("should import CLAUDE.local.md as a localRoot rulesync rule for claudecode", async () => {
       await writeFileContent(join(testDir, "CLAUDE.md"), "# Root");
