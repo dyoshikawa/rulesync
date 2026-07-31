@@ -43,6 +43,12 @@ export class OpenCodeRule extends ToolRule {
           relativeDirPath: buildToolPath(OPENCODE_GLOBAL_DIR, ".", excludeToolDir),
           relativeFilePath: OPENCODE_RULE_FILE_NAME,
         },
+        // OpenCode reads `instructions` from the global opencode.json too, so
+        // global non-root rules are written under the global config dir and
+        // registered there instead of being dropped.
+        nonRoot: {
+          relativeDirPath: buildToolPath(OPENCODE_GLOBAL_DIR, "memories", excludeToolDir),
+        },
       };
     }
     return {
@@ -56,12 +62,12 @@ export class OpenCodeRule extends ToolRule {
     };
   }
 
-  // Only project-scope rule generation writes the shared opencode.json (global
-  // skips the MCP instructions registrar).
+  // Rule generation writes the shared opencode.json at both scopes (the MCP
+  // instructions registrar runs globally too).
   static getExtraSharedWritePaths({
     global = false,
   }: { global?: boolean } = {}): SharedWritePath[] {
-    return global ? [] : [OpencodeMcp.getSettablePaths({ global: false })];
+    return [OpencodeMcp.getSettablePaths({ global })];
   }
 
   static async fromFile({

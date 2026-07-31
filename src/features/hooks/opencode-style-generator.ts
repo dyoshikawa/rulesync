@@ -18,6 +18,25 @@ const NAMED_HOOK_MATCHER_SUBJECTS: Record<string, string | null> = {
   "experimental.session.compacting": null,
 };
 
+/**
+ * OpenCode (and Kilo) have no shell-execution lifecycle event — the
+ * `command.executed` event these canonical events were once mapped to is a
+ * *slash-command* event, so a hook wired there never fired on bash commands
+ * and fired on every slash command instead. Observing a shell invocation is
+ * done with the named `tool.execute.before/after` hooks gated on the `bash`
+ * tool (the `.env protection` pattern in the OpenCode plugins doc), so these
+ * canonical events are emitted into those named hooks with an implicit
+ * `input.tool === "bash"` gate. Matchers on them are dropped upstream with a
+ * warning (`matcherEvents` covers only `preToolUse`/`postToolUse`) — the
+ * named hooks expose no command text to match against.
+ *
+ * @see https://opencode.ai/docs/plugins/
+ */
+const SHELL_EVENT_TOOL_GATES: Record<string, { toolEvent: string; tool: string }> = {
+  beforeShellExecution: { toolEvent: "tool.execute.before", tool: "bash" },
+  afterShellExecution: { toolEvent: "tool.execute.after", tool: "bash" },
+};
+
 function escapeForTemplateLiteral(command: string): string {
   return command.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
 }
@@ -38,7 +57,7 @@ function validateAndSanitizeMatcher(matcher: string): string {
   return sanitized.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-type Handler = { command: string; matcher?: string };
+type Handler = { command: string; matcher?: string; toolGate?: string };
 type HandlerGroup = Record<string, Handler[]>;
 
 /**
@@ -57,7 +76,8 @@ function collectOpencodeStyleHandlers({
   genericEventHandlers: HandlerGroup;
 }): void {
   for (const [canonicalEvent, definitions] of Object.entries(effectiveHooks)) {
-    const toolEvent = eventMap[canonicalEvent];
+    const shellGate = SHELL_EVENT_TOOL_GATES[canonicalEvent];
+    const toolEvent = shellGate?.toolEvent ?? eventMap[canonicalEvent];
     if (!toolEvent) continue;
 
     const handlers: Handler[] = [];
@@ -67,6 +87,7 @@ function collectOpencodeStyleHandlers({
       handlers.push({
         command: def.command,
         matcher: def.matcher ? def.matcher : undefined,
+        ...(shellGate ? { toolGate: shellGate.tool } : {}),
       });
     }
 
@@ -113,7 +134,12 @@ function buildNamedEventBodyLines(namedEventHandlers: HandlerGroup): string[] {
     bodyLines.push(`    "${eventName}": async (input) => {`);
     for (const handler of handlers) {
       const escapedCommand = escapeForTemplateLiteral(handler.command);
-      if (handler.matcher && matcherSubject !== null) {
+      if (handler.toolGate) {
+        // Shell-event handler: fires only for the gated tool's executions.
+        bodyLines.push(`      if (input.tool === "${handler.toolGate}") {`);
+        bodyLines.push(`        await $\`${escapedCommand}\`;`);
+        bodyLines.push("      }");
+      } else if (handler.matcher && matcherSubject !== null) {
         const safeMatcher = validateAndSanitizeMatcher(handler.matcher);
         bodyLines.push("      {");
         bodyLines.push(`        const __re = new RegExp("${safeMatcher}");`);

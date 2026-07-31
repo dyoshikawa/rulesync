@@ -42,6 +42,35 @@ describe("OpencodeHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
+    it("should gate shell events on the bash tool inside the named hooks", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          beforeShellExecution: [{ type: "command", command: "pre-shell.sh" }],
+          afterShellExecution: [{ type: "command", command: "post-shell.sh" }],
+          preToolUse: [{ type: "command", command: "pre-tool.sh", matcher: "bash|edit" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+      });
+
+      const content = OpencodeHooks.fromRulesyncHooks({ rulesyncHooks }).getFileContent();
+
+      // Both shell events land in the named tool.execute.* hooks with an
+      // implicit bash gate, alongside the matcher-driven preToolUse handler.
+      expect(content).toContain('"tool.execute.before": async (input) =>');
+      expect(content).toContain('"tool.execute.after": async (input) =>');
+      const gateCount = content.split('if (input.tool === "bash")').length - 1;
+      expect(gateCount).toBe(2);
+      expect(content).toContain("pre-shell.sh");
+      expect(content).toContain("post-shell.sh");
+      expect(content).toContain("pre-tool.sh");
+      expect(content).not.toContain("command.executed");
+    });
+
     it("should filter shared hooks to OpenCode-supported events only", () => {
       const config = {
         version: 1,
@@ -80,7 +109,10 @@ describe("OpencodeHooks", () => {
       expect(content).toContain(".rulesync/hooks/audit.sh");
       expect(content).toContain('event.type === "file.edited"');
       expect(content).toContain("format.sh");
-      expect(content).toContain('event.type === "command.executed"');
+      // afterShellExecution is a bash-gated named hook, not the slash-command
+      // event `command.executed` it was once (wrongly) mapped to.
+      expect(content).not.toContain("command.executed");
+      expect(content).toContain('if (input.tool === "bash")');
       expect(content).toContain("post-shell.sh");
 
       // permissionRequest maps to generic event permission.asked

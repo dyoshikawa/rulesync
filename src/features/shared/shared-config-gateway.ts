@@ -586,6 +586,10 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
+      // OpenCode reads `instructions` from the global config too; the rules
+      // feature registers global non-root rules here (recomputed from the
+      // existing list before being applied, like the project-scope entry).
+      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
     },
   },
   // Kilo config (`kilo.json` / preferred `kilo.jsonc` twin) — same shape as

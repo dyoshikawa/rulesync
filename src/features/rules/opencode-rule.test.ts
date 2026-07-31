@@ -762,7 +762,11 @@ describe("OpenCodeRule", () => {
         relativeDirPath: ".config/opencode",
         relativeFilePath: "AGENTS.md",
       });
-      expect(paths).not.toHaveProperty("nonRoot");
+      // OpenCode reads `instructions` from the global opencode.json too, so
+      // global non-root rules are generated under the global config dir.
+      expect(paths.nonRoot).toEqual({
+        relativeDirPath: join(".config", "opencode", "memories"),
+      });
     });
 
     it("should have different paths than regular getSettablePaths", () => {

@@ -289,6 +289,14 @@ type ToolRuleFactory = {
      * auto-load non-root rules. The root rule is auto-loaded and never registered.
      */
     mcpInstructionsRegistrar?: McpInstructionsRegistrar;
+    /**
+     * Whether the registrar also runs in global mode (the tool reads
+     * `instructions` from its global config too, e.g. OpenCode's
+     * `~/.config/opencode/opencode.json`). Off by default: some tools
+     * auto-discover their global non-root directory (Kilo) and registering
+     * there would be wrong.
+     */
+    mcpInstructionsRegistrarGlobal?: boolean;
     /** How a `localRoot: true` rule is materialized. Defaults to `append-to-root`. */
     localRootMode?: LocalRootMode;
     /** File name for the `separate-local-file` local-root file. */
@@ -652,6 +660,10 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
         mcpInstructionsRegistrar: OpencodeMcp,
+        // OpenCode reads `instructions` from the global
+        // `~/.config/opencode/opencode.json` too, so global non-root rules are
+        // generated and registered instead of being dropped.
+        mcpInstructionsRegistrarGlobal: true,
         collisionPolicy: "compose",
       },
     },
@@ -1062,7 +1074,8 @@ export class RulesProcessor extends FeatureProcessor {
   /**
    * Non-root rules of some tools are not auto-loaded; the tool's MCP feature
    * registers them in its shared config's `instructions` key. The root rule is
-   * auto-loaded and never registered. Project scope only.
+   * auto-loaded and never registered. Global scope opt-in via
+   * `mcpInstructionsRegistrarGlobal`.
    */
   private async buildMcpInstructionFiles({
     toolRules,
@@ -1071,7 +1084,7 @@ export class RulesProcessor extends FeatureProcessor {
     toolRules: ToolRule[];
     meta: ToolRuleFactory["meta"];
   }): Promise<ToolFile[]> {
-    if (!meta.mcpInstructionsRegistrar || this.global) {
+    if (!meta.mcpInstructionsRegistrar || (this.global && !meta.mcpInstructionsRegistrarGlobal)) {
       return [];
     }
     const instructionPaths = toolRules

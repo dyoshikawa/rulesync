@@ -10,7 +10,7 @@ import {
 } from "../../constants/opencode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import {
@@ -607,6 +607,15 @@ export class OpencodeMcp extends ToolMcp {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
+    // Instruction entries resolve relative to the config file's directory. At
+    // project scope both live at the project root, so paths pass through; at
+    // global scope the rules land under the same `.config/opencode/` dir the
+    // config lives in, so that prefix is stripped.
+    const configDirPrefix = `${toPosixPath(basePaths.relativeDirPath).replace(/\/+$/, "")}/`;
+    const normalizedInstructions = instructions.map((path) =>
+      global && path.startsWith(configDirPrefix) ? path.slice(configDirPrefix.length) : path,
+    );
+
     let fileContent: string | null = null;
     let relativeFilePath = OPENCODE_JSONC_FILE_NAME;
 
@@ -628,7 +637,7 @@ export class OpencodeMcp extends ToolMcp {
       : [];
 
     const mergedInstructions = Array.from(
-      new Set([...existingInstructions, ...instructions]),
+      new Set([...existingInstructions, ...normalizedInstructions]),
     ).toSorted();
 
     return new OpencodeMcp({
