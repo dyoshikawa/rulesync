@@ -68,6 +68,7 @@ describe("PiHooks", () => {
           stop: [{ command: ".rulesync/hooks/audit.sh" }],
           beforeSubmitPrompt: [{ command: "pre-prompt.sh" }],
           preModelInvocation: [{ command: "pre-model.sh" }],
+          postModelInvocation: [{ command: "post-model.sh" }],
           preCompact: [{ command: "pre-compact.sh" }],
           postCompact: [{ command: "post-compact.sh" }],
           // notification has no Pi extension event equivalent
@@ -93,6 +94,11 @@ describe("PiHooks", () => {
       expect(content).toContain("pre-prompt.sh");
       expect(content).toContain('pi.on("context", async () => {');
       expect(content).toContain("pre-model.sh");
+      // `message_end` fires for every message role, so the generated handler
+      // must gate on the assistant role to run once per model response.
+      expect(content).toContain('pi.on("message_end", async (event) => {');
+      expect(content).toContain('if (event.message.role !== "assistant") return;');
+      expect(content).toContain("post-model.sh");
       expect(content).toContain('pi.on("session_before_compact", async () => {');
       expect(content).toContain("pre-compact.sh");
       // Distinct from preCompact: Pi documents both, and an unmapped event is
