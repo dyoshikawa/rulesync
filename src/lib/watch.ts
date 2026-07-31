@@ -1,4 +1,4 @@
-import { existsSync, type FSWatcher, watch as fsWatch } from "node:fs";
+import { existsSync, type FSWatcher, watch as fsWatch, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 
 import {
@@ -137,6 +137,21 @@ export type WatchHandle = {
 export const DEFAULT_WATCH_REARM_INTERVAL_MS = 500;
 
 /**
+ * Inode of the path, or undefined when it is missing, unreadable, or the
+ * platform reports no usable inode (Windows file systems without file IDs
+ * report 0). Bigint stats avoid inode truncation on platforms with 64-bit
+ * inode numbers.
+ */
+function statIno(path: string): bigint | undefined {
+  try {
+    const ino = statSync(path, { bigint: true }).ino;
+    return ino === 0n ? undefined : ino;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Watches one directory, re-attaching the underlying `fs.watch` if the
  * directory is deleted and later recreated.
  *
@@ -160,10 +175,17 @@ function watchTargetWithRearm({
   rearmIntervalMs: number;
 }): WatchHandle {
   let watcher: FSWatcher | undefined;
+  let watchedIno: bigint | undefined;
   let rearmTimer: ReturnType<typeof setInterval> | undefined;
   let closed = false;
 
   const attach = (): void => {
+    // Stat before watching so a delete+recreate between the two calls leaves
+    // `watchedIno` on the old inode: the next liveness check then sees a
+    // mismatch and self-heals with one extra re-attach. The opposite order
+    // would record the new inode for a watcher bound to the dead one,
+    // silencing the watch permanently.
+    const ino = statIno(target.directory);
     const created = fsWatch(
       target.directory,
       { recursive: target.recursive, persistent: true },
@@ -193,6 +215,7 @@ function watchTargetWithRearm({
       verifyStillWatching();
     });
     watcher = created;
+    watchedIno = ino;
   };
 
   const scheduleRearm = (): void => {
@@ -219,8 +242,21 @@ function watchTargetWithRearm({
   };
 
   const verifyStillWatching = (): void => {
-    if (closed || watcher === undefined || existsSync(target.directory)) {
+    if (closed || watcher === undefined) {
       return;
+    }
+    if (existsSync(target.directory)) {
+      // A bare existence check is not enough: when the directory is deleted
+      // and recreated before the delete event is delivered (fast branch
+      // switches, slow CI event queues), the path exists again but the watch
+      // is still bound to the dead inode and would never fire again. Compare
+      // inodes to detect the replacement; an unreadable stat on either side
+      // falls back to treating the watcher as alive, matching the previous
+      // behavior.
+      const currentIno = statIno(target.directory);
+      if (currentIno === undefined || watchedIno === undefined || currentIno === watchedIno) {
+        return;
+      }
     }
     watcher.close();
     watcher = undefined;
