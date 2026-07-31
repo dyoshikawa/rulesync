@@ -4,7 +4,7 @@ import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { QWENCODE_DIR } from "../../constants/qwencode-paths.js";
+import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -680,7 +680,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // Qwen Code v0.16.2 loads the personal `.qwen/QWEN.local.md` after the
         // shared QWEN.md, so a localRoot rule gets its own file there.
         localRootMode: "separate-local-file",
-        localRootFileName: "QWEN.local.md",
+        localRootFileName: QWENCODE_LOCAL_RULE_FILE_NAME,
         // Qwen Code subagents are native (Markdown + YAML frontmatter under
         // `.qwen/agents/`), so this mirrors how claudecode is wired.
         additionalConventions: {
