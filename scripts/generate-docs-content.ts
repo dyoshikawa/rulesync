@@ -16,8 +16,9 @@ const outputPath = join(repoRoot, "src", "generated", "docs-content.ts");
 
 const filePaths = globbySync("**/*.md", {
   cwd: docsRoot,
-  // The VitePress internals are not documentation content.
-  ignore: [".vitepress/**", "node_modules/**"],
+  // The VitePress internals and the landing page (theme-config frontmatter,
+  // not documentation) are not documentation content.
+  ignore: [".vitepress/**", "node_modules/**", "index.md"],
 });
 
 const entries = filePaths
