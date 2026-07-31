@@ -124,11 +124,7 @@ describe("E2E: permissions", () => {
 
     await writeFileContent(
       join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
-      JSON.stringify(
-        { permission: { bash: { "*": "ask", "git status": "allow" } } },
-        null,
-        2,
-      ),
+      JSON.stringify({ permission: { bash: { "*": "ask", "git status": "allow" } } }, null, 2),
     );
 
     await runGenerate({ target: "rovodev", features: "permissions" });
