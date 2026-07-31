@@ -1,10 +1,9 @@
 import { toolHooksFactories } from "../src/features/hooks/hooks-processor.js";
 import { HOOK_EVENTS, type HookEvent } from "../src/types/hooks.js";
 import { TOOL_DISPLAY } from "../src/types/tool-display.js";
+import { replaceBetweenMarkers } from "./markdown-markers.js";
 
 const MARKER = "HOOK_EVENTS_MATRIX";
-const BEGIN = `<!-- ${MARKER}:BEGIN -->`;
-const END = `<!-- ${MARKER}:END -->`;
 
 /**
  * Render the `Hook event × tool matrix` table in `docs/reference/file-formats.md`
@@ -47,10 +46,5 @@ export const renderHookEventsMatrix = (content: string): string => {
   });
   const table = [header, separator, ...body].join("\n");
 
-  const startIdx = content.indexOf(BEGIN);
-  const endIdx = content.indexOf(END);
-  if (startIdx === -1 || endIdx === -1) {
-    throw new Error(`Markers ${MARKER} not found; add ${BEGIN} / ${END} around the table.`);
-  }
-  return `${content.slice(0, startIdx + BEGIN.length)}\n${table}\n${content.slice(endIdx)}`;
+  return replaceBetweenMarkers(content, MARKER, table);
 };

@@ -6,6 +6,7 @@ import { getProcessorRegistryEntry, PROCESSOR_REGISTRY } from "../src/types/proc
 import { TOOL_DISPLAY, type ToolDisplayEntry } from "../src/types/tool-display.js";
 import { ALL_TOOL_TARGETS, type ToolTarget } from "../src/types/tool-targets.js";
 import { formatError } from "../src/utils/error.js";
+import { replaceBetweenMarkers } from "./markdown-markers.js";
 
 const FEATURES = [
   "rules",
@@ -104,25 +105,18 @@ const README_AI_MARK = "SUPPORTED_TOOLS_AI";
 const README_STD_MARK = "SUPPORTED_TOOLS_STANDARD";
 const DOCS_MARK = "SUPPORTED_TOOLS_DOCS";
 
-const replaceBetween = (content: string, marker: string, body: string): string => {
-  const begin = `<!-- ${marker}:BEGIN -->`;
-  const end = `<!-- ${marker}:END -->`;
-  const startIdx = content.indexOf(begin);
-  const endIdx = content.indexOf(end);
-  if (startIdx === -1 || endIdx === -1) {
-    throw new Error(`Markers ${marker} not found; add ${begin} / ${end} around the table.`);
-  }
-  return `${content.slice(0, startIdx + begin.length)}\n${body}\n${content.slice(endIdx)}`;
-};
-
 const renderReadme = (content: string): string => {
   const ai = buildReadmeTable(TOOL_DISPLAY.filter((e) => e.group === "ai"));
   const std = buildReadmeTable(TOOL_DISPLAY.filter((e) => e.group === "standard"));
-  return replaceBetween(replaceBetween(content, README_AI_MARK, ai), README_STD_MARK, std);
+  return replaceBetweenMarkers(
+    replaceBetweenMarkers(content, README_AI_MARK, ai),
+    README_STD_MARK,
+    std,
+  );
 };
 
 const renderDocs = (content: string): string =>
-  replaceBetween(content, DOCS_MARK, buildDocsTable());
+  replaceBetweenMarkers(content, DOCS_MARK, buildDocsTable());
 
 const main = (): void => {
   // Display list must cover exactly the non-legacy targets.

@@ -16,19 +16,25 @@ const repoRoot = join(import.meta.dirname, "..");
 const docsRoot = join(repoRoot, "docs");
 const outputPath = join(repoRoot, "src", "generated", "docs-content.ts");
 
-// Regenerate the derived hook-event matrix inside file-formats.md before
-// embedding, so a stale committed table fails the docs-content drift check.
-const hookMatrixPath = join(docsRoot, "reference", "file-formats.md");
-const hookMatrixSource = readFileSync(hookMatrixPath, "utf8");
-const hookMatrixRendered = renderHookEventsMatrix(hookMatrixSource);
-if (hookMatrixRendered !== hookMatrixSource) {
-  writeFileSync(hookMatrixPath, hookMatrixRendered, "utf8");
-  execFileSync("npx", ["oxfmt", relative(repoRoot, hookMatrixPath)], {
+// Normalize to the repo's formatter so the drift check compares stable output.
+// npx is npx.cmd on Windows; a shell resolves it. stderr is inherited so a
+// formatter failure stays diagnosable.
+const runOxfmt = (path: string): void => {
+  execFileSync("npx", ["oxfmt", relative(repoRoot, path)], {
     cwd: repoRoot,
-    stdio: "ignore",
+    stdio: ["ignore", "ignore", "inherit"],
     shell: process.platform === "win32",
   });
-}
+};
+
+// Regenerate the derived hook-event matrix inside file-formats.md before
+// embedding, so a stale committed table fails the docs-content drift check
+// (`check:docs-content` diffs this file as well as the embed). Written
+// unconditionally: the renderer emits cells without column padding and oxfmt
+// owns the final column layout, mirroring generate-supported-tools-tables.ts.
+const hookMatrixPath = join(docsRoot, "reference", "file-formats.md");
+writeFileSync(hookMatrixPath, renderHookEventsMatrix(readFileSync(hookMatrixPath, "utf8")), "utf8");
+runOxfmt(hookMatrixPath);
 
 const filePaths = globbySync("**/*.md", {
   cwd: docsRoot,
@@ -62,12 +68,6 @@ const lines: string[] = [
 ];
 
 writeFileSync(outputPath, lines.join("\n"), "utf8");
-// Normalize to the repo's formatter so the drift check compares stable output.
-execFileSync("npx", ["oxfmt", relative(repoRoot, outputPath)], {
-  cwd: repoRoot,
-  stdio: "ignore",
-  // npx is npx.cmd on Windows; a shell resolves it.
-  shell: process.platform === "win32",
-});
+runOxfmt(outputPath);
 // oxlint-disable-next-line no-console
 console.log(`Embedded ${entries.length} docs into ${relative(repoRoot, outputPath)}`);
