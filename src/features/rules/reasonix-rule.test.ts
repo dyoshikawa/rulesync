@@ -87,6 +87,98 @@ describe("ReasonixRule", () => {
     });
   });
 
+  describe("nested instruction files (Context Engine v2)", () => {
+    const makeScopedRule = (subprojectPath: string) =>
+      new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "api-rules.md",
+        frontmatter: {
+          root: false,
+          targets: ["reasonix"],
+          description: "API rules",
+          globs: [`${subprojectPath}/**/*`],
+          agentsmd: { subprojectPath },
+        },
+        body: "# API rules",
+        validate: false,
+      });
+
+    it("should emit a directory-scoped rule as nested <dir>/REASONIX.md", () => {
+      const rule = ReasonixRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeScopedRule("packages/api"),
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(join("packages", "api"));
+      expect(rule.getRelativeFilePath()).toBe("REASONIX.md");
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getFileContent()).toBe("# API rules");
+    });
+
+    it("should ignore subprojectPath in global mode (no workspace to nest under)", () => {
+      const rule = ReasonixRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeScopedRule("packages/api"),
+        global: true,
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(".reasonix");
+      expect(rule.getRelativeFilePath()).toBe("REASONIX.md");
+    });
+
+    it("should import a nested file back to a reasonix-scoped rulesync rule", async () => {
+      await writeFileContent(join(testDir, "packages", "api", "REASONIX.md"), "# Nested");
+
+      const rule = await ReasonixRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join("packages", "api"),
+        relativeFilePath: "REASONIX.md",
+      });
+      expect(rule.isRoot()).toBe(false);
+
+      const rulesyncRule = rule.toRulesyncRule();
+      expect(rulesyncRule.getRelativeFilePath()).toBe("packages-api-reasonix.md");
+      const frontmatter = rulesyncRule.getFrontmatter();
+      expect(frontmatter.targets).toEqual(["reasonix"]);
+      expect(frontmatter.root).toBe(false);
+      expect(frontmatter.globs).toEqual(["packages/api/**/*"]);
+      expect(frontmatter.agentsmd?.subprojectPath).toBe("packages/api");
+      expect(rulesyncRule.getBody()).toBe("# Nested");
+    });
+
+    it("should refuse to write a nested file outside the project via subprojectPath traversal", () => {
+      const rule = ReasonixRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: "evil.md",
+          frontmatter: {
+            root: false,
+            targets: ["reasonix"],
+            description: "",
+            globs: [],
+            agentsmd: { subprojectPath: "../../outside" },
+          },
+          body: "# Evil",
+          validate: false,
+        }),
+      });
+
+      // AiFile.getFilePath enforces outputRoot containment at write time.
+      expect(() => rule.getFilePath()).toThrow(/Path traversal detected/);
+    });
+
+    it("should exclude the root file and dependency dirs from the nested scan patterns", () => {
+      const patterns = ReasonixRule.getNestedFilePatterns({ outputRoot: "/proj" });
+      expect(patterns.include).toEqual(["/proj/**/REASONIX.md"]);
+      expect(patterns.ignore).toContain("/proj/REASONIX.md");
+      expect(patterns.ignore).toContain("/proj/**/node_modules/**");
+      expect(patterns.ignore).toContain("/proj/vendor/**");
+    });
+  });
+
   describe("isTargetedByRulesyncRule", () => {
     it("should target reasonix for wildcard and explicit targets, not others", () => {
       const make = (targets: ("*" | "reasonix" | "cursor")[]) =>

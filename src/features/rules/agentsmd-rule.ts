@@ -11,6 +11,10 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
+import {
+  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
+  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
+} from "./nested-scan-exclusions.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -35,33 +39,6 @@ export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
     relativeDirPath: string;
   };
 };
-
-/**
- * Dependency trees never scanned for nested `AGENTS.md` files, at any depth. An
- * `AGENTS.md` there describes somebody else's project, and neither name is ever
- * a package name. Hidden directories are excluded separately, because an
- * `AGENTS.md` inside one is another tool's generated output (rulesync writes
- * several itself).
- */
-const NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH = ["node_modules", "__pycache__"];
-
-/**
- * Build, vendoring and scratch directories, excluded at the **project root
- * only**. A top-level `build/` is a build directory; `packages/build/` is a
- * package, and dropping it silently would lose a real subproject.
- */
-const NESTED_SCAN_EXCLUDED_ROOT_DIRS = [
-  "vendor",
-  "third_party",
-  "dist",
-  "build",
-  "out",
-  "target",
-  "coverage",
-  "tmp",
-  "temp",
-  "venv",
-];
 
 export class AgentsMdRule extends ToolRule {
   constructor({ fileContent, root, ...rest }: AgentsMdRuleParams) {

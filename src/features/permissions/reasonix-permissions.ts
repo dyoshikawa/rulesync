@@ -12,6 +12,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import {
   toReasonixStringArray as toStringArray,
   toReasonixTable as toPermissionsTable,
@@ -65,6 +66,23 @@ function toReasonixToolName(canonical: string): string {
 
 function toCanonicalToolName(reasonixName: string): string {
   return REASONIX_TO_CANONICAL_TOOL_NAMES[reasonixName] ?? reasonixName;
+}
+
+/**
+ * Whether an entry uses the first-class `Tool=<literal>` exact-command form
+ * (SPEC §3.7, v1.18.0): metacharacters in the literal are ordinary characters
+ * and only the identical complete command matches. These entries have no
+ * canonical tool→pattern→action equivalent — glob-style `Tool(...)` matches
+ * differently by design — so they are preserved verbatim and round-trip
+ * through the `reasonix` override's rawAllow/rawAsk/rawDeny arrays.
+ */
+function isReasonixExactCommandEntry(entry: string): boolean {
+  const eqIndex = entry.indexOf("=");
+  if (eqIndex <= 0) {
+    return false;
+  }
+  const parenIndex = entry.indexOf("(");
+  return parenIndex === -1 || eqIndex < parenIndex;
 }
 
 /**
@@ -214,17 +232,24 @@ export class ReasonixPermissions extends ToolPermissions {
       Object.keys(config.permission).map((category) => toReasonixToolName(category)),
     );
 
-    // Read existing permission arrays and preserve entries for tools NOT in the permissions config
+    // The override's raw arrays are merged verbatim below — the authoring path
+    // for exact `Bash=<literal>` rules (and any other entry syntax rulesync
+    // does not translate). An entry named in ANY raw array is owned by the
+    // override, so its on-disk copies in the other arrays are dropped: moving
+    // an entry from rawAllow to rawDeny must not leave a stale allow beside
+    // the intended deny.
+    const override = config.reasonix;
+    const rawAllow = toStringArray(override?.rawAllow);
+    const rawAsk = toStringArray(override?.rawAsk);
+    const rawDeny = toStringArray(override?.rawDeny);
+    const rawOwnedEntries = new Set([...rawAllow, ...rawAsk, ...rawDeny]);
+
     const existingPermissions = toPermissionsTable(parsed.permissions);
-    const preservedAllow = toStringArray(existingPermissions.allow).filter(
-      (entry) => !managedToolNames.has(parseReasonixPermissionEntry(entry).toolName),
-    );
-    const preservedAsk = toStringArray(existingPermissions.ask).filter(
-      (entry) => !managedToolNames.has(parseReasonixPermissionEntry(entry).toolName),
-    );
-    const preservedDeny = toStringArray(existingPermissions.deny).filter(
-      (entry) => !managedToolNames.has(parseReasonixPermissionEntry(entry).toolName),
-    );
+    const {
+      allow: preservedAllow,
+      ask: preservedAsk,
+      deny: preservedDeny,
+    } = preserveExistingEntries({ existingPermissions, managedToolNames, rawOwnedEntries, logger });
 
     // Warn when permissions feature overwrites ignore-generated Read(...) deny entries
     if (logger && managedToolNames.has("Read")) {
@@ -244,32 +269,15 @@ export class ReasonixPermissions extends ToolPermissions {
     // preserved untouched via this spread rather than being managed here.
     const mergedPermissions: ReasonixPermissionsTable = { ...existingPermissions };
 
-    const mergedAllow = uniq([...preservedAllow, ...allow].toSorted());
-    const mergedAsk = uniq([...preservedAsk, ...ask].toSorted());
-    const mergedDeny = uniq([...preservedDeny, ...deny].toSorted());
-
-    if (mergedAllow.length > 0) {
-      mergedPermissions.allow = mergedAllow;
-    } else {
-      delete mergedPermissions.allow;
-    }
-    if (mergedAsk.length > 0) {
-      mergedPermissions.ask = mergedAsk;
-    } else {
-      delete mergedPermissions.ask;
-    }
-    if (mergedDeny.length > 0) {
-      mergedPermissions.deny = mergedDeny;
-    } else {
-      delete mergedPermissions.deny;
-    }
+    setOrDeleteEntries(mergedPermissions, "allow", [...preservedAllow, ...allow, ...rawAllow]);
+    setOrDeleteEntries(mergedPermissions, "ask", [...preservedAsk, ...ask, ...rawAsk]);
+    setOrDeleteEntries(mergedPermissions, "deny", [...preservedDeny, ...deny, ...rawDeny]);
 
     const patch: Record<string, unknown> = { permissions: mergedPermissions };
 
     // Overlay the Reasonix-scoped override's `[sandbox]`/`[agent]` tables. Shallow
     // merged at the table's top level, so the override's keys win while unrelated
     // sibling keys the user set directly (e.g. `[agent].model`) are preserved.
-    const override = config.reasonix;
     if (override?.sandbox !== undefined) {
       patch.sandbox = {
         ...asReasonixRecord(parsed.sandbox),
@@ -315,10 +323,23 @@ export class ReasonixPermissions extends ToolPermissions {
 
   toRulesyncPermissions(): RulesyncPermissions {
     const permissions = toPermissionsTable(this.toml.permissions);
+
+    // Exact `Tool=<literal>` entries are lifted verbatim into the override's
+    // raw arrays: parsed as tool(pattern) they would mint a bogus category key
+    // like `"Bash=go test ./..."` in the shared block.
+    const splitExact = (entries: string[]): { translated: string[]; exact: string[] } => {
+      const exact = entries.filter((entry) => isReasonixExactCommandEntry(entry));
+      const translated = entries.filter((entry) => !isReasonixExactCommandEntry(entry));
+      return { translated, exact };
+    };
+    const allowSplit = splitExact(toStringArray(permissions.allow));
+    const askSplit = splitExact(toStringArray(permissions.ask));
+    const denySplit = splitExact(toStringArray(permissions.deny));
+
     const config = convertReasonixToRulesyncPermissions({
-      allow: toStringArray(permissions.allow),
-      ask: toStringArray(permissions.ask),
-      deny: toStringArray(permissions.deny),
+      allow: allowSplit.translated,
+      ask: askSplit.translated,
+      deny: denySplit.translated,
     });
 
     // Route Reasonix's security tables into the `reasonix` override — they have
@@ -336,6 +357,9 @@ export class ReasonixPermissions extends ToolPermissions {
     const reasonixOverride: Record<string, unknown> = {};
     if (Object.keys(sandbox).length > 0) reasonixOverride.sandbox = sandbox;
     if (Object.keys(agentPlanMode).length > 0) reasonixOverride.agent = agentPlanMode;
+    if (allowSplit.exact.length > 0) reasonixOverride.rawAllow = allowSplit.exact;
+    if (askSplit.exact.length > 0) reasonixOverride.rawAsk = askSplit.exact;
+    if (denySplit.exact.length > 0) reasonixOverride.rawDeny = denySplit.exact;
 
     const result: Record<string, unknown> = { ...config };
     if (Object.keys(reasonixOverride).length > 0) {
@@ -371,6 +395,63 @@ export class ReasonixPermissions extends ToolPermissions {
       fileContent: smolToml.stringify({}),
       validate: false,
     });
+  }
+}
+
+/**
+ * Preserve existing permission entries rulesync does not manage: entries for
+ * tools NOT in the permissions config, plus exact `Tool=<literal>` entries not
+ * owned by the override's raw arrays — Reasonix writes those itself as
+ * remembered approvals, and dropping them would revoke grants the canonical
+ * glob rules cannot re-express. Remove one by deleting it from `reasonix.toml`
+ * (or by naming it in a raw array, which takes ownership). Preserved exact
+ * entries are logged so the kept-alive grants stay visible.
+ */
+function preserveExistingEntries({
+  existingPermissions,
+  managedToolNames,
+  rawOwnedEntries,
+  logger,
+}: {
+  existingPermissions: ReasonixPermissionsTable;
+  managedToolNames: Set<string>;
+  rawOwnedEntries: Set<string>;
+  logger?: Logger;
+}): { allow: string[]; ask: string[]; deny: string[] } {
+  const isPreserved = (entry: string): boolean => {
+    if (isReasonixExactCommandEntry(entry)) {
+      return !rawOwnedEntries.has(entry);
+    }
+    return !managedToolNames.has(parseReasonixPermissionEntry(entry).toolName);
+  };
+  const allow = toStringArray(existingPermissions.allow).filter(isPreserved);
+  const ask = toStringArray(existingPermissions.ask).filter(isPreserved);
+  const deny = toStringArray(existingPermissions.deny).filter(isPreserved);
+
+  const preservedExact = [...allow, ...ask, ...deny].filter((entry) =>
+    isReasonixExactCommandEntry(entry),
+  );
+  if (preservedExact.length > 0) {
+    logger?.info(
+      `Preserving ${preservedExact.length} exact Reasonix permission entries ` +
+        `(remembered approvals): ${preservedExact.join(", ")}`,
+    );
+  }
+
+  return { allow, ask, deny };
+}
+
+/** Sort, dedupe and set a permissions array key, deleting it when empty. */
+function setOrDeleteEntries(
+  table: ReasonixPermissionsTable,
+  key: "allow" | "ask" | "deny",
+  entries: string[],
+): void {
+  const merged = uniq(entries.toSorted());
+  if (merged.length > 0) {
+    table[key] = merged;
+  } else {
+    delete table[key];
   }
 }
 

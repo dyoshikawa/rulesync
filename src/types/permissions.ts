@@ -308,6 +308,15 @@ const ReasonixPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   sandbox: z.optional(z.looseObject({})),
   agent: z.optional(z.looseObject({})),
+  // Verbatim `[permissions]` entries merged into allow/ask/deny on generate.
+  // Exists for the first-class `Bash=<literal>` exact-command form (SPEC §3.7,
+  // v1.18.0) — the only way to pre-authorize dynamic/nested Bash in headless
+  // runs short of YOLO — which the canonical tool→pattern→action shape cannot
+  // express (glob-style `Bash(...)` matches differently by design). Entries
+  // are passed through untranslated, so any Reasonix entry syntax is valid.
+  rawAllow: z.optional(z.array(z.string())),
+  rawAsk: z.optional(z.array(z.string())),
+  rawDeny: z.optional(z.array(z.string())),
 });
 export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOverrideSchema>;
 
