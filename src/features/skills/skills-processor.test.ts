@@ -7,6 +7,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { RovodevSkill } from "./rovodev-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
@@ -645,6 +646,100 @@ ${body}`,
       const skill = toolDirs[0] as RovodevSkill;
       expect(skill.getBody()).toBe("from-rovo");
       expect(skill.getRelativeDirPath()).toBe(join(".rovodev", "skills"));
+    });
+
+    it("should skip an agentsskills skill with invalid frontmatter and import the rest", async () => {
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "agentsskills",
+      });
+      const goodDir = join(testDir, ".agents", "skills", "good-skill");
+      const badDir = join(testDir, ".agents", "skills", "bad-skill");
+      await ensureDir(goodDir);
+      await ensureDir(badDir);
+      await writeFileContent(
+        join(goodDir, "SKILL.md"),
+        `---
+name: good-skill
+description: A conformant skill
+---
+Good body`,
+      );
+      await writeFileContent(
+        join(badDir, "SKILL.md"),
+        `---
+name: bad-skill
+---
+Missing description`,
+      );
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      expect((toolDirs[0] as AgentsSkillsSkill).getBody()).toBe("Good body");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(join(".agents", "skills", "bad-skill")),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("description"));
+    });
+
+    it("should skip an agentsskills skill with unparseable YAML and import the rest", async () => {
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "agentsskills",
+      });
+      const goodDir = join(testDir, ".agents", "skills", "good-skill");
+      const badDir = join(testDir, ".agents", "skills", "bad-yaml");
+      await ensureDir(goodDir);
+      await ensureDir(badDir);
+      await writeFileContent(
+        join(goodDir, "SKILL.md"),
+        `---
+name: good-skill
+description: A conformant skill
+---
+Good body`,
+      );
+      await writeFileContent(
+        join(badDir, "SKILL.md"),
+        `---
+name: bad-yaml
+description: Use this skill when: the user asks about PDFs
+---
+Unquoted colon`,
+      );
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      expect((toolDirs[0] as AgentsSkillsSkill).getBody()).toBe("Good body");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(join(".agents", "skills", "bad-yaml")),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("indentation"));
+    });
+
+    it("should still abort import for non-lenient tools when a declared-root skill is invalid", async () => {
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "rovodev",
+      });
+      const badDir = join(testDir, ".rovodev", "skills", "bad-skill");
+      await ensureDir(badDir);
+      await writeFileContent(
+        join(badDir, "SKILL.md"),
+        `---
+name: bad-skill
+---
+Missing description`,
+      );
+
+      await expect(processor.loadToolDirs()).rejects.toThrow(/Invalid frontmatter/);
     });
   });
 

@@ -119,6 +119,14 @@ type ToolSkillFactory = {
     supportsSimulated: boolean;
     /** Whether the tool supports global (user-level) skills */
     supportsGlobal: boolean;
+    /**
+     * When true, a skill directory that fails to load on import — for any
+     * reason (unparseable YAML, invalid frontmatter, unreadable files) — is
+     * warned about and skipped instead of aborting the whole import run.
+     * Applies to directory-form skills only; `fromFlatFile` loaders are not
+     * covered.
+     */
+    lenientImport?: boolean;
   };
 };
 
@@ -150,7 +158,18 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // The Agent Skills standard defines `~/.agents/skills/` as the personal/global
       // location in addition to project `.agents/skills/`. https://agentskills.io/specification
       class: AgentsSkillsSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+      // The Agent Skills client-implementation guide prescribes lenient
+      // per-skill validation: skip a skill whose YAML is unparseable or whose
+      // description is missing, log the error, and keep loading the rest.
+      // `.agents/skills/` is the cross-vendor directory, so foreign-authored
+      // skills are the most likely to be non-conformant.
+      // https://agentskills.io/client-implementation/adding-skills-support
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        lenientImport: true,
+      },
     },
   ],
   [
@@ -678,13 +697,15 @@ export class SkillsProcessor extends DirFeatureProcessor {
                 global: this.global,
               });
             } catch (error) {
-              if (!isConfiguredRoot) {
+              if (!isConfiguredRoot && !factory.meta.lenientImport) {
                 throw error;
               }
               // A root the tool's own config points at is arbitrary user
               // territory — a folder of skills may sit next to folders that are
               // not skills at all. One of those must not take the whole import,
-              // and every feature after it, down.
+              // and every feature after it, down. Tools flagged `lenientImport`
+              // extend the same tolerance to their declared roots, per the
+              // Agent Skills guide's lenient-validation prescription.
               this.logger.warn(`Skipping ${join(relativeDirPath, dirName)}: ${formatError(error)}`);
               return null;
             }
