@@ -57,6 +57,7 @@ const mcpGenerateTargets = [
   { target: "devin", outputPath: join(".devin", "mcp_config.json") },
   { target: "vibe", outputPath: join(".vibe", "config.toml") },
   { target: "reasonix", outputPath: "reasonix.toml" },
+  { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
 ] as const;
 
 describe("E2E: mcp", () => {

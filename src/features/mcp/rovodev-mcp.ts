@@ -333,7 +333,13 @@ export class RovodevMcp extends ToolMcp {
   }): Promise<ToolFile[]> {
     const targeted = rulesyncMcp.forTarget({ toolTarget: "rovodev", logger });
     const servers = targeted.getMcpServers();
-    const managedNames = Object.keys(servers);
+    // Only servers whose entry is actually emitted to `mcp.json` count as
+    // managed here: one with an unsupported transport (`ws`) is skipped by
+    // `toRovodevServer`, so its name must neither gain a stale toggle nor
+    // strip a same-named user-authored entry from the existing disabled list.
+    const managedNames = Object.keys(servers).filter(
+      (name) => toRovodevServer(name, servers[name] as Record<string, unknown>) !== null,
+    );
     const disabledNames = managedNames.filter((name) => {
       const server = servers[name];
       return isRecord(server) && server.disabled === true;
