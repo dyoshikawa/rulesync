@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 import {
   ROVODEV_DIR,
-  ROVODEV_LEGACY_RULE_FILE_NAME,
   ROVODEV_MODULAR_RULES_DIR_PATH,
   ROVODEV_RULE_FILE_NAME,
 } from "../../constants/rovodev-paths.js";
@@ -21,6 +20,7 @@ import {
 
 export type RovodevRuleParams = AiFileParams & {
   root?: boolean;
+  localRoot?: boolean;
 };
 
 /** Basenames reserved for project memory; not modular rules under `.rovodev/.rulesync/modular-rules/`. Lower-cased for case-insensitive comparison (macOS/Windows). */
@@ -282,22 +282,8 @@ export class RovodevRule extends ToolRule {
   }
 
   toRulesyncRule(): RulesyncRule {
-    if (this.getRelativeFilePath() === ROVODEV_LEGACY_RULE_FILE_NAME) {
-      return new RulesyncRule({
-        outputRoot: this.getOutputRoot(),
-        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-        relativeFilePath: ROVODEV_LEGACY_RULE_FILE_NAME,
-        frontmatter: {
-          targets: ["rovodev"],
-          root: false,
-          localRoot: true,
-          globs: [],
-        },
-        body: this.getFileContent(),
-        validate: true,
-      });
-    }
-
+    // `AGENTS.local.md` never reaches here: the RulesProcessor imports it with
+    // `localRoot: true` and converts it via `toLocalRootRulesyncRule`.
     if (!this.isRoot()) {
       return new RulesyncRule({
         outputRoot: this.getOutputRoot(),
@@ -380,7 +366,7 @@ export class RovodevRule extends ToolRule {
   }
 
   /** Glob for the `separate-local-file` deletion; rovodev writes it at project root, not under `.rovodev/`. */
-  static getLocalRootDeletionGlob({
+  static getLocalRootFileGlob({
     outputRoot,
     fileName,
   }: {

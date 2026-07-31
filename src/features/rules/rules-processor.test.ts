@@ -25,6 +25,9 @@ import { WarpRule } from "./warp-rule.js";
 
 const logger = createMockLogger();
 
+const findLocalRule = (rulesyncFiles: { getRelativeFilePath(): string }[], fileName: string) =>
+  rulesyncFiles.find((file) => file.getRelativeFilePath() === fileName);
+
 const globalFoldTargets = RulesProcessor.getToolTargets({ global: true }).filter(
   (target) => RulesProcessor.getFactory(target)?.meta.collisionPolicy === "fold",
 );
@@ -1864,6 +1867,120 @@ Content that would fail parsing`;
         expect(result[0]?.getRelativeDirPath()).toBe(".");
         expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
       });
+    });
+  });
+
+  describe("localRoot import round-trip", () => {
+    it("should import CLAUDE.local.md as a localRoot rulesync rule for claudecode", async () => {
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Root");
+      await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Personal local rules");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const localRule = findLocalRule(rulesyncFiles, "CLAUDE.local.md");
+      expect(localRule).toBeInstanceOf(RulesyncRule);
+      const frontmatter = (localRule as RulesyncRule).getFrontmatter();
+      expect(frontmatter.localRoot).toBe(true);
+      expect(frontmatter.root).toBe(false);
+      expect((localRule as RulesyncRule).getBody().trim()).toBe("# Personal local rules");
+    });
+
+    it("should import .qwen/QWEN.local.md as a localRoot rulesync rule for qwencode", async () => {
+      await writeFileContent(join(testDir, "QWEN.md"), "# Root");
+      await ensureDir(join(testDir, ".qwen"));
+      await writeFileContent(join(testDir, ".qwen", "QWEN.local.md"), "# Personal qwen rules");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "qwencode",
+      });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const localRule = findLocalRule(rulesyncFiles, "QWEN.local.md");
+      expect(localRule).toBeInstanceOf(RulesyncRule);
+      const frontmatter = (localRule as RulesyncRule).getFrontmatter();
+      expect(frontmatter.localRoot).toBe(true);
+      expect(frontmatter.root).toBe(false);
+      expect((localRule as RulesyncRule).getBody().trim()).toBe("# Personal qwen rules");
+    });
+
+    it("should import AGENTS.local.md as a localRoot rulesync rule for rovodev", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(join(testDir, ".rovodev", "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "AGENTS.local.md"), "# Personal rovodev rules");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "rovodev" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const localRule = findLocalRule(rulesyncFiles, "AGENTS.local.md");
+      expect(localRule).toBeInstanceOf(RulesyncRule);
+      const frontmatter = (localRule as RulesyncRule).getFrontmatter();
+      expect(frontmatter.localRoot).toBe(true);
+      expect(frontmatter.root).toBe(false);
+      expect((localRule as RulesyncRule).getBody().trim()).toBe("# Personal rovodev rules");
+    });
+
+    it("should import AGENTS.local.md as a localRoot rulesync rule for roo", async () => {
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "AGENTS.local.md"), "# Personal roo rules");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "roo" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const localRule = findLocalRule(rulesyncFiles, "AGENTS.local.md");
+      expect(localRule).toBeInstanceOf(RulesyncRule);
+      expect((localRule as RulesyncRule).getFrontmatter().localRoot).toBe(true);
+    });
+
+    it("should import .claude/CLAUDE.local.md from the alternative root directory", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Root");
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.local.md"), "# Local from .claude");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const localRule = findLocalRule(rulesyncFiles, "CLAUDE.local.md");
+      expect(localRule).toBeInstanceOf(RulesyncRule);
+      expect((localRule as RulesyncRule).getBody().trim()).toBe("# Local from .claude");
+    });
+
+    it("should NOT import CLAUDE.local.md in global mode", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Root");
+      await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Local");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      expect(findLocalRule(rulesyncFiles, "CLAUDE.local.md")).toBeUndefined();
     });
   });
 

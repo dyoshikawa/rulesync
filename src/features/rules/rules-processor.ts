@@ -20,6 +20,7 @@ import {
   checkPathTraversal,
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
+  readFileContent,
   toPosixPath,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -246,10 +247,11 @@ type ToolRuleFactory = {
       };
     };
     /**
-     * Override where the `separate-local-file` deletion glob points when the tool
-     * writes its local file outside its root dir. See {@link RovodevRule.getLocalRootDeletionGlob}.
+     * Override where the `separate-local-file` glob points when the tool writes
+     * its local file outside its root dir. Used for both import and deletion.
+     * See {@link RovodevRule.getLocalRootFileGlob}.
      */
-    getLocalRootDeletionGlob?(params: { outputRoot: string; fileName: string }): string;
+    getLocalRootFileGlob?(params: { outputRoot: string; fileName: string }): string;
     /**
      * Extra fixed-path files this tool manages beyond the root and non-root
      * rules (e.g. Pi's `APPEND_SYSTEM.md` system-prompt file). The RulesProcessor
@@ -1324,52 +1326,62 @@ export class RulesProcessor extends FeatureProcessor {
     factory,
     fileName,
     body,
+    relativeDirPath,
+    localRoot = false,
   }: {
     factory: ToolRuleFactory;
     fileName: string;
     body: string;
+    /** Where the file was found on import; defaults to the generation path. */
+    relativeDirPath?: string;
+    /** True when importing an existing local file back to a rulesync rule. */
+    localRoot?: boolean;
   }): ToolRule | null {
     if (factory.class === ClaudecodeRule) {
       const paths = ClaudecodeRule.getSettablePaths({ global: this.global });
       return new ClaudecodeRule({
         outputRoot: this.outputRoot,
-        relativeDirPath: paths.root.relativeDirPath,
+        relativeDirPath: relativeDirPath ?? paths.root.relativeDirPath,
         relativeFilePath: fileName,
         frontmatter: {},
         body,
         validate: true,
         root: true,
+        localRoot,
       });
     }
     if (factory.class === ClaudecodeLegacyRule) {
       const paths = ClaudecodeLegacyRule.getSettablePaths({ global: this.global });
       return new ClaudecodeLegacyRule({
         outputRoot: this.outputRoot,
-        relativeDirPath: paths.root.relativeDirPath,
+        relativeDirPath: relativeDirPath ?? paths.root.relativeDirPath,
         relativeFilePath: fileName,
         fileContent: body,
         validate: true,
         root: true,
+        localRoot,
       });
     }
     if (factory.class === RovodevRule) {
       return new RovodevRule({
         outputRoot: this.outputRoot,
-        relativeDirPath: ".",
+        relativeDirPath: relativeDirPath ?? ".",
         relativeFilePath: fileName,
         fileContent: body,
         validate: true,
         root: true,
+        localRoot,
       });
     }
     if (factory.class === RooRule) {
       return new RooRule({
         outputRoot: this.outputRoot,
-        relativeDirPath: ".",
+        relativeDirPath: relativeDirPath ?? ".",
         relativeFilePath: fileName,
         fileContent: body,
         validate: true,
         root: true,
+        localRoot,
       });
     }
     if (factory.class === QwencodeRule) {
@@ -1377,11 +1389,12 @@ export class RulesProcessor extends FeatureProcessor {
       // project root (project scope only; global handling never reaches here).
       return new QwencodeRule({
         outputRoot: this.outputRoot,
-        relativeDirPath: QWENCODE_DIR,
+        relativeDirPath: relativeDirPath ?? QWENCODE_DIR,
         relativeFilePath: fileName,
         fileContent: body,
         validate: true,
         root: true,
+        localRoot,
       });
     }
     return null;
@@ -1464,6 +1477,11 @@ As this project's AI coding tool, you must follow the additional conventions bel
     const toolRules = toolFiles.filter((file): file is ToolRule => file instanceof ToolRule);
 
     const rulesyncRules = toolRules.map((toolRule) => {
+      // A tool's separate personal local-root file maps back to a canonical
+      // `localRoot: true` rule instead of the tool class's regular mapping.
+      if (toolRule.isLocalRoot()) {
+        return toolRule.toLocalRootRulesyncRule();
+      }
       return toolRule.toRulesyncRule();
     });
 
@@ -1711,10 +1729,11 @@ As this project's AI coding tool, you must follow the additional conventions bel
       })();
       this.logger.debug(`Found ${rootToolRules.length} root tool rule files`);
 
-      // Load the separate `*.local.md` file for deletion when the tool uses one.
+      // Load the separate `*.local.md` file (import and deletion) when the
+      // tool uses one, so a personal local-root file round-trips back to a
+      // canonical `localRoot: true` rulesync rule instead of being emit-only.
       const localRootToolRules = await (async () => {
         if (
-          !forDeletion ||
           this.global ||
           factory.meta.localRootMode !== "separate-local-file" ||
           !factory.meta.localRootFileName
@@ -1723,26 +1742,46 @@ As this project's AI coding tool, you must follow the additional conventions bel
         }
         const fileName = factory.meta.localRootFileName;
 
-        if (factory.class.getLocalRootDeletionGlob) {
-          const filePaths = await findFilesByGlobs(
-            factory.class.getLocalRootDeletionGlob({ outputRoot: this.outputRoot, fileName }),
+        const filePaths = await (async () => {
+          if (factory.class.getLocalRootFileGlob) {
+            return await findFilesByGlobs(
+              factory.class.getLocalRootFileGlob({ outputRoot: this.outputRoot, fileName }),
+            );
+          }
+          if (!settablePaths.root) {
+            return [];
+          }
+          return await findFilesWithFallback(
+            join(this.outputRoot, settablePaths.root.relativeDirPath ?? ".", fileName),
+            settablePaths.alternativeRoots,
+            (alt) => join(this.outputRoot, alt.relativeDirPath, fileName),
           );
+        })();
+
+        if (forDeletion) {
           return buildDeletionRulesFromPaths(filePaths);
         }
 
-        if (!settablePaths.root) {
-          return [];
-        }
-        const filePaths = await findFilesWithFallback(
-          join(this.outputRoot, settablePaths.root.relativeDirPath ?? ".", fileName),
-          settablePaths.alternativeRoots,
-          (alt) => join(this.outputRoot, alt.relativeDirPath, fileName),
+        const importedRules = await Promise.all(
+          filePaths.map(async (filePath) => {
+            const relativeDirPath = resolveRelativeDirPath(filePath);
+            checkPathTraversal({
+              relativePath: relativeDirPath,
+              intendedRootDir: this.outputRoot,
+            });
+            const body = await readFileContent(filePath);
+            return this.buildLocalRootFile({
+              factory,
+              fileName: basename(filePath),
+              body,
+              relativeDirPath,
+              localRoot: true,
+            });
+          }),
         );
-        return buildDeletionRulesFromPaths(filePaths);
+        return importedRules.filter((rule): rule is ToolRule => rule !== null);
       })();
-      this.logger.debug(
-        `Found ${localRootToolRules.length} local root tool rule files for deletion`,
-      );
+      this.logger.debug(`Found ${localRootToolRules.length} local root tool rule files`);
 
       const rootMirrorDeletionRules = await (async () => {
         const rootMirror = factory.class.getRootMirror?.();

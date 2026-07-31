@@ -15,7 +15,7 @@ Example:
 ```md
 ---
 root: true # true for root-level rules, false for details such as `.agents/memories/*.md`
-localRoot: false # (optional, default: false) true for project-specific local rules. Claude Code: CLAUDE.local.md; Rovodev (Rovo Dev CLI) and Roo Code: AGENTS.local.md; Others: append to root file
+localRoot: false # (optional, default: false) true for project-specific local rules. Claude Code: CLAUDE.local.md; Rovodev (Rovo Dev CLI) and Roo Code: AGENTS.local.md; Qwen Code: .qwen/QWEN.local.md; Others: append to root file. For the tools with a separate local file, `rulesync import` also reads that file back as a `localRoot: true` rule under `.rulesync/rules/` (kept untracked by the derived `.gitignore` entry `.rulesync/rules/*.local.md`)
 targets: ["*"] # * = all, or specific tools
 description: "Rulesync project overview and development guidelines for unified AI rules management CLI tool"
 globs: ["**/*"] # file patterns to match (e.g., ["*.md", "*.txt"])
