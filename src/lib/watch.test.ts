@@ -44,6 +44,34 @@ async function waitFor(predicate: () => boolean, timeoutMs = 10000): Promise<voi
   }
 }
 
+/**
+ * Like `waitFor`, but re-runs `probe` before every check. Used after a
+ * watched directory is deleted and recreated: a one-shot trigger can land in
+ * the unwatched gap between the detach and the timer-driven re-attach, so
+ * the side effect must be re-applied until the watcher reports it.
+ */
+async function waitForWithProbe({
+  probe,
+  until,
+  timeoutMs = 10000,
+}: {
+  probe: () => Promise<void>;
+  until: () => boolean;
+  timeoutMs?: number;
+}): Promise<void> {
+  const startedAt = Date.now();
+  for (;;) {
+    await probe();
+    if (until()) {
+      return;
+    }
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error("Timed out waiting for condition");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
 describe("WatchScheduler", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -365,8 +393,14 @@ describe("watchTargets", () => {
           // recursive watcher may register the freshly recreated subdirectory
           // late (kernel-level inotify race on loaded runners), and this test
           // asserts re-attachment, not recursive subdirectory coverage.
-          await writeFile(join(watchedDir, "after-rearm.md"), "# after\n", "utf8");
-          await waitFor(() => changed.some((path) => path.includes("after-rearm.md")));
+          // Re-write until observed: the wait above can be satisfied by a
+          // late-delivered delete event while the watcher is still detached,
+          // in which case a single write would land in the unwatched gap and
+          // never be reported.
+          await waitForWithProbe({
+            probe: () => writeFile(join(watchedDir, "after-rearm.md"), "# after\n", "utf8"),
+            until: () => changed.some((path) => path.includes("after-rearm.md")),
+          });
         } finally {
           handle.close();
         }
@@ -408,14 +442,19 @@ describe("watchTargets", () => {
           await rm(configDir, { recursive: true, force: true });
           await mkdir(configDir, { recursive: true });
 
-          changed.length = 0;
-          await waitFor(() => changed.length > 0);
-
-          changed.length = 0;
-          await writeFile(join(configDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH), "{}\n", "utf8");
-          await waitFor(() =>
-            changed.some((path) => path.endsWith(RULESYNC_CONFIG_RELATIVE_FILE_PATH)),
-          );
+          // Re-attachment cannot be awaited on its own: both the detach and
+          // the re-attach notify with the directory path, and either can fire
+          // while the rm/mkdir promises above are still settling — clearing
+          // `changed` afterwards would then wait forever on a watcher that is
+          // already healthy. Prove re-attachment by probing instead: only an
+          // attached watcher reports the config file's own path, and
+          // re-writing covers a write landing in the unwatched gap before the
+          // timer-driven re-attach.
+          const configFilePath = join(configDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH);
+          await waitForWithProbe({
+            probe: () => writeFile(configFilePath, "{}\n", "utf8"),
+            until: () => changed.some((path) => path.endsWith(RULESYNC_CONFIG_RELATIVE_FILE_PATH)),
+          });
         } finally {
           handle.close();
         }
