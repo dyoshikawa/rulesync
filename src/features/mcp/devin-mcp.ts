@@ -141,7 +141,10 @@ export class DevinMcp extends ToolMcp {
     // the personal mcp_config.local.json, which rulesync never touches.
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = await readFileContentOrNull(filePath);
-    if (existingContent !== null && logger) {
+    if (existingContent !== null) {
+      // Parse unconditionally so a malformed existing file aborts the
+      // generate (protecting possibly-recoverable user data) whether or not
+      // a logger was provided.
       const existingJson = this.parseJsonOrThrow(
         existingContent,
         paths.relativeDirPath,
@@ -154,7 +157,7 @@ export class DevinMcp extends ToolMcp {
       const managedServers = new Set(Object.keys(rulesyncMcp.getMcpServers()));
       const dropped = existingServers.filter((name) => !managedServers.has(name));
       if (dropped.length > 0) {
-        logger.warn(
+        logger?.warn(
           `Devin MCP servers not managed by rulesync will be removed from ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${dropped.join(", ")}. ` +
             `Run 'rulesync import' first to keep them, or move them to mcp_config.local.json.`,
         );
