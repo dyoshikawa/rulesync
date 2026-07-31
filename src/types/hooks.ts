@@ -340,6 +340,7 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
   "preToolUse",
   "postToolUse",
   "preModelInvocation",
+  "postModelInvocation",
   "beforeSubmitPrompt",
   "stop",
   "preCompact",
@@ -1133,6 +1134,12 @@ export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
   preToolUse: "tool_call",
   postToolUse: "tool_result",
   preModelInvocation: "context",
+  // `message_end` fires for user, assistant, and toolResult messages; the
+  // generated extension filters to assistant messages so the hook runs once
+  // per finalized model response. It is the closer analogue than
+  // `after_provider_response`, which fires before the stream body is consumed
+  // and exposes only HTTP status/headers.
+  postModelInvocation: "message_end",
   beforeSubmitPrompt: "input",
   stop: "agent_end",
   preCompact: "session_before_compact",

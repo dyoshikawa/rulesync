@@ -7,6 +7,14 @@ import { CONTROL_CHARS, HooksConfig } from "../../types/hooks.js";
 const PI_TOOL_EVENTS = new Set(["tool_call", "tool_result"]);
 
 /**
+ * Pi extension events that fire for every message role (user, assistant,
+ * toolResult). The generated handler gates these on the assistant role so a
+ * `postModelInvocation` hook runs once per finalized model response rather
+ * than for every message in the conversation.
+ */
+const PI_ASSISTANT_MESSAGE_EVENTS = new Set(["message_end"]);
+
+/**
  * Validate a hook matcher as a regular expression and return it as a JS
  * string-literal (JSON.stringify quoting) safe to embed in generated code.
  */
@@ -67,7 +75,12 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
   const lines: string[] = [];
   for (const [piEvent, handlers] of Object.entries(handlerGroups)) {
     const usesToolName = PI_TOOL_EVENTS.has(piEvent) && handlers.some((h) => h.matcher);
-    lines.push(`  pi.on(${JSON.stringify(piEvent)}, async (${usesToolName ? "event" : ""}) => {`);
+    const gatesOnAssistant = PI_ASSISTANT_MESSAGE_EVENTS.has(piEvent);
+    const usesEvent = usesToolName || gatesOnAssistant;
+    lines.push(`  pi.on(${JSON.stringify(piEvent)}, async (${usesEvent ? "event" : ""}) => {`);
+    if (gatesOnAssistant) {
+      lines.push(`    if (event.message.role !== "assistant") return;`);
+    }
     for (const handler of handlers) {
       const embeddedCommand = JSON.stringify(handler.command);
       if (usesToolName && handler.matcher) {
