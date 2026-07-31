@@ -120,7 +120,7 @@ export class RooCommand extends ToolCommand {
     const body = rulesyncCommand.getBody();
     const fileContent = stringifyFrontmatter(body, rooFrontmatter);
 
-    return new RooCommand({
+    return new this({
       outputRoot: outputRoot,
       frontmatter: rooFrontmatter,
       body,
@@ -177,7 +177,7 @@ export class RooCommand extends ToolCommand {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new RooCommand({
+    return new this({
       outputRoot: outputRoot,
       relativeDirPath: RooCommand.getSettablePaths().relativeDirPath,
       relativeFilePath,
@@ -193,7 +193,7 @@ export class RooCommand extends ToolCommand {
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): RooCommand {
-    return new RooCommand({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
