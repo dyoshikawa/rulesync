@@ -85,6 +85,7 @@ import {
 import { VibeRule } from "./vibe-rule.js";
 import { WarpRule } from "./warp-rule.js";
 import { ZedRule } from "./zed-rule.js";
+import { ZoocodeRule } from "./zoocode-rule.js";
 
 export type RulesProcessorToolTarget = (typeof rulesProcessorToolTargetTuple)[number];
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargetTuple);
@@ -758,6 +759,22 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
           subagents: { subagentClass: RovodevSubagent },
           skills: { skillClass: RovodevSkill },
         },
+        localRootMode: "separate-local-file",
+        localRootFileName: "AGENTS.local.md",
+      },
+    },
+  ],
+  [
+    "zoocode",
+    {
+      // Zoo Code (community continuation of Roo Code) keeps Roo's `.roo/`
+      // layout and rule semantics, including the AGENTS.local.md local-root
+      // file — see the roo entry above.
+      class: ZoocodeRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
         localRootMode: "separate-local-file",
         localRootFileName: "AGENTS.local.md",
       },

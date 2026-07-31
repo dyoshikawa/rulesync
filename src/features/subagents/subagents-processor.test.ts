@@ -1152,6 +1152,7 @@ Second global content`;
           "qwencode",
           "reasonix",
           "roo",
+          "zoocode",
           "rovodev",
           "takt",
           "vibe",
@@ -1290,6 +1291,7 @@ Test agent content`;
         "cursor",
         "codexcli",
         "roo",
+        "zoocode",
       ];
 
       for (const target of targets) {

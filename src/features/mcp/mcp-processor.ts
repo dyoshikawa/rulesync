@@ -499,6 +499,19 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "zoocode",
+    {
+      // Zoo Code keeps Roo's `.roo/mcp.json`; the class is shared.
+      class: RooMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "rovodev",
     {
       class: RovodevMcp,

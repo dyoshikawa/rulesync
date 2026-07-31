@@ -63,6 +63,7 @@ import {
   ToolCommandSettablePaths,
 } from "./tool-command.js";
 import { WarpCommand } from "./warp-command.js";
+import { ZoocodeCommand } from "./zoocode-command.js";
 
 /**
  * Factory entry for each tool command class.
@@ -504,6 +505,20 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         // Roo reads project `.roo/commands/` and global `~/.roo/commands/`
         // (project wins on a name collision), same relative dir at both
         // scopes. Verified at the final v3.54.0 tag.
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "zoocode",
+    {
+      // Zoo Code keeps Roo's commands layout.
+      class: ZoocodeCommand,
+      meta: {
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,

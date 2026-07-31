@@ -57,6 +57,7 @@ const rulesRootTargets = [
 const rulesNonRootTargets = [
   { target: "cline", outputPath: join(".clinerules", "overview.md") },
   { target: "roo", outputPath: join(".roo", "rules", "overview.md") },
+  { target: "zoocode", outputPath: join(".roo", "rules", "overview.md") },
   { target: "kiro", outputPath: join(".kiro", "steering", "overview.md") },
   { target: "kiro-cli", outputPath: join(".kiro", "steering", "overview.md") },
   { target: "kiro-ide", outputPath: join(".kiro", "steering", "overview.md") },
@@ -905,9 +906,10 @@ describe("E2E: rules (global mode)", () => {
     assertGenerateMatrixCoversTargets({
       processor: RulesProcessor,
       testedTargets: rulesGlobalTargets.map((e) => e.target),
-      // Roo has no root memory file, so its global output is exercised by the
+      // Roo (and its Zoo Code continuation, which keeps the same layout) has
+      // no root memory file, so their global output is exercised by the
       // dedicated "~/.roo/rules" non-root test below rather than this root matrix.
-      untested: ["roo"],
+      untested: ["roo", "zoocode"],
       global: true,
     });
   });

@@ -56,6 +56,7 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 import { VibeSubagent } from "./vibe-subagent.js";
+import { ZoocodeSubagent } from "./zoocode-subagent.js";
 
 /**
  * Factory entry for each tool subagent class.
@@ -402,6 +403,17 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // subagent into that file's `customModes` array.
       // https://roocodeinc.github.io/Roo-Code/features/custom-modes
       class: RooSubagent,
+      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: ".roomodes" },
+    },
+  ],
+  [
+    "zoocode",
+    {
+      // Zoo Code keeps Roo's aggregated `.roomodes` file; the subclass adds
+      // the post-fork per-mode `allowedMcpServers` allowlist (v3.60.0+) via
+      // the `zoocode:` frontmatter section.
+      // https://docs.zoocode.dev/features/custom-modes
+      class: ZoocodeSubagent,
       meta: { supportsSimulated: false, supportsGlobal: false, filePattern: ".roomodes" },
     },
   ],

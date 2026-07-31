@@ -186,7 +186,7 @@ export class RooSubagent extends ToolSubagent {
       bySlug.set(mode.slug, mode);
     }
 
-    return new RooSubagent({
+    return new this({
       outputRoot,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
       relativeFilePath: ROO_MODES_FILE_NAME,
@@ -306,7 +306,7 @@ export class RooSubagent extends ToolSubagent {
       throw new Error(`Invalid .roomodes in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new RooSubagent({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: basename(relativeFilePath),
@@ -320,7 +320,7 @@ export class RooSubagent extends ToolSubagent {
     relativeDirPath,
     relativeFilePath,
   }: ToolSubagentForDeletionParams): RooSubagent {
-    return new RooSubagent({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

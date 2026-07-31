@@ -41,6 +41,7 @@ export const rulesProcessorToolTargetTuple = [
   "warp",
   "devin",
   "zed",
+  "zoocode",
 ] as const;
 
 export const ignoreProcessorToolTargetTuple = [
@@ -64,6 +65,7 @@ export const ignoreProcessorToolTargetTuple = [
   "vibe",
   "warp",
   "zed",
+  "zoocode",
 ] as const;
 
 export const mcpProcessorToolTargetTuple = [
@@ -102,6 +104,7 @@ export const mcpProcessorToolTargetTuple = [
   "warp",
   "devin",
   "zed",
+  "zoocode",
 ] as const;
 
 export const commandsProcessorToolTargetTuple = [
@@ -130,6 +133,7 @@ export const commandsProcessorToolTargetTuple = [
   "qwencode",
   "reasonix",
   "roo",
+  "zoocode",
   "rovodev",
   "takt",
   "devin",
@@ -166,6 +170,11 @@ export const subagentsProcessorToolTargetTuple = [
   "qwencode",
   "reasonix",
   "roo",
+  // Must stay AFTER "roo": both write the workspace-root `.roomodes`, and the
+  // zoocode aggregate (which carries `allowedMcpServers`) must be the survivor
+  // when both targets are enabled. Guarded by a test in
+  // zoocode-subagent.test.ts.
+  "zoocode",
   "rovodev",
   "takt",
   "vibe",
@@ -211,6 +220,7 @@ export const skillsProcessorToolTargetTuple = [
   "warp",
   "devin",
   "zed",
+  "zoocode",
 ] as const;
 
 export const hooksProcessorToolTargetTuple = [

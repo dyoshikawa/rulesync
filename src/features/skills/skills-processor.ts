@@ -67,6 +67,7 @@ import {
 import { VibeSkill } from "./vibe-skill.js";
 import { WarpSkill } from "./warp-skill.js";
 import { ZedSkill } from "./zed-skill.js";
+import { ZoocodeSkill } from "./zoocode-skill.js";
 
 /**
  * Factory entry for each tool skill class.
@@ -421,6 +422,14 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "roo",
     {
       class: RooSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "zoocode",
+    {
+      // Zoo Code keeps Roo's skills layout and `roo:` frontmatter section.
+      class: ZoocodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

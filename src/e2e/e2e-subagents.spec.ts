@@ -133,6 +133,10 @@ const subagentsGenerateTargets = [
     outputPath: ".roomodes",
   },
   {
+    target: "zoocode",
+    outputPath: ".roomodes",
+  },
+  {
     target: "hermesagent",
     outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
   },

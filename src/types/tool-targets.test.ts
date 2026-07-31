@@ -54,6 +54,7 @@ describe("tool targets", () => {
         "warp",
         "devin",
         "zed",
+        "zoocode",
         "claudecode-plugin",
         "agentsskills",
       ];
