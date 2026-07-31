@@ -5,6 +5,7 @@ import {
   CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/claudecode-paths.js";
 import { CODEXCLI_BASH_RULES_FILE_NAME, CODEXCLI_DIR } from "../../constants/codexcli-paths.js";
+import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
@@ -60,6 +61,13 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
 
   // Local-root rule files: materialized outside getSettablePaths.
   { target: "claudecode", feature: "rules", entry: `**/${CLAUDECODE_LOCAL_RULE_FILE_NAME}` },
+  // Qwen Code's personal project context file (v0.16.2): emitted for localRoot
+  // rules but must not be committed (Qwen Code does not gitignore it itself).
+  {
+    target: "qwencode",
+    feature: "rules",
+    entry: `**/${QWENCODE_DIR}/${QWENCODE_LOCAL_RULE_FILE_NAME}`,
+  },
   {
     target: "claudecode",
     feature: "rules",

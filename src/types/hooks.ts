@@ -93,8 +93,8 @@ export const HookDefinitionSchema = z.looseObject({
   tool: z.optional(safeString),
   input: z.optional(z.looseObject({})),
   // Claude Code `prompt` and `agent` hooks: the model used for evaluation
-  // (defaults to a fast model when omitted). Qwen Code documents the same
-  // field on prompt hooks, but the qwencode adapter does not forward it yet.
+  // (defaults to a fast model when omitted). Also forwarded to Qwen Code
+  // prompt hooks.
   model: z.optional(safeString),
   // AugmentCode command hooks: extra argv appended to `command` by the runner,
   // so a hook can pass arguments without quoting them into the command string.

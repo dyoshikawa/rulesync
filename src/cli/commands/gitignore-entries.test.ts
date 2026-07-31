@@ -142,6 +142,9 @@ describe("registry derivation", () => {
     const justified = new Set([
       // rulesync meta files and local-root files (not in any getSettablePaths).
       "claudecode::rules::**/CLAUDE.local.md",
+      // Qwen Code's personal project context file, emitted for localRoot rules
+      // but never committable (issue #2507).
+      "qwencode::rules::**/.qwen/QWEN.local.md",
       "claudecode::rules::**/.claude/CLAUDE.local.md",
       "claudecode::general::**/.claude/*.lock",
       "claudecode::general::**/.claude/settings.local.json",

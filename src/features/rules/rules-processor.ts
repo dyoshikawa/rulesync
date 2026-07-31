@@ -4,6 +4,7 @@ import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -676,6 +677,10 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // them by path, so the root `QWEN.md` must not carry a reference block
         // to the non-root rules (mirrors how cursor/antigravity are wired).
         ruleDiscoveryMode: "auto",
+        // Qwen Code v0.16.2 loads the personal `.qwen/QWEN.local.md` after the
+        // shared QWEN.md, so a localRoot rule gets its own file there.
+        localRootMode: "separate-local-file",
+        localRootFileName: QWENCODE_LOCAL_RULE_FILE_NAME,
         // Qwen Code subagents are native (Markdown + YAML frontmatter under
         // `.qwen/agents/`), so this mirrors how claudecode is wired.
         additionalConventions: {
@@ -1361,6 +1366,18 @@ export class RulesProcessor extends FeatureProcessor {
       return new RooRule({
         outputRoot: this.outputRoot,
         relativeDirPath: ".",
+        relativeFilePath: fileName,
+        fileContent: body,
+        validate: true,
+        root: true,
+      });
+    }
+    if (factory.class === QwencodeRule) {
+      // Qwen Code reads the personal local context file from `.qwen/`, not the
+      // project root (project scope only; global handling never reaches here).
+      return new QwencodeRule({
+        outputRoot: this.outputRoot,
+        relativeDirPath: QWENCODE_DIR,
         relativeFilePath: fileName,
         fileContent: body,
         validate: true,

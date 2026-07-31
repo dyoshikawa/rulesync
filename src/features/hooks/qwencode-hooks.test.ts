@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
@@ -34,6 +35,64 @@ describe("QwencodeHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
+    it("should emit prompt and model fields on prompt hooks", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              stop: [
+                {
+                  type: "prompt",
+                  prompt: "Decide on $ARGUMENTS",
+                  model: "qwen3-coder-flash",
+                  name: "guard",
+                },
+              ],
+              // A command hook must not pick up prompt/model.
+              preToolUse: [{ type: "command", command: "echo pre" }],
+            },
+          }),
+        }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(qwencodeHooks.getFileContent());
+      const promptHook = parsed.hooks.Stop[0].hooks[0];
+      expect(promptHook.type).toBe("prompt");
+      expect(promptHook.prompt).toBe("Decide on $ARGUMENTS");
+      expect(promptHook.model).toBe("qwen3-coder-flash");
+      expect(promptHook.name).toBe("guard");
+      expect(parsed.hooks.PreToolUse[0].hooks[0].prompt).toBeUndefined();
+      expect(parsed.hooks.PreToolUse[0].hooks[0].model).toBeUndefined();
+    });
+
+    it("should warn when a prompt hook has no prompt body", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              stop: [{ type: "prompt", name: "empty-guard" }],
+            },
+          }),
+        }),
+      );
+      const logger = createMockLogger();
+
+      await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("no 'prompt' field"));
+    });
+
     it("should map canonical events to Qwen Code PascalCase and filter unsupported events", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
@@ -428,6 +487,34 @@ describe("QwencodeHooks", () => {
   });
 
   describe("toRulesyncHooks", () => {
+    it("should import prompt and model fields from prompt hooks", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              Stop: [
+                {
+                  hooks: [
+                    {
+                      type: "prompt",
+                      prompt: "Decide on $ARGUMENTS",
+                      model: "qwen3-coder-flash",
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson() as any;
+      const def = parsed.hooks.stop[0];
+      expect(def.type).toBe("prompt");
+      expect(def.prompt).toBe("Decide on $ARGUMENTS");
+      expect(def.model).toBe("qwen3-coder-flash");
+    });
+
     it("should round-trip Qwen Code PascalCase back to canonical", () => {
       const qwencodeHooks = new QwencodeHooks(
         createMockAiFileParams({
