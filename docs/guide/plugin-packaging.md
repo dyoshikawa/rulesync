@@ -73,3 +73,9 @@ The `convert` command does not accept packaging targets because it has no separa
 | `antigravity-plugin` | `rules/*.md` | `mcp_config.json` | —               | —             | `skills/*/SKILL.md` | `hooks.json`       |
 
 Claude-specific frontmatter and hook overrides continue to use the `claudecode` sections in Rulesync source files. Antigravity plugin output uses the `antigravity-ide` conversion model and override sections because its plugin components follow the Antigravity IDE format.
+
+## Installing a `claudecode-plugin` bundle in JetBrains Junie
+
+[Junie CLI Extensions](https://junie.jetbrains.com/docs/junie-cli-extensions.html) — Junie's bundle system for skills, MCP servers, subagents, slash commands, and guidelines — accept two marketplace manifest formats: the native `.junie-extension/marketplace.json` and Claude Code's `.claude-plugin/marketplace.json`. A plugin generated with the `claudecode-plugin` target and published in a Claude-compatible plugin marketplace is therefore installable in Junie via `/extensions`, without a Junie-specific rulesync target.
+
+As with Claude Code, rulesync manages only the component files (`commands/`, `agents/`, `skills/`, `.mcp.json`, `hooks/hooks.json`); the `.claude-plugin/plugin.json` and marketplace catalog remain hand-authored. Junie's documentation confirms the manifest-format compatibility but does not enumerate a directory-level mapping for Claude plugin contents, so verify the components you care about after installing.
