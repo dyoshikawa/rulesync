@@ -1,3 +1,4 @@
+// cspell:ignore zzzznotfoundzzzz
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
