@@ -137,13 +137,15 @@ export type WatchHandle = {
 export const DEFAULT_WATCH_REARM_INTERVAL_MS = 500;
 
 /**
- * Inode of the directory at `path`, or undefined when it is missing or
- * unreadable. Bigint stats avoid inode truncation on platforms with
- * 64-bit inode numbers.
+ * Inode of the path, or undefined when it is missing, unreadable, or the
+ * platform reports no usable inode (Windows file systems without file IDs
+ * report 0). Bigint stats avoid inode truncation on platforms with 64-bit
+ * inode numbers.
  */
-function statDirIno(path: string): bigint | undefined {
+function statIno(path: string): bigint | undefined {
   try {
-    return statSync(path, { bigint: true }).ino;
+    const ino = statSync(path, { bigint: true }).ino;
+    return ino === 0n ? undefined : ino;
   } catch {
     return undefined;
   }
@@ -178,6 +180,12 @@ function watchTargetWithRearm({
   let closed = false;
 
   const attach = (): void => {
+    // Stat before watching so a delete+recreate between the two calls leaves
+    // `watchedIno` on the old inode: the next liveness check then sees a
+    // mismatch and self-heals with one extra re-attach. The opposite order
+    // would record the new inode for a watcher bound to the dead one,
+    // silencing the watch permanently.
+    const ino = statIno(target.directory);
     const created = fsWatch(
       target.directory,
       { recursive: target.recursive, persistent: true },
@@ -207,7 +215,7 @@ function watchTargetWithRearm({
       verifyStillWatching();
     });
     watcher = created;
-    watchedIno = statDirIno(target.directory);
+    watchedIno = ino;
   };
 
   const scheduleRearm = (): void => {
@@ -245,7 +253,7 @@ function watchTargetWithRearm({
       // inodes to detect the replacement; an unreadable stat on either side
       // falls back to treating the watcher as alive, matching the previous
       // behavior.
-      const currentIno = statDirIno(target.directory);
+      const currentIno = statIno(target.directory);
       if (currentIno === undefined || watchedIno === undefined || currentIno === watchedIno) {
         return;
       }

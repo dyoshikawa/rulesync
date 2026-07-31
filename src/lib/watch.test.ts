@@ -3,6 +3,13 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const { statSyncMock } = vi.hoisted(() => ({ statSyncMock: vi.fn() }));
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  statSyncMock.mockImplementation(actual.statSync);
+  return { ...actual, statSync: statSyncMock };
+});
+
 import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
@@ -385,6 +392,48 @@ describe("watchTargets", () => {
           changed.some((path) => path.endsWith(RULESYNC_CONFIG_RELATIVE_FILE_PATH)),
         );
       } finally {
+        handle.close();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("re-attaches when the watched directory is replaced before its delete event arrives", async () => {
+    const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const configDir = join(testDir, "packages", "app");
+      await mkdir(configDir, { recursive: true });
+
+      const changed: string[] = [];
+      const handle = watchTargets({
+        targets: [
+          {
+            directory: configDir,
+            recursive: false,
+            include: (relativePath) => relativePath === RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+          },
+        ],
+        onChange: ({ path }) => {
+          changed.push(path);
+        },
+        onError: () => {},
+        rearmIntervalMs: 25,
+      });
+
+      try {
+        // Simulate a delete+recreate whose delete event was not delivered
+        // yet: the path still exists, but its inode no longer matches the
+        // one recorded at attach time. An events-only existence check would
+        // keep the dead watcher forever; the inode comparison must re-arm.
+        statSyncMock.mockReturnValue({ ino: 999_999_999n });
+        // Any event — even one the include filter rejects — runs the
+        // liveness check.
+        await writeFile(join(configDir, "decoy.md"), "# decoy\n", "utf8");
+        await waitFor(() => changed.includes(configDir));
+      } finally {
+        statSyncMock.mockImplementation(actual.statSync);
         handle.close();
       }
     } finally {
