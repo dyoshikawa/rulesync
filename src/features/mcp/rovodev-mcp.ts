@@ -130,32 +130,33 @@ function fromRovodevServer(server: Record<string, unknown>): Record<string, unkn
 }
 
 /**
- * Read the `mcp.disabledMcpServers` names from the sibling `config.yml`
- * (same scope root as `mcp.json`). Returns [] when the file is missing or
- * malformed — a broken config must not stop the servers being imported.
+ * Read the sibling `config.yml` (same scope root as `mcp.json`) and return the
+ * parsed document, `null` when the file does not exist. A malformed file
+ * **throws**: the disable toggle lives here, so pretending a broken file says
+ * nothing would silently re-enable servers on import and leave disabled ones
+ * running on generate — both flip a security toggle the wrong way.
  */
-async function readDisabledMcpServerNames({
+async function readRovodevConfigYaml({
   outputRoot,
 }: {
   outputRoot: string;
-}): Promise<string[]> {
+}): Promise<Record<string, unknown> | null> {
   const content = await readFileContentOrNull(
     join(outputRoot, ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME),
   );
   if (content === null) {
-    return [];
+    return null;
   }
-  try {
-    const parsed = parseSharedConfig({
-      format: "yaml",
-      fileContent: content,
-      filePath: join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME),
-    });
-    const mcpBlock = isRecord(parsed.mcp) ? parsed.mcp : {};
-    return isStringArray(mcpBlock.disabledMcpServers) ? mcpBlock.disabledMcpServers : [];
-  } catch {
-    return [];
-  }
+  return parseSharedConfig({
+    format: "yaml",
+    fileContent: content,
+    filePath: join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME),
+  });
+}
+
+function disabledNamesOf(config: Record<string, unknown> | null): string[] {
+  const mcpBlock = config && isRecord(config.mcp) ? config.mcp : {};
+  return isStringArray(mcpBlock.disabledMcpServers) ? mcpBlock.disabledMcpServers : [];
 }
 
 /**
@@ -221,13 +222,21 @@ export class RovodevMcp extends ToolMcp {
 
     // Rovo Dev disables servers through `mcp.disabledMcpServers` in the
     // sibling `config.yml`. Overlay `disabled: true` on the named entries so
-    // import round-trips the toggle into the canonical config.
-    const disabledNames = await readDisabledMcpServerNames({ outputRoot });
+    // import round-trips the toggle into the canonical config. A malformed
+    // config.yml throws here (fail-closed): importing past it would re-enable
+    // every disabled server in the canonical config.
+    const disabledNames = disabledNamesOf(await readRovodevConfigYaml({ outputRoot }));
     if (disabledNames.length > 0 && isMcpServers(newJson.mcpServers)) {
+      const servers = newJson.mcpServers as Record<string, unknown>;
       for (const name of disabledNames) {
-        const server = (newJson.mcpServers as Record<string, unknown>)[name];
+        // Own-property guard: a committed `__proto__` entry in
+        // `disabledMcpServers` must not mutate the object's prototype.
+        if (!Object.hasOwn(servers, name)) {
+          continue;
+        }
+        const server = servers[name];
         if (isPlainObject(server)) {
-          (newJson.mcpServers as Record<string, unknown>)[name] = { ...server, disabled: true };
+          servers[name] = { ...server, disabled: true };
         }
       }
     }
@@ -257,13 +266,33 @@ export class RovodevMcp extends ToolMcp {
       )) ?? JSON.stringify({ mcpServers: {} }, null, 2);
     const json = parseRovodevMcpJson(fileContent, paths.relativeDirPath, paths.relativeFilePath);
 
+    // The off-switch for disabled servers lives in the sibling `config.yml`
+    // (written by `getAuxiliaryFiles`). When that file exists but cannot be
+    // parsed, the toggle cannot be written — so a disabled server's runnable
+    // definition must NOT be written either, or it would simply run
+    // (fail-closed: restore the old skip for exactly those entries).
+    let canWriteDisableToggle = true;
+    try {
+      await readRovodevConfigYaml({ outputRoot });
+    } catch {
+      canWriteDisableToggle = false;
+    }
+
     // Use getMcpServers() (not getJson()) so rulesync-only fields and
     // codex-only fields (`envVars`) are stripped before writing the
     // rovodev config.
     const mcpServers = Object.fromEntries(
       Object.entries(rulesyncMcp.getMcpServers())
         .map(([name, server]) => {
-          const converted = toRovodevServer(name, server as Record<string, unknown>, logger);
+          const record = server as Record<string, unknown>;
+          if (record.disabled === true && !canWriteDisableToggle) {
+            logger?.warn(
+              `Rovo Dev MCP: skipping disabled server "${name}" because config.yml cannot be ` +
+                `parsed, so mcp.disabledMcpServers cannot be written to switch it off.`,
+            );
+            return null;
+          }
+          const converted = toRovodevServer(name, record, logger);
           return converted === null ? null : ([name, converted] as const);
         })
         .filter((entry) => entry !== null),
@@ -331,8 +360,20 @@ export class RovodevMcp extends ToolMcp {
       ? existingMcp.disabledMcpServers
       : [];
     // rulesync owns the toggle for the servers it manages; names it does not
-    // manage keep their existing state.
+    // manage keep their existing state. Because removal flips an off-switch,
+    // a managed name that was disabled on disk but is enabled canonically is
+    // called out rather than silently re-enabled.
     const managedNameSet = new Set(managedNames);
+    const reEnabled = existingDisabled.filter(
+      (name) => managedNameSet.has(name) && !disabledNames.includes(name),
+    );
+    if (reEnabled.length > 0) {
+      logger?.warn(
+        `Rovo Dev MCP: re-enabling ${reEnabled.join(", ")} — the canonical config does not mark ` +
+          `${reEnabled.length === 1 ? "it" : "them"} disabled. Set "disabled": true in ` +
+          `.rulesync/mcp.jsonc to keep a managed server off.`,
+      );
+    }
     const mergedDisabled = [
       ...existingDisabled.filter((name) => !managedNameSet.has(name)),
       ...disabledNames,

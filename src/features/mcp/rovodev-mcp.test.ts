@@ -378,6 +378,90 @@ describe("RovodevMcp", () => {
       expect(content).not.toContain("- managed");
     });
 
+    it("fails import closed when config.yml exists but cannot be parsed", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp.json"),
+        JSON.stringify({ mcpServers: { srv: { command: "node" } } }),
+      );
+      await writeFileContent(join(testDir, ".rovodev", "config.yml"), "mcp: [unclosed");
+
+      await expect(RovodevMcp.fromFile({ outputRoot: testDir, validate: true })).rejects.toThrow();
+    });
+
+    it("skips a disabled server on generate when config.yml cannot be parsed", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(join(testDir, ".rovodev", "config.yml"), "mcp: [unclosed");
+
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "off-server": { command: "node", disabled: true },
+            "on-server": { command: "node" },
+          },
+        }),
+      });
+
+      const mcp = await RovodevMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+      const servers = JSON.parse(mcp.getFileContent()).mcpServers;
+      // Fail-closed: the toggle cannot be written, so the runnable definition
+      // must not be written either.
+      expect(servers["off-server"]).toBeUndefined();
+      expect(servers["on-server"]).toEqual({ command: "node" });
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes('skipping disabled server "off-server"'),
+        ),
+      ).toBe(true);
+    });
+
+    it("warns when re-enabling a managed server the user disabled by hand", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        ["mcp:", "  disabledMcpServers:", "    - managed"].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger,
+      });
+      expect(auxiliary[0]!.getFileContent()).not.toContain("- managed");
+      expect(
+        logger.warn.mock.calls.some(([message]) => String(message).includes("re-enabling managed")),
+      ).toBe(true);
+    });
+
+    it("does not let a __proto__ entry in disabledMcpServers mutate the overlay", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp.json"),
+        JSON.stringify({ mcpServers: { srv: { command: "node" } } }),
+      );
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        ["mcp:", "  disabledMcpServers:", '    - "__proto__"'].join("\n"),
+      );
+
+      const imported = await RovodevMcp.fromFile({ outputRoot: testDir, validate: true });
+      const parsed = JSON.parse(imported.toRulesyncMcp().getFileContent());
+      expect(parsed.mcpServers.srv.disabled).toBeUndefined();
+      expect(({} as Record<string, unknown>).disabled).toBeUndefined();
+    });
+
     it("round-trips the disabled toggle on import", async () => {
       await ensureDir(join(testDir, ".rovodev"));
       await writeFileContent(
