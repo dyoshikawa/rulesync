@@ -110,9 +110,10 @@ function buildDevinPermissionEntry(scope: string, pattern: string): string {
  * - Project scope: `.devin/config.json`
  * - Global scope: `~/.config/devin/config.json`
  *
- * The config file is shared with the MCP (`mcpServers`) and, in global mode, the
- * hooks (`hooks`) features, so reads and writes merge into the existing JSON and
- * the file is never deleted; only the managed `permissions` key is rewritten.
+ * In global mode the config file is shared with the hooks (`hooks`) feature
+ * (MCP moved to the dedicated mcp_config.json in v3000.3), so reads and writes
+ * merge into the existing JSON and the file is never deleted; only the managed
+ * `permissions` key is rewritten.
  *
  * @see https://docs.devin.ai/cli/reference/permissions
  */

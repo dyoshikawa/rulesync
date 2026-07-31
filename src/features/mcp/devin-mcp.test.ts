@@ -6,6 +6,7 @@ import {
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { DevinMcp } from "./devin-mcp.js";
@@ -30,21 +31,21 @@ describe("DevinMcp", () => {
       const paths = DevinMcp.getSettablePaths();
 
       expect(paths.relativeDirPath).toBe(".devin");
-      expect(paths.relativeFilePath).toBe("config.json");
+      expect(paths.relativeFilePath).toBe("mcp_config.json");
     });
 
     it("should return project paths when global is false", () => {
       const paths = DevinMcp.getSettablePaths({ global: false });
 
       expect(paths.relativeDirPath).toBe(".devin");
-      expect(paths.relativeFilePath).toBe("config.json");
+      expect(paths.relativeFilePath).toBe("mcp_config.json");
     });
 
     it("should return the global ~/.config/devin paths when global is true", () => {
       const paths = DevinMcp.getSettablePaths({ global: true });
 
       expect(paths.relativeDirPath).toBe(join(".config", "devin"));
-      expect(paths.relativeFilePath).toBe("config.json");
+      expect(paths.relativeFilePath).toBe("mcp_config.json");
     });
   });
 
@@ -61,13 +62,13 @@ describe("DevinMcp", () => {
 
       const devinMcp = new DevinMcp({
         relativeDirPath: ".devin",
-        relativeFilePath: "config.json",
+        relativeFilePath: "mcp_config.json",
         fileContent: validJsonContent,
       });
 
       expect(devinMcp).toBeInstanceOf(DevinMcp);
       expect(devinMcp.getRelativeDirPath()).toBe(".devin");
-      expect(devinMcp.getRelativeFilePath()).toBe("config.json");
+      expect(devinMcp.getRelativeFilePath()).toBe("mcp_config.json");
       expect(devinMcp.getFileContent()).toBe(validJsonContent);
     });
 
@@ -77,11 +78,11 @@ describe("DevinMcp", () => {
       const devinMcp = new DevinMcp({
         outputRoot: "/custom/path",
         relativeDirPath: ".devin",
-        relativeFilePath: "config.json",
+        relativeFilePath: "mcp_config.json",
         fileContent: validJsonContent,
       });
 
-      expect(devinMcp.getFilePath()).toBe("/custom/path/.devin/config.json");
+      expect(devinMcp.getFilePath()).toBe("/custom/path/.devin/mcp_config.json");
     });
 
     it("should parse JSON content correctly", () => {
@@ -100,7 +101,7 @@ describe("DevinMcp", () => {
 
       const devinMcp = new DevinMcp({
         relativeDirPath: ".devin",
-        relativeFilePath: "config.json",
+        relativeFilePath: "mcp_config.json",
         fileContent: validJsonContent,
       });
 
@@ -112,7 +113,7 @@ describe("DevinMcp", () => {
 
       const devinMcp = new DevinMcp({
         relativeDirPath: ".devin",
-        relativeFilePath: "config.json",
+        relativeFilePath: "mcp_config.json",
         fileContent: emptyJsonContent,
       });
 
@@ -125,7 +126,7 @@ describe("DevinMcp", () => {
       expect(() => {
         const _instance = new DevinMcp({
           relativeDirPath: ".devin",
-          relativeFilePath: "config.json",
+          relativeFilePath: "mcp_config.json",
           fileContent: validJsonContent,
         });
       }).not.toThrow();
@@ -137,7 +138,7 @@ describe("DevinMcp", () => {
       expect(() => {
         const _instance = new DevinMcp({
           relativeDirPath: ".devin",
-          relativeFilePath: "config.json",
+          relativeFilePath: "mcp_config.json",
           fileContent: validJsonContent,
           validate: false,
         });
@@ -150,7 +151,7 @@ describe("DevinMcp", () => {
       expect(() => {
         const _instance = new DevinMcp({
           relativeDirPath: ".devin",
-          relativeFilePath: "config.json",
+          relativeFilePath: "mcp_config.json",
           fileContent: invalidJsonContent,
         });
       }).toThrow();
@@ -170,7 +171,7 @@ describe("DevinMcp", () => {
           },
         },
       };
-      await writeFileContent(join(devinDir, "config.json"), JSON.stringify(jsonData, null, 2));
+      await writeFileContent(join(devinDir, "mcp_config.json"), JSON.stringify(jsonData, null, 2));
 
       const devinMcp = await DevinMcp.fromFile({
         outputRoot: testDir,
@@ -178,7 +179,7 @@ describe("DevinMcp", () => {
 
       expect(devinMcp).toBeInstanceOf(DevinMcp);
       expect(devinMcp.getJson()).toEqual(jsonData);
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".devin", "config.json"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".devin", "mcp_config.json"));
     });
 
     it("should initialize empty mcpServers if project file does not exist", async () => {
@@ -188,7 +189,7 @@ describe("DevinMcp", () => {
 
       expect(devinMcp).toBeInstanceOf(DevinMcp);
       expect(devinMcp.getJson()).toEqual({ mcpServers: {} });
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".devin", "config.json"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".devin", "mcp_config.json"));
     });
 
     it("should create instance from custom outputRoot", async () => {
@@ -204,20 +205,20 @@ describe("DevinMcp", () => {
           },
         },
       };
-      await writeFileContent(join(devinDir, "config.json"), JSON.stringify(jsonData));
+      await writeFileContent(join(devinDir, "mcp_config.json"), JSON.stringify(jsonData));
 
       const devinMcp = await DevinMcp.fromFile({
         outputRoot: customDir,
       });
 
-      expect(devinMcp.getFilePath()).toBe(join(customDir, ".devin", "config.json"));
+      expect(devinMcp.getFilePath()).toBe(join(customDir, ".devin", "mcp_config.json"));
       expect(devinMcp.getJson()).toEqual(jsonData);
     });
 
     it("should skip validation when validate is false", async () => {
       const devinDir = join(testDir, ".devin");
       await ensureDir(devinDir);
-      await writeFileContent(join(devinDir, "config.json"), JSON.stringify({ mcpServers: {} }));
+      await writeFileContent(join(devinDir, "mcp_config.json"), JSON.stringify({ mcpServers: {} }));
 
       const devinMcp = await DevinMcp.fromFile({
         outputRoot: testDir,
@@ -239,7 +240,7 @@ describe("DevinMcp", () => {
           },
         },
       };
-      await writeFileContent(join(globalDir, "config.json"), JSON.stringify(jsonData, null, 2));
+      await writeFileContent(join(globalDir, "mcp_config.json"), JSON.stringify(jsonData, null, 2));
 
       const devinMcp = await DevinMcp.fromFile({
         outputRoot: testDir,
@@ -248,7 +249,7 @@ describe("DevinMcp", () => {
 
       expect(devinMcp).toBeInstanceOf(DevinMcp);
       expect(devinMcp.getJson()).toEqual(jsonData);
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "config.json"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "mcp_config.json"));
       expect(devinMcp.getRelativeDirPath()).toBe(join(".config", "devin"));
     });
 
@@ -259,10 +260,10 @@ describe("DevinMcp", () => {
       });
 
       expect(devinMcp.getJson()).toEqual({ mcpServers: {} });
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "config.json"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "mcp_config.json"));
     });
 
-    it("should preserve non-mcpServers properties in global mode", async () => {
+    it("should read only mcpServers, dropping unknown top-level keys", async () => {
       const globalDir = join(testDir, ".config", "devin");
       await ensureDir(globalDir);
       const existing = {
@@ -274,7 +275,7 @@ describe("DevinMcp", () => {
         },
         otherSetting: { value: 42 },
       };
-      await writeFileContent(join(globalDir, "config.json"), JSON.stringify(existing, null, 2));
+      await writeFileContent(join(globalDir, "mcp_config.json"), JSON.stringify(existing, null, 2));
 
       const devinMcp = await DevinMcp.fromFile({
         outputRoot: testDir,
@@ -288,13 +289,51 @@ describe("DevinMcp", () => {
           args: ["old-server.js"],
         },
       });
-      expect((json as any).otherSetting).toEqual({ value: 42 });
+      expect((json as any).otherSetting).toBeUndefined();
+    });
+
+    it("should fall back to legacy config.json mcpServers when mcp_config.json is absent", async () => {
+      const devinDir = join(testDir, ".devin");
+      await ensureDir(devinDir);
+      const legacy = {
+        mcpServers: {
+          "legacy-server": { command: "node", args: ["legacy.js"] },
+        },
+        permissions: { allow: ["read_file"] },
+      };
+      await writeFileContent(join(devinDir, "config.json"), JSON.stringify(legacy, null, 2));
+
+      const devinMcp = await DevinMcp.fromFile({ outputRoot: testDir });
+
+      expect(devinMcp.getJson()).toEqual({
+        mcpServers: { "legacy-server": { command: "node", args: ["legacy.js"] } },
+      });
+      // The instance still targets the dedicated file, so a regenerate writes
+      // the new location rather than re-seeding the deprecated key.
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".devin", "mcp_config.json"));
+    });
+
+    it("should prefer mcp_config.json over the legacy config.json key when both exist", async () => {
+      const devinDir = join(testDir, ".devin");
+      await ensureDir(devinDir);
+      await writeFileContent(
+        join(devinDir, "config.json"),
+        JSON.stringify({ mcpServers: { stale: { command: "old" } } }),
+      );
+      await writeFileContent(
+        join(devinDir, "mcp_config.json"),
+        JSON.stringify({ mcpServers: { current: { command: "new" } } }),
+      );
+
+      const devinMcp = await DevinMcp.fromFile({ outputRoot: testDir });
+
+      expect(devinMcp.getJson()).toEqual({ mcpServers: { current: { command: "new" } } });
     });
 
     it("should throw error for malformed JSON in existing file", async () => {
       const devinDir = join(testDir, ".devin");
       await ensureDir(devinDir);
-      await writeFileContent(join(devinDir, "config.json"), "{ invalid json }");
+      await writeFileContent(join(devinDir, "mcp_config.json"), "{ invalid json }");
 
       await expect(
         DevinMcp.fromFile({
@@ -328,7 +367,7 @@ describe("DevinMcp", () => {
       expect(devinMcp).toBeInstanceOf(DevinMcp);
       expect(devinMcp.getJson()).toEqual(jsonData);
       expect(devinMcp.getRelativeDirPath()).toBe(".devin");
-      expect(devinMcp.getRelativeFilePath()).toBe("config.json");
+      expect(devinMcp.getRelativeFilePath()).toBe("mcp_config.json");
     });
 
     it("should strip codex-only envVars from devin output", async () => {
@@ -383,19 +422,19 @@ describe("DevinMcp", () => {
 
       expect(devinMcp.getJson()).toEqual(jsonData);
       expect(devinMcp.getRelativeDirPath()).toBe(join(".config", "devin"));
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "config.json"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "mcp_config.json"));
     });
 
-    it("should preserve existing non-mcpServers properties when updating", async () => {
+    it("should own the dedicated file outright, replacing its full content", async () => {
       const devinDir = join(testDir, ".devin");
       await ensureDir(devinDir);
       const existing = {
         mcpServers: {
           "old-server": { command: "node", args: ["old.js"] },
         },
-        someOtherKey: "keep-me",
+        someOtherKey: "dropped",
       };
-      await writeFileContent(join(devinDir, "config.json"), JSON.stringify(existing, null, 2));
+      await writeFileContent(join(devinDir, "mcp_config.json"), JSON.stringify(existing, null, 2));
 
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -412,11 +451,41 @@ describe("DevinMcp", () => {
         rulesyncMcp,
       });
 
-      const json = devinMcp.getJson();
-      expect(json.mcpServers).toEqual({
-        "new-server": { command: "python", args: ["new.py"] },
+      // The dedicated mcp_config.json is MCP-only and rulesync-owned, so the
+      // file is rewritten whole rather than merged like the shared config.json.
+      expect(devinMcp.getJson()).toEqual({
+        mcpServers: { "new-server": { command: "python", args: ["new.py"] } },
       });
-      expect((json as any).someOtherKey).toBe("keep-me");
+    });
+
+    it("should warn about unmanaged servers about to be dropped from mcp_config.json", async () => {
+      const devinDir = join(testDir, ".devin");
+      await ensureDir(devinDir);
+      // Devin's auto-migration (or `devin mcp add`) may have written user
+      // servers into the same file rulesync now owns.
+      await writeFileContent(
+        join(devinDir, "mcp_config.json"),
+        JSON.stringify({
+          mcpServers: {
+            "user-server": { command: "node", args: ["user.js"] },
+            managed: { command: "echo" },
+          },
+        }),
+      );
+      const logger = createMockLogger();
+
+      await DevinMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({ mcpServers: { managed: { command: "echo" } } }),
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("user-server"));
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("managed,"));
     });
 
     it("should handle empty mcpServers object", async () => {
@@ -447,7 +516,7 @@ describe("DevinMcp", () => {
       };
       const devinMcp = new DevinMcp({
         relativeDirPath: ".devin",
-        relativeFilePath: "config.json",
+        relativeFilePath: "mcp_config.json",
         fileContent: JSON.stringify(jsonData),
       });
 
@@ -481,7 +550,7 @@ describe("DevinMcp", () => {
       };
       const devinMcp = new DevinMcp({
         relativeDirPath: ".devin",
-        relativeFilePath: "config.json",
+        relativeFilePath: "mcp_config.json",
         fileContent: JSON.stringify(jsonData),
       });
 
@@ -504,7 +573,7 @@ describe("DevinMcp", () => {
     it("should handle empty mcpServers object when converting", () => {
       const devinMcp = new DevinMcp({
         relativeDirPath: ".devin",
-        relativeFilePath: "config.json",
+        relativeFilePath: "mcp_config.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
@@ -521,7 +590,7 @@ describe("DevinMcp", () => {
     it("should always return success", () => {
       const devinMcp = new DevinMcp({
         relativeDirPath: ".devin",
-        relativeFilePath: "config.json",
+        relativeFilePath: "mcp_config.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
         validate: false,
       });
@@ -538,25 +607,27 @@ describe("DevinMcp", () => {
       const devinMcp = DevinMcp.forDeletion({
         outputRoot: testDir,
         relativeDirPath: ".devin",
-        relativeFilePath: "config.json",
+        relativeFilePath: "mcp_config.json",
       });
 
       expect(devinMcp).toBeInstanceOf(DevinMcp);
       expect(devinMcp.getJson()).toEqual({});
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".devin", "config.json"));
-      expect(devinMcp.isDeletable()).toBe(false);
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".devin", "mcp_config.json"));
+      // The dedicated file is rulesync-owned, so it is deletable (unlike the
+      // shared config.json the MCP feature previously patched).
+      expect(devinMcp.isDeletable()).toBe(true);
     });
 
     it("should create minimal instance for deletion at the global ~/.config/devin path", () => {
       const devinMcp = DevinMcp.forDeletion({
         outputRoot: testDir,
         relativeDirPath: join(".config", "devin"),
-        relativeFilePath: "config.json",
+        relativeFilePath: "mcp_config.json",
         global: true,
       });
 
       expect(devinMcp.getJson()).toEqual({});
-      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "config.json"));
+      expect(devinMcp.getFilePath()).toBe(join(testDir, ".config", "devin", "mcp_config.json"));
       expect(devinMcp.getRelativeDirPath()).toBe(join(".config", "devin"));
     });
   });
@@ -570,7 +641,7 @@ describe("DevinMcp", () => {
         mcpServers: {
           "workflow-server": {
             command: "node",
-            args: ["workflow-server.js", "--config", "config.json"],
+            args: ["workflow-server.js", "--config", "mcp_config.json"],
             env: {
               NODE_ENV: "test",
             },
@@ -578,7 +649,7 @@ describe("DevinMcp", () => {
         },
       };
       await writeFileContent(
-        join(devinDir, "config.json"),
+        join(devinDir, "mcp_config.json"),
         JSON.stringify(originalJsonData, null, 2),
       );
 
@@ -592,7 +663,7 @@ describe("DevinMcp", () => {
       });
 
       expect(newDevinMcp.getJson()).toEqual(originalJsonData);
-      expect(newDevinMcp.getFilePath()).toBe(join(testDir, ".devin", "config.json"));
+      expect(newDevinMcp.getFilePath()).toBe(join(testDir, ".devin", "mcp_config.json"));
     });
   });
 });

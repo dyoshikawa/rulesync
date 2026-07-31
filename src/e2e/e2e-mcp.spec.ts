@@ -54,7 +54,7 @@ const mcpGenerateTargets = [
   { target: "antigravity-cli", outputPath: join(".agents", "mcp_config.json") },
   { target: "warp", outputPath: join(".warp", ".mcp.json") },
   { target: "zed", outputPath: join(".zed", "settings.json") },
-  { target: "devin", outputPath: join(".devin", "config.json") },
+  { target: "devin", outputPath: join(".devin", "mcp_config.json") },
   { target: "vibe", outputPath: join(".vibe", "config.toml") },
   { target: "reasonix", outputPath: "reasonix.toml" },
 ] as const;
@@ -266,7 +266,7 @@ describe("E2E: mcp", () => {
     expect(content["amp.tools.disable"]).toEqual(["edit_file"]);
   });
 
-  it("should co-locate devin mcp and permissions in a single .devin/config.json", async () => {
+  it("should write devin mcp to mcp_config.json and permissions to config.json", async () => {
     const testDir = getTestDir();
 
     // Setup: both an MCP source and a permissions source, no pre-existing Devin config.
@@ -287,17 +287,24 @@ describe("E2E: mcp", () => {
       JSON.stringify({ permission: { bash: { "rm *": "deny" } } }, null, 2),
     );
 
-    // Execute: generate both features together for Devin. Whichever runs second
-    // must read-modify-write the shared config.json without dropping the other's key.
+    // Execute: generate both features together for Devin. Since v3000.3 MCP
+    // servers live in the dedicated mcp_config.json, while permissions keep
+    // the shared config.json; the deprecated mcpServers key must not be
+    // re-seeded there (Devin auto-migrates it away on startup).
     await runGenerate({ target: "devin", features: "mcp,permissions" });
 
-    const content = JSON.parse(await readFileContent(join(testDir, ".devin", "config.json")));
-    expect(content.mcpServers).toHaveProperty("test-server");
-    expect(content.permissions.deny).toContain("Exec(rm *)");
+    const mcpContent = JSON.parse(
+      await readFileContent(join(testDir, ".devin", "mcp_config.json")),
+    );
+    expect(mcpContent.mcpServers).toHaveProperty("test-server");
+
+    const configContent = JSON.parse(await readFileContent(join(testDir, ".devin", "config.json")));
+    expect(configContent.permissions.deny).toContain("Exec(rm *)");
+    expect(configContent.mcpServers).toBeUndefined();
   });
 
   it.each([
-    // amp, codexcli, grokcli, opencode, kilo, devin use merged config files
+    // amp, codexcli, grokcli, opencode, kilo use merged config files
     // (isDeletable=false) — excluded
     { target: "claudecode", orphanPath: ".mcp.json" },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
@@ -309,6 +316,7 @@ describe("E2E: mcp", () => {
     { target: "kiro", orphanPath: join(".kiro", "settings", "mcp.json") },
     { target: "junie", orphanPath: join(".junie", "mcp", "mcp.json") },
     { target: "goose", orphanPath: join(".agents", "plugins", "rulesync", ".mcp.json") },
+    { target: "devin", orphanPath: join(".devin", "mcp_config.json") },
   ])(
     "should fail in check mode when delete would remove an orphan $target mcp file",
     async ({ target, orphanPath }) => {
@@ -624,6 +632,8 @@ describe("E2E: mcp (import)", () => {
     { target: "antigravity-ide", sourcePath: join(".agents", "mcp_config.json") },
     { target: "antigravity-cli", sourcePath: join(".agents", "mcp_config.json") },
     { target: "warp", sourcePath: join(".warp", ".mcp.json") },
+    // Legacy pre-v3000.3 location: import must fall back to config.json's
+    // mcpServers key when no mcp_config.json exists.
     { target: "devin", sourcePath: join(".devin", "config.json") },
   ])("should import $target mcp", async ({ target, sourcePath, sourceContent }) => {
     const testDir = getTestDir();
@@ -779,7 +789,7 @@ const mcpGlobalTargets = [
   { target: "zed", outputPath: join(getZedGlobalDir(), "settings.json") },
   {
     target: "devin",
-    outputPath: join(".config", "devin", "config.json"),
+    outputPath: join(".config", "devin", "mcp_config.json"),
   },
   { target: "vibe", outputPath: join(".vibe", "config.toml") },
   { target: "reasonix", outputPath: join(".reasonix", "config.toml") },

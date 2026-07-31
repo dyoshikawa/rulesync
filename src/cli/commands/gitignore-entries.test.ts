@@ -155,6 +155,9 @@ describe("registry derivation", () => {
       // Legacy/aggregate/ghost outputs not produced via getSettablePaths.
       "augmentcode::rules::**/.augment-guidelines",
       "devin::commands::**/.devin/workflows/",
+      // Devin's personal MCP override, documented as gitignored and never
+      // emitted by rulesync (issue #2510).
+      "devin::mcp::**/.devin/mcp_config.local.json",
       "junie::rules::**/.junie/memories/",
       // Legacy outputs of earlier versions (issue #2404): the retired
       // .gooseignore and the inert sub-recipe subagents directory.

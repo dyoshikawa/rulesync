@@ -141,7 +141,6 @@ describe("shared-file write derivation", () => {
         ],
         ".config/devin/config.json": [
           "hooks",
-          "mcp",
           "permissions",
         ],
         ".config/opencode/opencode.json": [
@@ -150,10 +149,6 @@ describe("shared-file write derivation", () => {
         ],
         ".config/zed/settings.json": [
           "ignore",
-          "mcp",
-          "permissions",
-        ],
-        ".devin/config.json": [
           "mcp",
           "permissions",
         ],

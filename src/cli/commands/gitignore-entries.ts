@@ -79,6 +79,9 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_MEMORIES_DIR_NAME}/`,
   },
   { target: "opencode", feature: "general", entry: "**/.opencode/package-lock.json" },
+  // Devin's personal MCP override (documented as gitignored; never emitted by
+  // rulesync). https://docs.devin.ai/cli/extensibility/mcp/configuration
+  { target: "devin", feature: "mcp", entry: "**/.devin/mcp_config.local.json" },
   { target: "rovodev", feature: "general", entry: "**/.rovodev/.rulesync/" },
   { target: "takt", feature: "general", entry: "**/.takt/runs/" },
   { target: "takt", feature: "general", entry: "**/.takt/tasks/" },
