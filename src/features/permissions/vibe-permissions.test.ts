@@ -95,7 +95,6 @@ describe("VibePermissions", () => {
     const parsed = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
 
     expect(parsed.permission).toEqual({
-      read: { "*": "allow" },
       edit: { "*": "deny" },
       bash: {
         "*": "ask",
@@ -103,6 +102,9 @@ describe("VibePermissions", () => {
         "rm -rf *": "deny",
       },
     });
+    // `enabled_tools` is an exclusive allowlist, not a set of allow grants, so
+    // it round-trips through the vibe override instead of `"*": "allow"`.
+    expect(parsed.vibe.enabled_tools).toEqual(["read_file"]);
   });
 
   it("should author per-tool sensitive_patterns from the vibe override", async () => {
@@ -282,9 +284,11 @@ describe("VibePermissions", () => {
     });
     const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
 
-    // The stale deny filter must not survive the new "allow" source of truth.
+    // The stale deny filter must not survive the new "allow" source of truth,
+    // and the allow must NOT be expressed through the exclusive `enabled_tools`
+    // allowlist — `[tools.edit] permission = "always"` carries it completely.
     expect(parsed.disabled_tools).toBeUndefined();
-    expect(parsed.enabled_tools).toEqual(["edit"]);
+    expect(parsed.enabled_tools).toBeUndefined();
     expect(parsed.tools.edit.permission).toBe("always");
   });
 
@@ -414,5 +418,186 @@ describe("VibePermissions", () => {
 
     const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
     expect(imported.permission.agent["*"]).toBe("deny");
+  });
+
+  it("should not write the exclusive enabled_tools allowlist for wildcard allows", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "*": "allow", "rm -rf *": "deny" },
+          read: { "*": "allow" },
+        },
+      }),
+    });
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    // `enabled_tools` is exclusive upstream ("if set, only these tools will be
+    // active") — writing ["bash", "read_file"] here would switch off every
+    // other builtin and MCP tool from a config meant to *grant* permissions.
+    expect(parsed.enabled_tools).toBeUndefined();
+    expect(parsed.tools.bash.permission).toBe("always");
+    expect(parsed.tools.read_file.permission).toBe("always");
+  });
+
+  it("should emit permission = never for a wildcard deny", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: { websearch: { "*": "deny" } } }),
+    });
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.web_search.permission).toBe("never");
+    expect(parsed.disabled_tools).toEqual(["web_search"]);
+
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+    expect(imported.permission.websearch["*"]).toBe("deny");
+  });
+
+  it("should let the vibe override own the exclusive enabled_tools list", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), 'enabled_tools = ["grep"]');
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { bash: { "*": "allow" } },
+        vibe: { enabled_tools: ["bash", "read_file"] },
+      }),
+    });
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.enabled_tools).toEqual(["bash", "read_file"]);
+  });
+
+  it("should clear the on-disk enabled_tools key when the override declares an empty list", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      'enabled_tools = ["bash", "custom_tool"]',
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "allow" } },
+          vibe: { enabled_tools: [] },
+        }),
+      }),
+    });
+
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+    expect(parsed.enabled_tools).toBeUndefined();
+  });
+
+  it("should warn when cleanup strips enabled_tools entries the override does not own", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), 'enabled_tools = ["bash"]');
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "rm -rf *": "deny" } } }),
+      }),
+      logger,
+    });
+
+    expect(
+      logger.warn.mock.calls.some(([message]) =>
+        String(message).includes("exclusive enabled_tools"),
+      ),
+    ).toBe(true);
+  });
+
+  it("should not warn about enabled_tools when the override owns the key", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), 'enabled_tools = ["bash"]');
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "allow" } },
+          vibe: { enabled_tools: ["bash", "read_file"] },
+        }),
+      }),
+      logger,
+    });
+
+    expect(
+      logger.warn.mock.calls.some(([message]) =>
+        String(message).includes("exclusive enabled_tools"),
+      ),
+    ).toBe(false);
+  });
+
+  it("should round-trip enabled_tools through the vibe override on import", () => {
+    const vibePermissions = new VibePermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".vibe",
+      relativeFilePath: "config.toml",
+      fileContent: 'enabled_tools = ["bash", "grep"]',
+    });
+
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+    expect(imported.permission.bash).toBeUndefined();
+    expect(imported.vibe.enabled_tools).toEqual(["bash", "grep"]);
+  });
+
+  it("should warn when --global writes a config shadowed by a project config.toml", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), "");
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: { bash: { "*": "allow" } } }),
+    });
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: join(testDir, "home"),
+      rulesyncPermissions,
+      logger,
+      global: true,
+    });
+
+    expect(logger.warn.mock.calls.some(([message]) => String(message).includes("ignored"))).toBe(
+      true,
+    );
   });
 });

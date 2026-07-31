@@ -1293,7 +1293,10 @@ enabled = true
     const content = JSON.parse(
       await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
     );
-    expect(content.permission.read["*"]).toBe("allow");
+    // `enabled_tools` is Vibe's exclusive allowlist, so it round-trips through
+    // the vibe override instead of importing as `"*": "allow"` grants.
+    expect(content.permission.read).toBeUndefined();
+    expect(content.vibe.enabled_tools).toEqual(["read_file"]);
     expect(content.permission.edit["*"]).toBe("deny");
     expect(content.permission.bash["*"]).toBe("ask");
     expect(content.permission.bash["git *"]).toBe("allow");
