@@ -2329,9 +2329,11 @@ describe("KiloMcp", () => {
       expect(json.instructions).toEqual([".kilo/rules/overview.md"]);
     });
 
-    it("should dedupe and sort merged instructions", async () => {
+    it("should own the managed rules entries and preserve user entries verbatim", async () => {
       const existingConfig = {
-        instructions: [".kilo/rules/b.md", ".kilo/rules/a.md"],
+        // The stale a.md entry (its rule was deleted) must not accumulate;
+        // the user's own docs/style.md passes through verbatim.
+        instructions: [".kilo/rules/b.md", ".kilo/rules/a.md", "docs/style.md"],
       };
       await writeFileContent(join(testDir, "kilo.jsonc"), JSON.stringify(existingConfig, null, 2));
 
@@ -2341,9 +2343,9 @@ describe("KiloMcp", () => {
       });
 
       expect(kiloMcp.getJson().instructions).toEqual([
-        ".kilo/rules/a.md",
         ".kilo/rules/b.md",
         ".kilo/rules/c.md",
+        "docs/style.md",
       ]);
     });
 

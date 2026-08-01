@@ -4,6 +4,7 @@ import { parse as parseJsonc } from "jsonc-parser";
 import { refine, z } from "zod/mini";
 
 import {
+  OPENCODE_DIR,
   OPENCODE_GLOBAL_DIR,
   OPENCODE_JSON_FILE_NAME,
   OPENCODE_JSONC_FILE_NAME,
@@ -636,8 +637,20 @@ export class OpencodeMcp extends ToolMcp {
       ? json.instructions.filter((entry: unknown): entry is string => typeof entry === "string")
       : [];
 
+    // rulesync owns the entries that point under its managed rules directory:
+    // that subset is rebuilt from the current generate, so an entry registered
+    // for a since-deleted rule does not accumulate forever (and a legacy
+    // full-prefix global spelling cannot coexist as a duplicate). Entries
+    // outside the managed directory are the user's and pass through verbatim.
+    const managedPrefixes = global
+      ? ["memories/", `${configDirPrefix}memories/`]
+      : [`${toPosixPath(OPENCODE_DIR)}/memories/`];
+    const preservedInstructions = existingInstructions.filter(
+      (entry) => !managedPrefixes.some((prefix) => toPosixPath(entry).startsWith(prefix)),
+    );
+
     const mergedInstructions = Array.from(
-      new Set([...existingInstructions, ...normalizedInstructions]),
+      new Set([...preservedInstructions, ...normalizedInstructions]),
     ).toSorted();
 
     return new OpencodeMcp({

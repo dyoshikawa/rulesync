@@ -2587,9 +2587,16 @@ describe("OpencodeMcp", () => {
       expect(opencodeMcp.getRelativeFilePath()).toBe("opencode.jsonc");
     });
 
-    it("should dedupe and sort merged instructions", async () => {
+    it("should own the managed memories entries and preserve user entries verbatim", async () => {
       const existingConfig = {
-        instructions: [".opencode/memories/b.md", ".opencode/memories/a.md"],
+        instructions: [
+          // Managed dir: rebuilt from the current generate, so the entry for
+          // the since-deleted a.md must not accumulate forever.
+          ".opencode/memories/b.md",
+          ".opencode/memories/a.md",
+          // User entries outside the managed dir pass through verbatim.
+          "docs/style.md",
+        ],
       };
       await writeFileContent(
         join(testDir, "opencode.jsonc"),
@@ -2602,9 +2609,9 @@ describe("OpencodeMcp", () => {
       });
 
       expect((opencodeMcp.getJson() as any).instructions).toEqual([
-        ".opencode/memories/a.md",
         ".opencode/memories/b.md",
         ".opencode/memories/c.md",
+        "docs/style.md",
       ]);
     });
 

@@ -6,12 +6,13 @@ import { refine, z } from "zod/mini";
 import {
   KILO_DIR,
   KILO_GLOBAL_DIR,
+  KILO_RULES_DIR_NAME,
   KILO_JSON_FILE_NAME,
   KILO_JSONC_FILE_NAME,
 } from "../../constants/kilo-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
@@ -676,8 +677,16 @@ export class KiloMcp extends ToolMcp {
       ? json.instructions.filter((entry: unknown): entry is string => typeof entry === "string")
       : [];
 
+    // rulesync owns the entries under its managed rules directory — rebuilt
+    // from the current generate so deleted rules do not leave stale entries;
+    // entries outside it are the user's and pass through verbatim.
+    const managedPrefix = `${toPosixPath(join(KILO_DIR, KILO_RULES_DIR_NAME))}/`;
+    const preservedInstructions = existingInstructions.filter(
+      (entry) => !toPosixPath(entry).startsWith(managedPrefix),
+    );
+
     const mergedInstructions = Array.from(
-      new Set([...existingInstructions, ...instructions]),
+      new Set([...preservedInstructions, ...instructions]),
     ).toSorted();
 
     return new KiloMcp({
