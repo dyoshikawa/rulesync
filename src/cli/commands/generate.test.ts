@@ -446,17 +446,17 @@ describe("generateCommand", () => {
       mockCwd.mockRestore();
     });
 
-    it("should handle errors in ignore processing gracefully", async () => {
+    it("should fail the command on an ignore error instead of reporting success", async () => {
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         throw new Error("Test error");
       });
       const options: GenerateOptions = {};
 
-      // Should not throw, errors are caught and processing continues
-      await generateCommand(mockLogger, options);
-
-      // Should still complete without error
-      expect(mockLogger.info).toHaveBeenCalledWith("✓ All files are up to date (ignore)");
+      // A swallowed ignore error used to end with "All files are up to date"
+      // while nothing was written — the fail-open direction for the feature
+      // that keeps secrets away from AI tools (see #2551).
+      await expect(generateCommand(mockLogger, options)).rejects.toThrow("Test error");
+      expect(mockLogger.info).not.toHaveBeenCalledWith("✓ All files are up to date (ignore)");
     });
 
     it("should skip ignore files when no rulesync files found", async () => {
@@ -1225,17 +1225,18 @@ describe("generateCommand", () => {
         return mockRulesProcessor as any;
       });
 
-      // Set up ignore processor to throw an error (errors are caught and ignored in lib)
+      // Set up ignore processor to throw an error — a feature error now
+      // fails the whole run instead of being silently ignored (#2551).
+      // Ignore is the first step in GENERATION_STEP_GRAPH, so the rules step
+      // never runs and no success banner is emitted.
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         throw new Error("Ignore error");
       });
 
       const options: GenerateOptions = {};
 
-      await generateCommand(mockLogger, options);
-
-      expect(mockLogger.success).toHaveBeenCalledWith("Written 2 rules");
-      expect(mockLogger.success).toHaveBeenCalledWith(
+      await expect(generateCommand(mockLogger, options)).rejects.toThrow("Ignore error");
+      expect(mockLogger.success).not.toHaveBeenCalledWith(
         "🎉 All done! Written 2 file(s) total (2 rules)",
       );
     });

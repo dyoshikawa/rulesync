@@ -789,10 +789,13 @@ async function generateIgnoreCore(params: {
         allPaths.push(...result.paths);
         if (result.hasDiff) hasDiff = true;
       } catch (error) {
-        logger.warn(
+        // Ignore files are what keep secrets out of AI tools' reach — a
+        // silently-skipped ignore generation is the same fail-open bug the
+        // permissions feature had (#2486), so it fails the run the same way.
+        logger.error(
           `Failed to generate ${toolTarget} ignore files for ${outputRoot}: ${formatError(error)}`,
         );
-        continue;
+        throw error;
       }
     }
   }
