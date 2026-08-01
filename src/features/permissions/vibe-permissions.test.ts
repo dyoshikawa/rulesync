@@ -477,10 +477,7 @@ describe("VibePermissions", () => {
   it("should not touch phantom tool names for unmapped categories in the override or cleanup", async () => {
     const logger = createMockLogger();
     await ensureDir(join(testDir, ".vibe"));
-    await writeFileContent(
-      join(testDir, ".vibe", "config.toml"),
-      'disabled_tools = ["glob"]',
-    );
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), 'disabled_tools = ["glob"]');
 
     const vibePermissions = await VibePermissions.fromRulesyncPermissions({
       outputRoot: testDir,
