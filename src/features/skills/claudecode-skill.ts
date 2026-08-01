@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -10,6 +10,15 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import {
+  filterOutPathsInGitIgnoredDirectories,
+  findFilesByGlobs,
+  toPosixPath,
+} from "../../utils/file.js";
+import {
+  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
+  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
+} from "../rules/nested-scan-exclusions.js";
 import {
   RulesyncSkill,
   RulesyncSkillFrontmatter,
@@ -182,6 +191,60 @@ export class ClaudecodeSkill extends ToolSkill {
       relativeDirPath: CLAUDECODE_SKILLS_DIR_PATH,
       alternativeSkillRoots: [CLAUDECODE_SCHEDULED_TASKS_DIR_PATH],
     };
+  }
+
+  /**
+   * Claude Code v2.1.178+ also loads skills from **nested** `.claude/skills/`
+   * directories below the working directory (a skill in
+   * `apps/web/.claude/skills/` becomes available when working on files
+   * there). Discover those directories so `rulesync import` sees them —
+   * import-only and lenient, like every configured root; the project-root
+   * `.claude/skills/` stays the sole generation target. The scan reuses the
+   * nested-rule-file exclusions (dependency trees at any depth, build/vendor
+   * dirs at the root, hidden dirs other than the `.claude` being matched) and
+   * never runs in global mode. On a name clash with a root skill, the root
+   * one wins the import (Claude Code itself keeps both under a
+   * directory-qualified name, which rulesync's flat skill namespace cannot
+   * express).
+   *
+   * @see https://code.claude.com/docs/en/skills
+   */
+  static async getConfiguredImportRoots({
+    outputRoot,
+    global = false,
+  }: {
+    outputRoot: string;
+    global?: boolean;
+  }): Promise<Array<{ outputRoot: string; relativeDirPath: string }>> {
+    if (global) {
+      return [];
+    }
+    const root = toPosixPath(outputRoot);
+    const dirPaths = await findFilesByGlobs(
+      [`${root}/*/**/${toPosixPath(CLAUDECODE_SKILLS_DIR_PATH)}`],
+      {
+        type: "dir",
+        followSymbolicLinks: false,
+        ignore: [
+          `${root}/**/.*/**/${toPosixPath(CLAUDECODE_SKILLS_DIR_PATH)}`,
+          ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
+          ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
+        ],
+      },
+    );
+    // Honor the project's .gitignore like the nested AGENTS.md scan does: a
+    // gitignored scratch checkout's skills are somebody else's project and
+    // must not be pulled into the shared `.rulesync/skills/` namespace.
+    // Sorted so a nested-vs-nested name clash resolves deterministically
+    // (lexicographically first root wins).
+    const filteredDirPaths = filterOutPathsInGitIgnoredDirectories({
+      rootDir: outputRoot,
+      filePaths: dirPaths,
+    }).toSorted();
+    return filteredDirPaths.map((dirPath) => ({
+      outputRoot,
+      relativeDirPath: relative(outputRoot, dirPath),
+    }));
   }
 
   getFrontmatter(): ClaudecodeSkillFrontmatter {
