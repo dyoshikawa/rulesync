@@ -1134,10 +1134,14 @@ async function generatePermissionsCore(params: {
         allPaths.push(...result.paths);
         if (result.hasDiff) hasDiff = true;
       } catch (error) {
-        logger.warn(
+        // A malformed shared config (e.g. .vibe/config.toml) must fail the run
+        // the same way the MCP feature does — swallowing it reported
+        // "All files are up to date" while the user's permission changes were
+        // silently not applied.
+        logger.error(
           `Failed to generate ${toolTarget} permissions files for ${outputRoot}: ${formatError(error)}`,
         );
-        continue;
+        throw error;
       }
     }
   }

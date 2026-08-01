@@ -662,15 +662,19 @@ describe("generate", () => {
       );
     });
 
-    it("should handle errors gracefully and continue", async () => {
+    it("should fail the run on a permissions error instead of reporting success", async () => {
+      // A malformed shared config used to be swallowed with a warning while
+      // the run exited 0 "up to date" — the MCP feature failed on the same
+      // file. Both features must agree that a broken file fails the run.
       mockConfig.getFeatures.mockReturnValue(["permissions"]);
       vi.mocked(PermissionsProcessor).mockImplementation(function () {
         throw new Error("Test error");
       });
 
-      const result = await generate({ logger, config: mockConfig as never });
-
-      expect(result.permissionsCount).toBe(0);
+      await expect(generate({ logger, config: mockConfig as never })).rejects.toThrow(
+        "Test error",
+      );
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Test error"));
     });
   });
 

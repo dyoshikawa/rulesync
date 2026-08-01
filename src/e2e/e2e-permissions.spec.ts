@@ -119,6 +119,29 @@ describe("E2E: permissions", () => {
     },
   );
 
+  it.each([{ features: "permissions" }, { features: "mcp" }])(
+    "should fail $features generation on a malformed .vibe/config.toml instead of reporting success",
+    async ({ features }) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(join(testDir, ".vibe", "config.toml"), "mcp: [unclosed");
+      await writeFileContent(
+        join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+        JSON.stringify({ permission: { bash: { "*": "allow" } } }),
+      );
+      await writeFileContent(
+        join(testDir, ".rulesync", "mcp.json"),
+        JSON.stringify({ mcpServers: { srv: { command: "node" } } }),
+      );
+
+      // Both features read the same shared file and must agree on what a
+      // malformed file means: fail the run, never a silent "up to date".
+      await expect(runGenerate({ target: "vibe", features })).rejects.toMatchObject({
+        code: 1,
+      });
+    },
+  );
+
   it("should generate rovodev permissions into the repo-committed .rovodev/config.yml", async () => {
     const testDir = getTestDir();
 
