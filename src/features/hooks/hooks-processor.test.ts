@@ -487,6 +487,33 @@ describe("HooksProcessor", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("matcher"));
     });
 
+    it("should warn and skip OpenCode matchers on the shell events", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            afterShellExecution: [{ command: "filtered.sh", matcher: "npm .*" }],
+            preToolUse: [{ command: "guard.sh", matcher: "bash" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "opencode" });
+      const [toolFile] = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      // The named tool.execute.* hooks expose no command text to match
+      // against, so a matcher-carrying shell hook is skipped with a warning
+      // rather than silently running on every bash execution.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Skipped matcher hook(s) for opencode (not supported)"),
+      );
+      expect(toolFile?.getFileContent()).not.toContain("filtered.sh");
+      expect(toolFile?.getFileContent()).toContain("guard.sh");
+    });
+
     it("should warn and skip Amp matchers outside tool events", async () => {
       const rulesyncHooks = new RulesyncHooks({
         outputRoot: testDir,

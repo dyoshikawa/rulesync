@@ -80,7 +80,10 @@ describe("KiloHooks", () => {
       expect(content).toContain(".rulesync/hooks/audit.sh");
       expect(content).toContain('event.type === "file.edited"');
       expect(content).toContain("format.sh");
-      expect(content).toContain('event.type === "command.executed"');
+      // afterShellExecution is a bash-gated named hook, not the slash-command
+      // event `command.executed` it was once (wrongly) mapped to.
+      expect(content).not.toContain("command.executed");
+      expect(content).toContain('if (input.tool === "bash")');
       expect(content).toContain("post-shell.sh");
 
       // permissionRequest maps to generic event permission.asked

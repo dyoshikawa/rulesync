@@ -146,6 +146,7 @@ describe("shared-file write derivation", () => {
         ".config/opencode/opencode.json": [
           "mcp",
           "permissions",
+          "rules",
         ],
         ".config/zed/settings.json": [
           "ignore",

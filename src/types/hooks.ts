@@ -307,6 +307,7 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "postToolUse",
   "stop",
   "afterFileEdit",
+  "beforeShellExecution",
   "afterShellExecution",
   "permissionRequest",
   "preCompact",
@@ -1096,7 +1097,10 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
   postToolUse: "tool.execute.after",
   stop: "session.idle",
   afterFileEdit: "file.edited",
-  afterShellExecution: "command.executed",
+  // The shell events are NOT in this map: OpenCode has no shell-execution
+  // lifecycle event (`command.executed` is a slash-command event), so they are
+  // emitted as `tool.execute.before/after` named hooks gated on the `bash`
+  // tool — see `SHELL_EVENT_TOOL_GATES` in `opencode-style-generator.ts`.
   permissionRequest: "permission.asked",
   // A named `(input, output)` hook, not an `event.type` dispatch — see
   // `NAMED_HOOK_MATCHER_SUBJECTS` in `opencode-style-generator.ts`.

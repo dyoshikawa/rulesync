@@ -572,7 +572,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // both resolve here via the settable paths). `tools` is retracted when the
   // generated MCP servers yield no tool filters; `permission` and
   // `instructions` are recomputed from source/existing content before being
-  // applied. Rules (`instructions`) are project-scope-only.
+  // applied. Rules (`instructions`) are registered at both scopes.
   "opencode.json": {
     format: "jsonc",
     features: {
@@ -586,6 +586,10 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
+      // OpenCode reads `instructions` from the global config too; the rules
+      // feature registers global non-root rules here (recomputed from the
+      // existing list before being applied, like the project-scope entry).
+      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
     },
   },
   // Kilo config (`kilo.json` / preferred `kilo.jsonc` twin) — same shape as

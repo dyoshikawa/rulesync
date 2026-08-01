@@ -2608,6 +2608,20 @@ describe("OpencodeMcp", () => {
       ]);
     });
 
+    it("should register global instructions relative to the global config dir", async () => {
+      const opencodeMcp = await OpencodeMcp.fromInstructions({
+        outputRoot: testDir,
+        instructions: [".config/opencode/memories/overview.md"],
+        global: true,
+      });
+
+      expect(opencodeMcp.getRelativeDirPath()).toBe(join(".config", "opencode"));
+      const parsed = JSON.parse(opencodeMcp.getFileContent());
+      // Entries resolve relative to the config file's directory, so the
+      // `.config/opencode/` prefix is stripped.
+      expect(parsed.instructions).toEqual(["memories/overview.md"]);
+    });
+
     it("should fall back to opencode.json when only that file exists", async () => {
       await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ mcp: {} }, null, 2));
 

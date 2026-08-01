@@ -316,6 +316,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: KILO_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+      matcherEvents: ["preToolUse", "postToolUse"],
     },
   ],
   [
@@ -330,6 +331,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: OPENCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+      matcherEvents: ["preToolUse", "postToolUse"],
     },
   ],
   [

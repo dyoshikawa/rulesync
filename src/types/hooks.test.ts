@@ -42,7 +42,15 @@ describe("Event map completeness", () => {
   });
 
   it("every OPENCODE_HOOK_EVENTS entry should exist in CANONICAL_TO_OPENCODE_EVENT_NAMES", () => {
+    // The shell events are not in the generic event map: OpenCode has no
+    // shell-execution lifecycle event, so they are emitted as bash-gated
+    // named tool.execute.* hooks (SHELL_EVENT_TOOL_GATES in
+    // opencode-style-generator.ts).
+    const namedHookOnlyEvents = new Set(["beforeShellExecution", "afterShellExecution"]);
     for (const event of OPENCODE_HOOK_EVENTS) {
+      if (namedHookOnlyEvents.has(event)) {
+        continue;
+      }
       expect(CANONICAL_TO_OPENCODE_EVENT_NAMES).toHaveProperty(event);
     }
   });
