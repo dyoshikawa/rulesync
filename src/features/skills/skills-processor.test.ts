@@ -838,11 +838,15 @@ Broken YAML`,
       const nestedDir = join(testDir, "apps", "web", ".claude", "skills", "deploy");
       const dupDir = join(testDir, "apps", "web", ".claude", "skills", "root-skill");
       const nodeModulesDir = join(testDir, "node_modules", "dep", ".claude", "skills", "vendored");
+      const depthOneDir = join(testDir, "apps", ".claude", "skills", "shallow");
+      const distDir = join(testDir, "dist", "x", ".claude", "skills", "built");
       for (const [dir, name, body] of [
         [rootDir, "root-skill", "Root body"],
         [nestedDir, "deploy", "Deploy body"],
         [dupDir, "root-skill", "Nested duplicate body"],
         [nodeModulesDir, "vendored", "Vendored body"],
+        [depthOneDir, "shallow", "Shallow body"],
+        [distDir, "built", "Built body"],
       ] as const) {
         await ensureDir(dir);
         await writeFileContent(
@@ -858,6 +862,9 @@ Broken YAML`,
       // clash; a dependency-tree skill is never scanned.
       expect(names).toContain("root-skill");
       expect(names).toContain("deploy");
+      // Depth-1 nesting is covered by the `*/**` glob; root build dirs are not.
+      expect(names).toContain("shallow");
+      expect(names).not.toContain("built");
       expect(names).not.toContain("vendored");
       expect(names.filter((name) => name === "root-skill")).toHaveLength(1);
     });

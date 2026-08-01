@@ -10,7 +10,11 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import { findFilesByGlobs, toPosixPath } from "../../utils/file.js";
+import {
+  filterOutPathsInGitIgnoredDirectories,
+  findFilesByGlobs,
+  toPosixPath,
+} from "../../utils/file.js";
 import {
   NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
   NESTED_SCAN_EXCLUDED_ROOT_DIRS,
@@ -228,7 +232,16 @@ export class ClaudecodeSkill extends ToolSkill {
         ],
       },
     );
-    return dirPaths.map((dirPath) => ({
+    // Honor the project's .gitignore like the nested AGENTS.md scan does: a
+    // gitignored scratch checkout's skills are somebody else's project and
+    // must not be pulled into the shared `.rulesync/skills/` namespace.
+    // Sorted so a nested-vs-nested name clash resolves deterministically
+    // (lexicographically first root wins).
+    const filteredDirPaths = filterOutPathsInGitIgnoredDirectories({
+      rootDir: outputRoot,
+      filePaths: dirPaths,
+    }).toSorted();
+    return filteredDirPaths.map((dirPath) => ({
       outputRoot,
       relativeDirPath: relative(outputRoot, dirPath),
     }));
