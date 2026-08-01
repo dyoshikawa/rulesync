@@ -1226,9 +1226,9 @@ describe("generateCommand", () => {
       });
 
       // Set up ignore processor to throw an error — a feature error now
-      // fails the whole run instead of being silently ignored (#2551), so
-      // the rules that were written are reported through the thrown error
-      // path rather than a success banner.
+      // fails the whole run instead of being silently ignored (#2551).
+      // Ignore is the first step in GENERATION_STEP_GRAPH, so the rules step
+      // never runs and no success banner is emitted.
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         throw new Error("Ignore error");
       });
