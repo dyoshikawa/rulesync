@@ -181,6 +181,7 @@ describe("shared output file data-loss regressions", () => {
         outputRoot: testDir,
         instructions: [join(".kilo", "rules", "coding.md")],
       });
+      if (rules === null) throw new Error("expected a registrar result");
       await writeFileContent(rules.getFilePath(), rules.getFileContent());
 
       // 3. The on-disk file must contain BOTH the mcp/tools block and the

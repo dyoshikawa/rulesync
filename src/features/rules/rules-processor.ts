@@ -205,7 +205,7 @@ type McpInstructionsRegistrar = {
     instructions: string[];
     validate?: boolean;
     global?: boolean;
-  }): Promise<ToolFile>;
+  }): Promise<ToolFile | null>;
 };
 
 type LocalRootMode = "separate-local-file" | "append-to-root";
@@ -1090,17 +1090,17 @@ export class RulesProcessor extends FeatureProcessor {
     const instructionPaths = toolRules
       .filter((rule) => !rule.isRoot() && !rule.isExcludedFromRootReferences())
       .map((rule) => toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())));
-    if (instructionPaths.length === 0) {
-      return [];
-    }
-    return [
-      await meta.mcpInstructionsRegistrar.fromInstructions({
-        outputRoot: this.outputRoot,
-        instructions: instructionPaths,
-        validate: true,
-        global: this.global,
-      }),
-    ];
+    // The registrar runs even with an empty list: it owns the managed subset
+    // of the `instructions` array, so deleting the LAST non-root rule must
+    // still clear its stale registrations (the registrar itself avoids
+    // creating a config file just to hold an empty payload).
+    const registered = await meta.mcpInstructionsRegistrar.fromInstructions({
+      outputRoot: this.outputRoot,
+      instructions: instructionPaths,
+      validate: true,
+      global: this.global,
+    });
+    return registered ? [registered] : [];
   }
 
   /**

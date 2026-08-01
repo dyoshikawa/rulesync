@@ -2321,6 +2321,7 @@ describe("KiloMcp", () => {
         outputRoot: testDir,
         instructions: [".kilo/rules/overview.md"],
       });
+      if (kiloMcp === null) throw new Error("expected a registrar result");
 
       const json = kiloMcp.getJson();
       expect(json.mcp).toEqual(existingConfig.mcp);
@@ -2341,6 +2342,7 @@ describe("KiloMcp", () => {
         outputRoot: testDir,
         instructions: [".kilo/rules/b.md", ".kilo/rules/c.md"],
       });
+      if (kiloMcp === null) throw new Error("expected a registrar result");
 
       expect(kiloMcp.getJson().instructions).toEqual([
         ".kilo/rules/b.md",
@@ -2354,6 +2356,7 @@ describe("KiloMcp", () => {
         outputRoot: testDir,
         instructions: [".kilo/rules/overview.md"],
       });
+      if (kiloMcp === null) throw new Error("expected a registrar result");
 
       expect(kiloMcp.getRelativeFilePath()).toBe("kilo.jsonc");
       expect(kiloMcp.getJson().instructions).toEqual([".kilo/rules/overview.md"]);

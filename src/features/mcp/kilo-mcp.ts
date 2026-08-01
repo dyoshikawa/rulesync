@@ -653,7 +653,7 @@ export class KiloMcp extends ToolMcp {
     instructions: string[];
     validate?: boolean;
     global?: boolean;
-  }): Promise<KiloMcp> {
+  }): Promise<KiloMcp | null> {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
@@ -670,6 +670,12 @@ export class KiloMcp extends ToolMcp {
       if (fileContent) {
         relativeFilePath = KILO_JSON_FILE_NAME;
       }
+    }
+
+    // Nothing to register and nothing to clean up: do not create the shared
+    // config just to hold an empty payload.
+    if (instructions.length === 0 && fileContent === null) {
+      return null;
     }
 
     const json = fileContent ? parseJsonc(fileContent) : {};
@@ -700,7 +706,8 @@ export class KiloMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(basePaths),
         feature: "rules",
         existingContent: fileContent ?? "",
-        patch: { instructions: mergedInstructions },
+        // An emptied list retracts the key rather than writing `[]`.
+        patch: { instructions: mergedInstructions.length > 0 ? mergedInstructions : undefined },
         filePath: join(jsonDir, relativeFilePath),
       }),
       validate,

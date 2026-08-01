@@ -604,7 +604,7 @@ export class OpencodeMcp extends ToolMcp {
     instructions: string[];
     validate?: boolean;
     global?: boolean;
-  }): Promise<OpencodeMcp> {
+  }): Promise<OpencodeMcp | null> {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
@@ -630,6 +630,12 @@ export class OpencodeMcp extends ToolMcp {
       if (fileContent) {
         relativeFilePath = OPENCODE_JSON_FILE_NAME;
       }
+    }
+
+    // Nothing to register and nothing to clean up: do not create the shared
+    // config just to hold an empty payload.
+    if (instructions.length === 0 && fileContent === null) {
+      return null;
     }
 
     const json = fileContent ? parseJsonc(fileContent) : {};
@@ -662,7 +668,8 @@ export class OpencodeMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(basePaths),
         feature: "rules",
         existingContent: fileContent ?? "",
-        patch: { instructions: mergedInstructions },
+        // An emptied list retracts the key rather than writing `[]`.
+        patch: { instructions: mergedInstructions.length > 0 ? mergedInstructions : undefined },
         filePath: join(jsonDir, relativeFilePath),
       }),
       validate,
