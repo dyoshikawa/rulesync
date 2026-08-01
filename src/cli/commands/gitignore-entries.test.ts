@@ -472,7 +472,6 @@ describe("filterGitignoreEntries", () => {
   });
 });
 
-
 describe("committedOutput check outputs", () => {
   it("never derives gitignore entries for outputs upstream reads from the committed repo", async () => {
     const { deriveAllGitignoreEntries } = await import("./gitignore-derive.js");
