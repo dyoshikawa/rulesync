@@ -671,9 +671,7 @@ describe("generate", () => {
         throw new Error("Test error");
       });
 
-      await expect(generate({ logger, config: mockConfig as never })).rejects.toThrow(
-        "Test error",
-      );
+      await expect(generate({ logger, config: mockConfig as never })).rejects.toThrow("Test error");
       expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Test error"));
     });
   });
