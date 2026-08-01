@@ -40,6 +40,12 @@ const fileToGlob = (relativeDirPath: string | undefined, relativeFilePath: strin
   return `**/${toPosix(hasDir ? `${relativeDirPath}/${relativeFilePath}` : relativeFilePath)}`;
 };
 
+const isCommittedOutput = (factory: unknown): boolean => {
+  if (typeof factory !== "object" || factory === null || !("meta" in factory)) return false;
+  const meta = (factory as { meta?: { committedOutput?: boolean } }).meta;
+  return meta?.committedOutput === true;
+};
+
 const supportsProject = (factory: unknown): boolean => {
   if (typeof factory !== "object" || factory === null || !("meta" in factory)) return true;
   const meta = (factory as { meta?: { supportsProject?: boolean } }).meta;
@@ -67,6 +73,10 @@ const deriveDirEntries = (factories: FactoryMap, feature: Feature): GitignoreEnt
   for (const [target, factory] of factories) {
     if (TARGETS_NOT_DERIVED.has(target)) continue;
     if (!supportsProject(factory)) continue;
+    // Outputs the upstream tool reads from the committed repository (Cursor
+    // Bugbot's BUGBOT.md, Rovo Dev's .review-agent.md) must not be gitignored:
+    // ignoring them would disable the very feature the adapter generates.
+    if (isCommittedOutput(factory)) continue;
     const paths = getProjectPaths(factory) as {
       relativeDirPath?: string;
       relativeFilePath?: string;
