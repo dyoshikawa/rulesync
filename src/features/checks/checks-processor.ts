@@ -53,6 +53,15 @@ type ToolCheckFactory = {
     supportsGlobal: boolean;
     /** File pattern for import (e.g., "*.md") */
     filePattern: string;
+    /**
+     * Whether the upstream reviewer reads this output from the **committed**
+     * repository (Cursor Bugbot, Rovo Dev's code reviewer). The gitignore
+     * derivation skips such outputs — ignoring them would disable the very
+     * feature the adapter generates. Future checks adapters whose upstream
+     * reads from the committed tree (e.g. Goose `.agents/checks/`) should set
+     * this too.
+     */
+    committedOutput?: boolean;
   };
 };
 
@@ -87,7 +96,9 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
       // check targeting Cursor collapses into the root `.cursor/BUGBOT.md`.
       // https://cursor.com/docs/bugbot
       class: CursorCheck,
-      meta: { supportsGlobal: false, filePattern: CURSOR_BUGBOT_FILE_NAME },
+      // `committedOutput`: Bugbot only sees BUGBOT.md when it is checked into
+      // the repository, so the derived .gitignore must not ignore it.
+      meta: { supportsGlobal: false, filePattern: CURSOR_BUGBOT_FILE_NAME, committedOutput: true },
     },
   ],
   [
@@ -104,7 +115,14 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
       // every check targeting it collapses into `.rovodev/.review-agent.md`.
       // https://support.atlassian.com/rovo/docs/set-custom-instructions-for-code-reviews/
       class: RovodevCheck,
-      meta: { supportsGlobal: false, filePattern: ROVODEV_REVIEW_AGENT_FILE_NAME },
+      // `committedOutput`: Rovo Dev's code reviewer reads .review-agent.md
+      // from the committed repository, so the derived .gitignore must not
+      // ignore it.
+      meta: {
+        supportsGlobal: false,
+        filePattern: ROVODEV_REVIEW_AGENT_FILE_NAME,
+        committedOutput: true,
+      },
     },
   ],
   [
