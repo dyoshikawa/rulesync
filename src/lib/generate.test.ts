@@ -385,15 +385,17 @@ describe("generate", () => {
       );
     });
 
-    it("should handle errors gracefully and continue", async () => {
+    it("should fail the run on an ignore error instead of reporting success", async () => {
+      // Ignore files keep secrets out of AI tools' reach; a swallowed error
+      // used to exit 0 "up to date" while nothing was written (see #2486 for
+      // the permissions counterpart).
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
         throw new Error("Test error");
       });
 
-      const result = await generate({ logger, config: mockConfig as never });
-
-      expect(result.ignoreCount).toBe(0);
+      await expect(generate({ logger, config: mockConfig as never })).rejects.toThrow("Test error");
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Test error"));
     });
 
     it("should skip writing when no rulesync files found", async () => {
