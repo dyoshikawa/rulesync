@@ -179,8 +179,9 @@ describe("OpencodeHooks", () => {
       }).getFileContent();
 
       // `input.tool` does not exist on a compaction hook's input, so the
-      // matcher is dropped rather than compiled against a missing field.
-      expect(content).toContain("before-compact.sh");
+      // matcher cannot be honored; the definition is skipped (the processor
+      // warns "Skipped matcher hook(s)") rather than run unconditionally.
+      expect(content).not.toContain("before-compact.sh");
       expect(content).not.toContain("input.tool");
     });
 

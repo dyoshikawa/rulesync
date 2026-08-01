@@ -572,7 +572,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // both resolve here via the settable paths). `tools` is retracted when the
   // generated MCP servers yield no tool filters; `permission` and
   // `instructions` are recomputed from source/existing content before being
-  // applied. Rules (`instructions`) are project-scope-only.
+  // applied. Rules (`instructions`) are registered at both scopes.
   "opencode.json": {
     format: "jsonc",
     features: {

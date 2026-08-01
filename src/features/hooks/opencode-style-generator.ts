@@ -80,10 +80,22 @@ function collectOpencodeStyleHandlers({
     const toolEvent = shellGate?.toolEvent ?? eventMap[canonicalEvent];
     if (!toolEvent) continue;
 
+    // Matchers are honored only on the named hooks with a matchable subject
+    // (`tool.execute.*` via `input.tool`). Everywhere else — the bash-gated
+    // shell events, the subject-less `experimental.session.compacting`, and
+    // the generic `event.type` dispatches — there is nothing to test the regex
+    // against, so a matcher-carrying definition is skipped here to match the
+    // "Skipped matcher hook(s)" warning the processor already emitted.
+    const matcherSupported =
+      !shellGate &&
+      Object.hasOwn(NAMED_HOOK_MATCHER_SUBJECTS, toolEvent) &&
+      NAMED_HOOK_MATCHER_SUBJECTS[toolEvent] !== null;
+
     const handlers: Handler[] = [];
     for (const def of definitions) {
       if ((def.type ?? "command") !== "command") continue;
       if (!def.command) continue;
+      if (def.matcher && !matcherSupported) continue;
       handlers.push({
         command: def.command,
         matcher: def.matcher ? def.matcher : undefined,
