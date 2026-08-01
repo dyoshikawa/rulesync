@@ -827,6 +827,41 @@ Broken YAML`,
       );
     });
 
+    it("should import skills from nested .claude/skills directories (v2.1.178)", async () => {
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const rootDir = join(testDir, ".claude", "skills", "root-skill");
+      const nestedDir = join(testDir, "apps", "web", ".claude", "skills", "deploy");
+      const dupDir = join(testDir, "apps", "web", ".claude", "skills", "root-skill");
+      const nodeModulesDir = join(testDir, "node_modules", "dep", ".claude", "skills", "vendored");
+      for (const [dir, name, body] of [
+        [rootDir, "root-skill", "Root body"],
+        [nestedDir, "deploy", "Deploy body"],
+        [dupDir, "root-skill", "Nested duplicate body"],
+        [nodeModulesDir, "vendored", "Vendored body"],
+      ] as const) {
+        await ensureDir(dir);
+        await writeFileContent(
+          join(dir, "SKILL.md"),
+          `---\nname: ${name}\ndescription: ${name} description\n---\n${body}`,
+        );
+      }
+
+      const toolDirs = await processor.loadToolDirs();
+      const names = toolDirs.map((dir) => (dir as AgentsSkillsSkill).getDirName());
+
+      // The nested deploy skill is discovered; the root skill wins the name
+      // clash; a dependency-tree skill is never scanned.
+      expect(names).toContain("root-skill");
+      expect(names).toContain("deploy");
+      expect(names).not.toContain("vendored");
+      expect(names.filter((name) => name === "root-skill")).toHaveLength(1);
+    });
+
     it("should still abort import for non-lenient tools when a declared-root skill is invalid", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
