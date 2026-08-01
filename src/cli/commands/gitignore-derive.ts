@@ -101,6 +101,7 @@ const deriveFileEntries = (factories: FactoryMap, feature: Feature): GitignoreEn
   for (const [target, factory] of factories) {
     if (TARGETS_NOT_DERIVED.has(target)) continue;
     if (!supportsProject(factory)) continue;
+    if (isCommittedOutput(factory)) continue;
     const paths = getProjectPaths(factory) as {
       relativeDirPath?: string;
       relativeFilePath?: string;

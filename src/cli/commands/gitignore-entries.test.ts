@@ -471,3 +471,23 @@ describe("filterGitignoreEntries", () => {
     });
   });
 });
+
+
+describe("committedOutput check outputs", () => {
+  it("never derives gitignore entries for outputs upstream reads from the committed repo", async () => {
+    const { deriveAllGitignoreEntries } = await import("./gitignore-derive.js");
+    const entries = deriveAllGitignoreEntries().map((tag) => tag.entry);
+    // Bugbot / Rovo Dev's reviewer only see these files when committed;
+    // ignoring them would disable the checks feature (#2487).
+    expect(entries).not.toContain("**/.cursor/BUGBOT.md");
+    expect(entries).not.toContain("**/.rovodev/.review-agent.md");
+  });
+
+  it("keeps the committedOutput flag meaningful (at least one checks factory sets it)", async () => {
+    const { toolCheckFactories } = await import("../../features/checks/checks-processor.js");
+    const flagged = [...toolCheckFactories.values()].filter(
+      (factory) => factory.meta.committedOutput === true,
+    );
+    expect(flagged.length).toBeGreaterThan(0);
+  });
+});
