@@ -679,10 +679,13 @@ export class KiloMcp extends ToolMcp {
 
     // rulesync owns the entries under its managed rules directory — rebuilt
     // from the current generate so deleted rules do not leave stale entries;
-    // entries outside it are the user's and pass through verbatim.
+    // entries outside it are the user's and pass through verbatim. Project
+    // scope only today (Kilo auto-discovers its global rules dir, so the
+    // registrar never runs globally); a future global opt-in must not reuse
+    // this project prefix.
     const managedPrefix = `${toPosixPath(join(KILO_DIR, KILO_RULES_DIR_NAME))}/`;
     const preservedInstructions = existingInstructions.filter(
-      (entry) => !toPosixPath(entry).startsWith(managedPrefix),
+      (entry) => !toPosixPath(entry).replace(/^\.\//, "").startsWith(managedPrefix),
     );
 
     const mergedInstructions = Array.from(

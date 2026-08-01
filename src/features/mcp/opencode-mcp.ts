@@ -645,9 +645,10 @@ export class OpencodeMcp extends ToolMcp {
     const managedPrefixes = global
       ? ["memories/", `${configDirPrefix}memories/`]
       : [`${toPosixPath(OPENCODE_DIR)}/memories/`];
-    const preservedInstructions = existingInstructions.filter(
-      (entry) => !managedPrefixes.some((prefix) => toPosixPath(entry).startsWith(prefix)),
-    );
+    const preservedInstructions = existingInstructions.filter((entry) => {
+      const normalized = toPosixPath(entry).replace(/^\.\//, "");
+      return !managedPrefixes.some((prefix) => normalized.startsWith(prefix));
+    });
 
     const mergedInstructions = Array.from(
       new Set([...preservedInstructions, ...normalizedInstructions]),
