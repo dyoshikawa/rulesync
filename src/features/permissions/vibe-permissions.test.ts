@@ -420,6 +420,107 @@ describe("VibePermissions", () => {
     expect(imported.permission.agent["*"]).toBe("deny");
   });
 
+  it("should skip categories without a Vibe tool instead of emitting inert tables", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "git *": "allow" },
+          glob: { "*": "deny" },
+          notebookedit: { "*.ipynb": "deny" },
+        },
+      }),
+    });
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    // A deny on a tool Vibe does not have would look applied while being
+    // silently inert — skip it loudly instead.
+    expect(parsed.tools.glob).toBeUndefined();
+    expect(parsed.tools.notebookedit).toBeUndefined();
+    expect(parsed.disabled_tools).toBeUndefined();
+    expect(parsed.tools.bash.allowlist).toEqual(["git *"]);
+    expect(
+      logger.warn.mock.calls.some(([message]) =>
+        String(message).includes("no builtin tool for the 'glob' category"),
+      ),
+    ).toBe(true);
+    expect(
+      logger.warn.mock.calls.some(([message]) => String(message).includes("'notebookedit'")),
+    ).toBe(true);
+  });
+
+  it("should emit [tools.grep] for the grep category (a real Vibe builtin)", async () => {
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { grep: { "*": "deny" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.grep.permission).toBe("never");
+    expect(parsed.disabled_tools).toEqual(["grep"]);
+  });
+
+  it("should not touch phantom tool names for unmapped categories in the override or cleanup", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), 'disabled_tools = ["glob"]');
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { glob: { "*": "allow" } },
+          vibe: { permission: { glob: { sensitive_patterns: ["x"] } } },
+        }),
+      }),
+      logger,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    // No [tools.glob] from the sensitive_patterns override, and the existing
+    // disabled_tools entry for the unmapped name is left alone (skipped, not
+    // cleaned up as if rulesync managed a tool by that name).
+    expect(parsed.tools?.glob).toBeUndefined();
+    expect(parsed.disabled_tools).toEqual(["glob"]);
+  });
+
+  it("should round-trip an unknown on-disk [tools.*] table untouched", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.custom_tool]", 'permission = "ask"'].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+    expect(parsed.tools.custom_tool.permission).toBe("ask");
+  });
+
   it("should not write the exclusive enabled_tools allowlist for wildcard allows", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,

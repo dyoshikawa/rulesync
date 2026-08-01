@@ -53,6 +53,7 @@ const CANONICAL_TO_VIBE_TOOL_NAMES: Record<string, string> = {
   write: "write_file",
   webfetch: "web_fetch",
   websearch: "web_search",
+  grep: "grep",
   agent: "task",
 };
 
@@ -63,6 +64,7 @@ const VIBE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
   write_file: "write",
   web_fetch: "webfetch",
   web_search: "websearch",
+  grep: "grep",
   task: "agent",
 };
 
@@ -138,6 +140,9 @@ export class VibePermissions extends ToolPermissions {
     // (e.g. a user-defined `enabled_tools` entry for a Vibe-only tool).
     const removedEnabledTools: string[] = [];
     for (const category of Object.keys(permission)) {
+      if (!hasVibeToolName(category)) {
+        continue;
+      }
       const vibeToolName = toVibeToolName(category);
       if (enabledTools.delete(vibeToolName)) {
         removedEnabledTools.push(vibeToolName);
@@ -146,11 +151,21 @@ export class VibePermissions extends ToolPermissions {
     }
 
     for (const [category, rules] of Object.entries(permission)) {
+      if (!hasVibeToolName(category)) {
+        const ruleCount = Object.keys(rules).length;
+        if (ruleCount > 0) {
+          logger?.warn(
+            `Vibe has no builtin tool for the '${category}' category; skipping ${ruleCount} ` +
+              `rule(s) instead of emitting an inert [tools.${category}] table.`,
+          );
+        }
+        continue;
+      }
       applyCategoryRules({ category, rules, tools, enabledTools, disabledTools, logger });
     }
 
     const vibeOverride = rulesyncPermissions.getJson().vibe;
-    applyVibeSensitivePatterns(tools, vibeOverride);
+    applyVibeSensitivePatterns(tools, vibeOverride, logger);
 
     // `enabled_tools` is exclusive, so removing an entry changes semantics for
     // every OTHER tool too: an emptied list activates all tools, while a
@@ -286,8 +301,16 @@ export class VibePermissions extends ToolPermissions {
 function applyVibeSensitivePatterns(
   tools: Record<string, VibeToolConfig>,
   vibeOverride: VibePermissionsOverride | undefined,
+  logger?: Logger,
 ): void {
   for (const [category, toolOverride] of Object.entries(vibeOverride?.permission ?? {})) {
+    if (!hasVibeToolName(category)) {
+      logger?.warn(
+        `Vibe has no builtin tool for the '${category}' category; skipping its ` +
+          `vibe.permission.${category}.sensitive_patterns override.`,
+      );
+      continue;
+    }
     const vibeToolName = toVibeToolName(category);
     const nextTool = toVibeToolConfig(tools[vibeToolName]);
     const patterns = toStringArray(toolOverride.sensitive_patterns);
@@ -404,6 +427,18 @@ function parseVibeConfig(fileContent: string): VibeConfig {
 
 function toVibeToolName(category: string): string {
   return CANONICAL_TO_VIBE_TOOL_NAMES[category] ?? category;
+}
+
+/**
+ * Whether a canonical category has a Vibe builtin tool to land on. Categories
+ * without one (e.g. `glob`, `notebookedit`) must not emit a
+ * `[tools.<category>]` table: Vibe has no such tool, so a `deny` authored
+ * there would look applied while being silently inert — the dangerous
+ * direction. Unlike `agent` → `task` there is no correct name to rename to,
+ * so the category is skipped with a warning (the grokcli adapter's pattern).
+ */
+function hasVibeToolName(category: string): boolean {
+  return Object.hasOwn(CANONICAL_TO_VIBE_TOOL_NAMES, category);
 }
 
 function toCanonicalToolName(vibeToolName: string): string {
