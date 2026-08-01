@@ -2578,6 +2578,7 @@ describe("OpencodeMcp", () => {
         outputRoot: testDir,
         instructions: [".opencode/memories/overview.md"],
       });
+      if (opencodeMcp === null) throw new Error("expected a registrar result");
 
       const json = opencodeMcp.getJson();
       expect(json.mcp).toEqual(existingConfig.mcp);
@@ -2587,9 +2588,16 @@ describe("OpencodeMcp", () => {
       expect(opencodeMcp.getRelativeFilePath()).toBe("opencode.jsonc");
     });
 
-    it("should dedupe and sort merged instructions", async () => {
+    it("should own the managed memories entries and preserve user entries verbatim", async () => {
       const existingConfig = {
-        instructions: [".opencode/memories/b.md", ".opencode/memories/a.md"],
+        instructions: [
+          // Managed dir: rebuilt from the current generate, so the entry for
+          // the since-deleted a.md must not accumulate forever.
+          ".opencode/memories/b.md",
+          ".opencode/memories/a.md",
+          // User entries outside the managed dir pass through verbatim.
+          "docs/style.md",
+        ],
       };
       await writeFileContent(
         join(testDir, "opencode.jsonc"),
@@ -2600,12 +2608,55 @@ describe("OpencodeMcp", () => {
         outputRoot: testDir,
         instructions: [".opencode/memories/b.md", ".opencode/memories/c.md"],
       });
+      if (opencodeMcp === null) throw new Error("expected a registrar result");
 
       expect((opencodeMcp.getJson() as any).instructions).toEqual([
-        ".opencode/memories/a.md",
         ".opencode/memories/b.md",
         ".opencode/memories/c.md",
+        "docs/style.md",
       ]);
+    });
+
+    it("should clear stale managed entries when the last rule is deleted", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.jsonc"),
+        JSON.stringify({
+          instructions: [".opencode/memories/stale.md", "docs/style.md"],
+          mcp: {},
+        }),
+      );
+
+      const opencodeMcp = await OpencodeMcp.fromInstructions({
+        outputRoot: testDir,
+        instructions: [],
+      });
+      if (opencodeMcp === null) throw new Error("expected a registrar result");
+
+      const json = opencodeMcp.getJson() as Record<string, unknown>;
+      // The managed entry is owned and rebuilt (to nothing); the user entry
+      // survives; an all-user list keeps the key, and mcp is untouched.
+      expect(json.instructions).toEqual(["docs/style.md"]);
+      expect(json.mcp).toEqual({});
+    });
+
+    it("should drop the legacy full-prefix global spelling as a managed duplicate", async () => {
+      await ensureDir(join(testDir, ".config", "opencode"));
+      await writeFileContent(
+        join(testDir, ".config", "opencode", "opencode.json"),
+        JSON.stringify({
+          instructions: [".config/opencode/memories/old.md", "memories/stale.md", "docs/user.md"],
+        }),
+      );
+
+      const opencodeMcp = await OpencodeMcp.fromInstructions({
+        outputRoot: testDir,
+        instructions: [".config/opencode/memories/style.md"],
+        global: true,
+      });
+      if (opencodeMcp === null) throw new Error("expected a registrar result");
+
+      const json = opencodeMcp.getJson() as Record<string, unknown>;
+      expect(json.instructions).toEqual(["docs/user.md", "memories/style.md"]);
     });
 
     it("should register global instructions relative to the global config dir", async () => {
@@ -2614,6 +2665,7 @@ describe("OpencodeMcp", () => {
         instructions: [".config/opencode/memories/overview.md"],
         global: true,
       });
+      if (opencodeMcp === null) throw new Error("expected a registrar result");
 
       expect(opencodeMcp.getRelativeDirPath()).toBe(join(".config", "opencode"));
       const parsed = JSON.parse(opencodeMcp.getFileContent());
@@ -2629,6 +2681,7 @@ describe("OpencodeMcp", () => {
         outputRoot: testDir,
         instructions: [".opencode/memories/overview.md"],
       });
+      if (opencodeMcp === null) throw new Error("expected a registrar result");
 
       expect(opencodeMcp.getRelativeFilePath()).toBe("opencode.json");
       expect((opencodeMcp.getJson() as any).instructions).toEqual([
@@ -2641,6 +2694,7 @@ describe("OpencodeMcp", () => {
         outputRoot: testDir,
         instructions: [".opencode/memories/overview.md"],
       });
+      if (opencodeMcp === null) throw new Error("expected a registrar result");
 
       expect(opencodeMcp.getRelativeFilePath()).toBe("opencode.jsonc");
       expect((opencodeMcp.getJson() as any).instructions).toEqual([

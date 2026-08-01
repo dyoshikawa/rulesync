@@ -4,6 +4,7 @@ import { parse as parseJsonc } from "jsonc-parser";
 import { refine, z } from "zod/mini";
 
 import {
+  OPENCODE_DIR,
   OPENCODE_GLOBAL_DIR,
   OPENCODE_JSON_FILE_NAME,
   OPENCODE_JSONC_FILE_NAME,
@@ -603,7 +604,7 @@ export class OpencodeMcp extends ToolMcp {
     instructions: string[];
     validate?: boolean;
     global?: boolean;
-  }): Promise<OpencodeMcp> {
+  }): Promise<OpencodeMcp | null> {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
@@ -631,13 +632,32 @@ export class OpencodeMcp extends ToolMcp {
       }
     }
 
+    // Nothing to register and nothing to clean up: do not create the shared
+    // config just to hold an empty payload.
+    if (instructions.length === 0 && fileContent === null) {
+      return null;
+    }
+
     const json = fileContent ? parseJsonc(fileContent) : {};
     const existingInstructions: string[] = Array.isArray(json.instructions)
       ? json.instructions.filter((entry: unknown): entry is string => typeof entry === "string")
       : [];
 
+    // rulesync owns the entries that point under its managed rules directory:
+    // that subset is rebuilt from the current generate, so an entry registered
+    // for a since-deleted rule does not accumulate forever (and a legacy
+    // full-prefix global spelling cannot coexist as a duplicate). Entries
+    // outside the managed directory are the user's and pass through verbatim.
+    const managedPrefixes = global
+      ? ["memories/", `${configDirPrefix}memories/`]
+      : [`${toPosixPath(OPENCODE_DIR)}/memories/`];
+    const preservedInstructions = existingInstructions.filter((entry) => {
+      const normalized = toPosixPath(entry).replace(/^\.\//, "");
+      return !managedPrefixes.some((prefix) => normalized.startsWith(prefix));
+    });
+
     const mergedInstructions = Array.from(
-      new Set([...existingInstructions, ...normalizedInstructions]),
+      new Set([...preservedInstructions, ...normalizedInstructions]),
     ).toSorted();
 
     return new OpencodeMcp({
@@ -648,7 +668,8 @@ export class OpencodeMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(basePaths),
         feature: "rules",
         existingContent: fileContent ?? "",
-        patch: { instructions: mergedInstructions },
+        // An emptied list retracts the key rather than writing `[]`.
+        patch: { instructions: mergedInstructions.length > 0 ? mergedInstructions : undefined },
         filePath: join(jsonDir, relativeFilePath),
       }),
       validate,

@@ -6,12 +6,13 @@ import { refine, z } from "zod/mini";
 import {
   KILO_DIR,
   KILO_GLOBAL_DIR,
+  KILO_RULES_DIR_NAME,
   KILO_JSON_FILE_NAME,
   KILO_JSONC_FILE_NAME,
 } from "../../constants/kilo-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
@@ -652,7 +653,7 @@ export class KiloMcp extends ToolMcp {
     instructions: string[];
     validate?: boolean;
     global?: boolean;
-  }): Promise<KiloMcp> {
+  }): Promise<KiloMcp | null> {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
@@ -671,13 +672,30 @@ export class KiloMcp extends ToolMcp {
       }
     }
 
+    // Nothing to register and nothing to clean up: do not create the shared
+    // config just to hold an empty payload.
+    if (instructions.length === 0 && fileContent === null) {
+      return null;
+    }
+
     const json = fileContent ? parseJsonc(fileContent) : {};
     const existingInstructions: string[] = Array.isArray(json.instructions)
       ? json.instructions.filter((entry: unknown): entry is string => typeof entry === "string")
       : [];
 
+    // rulesync owns the entries under its managed rules directory — rebuilt
+    // from the current generate so deleted rules do not leave stale entries;
+    // entries outside it are the user's and pass through verbatim. Project
+    // scope only today (Kilo auto-discovers its global rules dir, so the
+    // registrar never runs globally); a future global opt-in must not reuse
+    // this project prefix.
+    const managedPrefix = `${toPosixPath(join(KILO_DIR, KILO_RULES_DIR_NAME))}/`;
+    const preservedInstructions = existingInstructions.filter(
+      (entry) => !toPosixPath(entry).replace(/^\.\//, "").startsWith(managedPrefix),
+    );
+
     const mergedInstructions = Array.from(
-      new Set([...existingInstructions, ...instructions]),
+      new Set([...preservedInstructions, ...instructions]),
     ).toSorted();
 
     return new KiloMcp({
@@ -688,7 +706,8 @@ export class KiloMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(basePaths),
         feature: "rules",
         existingContent: fileContent ?? "",
-        patch: { instructions: mergedInstructions },
+        // An emptied list retracts the key rather than writing `[]`.
+        patch: { instructions: mergedInstructions.length > 0 ? mergedInstructions : undefined },
         filePath: join(jsonDir, relativeFilePath),
       }),
       validate,
