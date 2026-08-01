@@ -458,6 +458,52 @@ describe("VibePermissions", () => {
     ).toBe(true);
   });
 
+  it("should emit [tools.grep] for the grep category (a real Vibe builtin)", async () => {
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { grep: { "*": "deny" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.grep.permission).toBe("never");
+    expect(parsed.disabled_tools).toEqual(["grep"]);
+  });
+
+  it("should not touch phantom tool names for unmapped categories in the override or cleanup", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      'disabled_tools = ["glob"]',
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { glob: { "*": "allow" } },
+          vibe: { permission: { glob: { sensitive_patterns: ["x"] } } },
+        }),
+      }),
+      logger,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    // No [tools.glob] from the sensitive_patterns override, and the existing
+    // disabled_tools entry for the unmapped name is left alone (skipped, not
+    // cleaned up as if rulesync managed a tool by that name).
+    expect(parsed.tools?.glob).toBeUndefined();
+    expect(parsed.disabled_tools).toEqual(["glob"]);
+  });
+
   it("should round-trip an unknown on-disk [tools.*] table untouched", async () => {
     await ensureDir(join(testDir, ".vibe"));
     await writeFileContent(

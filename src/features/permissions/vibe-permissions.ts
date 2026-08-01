@@ -53,6 +53,7 @@ const CANONICAL_TO_VIBE_TOOL_NAMES: Record<string, string> = {
   write: "write_file",
   webfetch: "web_fetch",
   websearch: "web_search",
+  grep: "grep",
   agent: "task",
 };
 
@@ -63,6 +64,7 @@ const VIBE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
   write_file: "write",
   web_fetch: "webfetch",
   web_search: "websearch",
+  grep: "grep",
   task: "agent",
 };
 
@@ -163,7 +165,7 @@ export class VibePermissions extends ToolPermissions {
     }
 
     const vibeOverride = rulesyncPermissions.getJson().vibe;
-    applyVibeSensitivePatterns(tools, vibeOverride);
+    applyVibeSensitivePatterns(tools, vibeOverride, logger);
 
     // `enabled_tools` is exclusive, so removing an entry changes semantics for
     // every OTHER tool too: an emptied list activates all tools, while a
@@ -299,9 +301,14 @@ export class VibePermissions extends ToolPermissions {
 function applyVibeSensitivePatterns(
   tools: Record<string, VibeToolConfig>,
   vibeOverride: VibePermissionsOverride | undefined,
+  logger?: Logger,
 ): void {
   for (const [category, toolOverride] of Object.entries(vibeOverride?.permission ?? {})) {
     if (!hasVibeToolName(category)) {
+      logger?.warn(
+        `Vibe has no builtin tool for the '${category}' category; skipping its ` +
+          `vibe.permission.${category}.sensitive_patterns override.`,
+      );
       continue;
     }
     const vibeToolName = toVibeToolName(category);
