@@ -12,6 +12,16 @@ const logger = createMockLogger();
 
 let mockClientInstance: any;
 
+const { promptSkillSelectionMock, isInteractiveTerminalMock } = vi.hoisted(() => ({
+  promptSkillSelectionMock: vi.fn(),
+  isInteractiveTerminalMock: vi.fn(),
+}));
+
+vi.mock("./skill-prompt.js", () => ({
+  promptSkillSelection: promptSkillSelectionMock,
+  isInteractiveTerminal: isInteractiveTerminalMock,
+}));
+
 vi.mock("./github-client.js", () => ({
   GitHubClient: class MockGitHubClient {
     static resolveToken = vi.fn();
@@ -1115,6 +1125,332 @@ describe("fetchFiles", () => {
       expect(dirPaths).toContain("rules/dir1");
       expect(dirPaths).toContain("rules/dir2");
     });
+  });
+});
+
+describe("fetchFiles with skill selection", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  function mockMultiSkillRepository(): void {
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "skill-a",
+              path: "skills/skill-a",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+            {
+              name: "skill-b",
+              path: "skills/skill-b",
+              type: "dir",
+              sha: "bbb",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/skill-a") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/skill-a/SKILL.md",
+              type: "file",
+              sha: "ccc",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        if (path === "skills/skill-b") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/skill-b/SKILL.md",
+              type: "file",
+              sha: "ddd",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+  }
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+
+    mockClientInstance = {
+      validateRepository: vi.fn().mockResolvedValue(true),
+      getDefaultBranch: vi.fn().mockResolvedValue("main"),
+      listDirectory: vi.fn(),
+      getFileContent: vi.fn(),
+    };
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("should fetch only the skills named in the skills option", async () => {
+    mockMultiSkillRepository();
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { skills: ["skill-a"] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.files).toEqual([{ relativePath: "skills/skill-a/SKILL.md", status: "created" }]);
+    expect(await fileExists(join(testDir, ".rulesync", "skills", "skill-a", "SKILL.md"))).toBe(
+      true,
+    );
+    expect(await fileExists(join(testDir, ".rulesync", "skills", "skill-b", "SKILL.md"))).toBe(
+      false,
+    );
+    expect(promptSkillSelectionMock).not.toHaveBeenCalled();
+  });
+
+  it("should keep non-skill files untouched when filtering skills", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "overview.md",
+              path: "rules/overview.md",
+              type: "file",
+              sha: "eee",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { features: ["rules", "skills"], skills: ["skill-b"] },
+      outputRoot: testDir,
+    });
+
+    const relativePaths = summary.files.map((f) => f.relativePath).toSorted();
+    expect(relativePaths).toEqual(["rules/overview.md", "skills/skill-b/SKILL.md"]);
+  });
+
+  it("should throw error for unknown skill names listing available skills", async () => {
+    mockMultiSkillRepository();
+
+    await expect(
+      fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { skills: ["skill-a", "no-such-skill"] },
+        outputRoot: testDir,
+      }),
+    ).rejects.toThrow("Unknown skill(s): no-such-skill. Available skills: skill-a, skill-b");
+  });
+
+  it("should throw error when skills option is used without the skills feature", async () => {
+    await expect(
+      fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { features: ["rules"], skills: ["skill-a"] },
+        outputRoot: testDir,
+      }),
+    ).rejects.toThrow("require the skills feature");
+  });
+
+  it("should throw error when interactive option is used without the skills feature", async () => {
+    await expect(
+      fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { features: ["rules"], interactive: true },
+        outputRoot: testDir,
+      }),
+    ).rejects.toThrow("require the skills feature");
+  });
+
+  it("should fetch skills selected via the interactive prompt", async () => {
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue(["skill-b"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+    });
+    expect(summary.files).toEqual([{ relativePath: "skills/skill-b/SKILL.md", status: "created" }]);
+  });
+
+  it("should pass skills option as preselected skills to the interactive prompt", async () => {
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue(["skill-a"]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true, skills: ["skill-a"] },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: ["skill-a"],
+    });
+  });
+
+  it("should throw error when interactive option is used without a TTY", async () => {
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(false);
+
+    await expect(
+      fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { interactive: true },
+        outputRoot: testDir,
+      }),
+    ).rejects.toThrow("requires an interactive terminal");
+    expect(promptSkillSelectionMock).not.toHaveBeenCalled();
+    // Fail-fast: no GitHub API call should happen before the TTY check
+    expect(mockClientInstance.validateRepository).not.toHaveBeenCalled();
+  });
+
+  it("should not treat flat files directly under skills/ as selectable skills", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              {
+                name: "README.md",
+                path: "skills/README.md",
+                type: "file",
+                sha: "fff",
+                size: 50,
+                download_url: "https://example.com",
+              },
+            ],
+          );
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue(["skill-a"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    // README.md is not offered as a skill, and passes through the filter
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+    });
+    const relativePaths = summary.files.map((f) => f.relativePath).toSorted();
+    expect(relativePaths).toEqual(["skills/README.md", "skills/skill-a/SKILL.md"]);
+  });
+
+  it("should warn and fetch nothing when interactive is used but no skills exist", async () => {
+    isInteractiveTerminalMock.mockReturnValue(true);
+    mockClientInstance.listDirectory.mockImplementation(() => {
+      const error = new Error("Not found");
+      Object.assign(error, { statusCode: 404 });
+      return Promise.reject(error);
+    });
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(summary.files).toHaveLength(0);
+    expect(promptSkillSelectionMock).not.toHaveBeenCalled();
+  });
+
+  it("should validate skill names in the tool-target conversion flow too", async () => {
+    mockMultiSkillRepository();
+
+    await expect(
+      fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { target: "claudecode", skills: ["no-such-skill"] },
+        outputRoot: testDir,
+      }),
+    ).rejects.toThrow("Unknown skill(s): no-such-skill");
+  });
+
+  it("should apply the interactive selection in the tool-target conversion flow too", async () => {
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue(["skill-a"]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { target: "claudecode", interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+    });
+  });
+
+  it("should fetch no skill files when the interactive selection is empty", async () => {
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(summary.files).toHaveLength(0);
   });
 });
 

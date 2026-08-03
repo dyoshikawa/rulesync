@@ -45,6 +45,7 @@ import {
 import type { Logger } from "../utils/logger.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
+import { isInteractiveTerminal, promptSkillSelection } from "./skill-prompt.js";
 import { parseSource } from "./source-parser.js";
 
 /**
@@ -241,6 +242,139 @@ function resolveFeatures(features?: string[]): Feature[] {
 }
 
 /**
+ * Matches C0/C1 control characters (including ANSI escape introducers) that
+ * must never reach the terminal from remote-controlled names.
+ */
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS_PATTERN = /[\u0000-\u001f\u007f-\u009f]/g;
+
+/**
+ * A file entry collected from feature directories
+ */
+type CollectedFile = {
+  remotePath: string;
+  relativePath: string;
+  size: number;
+};
+
+/**
+ * Extract the skill name from a relative path under the skills directory.
+ * Returns undefined for paths outside skills/ and for flat files directly
+ * under skills/ (skills are directory-based, e.g. skills/<name>/SKILL.md).
+ * Control characters are stripped so remote-controlled names cannot smuggle
+ * terminal escape sequences into prompts or error messages.
+ */
+function getSkillName(relativePath: string): string | undefined {
+  const posixPath = toPosixPath(relativePath);
+  if (!posixPath.startsWith("skills/")) {
+    return undefined;
+  }
+  const segments = posixPath.split("/");
+  if (segments.length < 3) {
+    return undefined;
+  }
+  const name = segments[1]?.replace(CONTROL_CHARS_PATTERN, "");
+  return name === undefined || name === "" ? undefined : name;
+}
+
+/**
+ * List unique skill names among collected files
+ */
+function listAvailableSkills(files: CollectedFile[]): string[] {
+  const names = new Set<string>();
+  for (const file of files) {
+    const name = getSkillName(file.relativePath);
+    if (name !== undefined) {
+      names.add(name);
+    }
+  }
+  return [...names].toSorted();
+}
+
+/**
+ * Validate the combination of skill selection options before any network call.
+ * Fails fast when the skills feature is disabled or when --interactive cannot
+ * show a prompt (no TTY).
+ */
+function validateSkillSelectionOptions(params: {
+  requestedSkills: string[];
+  interactive: boolean;
+  enabledFeatures: Feature[];
+}): void {
+  const { requestedSkills, interactive, enabledFeatures } = params;
+
+  if ((requestedSkills.length > 0 || interactive) && !enabledFeatures.includes("skills")) {
+    throw new Error(
+      "The --skills and --interactive options require the skills feature. " +
+        "Add 'skills' to --features or omit --features to use the default.",
+    );
+  }
+
+  if (interactive && !isInteractiveTerminal()) {
+    throw new Error(
+      "The --interactive option requires an interactive terminal (TTY). " +
+        "Use --skills <names> to select skills non-interactively.",
+    );
+  }
+}
+
+/**
+ * Narrow collected skill files to a selection, either from the --skills option
+ * or via an interactive checkbox prompt (--interactive).
+ * Files outside the skills directory pass through untouched.
+ */
+async function applySkillSelection(params: {
+  files: CollectedFile[];
+  requestedSkills: string[];
+  interactive: boolean;
+  logger: Logger;
+}): Promise<CollectedFile[]> {
+  const { files, requestedSkills, interactive, logger } = params;
+
+  if (requestedSkills.length === 0 && !interactive) {
+    return files;
+  }
+
+  const availableSkills = listAvailableSkills(files);
+
+  if (requestedSkills.length > 0) {
+    const unknownSkills = requestedSkills.filter((name) => !availableSkills.includes(name));
+    if (unknownSkills.length > 0) {
+      const availableText =
+        availableSkills.length > 0 ? availableSkills.join(", ") : "(no skills found)";
+      throw new Error(
+        `Unknown skill(s): ${unknownSkills.join(", ")}. Available skills: ${availableText}`,
+      );
+    }
+  }
+
+  let selectedSkills = requestedSkills;
+  if (interactive) {
+    if (availableSkills.length === 0) {
+      logger.warn("No skills found in the source repository to select from.");
+      selectedSkills = [];
+    } else {
+      selectedSkills = await promptSkillSelection({
+        availableSkills,
+        preselectedSkills: requestedSkills,
+      });
+      if (selectedSkills.length === 0) {
+        logger.warn("No skills were selected in the interactive prompt; skipping all skills.");
+      }
+    }
+  }
+
+  const selectedSet = new Set(selectedSkills);
+  return files.filter((file) => {
+    const name = getSkillName(file.relativePath);
+    if (name === undefined) {
+      return true;
+    }
+    return selectedSet.has(name);
+  });
+}
+
+/**
  * Type guard for error objects with statusCode
  */
 function hasStatusCode(error: unknown): error is { statusCode: number } {
@@ -304,6 +438,10 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   const conflictStrategy: ConflictStrategy = options.conflict ?? "overwrite";
   const enabledFeatures = resolveFeatures(options.features);
   const target: FetchTarget = options.target ?? "rulesync";
+  const requestedSkills = options.skills ?? [];
+  const interactive = options.interactive ?? false;
+
+  validateSkillSelectionOptions({ requestedSkills, interactive, enabledFeatures });
 
   // Validate output directory to prevent path traversal attacks
   checkPathTraversal({
@@ -337,6 +475,8 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
       ref,
       resolvedPath,
       enabledFeatures,
+      requestedSkills,
+      interactive,
       target,
       outputDir,
       outputRoot,
@@ -349,7 +489,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   const semaphore = new Semaphore(FETCH_CONCURRENCY_LIMIT);
 
   // Collect all files to fetch from feature directories directly
-  const filesToFetch = await collectFeatureFiles({
+  const collectedFiles = await collectFeatureFiles({
     client,
     owner: parsed.owner,
     repo: parsed.repo,
@@ -357,6 +497,13 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     ref,
     enabledFeatures,
     semaphore,
+    logger,
+  });
+
+  const filesToFetch = await applySkillSelection({
+    files: collectedFiles,
+    requestedSkills,
+    interactive,
     logger,
   });
 
@@ -536,6 +683,8 @@ async function fetchAndConvertToolFiles(params: {
   ref: string;
   resolvedPath: string;
   enabledFeatures: Feature[];
+  requestedSkills: string[];
+  interactive: boolean;
   target: ToolTarget;
   outputDir: string;
   outputRoot: string;
@@ -548,6 +697,8 @@ async function fetchAndConvertToolFiles(params: {
     ref,
     resolvedPath,
     enabledFeatures,
+    requestedSkills,
+    interactive,
     target,
     outputDir,
     outputRoot,
@@ -565,7 +716,7 @@ async function fetchAndConvertToolFiles(params: {
   try {
     // Collect files using rulesync feature paths (rules/, commands/, etc.)
     // External repos use these paths directly without tool-specific prefixes
-    const filesToFetch = await collectFeatureFiles({
+    const collectedFiles = await collectFeatureFiles({
       client,
       owner: parsed.owner,
       repo: parsed.repo,
@@ -573,6 +724,13 @@ async function fetchAndConvertToolFiles(params: {
       ref,
       enabledFeatures,
       semaphore,
+      logger,
+    });
+
+    const filesToFetch = await applySkillSelection({
+      files: collectedFiles,
+      requestedSkills,
+      interactive,
       logger,
     });
 

@@ -6,6 +6,10 @@ Rulesync provides official skills that you can install using the fetch command o
 # One-time fetch
 rulesync fetch dyoshikawa/rulesync
 
+# Fetch only specific skills, or pick them interactively
+rulesync fetch dyoshikawa/rulesync --skills rulesync
+rulesync fetch dyoshikawa/rulesync --interactive
+
 # Or declare in rulesync.jsonc and run 'rulesync install'
 ```
 

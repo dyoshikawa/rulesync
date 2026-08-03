@@ -85,6 +85,7 @@
     "pre-commit": "pnpm exec lint-staged"
   },
   "dependencies": {
+    "@inquirer/checkbox": "5.2.1",
     "@modelcontextprotocol/sdk": "1.30.0",
     "@octokit/request-error": "7.1.0",
     "@octokit/rest": "22.0.1",

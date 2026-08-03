@@ -1,5 +1,6 @@
 import { fetchFiles, formatFetchSummary } from "../../lib/fetch.js";
 import { GitHubClientError } from "../../lib/github-client.js";
+import { SkillSelectionCancelledError } from "../../lib/skill-prompt.js";
 import type { FetchOptions } from "../../types/fetch.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import type { Logger } from "../../utils/logger.js";
@@ -49,6 +50,10 @@ export async function fetchCommand(logger: Logger, options: FetchCommandOptions)
       logger.warn("No files were fetched.");
     }
   } catch (error) {
+    if (error instanceof SkillSelectionCancelledError) {
+      logger.warn("Fetch cancelled: no skills were selected.");
+      return;
+    }
     if (error instanceof GitHubClientError) {
       // Include auth hints in error message for JSON mode
       const authHint =

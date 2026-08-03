@@ -140,13 +140,28 @@ export function createProgram(): Command {
       "-c, --conflict <strategy>",
       "Conflict resolution strategy: skip, overwrite (default: overwrite)",
     )
+    .option(
+      "--skills <skills>",
+      "Comma-separated list of skill names to fetch (requires the skills feature)",
+      parseCommaSeparatedList,
+    )
+    .option(
+      "-i, --interactive",
+      "Interactively select which skills to fetch via a checkbox prompt (requires the skills feature)",
+    )
     .option("--token <token>", "Git provider token for private repositories")
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
-      wrapCommand("fetch", "FETCH_FAILED", async (logger, options, _globalOpts, positionalArgs) => {
+      wrapCommand("fetch", "FETCH_FAILED", async (logger, options, globalOpts, positionalArgs) => {
+        const fetchOptions = options as FetchOptions;
+        // The interactive prompt draws its UI on stdout; mixing it with the
+        // global --json envelope would corrupt the machine-readable output.
+        if (fetchOptions.interactive && globalOpts.json) {
+          throw new Error("The --interactive option cannot be combined with --json output.");
+        }
         const source = positionalArgs[0] as string;
-        await fetchCommand(logger, { ...(options as FetchOptions), source });
+        await fetchCommand(logger, { ...fetchOptions, source });
       }),
     );
 
