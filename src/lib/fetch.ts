@@ -273,7 +273,6 @@ function getSkillName(relativePath: string): string | undefined {
   if (segments.length < 3) {
     return undefined;
   }
-  // eslint-disable-next-line no-control-regex
   const name = segments[1]?.replace(CONTROL_CHARS_PATTERN, "");
   return name === undefined || name === "" ? undefined : name;
 }
