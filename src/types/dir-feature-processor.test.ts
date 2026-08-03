@@ -4,8 +4,10 @@ import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   ensureDir,
+  readFileBufferOrNull,
   readFileContentOrNull,
   removeDirectory,
+  writeFileBuffer,
   writeFileContent,
 } from "../utils/file.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
@@ -16,9 +18,11 @@ vi.mock("../utils/file.js", async () => {
   return {
     ...actual,
     readFileContentOrNull: vi.fn().mockResolvedValue(null),
+    readFileBufferOrNull: vi.fn().mockResolvedValue(null),
     removeDirectory: vi.fn(),
     ensureDir: vi.fn(),
     writeFileContent: vi.fn(),
+    writeFileBuffer: vi.fn(),
   };
 });
 
@@ -216,6 +220,57 @@ describe("DirFeatureProcessor", () => {
       expect(result).toEqual({ count: 1, paths: ["/path/to/dir1/extra.txt"] });
       expect(ensureDir).toHaveBeenCalledTimes(1);
       expect(writeFileContent).toHaveBeenCalledTimes(1);
+    });
+
+    it("should write binary other files via the buffer path", async () => {
+      const binaryBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const otherFile: AiDirFile = {
+        relativeFilePathToDirPath: "image.jpg",
+        fileBuffer: binaryBuffer,
+      };
+      const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", otherFiles: [otherFile] })];
+
+      const result = await processor.writeAiDirs(dirs);
+
+      expect(result).toEqual({ count: 1, paths: ["/path/to/dir1/image.jpg"] });
+      expect(writeFileBuffer).toHaveBeenCalledWith("/path/to/dir1/image.jpg", binaryBuffer);
+      expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
+    it("should skip unchanged binary other files", async () => {
+      const binaryBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
+      vi.mocked(readFileBufferOrNull).mockResolvedValue(binaryBuffer);
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const otherFile: AiDirFile = {
+        relativeFilePathToDirPath: "image.jpg",
+        fileBuffer: binaryBuffer,
+      };
+      const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", otherFiles: [otherFile] })];
+
+      const result = await processor.writeAiDirs(dirs);
+
+      expect(result).toEqual({ count: 0, paths: [] });
+      expect(writeFileBuffer).not.toHaveBeenCalled();
+    });
+
+    it("should detect changes in binary other files", async () => {
+      const binaryBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
+      vi.mocked(readFileBufferOrNull).mockResolvedValue(Buffer.from([0x00, 0x01, 0x02]));
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const otherFile: AiDirFile = {
+        relativeFilePathToDirPath: "image.jpg",
+        fileBuffer: binaryBuffer,
+      };
+      const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", otherFiles: [otherFile] })];
+
+      const result = await processor.writeAiDirs(dirs);
+
+      expect(result).toEqual({ count: 1, paths: ["/path/to/dir1/image.jpg"] });
+      expect(writeFileBuffer).toHaveBeenCalledTimes(1);
     });
 
     it("should return changed count without writing in dry-run mode", async () => {
