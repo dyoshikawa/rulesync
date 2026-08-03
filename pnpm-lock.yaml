@@ -15,7 +15,7 @@ importers:
   .:
     dependencies:
       '@inquirer/checkbox':
-        specifier: ^5.2.1
+        specifier: 5.2.1
         version: 5.2.1(@types/node@26.1.2)
       '@modelcontextprotocol/sdk':
         specifier: 1.30.0

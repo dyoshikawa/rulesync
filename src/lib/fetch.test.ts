@@ -1342,9 +1342,54 @@ describe("fetchFiles with skill selection", () => {
       }),
     ).rejects.toThrow("requires an interactive terminal");
     expect(promptSkillSelectionMock).not.toHaveBeenCalled();
+    // Fail-fast: no GitHub API call should happen before the TTY check
+    expect(mockClientInstance.validateRepository).not.toHaveBeenCalled();
+  });
+
+  it("should not treat flat files directly under skills/ as selectable skills", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              {
+                name: "README.md",
+                path: "skills/README.md",
+                type: "file",
+                sha: "fff",
+                size: 50,
+                download_url: "https://example.com",
+              },
+            ],
+          );
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue(["skill-a"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    // README.md is not offered as a skill, and passes through the filter
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+    });
+    const relativePaths = summary.files.map((f) => f.relativePath).toSorted();
+    expect(relativePaths).toEqual(["skills/README.md", "skills/skill-a/SKILL.md"]);
   });
 
   it("should warn and fetch nothing when interactive is used but no skills exist", async () => {
+    isInteractiveTerminalMock.mockReturnValue(true);
     mockClientInstance.listDirectory.mockImplementation(() => {
       const error = new Error("Not found");
       Object.assign(error, { statusCode: 404 });
@@ -1360,6 +1405,37 @@ describe("fetchFiles with skill selection", () => {
 
     expect(summary.files).toHaveLength(0);
     expect(promptSkillSelectionMock).not.toHaveBeenCalled();
+  });
+
+  it("should validate skill names in the tool-target conversion flow too", async () => {
+    mockMultiSkillRepository();
+
+    await expect(
+      fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { target: "claudecode", skills: ["no-such-skill"] },
+        outputRoot: testDir,
+      }),
+    ).rejects.toThrow("Unknown skill(s): no-such-skill");
+  });
+
+  it("should apply the interactive selection in the tool-target conversion flow too", async () => {
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue(["skill-a"]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { target: "claudecode", interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+    });
   });
 
   it("should fetch no skill files when the interactive selection is empty", async () => {

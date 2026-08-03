@@ -242,6 +242,13 @@ function resolveFeatures(features?: string[]): Feature[] {
 }
 
 /**
+ * Matches C0/C1 control characters (including ANSI escape introducers) that
+ * must never reach the terminal from remote-controlled names.
+ */
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS_PATTERN = /[\u0000-\u001f\u007f-\u009f]/g;
+
+/**
  * A file entry collected from feature directories
  */
 type CollectedFile = {
@@ -252,14 +259,22 @@ type CollectedFile = {
 
 /**
  * Extract the skill name from a relative path under the skills directory.
- * Returns undefined for paths outside skills/.
+ * Returns undefined for paths outside skills/ and for flat files directly
+ * under skills/ (skills are directory-based, e.g. skills/<name>/SKILL.md).
+ * Control characters are stripped so remote-controlled names cannot smuggle
+ * terminal escape sequences into prompts or error messages.
  */
 function getSkillName(relativePath: string): string | undefined {
   const posixPath = toPosixPath(relativePath);
   if (!posixPath.startsWith("skills/")) {
     return undefined;
   }
-  const name = posixPath.split("/")[1];
+  const segments = posixPath.split("/");
+  if (segments.length < 3) {
+    return undefined;
+  }
+  // eslint-disable-next-line no-control-regex
+  const name = segments[1]?.replace(CONTROL_CHARS_PATTERN, "");
   return name === undefined || name === "" ? undefined : name;
 }
 
@@ -275,6 +290,33 @@ function listAvailableSkills(files: CollectedFile[]): string[] {
     }
   }
   return [...names].toSorted();
+}
+
+/**
+ * Validate the combination of skill selection options before any network call.
+ * Fails fast when the skills feature is disabled or when --interactive cannot
+ * show a prompt (no TTY).
+ */
+function validateSkillSelectionOptions(params: {
+  requestedSkills: string[];
+  interactive: boolean;
+  enabledFeatures: Feature[];
+}): void {
+  const { requestedSkills, interactive, enabledFeatures } = params;
+
+  if ((requestedSkills.length > 0 || interactive) && !enabledFeatures.includes("skills")) {
+    throw new Error(
+      "The --skills and --interactive options require the skills feature. " +
+        "Add 'skills' to --features or omit --features to use the default.",
+    );
+  }
+
+  if (interactive && !isInteractiveTerminal()) {
+    throw new Error(
+      "The --interactive option requires an interactive terminal (TTY). " +
+        "Use --skills <names> to select skills non-interactively.",
+    );
+  }
 }
 
 /**
@@ -313,16 +355,13 @@ async function applySkillSelection(params: {
       logger.warn("No skills found in the source repository to select from.");
       selectedSkills = [];
     } else {
-      if (!isInteractiveTerminal()) {
-        throw new Error(
-          "The --interactive option requires an interactive terminal (TTY). " +
-            "Use --skills <names> to select skills non-interactively.",
-        );
-      }
       selectedSkills = await promptSkillSelection({
         availableSkills,
         preselectedSkills: requestedSkills,
       });
+      if (selectedSkills.length === 0) {
+        logger.warn("No skills were selected in the interactive prompt; skipping all skills.");
+      }
     }
   }
 
@@ -403,12 +442,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   const requestedSkills = options.skills ?? [];
   const interactive = options.interactive ?? false;
 
-  if ((requestedSkills.length > 0 || interactive) && !enabledFeatures.includes("skills")) {
-    throw new Error(
-      "The --skills and --interactive options require the skills feature. " +
-        "Add 'skills' to --features or omit --features to use the default.",
-    );
-  }
+  validateSkillSelectionOptions({ requestedSkills, interactive, enabledFeatures });
 
   // Validate output directory to prevent path traversal attacks
   checkPathTraversal({

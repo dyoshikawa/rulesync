@@ -1,6 +1,17 @@
 import checkbox from "@inquirer/checkbox";
 
 /**
+ * Thrown when the user cancels the interactive skill selection (e.g. Ctrl+C).
+ * Callers should treat this as a graceful cancel, not a failure.
+ */
+export class SkillSelectionCancelledError extends Error {
+  constructor() {
+    super("Skill selection was cancelled.");
+    this.name = "SkillSelectionCancelledError";
+  }
+}
+
+/**
  * Prompt the user to select skills via an interactive checkbox prompt.
  *
  * Extracted into its own module so tests can mock the prompt without
@@ -17,14 +28,23 @@ export async function promptSkillSelection(params: {
 }): Promise<string[]> {
   const { availableSkills, preselectedSkills } = params;
 
-  return checkbox({
-    message: "Select skills to fetch",
-    choices: availableSkills.map((name) => ({
-      name,
-      value: name,
-      checked: preselectedSkills.length === 0 || preselectedSkills.includes(name),
-    })),
-  });
+  try {
+    return await checkbox({
+      message: "Select skills to fetch",
+      choices: availableSkills.map((name) => ({
+        name,
+        value: name,
+        checked: preselectedSkills.length === 0 || preselectedSkills.includes(name),
+      })),
+    });
+  } catch (error) {
+    // @inquirer prompts reject with ExitPromptError when the user presses
+    // Ctrl+C; surface that as a graceful cancel instead of a failure.
+    if (error instanceof Error && error.name === "ExitPromptError") {
+      throw new SkillSelectionCancelledError();
+    }
+    throw error;
+  }
 }
 
 /**

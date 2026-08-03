@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchFiles, formatFetchSummary } from "../../lib/fetch.js";
 import { GitHubClientError } from "../../lib/github-client.js";
+import { SkillSelectionCancelledError } from "../../lib/skill-prompt.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { FetchSummary } from "../../types/fetch.js";
 import { fetchCommand } from "./fetch.js";
@@ -157,6 +158,13 @@ describe("fetchCommand", () => {
       await expect(fetchCommand(mockLogger, { source: "owner/repo" })).rejects.toThrow(
         "GitHub API Error: Not found",
       );
+    });
+
+    it("should treat a cancelled skill selection as a graceful cancel", async () => {
+      vi.mocked(fetchFiles).mockRejectedValue(new SkillSelectionCancelledError());
+
+      await expect(fetchCommand(mockLogger, { source: "owner/repo" })).resolves.toBeUndefined();
+      expect(mockLogger.warn).toHaveBeenCalledWith("Fetch cancelled: no skills were selected.");
     });
 
     it("should handle generic errors", async () => {
