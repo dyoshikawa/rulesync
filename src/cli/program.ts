@@ -140,6 +140,15 @@ export function createProgram(): Command {
       "-c, --conflict <strategy>",
       "Conflict resolution strategy: skip, overwrite (default: overwrite)",
     )
+    .option(
+      "--skills <skills>",
+      "Comma-separated list of skill names to fetch (requires the skills feature)",
+      parseCommaSeparatedList,
+    )
+    .option(
+      "-i, --interactive",
+      "Interactively select which skills to fetch via a checkbox prompt (requires the skills feature)",
+    )
     .option("--token <token>", "Git provider token for private repositories")
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")

@@ -49,6 +49,8 @@ const FetchOptionsSchema = z.looseObject({
   path: z.optional(z.string()),
   output: z.optional(z.string()),
   conflict: z.optional(ConflictStrategySchema),
+  skills: z.optional(z.array(z.string())),
+  interactive: z.optional(z.boolean()),
   token: z.optional(z.string()),
   verbose: z.optional(z.boolean()),
   silent: z.optional(z.boolean()),

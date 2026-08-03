@@ -307,6 +307,8 @@ rulesync fetch owner/repo@ref:path   # Both ref and path
 | `--conflict <strategy>` | Conflict resolution: `overwrite` or `skip`                                                                      | `overwrite`                      |
 | `--ref <ref>`           | Git ref (branch/tag/commit) to fetch from                                                                       | Default branch                   |
 | `--path <path>`         | Subdirectory in the repository                                                                                  | `.` (root)                       |
+| `--skills <skills>`     | Comma-separated skill names to fetch (requires the skills feature)                                              | All skills                       |
+| `--interactive, -i`     | Interactively select skills to fetch via a checkbox prompt (requires the skills feature and a TTY)              | Disabled                         |
 | `--token <token>`       | Git provider token for private repositories                                                                     | `GITHUB_TOKEN` or `GH_TOKEN` env |
 
 ### Examples
@@ -315,6 +317,15 @@ rulesync fetch owner/repo@ref:path   # Both ref and path
 # Fetch skills from external repositories
 rulesync fetch vercel-labs/agent-skills
 rulesync fetch anthropics/skills
+
+# Fetch only specific skills by name
+rulesync fetch anthropics/skills --skills pdf,docx
+
+# Interactively select which skills to fetch (checkbox prompt)
+rulesync fetch anthropics/skills --interactive
+
+# Interactively select skills with some pre-checked
+rulesync fetch anthropics/skills --interactive --skills pdf
 
 # Fetch all features from a public repository
 rulesync fetch dyoshikawa/rulesync --path .rulesync --features "*"
