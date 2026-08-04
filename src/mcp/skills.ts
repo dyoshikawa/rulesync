@@ -17,6 +17,7 @@ import {
   ensureDir,
   findFilesByGlobs,
   removeDirectory,
+  writeFileBuffer,
   writeFileContent,
 } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
@@ -28,21 +29,65 @@ const maxSkillSizeBytes = 1024 * 1024; // 1MB
 const maxSkillsCount = 1000;
 
 /**
+ * Encoding of the `body` field of an other file in the MCP API.
+ * `utf-8` keeps text files human readable, `base64` preserves binary files byte for byte.
+ */
+type McpSkillFileEncoding = "utf-8" | "base64";
+
+/**
  * Type for other files in MCP API (string-based for easier AI agent use)
  */
 type McpSkillFile = {
   name: string;
   body: string;
+  encoding?: McpSkillFileEncoding;
 };
+
+/**
+ * Whether the buffer survives a UTF-8 round-trip without losing any byte.
+ * Buffers that do not (e.g. images) must be transported as base64.
+ */
+function isUtf8RoundTrippable(fileBuffer: Buffer): boolean {
+  return fileBuffer.equals(Buffer.from(fileBuffer.toString("utf-8"), "utf-8"));
+}
 
 /**
  * Convert AiDirFile to McpSkillFile
  */
 function aiDirFileToMcpSkillFile(file: AiDirFile): McpSkillFile {
+  const encoding: McpSkillFileEncoding = isUtf8RoundTrippable(file.fileBuffer) ? "utf-8" : "base64";
+
   return {
     name: file.relativeFilePathToDirPath,
-    body: file.fileBuffer.toString("utf-8"),
+    body: file.fileBuffer.toString(encoding),
+    encoding,
   };
+}
+
+/**
+ * Decode the body of an other file according to its declared encoding.
+ * Base64 bodies are validated because Buffer.from silently drops invalid characters.
+ */
+function decodeMcpSkillFileBody(file: McpSkillFile): Buffer {
+  const encoding = file.encoding ?? "utf-8";
+
+  if (encoding === "utf-8") {
+    return Buffer.from(file.body, "utf-8");
+  }
+
+  const fileBuffer = Buffer.from(file.body, "base64");
+  // Node accepts both the standard and the URL-safe alphabet, and padding is optional,
+  // so normalize the input before comparing it with the canonical re-encoding.
+  const normalizedBody = file.body
+    .replaceAll(/\s/g, "")
+    .replaceAll("-", "+")
+    .replaceAll("_", "/")
+    .replaceAll(/=+$/g, "");
+  if (fileBuffer.toString("base64").replaceAll(/=+$/g, "") !== normalizedBody) {
+    throw new Error(`Invalid base64 body for other file ${file.name}: expected canonical base64`);
+  }
+
+  return fileBuffer;
 }
 
 /**
@@ -51,7 +96,7 @@ function aiDirFileToMcpSkillFile(file: AiDirFile): McpSkillFile {
 function mcpSkillFileToAiDirFile(file: McpSkillFile): AiDirFile {
   return {
     relativeFilePathToDirPath: file.name,
-    fileBuffer: Buffer.from(file.body, "utf-8"),
+    fileBuffer: decodeMcpSkillFileBody(file),
   };
 }
 
@@ -178,11 +223,17 @@ async function putSkill({
 
   const dirName = extractDirName(relativeDirPathFromCwd);
 
-  // Check file size constraint
+  // Convert McpSkillFile to AiDirFile for RulesyncSkill (also validates base64 bodies)
+  const aiDirFiles = otherFiles.map(mcpSkillFileToAiDirFile);
+
+  // Check file size constraint, measured in bytes so binary other files are counted accurately
   const estimatedSize =
-    JSON.stringify(frontmatter).length +
-    body.length +
-    otherFiles.reduce((acc, file) => acc + file.name.length + file.body.length, 0);
+    Buffer.byteLength(JSON.stringify(frontmatter), "utf-8") +
+    Buffer.byteLength(body, "utf-8") +
+    aiDirFiles.reduce(
+      (acc, file) => acc + file.relativeFilePathToDirPath.length + file.fileBuffer.byteLength,
+      0,
+    );
   if (estimatedSize > maxSkillSizeBytes) {
     throw new Error(
       `Skill size ${estimatedSize} bytes exceeds maximum ${maxSkillSizeBytes} bytes (1MB) for ${relativeDirPathFromCwd}`,
@@ -201,9 +252,6 @@ async function putSkill({
         `Maximum number of skills (${maxSkillsCount}) reached in ${RULESYNC_SKILLS_RELATIVE_DIR_PATH}`,
       );
     }
-
-    // Convert McpSkillFile to AiDirFile for RulesyncSkill
-    const aiDirFiles = otherFiles.map(mcpSkillFileToAiDirFile);
 
     // Create a new RulesyncSkill instance for validation
     const skill = new RulesyncSkill({
@@ -225,20 +273,21 @@ async function putSkill({
     const skillFileContent = stringifyFrontmatter(body, frontmatter);
     await writeFileContent(skillFilePath, skillFileContent);
 
-    // Write other files
-    for (const file of otherFiles) {
+    // Write other files byte for byte so binary files are not corrupted
+    for (const file of aiDirFiles) {
+      const fileName = file.relativeFilePathToDirPath;
       // Validate file path to prevent path traversal
       checkPathTraversal({
-        relativePath: file.name,
+        relativePath: fileName,
         intendedRootDir: skillDirPath,
       });
-      const filePath = join(skillDirPath, file.name);
+      const filePath = join(skillDirPath, fileName);
       // Ensure subdirectory exists if file has path separators
-      const fileDir = join(skillDirPath, dirname(file.name));
+      const fileDir = join(skillDirPath, dirname(fileName));
       if (fileDir !== skillDirPath) {
         await ensureDir(fileDir);
       }
-      await writeFileContent(filePath, file.body);
+      await writeFileBuffer(filePath, file.fileBuffer);
     }
 
     return {
@@ -300,6 +349,7 @@ async function deleteSkill({
 const McpSkillFileSchema = z.object({
   name: z.string(),
   body: z.string(),
+  encoding: z.optional(z.enum(["utf-8", "base64"])),
 });
 
 /**
@@ -338,7 +388,7 @@ export const skillTools = {
   getSkill: {
     name: "getSkill",
     description:
-      "Get detailed information about a specific skill including SKILL.md content and other files. relativeDirPathFromCwd parameter is required.",
+      'Get detailed information about a specific skill including SKILL.md content and other files. relativeDirPathFromCwd parameter is required. Each other file carries an encoding field: "utf-8" for text files and "base64" for binary files.',
     parameters: skillToolSchemas.getSkill,
     execute: async (args: { relativeDirPathFromCwd: string }) => {
       const result = await getSkill({ relativeDirPathFromCwd: args.relativeDirPathFromCwd });
@@ -348,7 +398,7 @@ export const skillTools = {
   putSkill: {
     name: "putSkill",
     description:
-      "Create or update a skill (upsert operation). relativeDirPathFromCwd, frontmatter, and body parameters are required. otherFiles is optional.",
+      'Create or update a skill (upsert operation). relativeDirPathFromCwd, frontmatter, and body parameters are required. otherFiles is optional; each other file may set encoding to "base64" for binary content (defaults to "utf-8").',
     parameters: skillToolSchemas.putSkill,
     execute: async (args: {
       relativeDirPathFromCwd: string;

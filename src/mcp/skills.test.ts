@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { ensureDir, readFileBuffer, writeFileContent } from "../utils/file.js";
 import { skillTools } from "./skills.js";
 
 describe("MCP Skills Tools", () => {
@@ -699,6 +699,114 @@ description: "With files"
           s.frontmatter.targets.includes("claudecode"),
         ),
       ).toHaveLength(2);
+    });
+  });
+
+  describe("other file encoding", () => {
+    // Minimal JPEG header: bytes that are not valid UTF-8.
+    const binaryContent = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+
+    it("should round-trip a binary other file byte-identically through put and get", async () => {
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      await ensureDir(skillsDir);
+
+      await skillTools.putSkill.execute({
+        relativeDirPathFromCwd: ".rulesync/skills/binary-skill",
+        frontmatter: {
+          name: "binary-skill",
+          targets: ["*"],
+          description: "Skill with a binary file",
+        },
+        body: "# Binary skill",
+        otherFiles: [
+          { name: "assets/logo.jpg", body: binaryContent.toString("base64"), encoding: "base64" },
+        ],
+      });
+
+      // The file on disk must contain the exact bytes.
+      const writtenBuffer = await readFileBuffer(
+        join(skillsDir, "binary-skill", "assets", "logo.jpg"),
+      );
+      expect(writtenBuffer.equals(binaryContent)).toBe(true);
+
+      const getParsed = JSON.parse(
+        await skillTools.getSkill.execute({
+          relativeDirPathFromCwd: ".rulesync/skills/binary-skill",
+        }),
+      );
+      expect(getParsed.otherFiles).toHaveLength(1);
+      expect(getParsed.otherFiles[0].name).toBe(join("assets", "logo.jpg"));
+      expect(getParsed.otherFiles[0].encoding).toBe("base64");
+      expect(Buffer.from(getParsed.otherFiles[0].body, "base64").equals(binaryContent)).toBe(true);
+    });
+
+    it("should return text other files as utf-8 without changing their body", async () => {
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      await ensureDir(skillsDir);
+
+      const textContent = "export const helper = 1;\n// 日本語コメント\n";
+
+      await skillTools.putSkill.execute({
+        relativeDirPathFromCwd: ".rulesync/skills/text-skill",
+        frontmatter: {
+          name: "text-skill",
+          targets: ["*"],
+          description: "Skill with a text file",
+        },
+        body: "# Text skill",
+        otherFiles: [{ name: "helper.ts", body: textContent }],
+      });
+
+      const getParsed = JSON.parse(
+        await skillTools.getSkill.execute({
+          relativeDirPathFromCwd: ".rulesync/skills/text-skill",
+        }),
+      );
+      expect(getParsed.otherFiles).toEqual([
+        { name: "helper.ts", body: textContent, encoding: "utf-8" },
+      ]);
+    });
+
+    it("should treat an omitted encoding as utf-8 on put", async () => {
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      await ensureDir(skillsDir);
+
+      // A body that is itself valid base64 and must be stored as literal text, not decoded.
+      const ambiguousContent = Buffer.from("ABC", "utf-8").toString("base64");
+
+      await skillTools.putSkill.execute({
+        relativeDirPathFromCwd: ".rulesync/skills/default-encoding-skill",
+        frontmatter: {
+          name: "default-encoding-skill",
+          targets: ["*"],
+          description: "Skill without explicit encoding",
+        },
+        body: "# Default encoding",
+        otherFiles: [{ name: "note.txt", body: ambiguousContent }],
+      });
+
+      const writtenBuffer = await readFileBuffer(
+        join(skillsDir, "default-encoding-skill", "note.txt"),
+      );
+      expect(writtenBuffer.toString("utf-8")).toBe(ambiguousContent);
+    });
+
+    it("should reject an other file whose body is not valid base64", async () => {
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      await ensureDir(skillsDir);
+
+      await expect(
+        skillTools.putSkill.execute({
+          relativeDirPathFromCwd: ".rulesync/skills/invalid-base64-skill",
+          frontmatter: {
+            name: "invalid-base64-skill",
+            targets: ["*"],
+            description: "Skill with invalid base64",
+          },
+          body: "# Invalid base64",
+          otherFiles: [{ name: "broken.bin", body: "not base64!!", encoding: "base64" }],
+        }),
+      ).rejects.toThrow(/invalid base64/i);
     });
   });
 });

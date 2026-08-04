@@ -53,6 +53,7 @@ const rulesyncOperationSchema = z.enum(["list", "get", "put", "delete", "run"]);
 const skillFileSchema = z.object({
   name: z.string(),
   body: z.string(),
+  encoding: z.optional(z.enum(["utf-8", "base64"])),
 });
 
 const rulesyncToolSchema = z.object({
@@ -439,7 +440,7 @@ const featureExecutors: Record<RulesyncFeature, (parsed: RulesyncToolArgs) => Pr
 export const rulesyncTool = {
   name: "rulesyncTool",
   description:
-    "Manage Rulesync files through a single MCP tool. Features: rule/command/subagent/skill/check support list/get/put/delete; ignore/mcp/permissions/hooks support get/put/delete only; generate supports run only; import supports run only; convert supports run only. Parameters: list requires no targetPathFromCwd (lists all items); get/delete require targetPathFromCwd; put requires targetPathFromCwd, frontmatter, and body (or content for ignore/mcp/permissions/hooks); generate/run uses generateOptions to configure generation; import/run uses importOptions to configure import; convert/run uses convertOptions to configure conversion.",
+    'Manage Rulesync files through a single MCP tool. Features: rule/command/subagent/skill/check support list/get/put/delete; ignore/mcp/permissions/hooks support get/put/delete only; generate supports run only; import supports run only; convert supports run only. Parameters: list requires no targetPathFromCwd (lists all items); get/delete require targetPathFromCwd; put requires targetPathFromCwd, frontmatter, and body (or content for ignore/mcp/permissions/hooks); generate/run uses generateOptions to configure generation; import/run uses importOptions to configure import; convert/run uses convertOptions to configure conversion. skill otherFiles entries accept an optional encoding ("utf-8" by default, "base64" for binary files) and are returned with the encoding they require.',
   parameters: rulesyncToolSchema,
   execute: async (args: RulesyncToolArgs) => {
     const parsed = rulesyncToolSchema.parse(args);

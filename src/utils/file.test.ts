@@ -24,6 +24,7 @@ import {
   findRuleFiles,
   getHomeDirectory,
   listDirectoryFiles,
+  readFileBufferOrNull,
   readFileContent,
   readJsonFile,
   removeDirectory,
@@ -34,6 +35,7 @@ import {
   toKebabCaseFilename,
   toPosixPath,
   validateOutputRoot,
+  writeFileBuffer,
   writeFileContent,
   writeJsonFile,
 } from "./file.js";
@@ -380,6 +382,23 @@ describe("file utilities", () => {
 
         expect(await directoryExists(join(testDir, "nested"))).toBe(true);
         expect(await fileExists(testFilePath)).toBe(true);
+      });
+    });
+
+    describe("readFileBufferOrNull", () => {
+      it("should return null when the file does not exist", async () => {
+        expect(await readFileBufferOrNull(join(testDir, "missing", "file.bin"))).toBeNull();
+      });
+
+      it("should return the exact bytes of an existing file", async () => {
+        const filePath = join(testDir, "binary.bin");
+        const fileBuffer = Buffer.from([0xff, 0xd8, 0xff, 0x00, 0x01, 0xfe]);
+        await writeFileBuffer(filePath, fileBuffer);
+
+        const result = await readFileBufferOrNull(filePath);
+
+        expect(result).not.toBeNull();
+        expect(result?.equals(fileBuffer)).toBe(true);
       });
     });
 

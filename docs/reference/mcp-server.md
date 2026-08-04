@@ -17,6 +17,22 @@ The single `rulesyncTool` multiplexes by `feature` and `operation`:
 
 The `permissions` feature operates on `.rulesync/permissions.jsonc` and the `hooks` feature operates on `.rulesync/hooks.jsonc`. Both accept a `content` string (valid JSONC) on `put`.
 
+### `skill` other files
+
+A skill directory may contain files other than `SKILL.md`. They are passed as `otherFiles`, where each entry has:
+
+| Field      | Type                  | Required | Description                                                                    |
+| ---------- | --------------------- | -------- | ------------------------------------------------------------------------------ |
+| `name`     | `string`              | Yes      | Path of the file relative to the skill directory (e.g. `references/logo.png`). |
+| `body`     | `string`              | Yes      | File content, encoded according to `encoding`.                                 |
+| `encoding` | `"utf-8" \| "base64"` | No       | Defaults to `"utf-8"`. Use `"base64"` for binary files such as images.         |
+
+On `get`, every returned entry carries an explicit `encoding`: `"utf-8"` when the file content survives a UTF-8 round trip unchanged, and `"base64"` otherwise. On `put`, the declared `encoding` is trusted and the decoded bytes are written verbatim, so binary files round-trip byte for byte.
+
+When feeding entries returned by `get` back into `put`, keep their `encoding` field. Dropping it makes a `"base64"` body be stored as literal text and corrupts the file.
+
+A `"base64"` body must be canonical base64 (the standard or the URL-safe alphabet, padding optional); otherwise `put` fails with `Invalid base64 body for other file <name>`. The 1MB skill size limit is evaluated against the decoded byte length of each other file.
+
 ### `convert` / `run` options
 
 When invoking `feature: "convert"` with `operation: "run"`, pass `convertOptions` with the following shape:
