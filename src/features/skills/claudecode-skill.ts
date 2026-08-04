@@ -134,6 +134,45 @@ function buildClaudecodeSkillFrontmatter({
   return frontmatter as ClaudecodeSkillFrontmatter;
 }
 
+/**
+ * Escapes the glob metacharacters in a directory path so it matches literally.
+ * A real directory name may contain them — `app/[slug]` in a Next.js tree is
+ * the common case, and unescaped `[slug]` reads as a bracket expression that
+ * matches a different subtree (or nothing at all).
+ *
+ * @see https://code.claude.com/docs/en/memory
+ */
+function escapeGlobLiteral(dirPath: string): string {
+  return dirPath.replaceAll(/[\\*?[\]{}()!]/g, "\\$&");
+}
+
+/**
+ * Claude Code scopes a nested skill by its location: a skill living in
+ * `apps/web/.claude/skills/deploy` only activates while working under
+ * `apps/web`. rulesync generates every imported skill into the project-root
+ * `.claude/skills/`, so on import that location-based scoping has to be
+ * re-expressed as an explicit `paths` glob — otherwise the round-trip silently
+ * promotes a subtree skill to global activation.
+ *
+ * Returns the derived glob for a nested discovery root, or `undefined` for the
+ * project-root `.claude/skills` (and for any root whose subtree cannot be
+ * determined), where no scoping is implied.
+ *
+ * @see https://code.claude.com/docs/en/skills
+ */
+export function deriveNestedSkillPaths(relativeDirPath: string): string[] | undefined {
+  const posixDirPath = toPosixPath(relativeDirPath);
+  const skillsDirSuffix = `/${toPosixPath(CLAUDECODE_SKILLS_DIR_PATH)}`;
+  if (!posixDirPath.endsWith(skillsDirSuffix)) {
+    return undefined;
+  }
+  const subtree = posixDirPath.slice(0, -skillsDirSuffix.length);
+  if (subtree === "" || subtree === ".") {
+    return undefined;
+  }
+  return [`${escapeGlobLiteral(subtree)}/**`];
+}
+
 export type ClaudecodeSkillParams = {
   outputRoot?: string;
   relativeDirPath?: string;
@@ -278,6 +317,17 @@ export class ClaudecodeSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    // An author-declared `paths` always wins; only a skill that says nothing
+    // about scoping inherits the glob derived from its nested location. A
+    // declared value is carried through verbatim rather than intersected with
+    // the subtree: Claude Code does not document whether a nested skill's
+    // `paths` resolves against the project root or its own directory, so
+    // rewriting the author's glob would be guessing. The caveat is documented
+    // in docs/reference/file-formats.md.
+    const resolvedPaths =
+      frontmatter.paths !== undefined
+        ? frontmatter.paths
+        : deriveNestedSkillPaths(this.relativeDirPath);
     const claudecodeSection = {
       ...(frontmatter.when_to_use && { when_to_use: frontmatter.when_to_use }),
       ...(frontmatter["allowed-tools"] && { "allowed-tools": frontmatter["allowed-tools"] }),
@@ -302,7 +352,7 @@ export class ClaudecodeSkill extends ToolSkill {
       ...(this.relativeDirPath === CLAUDECODE_SCHEDULED_TASKS_DIR_PATH && {
         "scheduled-task": true,
       }),
-      ...(frontmatter.paths !== undefined && { paths: frontmatter.paths }),
+      ...(resolvedPaths !== undefined && { paths: resolvedPaths }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
