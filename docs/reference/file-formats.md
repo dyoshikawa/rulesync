@@ -34,6 +34,8 @@ copilot: # copilot specific parameters (non-root `*.instructions.md` files only)
   excludeAgent: "code-review" # (optional) "code-review" or "cloud-agent": skip this file for that agent
   # Any other frontmatter key found in a hand-written `*.instructions.md` is imported into this
   # section and written back out, so a field Rulesync does not model is not lost on regeneration.
+  # `description` and `applyTo` are the exception: they have canonical homes (`description` and
+  # `globs`), so a value written for them in this section is overwritten by the canonical one.
 antigravity: # antigravity specific parameters
   trigger: "always_on" # always_on, glob, manual, or model_decision
   globs: ["**/*"] # (optional) file patterns to match when trigger is "glob"
@@ -720,6 +722,10 @@ copilot: # for GitHub Copilot-specific parameters (optional; project .github/ski
   user-invocable: true # (optional, default true) whether users can run it with /SKILL-NAME
   disable-model-invocation: false # (optional, default false) stop the agent from invoking it on its own
   context: fork # (optional, experimental) run the skill in a forked session (VS Code 1.118+)
+  # `copilot` and `copilotcli` write the same SKILL.md path at both scopes, and `copilotcli`
+  # writes last, so with both targets enabled the `copilotcli` section decides the file. Set the
+  # value in both sections (or in the shared top-level fields, for the two invocation gates) when
+  # you generate for both. `context` has no `copilotcli` counterpart and is emitted for `copilot` only.
 copilotcli: # for GitHub Copilot CLI-specific parameters (optional; project .github/skills/, global ~/.copilot/skills/)
   license: MIT # (optional)
   allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation

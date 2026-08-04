@@ -36,7 +36,9 @@ export const CopilotSkillFrontmatterSchema = z.looseObject({
   "user-invocable": z.optional(z.boolean()),
   "disable-model-invocation": z.optional(z.boolean()),
   // Experimental execution context, `fork` to run the skill in a forked
-  // session. Added in VS Code 1.118. https://code.visualstudio.com/updates/v1_118
+  // session. Added in VS Code 1.118. Typed as a free string rather than the one
+  // documented literal so a value added later still round-trips.
+  // https://code.visualstudio.com/updates/v1_118
   context: z.optional(z.string()),
 });
 
