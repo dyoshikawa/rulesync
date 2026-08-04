@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -13,6 +12,7 @@ import {
 } from "../src/constants/rulesync-paths.js";
 import { RulesyncMcpFileSchema } from "../src/features/mcp/rulesync-mcp.js";
 import { RulesyncPermissionsFileSchema } from "../src/types/permissions.js";
+import { runOxfmt } from "./run-oxfmt.js";
 
 type SchemaMeta = {
   $id: string;
@@ -70,4 +70,4 @@ generateSchema(
 );
 
 // Format generated schema files with oxfmt for consistent formatting
-execFileSync("npx", ["oxfmt", outputPath, mcpOutputPath, permissionsOutputPath]);
+runOxfmt([outputPath, mcpOutputPath, permissionsOutputPath]);

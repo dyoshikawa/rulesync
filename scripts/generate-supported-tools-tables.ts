@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -7,6 +6,7 @@ import { TOOL_DISPLAY, type ToolDisplayEntry } from "../src/types/tool-display.j
 import { ALL_TOOL_TARGETS, type ToolTarget } from "../src/types/tool-targets.js";
 import { formatError } from "../src/utils/error.js";
 import { replaceBetweenMarkers } from "./markdown-markers.js";
+import { runOxfmt } from "./run-oxfmt.js";
 
 const FEATURES = [
   "rules",
@@ -145,7 +145,7 @@ const main = (): void => {
   // run it here. Freshness is checked in CI by running this script then
   // `git diff` (see the `check:supported-tools` package script) — the same
   // approach as the gitignore generator, avoiding an oxfmt-vs-generator conflict.
-  execFileSync("pnpm", ["exec", "oxfmt", ...targets.map((t) => t.path)], { stdio: "inherit" });
+  runOxfmt(targets.map((t) => t.path));
 };
 
 main();
