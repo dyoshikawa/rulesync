@@ -111,6 +111,13 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     z.looseObject({
       license: z.optional(z.string()),
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+      "argument-hint": z.optional(z.string()),
+      // The same two invocation gates the `copilotcli` section carries; both
+      // targets write the same SKILL.md shape.
+      "user-invocable": z.optional(z.boolean()),
+      "disable-model-invocation": z.optional(z.boolean()),
+      // VS Code's experimental execution context (`fork`).
+      context: z.optional(z.string()),
     }),
   ),
   copilotcli: z.optional(
@@ -331,11 +338,17 @@ export type RulesyncSkillFrontmatterInput = {
   copilot?: {
     license?: string;
     "allowed-tools"?: string | string[];
+    "argument-hint"?: string;
+    "user-invocable"?: boolean;
+    "disable-model-invocation"?: boolean;
+    context?: string;
   };
   copilotcli?: {
     license?: string;
     "allowed-tools"?: string | string[];
     "argument-hint"?: string;
+    "user-invocable"?: boolean;
+    "disable-model-invocation"?: boolean;
   };
   pi?: {
     "allowed-tools"?: string | string[];

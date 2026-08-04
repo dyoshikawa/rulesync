@@ -227,6 +227,63 @@ Skill content goes here.`,
       const roundTripped = CopilotSkill.fromRulesyncSkill({ rulesyncSkill });
       expect(roundTripped.getFrontmatter()["allowed-tools"]).toBe("shell");
     });
+
+    it("should round-trip argument-hint, both invocation gates and context", () => {
+      const skill = new CopilotSkill({
+        dirName: "release",
+        frontmatter: {
+          name: "release",
+          description: "Cut a release",
+          "argument-hint": "<version>",
+          "user-invocable": true,
+          "disable-model-invocation": true,
+          context: "fork",
+        },
+        body: "body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().copilot).toEqual({
+        "argument-hint": "<version>",
+        "user-invocable": true,
+        "disable-model-invocation": true,
+        context: "fork",
+      });
+
+      const roundTripped = CopilotSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter()).toEqual({
+        name: "release",
+        description: "Cut a release",
+        "argument-hint": "<version>",
+        "user-invocable": true,
+        "disable-model-invocation": true,
+        context: "fork",
+      });
+    });
+
+    it("should take the invocation gates from the top-level defaults, section wins", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "gated",
+        frontmatter: {
+          name: "gated",
+          description: "Gated skill",
+          targets: ["*"],
+          // A `false` in the section must win over a `true` default rather
+          // than reading as absent.
+          "user-invocable": true,
+          "disable-model-invocation": true,
+          copilot: { "user-invocable": false },
+        },
+        body: "body",
+      });
+
+      const copilotSkill = CopilotSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(copilotSkill.getFrontmatter()["user-invocable"]).toBe(false);
+      expect(copilotSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

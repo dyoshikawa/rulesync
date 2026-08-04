@@ -291,6 +291,30 @@ Skill content goes here.`,
         CopilotcliSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()["user-invocable"],
       ).toBe(false);
     });
+
+    it("should take the invocation gates from the top-level defaults, section wins", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "gated",
+        frontmatter: {
+          name: "gated",
+          description: "Gated skill",
+          targets: ["*"],
+          "user-invocable": true,
+          "disable-model-invocation": true,
+          // A `false` in the section must win over a `true` default rather
+          // than reading as absent.
+          copilotcli: { "user-invocable": false },
+        },
+        body: "body",
+      });
+
+      const skill = CopilotcliSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(skill.getFrontmatter()["user-invocable"]).toBe(false);
+      expect(skill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

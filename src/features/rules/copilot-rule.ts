@@ -20,7 +20,10 @@ import {
   buildToolPath,
 } from "./tool-rule.js";
 
-export const CopilotRuleFrontmatterSchema = z.object({
+// looseObject preserves unknown keys during parsing, so a hand-written
+// `*.instructions.md` carrying a field rulesync does not model imports with it
+// intact instead of losing it on the next generate.
+export const CopilotRuleFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   applyTo: z.optional(z.string()),
   // Display name shown in the UI; defaults to the file name when absent.
@@ -150,17 +153,17 @@ export class CopilotRule extends ToolRule {
       globs = this.frontmatter.applyTo.split(",").map((g) => g.trim());
     }
 
+    // `description` and `applyTo` have canonical homes; everything else —
+    // `name`, `excludeAgent`, and any field beyond the schema — rides the
+    // tool-scoped `copilot` section so it survives the round-trip.
+    const { description, applyTo: _applyTo, ...copilotFields } = this.frontmatter;
+
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
       targets: ["*"],
       root: this.isRoot(),
-      description: this.frontmatter.description,
+      description,
       globs,
-      ...((this.frontmatter.excludeAgent || this.frontmatter.name) && {
-        copilot: {
-          ...(this.frontmatter.excludeAgent && { excludeAgent: this.frontmatter.excludeAgent }),
-          ...(this.frontmatter.name && { name: this.frontmatter.name }),
-        },
-      }),
+      ...(Object.keys(copilotFields).length > 0 && { copilot: copilotFields }),
     };
 
     // Strip .instructions.md extension and normalize to .md
@@ -188,10 +191,11 @@ export class CopilotRule extends ToolRule {
     const paths = this.getSettablePaths({ global });
 
     const copilotFrontmatter: CopilotRuleFrontmatter = {
+      // The `copilot` section is written first so the canonical `description`
+      // and `globs` still own their two keys.
+      ...rulesyncFrontmatter.copilot,
       description: rulesyncFrontmatter.description,
       applyTo: rulesyncFrontmatter.globs?.length ? rulesyncFrontmatter.globs.join(",") : undefined,
-      excludeAgent: rulesyncFrontmatter.copilot?.excludeAgent,
-      name: rulesyncFrontmatter.copilot?.name,
     };
 
     // Generate proper file content with Copilot specific frontmatter

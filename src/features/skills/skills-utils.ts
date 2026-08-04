@@ -32,8 +32,8 @@ export async function getLocalSkillDirNames(outputRoot: string): Promise<Set<str
  * Resolve the effective `disable-model-invocation` value for a tool skill.
  *
  * The rulesync skill frontmatter exposes a root-level `disable-model-invocation`
- * default that applies to every tool supporting the flag (claudecode, cursor,
- * zed, pi, qwencode, grokcli, factorydroid). Each tool's own section may override that
+ * default that applies to every tool supporting the flag (claudecode, copilot,
+ * copilotcli, cursor, zed, pi, qwencode, grokcli, factorydroid). Each tool's own section may override that
  * default with a per-target value. A defined section value (including `false`)
  * always wins over the root default.
  *
@@ -53,8 +53,8 @@ export function resolveDisableModelInvocation({
  * Resolve the effective `user-invocable` value for a tool skill.
  *
  * The rulesync skill frontmatter exposes a root-level `user-invocable` default
- * that applies to every tool supporting the flag (claudecode, qwencode, vibe,
- * grokcli, factorydroid). Each tool's own section may override that default with a
+ * that applies to every tool supporting the flag (claudecode, copilot,
+ * copilotcli, qwencode, vibe, grokcli, factorydroid). Each tool's own section may override that default with a
  * per-target value. A defined section value (including `false`) always wins
  * over the root default.
  *

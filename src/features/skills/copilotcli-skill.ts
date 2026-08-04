@@ -11,6 +11,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -176,24 +177,31 @@ export class CopilotcliSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): CopilotcliSkill {
     const settablePaths = CopilotcliSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const copilotcliSection = rulesyncFrontmatter.copilotcli;
+    const resolvedUserInvocable = resolveUserInvocable({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: copilotcliSection,
+    });
+    const resolvedDisableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: copilotcliSection,
+    });
 
     const copilotcliFrontmatter: CopilotcliSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(rulesyncFrontmatter.copilotcli?.license !== undefined && {
-        license: rulesyncFrontmatter.copilotcli.license,
+      ...(copilotcliSection?.license !== undefined && {
+        license: copilotcliSection.license,
       }),
-      ...(rulesyncFrontmatter.copilotcli?.["allowed-tools"] !== undefined && {
-        "allowed-tools": rulesyncFrontmatter.copilotcli["allowed-tools"],
+      ...(copilotcliSection?.["allowed-tools"] !== undefined && {
+        "allowed-tools": copilotcliSection["allowed-tools"],
       }),
-      ...(rulesyncFrontmatter.copilotcli?.["argument-hint"] !== undefined && {
-        "argument-hint": rulesyncFrontmatter.copilotcli["argument-hint"],
+      ...(copilotcliSection?.["argument-hint"] !== undefined && {
+        "argument-hint": copilotcliSection["argument-hint"],
       }),
-      ...(rulesyncFrontmatter.copilotcli?.["user-invocable"] !== undefined && {
-        "user-invocable": rulesyncFrontmatter.copilotcli["user-invocable"],
-      }),
-      ...(rulesyncFrontmatter.copilotcli?.["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": rulesyncFrontmatter.copilotcli["disable-model-invocation"],
+      ...(resolvedUserInvocable !== undefined && { "user-invocable": resolvedUserInvocable }),
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
       }),
     };
 
