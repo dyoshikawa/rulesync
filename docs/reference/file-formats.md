@@ -32,6 +32,8 @@ cursor: # cursor specific parameters
 copilot: # copilot specific parameters (non-root `*.instructions.md` files only)
   name: "TypeScript Style" # (optional) display name shown in the VS Code UI; defaults to the file name
   excludeAgent: "code-review" # (optional) "code-review" or "cloud-agent": skip this file for that agent
+  # Any other frontmatter key found in a hand-written `*.instructions.md` is imported into this
+  # section and written back out, so a field Rulesync does not model is not lost on regeneration.
 antigravity: # antigravity specific parameters
   trigger: "always_on" # always_on, glob, manual, or model_decision
   globs: ["**/*"] # (optional) file patterns to match when trigger is "glob"
@@ -597,13 +599,14 @@ name: example-skill # skill name
 description: >- # skill description
   A sample skill that demonstrates the skill format
 targets: ["*"] # * = all, or specific tools
-# (optional) shared default for tools that support the flag — claudecode, cursor,
-# zed, pi, qwencode, grokcli, and factorydroid. Any of those tool sections can
-# override it by setting their own `disable-model-invocation` value below.
+# (optional) shared default for tools that support the flag — claudecode, copilot,
+# copilotcli, cursor, zed, pi, qwencode, grokcli, and factorydroid. Any of those
+# tool sections can override it by setting their own `disable-model-invocation`
+# value below.
 disable-model-invocation: true
-# (optional) shared default for tools that support the flag — claudecode, qwencode,
-# vibe, grokcli, and factorydroid. Any of those tool sections can override it by
-# setting their own `user-invocable` value below.
+# (optional) shared default for tools that support the flag — claudecode, copilot,
+# copilotcli, qwencode, vibe, grokcli, and factorydroid. Any of those tool sections
+# can override it by setting their own `user-invocable` value below.
 user-invocable: false
 claudecode: # for claudecode-specific parameters
   model: sonnet # opus, sonnet, haiku, or any string
@@ -713,6 +716,10 @@ agentsskills: # for the Agent Skills standard target (optional; supports project
 copilot: # for GitHub Copilot-specific parameters (optional; project .github/skills/, global ~/.copilot/skills/)
   license: MIT # (optional)
   allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation
+  argument-hint: "[message]" # (optional) hint shown for the skill's expected arguments
+  user-invocable: true # (optional, default true) whether users can run it with /SKILL-NAME
+  disable-model-invocation: false # (optional, default false) stop the agent from invoking it on its own
+  context: fork # (optional, experimental) run the skill in a forked session (VS Code 1.118+)
 copilotcli: # for GitHub Copilot CLI-specific parameters (optional; project .github/skills/, global ~/.copilot/skills/)
   license: MIT # (optional)
   allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation

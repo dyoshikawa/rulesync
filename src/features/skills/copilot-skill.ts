@@ -11,6 +11,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -26,6 +27,17 @@ export const CopilotSkillFrontmatterSchema = z.looseObject({
   // Pre-approved tools the agent may run without per-use confirmation.
   // https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  // Hint shown for the skill's expected arguments.
+  // https://code.visualstudio.com/docs/agent-customization/agent-skills
+  "argument-hint": z.optional(z.string()),
+  // The two invocation gates: `user-invocable` (default true) controls
+  // `/SKILL-NAME`, `disable-model-invocation` (default false) stops the agent
+  // from picking the skill up on its own.
+  "user-invocable": z.optional(z.boolean()),
+  "disable-model-invocation": z.optional(z.boolean()),
+  // Experimental execution context, `fork` to run the skill in a forked
+  // session. Added in VS Code 1.118. https://code.visualstudio.com/updates/v1_118
+  context: z.optional(z.string()),
 });
 
 export type CopilotSkillFrontmatter = z.infer<typeof CopilotSkillFrontmatterSchema>;
@@ -129,6 +141,16 @@ export class CopilotSkill extends ToolSkill {
       ...(frontmatter["allowed-tools"] !== undefined && {
         "allowed-tools": frontmatter["allowed-tools"],
       }),
+      ...(frontmatter["argument-hint"] !== undefined && {
+        "argument-hint": frontmatter["argument-hint"],
+      }),
+      ...(frontmatter["user-invocable"] !== undefined && {
+        "user-invocable": frontmatter["user-invocable"],
+      }),
+      ...(frontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": frontmatter["disable-model-invocation"],
+      }),
+      ...(frontmatter.context !== undefined && { context: frontmatter.context }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -157,16 +179,33 @@ export class CopilotSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): CopilotSkill {
     const settablePaths = CopilotSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const copilotSection = rulesyncFrontmatter.copilot;
+    const resolvedUserInvocable = resolveUserInvocable({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: copilotSection,
+    });
+    const resolvedDisableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: copilotSection,
+    });
 
     const copilotFrontmatter: CopilotSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(rulesyncFrontmatter.copilot?.license !== undefined && {
-        license: rulesyncFrontmatter.copilot.license,
+      ...(copilotSection?.license !== undefined && {
+        license: copilotSection.license,
       }),
-      ...(rulesyncFrontmatter.copilot?.["allowed-tools"] !== undefined && {
-        "allowed-tools": rulesyncFrontmatter.copilot["allowed-tools"],
+      ...(copilotSection?.["allowed-tools"] !== undefined && {
+        "allowed-tools": copilotSection["allowed-tools"],
       }),
+      ...(copilotSection?.["argument-hint"] !== undefined && {
+        "argument-hint": copilotSection["argument-hint"],
+      }),
+      ...(resolvedUserInvocable !== undefined && { "user-invocable": resolvedUserInvocable }),
+      ...(resolvedDisableModelInvocation !== undefined && {
+        "disable-model-invocation": resolvedDisableModelInvocation,
+      }),
+      ...(copilotSection?.context !== undefined && { context: copilotSection.context }),
     };
 
     return new CopilotSkill({

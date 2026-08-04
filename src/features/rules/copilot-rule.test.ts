@@ -1151,11 +1151,11 @@ description: "Test trimming"
       expect(result.success).toBe(false);
     });
 
-    it("should allow frontmatter with extra fields (zod/mini doesn't have strict mode)", () => {
+    it("should keep frontmatter fields beyond the schema (looseObject)", () => {
       const extraFieldsFrontmatter = {
         description: "Valid description",
         applyTo: "*.js",
-        extraField: "allowed in zod/mini",
+        extraField: "kept by looseObject",
       };
 
       const result = CopilotRuleFrontmatterSchema.safeParse(extraFieldsFrontmatter);
@@ -1164,8 +1164,9 @@ description: "Test trimming"
       if (result.success) {
         expect(result.data.description).toBe("Valid description");
         expect(result.data.applyTo).toBe("*.js");
-        // Extra field is not included in the parsed data
-        expect((result.data as any).extraField).toBeUndefined();
+        // A field rulesync does not model survives parsing, so importing a
+        // hand-written instructions file does not lose it.
+        expect(result.data.extraField).toBe("kept by looseObject");
       }
     });
   });
@@ -1339,6 +1340,39 @@ description: "Test trimming"
         name: "TypeScript Style",
         excludeAgent: "code-review",
       });
+    });
+
+    it("carries a frontmatter field beyond the schema in both directions", async () => {
+      const instructionsDir = join(testDir, ".github", "instructions");
+      await ensureDir(instructionsDir);
+      await writeFileContent(
+        join(instructionsDir, "style.instructions.md"),
+        [
+          "---",
+          "description: Style rules",
+          "applyTo: '**/*.ts'",
+          // Not modeled by rulesync: it used to be dropped on import and then
+          // erased from the file on the next generate.
+          "futureCopilotField: keep-me",
+          "---",
+          "",
+          "Body",
+          "",
+        ].join("\n"),
+      );
+
+      const copilotRule = await CopilotRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "style.instructions.md",
+      });
+      const rulesyncRule = copilotRule.toRulesyncRule();
+
+      expect(rulesyncRule.getFrontmatter().copilot).toEqual({
+        futureCopilotField: "keep-me",
+      });
+      expect(
+        CopilotRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule }).getFileContent(),
+      ).toContain("futureCopilotField: keep-me");
     });
   });
 });
