@@ -259,6 +259,44 @@ describe("DirFeatureProcessor", () => {
       expect(writeFileBuffer).not.toHaveBeenCalled();
     });
 
+    it("should detect a change in a later other file", async () => {
+      const unchanged = Buffer.from("same");
+      vi.mocked(readFileBufferOrNull).mockImplementation(async (filePath) =>
+        filePath.endsWith("first.txt") ? unchanged : Buffer.from("stale"),
+      );
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const otherFiles: AiDirFile[] = [
+        { relativeFilePathToDirPath: "first.txt", fileBuffer: unchanged },
+        { relativeFilePathToDirPath: "second.txt", fileBuffer: Buffer.from("fresh") },
+      ];
+      const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", otherFiles })];
+
+      const result = await processor.writeAiDirs(dirs);
+
+      expect(result.count).toBe(1);
+      // Directory-level change detection: both files are rewritten.
+      expect(writeFileBuffer).toHaveBeenCalledTimes(2);
+    });
+
+    it("should treat a reformatted structured other file as unchanged", async () => {
+      // `agents/openai.yaml` is composed by rulesync, so a formatter's
+      // re-indentation must not make every generate report a change.
+      vi.mocked(readFileBufferOrNull).mockResolvedValue(Buffer.from("name:   deploy\nsteps: []\n"));
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const otherFile: AiDirFile = {
+        relativeFilePathToDirPath: "agents/openai.yaml",
+        fileBuffer: Buffer.from("name: deploy\nsteps: []"),
+      };
+      const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", otherFiles: [otherFile] })];
+
+      const result = await processor.writeAiDirs(dirs);
+
+      expect(result).toEqual({ count: 0, paths: [] });
+      expect(writeFileBuffer).not.toHaveBeenCalled();
+    });
+
     it("should rewrite a text other file that differs only in trailing bytes", async () => {
       vi.mocked(readFileBufferOrNull).mockResolvedValue(Buffer.from("first\nsecond\n"));
       const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });

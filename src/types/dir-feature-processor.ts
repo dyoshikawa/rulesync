@@ -1,6 +1,9 @@
 import { join } from "node:path";
 
-import { fileContentsEquivalent } from "../utils/content-equivalence.js";
+import {
+  companionFileContentsEquivalent,
+  fileContentsEquivalent,
+} from "../utils/content-equivalence.js";
 import {
   addTrailingNewline,
   ensureDir,
@@ -98,21 +101,28 @@ export abstract class DirFeatureProcessor {
         }
       }
 
-      // Companion files beside the main file are copied byte for byte. Unlike
-      // the main file, whose body and frontmatter rulesync itself composes,
-      // these are arbitrary user assets — images, archives, CRLF fixtures, a
-      // file whose missing trailing newline is deliberate — so both the
-      // comparison and the write stay on the buffer path. Sending them through
-      // a UTF-8 round-trip with trailing-newline normalization silently
-      // rewrote their bytes.
+      // Companion files beside the main file are written byte for byte. Most
+      // of them are user assets — images, archives, CRLF fixtures, a file whose
+      // missing trailing newline is deliberate — and unlike the main file,
+      // whose body and frontmatter rulesync composes, nothing about them is
+      // rulesync's to normalize. Sending them through a UTF-8 round-trip with
+      // trailing-newline normalization silently rewrote their bytes.
       const otherFiles: AiDirFile[] = aiDir.getOtherFiles();
       for (const file of otherFiles) {
+        // Detection only; the write loop below covers every file once the
+        // directory is known to have changed.
         if (dirHasChanges) {
           break;
         }
         const filePath = join(dirPath, file.relativeFilePathToDirPath);
         const existingBuffer = await readFileBufferOrNull(filePath);
-        if (!existingBuffer || !existingBuffer.equals(file.fileBuffer)) {
+        if (
+          !companionFileContentsEquivalent({
+            filePath,
+            expected: file.fileBuffer,
+            existing: existingBuffer,
+          })
+        ) {
           dirHasChanges = true;
         }
       }

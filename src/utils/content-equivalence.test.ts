@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { fileContentIsEmptyPayload, fileContentsEquivalent } from "./content-equivalence.js";
+import {
+  companionFileContentsEquivalent,
+  fileContentIsEmptyPayload,
+  fileContentsEquivalent,
+} from "./content-equivalence.js";
 import { addTrailingNewline } from "./file.js";
 import { stringifyFrontmatter } from "./frontmatter.js";
 
@@ -276,5 +280,45 @@ describe("fileContentIsEmptyPayload", () => {
     expect(
       fileContentIsEmptyPayload({ filePath: "/x/config.toml", content: "updated = 2026-01-01\n" }),
     ).toBe(false);
+  });
+});
+
+const compare = (filePath: string, expected: Buffer, existing: Buffer | null) =>
+  companionFileContentsEquivalent({ filePath, expected, existing });
+
+describe("companionFileContentsEquivalent", () => {
+  it("returns false when the file does not exist yet", () => {
+    expect(compare("/x/logo.png", Buffer.from("a"), null)).toBe(false);
+  });
+
+  it("returns true for byte-identical buffers", () => {
+    const buffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe]);
+    expect(compare("/x/logo.png", buffer, Buffer.from(buffer))).toBe(true);
+  });
+
+  it("returns false when binary bytes differ", () => {
+    expect(compare("/x/logo.png", Buffer.from([0xff, 0xfe]), Buffer.from([0xff, 0xfd]))).toBe(
+      false,
+    );
+  });
+
+  it("returns false for text differing only in line endings or trailing newline", () => {
+    expect(compare("/x/fixture.txt", Buffer.from("a\r\nb"), Buffer.from("a\nb\n"))).toBe(false);
+  });
+
+  it("returns true for a structurally equivalent YAML companion", () => {
+    expect(
+      compare("/x/agents/openai.yaml", Buffer.from("name: deploy\n"), Buffer.from("name:  deploy")),
+    ).toBe(true);
+  });
+
+  it("returns false for a structurally different YAML companion", () => {
+    expect(
+      compare("/x/agents/openai.yaml", Buffer.from("name: deploy\n"), Buffer.from("name: build\n")),
+    ).toBe(false);
+  });
+
+  it("returns false when a structured extension holds unparsable content", () => {
+    expect(compare("/x/data.json", Buffer.from("{"), Buffer.from("{{"))).toBe(false);
   });
 });

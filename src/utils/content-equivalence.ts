@@ -208,3 +208,46 @@ export function fileContentsEquivalent({
 
   return addTrailingNewline(expected) === addTrailingNewline(existing);
 }
+
+/**
+ * Whether an on-disk companion file is equivalent to the generated one.
+ *
+ * Companion files (everything beside a skill's `SKILL.md`) are written byte for
+ * byte, so byte equality is the primary test — a CRLF fixture or a deliberately
+ * newline-less file must compare equal to itself and unequal to a normalized
+ * copy. Differing bytes then fall back to the structured comparison, but only
+ * to its structured verdict: a companion Rulesync itself composes (Codex CLI's
+ * `agents/openai.yaml`) must not report a change on every generate just because
+ * a formatter re-indented it. There is deliberately no text fallback, since
+ * trailing-whitespace-insensitive text equality is exactly the normalization
+ * companion files no longer get.
+ */
+export function companionFileContentsEquivalent({
+  filePath,
+  expected,
+  existing,
+}: {
+  filePath: string;
+  expected: Buffer;
+  existing: Buffer | null;
+}): boolean {
+  if (existing === null) {
+    return false;
+  }
+  if (existing.equals(expected)) {
+    return true;
+  }
+
+  const expectedText = expected.toString("utf-8");
+  const existingText = existing.toString("utf-8");
+  // A buffer that does not survive the UTF-8 round-trip is binary; no
+  // structured parser applies and the differing bytes are the answer.
+  if (
+    !Buffer.from(expectedText, "utf-8").equals(expected) ||
+    !Buffer.from(existingText, "utf-8").equals(existing)
+  ) {
+    return false;
+  }
+
+  return tryFileContentsEquivalent(filePath, expectedText, existingText) ?? false;
+}
