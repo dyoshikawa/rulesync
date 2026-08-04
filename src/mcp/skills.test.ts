@@ -735,7 +735,7 @@ description: "With files"
         }),
       );
       expect(getParsed.otherFiles).toHaveLength(1);
-      expect(getParsed.otherFiles[0].name).toBe("assets/logo.jpg");
+      expect(getParsed.otherFiles[0].name).toBe(join("assets", "logo.jpg"));
       expect(getParsed.otherFiles[0].encoding).toBe("base64");
       expect(Buffer.from(getParsed.otherFiles[0].body, "base64").equals(binaryContent)).toBe(true);
     });

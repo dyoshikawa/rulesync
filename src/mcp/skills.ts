@@ -84,7 +84,7 @@ function decodeMcpSkillFileBody(file: McpSkillFile): Buffer {
     .replaceAll("_", "/")
     .replaceAll(/=+$/g, "");
   if (fileBuffer.toString("base64").replaceAll(/=+$/g, "") !== normalizedBody) {
-    throw new Error(`Invalid base64 body for other file ${file.name}`);
+    throw new Error(`Invalid base64 body for other file ${file.name}: expected canonical base64`);
   }
 
   return fileBuffer;
@@ -226,10 +226,10 @@ async function putSkill({
   // Convert McpSkillFile to AiDirFile for RulesyncSkill (also validates base64 bodies)
   const aiDirFiles = otherFiles.map(mcpSkillFileToAiDirFile);
 
-  // Check file size constraint
+  // Check file size constraint, measured in bytes so binary other files are counted accurately
   const estimatedSize =
-    JSON.stringify(frontmatter).length +
-    body.length +
+    Buffer.byteLength(JSON.stringify(frontmatter), "utf-8") +
+    Buffer.byteLength(body, "utf-8") +
     aiDirFiles.reduce(
       (acc, file) => acc + file.relativeFilePathToDirPath.length + file.fileBuffer.byteLength,
       0,

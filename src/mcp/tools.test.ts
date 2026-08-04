@@ -8,7 +8,7 @@ import {
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
 } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { ensureDir, readFileBuffer, writeFileContent } from "../utils/file.js";
 import { rulesyncTool } from "./tools.js";
 
 describe("rulesyncTool", () => {
@@ -299,6 +299,38 @@ describe("rulesyncTool", () => {
     const getParsed = JSON.parse(getResult);
     expect(getParsed.frontmatter.name).toBe("test-skill");
     expect(getParsed.otherFiles[0].name).toBe("helper.txt");
+  });
+
+  it("preserves binary skill other files through the unified tool", async () => {
+    const skillsDir = join(testDir, ".rulesync/skills");
+    await ensureDir(skillsDir);
+
+    // Minimal JPEG header: bytes that are not valid UTF-8.
+    const binaryContent = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
+
+    await rulesyncTool.execute({
+      feature: "skill",
+      operation: "put",
+      targetPathFromCwd: ".rulesync/skills/binary-skill",
+      frontmatter: { name: "binary-skill", description: "Binary skill", targets: ["*"] },
+      body: "Skill body",
+      otherFiles: [
+        { name: "logo.jpg", body: binaryContent.toString("base64"), encoding: "base64" },
+      ],
+    });
+
+    const writtenBuffer = await readFileBuffer(join(skillsDir, "binary-skill", "logo.jpg"));
+    expect(writtenBuffer.equals(binaryContent)).toBe(true);
+
+    const getParsed = JSON.parse(
+      await rulesyncTool.execute({
+        feature: "skill",
+        operation: "get",
+        targetPathFromCwd: ".rulesync/skills/binary-skill",
+      }),
+    );
+    expect(getParsed.otherFiles[0].encoding).toBe("base64");
+    expect(Buffer.from(getParsed.otherFiles[0].body, "base64").equals(binaryContent)).toBe(true);
   });
 
   it("handles command lifecycle through a single tool", async () => {
