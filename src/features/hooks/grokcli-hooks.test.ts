@@ -424,7 +424,11 @@ describe("GrokcliHooks per-handler env", () => {
     expect(imported?.[3]).toEqual({ type: "command", command: "./d.sh", env: {} });
   });
 
-  it("does not let a __proto__ key reach the generated file", async () => {
+  it("drops a __proto__ key before the generated file", async () => {
+    // The stripping is the JSONC parser rebuilding the object, not the env
+    // guard — a `__proto__` own key is non-empty, has no "=" and no control
+    // characters, so the guard accepts it. Asserted here so a future parser
+    // change does not put it back silently.
     const hooks = await fromCanonical({
       version: 1,
       hooks: {
