@@ -795,13 +795,20 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  *   `base_permission_profile` it is consumed by the profile builder, not
  *   written as a top-level config key.
  *
- * Two surfaces are deliberately NOT authorable here so the override can never
- * clobber a feature-owned key: `mcp_servers.*` per-MCP gating is owned by the
- * MCP feature (`codexcli-mcp.ts` already writes the `mcp_servers` tables in the
- * same `config.toml`), and `permissions` / `default_permissions` are owned by
- * the canonical model. Any such key placed in the override is skipped with a
- * warning. Kept `looseObject` (verbatim passthrough) so future top-level Codex
- * config keys can be authored without Rulesync modeling each one.
+ * The keys written to `config.toml` are an **allowlist**, not verbatim
+ * passthrough: only `CODEXCLI_OVERRIDE_KEYS`
+ * (`src/constants/codexcli-paths.ts` — `approval_policy`, `sandbox_mode`,
+ * `sandbox_workspace_write`, `apps`, `approvals_reviewer`) are emitted, and
+ * `computeCodexcliOverridePatch` skips anything else with a warning.
+ * `base_permission_profile` and `git_write_rules` are consumed by the profile
+ * builder rather than written, as described above. The allowlist is what keeps
+ * the override from clobbering a feature-owned key: `mcp_servers.*` per-MCP
+ * gating is owned by the MCP feature (`codexcli-mcp.ts` already writes the
+ * `mcp_servers` tables in the same `config.toml`), and `permissions` /
+ * `default_permissions` are owned by the canonical model. The schema itself is
+ * `looseObject` so an unmodeled key parses (and is then reported rather than
+ * rejected outright); supporting a new top-level Codex config key means adding
+ * it to `CODEXCLI_OVERRIDE_KEYS`.
  *
  * @see https://developers.openai.com/codex/config-reference
  * @see https://developers.openai.com/codex/permissions

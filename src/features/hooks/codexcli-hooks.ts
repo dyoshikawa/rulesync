@@ -48,6 +48,13 @@ const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
     { canonical: "commandWindows", tool: "commandWindows" },
     { canonical: "statusMessage", tool: "statusMessage" },
   ],
+  // `additionalContextLimit` is the token threshold above which Codex saves the
+  // hook's additional context to a file and passes the path instead of the text
+  // (default 2500). Per-handler field of `.codex/hooks.json`, same name on
+  // either side. https://learn.chatgpt.com/docs/hooks
+  numberPassthroughFields: [
+    { canonical: "additionalContextLimit", tool: "additionalContextLimit" },
+  ],
 };
 
 /**

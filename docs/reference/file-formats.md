@@ -178,6 +178,7 @@ Example:
 - `once` (optional): boolean. Run the hook once per session, then remove it. Forwarded to Claude Code (honored in skill frontmatter; accepted but ignored in settings files) and Qwen Code http hooks.
 - `continueOnBlock` (optional): boolean. Feed a blocking hook's rejection reason back to the model and continue the turn instead of ending it. Forwarded to Claude Code.
 - `commandWindows` (optional): a Windows-only override for `command`, so one hook set can be cross-platform. Forwarded to Codex CLI command hooks (`.codex/hooks.json`), which is the only tool that accepts it.
+- `additionalContextLimit` (optional): number. The token threshold above which the tool writes the hook's additional context to a file and passes that path instead of the text itself (upstream default 2500). Forwarded to Codex CLI command hooks (`.codex/hooks.json`), which is the only tool that accepts it.
 - `statusMessage` (optional): the progress text shown while the hook runs. Forwarded to Qwen Code (command and http hooks) and to Codex CLI command hooks.
 - `if` (optional): a single permission rule (same syntax as `settings.json` permission rules, e.g. `"Bash(rm *)"`) that filters a hook by tool arguments in addition to the tool name. Forwarded to Claude Code, where it is evaluated only on tool events (`preToolUse`, `postToolUse`, `postToolUseFailure`, `permissionRequest`, `permissionDenied`); it round-trips as an opaque string.
 
