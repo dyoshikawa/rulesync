@@ -611,6 +611,21 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
     },
   },
+  // Goose user config (`~/.config/goose/config.yaml`): the file holds the
+  // user's model/provider settings alongside `extensions:`, and `extensions:`
+  // itself is co-owned — Goose's `builtin`/`platform` extensions (`developer`,
+  // `memory`, ...) live there next to the MCP servers rulesync manages. The
+  // block is recomputed from the existing file (non-MCP extensions carried
+  // over) before being applied, so the whole key is owned here.
+  ".config/goose/config.yaml": {
+    format: "yaml",
+    // The user's primary Goose config: refuse to read-modify-write a file we
+    // could not parse rather than replacing it with generated output.
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["extensions"] },
+    },
+  },
   // Codex CLI config: hooks/mcp/permissions each own an exclusive top-level
   // key. `features` (hooks' legacy `codex_hooks` cleanup) and `mcp_servers`
   // (per-server approval-state preservation) are recomputed from the existing

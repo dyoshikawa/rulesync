@@ -72,6 +72,40 @@ describe("GooseHooks", () => {
       expect(parsed.hooks.AfterFileEdit[0].matcher).toBe("\\.rs$");
     });
 
+    it("should emit a canonical '*' matcher as no matcher", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              preToolUse: [
+                { command: "all-tools.sh", matcher: "*" },
+                { command: "also-all-tools.sh" },
+                { command: "shell-only.sh", matcher: "developer__shell" },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const gooseHooks = await GooseHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(gooseHooks.getFileContent());
+      // Goose compiles `matcher` as a regex and drops the whole rule when it
+      // fails to compile, so "*" must not reach the file; it collapses into the
+      // matcher-less group rather than producing a second bare entry.
+      expect(parsed.hooks.PreToolUse).toHaveLength(2);
+      expect(parsed.hooks.PreToolUse[0].matcher).toBeUndefined();
+      expect(parsed.hooks.PreToolUse[0].hooks.map((h: { command: string }) => h.command)).toEqual([
+        "all-tools.sh",
+        "also-all-tools.sh",
+      ]);
+      expect(parsed.hooks.PreToolUse[1].matcher).toBe("developer__shell");
+    });
+
     it("should map all Goose lifecycle events", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({

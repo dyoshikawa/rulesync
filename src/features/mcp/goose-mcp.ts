@@ -1,7 +1,5 @@
 import { join } from "node:path";
 
-import { dump } from "js-yaml";
-
 import {
   GOOSE_GLOBAL_DIR,
   GOOSE_MCP_FILE_NAME,
@@ -20,6 +18,7 @@ import {
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
+import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -91,6 +90,26 @@ function resolveGooseType(config: Record<string, unknown>, url: string | undefin
 }
 
 /**
+ * The Goose extension types that carry an MCP server. Goose also documents
+ * `builtin`, `platform`, `frontend` and `inline_python` extensions, which have
+ * no canonical MCP counterpart: they name capabilities Goose provides itself
+ * rather than a server rulesync could describe.
+ */
+const GOOSE_MCP_EXTENSION_TYPES: ReadonlySet<string> = new Set(["stdio", "streamable_http", "sse"]);
+
+/**
+ * Resolves the Goose extension type of an existing `extensions:` entry the way
+ * Goose itself reads it: the declared `type`, or the shape of the entry when
+ * the key is absent.
+ */
+function existingExtensionType(ext: Record<string, unknown>): string | undefined {
+  if (typeof ext.type === "string") return ext.type;
+  if (typeof ext.cmd === "string") return "stdio";
+  if (typeof ext.uri === "string") return "streamable_http";
+  return undefined;
+}
+
+/**
  * Resolves the canonical timeout for a server (`timeout` or `networkTimeout`).
  */
 function resolveGooseTimeout(config: Record<string, unknown>): number | undefined {
@@ -127,7 +146,8 @@ function applyGooseStdioFields(
 function convertServerToGooseExtension(
   name: string,
   config: Record<string, unknown>,
-): Record<string, unknown> {
+  logger: Logger | undefined,
+): Record<string, unknown> | undefined {
   const url = resolveGooseUrl(config);
   const gooseType = resolveGooseType(config, url);
 
@@ -135,6 +155,17 @@ function convertServerToGooseExtension(
 
   if (gooseType === "stdio") {
     applyGooseStdioFields(ext, config);
+    // A `stdio` extension without `cmd` gives Goose no executable to launch.
+    // Skipping keeps the entry out of `config.yaml` instead of writing an
+    // extension the user has to delete by hand before Goose will start it.
+    if (typeof ext.cmd !== "string" || ext.cmd === "") {
+      warnWithFallback(
+        logger,
+        `Goose extension "${name}" has no command to run; skipping it rather than writing ` +
+          `a stdio extension Goose cannot start to ~/.config/goose/config.yaml.`,
+      );
+      return undefined;
+    }
   } else if (gooseType === "sse" || gooseType === "streamable_http") {
     if (url !== undefined) ext.uri = url;
     if (isPlainObject(config.headers)) ext.headers = omitPrototypePollutionKeys(config.headers);
@@ -154,13 +185,47 @@ function convertServerToGooseExtension(
  * Goose uses a non-standard schema: `name`, `type` (`stdio` | `streamable_http`
  * | `sse` | `builtin`), `cmd`/`args`/`envs` for stdio, `uri`/`headers` for
  * remote, plus `enabled` and `timeout`.
+ *
+ * `extensions:` is co-owned: alongside the MCP servers rulesync manages it also
+ * holds Goose's own `builtin`/`platform`/`frontend`/`inline_python` extensions
+ * (`developer`, `memory`, ...), which have no canonical MCP representation.
+ * Those entries are carried over from `existingExtensions` untouched — removing
+ * `developer` alone costs the agent its shell and text-editor tools. Every
+ * MCP-typed entry is rulesync's to replace, so a server deleted from
+ * `.rulesync/.mcp.json` is still retracted here.
  */
-function convertToGooseFormat(mcpServers: McpServers): Record<string, Record<string, unknown>> {
-  const extensions: Record<string, Record<string, unknown>> = {};
+function convertToGooseFormat({
+  mcpServers,
+  existingExtensions,
+  logger,
+}: {
+  mcpServers: McpServers;
+  existingExtensions: Record<string, unknown>;
+  logger: Logger | undefined;
+}): Record<string, unknown> {
+  const extensions: Record<string, unknown> = {};
+
+  for (const [name, ext] of Object.entries(existingExtensions)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
+    if (!isRecord(ext)) continue;
+    const type = existingExtensionType(ext);
+    if (type !== undefined && !GOOSE_MCP_EXTENSION_TYPES.has(type)) {
+      extensions[name] = ext;
+    }
+  }
 
   for (const [name, config] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(config)) continue;
-    extensions[name] = convertServerToGooseExtension(name, config);
+    const ext = convertServerToGooseExtension(name, config, logger);
+    if (ext === undefined) continue;
+    if (Object.hasOwn(extensions, name)) {
+      warnWithFallback(
+        logger,
+        `Goose extension "${name}" already exists in config.yaml as a non-MCP extension; ` +
+          `the MCP server of the same name replaces it.`,
+      );
+    }
+    extensions[name] = ext;
   }
 
   return extensions;
@@ -174,23 +239,40 @@ function convertToGooseFormat(mcpServers: McpServers): Record<string, Record<str
  * so both `url` and the Claude-specific `httpUrl` alias come back as `url`; and
  * the `streamable_http` type maps back to canonical `http`. These are the
  * canonical/preferred forms, so re-generating produces an equivalent config.
+ *
+ * Non-MCP extension types (`builtin`, `platform`, `frontend`, `inline_python`)
+ * are skipped: they describe capabilities Goose provides itself, and importing
+ * one would strip the type that makes it work — a `builtin` entry came back as
+ * a `stdio` extension with no `cmd` that Goose cannot start. They stay in `config.yaml`,
+ * which generation preserves.
  */
-function convertFromGooseFormat(extensions: Record<string, unknown>): McpServers {
+function convertFromGooseFormat(
+  extensions: Record<string, unknown>,
+  logger?: Logger | undefined,
+): McpServers {
   const result: McpServers = {};
 
   for (const [name, ext] of Object.entries(extensions)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(ext)) continue;
 
+    const type = existingExtensionType(ext);
+    if (type === undefined || !GOOSE_MCP_EXTENSION_TYPES.has(type)) {
+      warnWithFallback(
+        logger,
+        `Skipping Goose extension "${name}"${type === undefined ? "" : ` (type: ${type})`}: ` +
+          `it is not an MCP server and has no rulesync representation.`,
+      );
+      continue;
+    }
+
     const server: Record<string, unknown> = {};
-    const type = typeof ext.type === "string" ? ext.type : undefined;
     if (type === "sse") {
       server.type = "sse";
     } else if (type === "streamable_http") {
       server.type = "http";
-    } else if (type === "stdio") {
+    } else {
       server.type = "stdio";
     }
-    // `builtin` has no rulesync canonical equivalent, so its type is dropped.
 
     if (typeof ext.cmd === "string") server.command = ext.cmd;
     if (isStringArray(ext.args)) server.args = ext.args;
@@ -384,21 +466,32 @@ export class GooseMcp extends ToolMcp {
       });
     }
 
-    const fileContent =
-      (await readFileContentOrNull(
-        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      )) ?? "";
-    const config = parseGooseConfig(fileContent, paths.relativeDirPath, paths.relativeFilePath);
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
+    const config = parseGooseConfig(existingContent, paths.relativeDirPath, paths.relativeFilePath);
+    const existingExtensions = isRecord(config.extensions) ? config.extensions : {};
 
-    // Merge the `extensions:` block into the shared config, preserving other
-    // keys (model, provider, ...).
-    const merged = { ...config, extensions: convertToGooseFormat(rulesyncMcp.getMcpServers()) };
-
+    // The `extensions:` block is recomputed from the existing file (non-MCP
+    // extensions carried over) before being applied, so the gateway can own the
+    // whole key while every other Goose setting (model, provider, ...) is
+    // preserved by the shared merge policy.
     return new GooseMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: dump(merged),
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "mcp",
+        existingContent,
+        patch: {
+          extensions: convertToGooseFormat({
+            mcpServers: rulesyncMcp.getMcpServers(),
+            existingExtensions,
+            logger,
+          }),
+        },
+        filePath,
+      }),
       validate,
       global,
     });

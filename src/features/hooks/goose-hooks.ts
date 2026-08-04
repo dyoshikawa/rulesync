@@ -30,6 +30,12 @@ const GOOSE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   toolToCanonicalEventNames: GOOSE_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "",
   supportedHookTypes: new Set(["command"]),
+  // Goose compiles `matcher` with `Regex::new` and drops the whole rule when
+  // compilation fails ("Invalid hook matcher regex; skipping rule"). A bare
+  // `"*"` is not a valid regex, so emitting the canonical catch-all verbatim
+  // produces a hook that never runs; an absent matcher means match-all.
+  // https://github.com/aaif-goose/goose/pull/10467
+  wildcardMatcherMeansAll: true,
 };
 
 /**

@@ -320,6 +320,79 @@ describe("GooseMcp", () => {
       expect(isRecord(parsed) && parsed.GOOSE_PROVIDER).toBe("openai");
       expect(getExtensions(mcp.getFileContent()).fetch?.cmd).toBe("uvx");
     });
+
+    it("preserves the user's builtin and platform extensions", async () => {
+      const dir = join(testDir, GOOSE_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, GOOSE_FILE),
+        [
+          "extensions:",
+          "  developer:",
+          "    name: developer",
+          "    type: builtin",
+          "    bundled: true",
+          "    timeout: 300",
+          "    enabled: true",
+          "  memory:",
+          "    name: memory",
+          "    type: platform",
+          "    enabled: true",
+          "  stale:",
+          "    name: stale",
+          "    type: stdio",
+          "    cmd: old",
+          "",
+        ].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { fetch: { command: "uvx" } } }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const extensions = getExtensions(mcp.getFileContent());
+
+      // Non-MCP extension types are Goose's own capabilities and survive
+      // untouched; deleting `developer` would cost the agent its shell tools.
+      expect(extensions.developer).toEqual({
+        name: "developer",
+        type: "builtin",
+        bundled: true,
+        timeout: 300,
+        enabled: true,
+      });
+      expect(extensions.memory?.type).toBe("platform");
+      expect(extensions.fetch?.cmd).toBe("uvx");
+      // MCP-typed entries stay rulesync-owned, so a deleted server is retracted.
+      expect(extensions.stale).toBeUndefined();
+    });
+
+    it("skips a server with no command instead of writing a stdio extension Goose cannot start", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { broken: { timeout: 300 }, fetch: { command: "uvx" } },
+        }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const extensions = getExtensions(mcp.getFileContent());
+
+      expect(extensions.broken).toBeUndefined();
+      expect(extensions.fetch?.cmd).toBe("uvx");
+    });
   });
 
   describe("toRulesyncMcp round-trip", () => {
@@ -392,6 +465,35 @@ describe("GooseMcp", () => {
 
       expect(servers.fetch.env).toEqual({ TOKEN: "safe" });
       expect(servers.remote.headers).toEqual({ Authorization: "Bearer safe" });
+    });
+
+    it("skips non-MCP extension types instead of importing them as stdio servers with no command", async () => {
+      const dir = join(testDir, GOOSE_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, GOOSE_FILE),
+        [
+          "extensions:",
+          "  developer:",
+          "    name: developer",
+          "    type: builtin",
+          "    bundled: true",
+          "    timeout: 300",
+          "  platform-memory:",
+          "    name: platform-memory",
+          "    type: platform",
+          "  fetch:",
+          "    name: fetch",
+          "    type: stdio",
+          "    cmd: uvx",
+          "",
+        ].join("\n"),
+      );
+
+      const mcp = await GooseMcp.fromFile({ outputRoot: testDir, global: true });
+      const servers = JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers;
+
+      expect(Object.keys(servers)).toEqual(["fetch"]);
     });
   });
 
