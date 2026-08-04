@@ -4,8 +4,11 @@ import { fileContentsEquivalent } from "../utils/content-equivalence.js";
 import {
   addTrailingNewline,
   ensureDir,
+  isBinaryBuffer,
+  readFileBufferOrNull,
   readFileContentOrNull,
   removeDirectory,
+  writeFileBuffer,
   writeFileContent,
 } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
@@ -96,23 +99,37 @@ export abstract class DirFeatureProcessor {
         }
       }
 
-      // Compute content for other files
+      // Compute content for other files. Text files are compared and written
+      // through the text path (trailing-newline normalization + structured
+      // equivalence); binary files (e.g. images in a skill dir) go through the
+      // buffer path so their bytes are never corrupted by a UTF-8 round-trip.
       const otherFiles: AiDirFile[] = aiDir.getOtherFiles();
-      const otherFileContents: string[] = [];
+      const otherFileContents: (string | Buffer)[] = [];
       for (const file of otherFiles) {
-        const contentWithNewline = addTrailingNewline(file.fileBuffer.toString("utf-8"));
-        otherFileContents.push(contentWithNewline);
-        if (!dirHasChanges) {
-          const filePath = join(dirPath, file.relativeFilePathToDirPath);
-          const existingContent = await readFileContentOrNull(filePath);
-          if (
-            !fileContentsEquivalent({
-              filePath,
-              expected: contentWithNewline,
-              existing: existingContent,
-            })
-          ) {
-            dirHasChanges = true;
+        if (isBinaryBuffer(file.fileBuffer)) {
+          otherFileContents.push(file.fileBuffer);
+          if (!dirHasChanges) {
+            const filePath = join(dirPath, file.relativeFilePathToDirPath);
+            const existingBuffer = await readFileBufferOrNull(filePath);
+            if (!existingBuffer || !existingBuffer.equals(file.fileBuffer)) {
+              dirHasChanges = true;
+            }
+          }
+        } else {
+          const contentWithNewline = addTrailingNewline(file.fileBuffer.toString("utf-8"));
+          otherFileContents.push(contentWithNewline);
+          if (!dirHasChanges) {
+            const filePath = join(dirPath, file.relativeFilePathToDirPath);
+            const existingContent = await readFileContentOrNull(filePath);
+            if (
+              !fileContentsEquivalent({
+                filePath,
+                expected: contentWithNewline,
+                existing: existingContent,
+              })
+            ) {
+              dirHasChanges = true;
+            }
           }
         }
       }
@@ -155,7 +172,11 @@ export abstract class DirFeatureProcessor {
                 "This indicates a synchronization issue between otherFiles and otherFileContents arrays.",
             );
           }
-          await writeFileContent(filePath, content);
+          if (typeof content === "string") {
+            await writeFileContent(filePath, content);
+          } else {
+            await writeFileBuffer(filePath, content);
+          }
           changedPaths.push(join(relativeDir, file.relativeFilePathToDirPath));
         }
       }
