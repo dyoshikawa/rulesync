@@ -556,6 +556,38 @@ describe("AugmentcodeHooks upstream additions", () => {
     ]);
   });
 
+  it("ignores a metadata value that is not an object, in both directions", async () => {
+    const hooks = new AugmentcodeHooks({
+      outputRoot: testDir,
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        hooks: {
+          PromptSubmit: [{ hooks: [{ type: "command", command: "./check.sh" }], metadata: "nope" }],
+        },
+      }),
+    });
+
+    const imported = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+    expect(imported.hooks.beforeSubmitPrompt[0].metadata).toBeUndefined();
+
+    const regenerated = await AugmentcodeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { beforeSubmitPrompt: [{ command: "./check.sh", metadata: "nope" }] },
+        }),
+        validate: false,
+      }),
+      validate: false,
+    });
+    expect(JSON.parse(regenerated.getFileContent()).hooks.PromptSubmit[0].metadata).toBeUndefined();
+  });
+
   it("warns and keeps the first metadata when a group disagrees", async () => {
     // One value per group upstream, so the payload a script receives must not
     // hinge on which hook was authored first without saying so.

@@ -40,6 +40,20 @@ const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // Filtering prompt-type hooks here (instead of accepting them) surfaces the
   // processor's skipped-type warning rather than writing an inert entry.
   supportedHookTypes: new Set(["command"]),
+  // "Additional regex filter for Execute commands. It matches the actual shell
+  // command string when Droid has one. Invalid regex values are skipped." It
+  // sits next to `matcher` on the group, so it is carried at group level.
+  // https://docs.factory.ai/reference/hooks-reference
+  // It narrows when a hook fires, so hooks that disagree get their own matcher
+  // entry rather than inheriting a neighboring hook's filter and going quiet.
+  groupPassthroughFields: [
+    {
+      canonical: "commandRegex",
+      tool: "commandRegex",
+      valueType: "string",
+      subdividesGroup: true,
+    },
+  ],
 };
 
 export class FactorydroidHooks extends ToolHooks {

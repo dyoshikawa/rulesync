@@ -339,6 +339,8 @@ export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOver
 const FactorydroidPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   commandBlocklist: z.optional(z.array(z.string())),
+  // Skill names Droid must not load. https://docs.factory.ai/cli/configuration/settings
+  disabledSkills: z.optional(z.array(z.string())),
 });
 export type FactorydroidPermissionsOverride = z.infer<typeof FactorydroidPermissionsOverrideSchema>;
 

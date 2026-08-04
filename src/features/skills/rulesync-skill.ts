@@ -206,6 +206,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     z.looseObject({
       "disable-model-invocation": z.optional(z.boolean()),
       "user-invocable": z.optional(z.boolean()),
+      // `enabled: false` keeps the skill on disk but stops Droid loading it.
+      enabled: z.optional(z.boolean()),
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
     }),
   ),
   // Grok honours both flags: `user-invocable: false` hides a skill from the
@@ -386,6 +389,8 @@ export type RulesyncSkillFrontmatterInput = {
   factorydroid?: {
     "disable-model-invocation"?: boolean;
     "user-invocable"?: boolean;
+    enabled?: boolean;
+    "allowed-tools"?: string | string[];
   };
   "kimi-code"?: {
     type?: "prompt" | "inline" | "flow";

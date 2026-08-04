@@ -23,11 +23,17 @@ import {
 //   - `name`, `description`: identity fields.
 //   - `user-invocable`, `disable-model-invocation`: optional behavior flags,
 //     passed through verbatim when present.
+//   - `enabled`: defaults to true; set to false to keep the skill on disk but
+//     disable it.
+//   - `allowed-tools`: declares the tools the skill is designed to use. (The
+//     older `tools` spelling is deprecated upstream.)
 export const FactorydroidSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   "user-invocable": z.optional(z.boolean()),
   "disable-model-invocation": z.optional(z.boolean()),
+  enabled: z.optional(z.boolean()),
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
 });
 
 export type FactorydroidSkillFrontmatter = z.infer<typeof FactorydroidSkillFrontmatterSchema>;
@@ -134,6 +140,10 @@ export class FactorydroidSkill extends ToolSkill {
       ...(frontmatter["user-invocable"] !== undefined && {
         "user-invocable": frontmatter["user-invocable"],
       }),
+      ...(frontmatter.enabled !== undefined && { enabled: frontmatter.enabled }),
+      ...(frontmatter["allowed-tools"] !== undefined && {
+        "allowed-tools": frontmatter["allowed-tools"],
+      }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -162,13 +172,14 @@ export class FactorydroidSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): FactorydroidSkill {
     const settablePaths = FactorydroidSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const factorydroidSection = rulesyncFrontmatter.factorydroid;
     const resolvedDisableModelInvocation = resolveDisableModelInvocation({
       rootFrontmatter: rulesyncFrontmatter,
-      section: rulesyncFrontmatter.factorydroid,
+      section: factorydroidSection,
     });
     const resolvedUserInvocable = resolveUserInvocable({
       rootFrontmatter: rulesyncFrontmatter,
-      section: rulesyncFrontmatter.factorydroid,
+      section: factorydroidSection,
     });
 
     const factorydroidFrontmatter: FactorydroidSkillFrontmatter = {
@@ -179,6 +190,12 @@ export class FactorydroidSkill extends ToolSkill {
       }),
       ...(resolvedUserInvocable !== undefined && {
         "user-invocable": resolvedUserInvocable,
+      }),
+      ...(factorydroidSection?.enabled !== undefined && {
+        enabled: factorydroidSection.enabled,
+      }),
+      ...(factorydroidSection?.["allowed-tools"] !== undefined && {
+        "allowed-tools": factorydroidSection["allowed-tools"],
       }),
     };
 

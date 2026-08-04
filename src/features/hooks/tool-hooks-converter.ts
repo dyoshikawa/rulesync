@@ -77,12 +77,25 @@ export type ToolHooksConverterConfig = {
    * Fields that live on the *matcher group* rather than on a hook. They are
    * stored per definition canonically (the canonical model is a flat list), so
    * export reads the first definition of the group that carries one and import
-   * puts it back on every definition of that group. Only plain objects are
-   * carried through.
+   * puts it back on every definition of that group.
    */
   groupPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "metadata";
+    readonly canonical: "metadata" | "commandRegex";
     readonly tool: string;
+    /**
+     * The value shape the tool documents. Anything else is ignored in both
+     * directions, so an object never reaches a canonical string field (or the
+     * reverse) and fails validation later. Defaults to `"object"`.
+     */
+    readonly valueType?: "object" | "string";
+    /**
+     * When set, definitions carrying different values are split into separate
+     * matcher entries instead of sharing the group's first value. Set it for a
+     * field that *restricts* when a hook runs — inheriting a neighboring hook's filter
+     * would otherwise stop a hook from firing at all — and leave it off for an
+     * additive payload, where sharing only widens what a hook receives.
+     */
+    readonly subdividesGroup?: boolean;
   }>;
   /**
    * When true, only dot-relative commands (e.g. ./script.sh, ../script.sh, .rulesync/hooks/x.sh)
@@ -129,18 +142,38 @@ function buildEffectiveHooks({
 }
 
 /**
- * Group a list of hook definitions by their `matcher` (empty string when absent),
- * preserving insertion order of both keys and grouped definitions.
+ * Group a list of hook definitions by their `matcher` (empty string when
+ * absent), preserving insertion order of both keys and grouped definitions.
+ * Definitions that disagree on a `subdividesGroup` passthrough field are split
+ * into separate groups, so a restricting field is never inherited by a hook
+ * that did not ask for it.
  */
-function groupDefinitionsByMatcher(
-  definitions: HooksConfig["hooks"][string],
-): Map<string, HooksConfig["hooks"][string]> {
-  const byMatcher = new Map<string, HooksConfig["hooks"][string]>();
+function groupDefinitionsByMatcher({
+  definitions,
+  converterConfig,
+}: {
+  definitions: HooksConfig["hooks"][string];
+  converterConfig: ToolHooksConverterConfig;
+}): Map<string, { matcher: string; defs: HooksConfig["hooks"][string] }> {
+  const subdividingFields = (converterConfig.groupPassthroughFields ?? []).filter(
+    ({ subdividesGroup }) => subdividesGroup,
+  );
+  const byMatcher = new Map<string, { matcher: string; defs: HooksConfig["hooks"][string] }>();
   for (const def of definitions) {
-    const key = def.matcher ?? "";
-    const list = byMatcher.get(key);
-    if (list) list.push(def);
-    else byMatcher.set(key, [def]);
+    const matcher = def.matcher ?? "";
+    const key = [
+      matcher,
+      // A value the tool cannot express is never emitted, so keying on it would
+      // split a group into entries that come out identical. NUL separates the
+      // parts because no emitted value may contain one.
+      ...subdividingFields.map(({ canonical, valueType }) => {
+        const value = def[canonical];
+        return isGroupPassthroughValue(value, valueType) ? stableJson(value) : "";
+      }),
+    ].join("\u0000");
+    const group = byMatcher.get(key);
+    if (group) group.defs.push(def);
+    else byMatcher.set(key, { matcher, defs: [def] });
   }
   return byMatcher;
 }
@@ -345,6 +378,27 @@ function importArrayPassthroughFields({
 }
 
 /**
+ * A group-level passthrough value: an object payload (e.g. AugmentCode's
+ * `metadata`) or a scalar filter (e.g. Factory Droid's `commandRegex`).
+ */
+type GroupPassthroughValue = Record<string, unknown> | string;
+
+/**
+ * Check a value against the shape its field documents. A string field also
+ * rejects control characters, matching the canonical `safeString` so an
+ * imported value cannot fail validation on the next generate.
+ */
+function isGroupPassthroughValue(
+  value: unknown,
+  valueType: "object" | "string" = "object",
+): value is GroupPassthroughValue {
+  if (valueType === "string") {
+    return typeof value === "string" && !CONTROL_CHARS.some((char) => value.includes(char));
+  }
+  return isPlainObject(value);
+}
+
+/**
  * Emit the configured group-level passthrough fields, taken from the first
  * definition of the group that carries one.
  */
@@ -358,11 +412,11 @@ function emitGroupPassthroughFields({
   eventName: string;
   converterConfig: ToolHooksConverterConfig;
   logger?: Logger;
-}): Record<string, Record<string, unknown>> {
-  const emitted: Record<string, Record<string, unknown>> = {};
-  for (const { canonical, tool } of converterConfig.groupPassthroughFields ?? []) {
+}): Record<string, GroupPassthroughValue> {
+  const emitted: Record<string, GroupPassthroughValue> = {};
+  for (const { canonical, tool, valueType } of converterConfig.groupPassthroughFields ?? []) {
     const carried = defs.map((def) => def[canonical]);
-    const first = carried.find((value): value is Record<string, unknown> => isPlainObject(value));
+    const first = carried.find((value) => isGroupPassthroughValue(value, valueType));
     if (first === undefined) {
       continue;
     }
@@ -372,7 +426,7 @@ function emitGroupPassthroughFields({
     // the strength of who else happens to share its matcher.
     const firstStable = stableJson(first);
     const agrees = (value: unknown): boolean =>
-      isPlainObject(value) && stableJson(value) === firstStable;
+      isGroupPassthroughValue(value, valueType) && stableJson(value) === firstStable;
     if (!carried.every(agrees)) {
       logger?.warn(
         `"${tool}" belongs to the whole matcher group on "${eventName}" hooks, so every hook in ` +
@@ -395,12 +449,12 @@ function importGroupPassthroughFields({
 }: {
   rawEntry: ToolMatcherEntry;
   converterConfig: ToolHooksConverterConfig;
-}): Record<string, Record<string, unknown>> {
+}): Record<string, GroupPassthroughValue> {
   const entry = rawEntry as unknown as Record<string, unknown>;
   return Object.fromEntries(
     (converterConfig.groupPassthroughFields ?? [])
-      .filter(({ tool }) => isPlainObject(entry[tool]))
-      .map(({ canonical, tool }) => [canonical, entry[tool] as Record<string, unknown>]),
+      .filter(({ tool, valueType }) => isGroupPassthroughValue(entry[tool], valueType))
+      .map(({ canonical, tool }) => [canonical, entry[tool] as GroupPassthroughValue]),
   );
 }
 
@@ -509,10 +563,10 @@ export function canonicalToToolHooks({
   const result: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
     const toolEventName = converterConfig.canonicalToToolEventNames[eventName] ?? eventName;
-    const byMatcher = groupDefinitionsByMatcher(definitions);
+    const byMatcher = groupDefinitionsByMatcher({ definitions, converterConfig });
     const entries: unknown[] = [];
     const isNoMatcherEvent = converterConfig.noMatcherEvents?.has(eventName) ?? false;
-    for (const [matcherKey, defs] of byMatcher) {
+    for (const { matcher: matcherKey, defs } of byMatcher.values()) {
       if (isNoMatcherEvent && matcherKey) {
         logger?.warn(
           `matcher "${matcherKey}" on "${eventName}" hook will be ignored — this event does not support matchers`,
@@ -607,7 +661,10 @@ function isStringArray(value: unknown): value is string[] {
 }
 
 /** Compare object values without letting key order decide the answer. */
-function stableJson(value: Record<string, unknown>): string {
+function stableJson(value: Record<string, unknown> | string): string {
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
   return JSON.stringify(
     Object.fromEntries(Object.entries(value).toSorted(([a], [b]) => a.localeCompare(b))),
   );
