@@ -78,6 +78,18 @@ const CANONICAL_TO_ZED_TOOL_NAMES: Record<string, string> = {
  */
 const ZED_EXCLUDED_CANONICAL_CATEGORIES: ReadonlySet<string> = new Set(["read", "grep", "glob"]);
 
+/** The Zed-side spellings of the same tools, for a category that names one directly. */
+const ZED_EXCLUDED_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "read_file",
+  "grep",
+  "find_path",
+  "list_directory",
+]);
+
+const isZedExcludedCategory = (category: string): boolean =>
+  ZED_EXCLUDED_CANONICAL_CATEGORIES.has(category) ||
+  ZED_EXCLUDED_TOOL_NAMES.has(toZedToolName(category));
+
 const ZED_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_ZED_TOOL_NAMES).map(([k, v]) => [v, k]),
 );
@@ -273,8 +285,12 @@ export class ZedPermissions extends ToolPermissions {
         }
         continue;
       }
-      if (ZED_EXCLUDED_CANONICAL_CATEGORIES.has(category)) {
-        excludedCategories.push(category);
+      if (isZedExcludedCategory(category)) {
+        // Only an enforcing rule is worth reporting: Zed leaves these tools
+        // ungoverned, which is what an `allow` asked for anyway.
+        if (Object.values(rules).some((action) => action === "deny" || action === "ask")) {
+          excludedCategories.push(category);
+        }
         continue;
       }
       const tool = buildZedToolPermission(rules);
@@ -300,12 +316,11 @@ export class ZedPermissions extends ToolPermissions {
     if ("*" in config.permission) {
       managedToolNames.add("*");
     }
-    // A stated-but-excluded category also claims the inert entry earlier
-    // rulesync versions wrote for it, so the stale spelling is cleaned up the
-    // same way a stale `tools["*"]` is.
-    for (const category of excludedCategories) {
-      managedToolNames.add(toZedToolName(category));
-    }
+    // An inert `tools.read_file`/`tools.grep` entry an earlier rulesync version
+    // wrote is deliberately NOT swept up here: unlike `tools["*"]`, those are
+    // real Zed tool names, so an entry could equally be the user's own — and
+    // since Zed never consults it either way, leaving it costs nothing while
+    // deleting it could not be undone. Import still reads it back.
     const preservedTools = Object.fromEntries(
       Object.entries(existingTools).filter(([toolName]) => !managedToolNames.has(toolName)),
     );

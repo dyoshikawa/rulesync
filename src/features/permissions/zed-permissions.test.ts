@@ -81,7 +81,32 @@ describe("ZedPermissions", () => {
       expect(tools.read_file).toBeUndefined();
     });
 
-    it("drops the categories Zed does not gate, and cleans up the inert entries", async () => {
+    it("writes nothing for the categories Zed does not gate", async () => {
+      const warn = vi.fn();
+
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "*": "ask" },
+          read: { ".env": "deny" },
+          grep: { "*": "deny" },
+          glob: { "*": "deny" },
+          // A category naming the Zed tool directly is excluded the same way.
+          list_directory: { "*": "deny" },
+        }),
+        logger: { warn } as never,
+      });
+
+      const tools = JSON.parse(permissions.getFileContent()).agent.tool_permissions.tools;
+
+      expect(Object.keys(tools)).toEqual(["terminal"]);
+      expect(warn).toHaveBeenCalledTimes(1);
+      const [warning] = warn.mock.calls[0] as [string];
+      expect(warning).toContain("private_files");
+      expect(warning).toContain('"read", "grep", "glob", "list_directory"');
+    });
+
+    it("leaves an existing entry for an excluded tool in place", async () => {
       const warn = vi.fn();
       await writeFileContent(
         join(testDir, ".zed", "settings.json"),
@@ -89,9 +114,9 @@ describe("ZedPermissions", () => {
           agent: {
             tool_permissions: {
               tools: {
-                // Written by an earlier rulesync version; Zed never consults it.
-                read_file: { always_deny: [{ pattern: ".env", case_sensitive: false }] },
-                grep: { default: "deny" },
+                // Inert either way, and rulesync cannot tell its own earlier
+                // output from an entry the user wrote, so it is not deleted.
+                read_file: { default: "deny" },
                 custom_tool: { default: "allow" },
               },
             },
@@ -104,40 +129,29 @@ describe("ZedPermissions", () => {
         rulesyncPermissions: createRulesyncPermissions({
           bash: { "*": "ask" },
           read: { ".env": "deny" },
-          grep: { "*": "deny" },
         }),
         logger: { warn } as never,
       });
 
       const tools = JSON.parse(permissions.getFileContent()).agent.tool_permissions.tools;
-
-      expect(tools.read_file).toBeUndefined();
-      expect(tools.grep).toBeUndefined();
-      expect(tools.terminal.default).toBe("confirm");
-      // A tool rulesync does not manage is still preserved.
+      expect(tools.read_file).toEqual({ default: "deny" });
       expect(tools.custom_tool).toEqual({ default: "allow" });
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("private_files"));
     });
 
-    it("leaves an excluded tool entry alone when the canonical config says nothing", async () => {
-      await writeFileContent(
-        join(testDir, ".zed", "settings.json"),
-        JSON.stringify({
-          agent: {
-            tool_permissions: {
-              tools: { read_file: { default: "deny" } },
-            },
-          },
-        }),
-      );
+    it("does not warn when an excluded category only allows", async () => {
+      const warn = vi.fn();
 
-      const permissions = await ZedPermissions.fromRulesyncPermissions({
+      await ZedPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
-        rulesyncPermissions: createRulesyncPermissions({ bash: { "*": "ask" } }),
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "*": "ask" },
+          // Zed leaves these tools ungoverned, which is what `allow` asked for.
+          read: { "*": "allow" },
+        }),
+        logger: { warn } as never,
       });
 
-      const tools = JSON.parse(permissions.getFileContent()).agent.tool_permissions.tools;
-      expect(tools.read_file).toEqual({ default: "deny" });
+      expect(warn).not.toHaveBeenCalled();
     });
 
     it("should preserve unrelated settings and unmanaged tools", async () => {
