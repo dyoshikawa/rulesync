@@ -77,9 +77,81 @@ describe("ZedPermissions", () => {
       expect(tools.terminal.default).toBe("confirm");
       expect(tools.terminal.always_allow).toEqual([{ pattern: "git *", case_sensitive: false }]);
       expect(tools.terminal.always_deny).toEqual([{ pattern: "rm *", case_sensitive: false }]);
-      // `read` → `read_file`.
-      expect(tools.read_file.always_deny).toEqual([{ pattern: ".env", case_sensitive: false }]);
-      expect(tools.read_file.default).toBeUndefined();
+      // `read` is one of Zed's excluded read-only tools, so no entry is written.
+      expect(tools.read_file).toBeUndefined();
+    });
+
+    it("writes nothing for the categories Zed does not gate", async () => {
+      const warn = vi.fn();
+
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "*": "ask" },
+          read: { ".env": "deny" },
+          grep: { "*": "deny" },
+          glob: { "*": "deny" },
+          // A category naming the Zed tool directly is excluded the same way.
+          list_directory: { "*": "deny" },
+        }),
+        logger: { warn } as never,
+      });
+
+      const tools = JSON.parse(permissions.getFileContent()).agent.tool_permissions.tools;
+
+      expect(Object.keys(tools)).toEqual(["terminal"]);
+      expect(warn).toHaveBeenCalledTimes(1);
+      const [warning] = warn.mock.calls[0] as [string];
+      expect(warning).toContain("private_files");
+      expect(warning).toContain('"read", "grep", "glob", "list_directory"');
+    });
+
+    it("leaves an existing entry for an excluded tool in place", async () => {
+      const warn = vi.fn();
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            tool_permissions: {
+              tools: {
+                // Inert either way, and rulesync cannot tell its own earlier
+                // output from an entry the user wrote, so it is not deleted.
+                read_file: { default: "deny" },
+                custom_tool: { default: "allow" },
+              },
+            },
+          },
+        }),
+      );
+
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "*": "ask" },
+          read: { ".env": "deny" },
+        }),
+        logger: { warn } as never,
+      });
+
+      const tools = JSON.parse(permissions.getFileContent()).agent.tool_permissions.tools;
+      expect(tools.read_file).toEqual({ default: "deny" });
+      expect(tools.custom_tool).toEqual({ default: "allow" });
+    });
+
+    it("does not warn when an excluded category only allows", async () => {
+      const warn = vi.fn();
+
+      await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "*": "ask" },
+          // Zed leaves these tools ungoverned, which is what `allow` asked for.
+          read: { "*": "allow" },
+        }),
+        logger: { warn } as never,
+      });
+
+      expect(warn).not.toHaveBeenCalled();
     });
 
     it("should preserve unrelated settings and unmanaged tools", async () => {
