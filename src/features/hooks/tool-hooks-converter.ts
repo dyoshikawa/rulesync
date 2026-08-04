@@ -143,6 +143,15 @@ export type ToolHooksConverterConfig = {
    * will be silently dropped with a warning during export.
    */
   noMatcherEvents?: ReadonlySet<string>;
+  /**
+   * When true, the canonical catch-all matcher `"*"` is exported as *no*
+   * matcher instead of verbatim. Set it for a tool that compiles `matcher` as a
+   * regular expression (where `"*"` is a syntax error) and treats an absent
+   * matcher as match-all — emitting `"*"` there produces a rule the tool
+   * refuses to compile and drops. Tools that generate code from the matcher
+   * rewrite `"*"` to `".*"` in their own generators instead.
+   */
+  wildcardMatcherMeansAll?: boolean;
 };
 
 /**
@@ -189,7 +198,11 @@ function groupDefinitionsByMatcher({
   );
   const byMatcher = new Map<string, { matcher: string; defs: HooksConfig["hooks"][string] }>();
   for (const def of definitions) {
-    const matcher = def.matcher ?? "";
+    const rawMatcher = def.matcher ?? "";
+    // Normalized here rather than at emission so a `"*"` group and an
+    // already-matcher-less group collapse into one entry instead of producing
+    // two indistinguishable entries for the same event.
+    const matcher = converterConfig.wildcardMatcherMeansAll && rawMatcher === "*" ? "" : rawMatcher;
     const key = [
       matcher,
       // A value the tool cannot express is never emitted, so keying on it would
