@@ -288,6 +288,7 @@ describe("DirFeatureProcessor", () => {
       const otherFile: AiDirFile = {
         relativeFilePathToDirPath: "agents/openai.yaml",
         fileBuffer: Buffer.from("name: deploy\nsteps: []"),
+        composed: true,
       };
       const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", otherFiles: [otherFile] })];
 

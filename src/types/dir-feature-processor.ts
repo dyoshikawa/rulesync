@@ -121,6 +121,7 @@ export abstract class DirFeatureProcessor {
             filePath,
             expected: file.fileBuffer,
             existing: existingBuffer,
+            composed: file.composed,
           })
         ) {
           dirHasChanges = true;

@@ -291,6 +291,7 @@ export class CodexCliSkill extends ToolSkill {
           {
             relativeFilePathToDirPath: CODEX_OPENAI_YAML_RELATIVE_PATH,
             fileBuffer: Buffer.from(dump(openaiObject, { lineWidth: -1, noRefs: true })),
+            composed: true,
           },
         ]
       : baseOtherFiles;

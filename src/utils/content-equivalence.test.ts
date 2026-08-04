@@ -283,8 +283,8 @@ describe("fileContentIsEmptyPayload", () => {
   });
 });
 
-const compare = (filePath: string, expected: Buffer, existing: Buffer | null) =>
-  companionFileContentsEquivalent({ filePath, expected, existing });
+const compare = (filePath: string, expected: Buffer, existing: Buffer | null, composed = false) =>
+  companionFileContentsEquivalent({ filePath, expected, existing, composed });
 
 describe("companionFileContentsEquivalent", () => {
   it("returns false when the file does not exist yet", () => {
@@ -306,19 +306,44 @@ describe("companionFileContentsEquivalent", () => {
     expect(compare("/x/fixture.txt", Buffer.from("a\r\nb"), Buffer.from("a\nb\n"))).toBe(false);
   });
 
-  it("returns true for a structurally equivalent YAML companion", () => {
+  it("returns true for a structurally equivalent composed YAML companion", () => {
     expect(
-      compare("/x/agents/openai.yaml", Buffer.from("name: deploy\n"), Buffer.from("name:  deploy")),
+      compare(
+        "/x/agents/openai.yaml",
+        Buffer.from("name: deploy\n"),
+        Buffer.from("name:  deploy"),
+        true,
+      ),
     ).toBe(true);
   });
 
-  it("returns false for a structurally different YAML companion", () => {
+  it("returns false for a structurally different composed YAML companion", () => {
     expect(
-      compare("/x/agents/openai.yaml", Buffer.from("name: deploy\n"), Buffer.from("name: build\n")),
+      compare(
+        "/x/agents/openai.yaml",
+        Buffer.from("name: deploy\n"),
+        Buffer.from("name: build\n"),
+        true,
+      ),
     ).toBe(false);
   });
 
-  it("returns false when a structured extension holds unparsable content", () => {
-    expect(compare("/x/data.json", Buffer.from("{"), Buffer.from("{{"))).toBe(false);
+  it("returns false when a composed file has a structured extension it cannot parse", () => {
+    expect(compare("/x/data.json", Buffer.from("{"), Buffer.from("{{"), true)).toBe(false);
+  });
+
+  it("does not compare a carried-through structured file structurally", () => {
+    // A user asset that has drifted must be repaired, not tolerated, whatever
+    // its extension.
+    expect(
+      compare("/x/references/notes.md", Buffer.from("# Notes"), Buffer.from("# Notes\n")),
+    ).toBe(false);
+    expect(compare("/x/data/config.yaml", Buffer.from("a: 1\n"), Buffer.from("a:  1"))).toBe(false);
+  });
+
+  it("compares a composed Markdown companion structurally", () => {
+    expect(
+      compare("/x/agents/notes.md", Buffer.from("# Notes"), Buffer.from("# Notes\n"), true),
+    ).toBe(true);
   });
 });
