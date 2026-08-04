@@ -76,7 +76,7 @@ Claude-specific frontmatter and hook overrides continue to use the `claudecode` 
 
 ## Claude Code plugin constraints
 
-Claude Code applies rules to plugin-shipped components that do not apply to the same components installed directly in a project, so `claudecode-plugin` output differs from `claudecode` output in three ways:
+Claude Code applies rules to plugin-shipped components that do not apply to the same components installed directly in a project, so `claudecode-plugin` output differs from `claudecode` output in two ways:
 
 - **Hook commands resolve against the plugin, not the consumer's project.** A relative hook command such as `./scripts/fmt.sh` is written as `"$CLAUDE_PLUGIN_ROOT"/scripts/fmt.sh` (the exec form uses the braced `${CLAUDE_PLUGIN_ROOT}/…` placeholder). `$CLAUDE_PROJECT_DIR`, used for the `claudecode` target, would point into each consumer's own repository, where the bundled script does not exist. Import recognizes both forms and converts them back to the relative command. To point at something in the consumer's project instead, write the command with an explicit leading variable, such as `$CLAUDE_PROJECT_DIR/scripts/hook.sh`; commands that already start with a variable are passed through untouched.
 - **`hooks`, `mcpServers`, and `permissionMode` are dropped from subagent frontmatter.** Claude Code does not support them for plugin-shipped agents, so Rulesync omits them with a warning rather than writing frontmatter that is silently discarded. `isolation` is likewise dropped unless it is `worktree`, the only value plugin agents accept. Importing from a plugin cannot recover fields that were never written, so keep the canonical `.rulesync/subagents/*.md` files as the source of truth.

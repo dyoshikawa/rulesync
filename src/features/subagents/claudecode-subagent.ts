@@ -125,7 +125,7 @@ export class ClaudecodeSubagent extends ToolSubagent {
     relativeFilePath: string;
     logger?: Logger;
   }): ClaudecodeSubagentFrontmatter {
-    // Claude Code 2.1.219 rejects agent markdown files whose name contains `:`,
+    // Claude Code 2.1.218 rejects agent markdown files whose name contains `:`,
     // which it reserves for plugin namespacing (`<plugin>:<agent>`). The name is
     // the author's to fix, so warn rather than failing the whole generate run.
     // @see https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
