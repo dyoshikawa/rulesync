@@ -89,6 +89,19 @@ export type ToolHooksConverterConfig = {
     readonly commandOnly?: boolean;
   }>;
   /**
+   * Per-hook string-map fields to carry through the round-trip. Only plain
+   * objects whose values are all strings are emitted and imported, and a value
+   * carrying a newline, carriage return or NUL is refused in both directions:
+   * these maps become process environment variables, where a control character
+   * is an injection shape rather than data.
+   */
+  recordPassthroughFields?: ReadonlyArray<{
+    readonly canonical: "env";
+    readonly tool: string;
+    /** Emit only on `command` hooks, for a field the tool documents there only. */
+    readonly commandOnly?: boolean;
+  }>;
+  /**
    * Fields that live on the *matcher group* rather than on a hook. They are
    * stored per definition canonically (the canonical model is a flat list), so
    * export reads the first definition of the group that carries one and import
@@ -435,6 +448,67 @@ function importArrayPassthroughFields({
 }
 
 /**
+ * Emit the configured string-map passthrough fields on the tool side. Only maps
+ * whose values are all control-character-free strings are carried through.
+ */
+function emitRecordPassthroughFields({
+  def,
+  hookType,
+  converterConfig,
+}: {
+  def: HooksConfig["hooks"][string][number];
+  hookType: HookType;
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, Record<string, string>> {
+  return Object.fromEntries(
+    (converterConfig.recordPassthroughFields ?? [])
+      .filter(({ canonical, commandOnly }) => {
+        if (commandOnly === true && hookType !== "command") return false;
+        return isSafeStringRecord(def[canonical]);
+      })
+      .map(({ canonical, tool }) => [tool, def[canonical] as Record<string, string>]),
+  );
+}
+
+/**
+ * Import the configured string-map passthrough fields, reversing
+ * {@link emitRecordPassthroughFields}.
+ */
+function importRecordPassthroughFields({
+  h,
+  hookType,
+  converterConfig,
+  logger,
+}: {
+  h: Record<string, unknown>;
+  hookType: HookType;
+  converterConfig: ToolHooksConverterConfig;
+  logger?: Logger;
+}): Record<string, Record<string, string>> {
+  // `commandOnly` is honored on import as well as export, so an `env` found on
+  // an http hook is not imported into a canonical field the exporter would then
+  // drop — that asymmetry would silently delete the value on the next generate.
+  const fields = (converterConfig.recordPassthroughFields ?? []).filter(
+    ({ commandOnly }) => commandOnly !== true || hookType === "command",
+  );
+  for (const { tool } of fields) {
+    if (h[tool] !== undefined && !isSafeStringRecord(h[tool])) {
+      // The `hooks` key is owned in some tools' shared config, so a dropped
+      // value disappears from the file on the next generate.
+      logger?.warn(
+        `Dropping "${tool}" while importing a hook: it must be a map of strings without ` +
+          `newline, carriage return or NUL characters.`,
+      );
+    }
+  }
+  return Object.fromEntries(
+    fields
+      .filter(({ tool }) => isSafeStringRecord(h[tool]))
+      .map(({ canonical, tool }) => [canonical, h[tool] as Record<string, string>]),
+  );
+}
+
+/**
  * A group-level passthrough value: an object payload (e.g. AugmentCode's
  * `metadata`) or a scalar filter (e.g. Factory Droid's `commandRegex`).
  */
@@ -577,6 +651,7 @@ function buildToolHooks({
       ...emitNumberPassthroughFields({ def, hookType, converterConfig }),
       ...emitStringPassthroughFields({ def, hookType, converterConfig }),
       ...emitArrayPassthroughFields({ def, hookType, converterConfig }),
+      ...emitRecordPassthroughFields({ def, hookType, converterConfig }),
       type: hookType,
       ...(command !== undefined && command !== null && { command }),
       ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
@@ -734,6 +809,15 @@ function stableJson(value: Record<string, unknown> | string): string {
  * validation on a file this import itself wrote — and the hooks feature is
  * skipped wholesale when that read fails.
  */
+function isSafeStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    isPlainObject(value) &&
+    Object.values(value).every(
+      (entry) => typeof entry === "string" && !CONTROL_CHARS.some((char) => entry.includes(char)),
+    )
+  );
+}
+
 function isSafeStringArray(value: unknown): value is string[] {
   return (
     isStringArray(value) &&
@@ -809,6 +893,7 @@ function toolHookToCanonical({
     ...importNumberPassthroughFields({ h, converterConfig }),
     ...importStringPassthroughFields({ h, converterConfig }),
     ...importArrayPassthroughFields({ h, converterConfig, logger }),
+    ...importRecordPassthroughFields({ h, hookType, converterConfig, logger }),
     ...importGroupPassthroughFields({ rawEntry, converterConfig }),
     ...(rawEntry.matcher !== undefined &&
       rawEntry.matcher !== null &&

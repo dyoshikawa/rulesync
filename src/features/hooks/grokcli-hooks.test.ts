@@ -317,3 +317,109 @@ describe("GrokcliHooks handler types", () => {
     ]);
   });
 });
+
+describe("GrokcliHooks per-handler env", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const fromCanonical = (config: unknown) =>
+    GrokcliHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      }),
+    });
+
+  const fromToolFile = (config: unknown) =>
+    new GrokcliHooks({
+      outputRoot: testDir,
+      relativeDirPath: join(".grok", "hooks"),
+      relativeFilePath: "rulesync.json",
+      fileContent: JSON.stringify(config),
+    });
+
+  it("emits env on a command hook only", async () => {
+    // Upstream `HookConfig.env: HashMap<String, String>` is merged into
+    // `HookSpec::extra_env` for the spawned command, so an http handler has no
+    // process to merge it into.
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: {
+        stop: [
+          { type: "command", command: "./notify.sh", env: { CI: "1", LEVEL: "debug" } },
+          { type: "http", url: "https://example.com/hook", env: { CI: "1" } },
+        ],
+      },
+    });
+
+    const written = JSON.parse(hooks.getFileContent()).hooks.Stop[0].hooks;
+    expect(written[0]).toEqual({
+      type: "command",
+      command: "./notify.sh",
+      env: { CI: "1", LEVEL: "debug" },
+    });
+    expect(written[1]).not.toHaveProperty("env");
+  });
+
+  it("refuses an env value that is not a plain map of clean strings", async () => {
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: {
+        stop: [
+          { type: "command", command: "./a.sh", env: { PORT: 8080 } },
+          { type: "command", command: "./b.sh", env: { INJECTED: "a\nb" } },
+          { type: "command", command: "./c.sh", env: ["CI=1"] },
+        ],
+      },
+    });
+
+    for (const hook of JSON.parse(hooks.getFileContent()).hooks.Stop[0].hooks) {
+      expect(hook).not.toHaveProperty("env");
+    }
+  });
+
+  it("imports env from a command hook and ignores it on an http hook", () => {
+    const imported = fromToolFile({
+      hooks: {
+        Stop: [
+          {
+            hooks: [
+              { type: "command", command: "./notify.sh", env: { CI: "1" } },
+              { type: "http", url: "https://example.com/hook", env: { CI: "1" } },
+            ],
+          },
+        ],
+      },
+    })
+      .toRulesyncHooks()
+      .getJson().hooks.stop;
+
+    expect(imported?.[0]).toEqual({ type: "command", command: "./notify.sh", env: { CI: "1" } });
+    expect(imported?.[1]).toEqual({ type: "http", url: "https://example.com/hook" });
+  });
+
+  it("round-trips env through generate and import", async () => {
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: { stop: [{ type: "command", command: "./notify.sh", env: { CI: "1" } }] },
+    });
+
+    expect(
+      fromToolFile(JSON.parse(hooks.getFileContent())).toRulesyncHooks().getJson().hooks.stop,
+    ).toEqual([{ type: "command", command: "./notify.sh", env: { CI: "1" } }]);
+  });
+});
