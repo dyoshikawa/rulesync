@@ -205,6 +205,13 @@ function convertToGooseFormat({
   existingExtensions: Record<string, unknown>;
   logger: Logger | undefined;
 }): Record<string, unknown> {
+  const generated: Record<string, Record<string, unknown>> = {};
+  for (const [name, config] of Object.entries(mcpServers)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(config)) continue;
+    const ext = convertServerToGooseExtension(name, config, logger);
+    if (ext !== undefined) generated[name] = ext;
+  }
+
   const extensions: Record<string, unknown> = {};
   const retracted: string[] = [];
 
@@ -212,38 +219,39 @@ function convertToGooseFormat({
     if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
     // Anything rulesync cannot read as an MCP server — a non-MCP extension
     // type, an entry of an unknown shape, a value that is not even a mapping —
-    // is the user's, and stays. Only a recognized MCP entry is dropped when the
-    // canonical config no longer names it.
+    // is the user's, and stays. Only a recognized MCP entry is dropped when this
+    // run does not regenerate it, whether because the canonical config no
+    // longer names it or because it could not be converted.
     const type = isRecord(ext) ? existingExtensionType(ext) : undefined;
     if (type !== undefined && GOOSE_MCP_EXTENSION_TYPES.has(type)) {
-      if (!Object.hasOwn(mcpServers, name)) retracted.push(name);
+      if (!Object.hasOwn(generated, name)) retracted.push(name);
       continue;
     }
-    extensions[name] = ext;
-  }
-
-  if (retracted.length > 0) {
-    warnWithFallback(
-      logger,
-      `Removing MCP extension(s) ${retracted.map((name) => `"${name}"`).join(", ")} from ` +
-        `~/.config/goose/config.yaml: they are no longer in the rulesync MCP config. ` +
-        `Import them first if they were added with \`goose configure\`.`,
-    );
-  }
-
-  for (const [name, config] of Object.entries(mcpServers)) {
-    if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(config)) continue;
-    const ext = convertServerToGooseExtension(name, config, logger);
-    if (ext === undefined) continue;
-    if (Object.hasOwn(extensions, name)) {
+    if (!Object.hasOwn(generated, name)) {
+      extensions[name] = ext;
+      continue;
+    }
+    // A regenerated entry of the same type is this writer's own previous
+    // output, not a collision with something the user put there.
+    if (generated[name]?.type !== type) {
       warnWithFallback(
         logger,
         `Goose extension "${name}" already exists in config.yaml as a non-MCP extension; ` +
           `the MCP server of the same name replaces it.`,
       );
     }
-    extensions[name] = ext;
   }
+
+  if (retracted.length > 0) {
+    warnWithFallback(
+      logger,
+      `Removing MCP extension(s) ${retracted.map((name) => `"${name}"`).join(", ")} from ` +
+        `~/.config/goose/config.yaml: they are not in the generated rulesync MCP config. ` +
+        `Import them first if they were added with \`goose configure\`.`,
+    );
+  }
+
+  Object.assign(extensions, generated);
 
   return extensions;
 }

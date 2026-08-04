@@ -443,6 +443,61 @@ describe("GooseMcp", () => {
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("already exists"));
     });
 
+    it("does not warn when it regenerates its own non-MCP entry", async () => {
+      const warn = vi.fn();
+      const dir = join(testDir, GOOSE_DIR);
+      await ensureDir(dir);
+      // What a previous generate wrote for a canonical `type: builtin` server.
+      await writeFileContent(
+        join(dir, GOOSE_FILE),
+        ["extensions:", "  memory:", "    name: memory", "    type: builtin", ""].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { memory: { type: "builtin" } } }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+        logger: { warn } as never,
+      });
+
+      expect(getExtensions(mcp.getFileContent()).memory?.type).toBe("builtin");
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it("reports an existing MCP extension removed because its server could not be converted", async () => {
+      const warn = vi.fn();
+      const dir = join(testDir, GOOSE_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, GOOSE_FILE),
+        ["extensions:", "  fetch:", "    name: fetch", "    type: stdio", "    cmd: uvx", ""].join(
+          "\n",
+        ),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { fetch: { timeout: 300 } } }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+        logger: { warn } as never,
+      });
+
+      expect(getExtensions(mcp.getFileContent()).fetch).toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Removing MCP extension"));
+    });
+
     it("treats a non-mapping extensions block as empty", async () => {
       const dir = join(testDir, GOOSE_DIR);
       await ensureDir(dir);
