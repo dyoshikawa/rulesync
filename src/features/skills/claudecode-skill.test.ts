@@ -624,6 +624,23 @@ describe("ClaudecodeSkill", () => {
       });
     });
 
+    it("should not re-anchor a declared paths value that is narrower than the subtree", () => {
+      const skill = new ClaudecodeSkill({
+        dirName: "deploy",
+        relativeDirPath: join("apps", "web", ".claude", "skills"),
+        frontmatter: {
+          name: "deploy",
+          description: "Deploy the web app",
+          paths: ["src/**"],
+        },
+        body: "Deploy body",
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().claudecode).toEqual({
+        paths: ["src/**"],
+      });
+    });
+
     it("should not derive paths for a root skill", () => {
       const skill = new ClaudecodeSkill({
         dirName: "deploy",
@@ -665,6 +682,22 @@ describe("ClaudecodeSkill", () => {
 
     it("should return undefined for a non-skills directory", () => {
       expect(deriveNestedSkillPaths(join("apps", "web", ".claude", "agents"))).toBeUndefined();
+    });
+
+    it("should accept Windows-style separators", () => {
+      expect(deriveNestedSkillPaths("apps\\web\\.claude\\skills")).toEqual(["apps/web/**"]);
+    });
+
+    it("should escape glob metacharacters in directory names", () => {
+      expect(deriveNestedSkillPaths("app/[slug]/.claude/skills")).toEqual(["app/\\[slug\\]/**"]);
+      expect(deriveNestedSkillPaths("packages/a(1)/.claude/skills")).toEqual([
+        "packages/a\\(1\\)/**",
+      ]);
+    });
+
+    it("should return undefined when there is no subtree above the skills directory", () => {
+      expect(deriveNestedSkillPaths("/.claude/skills")).toBeUndefined();
+      expect(deriveNestedSkillPaths("./.claude/skills")).toBeUndefined();
     });
   });
 

@@ -867,6 +867,18 @@ Broken YAML`,
       expect(names).not.toContain("built");
       expect(names).not.toContain("vendored");
       expect(names.filter((name) => name === "root-skill")).toHaveLength(1);
+
+      // The nested skill's location-based scoping survives the import as an
+      // explicit glob, while the root skill stays unscoped.
+      const byName = new Map(
+        toolDirs.map((dir) => [(dir as ClaudecodeSkill).getDirName(), dir as ClaudecodeSkill]),
+      );
+      expect(byName.get("deploy")?.toRulesyncSkill().getFrontmatter().claudecode).toEqual({
+        paths: ["apps/web/**"],
+      });
+      expect(
+        byName.get("root-skill")?.toRulesyncSkill().getFrontmatter().claudecode,
+      ).toBeUndefined();
     });
 
     it("should still abort import for non-lenient tools when a declared-root skill is invalid", async () => {
