@@ -126,6 +126,13 @@ export const HookDefinitionSchema = z.looseObject({
   // `.codex/hooks.json`, which is the file rulesync writes.
   // https://learn.chatgpt.com/docs/hooks
   commandWindows: z.optional(safeString),
+  // Codex CLI command hooks: the token threshold above which Codex writes the
+  // hook's additional context to a file and passes the path instead of the
+  // text itself. Defaults to 2500 upstream. Constrained to a non-negative
+  // integer because a token count is one: a fractional or negative value would
+  // be emitted verbatim and could make Codex reject the whole hooks file.
+  // https://learn.chatgpt.com/docs/hooks
+  additionalContextLimit: z.optional(z.int().check(nonnegative())),
   // Claude Code command hooks: `asyncRewake` runs the hook in the background
   // and wakes Claude on exit code 2 (it implies `async`).
   // https://code.claude.com/docs/en/hooks

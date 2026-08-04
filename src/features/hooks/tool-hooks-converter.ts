@@ -50,6 +50,21 @@ export type ToolHooksConverterConfig = {
     readonly commandOnly?: boolean;
   }>;
   /**
+   * Per-hook number fields to carry through the round-trip, each mapping a
+   * canonical {@link HookDefinitionSchema} number field to its tool-side field
+   * name. Only finite numbers are emitted on export and imported back, so a
+   * `NaN`/`Infinity` (which JSON cannot represent) or a numeric string can't
+   * leak into a config the tool would reject. Any narrower constraint (an
+   * integer, a non-negative one) belongs on the canonical field's schema, which
+   * is what an authored value is validated against.
+   */
+  numberPassthroughFields?: ReadonlyArray<{
+    readonly canonical: "additionalContextLimit";
+    readonly tool: string;
+    /** Emit only on `command` hooks, for a field the tool documents there only. */
+    readonly commandOnly?: boolean;
+  }>;
+  /**
    * Per-hook string fields to carry through the round-trip, each mapping a
    * canonical {@link HookDefinitionSchema} string field to its tool-side field
    * name. Only non-empty string values are emitted on export and imported back;
@@ -278,6 +293,48 @@ function importBooleanPassthroughFields({
     (converterConfig.booleanPassthroughFields ?? [])
       .filter(({ tool }) => typeof h[tool] === "boolean")
       .map(({ canonical, tool }) => [canonical, h[tool] as boolean]),
+  );
+}
+
+/**
+ * Emit the configured number passthrough fields on the tool side, mapping each
+ * canonical field name to its (possibly renamed) tool field name. Only finite
+ * numbers are carried through.
+ */
+function emitNumberPassthroughFields({
+  def,
+  hookType,
+  converterConfig,
+}: {
+  def: HooksConfig["hooks"][string][number];
+  hookType: HookType;
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, number> {
+  return Object.fromEntries(
+    (converterConfig.numberPassthroughFields ?? [])
+      .filter(({ canonical, commandOnly }) => {
+        if (commandOnly === true && hookType !== "command") return false;
+        return Number.isFinite(def[canonical]);
+      })
+      .map(({ canonical, tool }) => [tool, def[canonical] as number]),
+  );
+}
+
+/**
+ * Import the configured number passthrough fields back into canonical fields,
+ * reversing {@link emitNumberPassthroughFields}. Only finite numbers are read.
+ */
+function importNumberPassthroughFields({
+  h,
+  converterConfig,
+}: {
+  h: Record<string, unknown>;
+  converterConfig: ToolHooksConverterConfig;
+}): Record<string, number> {
+  return Object.fromEntries(
+    (converterConfig.numberPassthroughFields ?? [])
+      .filter(({ tool }) => Number.isFinite(h[tool]))
+      .map(({ canonical, tool }) => [canonical, h[tool] as number]),
   );
 }
 
@@ -513,10 +570,11 @@ function buildToolHooks({
     }
     const command = applyCommandPrefix({ def, converterConfig });
     hooks.push({
-      // Spread the boolean and string passthrough fields first so the
+      // Spread the boolean, number and string passthrough fields first so the
       // explicitly-handled core fields below always win: a misconfigured `tool`
       // name (e.g. mapping onto "type"/"command") can never silently shadow them.
       ...emitBooleanPassthroughFields({ def, hookType, converterConfig }),
+      ...emitNumberPassthroughFields({ def, hookType, converterConfig }),
       ...emitStringPassthroughFields({ def, hookType, converterConfig }),
       ...emitArrayPassthroughFields({ def, hookType, converterConfig }),
       type: hookType,
@@ -748,6 +806,7 @@ function toolHookToCanonical({
     ...(converterConfig.passthroughFields?.includes("description") &&
       typeof h.description === "string" && { description: h.description }),
     ...importBooleanPassthroughFields({ h, converterConfig }),
+    ...importNumberPassthroughFields({ h, converterConfig }),
     ...importStringPassthroughFields({ h, converterConfig }),
     ...importArrayPassthroughFields({ h, converterConfig, logger }),
     ...importGroupPassthroughFields({ rawEntry, converterConfig }),

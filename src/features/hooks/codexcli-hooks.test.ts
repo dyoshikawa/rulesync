@@ -119,6 +119,84 @@ describe("CodexcliHooks", () => {
       expect(hook.statusMessage).toBe("Saving notes");
     });
 
+    it("should emit additionalContextLimit", async () => {
+      // The token threshold above which Codex saves the hook's additional
+      // context to a file and passes the path instead of the text (default
+      // 2500). https://learn.chatgpt.com/docs/hooks
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              sessionStart: [{ command: "./scripts/context.sh", additionalContextLimit: 8000 }],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const hook = JSON.parse(codexHooks.getFileContent()).hooks.SessionStart[0].hooks[0];
+      expect(hook.additionalContextLimit).toBe(8000);
+    });
+
+    it("should emit a zero additionalContextLimit and drop a non-numeric one", async () => {
+      // Zero is meaningful (always spill to a file), so unlike the string
+      // passthrough's empty-string rule it must survive. A non-numeric value —
+      // `null` is what JSON.stringify writes for a non-finite number — is
+      // dropped rather than emitted into a file Codex would reject.
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              sessionStart: [
+                { command: "./scripts/zero.sh", additionalContextLimit: 0 },
+                { command: "./scripts/bad.sh", additionalContextLimit: null },
+              ],
+            },
+          }),
+          validate: false,
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const hooks = JSON.parse(codexHooks.getFileContent()).hooks.SessionStart[0].hooks;
+      expect(hooks[0].additionalContextLimit).toBe(0);
+      expect(hooks[1]).not.toHaveProperty("additionalContextLimit");
+    });
+
+    it("should round-trip additionalContextLimit back to canonical", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              sessionStart: [{ command: "./scripts/context.sh", additionalContextLimit: 8000 }],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      expect(codexHooks.toRulesyncHooks().getJson().hooks.sessionStart?.[0]).toEqual({
+        type: "command",
+        command: "./scripts/context.sh",
+        additionalContextLimit: 8000,
+      });
+    });
+
     it("should convert subagentStart, subagentStop, and preCompact to PascalCase", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
@@ -360,6 +438,43 @@ describe("CodexcliHooks", () => {
         commandWindows: "powershell -File ./scripts/teardown.ps1",
         statusMessage: "Saving notes",
       });
+    });
+
+    it("should import additionalContextLimit and ignore a non-numeric one", () => {
+      const codexHooks = new CodexcliHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".codex",
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              SessionStart: [
+                {
+                  hooks: [
+                    {
+                      type: "command",
+                      command: "./scripts/context.sh",
+                      additionalContextLimit: 8000,
+                    },
+                    {
+                      type: "command",
+                      command: "./scripts/other.sh",
+                      additionalContextLimit: "8000",
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const imported = codexHooks.toRulesyncHooks().getJson().hooks.sessionStart;
+      expect(imported?.[0]).toEqual({
+        type: "command",
+        command: "./scripts/context.sh",
+        additionalContextLimit: 8000,
+      });
+      expect(imported?.[1]).toEqual({ type: "command", command: "./scripts/other.sh" });
     });
 
     it("should convert Codex CLI format to canonical format", () => {
