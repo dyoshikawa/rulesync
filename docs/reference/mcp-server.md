@@ -17,6 +17,18 @@ The single `rulesyncTool` multiplexes by `feature` and `operation`:
 
 The `permissions` feature operates on `.rulesync/permissions.jsonc` and the `hooks` feature operates on `.rulesync/hooks.jsonc`. Both accept a `content` string (valid JSONC) on `put`.
 
+### `skill` other files
+
+A skill directory may contain files other than `SKILL.md`. They are passed as `otherFiles`, where each entry has:
+
+| Field      | Type                  | Required | Description                                                                    |
+| ---------- | --------------------- | -------- | ------------------------------------------------------------------------------ |
+| `name`     | `string`              | Yes      | Path of the file relative to the skill directory (e.g. `references/logo.png`). |
+| `body`     | `string`              | Yes      | File content, encoded according to `encoding`.                                 |
+| `encoding` | `"utf-8" \| "base64"` | No       | Defaults to `"utf-8"`. Use `"base64"` for binary files such as images.         |
+
+On `get`, every returned entry carries an explicit `encoding`: `"utf-8"` when the file content survives a UTF-8 round trip unchanged, and `"base64"` otherwise. On `put`, the declared `encoding` is trusted and the decoded bytes are written verbatim, so binary files round-trip byte for byte.
+
 ### `convert` / `run` options
 
 When invoking `feature: "convert"` with `operation: "run"`, pass `convertOptions` with the following shape:
