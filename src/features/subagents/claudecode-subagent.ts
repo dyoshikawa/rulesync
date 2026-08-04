@@ -8,6 +8,7 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -109,11 +110,27 @@ export class ClaudecodeSubagent extends ToolSubagent {
     });
   }
 
+  /**
+   * Last chance to adjust the tool frontmatter before it is written. The base
+   * implementation passes it through; plugin-scoped subclasses override it to
+   * drop fields Claude Code refuses to honor for plugin-shipped agents.
+   */
+  protected static sanitizeFrontmatter({
+    frontmatter,
+  }: {
+    frontmatter: ClaudecodeSubagentFrontmatter;
+    relativeFilePath: string;
+    logger?: Logger;
+  }): ClaudecodeSubagentFrontmatter {
+    return frontmatter;
+  }
+
   static fromRulesyncSubagent({
     outputRoot = process.cwd(),
     rulesyncSubagent,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const claudecodeSection = this.filterToolSpecificSection(rulesyncFrontmatter.claudecode ?? {}, [
@@ -136,7 +153,11 @@ export class ClaudecodeSubagent extends ToolSubagent {
       );
     }
 
-    const claudecodeFrontmatter = result.data;
+    const claudecodeFrontmatter = this.sanitizeFrontmatter({
+      frontmatter: result.data,
+      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
+      logger,
+    });
 
     // Generate proper file content with Claude Code specific frontmatter
     const body = rulesyncSubagent.getBody();

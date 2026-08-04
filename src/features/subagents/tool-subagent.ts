@@ -1,6 +1,7 @@
 import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 
 export type ToolSubagentFromRulesyncSubagentParams = Omit<
@@ -9,6 +10,8 @@ export type ToolSubagentFromRulesyncSubagentParams = Omit<
 > & {
   rulesyncSubagent: RulesyncSubagent;
   global?: boolean;
+  /** Used to report frontmatter a target drops or rewrites during generation. */
+  logger?: Logger;
 };
 
 export type ToolSubagentSettablePaths = {
