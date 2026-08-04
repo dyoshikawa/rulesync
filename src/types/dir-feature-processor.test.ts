@@ -219,7 +219,60 @@ describe("DirFeatureProcessor", () => {
 
       expect(result).toEqual({ count: 1, paths: ["/path/to/dir1/extra.txt"] });
       expect(ensureDir).toHaveBeenCalledTimes(1);
-      expect(writeFileContent).toHaveBeenCalledTimes(1);
+      expect(writeFileBuffer).toHaveBeenCalledWith("/path/to/dir1/extra.txt", otherFile.fileBuffer);
+      expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
+    it("should copy a text other file byte-faithfully", async () => {
+      // A trailing-newline-less, CRLF-separated companion file used to be
+      // rewritten to LF with a newline appended.
+      const textBuffer = Buffer.from("first\r\nsecond");
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const otherFile: AiDirFile = {
+        relativeFilePathToDirPath: "fixture.txt",
+        fileBuffer: textBuffer,
+      };
+      const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", otherFiles: [otherFile] })];
+
+      const result = await processor.writeAiDirs(dirs);
+
+      expect(result).toEqual({ count: 1, paths: ["/path/to/dir1/fixture.txt"] });
+      expect(writeFileBuffer).toHaveBeenCalledWith("/path/to/dir1/fixture.txt", textBuffer);
+      expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
+    it("should skip an unchanged text other file", async () => {
+      const textBuffer = Buffer.from("first\r\nsecond");
+      vi.mocked(readFileBufferOrNull).mockResolvedValue(textBuffer);
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const otherFile: AiDirFile = {
+        relativeFilePathToDirPath: "fixture.txt",
+        fileBuffer: textBuffer,
+      };
+      const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", otherFiles: [otherFile] })];
+
+      const result = await processor.writeAiDirs(dirs);
+
+      expect(result).toEqual({ count: 0, paths: [] });
+      expect(writeFileBuffer).not.toHaveBeenCalled();
+    });
+
+    it("should rewrite a text other file that differs only in trailing bytes", async () => {
+      vi.mocked(readFileBufferOrNull).mockResolvedValue(Buffer.from("first\nsecond\n"));
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const otherFile: AiDirFile = {
+        relativeFilePathToDirPath: "fixture.txt",
+        fileBuffer: Buffer.from("first\r\nsecond"),
+      };
+      const dirs = [createMockDirWithFiles({ dirPath: "/path/to/dir1", otherFiles: [otherFile] })];
+
+      const result = await processor.writeAiDirs(dirs);
+
+      expect(result).toEqual({ count: 1, paths: ["/path/to/dir1/fixture.txt"] });
+      expect(writeFileBuffer).toHaveBeenCalledTimes(1);
     });
 
     it("should write binary other files via the buffer path", async () => {

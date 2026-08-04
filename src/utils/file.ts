@@ -312,19 +312,6 @@ export async function readFileBufferOrNull(filepath: string): Promise<Buffer | n
 }
 
 /**
- * Whether a UTF-8 text round-trip would corrupt the buffer.
- *
- * Used to decide between the text and binary write paths for skill
- * "other files": valid UTF-8 text (including CJK) survives a
- * `toString("utf-8")` + `Buffer.from(_, "utf-8")` round-trip unchanged,
- * while binary content such as JPEG/GIF does not (invalid byte sequences
- * are replaced with U+FFFD).
- */
-export function isBinaryBuffer(buffer: Buffer): boolean {
-  return !Buffer.from(buffer.toString("utf-8"), "utf-8").equals(buffer);
-}
-
-/**
  * Normalizes text to LF line endings and adds exactly one trailing newline.
  * Removes any existing trailing whitespace and appends a single newline.
  */
