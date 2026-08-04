@@ -7,6 +7,7 @@ import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { ClaudecodePluginSubagent } from "./claudecode-plugin-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { RulesyncSubagent, type RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
+import { SubagentsProcessor } from "./subagents-processor.js";
 
 const logger = createMockLogger();
 
@@ -115,44 +116,65 @@ describe("ClaudecodePluginSubagent", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('isolation "sandbox"'));
     });
 
-    it("should reject a name containing the plugin namespace separator", () => {
-      expect(() =>
-        generate({
-          outputRoot: testDir,
-          rulesyncSubagent: buildRulesyncSubagent({ name: "my-plugin:reviewer" }),
+    it("should warn about a name containing the plugin namespace separator", () => {
+      const subagent = generate({
+        outputRoot: testDir,
+        rulesyncSubagent: buildRulesyncSubagent({ name: "my-plugin:reviewer" }),
+      });
+
+      expect(subagent.getFileContent()).toContain("my-plugin:reviewer");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("reserved for plugin namespacing"),
+      );
+    });
+
+    it("should warn about only the forbidden field that is actually present", () => {
+      generate({
+        outputRoot: testDir,
+        rulesyncSubagent: buildRulesyncSubagent({ claudecode: { permissionMode: "plan" } }),
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Dropping permissionMode"));
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("mcpServers"));
+    });
+  });
+
+  describe("SubagentsProcessor wiring", () => {
+    it("should surface the drop warning when generating through the processor", async () => {
+      const processorLogger = createMockLogger();
+      const processor = new SubagentsProcessor({
+        logger: processorLogger,
+        outputRoot: testDir,
+        toolTarget: "claudecode-plugin",
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        buildRulesyncSubagent({ claudecode: { permissionMode: "acceptEdits" } }),
+      ]);
+
+      expect(processorLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Dropping permissionMode"),
+      );
+    });
+  });
+
+  describe("non-plugin claudecode output", () => {
+    it("should still emit the fields that are forbidden only for plugin agents", () => {
+      const subagent = ClaudecodeSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        rulesyncSubagent: buildRulesyncSubagent({
+          claudecode: { permissionMode: "acceptEdits", isolation: "sandbox" },
         }),
-      ).toThrow(/":" is reserved for plugin namespacing/);
+        logger,
+      });
+
+      const { frontmatter } = parseFrontmatter(
+        subagent.getFileContent(),
+        ".claude/agents/reviewer.md",
+      );
+      expect(frontmatter).toMatchObject({ permissionMode: "acceptEdits", isolation: "sandbox" });
+      expect(logger.warn).not.toHaveBeenCalled();
     });
-  });
-});
-
-describe("ClaudecodeSubagent (non-plugin)", () => {
-  let testDir: string;
-  let cleanup: () => Promise<void>;
-
-  beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
-    vi.spyOn(process, "cwd").mockReturnValue(testDir);
-  });
-
-  afterEach(async () => {
-    await cleanup();
-    vi.restoreAllMocks();
-  });
-
-  it("should still emit the fields that are forbidden only for plugin agents", () => {
-    const subagent = ClaudecodeSubagent.fromRulesyncSubagent({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      rulesyncSubagent: buildRulesyncSubagent({
-        claudecode: { permissionMode: "acceptEdits", isolation: "sandbox" },
-      }),
-    });
-
-    const { frontmatter } = parseFrontmatter(
-      subagent.getFileContent(),
-      ".claude/agents/reviewer.md",
-    );
-    expect(frontmatter).toMatchObject({ permissionMode: "acceptEdits", isolation: "sandbox" });
   });
 });

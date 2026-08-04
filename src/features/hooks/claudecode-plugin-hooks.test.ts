@@ -54,6 +54,48 @@ describe("ClaudecodePluginHooks", () => {
       );
       expect(pluginHooks.getFileContent()).not.toContain("CLAUDE_PROJECT_DIR");
     });
+
+    it("should use the braced placeholder for the exec form, which has no shell to strip quotes", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [{ type: "command", command: "./scripts/fmt.sh", args: [] }],
+          },
+        }),
+        validate: false,
+      });
+
+      const pluginHooks = await ClaudecodePluginHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(pluginHooks.getFileContent());
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+        "${CLAUDE_PLUGIN_ROOT}/scripts/fmt.sh",
+      );
+    });
+
+    it("should leave a command that already starts with a variable untouched", async () => {
+      const pluginHooks = await ClaudecodePluginHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          testDir,
+          command: "$CLAUDE_PROJECT_DIR/scripts/consumer-side.sh",
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(pluginHooks.getFileContent());
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+        "$CLAUDE_PROJECT_DIR/scripts/consumer-side.sh",
+      );
+    });
   });
 
   describe("toRulesyncHooks", () => {

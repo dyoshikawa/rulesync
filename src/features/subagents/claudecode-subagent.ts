@@ -112,16 +112,29 @@ export class ClaudecodeSubagent extends ToolSubagent {
 
   /**
    * Last chance to adjust the tool frontmatter before it is written. The base
-   * implementation passes it through; plugin-scoped subclasses override it to
-   * drop fields Claude Code refuses to honor for plugin-shipped agents.
+   * implementation only warns about names Claude Code rejects; plugin-scoped
+   * subclasses extend it to drop fields Claude Code refuses to honor for
+   * plugin-shipped agents.
    */
   protected static sanitizeFrontmatter({
     frontmatter,
+    relativeFilePath,
+    logger,
   }: {
     frontmatter: ClaudecodeSubagentFrontmatter;
     relativeFilePath: string;
     logger?: Logger;
   }): ClaudecodeSubagentFrontmatter {
+    // Claude Code 2.1.219 rejects agent markdown files whose name contains `:`,
+    // which it reserves for plugin namespacing (`<plugin>:<agent>`). The name is
+    // the author's to fix, so warn rather than failing the whole generate run.
+    // @see https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
+    if (frontmatter.name.includes(":")) {
+      logger?.warn(
+        `Claude Code will reject the subagent in ${relativeFilePath}: the name "${frontmatter.name}" ` +
+          `contains ":", which is reserved for plugin namespacing.`,
+      );
+    }
     return frontmatter;
   }
 

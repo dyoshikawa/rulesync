@@ -7,7 +7,8 @@ import type { ToolSubagentSettablePaths } from "./tool-subagent.js";
 /**
  * Claude Code refuses these for plugin-shipped agents "for security reasons",
  * so emitting them leaves the author believing the agent is constrained when it
- * is not.
+ * is not. Only these three are dropped: the other fields upstream does not list
+ * (e.g. `color`) are merely ignored, with no misleading security posture.
  *
  * @see https://code.claude.com/docs/en/plugins-reference
  */
@@ -35,24 +36,14 @@ export class ClaudecodePluginSubagent extends ClaudecodeSubagent {
     relativeFilePath: string;
     logger?: Logger;
   }): ClaudecodeSubagentFrontmatter {
-    // Claude Code namespaces plugin agents as `<plugin>:<agent>`, so a colon in
-    // the authored name makes the agent fail to load rather than merely look odd.
-    if (frontmatter.name.includes(":")) {
-      throw new Error(
-        `Invalid claudecode-plugin subagent name "${frontmatter.name}" in ${relativeFilePath}: ` +
-          `":" is reserved for plugin namespacing and Claude Code rejects agent names containing it.`,
-      );
+    const sanitized: ClaudecodeSubagentFrontmatter = {
+      ...super.sanitizeFrontmatter({ frontmatter, relativeFilePath, logger }),
+    };
+
+    const dropped = PLUGIN_FORBIDDEN_FIELDS.filter((field) => sanitized[field] !== undefined);
+    for (const field of PLUGIN_FORBIDDEN_FIELDS) {
+      delete sanitized[field];
     }
-
-    const {
-      hooks: _hooks,
-      mcpServers: _mcpServers,
-      permissionMode: _permissionMode,
-      isolation,
-      ...rest
-    } = frontmatter;
-
-    const dropped = PLUGIN_FORBIDDEN_FIELDS.filter((field) => frontmatter[field] !== undefined);
     if (dropped.length > 0) {
       logger?.warn(
         `Dropping ${dropped.join(", ")} from claudecode-plugin subagent ${relativeFilePath}: ` +
@@ -60,16 +51,14 @@ export class ClaudecodePluginSubagent extends ClaudecodeSubagent {
       );
     }
 
-    if (isolation !== undefined && isolation !== PLUGIN_ISOLATION_VALUE) {
+    if (sanitized.isolation !== undefined && sanitized.isolation !== PLUGIN_ISOLATION_VALUE) {
       logger?.warn(
-        `Dropping isolation "${isolation}" from claudecode-plugin subagent ${relativeFilePath}: ` +
+        `Dropping isolation "${sanitized.isolation}" from claudecode-plugin subagent ${relativeFilePath}: ` +
           `"${PLUGIN_ISOLATION_VALUE}" is the only value Claude Code accepts for plugin-shipped agents.`,
       );
+      delete sanitized.isolation;
     }
 
-    return {
-      ...rest,
-      ...(isolation === PLUGIN_ISOLATION_VALUE && { isolation }),
-    };
+    return sanitized;
   }
 }
