@@ -538,6 +538,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
         rulesyncSubagent: rulesyncSubagent,
         global: this.global,
+        logger: this.logger,
       }),
     );
   }

@@ -101,6 +101,15 @@ export class ClaudecodeHooks extends ToolHooks {
     return false;
   }
 
+  /**
+   * The converter config used for both directions. Exposed as a static hook so
+   * plugin-scoped subclasses can swap tool-specific details (e.g. the project
+   * directory variable) without duplicating the rest of the config.
+   */
+  static getConverterConfig(): ToolHooksConverterConfig {
+    return CLAUDE_CONVERTER_CONFIG;
+  }
+
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     // Currently, both global and project mode use the same paths.
     // The parameter is kept for consistency with other ToolHooks implementations.
@@ -141,7 +150,7 @@ export class ClaudecodeHooks extends ToolHooks {
     const claudeHooks = canonicalToToolHooks({
       config,
       toolOverrideHooks: config.claudecode?.hooks,
-      converterConfig: CLAUDE_CONVERTER_CONFIG,
+      converterConfig: this.getConverterConfig(),
       logger,
     });
     const fileContent = applySharedConfigPatch({
@@ -174,7 +183,7 @@ export class ClaudecodeHooks extends ToolHooks {
     }
     const hooks = toolHooksToCanonical({
       hooks: settings.hooks,
-      converterConfig: CLAUDE_CONVERTER_CONFIG,
+      converterConfig: (this.constructor as typeof ClaudecodeHooks).getConverterConfig(),
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
