@@ -15,6 +15,14 @@ export type ValidationResult =
 export type AiDirFile = {
   relativeFilePathToDirPath: string;
   fileBuffer: Buffer;
+  /**
+   * Set on a file rulesync composes itself rather than carries through from the
+   * source directory (Codex CLI's `agents/openai.yaml`). Such a file is
+   * compared structurally, so a formatter re-indenting it is not reported as a
+   * change on every generate; a carried-through user asset is compared — and
+   * always written — byte for byte.
+   */
+  composed?: boolean;
 };
 
 export type AiDirParams = {

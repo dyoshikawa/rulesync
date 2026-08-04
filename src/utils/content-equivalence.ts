@@ -208,3 +208,54 @@ export function fileContentsEquivalent({
 
   return addTrailingNewline(expected) === addTrailingNewline(existing);
 }
+
+/**
+ * Whether an on-disk companion file is equivalent to the generated one.
+ *
+ * Companion files (everything beside a skill's `SKILL.md`) are written byte for
+ * byte, so byte equality is the whole test for a user asset carried through
+ * from the source directory: a CRLF fixture or a deliberately newline-less file
+ * must compare equal to itself and unequal to a normalized copy, and a copy
+ * that has drifted must be repaired rather than tolerated.
+ *
+ * A `composed` file is different — Rulesync builds it from frontmatter (Codex
+ * CLI's `agents/openai.yaml`), so differing bytes fall back to the structured
+ * comparison and a formatter re-indenting it is not reported as a change on
+ * every generate. Only the structured verdict counts: there is deliberately no
+ * text fallback, since trailing-whitespace-insensitive text equality is exactly
+ * the normalization companion files no longer get.
+ */
+export function companionFileContentsEquivalent({
+  filePath,
+  expected,
+  existing,
+  composed = false,
+}: {
+  filePath: string;
+  expected: Buffer;
+  existing: Buffer | null;
+  composed?: boolean;
+}): boolean {
+  if (existing === null) {
+    return false;
+  }
+  if (existing.equals(expected)) {
+    return true;
+  }
+  if (!composed) {
+    return false;
+  }
+
+  const expectedText = expected.toString("utf-8");
+  const existingText = existing.toString("utf-8");
+  // A buffer that does not survive the UTF-8 round-trip is binary; no
+  // structured parser applies and the differing bytes are the answer.
+  if (
+    !Buffer.from(expectedText, "utf-8").equals(expected) ||
+    !Buffer.from(existingText, "utf-8").equals(existing)
+  ) {
+    return false;
+  }
+
+  return tryFileContentsEquivalent(filePath, expectedText, existingText) ?? false;
+}

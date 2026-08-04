@@ -456,6 +456,14 @@ This is the body of the codex cli skill.`;
 
       const yamlContent = findOpenaiYaml(codexCliSkill);
       expect(yamlContent).toBeDefined();
+      // Marked composed so a formatter re-indenting the sidecar does not make
+      // every generate report the skill directory as changed.
+      expect(
+        codexCliSkill
+          .getOtherFiles()
+          .find((f) => toPosixPath(f.relativeFilePathToDirPath) === toPosixPath(OPENAI_YAML_PATH))
+          ?.composed,
+      ).toBe(true);
       expect(load(yamlContent ?? "")).toEqual({
         interface: {
           display_name: "Test Skill",

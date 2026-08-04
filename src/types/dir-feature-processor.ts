@@ -1,10 +1,12 @@
 import { join } from "node:path";
 
-import { fileContentsEquivalent } from "../utils/content-equivalence.js";
+import {
+  companionFileContentsEquivalent,
+  fileContentsEquivalent,
+} from "../utils/content-equivalence.js";
 import {
   addTrailingNewline,
   ensureDir,
-  isBinaryBuffer,
   readFileBufferOrNull,
   readFileContentOrNull,
   removeDirectory,
@@ -99,38 +101,30 @@ export abstract class DirFeatureProcessor {
         }
       }
 
-      // Compute content for other files. Text files are compared and written
-      // through the text path (trailing-newline normalization + structured
-      // equivalence); binary files (e.g. images in a skill dir) go through the
-      // buffer path so their bytes are never corrupted by a UTF-8 round-trip.
+      // Companion files beside the main file are written byte for byte. Most
+      // of them are user assets — images, archives, CRLF fixtures, a file whose
+      // missing trailing newline is deliberate — and unlike the main file,
+      // whose body and frontmatter rulesync composes, nothing about them is
+      // rulesync's to normalize. Sending them through a UTF-8 round-trip with
+      // trailing-newline normalization silently rewrote their bytes.
       const otherFiles: AiDirFile[] = aiDir.getOtherFiles();
-      const otherFileContents: (string | Buffer)[] = [];
       for (const file of otherFiles) {
-        if (isBinaryBuffer(file.fileBuffer)) {
-          otherFileContents.push(file.fileBuffer);
-          if (!dirHasChanges) {
-            const filePath = join(dirPath, file.relativeFilePathToDirPath);
-            const existingBuffer = await readFileBufferOrNull(filePath);
-            if (!existingBuffer || !existingBuffer.equals(file.fileBuffer)) {
-              dirHasChanges = true;
-            }
-          }
-        } else {
-          const contentWithNewline = addTrailingNewline(file.fileBuffer.toString("utf-8"));
-          otherFileContents.push(contentWithNewline);
-          if (!dirHasChanges) {
-            const filePath = join(dirPath, file.relativeFilePathToDirPath);
-            const existingContent = await readFileContentOrNull(filePath);
-            if (
-              !fileContentsEquivalent({
-                filePath,
-                expected: contentWithNewline,
-                existing: existingContent,
-              })
-            ) {
-              dirHasChanges = true;
-            }
-          }
+        // Detection only; the write loop below covers every file once the
+        // directory is known to have changed.
+        if (dirHasChanges) {
+          break;
+        }
+        const filePath = join(dirPath, file.relativeFilePathToDirPath);
+        const existingBuffer = await readFileBufferOrNull(filePath);
+        if (
+          !companionFileContentsEquivalent({
+            filePath,
+            expected: file.fileBuffer,
+            existing: existingBuffer,
+            composed: file.composed,
+          })
+        ) {
+          dirHasChanges = true;
         }
       }
 
@@ -163,20 +157,9 @@ export abstract class DirFeatureProcessor {
         }
 
         // Write other files
-        for (const [i, file] of otherFiles.entries()) {
+        for (const file of otherFiles) {
           const filePath = join(dirPath, file.relativeFilePathToDirPath);
-          const content = otherFileContents[i];
-          if (content === undefined) {
-            throw new Error(
-              `Internal error: content for file ${file.relativeFilePathToDirPath} is undefined. ` +
-                "This indicates a synchronization issue between otherFiles and otherFileContents arrays.",
-            );
-          }
-          if (typeof content === "string") {
-            await writeFileContent(filePath, content);
-          } else {
-            await writeFileBuffer(filePath, content);
-          }
+          await writeFileBuffer(filePath, file.fileBuffer);
           changedPaths.push(join(relativeDir, file.relativeFilePathToDirPath));
         }
       }

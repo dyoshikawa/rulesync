@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, readFileBuffer, writeFileContent } from "../../utils/file.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { RovodevSkill } from "./rovodev-skill.js";
@@ -1503,6 +1503,40 @@ Content that would fail parsing`;
       const loadedSkill = loadedDirs[0] as ClaudecodeSkill;
 
       expect(loadedSkill.getFrontmatter()["allowed-tools"]).toEqual(["Bash", "Read", "Write"]);
+    });
+
+    it("should write supporting files byte for byte", async () => {
+      // A PNG header (invalid UTF-8) and a CRLF text file with no trailing
+      // newline: both must land on disk exactly as they came in.
+      const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe]);
+      const crlfBuffer = Buffer.from("first\r\nsecond   ");
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "asset-skill",
+        frontmatter: {
+          name: "asset-skill",
+          description: "Skill with supporting files",
+        },
+        body: "Skill body",
+        otherFiles: [
+          { relativeFilePathToDirPath: "diagram.png", fileBuffer: pngBuffer },
+          { relativeFilePathToDirPath: join("data", "fixture.txt"), fileBuffer: crlfBuffer },
+        ],
+        validate: false,
+      });
+
+      const toolDirs = await processor.convertRulesyncDirsToToolDirs([rulesyncSkill]);
+      const firstWrite = await processor.writeAiDirs(toolDirs);
+      expect(firstWrite.count).toBe(1);
+
+      const skillDir = join(testDir, ".claude", "skills", "asset-skill");
+      expect(await readFileBuffer(join(skillDir, "diagram.png"))).toEqual(pngBuffer);
+      expect(await readFileBuffer(join(skillDir, "data", "fixture.txt"))).toEqual(crlfBuffer);
+
+      // Writing again finds nothing to do, so the bytes are stable.
+      const secondWrite = await processor.writeAiDirs(toolDirs);
+      expect(secondWrite.count).toBe(0);
     });
   });
 });
