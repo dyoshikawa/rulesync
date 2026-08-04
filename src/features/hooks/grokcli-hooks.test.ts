@@ -317,3 +317,164 @@ describe("GrokcliHooks handler types", () => {
     ]);
   });
 });
+
+describe("GrokcliHooks per-handler env", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const fromCanonical = (config: unknown) =>
+    GrokcliHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      }),
+    });
+
+  const fromToolFile = (config: unknown) =>
+    new GrokcliHooks({
+      outputRoot: testDir,
+      relativeDirPath: join(".grok", "hooks"),
+      relativeFilePath: "rulesync.json",
+      fileContent: JSON.stringify(config),
+    });
+
+  it("emits env on a command hook only", async () => {
+    // Upstream `HookConfig.env: HashMap<String, String>` is merged into
+    // `HookSpec::extra_env` for the spawned command, so an http handler has no
+    // process to merge it into.
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: {
+        stop: [
+          { type: "command", command: "./notify.sh", env: { CI: "1", LEVEL: "debug" } },
+          { type: "http", url: "https://example.com/hook", env: { CI: "1" } },
+        ],
+      },
+    });
+
+    const written = JSON.parse(hooks.getFileContent()).hooks.Stop[0].hooks;
+    expect(written[0]).toEqual({
+      type: "command",
+      command: "./notify.sh",
+      env: { CI: "1", LEVEL: "debug" },
+    });
+    expect(written[1]).not.toHaveProperty("env");
+  });
+
+  // The canonical schema already rejects most of these, so this guard is what
+  // protects the looser paths into a definition: the `grokcli.hooks` override
+  // block and a hook read out of an existing tool file.
+  it("refuses an env entry that is not a clean string pair", async () => {
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: {
+        stop: [
+          { type: "command", command: "./a.sh", env: { PORT: 8080 } },
+          { type: "command", command: "./b.sh", env: { INJECTED: "a\nb" } },
+          { type: "command", command: "./c.sh", env: ["CI=1"] },
+          // A key rebuilt into `KEY=VALUE` would name `PATH`, not this key.
+          { type: "command", command: "./d.sh", env: { "PATH=/tmp/evil": "1" } },
+          { type: "command", command: "./e.sh", env: { "BAD\nKEY": "1" } },
+          { type: "command", command: "./f.sh", env: { "": "1" } },
+        ],
+      },
+    });
+
+    for (const hook of JSON.parse(hooks.getFileContent()).hooks.Stop[0].hooks) {
+      expect(hook).not.toHaveProperty("env");
+    }
+  });
+
+  it("refuses an unusable env while importing", () => {
+    const imported = fromToolFile({
+      hooks: {
+        Stop: [
+          {
+            hooks: [
+              { type: "command", command: "./a.sh", env: { PORT: 8080 } },
+              { type: "command", command: "./b.sh", env: "CI=1" },
+              { type: "command", command: "./c.sh", env: { "PATH=/tmp/evil": "1" } },
+              { type: "command", command: "./d.sh", env: {} },
+            ],
+          },
+        ],
+      },
+    })
+      .toRulesyncHooks()
+      .getJson().hooks.stop;
+
+    expect(imported?.[0]).not.toHaveProperty("env");
+    expect(imported?.[1]).not.toHaveProperty("env");
+    expect(imported?.[2]).not.toHaveProperty("env");
+    // An empty map is a legitimate value and survives.
+    expect(imported?.[3]).toEqual({ type: "command", command: "./d.sh", env: {} });
+  });
+
+  it("drops a __proto__ key before the generated file", async () => {
+    // The stripping is the JSONC parser rebuilding the object, not the env
+    // guard — a `__proto__` own key is non-empty, has no "=" and no control
+    // characters, so the guard accepts it. Asserted here so a future parser
+    // change does not put it back silently.
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: {
+        stop: [
+          {
+            type: "command",
+            command: "./notify.sh",
+            env: JSON.parse('{"__proto__":"polluted","CI":"1"}'),
+          },
+        ],
+      },
+    });
+
+    const written = JSON.parse(hooks.getFileContent()).hooks.Stop[0].hooks[0];
+    expect(written.env).toEqual({ CI: "1" });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it("imports env from a command hook and ignores it on an http hook", () => {
+    const imported = fromToolFile({
+      hooks: {
+        Stop: [
+          {
+            hooks: [
+              { type: "command", command: "./notify.sh", env: { CI: "1" } },
+              { type: "http", url: "https://example.com/hook", env: { CI: "1" } },
+            ],
+          },
+        ],
+      },
+    })
+      .toRulesyncHooks()
+      .getJson().hooks.stop;
+
+    expect(imported?.[0]).toEqual({ type: "command", command: "./notify.sh", env: { CI: "1" } });
+    expect(imported?.[1]).toEqual({ type: "http", url: "https://example.com/hook" });
+  });
+
+  it("round-trips env through generate and import", async () => {
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: { stop: [{ type: "command", command: "./notify.sh", env: { CI: "1" } }] },
+    });
+
+    expect(
+      fromToolFile(JSON.parse(hooks.getFileContent())).toRulesyncHooks().getJson().hooks.stop,
+    ).toEqual([{ type: "command", command: "./notify.sh", env: { CI: "1" } }]);
+  });
+});

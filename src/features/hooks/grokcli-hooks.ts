@@ -67,6 +67,12 @@ const GROKCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // other canonical types from leaking through as entries Grok cannot read.
   // https://docs.x.ai/build/features/hooks
   supportedHookTypes: new Set(["command", "http"]),
+  // `env` supplies extra environment variables for the hook process. Upstream
+  // it is `HookConfig.env: HashMap<String, String>` ("Extra env vars, merged
+  // into HookSpec::extra_env") in `crates/codegen/xai-grok-hooks/src/config.rs`,
+  // and it is merged into the spawned command's environment — so it is emitted
+  // on `command` hooks only, matching how Qwen Code gates the same field.
+  recordPassthroughFields: [{ canonical: "env", tool: "env", commandOnly: true }],
   noMatcherEvents: GROKCLI_NO_MATCHER_EVENTS,
 };
 
