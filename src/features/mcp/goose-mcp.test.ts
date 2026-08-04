@@ -374,6 +374,97 @@ describe("GooseMcp", () => {
       expect(extensions.stale).toBeUndefined();
     });
 
+    it("keeps an entry whose shape it cannot read and warns about the ones it retracts", async () => {
+      const warn = vi.fn();
+      const dir = join(testDir, GOOSE_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, GOOSE_FILE),
+        [
+          "extensions:",
+          // Neither a declared type nor a cmd/uri to infer one from: unreadable
+          // rather than rulesync's, so it stays.
+          "  mystery:",
+          "    name: mystery",
+          "    enabled: true",
+          "  stale:",
+          "    name: stale",
+          "    type: stdio",
+          "    cmd: old",
+          "",
+        ].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+        logger: { warn } as never,
+      });
+      const extensions = getExtensions(mcp.getFileContent());
+
+      expect(extensions.mystery).toEqual({ name: "mystery", enabled: true });
+      expect(extensions.stale).toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"stale"'));
+    });
+
+    it("replaces a non-MCP extension of the same name with a warning", async () => {
+      const warn = vi.fn();
+      const dir = join(testDir, GOOSE_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, GOOSE_FILE),
+        ["extensions:", "  memory:", "    name: memory", "    type: builtin", ""].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { memory: { command: "uvx" } } }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+        logger: { warn } as never,
+      });
+
+      expect(getExtensions(mcp.getFileContent()).memory).toMatchObject({
+        type: "stdio",
+        cmd: "uvx",
+      });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("already exists"));
+    });
+
+    it("treats a non-mapping extensions block as empty", async () => {
+      const dir = join(testDir, GOOSE_DIR);
+      await ensureDir(dir);
+      await writeFileContent(join(dir, GOOSE_FILE), "extensions: []\nGOOSE_MODEL: gpt-4o\n");
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { fetch: { command: "uvx" } } }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const parsed = load(mcp.getFileContent());
+
+      expect(getExtensions(mcp.getFileContent()).fetch?.cmd).toBe("uvx");
+      expect(isRecord(parsed) && parsed.GOOSE_MODEL).toBe("gpt-4o");
+    });
+
     it("skips a server with no command instead of writing a stdio extension Goose cannot start", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",

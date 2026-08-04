@@ -190,9 +190,11 @@ function convertServerToGooseExtension(
  * holds Goose's own `builtin`/`platform`/`frontend`/`inline_python` extensions
  * (`developer`, `memory`, ...), which have no canonical MCP representation.
  * Those entries are carried over from `existingExtensions` untouched — removing
- * `developer` alone costs the agent its shell and text-editor tools. Every
- * MCP-typed entry is rulesync's to replace, so a server deleted from
- * `.rulesync/.mcp.json` is still retracted here.
+ * `developer` alone costs the agent its shell and text-editor tools. Only an
+ * entry rulesync can positively identify as an MCP server is rulesync's to
+ * replace, so a server deleted from `.rulesync/.mcp.json` is retracted (with a
+ * warning naming it) while an entry of an unrecognized shape or a future
+ * extension type is left alone rather than assumed to be ours.
  */
 function convertToGooseFormat({
   mcpServers,
@@ -204,14 +206,29 @@ function convertToGooseFormat({
   logger: Logger | undefined;
 }): Record<string, unknown> {
   const extensions: Record<string, unknown> = {};
+  const retracted: string[] = [];
 
   for (const [name, ext] of Object.entries(existingExtensions)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
-    if (!isRecord(ext)) continue;
-    const type = existingExtensionType(ext);
-    if (type !== undefined && !GOOSE_MCP_EXTENSION_TYPES.has(type)) {
-      extensions[name] = ext;
+    // Anything rulesync cannot read as an MCP server — a non-MCP extension
+    // type, an entry of an unknown shape, a value that is not even a mapping —
+    // is the user's, and stays. Only a recognized MCP entry is dropped when the
+    // canonical config no longer names it.
+    const type = isRecord(ext) ? existingExtensionType(ext) : undefined;
+    if (type !== undefined && GOOSE_MCP_EXTENSION_TYPES.has(type)) {
+      if (!Object.hasOwn(mcpServers, name)) retracted.push(name);
+      continue;
     }
+    extensions[name] = ext;
+  }
+
+  if (retracted.length > 0) {
+    warnWithFallback(
+      logger,
+      `Removing MCP extension(s) ${retracted.map((name) => `"${name}"`).join(", ")} from ` +
+        `~/.config/goose/config.yaml: they are no longer in the rulesync MCP config. ` +
+        `Import them first if they were added with \`goose configure\`.`,
+    );
   }
 
   for (const [name, config] of Object.entries(mcpServers)) {
@@ -246,22 +263,18 @@ function convertToGooseFormat({
  * a `stdio` extension with no `cmd` that Goose cannot start. They stay in `config.yaml`,
  * which generation preserves.
  */
-function convertFromGooseFormat(
-  extensions: Record<string, unknown>,
-  logger?: Logger | undefined,
-): McpServers {
+function convertFromGooseFormat(extensions: Record<string, unknown>): McpServers {
   const result: McpServers = {};
+  const skipped: string[] = [];
 
   for (const [name, ext] of Object.entries(extensions)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(ext)) continue;
 
     const type = existingExtensionType(ext);
     if (type === undefined || !GOOSE_MCP_EXTENSION_TYPES.has(type)) {
-      warnWithFallback(
-        logger,
-        `Skipping Goose extension "${name}"${type === undefined ? "" : ` (type: ${type})`}: ` +
-          `it is not an MCP server and has no rulesync representation.`,
-      );
+      // Aggregated below: every Goose install carries at least `developer` and
+      // `memory`, so a line per entry would be noise on every import.
+      skipped.push(name);
       continue;
     }
 
@@ -283,6 +296,15 @@ function convertFromGooseFormat(
     if (typeof ext.timeout === "number") server.timeout = ext.timeout;
 
     result[name] = server;
+  }
+
+  if (skipped.length > 0) {
+    warnWithFallback(
+      undefined,
+      `Skipping ${skipped.length} non-MCP Goose extension(s) ` +
+        `(${skipped.map((name) => `"${name}"`).join(", ")}): they describe capabilities Goose ` +
+        `provides itself and have no rulesync representation.`,
+    );
   }
 
   return result;
