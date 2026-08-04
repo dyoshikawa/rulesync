@@ -722,10 +722,11 @@ copilot: # for GitHub Copilot-specific parameters (optional; project .github/ski
   user-invocable: true # (optional, default true) whether users can run it with /SKILL-NAME
   disable-model-invocation: false # (optional, default false) stop the agent from invoking it on its own
   context: fork # (optional, experimental) run the skill in a forked session (VS Code 1.118+)
-  # `copilot` and `copilotcli` write the same SKILL.md path at both scopes, and `copilotcli`
-  # writes last, so with both targets enabled the `copilotcli` section decides the file. Set the
-  # value in both sections (or in the shared top-level fields, for the two invocation gates) when
-  # you generate for both. `context` has no `copilotcli` counterpart and is emitted for `copilot` only.
+  # `copilot` and `copilotcli` write the same SKILL.md path at both scopes, so with both targets
+  # enabled the one generated last wins — and that is the order the targets are listed in, so which
+  # section decides the file is not fixed. Set the value in both sections (or, for the two invocation
+  # gates, in the shared top-level fields) whenever you generate for both. `context` has no
+  # `copilotcli` counterpart, so it survives only when `copilot` is generated last.
 copilotcli: # for GitHub Copilot CLI-specific parameters (optional; project .github/skills/, global ~/.copilot/skills/)
   license: MIT # (optional)
   allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation
