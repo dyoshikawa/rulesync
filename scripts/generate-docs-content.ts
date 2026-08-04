@@ -4,7 +4,7 @@ import { join, relative, sep } from "node:path";
 import { globbySync } from "globby";
 
 import { renderHookEventsMatrix } from "./hook-events-table.js";
-import { runOxfmt } from "./run-oxfmt.js";
+import { repoRoot, runOxfmt } from "./run-oxfmt.js";
 
 /**
  * Embed the canonical `docs/**\/*.md` hierarchy into a generated TypeScript
@@ -12,7 +12,6 @@ import { runOxfmt } from "./run-oxfmt.js";
  * (npm dist bundles and bun-compiled binaries alike). The generated file is
  * committed; CI fails on drift via `pnpm run check:docs-content`.
  */
-const repoRoot = join(import.meta.dirname, "..");
 const docsRoot = join(repoRoot, "docs");
 const outputPath = join(repoRoot, "src", "generated", "docs-content.ts");
 
