@@ -77,9 +77,67 @@ describe("ZedPermissions", () => {
       expect(tools.terminal.default).toBe("confirm");
       expect(tools.terminal.always_allow).toEqual([{ pattern: "git *", case_sensitive: false }]);
       expect(tools.terminal.always_deny).toEqual([{ pattern: "rm *", case_sensitive: false }]);
-      // `read` → `read_file`.
-      expect(tools.read_file.always_deny).toEqual([{ pattern: ".env", case_sensitive: false }]);
-      expect(tools.read_file.default).toBeUndefined();
+      // `read` is one of Zed's excluded read-only tools, so no entry is written.
+      expect(tools.read_file).toBeUndefined();
+    });
+
+    it("drops the categories Zed does not gate, and cleans up the inert entries", async () => {
+      const warn = vi.fn();
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            tool_permissions: {
+              tools: {
+                // Written by an earlier rulesync version; Zed never consults it.
+                read_file: { always_deny: [{ pattern: ".env", case_sensitive: false }] },
+                grep: { default: "deny" },
+                custom_tool: { default: "allow" },
+              },
+            },
+          },
+        }),
+      );
+
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "*": "ask" },
+          read: { ".env": "deny" },
+          grep: { "*": "deny" },
+        }),
+        logger: { warn } as never,
+      });
+
+      const tools = JSON.parse(permissions.getFileContent()).agent.tool_permissions.tools;
+
+      expect(tools.read_file).toBeUndefined();
+      expect(tools.grep).toBeUndefined();
+      expect(tools.terminal.default).toBe("confirm");
+      // A tool rulesync does not manage is still preserved.
+      expect(tools.custom_tool).toEqual({ default: "allow" });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("private_files"));
+    });
+
+    it("leaves an excluded tool entry alone when the canonical config says nothing", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            tool_permissions: {
+              tools: { read_file: { default: "deny" } },
+            },
+          },
+        }),
+      );
+
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ bash: { "*": "ask" } }),
+      });
+
+      const tools = JSON.parse(permissions.getFileContent()).agent.tool_permissions.tools;
+      expect(tools.read_file).toEqual({ default: "deny" });
     });
 
     it("should preserve unrelated settings and unmanaged tools", async () => {

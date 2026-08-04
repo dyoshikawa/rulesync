@@ -65,6 +65,19 @@ const CANONICAL_TO_ZED_TOOL_NAMES: Record<string, string> = {
   websearch: "search_web",
 };
 
+/**
+ * Canonical categories whose Zed tool is not permission-gated. Zed's gated list
+ * is `terminal`, `edit_file`, `write_file`, `delete_path`, `move_path`,
+ * `copy_path`, `create_directory`, `fetch`, `search_web` and `skill`; the
+ * read-only tools (`read_file`, `grep`, `find_path`, `list_directory`) sit in
+ * Zed's own `EXCLUDED_TOOLS` and never call `decide_permission_from_settings`,
+ * so a `tools.<name>` entry for one is config Zed never consults. Zed's real
+ * read-denial surface is `private_files`, which the ignore feature owns.
+ *
+ * @see https://zed.dev/docs/ai/tool-permissions#supported-tools
+ */
+const ZED_EXCLUDED_CANONICAL_CATEGORIES: ReadonlySet<string> = new Set(["read", "grep", "glob"]);
+
 const ZED_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_ZED_TOOL_NAMES).map(([k, v]) => [v, k]),
 );
@@ -246,6 +259,7 @@ export class ZedPermissions extends ToolPermissions {
     // warning instead of being emitted as inert config.
     let managedDefault: ZedPermissionAction | undefined;
     const managedTools: Record<string, ZedToolPermission> = {};
+    const excludedCategories: string[] = [];
     for (const [category, rules] of Object.entries(config.permission)) {
       if (category === "*") {
         for (const [pattern, action] of Object.entries(rules)) {
@@ -259,10 +273,23 @@ export class ZedPermissions extends ToolPermissions {
         }
         continue;
       }
+      if (ZED_EXCLUDED_CANONICAL_CATEGORIES.has(category)) {
+        excludedCategories.push(category);
+        continue;
+      }
       const tool = buildZedToolPermission(rules);
       if (tool) {
         managedTools[toZedToolName(category)] = tool;
       }
+    }
+
+    if (excludedCategories.length > 0) {
+      logger?.warn(
+        `Zed permissions: dropping the ${excludedCategories.map((category) => `"${category}"`).join(", ")} ` +
+          `${excludedCategories.length === 1 ? "category" : "categories"} — Zed does not gate its ` +
+          `read-only tools, so the entries would never be consulted. Zed's read-denial surface is ` +
+          `\`private_files\`, which the ignore feature writes from \`.rulesync/.aiignore\`.`,
+      );
     }
 
     // Only tools rulesync actually rewrites are "managed" — a category that
@@ -272,6 +299,12 @@ export class ZedPermissions extends ToolPermissions {
     const managedToolNames = new Set(Object.keys(managedTools));
     if ("*" in config.permission) {
       managedToolNames.add("*");
+    }
+    // A stated-but-excluded category also claims the inert entry earlier
+    // rulesync versions wrote for it, so the stale spelling is cleaned up the
+    // same way a stale `tools["*"]` is.
+    for (const category of excludedCategories) {
+      managedToolNames.add(toZedToolName(category));
     }
     const preservedTools = Object.fromEntries(
       Object.entries(existingTools).filter(([toolName]) => !managedToolNames.has(toolName)),

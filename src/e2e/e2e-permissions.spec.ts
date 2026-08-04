@@ -326,8 +326,8 @@ describe("E2E: permissions", () => {
     expect(tools.terminal.default).toBe("confirm");
     expect(tools.terminal.always_allow).toEqual([{ pattern: "git *", case_sensitive: false }]);
     expect(tools.terminal.always_deny).toEqual([{ pattern: "rm *", case_sensitive: false }]);
-    // `read` → `read_file`.
-    expect(tools.read_file.always_deny).toEqual([{ pattern: ".env", case_sensitive: false }]);
+    // `read` maps to a tool Zed does not gate, so no inert entry is written.
+    expect(tools.read_file).toBeUndefined();
   });
 
   it("should generate amp permissions into .amp/settings.json", async () => {
@@ -2164,7 +2164,8 @@ describe("E2E: permissions (global mode)", () => {
       { pattern: "git status *", case_sensitive: false },
     ]);
     expect(tools.terminal.always_deny).toEqual([{ pattern: "rm -rf *", case_sensitive: false }]);
-    expect(tools.read_file.always_deny).toEqual([{ pattern: ".env", case_sensitive: false }]);
+    // `read` maps to a tool Zed does not gate, so no inert entry is written.
+    expect(tools.read_file).toBeUndefined();
     // Unrelated user settings preserved by the non-destructive merge.
     expect(generated.theme).toBe("One Dark");
     expect(generated.context_servers.my_server.command).toBe("x");
