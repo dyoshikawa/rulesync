@@ -143,6 +143,60 @@ describe("CodexcliHooks", () => {
       expect(hook.additionalContextLimit).toBe(8000);
     });
 
+    it("should emit a zero additionalContextLimit and drop a non-numeric one", async () => {
+      // Zero is meaningful (always spill to a file), so unlike the string
+      // passthrough's empty-string rule it must survive. A non-numeric value —
+      // `null` is what JSON.stringify writes for a non-finite number — is
+      // dropped rather than emitted into a file Codex would reject.
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              sessionStart: [
+                { command: "./scripts/zero.sh", additionalContextLimit: 0 },
+                { command: "./scripts/bad.sh", additionalContextLimit: null },
+              ],
+            },
+          }),
+          validate: false,
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const hooks = JSON.parse(codexHooks.getFileContent()).hooks.SessionStart[0].hooks;
+      expect(hooks[0].additionalContextLimit).toBe(0);
+      expect(hooks[1]).not.toHaveProperty("additionalContextLimit");
+    });
+
+    it("should round-trip additionalContextLimit back to canonical", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              sessionStart: [{ command: "./scripts/context.sh", additionalContextLimit: 8000 }],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      expect(codexHooks.toRulesyncHooks().getJson().hooks.sessionStart?.[0]).toEqual({
+        type: "command",
+        command: "./scripts/context.sh",
+        additionalContextLimit: 8000,
+      });
+    });
+
     it("should convert subagentStart, subagentStop, and preCompact to PascalCase", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({

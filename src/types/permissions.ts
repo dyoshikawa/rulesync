@@ -801,7 +801,9 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  * `sandbox_workspace_write`, `apps`, `approvals_reviewer`) are emitted, and
  * `computeCodexcliOverridePatch` skips anything else with a warning.
  * `base_permission_profile` and `git_write_rules` are consumed by the profile
- * builder rather than written, as described above. The allowlist is what keeps
+ * builder rather than written, as described above, and `permission` is the
+ * tool-scoped canonical block, which `RulesyncPermissions.forTarget` strips out
+ * of the override before it ever reaches the patch. The allowlist is what keeps
  * the override from clobbering a feature-owned key: `mcp_servers.*` per-MCP
  * gating is owned by the MCP feature (`codexcli-mcp.ts` already writes the
  * `mcp_servers` tables in the same `config.toml`), and `permissions` /

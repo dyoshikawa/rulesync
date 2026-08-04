@@ -54,7 +54,9 @@ export type ToolHooksConverterConfig = {
    * canonical {@link HookDefinitionSchema} number field to its tool-side field
    * name. Only finite numbers are emitted on export and imported back, so a
    * `NaN`/`Infinity` (which JSON cannot represent) or a numeric string can't
-   * leak into a config the tool would reject.
+   * leak into a config the tool would reject. Any narrower constraint (an
+   * integer, a non-negative one) belongs on the canonical field's schema, which
+   * is what an authored value is validated against.
    */
   numberPassthroughFields?: ReadonlyArray<{
     readonly canonical: "additionalContextLimit";
