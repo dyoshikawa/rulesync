@@ -375,7 +375,10 @@ describe("GrokcliHooks per-handler env", () => {
     expect(written[1]).not.toHaveProperty("env");
   });
 
-  it("refuses an env value that is not a plain map of clean strings", async () => {
+  // The canonical schema already rejects most of these, so this guard is what
+  // protects the looser paths into a definition: the `grokcli.hooks` override
+  // block and a hook read out of an existing tool file.
+  it("refuses an env entry that is not a clean string pair", async () => {
     const hooks = await fromCanonical({
       version: 1,
       hooks: {
@@ -383,6 +386,10 @@ describe("GrokcliHooks per-handler env", () => {
           { type: "command", command: "./a.sh", env: { PORT: 8080 } },
           { type: "command", command: "./b.sh", env: { INJECTED: "a\nb" } },
           { type: "command", command: "./c.sh", env: ["CI=1"] },
+          // A key rebuilt into `KEY=VALUE` would name `PATH`, not this key.
+          { type: "command", command: "./d.sh", env: { "PATH=/tmp/evil": "1" } },
+          { type: "command", command: "./e.sh", env: { "BAD\nKEY": "1" } },
+          { type: "command", command: "./f.sh", env: { "": "1" } },
         ],
       },
     });
@@ -390,6 +397,50 @@ describe("GrokcliHooks per-handler env", () => {
     for (const hook of JSON.parse(hooks.getFileContent()).hooks.Stop[0].hooks) {
       expect(hook).not.toHaveProperty("env");
     }
+  });
+
+  it("refuses an unusable env while importing", () => {
+    const imported = fromToolFile({
+      hooks: {
+        Stop: [
+          {
+            hooks: [
+              { type: "command", command: "./a.sh", env: { PORT: 8080 } },
+              { type: "command", command: "./b.sh", env: "CI=1" },
+              { type: "command", command: "./c.sh", env: { "PATH=/tmp/evil": "1" } },
+              { type: "command", command: "./d.sh", env: {} },
+            ],
+          },
+        ],
+      },
+    })
+      .toRulesyncHooks()
+      .getJson().hooks.stop;
+
+    expect(imported?.[0]).not.toHaveProperty("env");
+    expect(imported?.[1]).not.toHaveProperty("env");
+    expect(imported?.[2]).not.toHaveProperty("env");
+    // An empty map is a legitimate value and survives.
+    expect(imported?.[3]).toEqual({ type: "command", command: "./d.sh", env: {} });
+  });
+
+  it("does not let a __proto__ key reach the generated file", async () => {
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: {
+        stop: [
+          {
+            type: "command",
+            command: "./notify.sh",
+            env: JSON.parse('{"__proto__":"polluted","CI":"1"}'),
+          },
+        ],
+      },
+    });
+
+    const written = JSON.parse(hooks.getFileContent()).hooks.Stop[0].hooks[0];
+    expect(written.env).toEqual({ CI: "1" });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 
   it("imports env from a command hook and ignores it on an http hook", () => {

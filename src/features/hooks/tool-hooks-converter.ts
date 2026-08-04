@@ -90,10 +90,11 @@ export type ToolHooksConverterConfig = {
   }>;
   /**
    * Per-hook string-map fields to carry through the round-trip. Only plain
-   * objects whose values are all strings are emitted and imported, and a value
-   * carrying a newline, carriage return or NUL is refused in both directions:
-   * these maps become process environment variables, where a control character
-   * is an injection shape rather than data.
+   * objects whose values are all strings are emitted and imported, and both
+   * directions refuse a key that is empty or holds `=`, and a key or value
+   * carrying a newline, carriage return or NUL: these maps become process
+   * environment variables, where such a character is a variable-spoofing shape
+   * rather than data.
    */
   recordPassthroughFields?: ReadonlyArray<{
     readonly canonical: "env";
@@ -493,11 +494,13 @@ function importRecordPassthroughFields({
   );
   for (const { tool } of fields) {
     if (h[tool] !== undefined && !isSafeStringRecord(h[tool])) {
-      // The `hooks` key is owned in some tools' shared config, so a dropped
-      // value disappears from the file on the next generate.
+      // Warned rather than dropped silently, for the callers that thread a
+      // logger through: an unusable value disappears from the tool's file on
+      // the next generate.
       logger?.warn(
-        `Dropping "${tool}" while importing a hook: it must be a map of strings without ` +
-          `newline, carriage return or NUL characters.`,
+        `Dropping "${tool}" while importing a hook: it must be a map of strings whose keys ` +
+          `are non-empty and free of "=", and whose keys and values carry no newline, ` +
+          `carriage return or NUL characters.`,
       );
     }
   }
@@ -804,20 +807,36 @@ function stableJson(value: Record<string, unknown> | string): string {
 }
 
 /**
+ * A string map safe to hand a tool as a hook's environment block. On top of
+ * {@link isStringRecord} it rejects a non-plain object (a class instance is not
+ * data) and applies the control-character rule to the values, as
+ * {@link isSafeStringArray} does for `args`.
+ *
+ * The keys are checked more strictly than the values. A tool builds each entry
+ * back into a `KEY=VALUE` string for the spawned process, so a key holding `=`
+ * (or a control character, or nothing at all) names a different variable than
+ * it appears to — `PATH=/tmp/evil` written as a key would set `PATH`. An
+ * authored `.rulesync/hooks.*` can arrive via `rulesync fetch`, so that is not
+ * a shape to pass along.
+ */
+function isSafeStringRecord(value: unknown): value is Record<string, string> {
+  if (!isPlainObject(value) || !isStringRecord(value)) {
+    return false;
+  }
+  return Object.entries(value).every(
+    ([key, entry]) =>
+      key !== "" &&
+      !key.includes("=") &&
+      !CONTROL_CHARS.some((char) => key.includes(char) || entry.includes(char)),
+  );
+}
+
+/**
  * Control characters cannot ride from an existing tool config into a canonical
  * field the schema guards with `safeString`, or the next generate fails
  * validation on a file this import itself wrote — and the hooks feature is
  * skipped wholesale when that read fails.
  */
-function isSafeStringRecord(value: unknown): value is Record<string, string> {
-  return (
-    isPlainObject(value) &&
-    Object.values(value).every(
-      (entry) => typeof entry === "string" && !CONTROL_CHARS.some((char) => entry.includes(char)),
-    )
-  );
-}
-
 function isSafeStringArray(value: unknown): value is string[] {
   return (
     isStringArray(value) &&
