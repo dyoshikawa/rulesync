@@ -493,6 +493,74 @@ describe("FactorydroidHooks", () => {
       expect(entry.hooks[0].commandRegex).toBeUndefined();
     });
 
+    it("should split a matcher group whose hooks disagree on commandRegex", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { matcher: "Execute", commandRegex: "^git ", command: "audit.sh" },
+              { matcher: "Execute", command: "always.sh" },
+              { matcher: "Execute", commandRegex: "^npm ", command: "npm-audit.sh" },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const entries = JSON.parse(factorydroidHooks.getFileContent()).hooks.PreToolUse;
+      expect(entries).toHaveLength(3);
+      // The unfiltered hook keeps firing on every Execute rather than
+      // inheriting a neighboring hook's regex.
+      const unfiltered = entries.find(
+        (entry: Record<string, unknown>) => entry.commandRegex === undefined,
+      );
+      expect(unfiltered.hooks[0].command).toContain("always.sh");
+      expect(
+        entries.map((entry: Record<string, unknown>) => entry.commandRegex).toSorted(),
+      ).toEqual([undefined, "^git ", "^npm "].toSorted());
+    });
+
+    it("should ignore a commandRegex that is not a string", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [{ matcher: "Execute", commandRegex: { bad: true }, command: "audit.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      expect(JSON.parse(factorydroidHooks.getFileContent()).hooks.PreToolUse[0].commandRegex).toBe(
+        undefined,
+      );
+    });
+
     it("should include the timeout field on a command hook", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
@@ -624,6 +692,49 @@ describe("FactorydroidHooks", () => {
       expect(json.hooks.stop).toHaveLength(1);
     });
 
+    it("should round-trip disagreeing commandRegex values without merging them", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
+
+      const generated = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: new RulesyncHooks({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            version: 1,
+            hooks: {
+              preToolUse: [
+                { matcher: "Execute", commandRegex: "^git ", command: "./audit.sh" },
+                { matcher: "Execute", command: "./always.sh" },
+              ],
+            },
+          }),
+          validate: false,
+        }),
+        validate: false,
+      });
+
+      const imported = new FactorydroidHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "hooks.json",
+        fileContent: generated.getFileContent(),
+        validate: false,
+      })
+        .toRulesyncHooks()
+        .getJson().hooks.preToolUse;
+
+      expect(imported).toHaveLength(2);
+      expect(imported?.find((def) => def.command?.includes("audit.sh"))?.commandRegex).toBe(
+        "^git ",
+      );
+      expect(
+        imported?.find((def) => def.command?.includes("always.sh"))?.commandRegex,
+      ).toBeUndefined();
+    });
+
     it("should import commandRegex from the matcher group onto every hook in it", () => {
       const factorydroidHooks = new FactorydroidHooks({
         outputRoot: testDir,
@@ -646,6 +757,25 @@ describe("FactorydroidHooks", () => {
       const defs = factorydroidHooks.toRulesyncHooks().getJson().hooks.preToolUse;
       expect(defs).toHaveLength(2);
       expect(defs?.every((def) => def.commandRegex === "^git ")).toBe(true);
+    });
+
+    it("should ignore a commandRegex carrying a control character on import", () => {
+      const factorydroidHooks = new FactorydroidHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [
+              { matcher: "Execute", commandRegex: "^git \n", hooks: [{ command: "audit.sh" }] },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const defs = factorydroidHooks.toRulesyncHooks().getJson().hooks.preToolUse;
+      expect(defs?.[0]?.commandRegex).toBeUndefined();
     });
 
     it("should strip $FACTORY_PROJECT_DIR prefix from commands", () => {

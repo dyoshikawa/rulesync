@@ -168,6 +168,27 @@ Body content`;
       expect(rulesyncCommand.getBody()).toBe("Review $ARGUMENTS");
     });
 
+    it("should not lift allowed-tools into the override, so a round trip cannot reintroduce it", () => {
+      const command = new FactorydroidCommand({
+        outputRoot: testDir,
+        relativeDirPath: join(".factory", "commands"),
+        relativeFilePath: "review.md",
+        frontmatter: {
+          description: "Review a PR",
+          "argument-hint": "[pr-number]",
+          "allowed-tools": ["Read"],
+        },
+        body: "Review $ARGUMENTS",
+        validate: true,
+      });
+
+      expect(command.toRulesyncCommand().getFrontmatter()).toEqual({
+        targets: ["*"],
+        description: "Review a PR",
+        factorydroid: { "argument-hint": "[pr-number]" },
+      });
+    });
+
     it("should not emit a factorydroid section when only description is present", () => {
       const command = new FactorydroidCommand({
         outputRoot: testDir,
@@ -294,7 +315,7 @@ Body content`;
   });
 
   describe("FactorydroidCommandFrontmatterSchema", () => {
-    it("should accept description, argument-hint and allowed-tools", () => {
+    it("should accept the two documented fields, and pass unknown keys through loosely", () => {
       const result = FactorydroidCommandFrontmatterSchema.safeParse({
         description: "Test",
         "argument-hint": "[arg]",

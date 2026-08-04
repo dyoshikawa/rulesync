@@ -175,11 +175,11 @@ export class FactorydroidSkill extends ToolSkill {
     const factorydroidSection = rulesyncFrontmatter.factorydroid;
     const resolvedDisableModelInvocation = resolveDisableModelInvocation({
       rootFrontmatter: rulesyncFrontmatter,
-      section: rulesyncFrontmatter.factorydroid,
+      section: factorydroidSection,
     });
     const resolvedUserInvocable = resolveUserInvocable({
       rootFrontmatter: rulesyncFrontmatter,
-      section: rulesyncFrontmatter.factorydroid,
+      section: factorydroidSection,
     });
 
     const factorydroidFrontmatter: FactorydroidSkillFrontmatter = {

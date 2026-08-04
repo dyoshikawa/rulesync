@@ -44,7 +44,16 @@ const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // command string when Droid has one. Invalid regex values are skipped." It
   // sits next to `matcher` on the group, so it is carried at group level.
   // https://docs.factory.ai/reference/hooks-reference
-  groupPassthroughFields: [{ canonical: "commandRegex", tool: "commandRegex" }],
+  // It narrows when a hook fires, so hooks that disagree get their own matcher
+  // entry rather than inheriting a neighboring hook's filter and going quiet.
+  groupPassthroughFields: [
+    {
+      canonical: "commandRegex",
+      tool: "commandRegex",
+      valueType: "string",
+      subdividesGroup: true,
+    },
+  ],
 };
 
 export class FactorydroidHooks extends ToolHooks {

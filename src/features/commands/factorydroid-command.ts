@@ -84,11 +84,17 @@ export class FactorydroidCommand extends ToolCommand {
 
   toRulesyncCommand(): RulesyncCommand {
     const { description, ...restFields } = this.frontmatter;
+    // Symmetric with generation: a field Droid does not honor is not lifted
+    // into the override either, so a round trip does not reintroduce it.
+    for (const field of FACTORYDROID_UNSUPPORTED_COMMAND_FIELDS) {
+      delete restFields[field];
+    }
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
       description,
-      // Preserve extra fields (e.g. argument-hint, allowed-tools) in factorydroid section
+      // Preserve the remaining extra fields (e.g. argument-hint) in the
+      // factorydroid section.
       ...(Object.keys(restFields).length > 0 && { factorydroid: restFields }),
     };
 
