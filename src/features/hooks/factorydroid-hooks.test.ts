@@ -463,6 +463,36 @@ describe("FactorydroidHooks", () => {
       expect(editEntry.hooks).toHaveLength(1);
     });
 
+    it("should emit commandRegex on the matcher group, next to matcher", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [{ matcher: "Execute", commandRegex: "^git ", command: "audit.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const entry = JSON.parse(factorydroidHooks.getFileContent()).hooks.PreToolUse[0];
+      expect(entry.matcher).toBe("Execute");
+      expect(entry.commandRegex).toBe("^git ");
+      // Group-level, so it must not be duplicated onto the hook itself.
+      expect(entry.hooks[0].commandRegex).toBeUndefined();
+    });
+
     it("should include the timeout field on a command hook", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
@@ -592,6 +622,30 @@ describe("FactorydroidHooks", () => {
       expect(json.hooks.sessionStart).toHaveLength(1);
       expect(json.hooks.sessionStart?.[0]?.command).toContain("echo.sh");
       expect(json.hooks.stop).toHaveLength(1);
+    });
+
+    it("should import commandRegex from the matcher group onto every hook in it", () => {
+      const factorydroidHooks = new FactorydroidHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [
+              {
+                matcher: "Execute",
+                commandRegex: "^git ",
+                hooks: [{ command: "audit.sh" }, { command: "notify.sh" }],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const defs = factorydroidHooks.toRulesyncHooks().getJson().hooks.preToolUse;
+      expect(defs).toHaveLength(2);
+      expect(defs?.every((def) => def.commandRegex === "^git ")).toBe(true);
     });
 
     it("should strip $FACTORY_PROJECT_DIR prefix from commands", () => {

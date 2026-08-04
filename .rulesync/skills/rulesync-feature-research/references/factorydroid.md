@@ -2,17 +2,17 @@
 
 ## Official Docs
 
-| Feature       | Official docs                                                     | Upstream surface                                                                                         |
-| ------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| index         | `https://docs.factory.ai/cli/getting-started/quickstart`          | Factory Droid CLI documentation                                                                          |
-| `rules`       | `https://docs.factory.ai/cli/configuration/agents-md`             | `AGENTS.md`, nested AGENTS.md, personal `~/.factory/AGENTS.md`                                           |
-| `ignore`      | No dedicated upstream ignore surface in map                       | No Rulesync-supported Factory Droid ignore target in map                                                 |
-| `mcp`         | `https://docs.factory.ai/cli/configuration/mcp`                   | `.factory/mcp.json`, `~/.factory/mcp.json`, stdio and HTTP servers                                       |
-| `commands`    | `https://docs.factory.ai/cli/configuration/custom-slash-commands` | `.factory/commands` and `~/.factory/commands`, `description`/`argument-hint`/`allowed-tools` frontmatter |
-| `subagents`   | `https://docs.factory.ai/cli/configuration/custom-droids`         | Custom droids in `.factory/droids` and `~/.factory/droids`                                               |
-| `skills`      | `https://docs.factory.ai/cli/configuration/skills`                | `.factory/skills/<name>/SKILL.md`, `skill.mdx`, invocation controls                                      |
-| `hooks`       | `https://docs.factory.ai/reference/hooks-reference`               | `.factory/hooks.json` and `~/.factory/hooks.json`, hook events, matcher groups, command-type hooks only  |
-| `permissions` | `https://docs.factory.ai/cli/configuration/settings`              | `commandAllowlist`, `commandDenylist`, autonomy settings                                                 |
+| Feature       | Official docs                                                     | Upstream surface                                                                                                |
+| ------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| index         | `https://docs.factory.ai/cli/getting-started/quickstart`          | Factory Droid CLI documentation                                                                                 |
+| `rules`       | `https://docs.factory.ai/cli/configuration/agents-md`             | `AGENTS.md`, nested AGENTS.md, personal `~/.factory/AGENTS.md`                                                  |
+| `ignore`      | No dedicated upstream ignore surface in map                       | No Rulesync-supported Factory Droid ignore target in map                                                        |
+| `mcp`         | `https://docs.factory.ai/cli/configuration/mcp`                   | `.factory/mcp.json`, `~/.factory/mcp.json`, stdio and HTTP servers                                              |
+| `commands`    | `https://docs.factory.ai/cli/configuration/custom-slash-commands` | `.factory/commands` and `~/.factory/commands`, `description`/`argument-hint` frontmatter only (no tool scoping) |
+| `subagents`   | `https://docs.factory.ai/cli/configuration/custom-droids`         | Custom droids in `.factory/droids` and `~/.factory/droids`                                                      |
+| `skills`      | `https://docs.factory.ai/cli/configuration/skills`                | `.factory/skills/<name>/SKILL.md`, `skill.mdx`, invocation controls                                             |
+| `hooks`       | `https://docs.factory.ai/reference/hooks-reference`               | `.factory/hooks.json` and `~/.factory/hooks.json`, hook events, matcher groups, command-type hooks only         |
+| `permissions` | `https://docs.factory.ai/cli/configuration/settings`              | `commandAllowlist`, `commandDenylist`, autonomy settings                                                        |
 
 ## Client Anchors
 

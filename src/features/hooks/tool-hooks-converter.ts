@@ -77,11 +77,11 @@ export type ToolHooksConverterConfig = {
    * Fields that live on the *matcher group* rather than on a hook. They are
    * stored per definition canonically (the canonical model is a flat list), so
    * export reads the first definition of the group that carries one and import
-   * puts it back on every definition of that group. Only plain objects are
-   * carried through.
+   * puts it back on every definition of that group. Plain objects and strings
+   * are carried through; other value types are ignored.
    */
   groupPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "metadata";
+    readonly canonical: "metadata" | "commandRegex";
     readonly tool: string;
   }>;
   /**
@@ -345,6 +345,16 @@ function importArrayPassthroughFields({
 }
 
 /**
+ * A group-level passthrough value: an object payload (e.g. AugmentCode's
+ * `metadata`) or a scalar filter (e.g. Factory Droid's `commandRegex`).
+ */
+type GroupPassthroughValue = Record<string, unknown> | string;
+
+function isGroupPassthroughValue(value: unknown): value is GroupPassthroughValue {
+  return isPlainObject(value) || typeof value === "string";
+}
+
+/**
  * Emit the configured group-level passthrough fields, taken from the first
  * definition of the group that carries one.
  */
@@ -358,11 +368,11 @@ function emitGroupPassthroughFields({
   eventName: string;
   converterConfig: ToolHooksConverterConfig;
   logger?: Logger;
-}): Record<string, Record<string, unknown>> {
-  const emitted: Record<string, Record<string, unknown>> = {};
+}): Record<string, GroupPassthroughValue> {
+  const emitted: Record<string, GroupPassthroughValue> = {};
   for (const { canonical, tool } of converterConfig.groupPassthroughFields ?? []) {
     const carried = defs.map((def) => def[canonical]);
-    const first = carried.find((value): value is Record<string, unknown> => isPlainObject(value));
+    const first = carried.find(isGroupPassthroughValue);
     if (first === undefined) {
       continue;
     }
@@ -372,7 +382,7 @@ function emitGroupPassthroughFields({
     // the strength of who else happens to share its matcher.
     const firstStable = stableJson(first);
     const agrees = (value: unknown): boolean =>
-      isPlainObject(value) && stableJson(value) === firstStable;
+      isGroupPassthroughValue(value) && stableJson(value) === firstStable;
     if (!carried.every(agrees)) {
       logger?.warn(
         `"${tool}" belongs to the whole matcher group on "${eventName}" hooks, so every hook in ` +
@@ -395,12 +405,12 @@ function importGroupPassthroughFields({
 }: {
   rawEntry: ToolMatcherEntry;
   converterConfig: ToolHooksConverterConfig;
-}): Record<string, Record<string, unknown>> {
+}): Record<string, GroupPassthroughValue> {
   const entry = rawEntry as unknown as Record<string, unknown>;
   return Object.fromEntries(
     (converterConfig.groupPassthroughFields ?? [])
-      .filter(({ tool }) => isPlainObject(entry[tool]))
-      .map(({ canonical, tool }) => [canonical, entry[tool] as Record<string, unknown>]),
+      .filter(({ tool }) => isGroupPassthroughValue(entry[tool]))
+      .map(({ canonical, tool }) => [canonical, entry[tool] as GroupPassthroughValue]),
   );
 }
 
@@ -607,7 +617,10 @@ function isStringArray(value: unknown): value is string[] {
 }
 
 /** Compare object values without letting key order decide the answer. */
-function stableJson(value: Record<string, unknown>): string {
+function stableJson(value: Record<string, unknown> | string): string {
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
   return JSON.stringify(
     Object.fromEntries(Object.entries(value).toSorted(([a], [b]) => a.localeCompare(b))),
   );

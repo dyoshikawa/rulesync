@@ -60,6 +60,10 @@ const FACTORYDROID_OVERRIDE_KEYS = [
   "enabledPlugins",
   // Global hooks kill-switch. https://docs.factory.ai/cli/configuration/settings
   "hooksDisabled",
+  // Per-skill kill-switch: an array of skill names Droid must not load. Same
+  // shape and settings file as `hooksDisabled`.
+  // https://docs.factory.ai/cli/configuration/settings
+  "disabledSkills",
 ] as const;
 
 /**

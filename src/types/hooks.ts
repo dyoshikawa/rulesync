@@ -57,6 +57,12 @@ export const HookDefinitionSchema = z.looseObject({
   // Cursor: when true, a hook failure (crash, timeout, invalid JSON) blocks the
   // action instead of allowing it through. https://cursor.com/docs/hooks
   failClosed: z.optional(z.boolean()),
+  // Factory Droid: an extra regex filter applied to the shell command string of
+  // an `Execute` matcher group, e.g. `"^git "`. It belongs to the matcher group
+  // rather than to a single hook, but is stored per definition so it survives
+  // the canonical, flat list of definitions.
+  // https://docs.factory.ai/reference/hooks-reference
+  commandRegex: z.optional(safeString),
   // Qwen Code: when true, the hooks within this matcher group run sequentially
   // instead of in parallel (the default). Stored per-definition so it can be
   // round-tripped through the canonical, flat list of definitions.

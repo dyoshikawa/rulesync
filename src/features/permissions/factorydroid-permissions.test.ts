@@ -384,6 +384,36 @@ describe("FactorydroidPermissions", () => {
       expect(settings.enabledPlugins).toEqual({ "code-standards@org-plugins": true });
       expect(settings.hooksDisabled).toBe(true);
     });
+
+    it("round-trips disabledSkills, the per-skill kill switch", async () => {
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            factorydroid: { disabledSkills: ["legacy-migration", "scratch"] },
+          }),
+        }),
+      });
+
+      const settings = JSON.parse(instance.getFileContent());
+      expect(settings.disabledSkills).toEqual(["legacy-migration", "scratch"]);
+
+      const imported = JSON.parse(
+        new FactorydroidPermissions({
+          relativeDirPath: ".factory",
+          relativeFilePath: "settings.json",
+          fileContent: instance.getFileContent(),
+        })
+          .toRulesyncPermissions()
+          .getFileContent(),
+      );
+      expect(imported.factorydroid).toEqual({
+        disabledSkills: ["legacy-migration", "scratch"],
+      });
+    });
   });
 
   describe("round-trip", () => {

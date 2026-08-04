@@ -87,7 +87,7 @@ Body content`;
       expect(factorydroidCommand.getRelativeDirPath()).toBe(join(".factory", "commands"));
     });
 
-    it("should merge factorydroid section fields (argument-hint, allowed-tools)", () => {
+    it("should merge argument-hint but drop allowed-tools, which Droid commands do not support", () => {
       const rulesyncCommand = new RulesyncCommand({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
@@ -114,9 +114,9 @@ Body content`;
       expect(factorydroidCommand.getFrontmatter()).toEqual({
         description: "Review a PR",
         "argument-hint": "[pr-number]",
-        "allowed-tools": ["Read", "Bash"],
       });
       expect(factorydroidCommand.getFileContent()).toContain("argument-hint");
+      expect(factorydroidCommand.getFileContent()).not.toContain("allowed-tools");
     });
 
     it("should generate into the same relative path in global mode", () => {

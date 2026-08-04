@@ -21,12 +21,17 @@ import {
 // See https://docs.factory.ai/cli/configuration/custom-slash-commands
 //   - `description`: optional human-readable summary.
 //   - `argument-hint`: optional hint shown for `$ARGUMENTS` usage.
-//   - `allowed-tools`: reserved/optional; passed through verbatim when present.
+// Those two are the only documented fields. The docs state verbatim: "Tool
+// scoping is not available for custom commands. Use Skills or Custom Droids for
+// tool policy." — so `allowed-tools` is dropped on generate rather than written
+// as frontmatter Droid ignores.
 export const FactorydroidCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "argument-hint": z.optional(z.string()),
-  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
 });
+
+/** Not a Droid command surface; see the schema comment above. */
+const FACTORYDROID_UNSUPPORTED_COMMAND_FIELDS = ["allowed-tools"] as const;
 
 export type FactorydroidCommandFrontmatter = z.infer<typeof FactorydroidCommandFrontmatterSchema>;
 
@@ -116,6 +121,9 @@ export class FactorydroidCommand extends ToolCommand {
       description: rulesyncFrontmatter.description,
       ...factorydroidFields,
     };
+    for (const field of FACTORYDROID_UNSUPPORTED_COMMAND_FIELDS) {
+      delete factorydroidFrontmatter[field];
+    }
 
     const body = rulesyncCommand.getBody();
 

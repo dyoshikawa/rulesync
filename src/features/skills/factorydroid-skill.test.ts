@@ -201,6 +201,25 @@ This is a test factorydroid skill content.`;
       expect(factorydroidSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
     });
 
+    it("should carry enabled and allowed-tools from the factorydroid section", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "shelved",
+        frontmatter: {
+          name: "Shelved",
+          description: "Kept on disk but disabled",
+          targets: ["factorydroid"],
+          factorydroid: { enabled: false, "allowed-tools": ["Read", "Execute"] },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.enabled).toBe(false);
+      expect(frontmatter["allowed-tools"]).toEqual(["Read", "Execute"]);
+    });
+
     it("should pick up root-level user-invocable when factorydroid section omits it", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
@@ -289,6 +308,27 @@ This is a test factorydroid skill content.`;
         factorydroid: {
           "disable-model-invocation": true,
         },
+      });
+    });
+
+    it("should round-trip enabled and allowed-tools into the factorydroid section", () => {
+      const skill = new FactorydroidSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".factory", "skills"),
+        dirName: "shelved",
+        frontmatter: {
+          name: "Shelved",
+          description: "Kept on disk but disabled",
+          enabled: false,
+          "allowed-tools": "Read Execute",
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().factorydroid).toEqual({
+        enabled: false,
+        "allowed-tools": "Read Execute",
       });
     });
   });
