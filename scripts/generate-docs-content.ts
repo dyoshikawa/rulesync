@@ -1,10 +1,10 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 import { globbySync } from "globby";
 
 import { renderHookEventsMatrix } from "./hook-events-table.js";
+import { runOxfmt } from "./run-oxfmt.js";
 
 /**
  * Embed the canonical `docs/**\/*.md` hierarchy into a generated TypeScript
@@ -16,17 +16,6 @@ const repoRoot = join(import.meta.dirname, "..");
 const docsRoot = join(repoRoot, "docs");
 const outputPath = join(repoRoot, "src", "generated", "docs-content.ts");
 
-// Normalize to the repo's formatter so the drift check compares stable output.
-// npx is npx.cmd on Windows; a shell resolves it. stderr is inherited so a
-// formatter failure stays diagnosable.
-const runOxfmt = (path: string): void => {
-  execFileSync("npx", ["oxfmt", relative(repoRoot, path)], {
-    cwd: repoRoot,
-    stdio: ["ignore", "ignore", "inherit"],
-    shell: process.platform === "win32",
-  });
-};
-
 // Regenerate the derived hook-event matrix inside file-formats.md before
 // embedding, so a stale committed table fails the docs-content drift check
 // (`check:docs-content` diffs this file as well as the embed). Written
@@ -34,7 +23,7 @@ const runOxfmt = (path: string): void => {
 // owns the final column layout, mirroring generate-supported-tools-tables.ts.
 const hookMatrixPath = join(docsRoot, "reference", "file-formats.md");
 writeFileSync(hookMatrixPath, renderHookEventsMatrix(readFileSync(hookMatrixPath, "utf8")), "utf8");
-runOxfmt(hookMatrixPath);
+runOxfmt([hookMatrixPath]);
 
 const filePaths = globbySync("**/*.md", {
   cwd: docsRoot,
@@ -68,6 +57,6 @@ const lines: string[] = [
 ];
 
 writeFileSync(outputPath, lines.join("\n"), "utf8");
-runOxfmt(outputPath);
+runOxfmt([outputPath]);
 // oxlint-disable-next-line no-console
 console.log(`Embedded ${entries.length} docs into ${relative(repoRoot, outputPath)}`);
