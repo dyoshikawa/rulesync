@@ -288,7 +288,6 @@ const CANONICALLY_INVALID_IMPORTS = [
     canonical: "shell",
     invalid: "zsh",
     valid: "powershell",
-    reason: 'Invalid option: expected one of "bash"|"powershell"',
   },
   {
     kind: "a control character in a safeString field",
@@ -300,7 +299,6 @@ const CANONICALLY_INVALID_IMPORTS = [
     canonical: "statusMessage",
     invalid: "Running\nInjected: true",
     valid: "Running the formatter",
-    reason: "must not contain newline, carriage return, or NUL characters",
   },
   {
     kind: "a fractional number in an integer field",
@@ -314,7 +312,6 @@ const CANONICALLY_INVALID_IMPORTS = [
     canonical: "additionalContextLimit",
     invalid: 12.5,
     valid: 2500,
-    reason: "Invalid input: expected int, received number",
   },
   {
     kind: "a negative number in a non-negative field",
@@ -328,13 +325,12 @@ const CANONICALLY_INVALID_IMPORTS = [
     canonical: "additionalContextLimit",
     invalid: -1,
     valid: 0,
-    reason: "Too small: expected number to be >=0",
   },
 ] as const;
 
 describe.each(CANONICALLY_INVALID_IMPORTS)(
   "toolHooksToCanonical with $kind",
-  ({ converterConfig, tool, canonical, invalid, valid, reason }) => {
+  ({ converterConfig, tool, canonical, invalid, valid }) => {
     it("skips the value and warns instead of importing it", () => {
       const { definition, logger } = importHook({
         hook: { type: "command", command: "./run.sh", [tool]: invalid },
@@ -342,10 +338,10 @@ describe.each(CANONICALLY_INVALID_IMPORTS)(
       });
 
       expect(definition).not.toHaveProperty(canonical);
+      // Only the sentence Rulesync writes is asserted; the tail comes from
+      // zod's own message for the violated rule, which is locale-dependent.
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `it does not satisfy the canonical "${canonical}" field: ${reason}`,
-        ),
+        expect.stringContaining(`it does not satisfy the canonical "${canonical}" field:`),
       );
     });
 
@@ -398,16 +394,47 @@ describe("toolHooksToCanonical for fields outside the passthrough kinds", () => 
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`Dropping "${field}"`));
   });
 
-  it("skips a matcher that carries a control character, and warns", () => {
+  it.each([
+    {
+      field: "matcher",
+      entry: { matcher: "Bash\n", hooks: [{ command: "./run.sh" }] },
+    },
+    {
+      field: "command",
+      entry: { hooks: [{ command: "cd repo &&\nnpm run lint" }] },
+    },
+    {
+      field: "prompt",
+      entry: { hooks: [{ type: "prompt", prompt: "Review\0this" }] },
+    },
+  ])("skips the whole hook when $field cannot be imported, and warns", ({ field, entry }) => {
     const logger = createMockLogger();
     const canonical = toolHooksToCanonical({
-      hooks: { PreToolUse: [{ matcher: "Bash\n", hooks: [{ command: "./run.sh" }] }] },
+      hooks: { PreToolUse: [entry] },
       converterConfig: BASE_CONFIG,
       logger,
     });
 
-    expect(canonical.preToolUse?.[0]).not.toHaveProperty("matcher");
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`Dropping "matcher"`));
+    // Keeping the hook without the field would change what it does: a hook
+    // that lost its matcher fires on everything, and one that lost its
+    // command or prompt runs nothing.
+    expect(canonical.preToolUse).toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`Skipping a hook while importing: its "${field}"`),
+    );
+  });
+
+  it("says the same thing once when a whole matcher group repeats the mistake", () => {
+    const logger = createMockLogger();
+    toolHooksToCanonical({
+      hooks: {
+        PreToolUse: [{ matcher: "Bash\n", hooks: [{ command: "./a.sh" }, { command: "./b.sh" }] }],
+      },
+      converterConfig: BASE_CONFIG,
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
   });
 });
 

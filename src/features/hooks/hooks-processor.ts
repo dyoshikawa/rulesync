@@ -130,6 +130,25 @@ function unsupportedEventNames(params: {
   return [...new Set(eventNames)].filter((e) => !supportedEvents.has(e));
 }
 
+/**
+ * A logger whose warnings name the tool being generated, matching the rest of
+ * this processor's warnings. Delegates through the prototype chain so the
+ * original's state and remaining methods are untouched.
+ */
+function withToolTargetPrefix({
+  logger,
+  toolTarget,
+}: {
+  logger: Logger;
+  toolTarget: ToolTarget;
+}): Logger {
+  return Object.assign(Object.create(logger) as Logger, {
+    warn: (message: string, ...args: unknown[]): void => {
+      logger.warn(`For ${toolTarget}: ${message}`, ...args);
+    },
+  });
+}
+
 function unsupportedMatcherEventNames({
   factory,
   effectiveHooks,
@@ -816,7 +835,10 @@ export class HooksProcessor extends FeatureProcessor {
       rulesyncHooks,
       validate: true,
       global: this.global,
-      logger: this.logger,
+      // The converter is shared by every target, so its warnings say what is
+      // wrong but not which file is being written. Every other warning here
+      // names the tool, and one generate run walks all of them.
+      logger: withToolTargetPrefix({ logger: this.logger, toolTarget: this.toolTarget }),
     });
 
     const result: ToolFile[] = [toolHooks];
