@@ -460,10 +460,34 @@ describe("HooksProcessor", () => {
       });
       await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
 
+      // The event list must be part of the same message, and must name only the
+      // events that actually carry a disabled hook.
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Emitting "enabled: false" hook(s) as active for claudecode'),
+        'Emitting "enabled: false" hook(s) as active for claudecode (only kiro-ide supports the flag): preToolUse',
       );
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("preToolUse"));
+    });
+
+    it("should not warn about a disabled hook on an event the target cannot emit", async () => {
+      const config = {
+        version: 1,
+        // `notification` is unsupported by cursor and already reported as
+        // skipped, so it produces no output to be active in the first place.
+        hooks: { notification: [{ type: "command", command: "notify.sh", enabled: false }] },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
+      await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('Emitting "enabled: false"'),
+      );
     });
 
     it("should not warn about a disabled hook for kiro-ide, which honors the flag", async () => {
