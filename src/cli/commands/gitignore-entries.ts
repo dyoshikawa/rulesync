@@ -136,7 +136,6 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   { target: "copilotcli", feature: "subagents", entry: "**/.copilot/agents/" },
   { target: "copilotcli", feature: "mcp", entry: "**/.copilot/mcp-config.json" },
   { target: "copilotcli", feature: "hooks", entry: "**/.copilot/hooks/" },
-  { target: "deepagents", feature: "hooks", entry: "**/.deepagents/hooks.json" },
   // Hermes project plugins include generated Python/manifest/ownership files
   // alongside the primary patterns/check specs exposed by getSettablePaths.
   { target: "hermesagent", feature: "ignore", entry: "**/.hermes/plugins/rulesync-ignore/" },

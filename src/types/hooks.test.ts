@@ -137,10 +137,21 @@ describe("Factory Droid removed events", () => {
 });
 
 describe("DeepAgents event naming", () => {
-  it("should map canonical notification to dcode input.required", () => {
-    // Verified against https://docs.langchain.com/oss/python/deepagents/cli/configuration
-    expect(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES.notification).toBe("input.required");
+  it("should map canonical events to the Hooks v2 PascalCase HookEvent values", () => {
+    // Verified against langchain-ai/deepagents libs/code/deepagents_code/hooks/models/domain.py
+    // (Hooks v2, GA since deepagents-code 0.1.52).
+    expect(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES.notification).toBe("Notification");
+    expect(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES.sessionStart).toBe("SessionStart");
+    expect(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES.beforeSubmitPrompt).toBe("UserPromptSubmit");
+    expect(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES.stop).toBe("Stop");
     expect(DEEPAGENTS_HOOK_EVENTS).toContain("notification");
+    expect(DEEPAGENTS_HOOK_EVENTS).toContain("subagentStart");
+    expect(DEEPAGENTS_HOOK_EVENTS).toContain("subagentStop");
+  });
+
+  it("should drop contextOffload, which has no Hooks v2 counterpart", () => {
+    expect(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES.contextOffload).toBeUndefined();
+    expect(DEEPAGENTS_HOOK_EVENTS).not.toContain("contextOffload");
   });
 });
 

@@ -467,8 +467,9 @@ export const FACTORYDROID_HOOK_EVENTS: readonly HookEvent[] = [
 /**
  * Hook events supported by deepagents-cli (`deepagents-code` / `dcode`).
  *
- * The canonical `notification` event maps to dcode's `input.required`
- * (human-in-the-loop interrupt) — the closest documented equivalent.
+ * These are the twelve Hooks v2 `HookEvent` members, GA since deepagents-code
+ * 0.1.52. Canonical `contextOffload` is deliberately absent — see
+ * {@link CANONICAL_TO_DEEPAGENTS_EVENT_NAMES}.
  * https://docs.langchain.com/oss/python/deepagents/cli/configuration
  */
 export const DEEPAGENTS_HOOK_EVENTS: readonly HookEvent[] = [
@@ -481,8 +482,9 @@ export const DEEPAGENTS_HOOK_EVENTS: readonly HookEvent[] = [
   "postToolUseFailure",
   "stop",
   "preCompact",
-  "contextOffload",
   "notification",
+  "subagentStart",
+  "subagentStop",
 ];
 
 /** Hook events supported by Codex CLI. */
@@ -1282,30 +1284,62 @@ export const GOOSE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fro
 );
 
 /**
- * Map canonical camelCase event names to deepagents-cli dot-notation.
+ * Map canonical camelCase event names to the deepagents-cli Hooks v2
+ * `HookEvent` values.
+ *
+ * Hooks v2 went GA in deepagents-code 0.1.52 (2026-08-04) and replaced the
+ * legacy dot-notation names (`session.start`, `tool.use`, …) with these twelve
+ * PascalCase members. The legacy list format is still read, but is scheduled for
+ * removal on 2026-09-01 (`_LEGACY_HOOKS_REMOVAL_DATE` in `hooks/loading.py`).
+ *
+ * Canonical `contextOffload` has no v2 counterpart. Its legacy event
+ * (`context.offload`) is gone, and folding it onto `PreCompact` would silently
+ * merge two distinct canonical events into one — so it is dropped for
+ * deepagents instead, and reported by the hooks processor as an unsupported
+ * event like any other.
+ *
+ * @see https://github.com/langchain-ai/deepagents `libs/code/deepagents_code/hooks/models/domain.py`
  */
 export const CANONICAL_TO_DEEPAGENTS_EVENT_NAMES: Record<string, string> = {
-  sessionStart: "session.start",
-  sessionEnd: "session.end",
-  beforeSubmitPrompt: "user.prompt",
-  permissionRequest: "permission.request",
-  // Tool lifecycle events added upstream in deepagents-code 0.1.32.
-  preToolUse: "tool.use",
-  postToolUse: "tool.result",
-  postToolUseFailure: "tool.error",
-  stop: "task.complete",
-  preCompact: "context.compact",
-  contextOffload: "context.offload",
-  // dcode's human-in-the-loop interrupt; canonical `notification` is the closest fit.
-  notification: "input.required",
+  sessionStart: "SessionStart",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  sessionEnd: "SessionEnd",
+  permissionRequest: "PermissionRequest",
+  notification: "Notification",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  preCompact: "PreCompact",
+  stop: "Stop",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
 };
 
 /**
- * Map deepagents-cli dot-notation event names to canonical camelCase.
+ * Map deepagents-cli `HookEvent` values to canonical camelCase.
  */
 export const DEEPAGENTS_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
+
+/**
+ * The legacy dot-notation event names deepagents-cli used before Hooks v2.
+ * Kept for the read-only import path so a `hooks.json` still in the old format
+ * round-trips into canonical events instead of being silently discarded.
+ */
+export const DEEPAGENTS_LEGACY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = {
+  "session.start": "sessionStart",
+  "session.end": "sessionEnd",
+  "user.prompt": "beforeSubmitPrompt",
+  "permission.request": "permissionRequest",
+  "tool.use": "preToolUse",
+  "tool.result": "postToolUse",
+  "tool.error": "postToolUseFailure",
+  "task.complete": "stop",
+  "context.compact": "preCompact",
+  "context.offload": "contextOffload",
+  "input.required": "notification",
+};
 
 /**
  * Map canonical camelCase event names to Kiro CLI camelCase.

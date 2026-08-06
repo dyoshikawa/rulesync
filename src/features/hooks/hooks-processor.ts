@@ -422,10 +422,13 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     "deepagents",
     {
       class: DeepagentsHooks,
-      meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+      // Hooks v2 loads `{project_root}/.deepagents/hooks.json` ahead of the
+      // user-scoped `~/.deepagents/hooks.json`, so both scopes are writable.
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
       supportedEvents: DEEPAGENTS_HOOK_EVENTS,
       supportedHookTypes: ["command"],
-      supportsMatcher: false,
+      // v2 matcher groups carry the matcher; the pre-v2 flat list could not.
+      supportsMatcher: true,
     },
   ],
   [
@@ -623,8 +626,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
 ]);
 
 // Project-mode generation/import should only expose tools that actually write
-// hooks into the workspace. This keeps global-only targets like deepagents out
-// of project target lists while still allowing them in global mode.
+// hooks into the workspace. This keeps global-only targets out of project
+// target lists while still allowing them in global mode.
 const hooksProcessorToolTargets: ToolTarget[] = [...toolHooksFactories.entries()]
   .filter(([, f]) => f.meta.supportsProject)
   .map(([t]) => t);

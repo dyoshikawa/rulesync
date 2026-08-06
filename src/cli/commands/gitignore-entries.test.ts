@@ -182,7 +182,6 @@ describe("registry derivation", () => {
       "copilotcli::subagents::**/.copilot/agents/",
       "copilotcli::mcp::**/.copilot/mcp-config.json",
       "copilotcli::hooks::**/.copilot/hooks/",
-      "deepagents::hooks::**/.deepagents/hooks.json",
       "hermesagent::ignore::**/.hermes/plugins/rulesync-ignore/",
       "hermesagent::checks::**/.hermes/plugins/rulesync-checks/",
     ]);
