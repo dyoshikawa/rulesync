@@ -88,13 +88,18 @@ export class GooseHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
-  }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<GooseHooks> {
+    logger,
+  }: ToolHooksFromRulesyncHooksParams & {
+    global?: boolean;
+    logger?: Logger;
+  }): Promise<GooseHooks> {
     const paths = GooseHooks.getSettablePaths({ global });
     const config = rulesyncHooks.getJson();
     const gooseHooks = canonicalToToolHooks({
       config,
       toolOverrideHooks: config.goose?.hooks,
       converterConfig: GOOSE_CONVERTER_CONFIG,
+      logger,
     });
     const fileContent = JSON.stringify({ hooks: gooseHooks }, null, 2);
 

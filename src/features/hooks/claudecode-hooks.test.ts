@@ -40,6 +40,41 @@ describe("ClaudecodeHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
+    it("should warn when a command-only field is authored on a non-command hook", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "prompt", prompt: "Review this", shell: "bash", async: true }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const emitted = JSON.parse(claudecodeHooks.getFileContent()).hooks.PreToolUse[0].hooks[0];
+      expect(emitted).not.toHaveProperty("shell");
+      expect(emitted).not.toHaveProperty("async");
+      for (const field of ["shell", "async"]) {
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`Dropping "${field}" from a "prompt" hook`),
+        );
+      }
+    });
+
     it("should filter shared hooks to Claude-supported events and convert to PascalCase", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));

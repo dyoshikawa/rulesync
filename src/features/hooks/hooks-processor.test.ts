@@ -837,4 +837,31 @@ describe("HooksProcessor logger plumbing", () => {
       expect.stringContaining("belongs to the whole matcher group"),
     );
   });
+
+  it("names the tool in an adapter warning, since one run generates for many", async () => {
+    const mockLogger = createMockLogger();
+    const processor = new HooksProcessor({
+      outputRoot: testDir,
+      inputRoot: testDir,
+      toolTarget: "claudecode",
+      logger: mockLogger,
+    });
+
+    await processor.convertRulesyncFilesToToolFiles([
+      new RulesyncHooks({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.jsonc",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "prompt", prompt: "Review this", shell: "bash" }],
+          },
+        }),
+      }),
+    ]);
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`For claudecode: Dropping "shell" from a "prompt" hook`),
+    );
+  });
 });
