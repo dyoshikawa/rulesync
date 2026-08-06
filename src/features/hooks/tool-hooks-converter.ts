@@ -1,5 +1,7 @@
 import { posix, win32 } from "node:path";
 
+import { z } from "zod/mini";
+
 import {
   CONTROL_CHARS,
   type HookEvent,
@@ -332,21 +334,23 @@ type PassthroughValidator = (args: { value: unknown; canonical: string }) => boo
 function emitPassthroughFields<TValue>({
   def,
   hookType,
+  eventName,
   fields,
   isValid,
-  logger,
+  warn,
 }: {
   def: HooksConfig["hooks"][string][number];
   hookType: HookType;
+  eventName: string;
   fields: readonly PassthroughFieldSpec[];
   isValid: PassthroughValidator;
-  logger?: Logger;
+  warn?: (message: string) => void;
 }): Record<string, TValue> {
   for (const { canonical, tool, commandOnly } of fields) {
     if (!isFieldApplicable({ commandOnly, hookType }) && def[canonical] !== undefined) {
-      logger?.warn(
-        `Dropping "${canonical}" from a "${hookType}" hook: this tool documents "${tool}" on ` +
-          `"command" hooks only, so it is not generated.`,
+      warn?.(
+        `Dropping "${canonical}" from a "${hookType}" hook on "${eventName}": this tool documents ` +
+          `"${tool}" on "command" hooks only, so it is not generated.`,
       );
     }
   }
@@ -417,12 +421,24 @@ function importPassthroughFields<TValue>({
 const isBooleanValue: PassthroughValidator = ({ value }) => typeof value === "boolean";
 const isFiniteNumber: PassthroughValidator = ({ value }) => Number.isFinite(value);
 const isNonEmptyString = (value: unknown): boolean => typeof value === "string" && value !== "";
+const isEmittableString: PassthroughValidator = ({ value }) => isNonEmptyString(value);
+const isEmittableArray: PassthroughValidator = ({ value }) => isStringArray(value);
+const isEmittableRecord: PassthroughValidator = ({ value }) => isSafeStringRecord(value);
+const isImportableArray: PassthroughValidator = ({ value }) => isSafeStringArray(value);
+
+/**
+ * The canonical schema of one hook field, looked up by name. Read off the
+ * schema's own shape rather than by parsing a one-field object, so a `canonical`
+ * name that no longer exists resolves to `undefined` (a `looseObject` would
+ * accept an unknown key and silently validate nothing) and a typo is caught by
+ * the tests instead of quietly disabling the check.
+ */
+const CANONICAL_FIELD_SCHEMAS: Partial<Record<string, z.ZodMiniType>> =
+  HookDefinitionSchema.def.shape;
 
 /**
  * Whether a value satisfies the constraints the canonical schema puts on the
- * field it would be imported into. Every canonical field is optional and the
- * schema carries no cross-field rules, so validating a one-field object
- * validates exactly that field.
+ * field it would be imported into.
  *
  * Import needs this on top of the kind's shape check: a hand-written tool
  * settings file can hold `"shell": "zsh"`, which is a non-empty string but not
@@ -430,8 +446,15 @@ const isNonEmptyString = (value: unknown): boolean => typeof value === "string" 
  * would write a `.rulesync/hooks.jsonc` that fails validation on the *next*
  * run, taking the whole hooks feature down with it.
  */
-function satisfiesCanonicalField({ value, canonical }: { value: unknown; canonical: string }) {
-  return HookDefinitionSchema.safeParse({ [canonical]: value }).success;
+function satisfiesCanonicalField({
+  value,
+  canonical,
+}: {
+  value: unknown;
+  canonical: string;
+}): boolean {
+  const schema = CANONICAL_FIELD_SCHEMAS[canonical];
+  return schema !== undefined && z.safeParse(schema, value).success;
 }
 
 const isImportableString: PassthroughValidator = ({ value, canonical }) =>
@@ -439,6 +462,33 @@ const isImportableString: PassthroughValidator = ({ value, canonical }) =>
 
 const isImportableNumber: PassthroughValidator = ({ value, canonical }) =>
   Number.isFinite(value) && satisfiesCanonicalField({ value, canonical });
+
+/**
+ * Say which rule the value broke, so the warning names the actual constraint
+ * rather than asserting a canonical rejection that may not be the reason. A
+ * closed enum lists its members; a rule carrying its own message (the
+ * control-character check behind `safeString`) reuses it.
+ */
+function describeScalarConstraint({
+  canonical,
+  value,
+}: {
+  canonical: string;
+  value: unknown;
+}): string {
+  const schema = CANONICAL_FIELD_SCHEMAS[canonical];
+  const result = schema === undefined ? undefined : z.safeParse(schema, value);
+  if (result === undefined || result.success) {
+    // Rejected by the kind's own rule instead: a string field is not carried
+    // through empty, since the emit side would drop it again on the next run.
+    return `it is not a value this field carries through.`;
+  }
+  const issue = result.error.issues[0];
+  if (issue === undefined) {
+    return `it is not a value the canonical "${canonical}" field accepts.`;
+  }
+  return `it does not satisfy the canonical "${canonical}" field: ${issue.message}.`;
+}
 
 const describeInvalidScalar = ({
   tool,
@@ -449,8 +499,9 @@ const describeInvalidScalar = ({
   canonical: string;
   value: unknown;
 }): string =>
-  `Dropping "${tool}" (${JSON.stringify(value)}) while importing a hook: it is not a value the ` +
-  `canonical "${canonical}" field accepts, so importing it would fail validation on the next run.`;
+  `Dropping "${tool}" (${JSON.stringify(value)}) while importing a hook: ` +
+  `${describeScalarConstraint({ canonical, value })} Importing it would fail validation on the ` +
+  `next run.`;
 
 const describeInvalidArray = ({ tool }: { tool: string }): string =>
   `Dropping "${tool}" while importing a hook: it must be a list of strings without ` +
@@ -588,61 +639,70 @@ function isSupportedHookType({
 function emitAllPassthroughFields({
   def,
   hookType,
+  eventName,
   converterConfig,
-  logger,
+  warn,
 }: {
   def: HooksConfig["hooks"][string][number];
   hookType: HookType;
+  eventName: string;
   converterConfig: ToolHooksConverterConfig;
-  logger?: Logger;
+  warn?: (message: string) => void;
 }): Record<string, unknown> {
   return {
     ...emitPassthroughFields<boolean>({
       def,
       hookType,
+      eventName,
       fields: converterConfig.booleanPassthroughFields ?? [],
       isValid: isBooleanValue,
-      logger,
+      warn,
     }),
     ...emitPassthroughFields<number>({
       def,
       hookType,
+      eventName,
       fields: converterConfig.numberPassthroughFields ?? [],
       isValid: isFiniteNumber,
-      logger,
+      warn,
     }),
     ...emitPassthroughFields<string>({
       def,
       hookType,
+      eventName,
       fields: converterConfig.stringPassthroughFields ?? [],
-      isValid: ({ value }) => isNonEmptyString(value),
-      logger,
+      isValid: isEmittableString,
+      warn,
     }),
     ...emitPassthroughFields<string[]>({
       def,
       hookType,
+      eventName,
       fields: converterConfig.arrayPassthroughFields ?? [],
-      isValid: ({ value }) => isStringArray(value),
-      logger,
+      isValid: isEmittableArray,
+      warn,
     }),
     ...emitPassthroughFields<Record<string, string>>({
       def,
       hookType,
+      eventName,
       fields: converterConfig.recordPassthroughFields ?? [],
-      isValid: ({ value }) => isSafeStringRecord(value),
-      logger,
+      isValid: isEmittableRecord,
+      warn,
     }),
   };
 }
 
 function buildToolHooks({
   defs,
+  eventName,
   converterConfig,
-  logger,
+  warn,
 }: {
   defs: HooksConfig["hooks"][string];
+  eventName: string;
   converterConfig: ToolHooksConverterConfig;
-  logger?: Logger;
+  warn?: (message: string) => void;
 }): Array<Record<string, unknown>> {
   const hooks: Array<Record<string, unknown>> = [];
   for (const def of defs) {
@@ -655,7 +715,7 @@ function buildToolHooks({
       // Spread every passthrough field first so the explicitly-handled core
       // fields below always win: a misconfigured `tool` name (e.g. mapping onto
       // "type"/"command") can never silently shadow them.
-      ...emitAllPassthroughFields({ def, hookType, converterConfig, logger }),
+      ...emitAllPassthroughFields({ def, hookType, eventName, converterConfig, warn }),
       type: hookType,
       ...(command !== undefined && command !== null && { command }),
       ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
@@ -673,6 +733,20 @@ function buildToolHooks({
     });
   }
   return hooks;
+}
+
+/**
+ * A `warn` that says each distinct thing once per conversion.
+ */
+function warnOnce(logger: Logger | undefined): (message: string) => void {
+  const seen = new Set<string>();
+  return (message) => {
+    if (seen.has(message)) {
+      return;
+    }
+    seen.add(message);
+    logger?.warn(message);
+  };
 }
 
 /**
@@ -697,6 +771,11 @@ export function canonicalToToolHooks({
     toolOverrideHooks,
     supportedEvents: converterConfig.supportedEvents,
   });
+  // A field authored in the wrong place is usually authored once and matched by
+  // several hooks of the same event, so the same sentence would otherwise be
+  // repeated per hook. It names the canonical field, the hook type and the
+  // event, so one line already says everything the user needs.
+  const warn = warnOnce(logger);
   const result: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
     const toolEventName = converterConfig.canonicalToToolEventNames[eventName] ?? eventName;
@@ -709,7 +788,7 @@ export function canonicalToToolHooks({
           `matcher "${matcherKey}" on "${eventName}" hook will be ignored — this event does not support matchers`,
         );
       }
-      const hooks = buildToolHooks({ defs, converterConfig, logger });
+      const hooks = buildToolHooks({ defs, eventName, converterConfig, warn });
       if (hooks.length === 0) {
         continue;
       }
@@ -846,34 +925,70 @@ function isSafeStringArray(value: unknown): value is string[] {
 }
 
 /**
+ * A raw string kept only if the canonical field it would land in accepts it,
+ * warning when it does not. The canonical string fields are guarded by
+ * `safeString`, so an existing tool config carrying a control character would
+ * otherwise be imported into a file the next generate refuses to read.
+ */
+function importCanonicalString({
+  value,
+  canonical,
+  logger,
+}: {
+  value: unknown;
+  canonical: string;
+  logger?: Logger;
+}): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  if (satisfiesCanonicalField({ value, canonical })) {
+    return value;
+  }
+  logger?.warn(describeInvalidScalar({ tool: canonical, canonical, value }));
+  return undefined;
+}
+
+/**
  * Import the payload fields specific to a hook type, type-checking each raw
  * value before it enters the canonical definition.
  */
 function importTypePayloadFields({
   h,
   hookType,
+  logger,
 }: {
   h: Record<string, unknown>;
   hookType: HookType;
+  logger?: Logger;
 }): Partial<HooksConfig["hooks"][string][number]> {
   if (hookType === "http") {
+    const url = importCanonicalString({ value: h.url, canonical: "url", logger });
     return {
-      ...(typeof h.url === "string" && { url: h.url }),
-      ...(isStringRecord(h.headers) && { headers: h.headers }),
+      ...(url !== undefined && { url }),
+      // The canonical check covers the values too: they carry `safeString`,
+      // which the shape check alone does not enforce.
+      ...(isStringRecord(h.headers) &&
+        satisfiesCanonicalField({ value: h.headers, canonical: "headers" }) && {
+          headers: h.headers,
+        }),
       ...(isStringArray(h.allowedEnvVars) && { allowedEnvVars: h.allowedEnvVars }),
     };
   }
   if (hookType === "mcp_tool") {
+    const server = importCanonicalString({ value: h.server, canonical: "server", logger });
+    const tool = importCanonicalString({ value: h.tool, canonical: "tool", logger });
     return {
-      ...(typeof h.server === "string" && { server: h.server }),
-      ...(typeof h.tool === "string" && { tool: h.tool }),
+      ...(server !== undefined && { server }),
+      ...(tool !== undefined && { tool }),
       ...(h.input !== null &&
         typeof h.input === "object" &&
         !Array.isArray(h.input) && { input: h.input as Record<string, unknown> }),
     };
   }
   if (hookType === "prompt" || hookType === "agent") {
-    return typeof h.model === "string" ? { model: h.model } : {};
+    const model = importCanonicalString({ value: h.model, canonical: "model", logger });
+    return model !== undefined ? { model } : {};
   }
   return {};
 }
@@ -929,7 +1044,7 @@ function importAllPassthroughFields({
       fields: converterConfig.arrayPassthroughFields ?? [],
       // Stricter than the emit side: control characters cannot ride from an
       // existing tool config into a canonical field guarded by `safeString`.
-      isValid: ({ value }) => isSafeStringArray(value),
+      isValid: isImportableArray,
       describeInvalid: describeInvalidArray,
       logger,
     }),
@@ -937,7 +1052,7 @@ function importAllPassthroughFields({
       h,
       hookType,
       fields: converterConfig.recordPassthroughFields ?? [],
-      isValid: ({ value }) => isSafeStringRecord(value),
+      isValid: isEmittableRecord,
       describeInvalid: describeInvalidRecord,
       logger,
     }),
@@ -962,6 +1077,17 @@ function toolHookToCanonical({
   const hookType = isImportedHookType(h.type) ? h.type : "command";
   const timeout = typeof h.timeout === "number" ? h.timeout : undefined;
   const prompt = typeof h.prompt === "string" ? h.prompt : undefined;
+  const name = importCanonicalString({ value: h.name, canonical: "name", logger });
+  const description = importCanonicalString({
+    value: h.description,
+    canonical: "description",
+    logger,
+  });
+  const matcher = importCanonicalString({
+    value: rawEntry.matcher,
+    canonical: "matcher",
+    logger,
+  });
   return {
     type: hookType,
     ...(command !== undefined && command !== null && { command }),
@@ -970,16 +1096,13 @@ function toolHookToCanonical({
     // Type-specific payload fields, preserved so http/mcp_tool/agent hooks
     // found in an existing settings file round-trip instead of silently
     // degrading to broken command hooks.
-    ...importTypePayloadFields({ h, hookType }),
-    ...(converterConfig.passthroughFields?.includes("name") &&
-      typeof h.name === "string" && { name: h.name }),
+    ...importTypePayloadFields({ h, hookType, logger }),
+    ...(converterConfig.passthroughFields?.includes("name") && name !== undefined && { name }),
     ...(converterConfig.passthroughFields?.includes("description") &&
-      typeof h.description === "string" && { description: h.description }),
+      description !== undefined && { description }),
     ...importAllPassthroughFields({ h, hookType, converterConfig, logger }),
     ...importGroupPassthroughFields({ rawEntry, converterConfig }),
-    ...(rawEntry.matcher !== undefined &&
-      rawEntry.matcher !== null &&
-      rawEntry.matcher !== "" && { matcher: rawEntry.matcher }),
+    ...(matcher !== undefined && matcher !== "" && { matcher }),
   };
 }
 

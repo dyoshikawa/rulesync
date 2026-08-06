@@ -242,6 +242,22 @@ describe("canonicalToToolHooks", () => {
     },
   );
 
+  it("says the same thing once when several hooks of an event repeat the mistake", () => {
+    const logger = createMockLogger();
+    const definition = { type: "prompt", prompt: "Review this", shell: "bash" } as const;
+    canonicalToToolHooks({
+      config: { version: 1, hooks: { preToolUse: [definition, definition, definition] } },
+      toolOverrideHooks: undefined,
+      converterConfig: {
+        ...BASE_CONFIG,
+        stringPassthroughFields: [{ canonical: "shell", tool: "shell", commandOnly: true }],
+      },
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+
   it("emits a field that is not registered as commandOnly on a non-command hook", () => {
     const { hook, logger } = emitHook({
       definition: { type: "prompt", prompt: "Review this", once: true },
@@ -272,6 +288,7 @@ const CANONICALLY_INVALID_IMPORTS = [
     canonical: "shell",
     invalid: "zsh",
     valid: "powershell",
+    reason: 'Invalid option: expected one of "bash"|"powershell"',
   },
   {
     kind: "a control character in a safeString field",
@@ -283,6 +300,7 @@ const CANONICALLY_INVALID_IMPORTS = [
     canonical: "statusMessage",
     invalid: "Running\nInjected: true",
     valid: "Running the formatter",
+    reason: "must not contain newline, carriage return, or NUL characters",
   },
   {
     kind: "a fractional number in an integer field",
@@ -296,6 +314,7 @@ const CANONICALLY_INVALID_IMPORTS = [
     canonical: "additionalContextLimit",
     invalid: 12.5,
     valid: 2500,
+    reason: "Invalid input: expected int, received number",
   },
   {
     kind: "a negative number in a non-negative field",
@@ -309,12 +328,13 @@ const CANONICALLY_INVALID_IMPORTS = [
     canonical: "additionalContextLimit",
     invalid: -1,
     valid: 0,
+    reason: "Too small: expected number to be >=0",
   },
 ] as const;
 
 describe.each(CANONICALLY_INVALID_IMPORTS)(
   "toolHooksToCanonical with $kind",
-  ({ converterConfig, tool, canonical, invalid, valid }) => {
+  ({ converterConfig, tool, canonical, invalid, valid, reason }) => {
     it("skips the value and warns instead of importing it", () => {
       const { definition, logger } = importHook({
         hook: { type: "command", command: "./run.sh", [tool]: invalid },
@@ -323,7 +343,9 @@ describe.each(CANONICALLY_INVALID_IMPORTS)(
 
       expect(definition).not.toHaveProperty(canonical);
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`is not a value the canonical "${canonical}" field accepts`),
+        expect.stringContaining(
+          `it does not satisfy the canonical "${canonical}" field: ${reason}`,
+        ),
       );
     });
 
@@ -338,6 +360,56 @@ describe.each(CANONICALLY_INVALID_IMPORTS)(
     });
   },
 );
+
+describe("toolHooksToCanonical with a value rejected by the kind rather than the schema", () => {
+  it("skips an empty string and says which rule rejected it", () => {
+    const { definition, logger } = importHook({
+      hook: { type: "command", command: "./run.sh", statusMessage: "" },
+      converterConfig: {
+        ...BASE_CONFIG,
+        stringPassthroughFields: [{ canonical: "statusMessage", tool: "statusMessage" }],
+      },
+    });
+
+    expect(definition).not.toHaveProperty("statusMessage");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("it is not a value this field carries through"),
+    );
+  });
+});
+
+describe("toolHooksToCanonical for fields outside the passthrough kinds", () => {
+  it.each([
+    { field: "name", hook: { type: "command", command: "./run.sh", name: "lint\nrm -rf /" } },
+    {
+      field: "description",
+      hook: { type: "command", command: "./run.sh", description: "runs\0lint" },
+    },
+    { field: "url", hook: { type: "http", url: "https://example.com/\nX-Injected: 1" } },
+    { field: "model", hook: { type: "prompt", prompt: "Check", model: "sonnet\n" } },
+    { field: "server", hook: { type: "mcp_tool", server: "files\n", tool: "read" } },
+  ])("skips $field when it carries a control character, and warns", ({ field, hook }) => {
+    const { definition, logger } = importHook({
+      hook,
+      converterConfig: { ...BASE_CONFIG, passthroughFields: ["name", "description"] },
+    });
+
+    expect(definition).not.toHaveProperty(field);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`Dropping "${field}"`));
+  });
+
+  it("skips a matcher that carries a control character, and warns", () => {
+    const logger = createMockLogger();
+    const canonical = toolHooksToCanonical({
+      hooks: { PreToolUse: [{ matcher: "Bash\n", hooks: [{ command: "./run.sh" }] }] },
+      converterConfig: BASE_CONFIG,
+      logger,
+    });
+
+    expect(canonical.preToolUse?.[0]).not.toHaveProperty("matcher");
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`Dropping "matcher"`));
+  });
+});
 
 /** The fields Claude Code documents on `command` hooks only. */
 const CLAUDE_COMMAND_ONLY_FIELDS = {
