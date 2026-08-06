@@ -109,8 +109,18 @@ describe("toolHooksToCanonical", () => {
 
         expect(definition).not.toHaveProperty(canonical);
         expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining(`Dropping "${tool}" while importing a "prompt" hook`),
+          expect.stringContaining(`Dropping "${tool}" from an imported "prompt" hook`),
         );
+      });
+
+      it("imports the value on a hook record without a type, which defaults to command", () => {
+        const { definition, logger } = importHook({
+          hook: { command: "./run.sh", [tool]: value },
+          converterConfig,
+        });
+
+        expect(definition).toMatchObject({ [canonical]: value });
+        expect(logger.warn).not.toHaveBeenCalled();
       });
 
       it("stays silent on a non-command hook that does not carry the field", () => {
@@ -169,26 +179,49 @@ describe("toolHooksToCanonical", () => {
   });
 });
 
+/** The fields Claude Code documents on `command` hooks only. */
+const CLAUDE_COMMAND_ONLY_FIELDS = {
+  args: ["--verbose"],
+  shell: "bash",
+  async: true,
+  asyncRewake: true,
+};
+
+function importClaudeHook(hook: Record<string, unknown>) {
+  const logger = createMockLogger();
+  const hooks = new ClaudecodeHooks({
+    relativeDirPath: ".claude",
+    relativeFilePath: "settings.json",
+    fileContent: JSON.stringify({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [hook] }] } }),
+  });
+  const imported = JSON.parse(hooks.toRulesyncHooks({ logger }).getFileContent());
+  return { definition: imported.hooks.preToolUse[0], logger };
+}
+
 describe("ClaudecodeHooks.toRulesyncHooks", () => {
   it("threads the logger into the converter so import warnings reach the user", () => {
-    const logger = createMockLogger();
-    const hooks = new ClaudecodeHooks({
-      relativeDirPath: ".claude",
-      relativeFilePath: "settings.json",
-      fileContent: JSON.stringify({
-        hooks: {
-          PreToolUse: [
-            { matcher: "Bash", hooks: [{ type: "prompt", prompt: "Check", args: ["--verbose"] }] },
-          ],
-        },
-      }),
+    const { definition, logger } = importClaudeHook({
+      type: "prompt",
+      prompt: "Check",
+      ...CLAUDE_COMMAND_ONLY_FIELDS,
     });
 
-    const rulesyncHooks = hooks.toRulesyncHooks({ logger });
+    for (const field of Object.keys(CLAUDE_COMMAND_ONLY_FIELDS)) {
+      expect(definition).not.toHaveProperty(field);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`Dropping "${field}" from an imported "prompt" hook`),
+      );
+    }
+  });
 
-    expect(rulesyncHooks.getFileContent()).not.toContain("args");
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining(`Dropping "args" while importing a "prompt" hook`),
-    );
+  it("keeps the same fields on a command hook", () => {
+    const { definition, logger } = importClaudeHook({
+      type: "command",
+      command: "./run.sh",
+      ...CLAUDE_COMMAND_ONLY_FIELDS,
+    });
+
+    expect(definition).toMatchObject(CLAUDE_COMMAND_ONLY_FIELDS);
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 });

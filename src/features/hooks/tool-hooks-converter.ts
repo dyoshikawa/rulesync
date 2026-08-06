@@ -357,23 +357,23 @@ function importPassthroughFields<TValue>({
   describeInvalid?: (tool: string) => string;
   logger?: Logger;
 }): Record<string, TValue> {
-  const applicable = fields.filter(({ tool, commandOnly }) => {
-    if (isFieldApplicable({ commandOnly, hookType })) {
-      return true;
-    }
+  const applicable = fields.filter(({ commandOnly }) =>
+    isFieldApplicable({ commandOnly, hookType }),
+  );
+  const skipped = fields.filter(({ commandOnly }) => !isFieldApplicable({ commandOnly, hookType }));
+  // Warned rather than dropped silently, for the callers that thread a logger
+  // through: neither an inapplicable nor an unusable value survives the import,
+  // so it is gone from the canonical config the next generate reads.
+  for (const { tool } of skipped) {
     if (h[tool] !== undefined) {
       logger?.warn(
-        `Dropping "${tool}" while importing a "${hookType}" hook: this tool documents it on ` +
-          `"command" hooks only, so the value would be dropped on the next generate.`,
+        `Dropping "${tool}" from an imported "${hookType}" hook: this tool documents it on ` +
+          `"command" hooks only, so it is not imported.`,
       );
     }
-    return false;
-  });
+  }
   for (const { tool } of applicable) {
     if (describeInvalid !== undefined && h[tool] !== undefined && !isValid(h[tool])) {
-      // Warned rather than dropped silently, for the callers that thread a
-      // logger through: the `hooks` key is owned in some tools' shared config,
-      // so an unusable value disappears from the file on the next generate.
       logger?.warn(describeInvalid(tool));
     }
   }
