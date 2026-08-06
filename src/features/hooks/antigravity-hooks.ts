@@ -58,7 +58,9 @@ const ANTIGRAVITY_HOOK_NAME = "rulesync";
  * map for import. Accepts both the documented named-hook shape
  * (`{ "<name>": { "<Event>": [...], "enabled"?: bool } }`) and a legacy flat
  * shape (`{ "<Event>": [...] }`) so older or hand-written files still import.
- * The per-hook `enabled` flag is ignored (canonical hooks have no equivalent).
+ * The per-hook `enabled` flag is ignored. The canonical `enabled` field is a
+ * property of a single hook definition, whereas Antigravity's flag gates a whole
+ * named group, so the two do not map onto each other.
  */
 function flattenAntigravityHooks(parsed: unknown): Record<string, unknown> {
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {

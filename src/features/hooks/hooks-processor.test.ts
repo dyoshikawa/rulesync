@@ -437,6 +437,56 @@ describe("HooksProcessor", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("prompt-type"));
     });
 
+    it("should warn that a disabled hook is emitted as active outside kiro-ide", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "command", command: "lint.sh", enabled: false }],
+          stop: [{ type: "command", command: "done.sh" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Emitting "enabled: false" hook(s) as active for claudecode'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("preToolUse"));
+    });
+
+    it("should not warn about a disabled hook for kiro-ide, which honors the flag", async () => {
+      const config = {
+        version: 1,
+        hooks: { preToolUse: [{ type: "command", command: "lint.sh", enabled: false }] },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "kiro-ide" });
+      await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('Emitting "enabled: false"'),
+      );
+    });
+
     it("should log warning when matcher hooks exist and target does not support them", async () => {
       const config = {
         version: 1,

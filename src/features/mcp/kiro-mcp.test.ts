@@ -127,6 +127,24 @@ describe("KiroMcp", () => {
         },
       });
     });
+
+    it("should keep an explicitly authored empty list so generate stays idempotent", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { api: { command: "node", disabledTools: [] } },
+        }),
+        validate: true,
+      });
+
+      const kiroMcp = KiroMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      expect(JSON.parse(kiroMcp.getFileContent())).toEqual({
+        mcpServers: { api: { command: "node", disabledTools: [] } },
+      });
+    });
   });
 
   describe("fromFile", () => {
@@ -205,6 +223,26 @@ describe("KiroMcp", () => {
             disabledTools: ["delete_file"],
           },
         },
+      });
+    });
+
+    it("should leave a non-array autoApprove alone so the import stays parseable", () => {
+      const kiroMcp = new KiroMcp({
+        outputRoot: testDir,
+        relativeDirPath: join(".kiro", "settings"),
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { api: { command: "node", autoApprove: "all" } },
+        }),
+        validate: true,
+      });
+
+      const rulesyncMcp = kiroMcp.toRulesyncMcp();
+
+      // `kiroAutoApprove` is typed as a string array, so renaming a bare string
+      // onto it would produce a rulesync file the next generate cannot parse.
+      expect(rulesyncMcp.getMcpServers()).toEqual({
+        api: { command: "node", autoApprove: "all" },
       });
     });
   });

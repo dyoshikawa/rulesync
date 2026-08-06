@@ -773,6 +773,23 @@ export class HooksProcessor extends FeatureProcessor {
       }
     }
 
+    // Warn that `enabled: false` cannot be expressed outside Kiro IDE. Kiro IDE
+    // is the only target with an on-disk per-definition enable flag; everywhere
+    // else the hook is emitted as an ordinary, active hook, so a user who paused
+    // one hook would otherwise see it keep firing with no explanation.
+    if (this.toolTarget !== "kiro-ide") {
+      const eventsWithDisabledHooks = Object.entries(effectiveHooks)
+        .filter(([, defs]) =>
+          (defs as { enabled?: unknown }[]).some((def) => def.enabled === false),
+        )
+        .map(([event]) => event);
+      if (eventsWithDisabledHooks.length > 0) {
+        this.logger.warn(
+          `Emitting "enabled: false" hook(s) as active for ${this.toolTarget} (only kiro-ide supports the flag): ${eventsWithDisabledHooks.join(", ")}`,
+        );
+      }
+    }
+
     // Warn about unsupported matcher
     const eventsWithUnsupportedMatcher = unsupportedMatcherEventNames({ factory, effectiveHooks });
     if (eventsWithUnsupportedMatcher.length > 0) {
