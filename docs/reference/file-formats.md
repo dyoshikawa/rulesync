@@ -722,6 +722,9 @@ copilot: # for GitHub Copilot-specific parameters (optional; project .github/ski
   user-invocable: true # (optional, default true) whether users can run it with /SKILL-NAME
   disable-model-invocation: false # (optional, default false) stop the agent from invoking it on its own
   context: fork # (optional, experimental) run the skill in a forked session (VS Code 1.118+)
+  # Any other frontmatter key found in a hand-written SKILL.md is imported into this section and
+  # written back out, so a field Rulesync does not model is not lost on regeneration. `name` and
+  # `description` are the exception: they have canonical homes at the top level.
   # `copilot` and `copilotcli` write the same SKILL.md path at both scopes, so with both targets
   # enabled the one generated last wins — and that is the order the targets are listed in, so which
   # section decides the file is not fixed. Set the value in both sections (or, for the two invocation
