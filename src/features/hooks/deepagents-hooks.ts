@@ -92,6 +92,9 @@ function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHooksFile["h
         def.matcher !== undefined && def.matcher !== null && def.matcher !== ""
           ? def.matcher
           : undefined;
+      // Grouping by matcher keeps authored order within a group but not across
+      // groups: [Bash:A, unmatched:B, Bash:C] runs A, C, B for a Bash call,
+      // and upstream lets the first handler that stops processing decide.
       const groups = (hooks[deepagentsEvent] ??= []);
       const group = groups.find((candidate) => candidate.matcher === matcher);
       if (group) {
