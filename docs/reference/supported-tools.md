@@ -71,6 +71,15 @@ platform default: `~/.hermes` everywhere except Windows, where it is
 the profile, it also takes precedence over `--output-roots` in global scope.
 Project-scoped paths remain rooted in the project.
 
+Changing which profile root Rulesync resolves strands whatever it generated
+under the previous one. `--delete` reconciles only the root resolved for the
+current run, so files under a root it no longer resolves are invisible to it and
+must be removed by hand once you are sure Hermes no longer reads them. This
+applies whenever you set or change `HERMES_HOME`, and to two upgrades that moved
+the resolved root on their own: before v16.0.0 global files went to `~/.hermes`
+even when `HERMES_HOME` was set, and before v16.2.0 they went there on Windows
+too, rather than to `%LOCALAPPDATA%\hermes`.
+
 Project plugins are registered by adding their names to
 `$HERMES_HOME/config.yaml`, but Rulesync does not persist Hermes's global
 project-plugin trust gate. Run Hermes from a trusted project root with
