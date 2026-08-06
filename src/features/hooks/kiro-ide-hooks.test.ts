@@ -147,6 +147,49 @@ describe("KiroIdeHooks", () => {
     expect(canonical.hooks.stop[0].prompt).toBe("Summarize");
   });
 
+  it("round-trips a disabled hook instead of silently reactivating it", async () => {
+    const hooks = new KiroIdeHooks({
+      outputRoot: testDir,
+      relativeDirPath: join(".kiro", "hooks"),
+      relativeFilePath: "rulesync.json",
+      fileContent: JSON.stringify({
+        version: "v1",
+        hooks: [
+          {
+            name: "paused-lint",
+            trigger: "PreToolUse",
+            action: { type: "command", command: "echo lint" },
+            enabled: false,
+          },
+          {
+            name: "active-lint",
+            trigger: "Stop",
+            action: { type: "command", command: "echo done" },
+            enabled: true,
+          },
+        ],
+      }),
+    });
+
+    const rulesyncHooks = hooks.toRulesyncHooks();
+    const canonical = JSON.parse(rulesyncHooks.getFileContent());
+    expect(canonical.hooks.preToolUse[0].enabled).toBe(false);
+    // `true` is Kiro's default, so it is not written back into the canonical file.
+    expect(canonical.hooks.stop[0].enabled).toBeUndefined();
+    expect(HooksConfigSchema.safeParse(canonical).success).toBe(true);
+
+    const regenerated = await KiroIdeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks,
+    });
+    const entries = JSON.parse(regenerated.getFileContent()).hooks as {
+      name: string;
+      enabled: boolean;
+    }[];
+    expect(entries.find((entry) => entry.name === "paused-lint")?.enabled).toBe(false);
+    expect(entries.find((entry) => entry.name === "active-lint")?.enabled).toBe(true);
+  });
+
   it("routes IDE-only triggers into the kiro-ide override block on import", async () => {
     const hooks = new KiroIdeHooks({
       outputRoot: testDir,

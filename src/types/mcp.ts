@@ -72,7 +72,14 @@ export const McpServerSchema = z.looseObject({
   transport: z.optional(z.enum(["local", "stdio", "sse", "http", "ws", "streamable-http"])),
   alwaysAllow: z.optional(z.array(z.string())),
   tools: z.optional(z.array(z.string())),
+  // Kiro authoring keys, translated by `kiro-mcp.ts` onto the fields Kiro reads
+  // (`autoApprove` / `disabledTools`). https://kiro.dev/docs/mcp/configuration/
   kiroAutoApprove: z.optional(z.array(z.string())),
+  // Prefer the canonical `disabledTools` below. `disabledTools` is the only
+  // block list Kiro reads, so `kiroAutoBlock` is a redundant spelling of it with
+  // no import counterpart: a Kiro config imported after a generate comes back as
+  // canonical `disabledTools`, which then also reaches the other targets that
+  // support it. Authoring `disabledTools` directly makes that scope explicit.
   kiroAutoBlock: z.optional(z.array(z.string())),
   headers: z.optional(z.record(z.string(), z.string())),
   enabledTools: z.optional(z.array(z.string())),

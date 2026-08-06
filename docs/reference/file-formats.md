@@ -185,6 +185,7 @@ Example:
 - `commandWindows` (optional): a Windows-only override for `command`, so one hook set can be cross-platform. Forwarded to Codex CLI command hooks (`.codex/hooks.json`), which is the only tool that accepts it.
 - `additionalContextLimit` (optional): a non-negative integer. The token threshold above which the tool writes the hook's additional context to a file and passes that path instead of the text itself (upstream default 2500). Forwarded to Codex CLI command hooks (`.codex/hooks.json`), which is the only tool that accepts it.
 - `statusMessage` (optional): the progress text shown while the hook runs. Forwarded to Qwen Code (command and http hooks) and to Codex CLI command hooks.
+- `enabled` (optional): boolean, default `true`. Whether the hook is active. Forwarded to Kiro IDE (`.kiro/hooks/rulesync.json`), the only tool with a per-hook on-disk enable flag Rulesync writes; an imported `enabled: false` round-trips, so a deliberately disabled hook is not silently switched back on by the next generate. Every other target has no way to express it, so the hook is emitted there as an ordinary **active** hook and a warning is logged at generate time — to turn a hook off everywhere, remove it rather than setting `enabled: false`. (Antigravity has an `enabled` flag of its own, but on the named hook group rather than the individual definition, so it is not driven by this field.)
 - `if` (optional): a single permission rule (same syntax as `settings.json` permission rules, e.g. `"Bash(rm *)"`) that filters a hook by tool arguments in addition to the tool name. Forwarded to Claude Code, where it is evaluated only on tool events (`preToolUse`, `postToolUse`, `postToolUseFailure`, `permissionRequest`, `permissionDenied`); it round-trips as an opaque string.
 
 Top-level `hooks` keys must be canonical event names; unknown event names are rejected at parse time. Tool-specific override blocks (e.g. `kiro-ide.hooks`) additionally accept tool-native event keys, which pass through verbatim.
@@ -704,6 +705,14 @@ kilo: # for Kilo Code-specific parameters (optional)
   allowed-tools: # (optional) backward-compat passthrough; not part of Kilo's official SKILL.md frontmatter
     - "Bash"
     - "Read"
+kiro: # for Kiro-specific parameters (optional; project .kiro/skills/, global ~/.kiro/skills/)
+  license: MIT # (optional)
+  compatibility: "Requires network access" # (optional) free-form string (an object is also accepted for back-compat)
+  metadata: # (optional) free-form metadata
+    author: rulesync
+  # Any other frontmatter key found in a hand-written SKILL.md is imported into this section and
+  # written back out, so a field Rulesync does not model is not lost on regeneration. `name` and
+  # `description` are the exception: they have canonical homes at the top level.
 kimi-code: # for Kimi Code-specific parameters (optional; project/global .kimi-code/skills/)
   type: inline # (optional) prompt, inline, or flow
   whenToUse: "When reviewing pull requests" # (optional) model invocation hint
@@ -946,7 +955,7 @@ You can control which individual tools from an MCP server are enabled or disable
 - `enabledTools`: An array of tool names that should be explicitly enabled for this server.
 - `disabledTools`: An array of tool names that should be explicitly disabled for this server.
 
-> **Kiro note:** Kiro MCP servers are written under `mcpServers` in `.kiro/settings/mcp.json` (project) and `~/.kiro/settings/mcp.json` (global). Kiro supports `disabledTools` natively and Rulesync preserves it on generate and import. Kiro does not expose a corresponding per-server `enabledTools` allowlist, so that field is omitted for Kiro targets.
+> **Kiro note:** Kiro MCP servers are written under `mcpServers` in `.kiro/settings/mcp.json` (project) and `~/.kiro/settings/mcp.json` (global). Kiro supports `disabledTools` natively and Rulesync preserves it on generate and import. Kiro does not expose a corresponding per-server `enabledTools` allowlist, so that field is omitted for Kiro targets. The two Rulesync-only authoring keys are translated onto the field names Kiro actually reads: `kiroAutoApprove` becomes `autoApprove` (tools run without a confirmation prompt) and `kiroAutoBlock` becomes `disabledTools` (tools hidden from the agent). A server that already spells `autoApprove` or `disabledTools` natively keeps working — the two lists are merged rather than one overwriting the other. On import, `autoApprove` is lifted back into `kiroAutoApprove`; `disabledTools` stays as-is because it is already a canonical Rulesync field with the same meaning, so `kiroAutoBlock` has no import counterpart. That makes `kiroAutoBlock` a redundant spelling of `disabledTools`: a Kiro config imported after a generate comes back as canonical `disabledTools`, which then also reaches the other targets that support it. Prefer authoring `disabledTools` directly, which makes that scope explicit from the start.
 
 > **Qwen Code note:** MCP servers are written to the `mcpServers` key of `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global, via `--global`). Qwen supports stdio (`command`/`args`), SSE (`url`), and HTTP (`httpUrl`) transports. Rulesync maps the canonical per-server `enabledTools` ⇄ Qwen's `includeTools` (allowlist) and `disabledTools` ⇄ Qwen's `excludeTools` (denylist). Other top-level keys in `settings.json` are preserved on round-trip.
 

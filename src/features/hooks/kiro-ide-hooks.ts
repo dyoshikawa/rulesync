@@ -95,7 +95,9 @@ function buildKiroIdeEntriesForEvent(
       ...(def.timeout !== undefined &&
         def.timeout !== null &&
         def.timeout >= 0 && { timeout: def.timeout }),
-      enabled: true,
+      // Kiro defaults `enabled` to `true`; an imported `enabled: false` is
+      // preserved so regenerating does not silently reactivate the hook.
+      enabled: def.enabled ?? true,
     });
   }
   return entries;
@@ -153,6 +155,9 @@ function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hook
       def.matcher = entry.matcher;
     }
     if (entry.timeout !== undefined && entry.timeout !== null) def.timeout = entry.timeout;
+    // Only carry an explicit `false`: `true` is Kiro's default, so re-emitting
+    // it would add noise to every imported hook definition.
+    if (entry.enabled === false) def.enabled = false;
 
     (canonical[eventName] ??= []).push(def);
   }
