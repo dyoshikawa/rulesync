@@ -67,13 +67,13 @@ import {
  *   under `.github/hooks/` is picked up automatically when the CLI is
  *   invoked from the project root.
  *
- * - **Global scope**: `~/.copilot/hooks/copilot-hooks.json` — chosen for
- *   consistency with the existing global Copilot CLI config layout (e.g.
- *   `~/.copilot/mcp-config.json` produced by `copilotcli-mcp.ts`). The
- *   official docs do not currently document a global hooks location, so
- *   this is a rulesync convention pending official documentation; we keep
- *   all rulesync-managed Copilot CLI files under the single `~/.copilot/`
- *   root and will revisit if the spec later mandates an alternate layout.
+ * - **Global scope**: `~/.copilot/hooks/copilot-hooks.json` — the directory is
+ *   the documented user-level hooks location ("`*.json` files in the
+ *   user-level hooks directory. By default this is `~/.copilot/hooks/` on
+ *   macOS and Linux, or `%USERPROFILE%\.copilot\hooks\` on Windows"). Every
+ *   `*.json` in it is loaded, so the filename remains rulesync's choice, as it
+ *   is for project scope. `COPILOT_HOME` relocates the directory upstream
+ *   (`$COPILOT_HOME/hooks/`); rulesync does not read that variable yet.
  *
  * Hook entries on the six matcher-aware events (see
  * {@link COPILOTCLI_MATCHER_EVENTS}) may carry an optional `matcher` regex; it

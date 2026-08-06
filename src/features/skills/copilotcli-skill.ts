@@ -135,24 +135,15 @@ export class CopilotcliSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
-    const copilotcliSection = {
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter["allowed-tools"] !== undefined && {
-        "allowed-tools": frontmatter["allowed-tools"],
-      }),
-      ...(frontmatter["argument-hint"] !== undefined && {
-        "argument-hint": frontmatter["argument-hint"],
-      }),
-      ...(frontmatter["user-invocable"] !== undefined && {
-        "user-invocable": frontmatter["user-invocable"],
-      }),
-      ...(frontmatter["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": frontmatter["disable-model-invocation"],
-      }),
-    };
+    // `name` and `description` have canonical homes; everything else — the
+    // documented Copilot CLI fields and any key beyond the schema a
+    // hand-written SKILL.md carries — rides the tool-scoped `copilotcli`
+    // section so it survives the round-trip instead of being erased on the
+    // next generate.
+    const { name, description, ...copilotcliSection } = frontmatter;
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name: frontmatter.name,
-      description: frontmatter.description,
+      name,
+      description,
       targets: ["*"],
       ...(Object.keys(copilotcliSection).length > 0 && { copilotcli: copilotcliSection }),
     };
@@ -187,18 +178,20 @@ export class CopilotcliSkill extends ToolSkill {
       section: copilotcliSection,
     });
 
+    // The two invocation gates are resolved against the shared top-level
+    // fields, so they are dropped here and written back from the resolvers.
+    const {
+      "user-invocable": _userInvocable,
+      "disable-model-invocation": _disableModelInvocation,
+      ...copilotcliFields
+    } = copilotcliSection ?? {};
+
     const copilotcliFrontmatter: CopilotcliSkillFrontmatter = {
+      // The section is written first so the canonical `name`/`description` and
+      // the resolved gates still own their keys.
+      ...copilotcliFields,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(copilotcliSection?.license !== undefined && {
-        license: copilotcliSection.license,
-      }),
-      ...(copilotcliSection?.["allowed-tools"] !== undefined && {
-        "allowed-tools": copilotcliSection["allowed-tools"],
-      }),
-      ...(copilotcliSection?.["argument-hint"] !== undefined && {
-        "argument-hint": copilotcliSection["argument-hint"],
-      }),
       ...(resolvedUserInvocable !== undefined && { "user-invocable": resolvedUserInvocable }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,

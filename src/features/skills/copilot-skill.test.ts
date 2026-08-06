@@ -261,6 +261,60 @@ Skill content goes here.`,
       });
     });
 
+    it("should round-trip a frontmatter field beyond the schema", () => {
+      const skill = new CopilotSkill({
+        dirName: "future",
+        frontmatter: {
+          name: "future",
+          description: "Uses a field rulesync does not model",
+          // Not modeled by rulesync: it used to be dropped on import and then
+          // erased from the SKILL.md on the next generate.
+          futureCopilotField: "keep-me",
+        },
+        body: "body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().copilot).toEqual({ futureCopilotField: "keep-me" });
+
+      const roundTripped = CopilotSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter()).toEqual({
+        name: "future",
+        description: "Uses a field rulesync does not model",
+        futureCopilotField: "keep-me",
+      });
+    });
+
+    it("lets the canonical name and description win over the section", () => {
+      // Assigned through a variable: the section type does not model these two
+      // keys, which is exactly what makes them worth pinning here.
+      const shadowingSection = {
+        license: "MIT",
+        name: "section-name",
+        description: "Section description",
+      };
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "shadowed",
+        frontmatter: {
+          name: "shadowed",
+          description: "Canonical description",
+          targets: ["*"],
+          // A section is written before the canonical fields, so keys that
+          // have a canonical home must not be shadowed by it.
+          copilot: shadowingSection,
+        },
+        body: "body",
+      });
+
+      expect(CopilotSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()).toEqual({
+        name: "shadowed",
+        description: "Canonical description",
+        license: "MIT",
+      });
+    });
+
     it("should take the invocation gates from the top-level defaults, section wins", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
