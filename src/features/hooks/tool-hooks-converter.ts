@@ -347,10 +347,24 @@ function emitPassthroughFields<TValue>({
   warn?: (message: string) => void;
 }): Record<string, TValue> {
   for (const { canonical, tool, commandOnly } of fields) {
-    if (!isFieldApplicable({ commandOnly, hookType }) && def[canonical] !== undefined) {
+    const value = def[canonical];
+    if (value === undefined) {
+      continue;
+    }
+    if (!isFieldApplicable({ commandOnly, hookType })) {
       warn?.(
         `Dropping "${canonical}" from a "${hookType}" hook on "${eventName}": this tool documents ` +
           `"${tool}" on "command" hooks only, so it is not generated.`,
+      );
+      continue;
+    }
+    if (!isValid({ value, canonical })) {
+      // The canonical schema is looser than some tool fields (it lets an `env`
+      // key hold `=`, which a tool would rebuild into a different variable),
+      // so an authored value can be valid and still unusable here.
+      warn?.(
+        `Dropping "${canonical}" from a "${hookType}" hook on "${eventName}": ` +
+          `${JSON.stringify(value)} is not a value this tool can express as "${tool}".`,
       );
     }
   }
@@ -1086,10 +1100,17 @@ function toolHookToCanonical({
   converterConfig: ToolHooksConverterConfig;
   warn?: (message: string) => void;
 }): HooksConfig["hooks"][string][number] {
-  const command = stripCommandPrefix({ command: h.command, converterConfig });
   const hookType = isImportedHookType(h.type) ? h.type : "command";
+  // A value that defines this hook type has already been checked by
+  // `describeHookSkipReason`; this catches the same field left on a type it
+  // does not define, where losing it alone changes nothing.
+  const command = importCanonicalString({
+    value: stripCommandPrefix({ command: h.command, converterConfig }),
+    canonical: "command",
+    warn,
+  });
   const timeout = typeof h.timeout === "number" ? h.timeout : undefined;
-  const prompt = typeof h.prompt === "string" ? h.prompt : undefined;
+  const prompt = importCanonicalString({ value: h.prompt, canonical: "prompt", warn });
   const name = importCanonicalString({ value: h.name, canonical: "name", warn });
   const description = importCanonicalString({
     value: h.description,
@@ -1116,14 +1137,78 @@ function toolHookToCanonical({
 }
 
 /**
- * The fields whose value decides whether a hook can be imported at all, rather
- * than which fields it keeps. Dropping just the field would leave something
- * worse than nothing: a `command`/`prompt` hook with no body does not run, and
- * a hook that loses its `matcher` becomes a hook that fires on *everything* —
- * a silent widening of what an imported rule does. So the whole definition is
- * skipped instead, with the reason named.
+ * The fields whose value decides what a hook *is*, listed per hook type. When
+ * one of them cannot be imported, dropping just the field would leave
+ * something worse than nothing: a hook that loses its body runs nothing, and
+ * one that loses its `matcher` fires on *everything* — a silent widening of
+ * what the imported rule does. So the whole definition is skipped instead,
+ * with the reason named. A field that does not define *this* type (a `prompt`
+ * left on a command hook) is not one of them: it is dropped on its own, the
+ * way any other unusable field is.
  */
-const HOOK_DEFINING_FIELDS = ["command", "prompt", "matcher"] as const;
+function definingFields({
+  h,
+  rawEntry,
+  hookType,
+  converterConfig,
+}: {
+  h: Record<string, unknown>;
+  rawEntry: ToolMatcherEntry;
+  hookType: HookType;
+  converterConfig: ToolHooksConverterConfig;
+}): Array<{ field: string; value: unknown }> {
+  const fields: Array<{ field: string; value: unknown }> = [
+    // The matcher restricts every hook of the group, whatever their types.
+    { field: "matcher", value: rawEntry.matcher },
+  ];
+  if (hookType === "command") {
+    fields.push({
+      // Only a string carries a prefix to strip, and that is the form the
+      // canonical file would hold. Anything else is reported as authored, so a
+      // `command` that is a number or a list is caught rather than read as
+      // "no command".
+      field: "command",
+      value:
+        typeof h.command === "string"
+          ? stripCommandPrefix({ command: h.command, converterConfig })
+          : h.command,
+    });
+  }
+  if (hookType === "prompt" || hookType === "agent") {
+    fields.push({ field: "prompt", value: h.prompt });
+  }
+  return fields;
+}
+
+/**
+ * Why no hook of this matcher group can be imported, or `undefined` when they
+ * can. A group field that *restricts* when its hooks run (`subdividesGroup`)
+ * is the group-level twin of `matcher`: importing the group without it would
+ * widen every hook in it, so the group is skipped instead.
+ */
+function describeGroupSkipReason({
+  rawEntry,
+  converterConfig,
+}: {
+  rawEntry: ToolMatcherEntry;
+  converterConfig: ToolHooksConverterConfig;
+}): string | undefined {
+  const entry = rawEntry as unknown as Record<string, unknown>;
+  for (const { tool, valueType, subdividesGroup } of converterConfig.groupPassthroughFields ?? []) {
+    const value = entry[tool];
+    if (subdividesGroup !== true || value === undefined) {
+      continue;
+    }
+    if (!isGroupPassthroughValue(value, valueType)) {
+      return (
+        `Skipping the hooks of a matcher group while importing: its "${tool}" ` +
+        `(${JSON.stringify(value)}) is unusable, and these hooks run only where it matches. ` +
+        `Importing them without it would widen when they fire, so they are skipped.`
+      );
+    }
+  }
+  return undefined;
+}
 
 /**
  * Why this hook cannot be imported, or `undefined` when it can.
@@ -1131,26 +1216,20 @@ const HOOK_DEFINING_FIELDS = ["command", "prompt", "matcher"] as const;
 function describeHookSkipReason({
   h,
   rawEntry,
+  hookType,
   converterConfig,
 }: {
   h: Record<string, unknown>;
   rawEntry: ToolMatcherEntry;
+  hookType: HookType;
   converterConfig: ToolHooksConverterConfig;
 }): string | undefined {
-  const values: Record<(typeof HOOK_DEFINING_FIELDS)[number], unknown> = {
-    // The prefix is stripped before the check, since that is the form the
-    // canonical file would hold.
-    command: stripCommandPrefix({ command: h.command, converterConfig }),
-    prompt: h.prompt,
-    matcher: rawEntry.matcher,
-  };
-  for (const field of HOOK_DEFINING_FIELDS) {
-    const value = values[field];
+  for (const { field, value } of definingFields({ h, rawEntry, hookType, converterConfig })) {
     if (value === undefined || satisfiesCanonicalField({ value, canonical: field })) {
       continue;
     }
     return (
-      `Skipping a hook while importing: its "${field}" (${JSON.stringify(value)}) ` +
+      `Skipping a hook while importing: its "${field}" (${JSON.stringify(value)}) is unusable — ` +
       `${describeScalarConstraint({ canonical: field, value })} Keeping the hook without it would ` +
       `change what it does, so the whole hook is skipped.`
     );
@@ -1171,9 +1250,15 @@ function toolMatcherEntryToCanonical({
   warn?: (message: string) => void;
 }): HooksConfig["hooks"][string] {
   const hookDefs = rawEntry.hooks ?? [];
+  const groupSkipReason = describeGroupSkipReason({ rawEntry, converterConfig });
+  if (groupSkipReason !== undefined) {
+    warn?.(groupSkipReason);
+    return [];
+  }
   const definitions: HooksConfig["hooks"][string] = [];
   for (const h of hookDefs) {
-    const skipReason = describeHookSkipReason({ h, rawEntry, converterConfig });
+    const hookType = isImportedHookType(h.type) ? h.type : "command";
+    const skipReason = describeHookSkipReason({ h, rawEntry, hookType, converterConfig });
     if (skipReason !== undefined) {
       warn?.(skipReason);
       continue;

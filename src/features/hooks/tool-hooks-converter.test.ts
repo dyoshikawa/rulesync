@@ -258,6 +258,23 @@ describe("canonicalToToolHooks", () => {
     expect(logger.warn).toHaveBeenCalledTimes(1);
   });
 
+  it("warns when an authored value is one the tool cannot express", () => {
+    // The canonical schema lets an `env` key hold `=`, but a tool rebuilds each
+    // entry into `KEY=VALUE`, so such a key would name a different variable.
+    const { hook, logger } = emitHook({
+      definition: { type: "command", command: "./run.sh", env: { "PATH=/tmp/evil": "x" } },
+      converterConfig: {
+        ...BASE_CONFIG,
+        recordPassthroughFields: [{ canonical: "env", tool: "env" }],
+      },
+    });
+
+    expect(hook).not.toHaveProperty("env");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`is not a value this tool can express as "env"`),
+    );
+  });
+
   it("emits a field that is not registered as commandOnly on a non-command hook", () => {
     const { hook, logger } = emitHook({
       definition: { type: "prompt", prompt: "Review this", once: true },
@@ -421,6 +438,71 @@ describe("toolHooksToCanonical for fields outside the passthrough kinds", () => 
     expect(canonical.preToolUse).toBeUndefined();
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining(`Skipping a hook while importing: its "${field}"`),
+    );
+  });
+
+  it("skips a command hook whose command is not a string at all", () => {
+    const { definition, logger } = importHook({
+      hook: { type: "command", command: 123 },
+      converterConfig: BASE_CONFIG,
+    });
+
+    expect(definition).toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`Skipping a hook while importing: its "command"`),
+    );
+  });
+
+  it.each([
+    {
+      kind: "a prompt left on a command hook",
+      hook: { type: "command", command: "./run.sh", prompt: "Review\nthis" },
+      kept: "command",
+      dropped: "prompt",
+    },
+    {
+      kind: "a command left on a prompt hook",
+      hook: { type: "prompt", prompt: "Review this", command: "cd repo &&\nnpm run lint" },
+      kept: "prompt",
+      dropped: "command",
+    },
+  ])(
+    "keeps the hook and drops only the field when $kind is unusable",
+    ({ hook, kept, dropped }) => {
+      const { definition, logger } = importHook({ hook, converterConfig: BASE_CONFIG });
+
+      // The field does not define this hook type, so losing it changes nothing
+      // about what the hook does — no reason to throw the hook away.
+      expect(definition).toHaveProperty(kept);
+      expect(definition).not.toHaveProperty(dropped);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`Dropping "${dropped}"`));
+    },
+  );
+
+  it("skips a matcher group whose restricting field cannot be imported", () => {
+    const logger = createMockLogger();
+    const canonical = toolHooksToCanonical({
+      hooks: {
+        PreToolUse: [{ commandRegex: { not: "a string" }, hooks: [{ command: "./run.sh" }] }],
+      },
+      converterConfig: {
+        ...BASE_CONFIG,
+        groupPassthroughFields: [
+          {
+            canonical: "commandRegex",
+            tool: "commandRegex",
+            valueType: "string",
+            subdividesGroup: true,
+          },
+        ],
+      },
+      logger,
+    });
+
+    // Importing the hook without its filter would widen when it fires.
+    expect(canonical.preToolUse).toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("these hooks run only where it matches"),
     );
   });
 

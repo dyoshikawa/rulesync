@@ -131,9 +131,13 @@ function unsupportedEventNames(params: {
 }
 
 /**
- * A logger whose warnings name the tool being generated, matching the rest of
- * this processor's warnings. Delegates through the prototype chain so the
- * original's state and remaining methods are untouched.
+ * A logger whose warnings name the tool being converted, matching the rest of
+ * this processor's warnings: the shared hooks converter says what is wrong but
+ * not which tool's file it is reading or writing, and one run walks them all.
+ *
+ * Every method delegates explicitly rather than through a prototype, so the
+ * real logger keeps owning its state — a wrapper that inherited it would
+ * absorb the writes `configure` and `outputJson` make.
  */
 function withToolTargetPrefix({
   logger,
@@ -142,11 +146,26 @@ function withToolTargetPrefix({
   logger: Logger;
   toolTarget: ToolTarget;
 }): Logger {
-  return Object.assign(Object.create(logger) as Logger, {
-    warn: (message: string, ...args: unknown[]): void => {
-      logger.warn(`For ${toolTarget}: ${message}`, ...args);
+  return {
+    configure: (options) => logger.configure(options),
+    get verbose() {
+      return logger.verbose;
     },
-  });
+    get silent() {
+      return logger.silent;
+    },
+    get jsonMode() {
+      return logger.jsonMode;
+    },
+    captureData: (key, value) => logger.captureData(key, value),
+    getJsonData: () => logger.getJsonData(),
+    outputJson: (success, error) => logger.outputJson(success, error),
+    info: (message, ...args) => logger.info(message, ...args),
+    success: (message, ...args) => logger.success(message, ...args),
+    warn: (message, ...args) => logger.warn(`For ${toolTarget}: ${message}`, ...args),
+    error: (message, code, ...args) => logger.error(message, code, ...args),
+    debug: (message, ...args) => logger.debug(message, ...args),
+  };
 }
 
 function unsupportedMatcherEventNames({
@@ -855,7 +874,10 @@ export class HooksProcessor extends FeatureProcessor {
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
     const hooks = toolFiles.filter((f): f is ToolHooks => f instanceof ToolHooks);
-    return hooks.map((h) => h.toRulesyncHooks({ logger: this.logger }));
+    // Prefixed for the same reason as the generate direction: `rulesync import`
+    // walks several targets, and the converter's warnings do not name one.
+    const logger = withToolTargetPrefix({ logger: this.logger, toolTarget: this.toolTarget });
+    return hooks.map((h) => h.toRulesyncHooks({ logger }));
   }
 
   static getToolTargets({
