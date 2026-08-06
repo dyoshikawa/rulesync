@@ -522,6 +522,63 @@ describe("ZedPermissions", () => {
       expect(json.permission.mcp__context7__get_docs).toEqual({ "*": "allow" });
     });
 
+    it("should split only the first separator so an underscored tool name survives", async () => {
+      const rulesyncPermissions = createRulesyncPermissions({
+        mcp__github__create__issue: { "*": "allow" },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      // Zed builds its id as `mcp:<server>:<tool>` without escaping either name,
+      // so `create__issue` is a legitimate tool name and must not be rewritten
+      // into a third key.
+      expect(
+        JSON.parse(generated.getFileContent()).agent.tool_permissions.tools[
+          "mcp:github:create__issue"
+        ],
+      ).toEqual({ default: "allow" });
+
+      await writeFileContent(join(testDir, ".zed", "settings.json"), generated.getFileContent());
+      const imported = await ZedPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+
+      expect(json.permission.mcp__github__create__issue).toEqual({ "*": "allow" });
+    });
+
+    it("should replace the canonical-spelled key an earlier version wrote", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            tool_permissions: {
+              tools: {
+                // What rulesync wrote before the translation existed.
+                mcp__context7__get_docs: {
+                  default: "deny",
+                  always_allow: [{ pattern: "safe", case_sensitive: false }],
+                },
+              },
+            },
+          },
+        }),
+      );
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          mcp__context7__get_docs: { "*": "allow" },
+        }),
+      });
+
+      const tools = JSON.parse(generated.getFileContent()).agent.tool_permissions.tools;
+      expect(tools["mcp:context7:get_docs"]).toEqual({ default: "allow" });
+      // The dead key is swept, so it cannot resurrect its stale rules on import.
+      expect(tools.mcp__context7__get_docs).toBeUndefined();
+    });
+
     it("should drop pattern-scoped rules inside an mcp category with a warning", async () => {
       const logger = { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn() };
       const rulesyncPermissions = createRulesyncPermissions({
@@ -541,6 +598,29 @@ describe("ZedPermissions", () => {
       // none, so only the catch-all survives as the tool's default.
       expect(tool).toEqual({ default: "allow" });
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"secret"'));
+    });
+
+    it("should drop an mcp category that names no individual tool", async () => {
+      const warn = vi.fn();
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          // Zed matches the full mcp:<server>:<tool> triple by exact key, so
+          // neither a server-only address nor a wildcard tool part reaches anything.
+          mcp__context7: { "*": "deny" },
+          "mcp__context7__*": { "*": "deny" },
+          bash: { "*": "ask" },
+        }),
+        logger: { warn } as never,
+      });
+
+      const tools = JSON.parse(generated.getFileContent()).agent.tool_permissions.tools;
+      expect(Object.keys(tools)).toEqual(["terminal"]);
+      const inertWarning = warn.mock.calls
+        .map(([message]) => message as string)
+        .find((message) => message.includes("exact key"));
+      expect(inertWarning).toContain('"mcp__context7"');
     });
 
     it("should normalize a Zed-spelled mcp key to the canonical category on import", async () => {

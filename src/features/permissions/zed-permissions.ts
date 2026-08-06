@@ -105,11 +105,18 @@ const ZED_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
  * category is `mcp__<server>__<tool>`. Without this translation the canonical
  * spelling lands under a key Zed never looks up.
  *
+ * Only the FIRST separator is split, matching the `cursor-permissions.ts`
+ * precedent: upstream's `mcp_tool_id` concatenates the two names without
+ * escaping either, so a tool called `create__issue` is legitimately
+ * `mcp:github:create__issue`. Splitting every separator would rewrite that into
+ * a third key on the next generate.
+ *
  * @see https://zed.dev/docs/ai/tool-permissions
  */
 function toZedToolName(canonical: string): string {
   if (canonical.startsWith(MCP_CANONICAL_PREFIX)) {
-    const address = canonical.slice(MCP_CANONICAL_PREFIX.length).split("__").join(":");
+    const [server, ...toolParts] = canonical.slice(MCP_CANONICAL_PREFIX.length).split("__");
+    const address = toolParts.length > 0 ? `${server}:${toolParts.join("__")}` : (server ?? "");
     return `${MCP_ZED_PREFIX}${address}`;
   }
   return CANONICAL_TO_ZED_TOOL_NAMES[canonical] ?? canonical;
@@ -117,7 +124,8 @@ function toZedToolName(canonical: string): string {
 
 function toCanonicalToolName(zedName: string): string {
   if (zedName.startsWith(MCP_ZED_PREFIX)) {
-    const address = zedName.slice(MCP_ZED_PREFIX.length).split(":").join("__");
+    const [server, ...toolParts] = zedName.slice(MCP_ZED_PREFIX.length).split(":");
+    const address = toolParts.length > 0 ? `${server}__${toolParts.join(":")}` : (server ?? "");
     return `${MCP_CANONICAL_PREFIX}${address}`;
   }
   return ZED_TO_CANONICAL_TOOL_NAMES[zedName] ?? zedName;
@@ -125,13 +133,25 @@ function toCanonicalToolName(zedName: string): string {
 
 /**
  * Zed matches `always_allow`/`always_deny`/`always_confirm` regexes against the
- * tool's text input, and an MCP tool supplies none — the docs state "MCP tools
- * only support the tool-level option", and Zed's own tests exercise MCP
- * decisions with an empty input string. A pattern-scoped rule would therefore be
- * matched against `""` rather than doing what its author meant, so only the
- * category's `*` rule (Zed's per-tool `default`) is emitted.
+ * tool's text input, and it dispatches every MCP tool with a single empty input
+ * (`&[String::new()]`, commented upstream as "MCP tools are gated only by tool
+ * id (no per-input pattern matching)"). The regexes still run, but against `""`,
+ * so a pattern-scoped rule silently does something other than what its author
+ * meant — and a non-matching `always_allow` downgrades the outcome to confirm.
+ * Only the category's `*` rule (Zed's per-tool `default`) is therefore emitted.
  */
 const isMcpZedToolName = (zedName: string): boolean => zedName.startsWith(MCP_ZED_PREFIX);
+
+/**
+ * Zed looks a tool up by exact key on the full `mcp:<server>:<tool>` triple, so
+ * an address naming only a server, or a tool part set to a wildcard, matches nothing.
+ */
+function isInertMcpAddress(zedToolName: string): boolean {
+  if (!isMcpZedToolName(zedToolName)) return false;
+  const [server, ...toolParts] = zedToolName.slice(MCP_ZED_PREFIX.length).split(":");
+  const tool = toolParts.join(":");
+  return !server || !tool || tool === "*";
+}
 
 /**
  * Strip pattern-scoped rules from an MCP category, warning once about the ones
@@ -155,8 +175,9 @@ function withoutInertMcpPatterns({
 
   logger?.warn(
     `Zed permissions: dropping the pattern-scoped rule(s) ${scopedPatterns.map((pattern) => `"${pattern}"`).join(", ")} ` +
-      `in the "${category}" category — Zed matches its permission patterns against a tool's text input, ` +
-      `and an MCP tool has none, so only the catch-all "*" rule is emitted as the tool's default.`,
+      `in the "${category}" category — Zed dispatches an MCP tool with an empty input, so a permission ` +
+      `pattern is matched against "" rather than against anything meaningful. Only the catch-all "*" ` +
+      `rule is emitted, as the tool's default.`,
   );
   return Object.fromEntries(Object.entries(rules).filter(([pattern]) => pattern === "*"));
 }
@@ -216,6 +237,72 @@ function buildZedToolPermission(rules: Record<string, PermissionAction>): ZedToo
   }
 
   return Object.keys(tool).length > 0 ? tool : null;
+}
+
+/**
+ * Split a canonical permission block into the Zed shapes it maps onto, plus the
+ * categories the caller should report as dropped.
+ *
+ * The canonical `*` category is the all-tools catch-all. Zed's counterpart is
+ * `agent.tool_permissions.default` (rung 6 of its precedence ladder), not a
+ * `tools["*"]` entry — `*` is not a Zed tool name, so writing one produces a
+ * rule Zed silently ignores. Only the category's own `*` pattern can be
+ * expressed there: Zed's global default carries no pattern list, so
+ * pattern-scoped rules in the `*` category are dropped with a warning instead of
+ * being emitted as inert config.
+ */
+function buildZedToolPermissions({
+  permission,
+  logger,
+}: {
+  permission: Record<string, Record<string, PermissionAction>>;
+  logger?: { warn: (message: string) => void };
+}): {
+  managedDefault: ZedPermissionAction | undefined;
+  managedTools: Record<string, ZedToolPermission>;
+  excludedCategories: string[];
+  inertMcpCategories: string[];
+} {
+  let managedDefault: ZedPermissionAction | undefined;
+  const managedTools: Record<string, ZedToolPermission> = {};
+  const excludedCategories: string[] = [];
+  const inertMcpCategories: string[] = [];
+
+  for (const [category, rules] of Object.entries(permission)) {
+    if (category === "*") {
+      for (const [pattern, action] of Object.entries(rules)) {
+        if (pattern === "*") {
+          managedDefault = CANONICAL_TO_ZED_ACTION[action];
+        } else {
+          logger?.warn(
+            `Zed permissions: dropping the "*" category rule for pattern "${pattern}" — Zed's global tool-permission default takes no patterns; scope the rule to a tool category instead.`,
+          );
+        }
+      }
+      continue;
+    }
+    if (isZedExcludedCategory(category)) {
+      // Only an enforcing rule is worth reporting: Zed leaves these tools
+      // ungoverned, which is what an `allow` asked for anyway.
+      if (Object.values(rules).some((action) => action === "deny" || action === "ask")) {
+        excludedCategories.push(category);
+      }
+      continue;
+    }
+    const zedToolName = toZedToolName(category);
+    if (isInertMcpAddress(zedToolName)) {
+      inertMcpCategories.push(category);
+      continue;
+    }
+    const tool = buildZedToolPermission(
+      withoutInertMcpPatterns({ category, zedToolName, rules, logger }),
+    );
+    if (tool) {
+      managedTools[zedToolName] = tool;
+    }
+  }
+
+  return { managedDefault, managedTools, excludedCategories, inertMcpCategories };
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -328,38 +415,8 @@ export class ZedPermissions extends ToolPermissions {
     // pattern can be expressed there: Zed's global default carries no pattern
     // list, so pattern-scoped rules in the `*` category are dropped with a
     // warning instead of being emitted as inert config.
-    let managedDefault: ZedPermissionAction | undefined;
-    const managedTools: Record<string, ZedToolPermission> = {};
-    const excludedCategories: string[] = [];
-    for (const [category, rules] of Object.entries(config.permission)) {
-      if (category === "*") {
-        for (const [pattern, action] of Object.entries(rules)) {
-          if (pattern === "*") {
-            managedDefault = CANONICAL_TO_ZED_ACTION[action];
-          } else {
-            logger?.warn(
-              `Zed permissions: dropping the "*" category rule for pattern "${pattern}" — Zed's global tool-permission default takes no patterns; scope the rule to a tool category instead.`,
-            );
-          }
-        }
-        continue;
-      }
-      if (isZedExcludedCategory(category)) {
-        // Only an enforcing rule is worth reporting: Zed leaves these tools
-        // ungoverned, which is what an `allow` asked for anyway.
-        if (Object.values(rules).some((action) => action === "deny" || action === "ask")) {
-          excludedCategories.push(category);
-        }
-        continue;
-      }
-      const zedToolName = toZedToolName(category);
-      const tool = buildZedToolPermission(
-        withoutInertMcpPatterns({ category, zedToolName, rules, logger }),
-      );
-      if (tool) {
-        managedTools[zedToolName] = tool;
-      }
-    }
+    const { managedDefault, managedTools, excludedCategories, inertMcpCategories } =
+      buildZedToolPermissions({ permission: config.permission, logger });
 
     if (excludedCategories.length > 0) {
       logger?.warn(
@@ -370,6 +427,15 @@ export class ZedPermissions extends ToolPermissions {
       );
     }
 
+    if (inertMcpCategories.length > 0) {
+      logger?.warn(
+        `Zed permissions: dropping the ${inertMcpCategories.map((category) => `"${category}"`).join(", ")} ` +
+          `${inertMcpCategories.length === 1 ? "category" : "categories"} — Zed looks an MCP tool up by ` +
+          `exact key on the full \`mcp:<server>:<tool>\` triple, so an address naming only a server, or ` +
+          `a tool part set to a wildcard, matches nothing. Name the individual tools instead.`,
+      );
+    }
+
     // Only tools rulesync actually rewrites are "managed" — a category that
     // yields no usable rules must not silently drop an existing user entry.
     // A canonical `*` category also claims the inert `tools["*"]` entry older
@@ -377,6 +443,17 @@ export class ZedPermissions extends ToolPermissions {
     const managedToolNames = new Set(Object.keys(managedTools));
     if ("*" in config.permission) {
       managedToolNames.add("*");
+    }
+    // An MCP category also claims the canonical `mcp__server__tool` spelling an
+    // earlier rulesync version wrote for it. Like `tools["*"]`, that is not a
+    // Zed tool name, so the entry can only be rulesync's own output — leaving it
+    // would strand a dead key that no later generate cleans up, and that import
+    // would fold back into the same canonical category, resurrecting rules the
+    // current config no longer states.
+    for (const category of Object.keys(config.permission)) {
+      if (category.startsWith(MCP_CANONICAL_PREFIX)) {
+        managedToolNames.add(category);
+      }
     }
     // An inert `tools.read_file`/`tools.grep` entry an earlier rulesync version
     // wrote is deliberately NOT swept up here: unlike `tools["*"]`, those are
