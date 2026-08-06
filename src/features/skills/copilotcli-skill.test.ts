@@ -274,6 +274,60 @@ Skill content goes here.`,
       expect(roundTripped.getFrontmatter()["disable-model-invocation"]).toBe(true);
     });
 
+    it("should round-trip a frontmatter field beyond the schema", () => {
+      const skill = new CopilotcliSkill({
+        dirName: "future",
+        frontmatter: {
+          name: "future",
+          description: "Uses a field rulesync does not model",
+          futureCopilotCliField: "keep-me",
+        },
+        body: "body",
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().copilotcli).toEqual({
+        futureCopilotCliField: "keep-me",
+      });
+
+      const roundTripped = CopilotcliSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter()).toEqual({
+        name: "future",
+        description: "Uses a field rulesync does not model",
+        futureCopilotCliField: "keep-me",
+      });
+    });
+
+    it("lets the canonical name and description win over the section", () => {
+      // Assigned through a variable: the section type does not model these two
+      // keys, which is exactly what makes them worth pinning here.
+      const shadowingSection = {
+        license: "MIT",
+        name: "section-name",
+        description: "Section description",
+      };
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "shadowed",
+        frontmatter: {
+          name: "shadowed",
+          description: "Canonical description",
+          targets: ["*"],
+          // A section is written before the canonical fields, so keys that
+          // have a canonical home must not be shadowed by it.
+          copilotcli: shadowingSection,
+        },
+        body: "body",
+      });
+
+      expect(CopilotcliSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()).toEqual({
+        name: "shadowed",
+        description: "Canonical description",
+        license: "MIT",
+      });
+    });
+
     it("keeps a false invocation flag rather than treating it as absent", () => {
       const skill = new CopilotcliSkill({
         dirName: "hidden-skill",

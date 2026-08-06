@@ -724,7 +724,9 @@ copilot: # for GitHub Copilot-specific parameters (optional; project .github/ski
   context: fork # (optional, experimental) run the skill in a forked session (VS Code 1.118+)
   # Any other frontmatter key found in a hand-written SKILL.md is imported into this section and
   # written back out, so a field Rulesync does not model is not lost on regeneration. `name` and
-  # `description` are the exception: they have canonical homes at the top level.
+  # `description` are the exception: they have canonical homes at the top level. Like the modeled
+  # fields below, such a key rides one section only, so the shared-path caveat that follows applies
+  # to it too.
   # `copilot` and `copilotcli` write the same SKILL.md path at both scopes, so with both targets
   # enabled the one generated last wins — and that is the order the targets are listed in, so which
   # section decides the file is not fixed. Set the value in both sections (or, for the two invocation
@@ -736,6 +738,8 @@ copilotcli: # for GitHub Copilot CLI-specific parameters (optional; project .git
   argument-hint: "[message]" # (optional) hint shown for the skill's expected arguments
   user-invocable: true # (optional, default true) whether users can run it with /SKILL-NAME
   disable-model-invocation: false # (optional, default false) stop the agent from invoking it on its own
+  # As in the `copilot` section, any other frontmatter key found in a hand-written SKILL.md is
+  # imported here and written back out.
 rovodev: # for Rovo Dev CLI-specific parameters (optional; Agent Skills standard)
   allowed-tools: "grep bash" # (optional) space-separated string (a YAML list is also accepted)
   license: MIT # (optional)

@@ -285,6 +285,36 @@ Skill content goes here.`,
       });
     });
 
+    it("lets the canonical name and description win over the section", () => {
+      // Assigned through a variable: the section type does not model these two
+      // keys, which is exactly what makes them worth pinning here.
+      const shadowingSection = {
+        license: "MIT",
+        name: "section-name",
+        description: "Section description",
+      };
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "shadowed",
+        frontmatter: {
+          name: "shadowed",
+          description: "Canonical description",
+          targets: ["*"],
+          // A section is written before the canonical fields, so keys that
+          // have a canonical home must not be shadowed by it.
+          copilot: shadowingSection,
+        },
+        body: "body",
+      });
+
+      expect(CopilotSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()).toEqual({
+        name: "shadowed",
+        description: "Canonical description",
+        license: "MIT",
+      });
+    });
+
     it("should take the invocation gates from the top-level defaults, section wins", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
