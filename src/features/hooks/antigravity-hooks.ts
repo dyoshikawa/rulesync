@@ -185,7 +185,7 @@ class AntigravityHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     let parsed: unknown;
     try {
       parsed = JSON.parse(this.getFileContent());
@@ -198,6 +198,7 @@ class AntigravityHooks extends ToolHooks {
     const hooks = toolHooksToCanonical({
       hooks: flattenAntigravityHooks(parsed),
       converterConfig: ANTIGRAVITY_CONVERTER_CONFIG,
+      logger,
     });
     const overrideKey = (this.constructor as typeof AntigravityHooks).getOverrideKey();
     return this.toRulesyncHooksDefault({

@@ -17,6 +17,7 @@ import {
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
@@ -184,7 +185,7 @@ export class CodexcliHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     let parsed: { hooks?: unknown };
     try {
       parsed = JSON.parse(this.getFileContent());
@@ -199,6 +200,7 @@ export class CodexcliHooks extends ToolHooks {
     const hooks = toolHooksToCanonical({
       hooks: parsed.hooks,
       converterConfig: CODEXCLI_CONVERTER_CONFIG,
+      logger,
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(

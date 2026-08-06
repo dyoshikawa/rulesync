@@ -141,7 +141,7 @@ export class FactorydroidHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     let settings: { hooks?: unknown };
     try {
       settings = JSON.parse(this.getFileContent());
@@ -156,6 +156,7 @@ export class FactorydroidHooks extends ToolHooks {
     const hooks = toolHooksToCanonical({
       hooks: settings.hooks,
       converterConfig: FACTORYDROID_CONVERTER_CONFIG,
+      logger,
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(

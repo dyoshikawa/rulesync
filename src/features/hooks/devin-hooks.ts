@@ -173,7 +173,7 @@ export class DevinHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     let parsed: unknown;
     try {
       parsed = JSON.parse(this.getFileContent());
@@ -196,6 +196,7 @@ export class DevinHooks extends ToolHooks {
     const hooks = toolHooksToCanonical({
       hooks: events,
       converterConfig: DEVIN_CONVERTER_CONFIG,
+      logger,
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
