@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
+import type { HooksConfig } from "../../types/hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
-import { type ToolHooksConverterConfig, toolHooksToCanonical } from "./tool-hooks-converter.js";
+import {
+  canonicalToToolHooks,
+  type ToolHooksConverterConfig,
+  toolHooksToCanonical,
+} from "./tool-hooks-converter.js";
 
 const BASE_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: ["preToolUse"],
@@ -25,6 +30,26 @@ function importHook({
     logger,
   });
   return { definition: canonical.preToolUse?.[0], logger };
+}
+
+function emitHook({
+  definition,
+  converterConfig,
+}: {
+  definition: HooksConfig["hooks"][string][number];
+  converterConfig: ToolHooksConverterConfig;
+}) {
+  const logger = createMockLogger();
+  const emitted = canonicalToToolHooks({
+    config: { version: 1, hooks: { preToolUse: [definition] } },
+    toolOverrideHooks: undefined,
+    converterConfig,
+    logger,
+  });
+  const entries = emitted.PreToolUse as
+    | Array<{ hooks: Array<Record<string, unknown>> }>
+    | undefined;
+  return { hook: entries?.[0]?.hooks?.[0], logger };
 }
 
 /**
@@ -178,6 +203,141 @@ describe("toolHooksToCanonical", () => {
     );
   });
 });
+
+describe("canonicalToToolHooks", () => {
+  describe.each(COMMAND_ONLY_KINDS)(
+    "$kind passthrough fields registered as commandOnly",
+    ({ converterConfig, tool, canonical, value }) => {
+      it("emits the value on a command hook", () => {
+        const { hook, logger } = emitHook({
+          definition: { type: "command", command: "./run.sh", [canonical]: value },
+          converterConfig,
+        });
+
+        expect(hook).toMatchObject({ [tool]: value });
+        expect(logger.warn).not.toHaveBeenCalled();
+      });
+
+      it("drops the value authored on a non-command hook and warns", () => {
+        const { hook, logger } = emitHook({
+          definition: { type: "prompt", prompt: "Review this", [canonical]: value },
+          converterConfig,
+        });
+
+        expect(hook).not.toHaveProperty(tool);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`Dropping "${canonical}" from a "prompt" hook`),
+        );
+      });
+
+      it("stays silent on a non-command hook that does not carry the field", () => {
+        const { hook, logger } = emitHook({
+          definition: { type: "prompt", prompt: "Review this" },
+          converterConfig,
+        });
+
+        expect(hook).not.toHaveProperty(tool);
+        expect(logger.warn).not.toHaveBeenCalled();
+      });
+    },
+  );
+
+  it("emits a field that is not registered as commandOnly on a non-command hook", () => {
+    const { hook, logger } = emitHook({
+      definition: { type: "prompt", prompt: "Review this", once: true },
+      converterConfig: {
+        ...BASE_CONFIG,
+        booleanPassthroughFields: [{ canonical: "once", tool: "once" }],
+      },
+    });
+
+    expect(hook).toMatchObject({ once: true });
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Values a hand-written tool settings file can hold that the canonical field
+ * they would be imported into rejects. Importing one would write a
+ * `.rulesync/hooks.jsonc` that fails validation on the next run.
+ */
+const CANONICALLY_INVALID_IMPORTS = [
+  {
+    kind: "an off-enum string",
+    converterConfig: {
+      ...BASE_CONFIG,
+      stringPassthroughFields: [{ canonical: "shell", tool: "shell" }] as const,
+    },
+    tool: "shell",
+    canonical: "shell",
+    invalid: "zsh",
+    valid: "powershell",
+  },
+  {
+    kind: "a control character in a safeString field",
+    converterConfig: {
+      ...BASE_CONFIG,
+      stringPassthroughFields: [{ canonical: "statusMessage", tool: "statusMessage" }] as const,
+    },
+    tool: "statusMessage",
+    canonical: "statusMessage",
+    invalid: "Running\nInjected: true",
+    valid: "Running the formatter",
+  },
+  {
+    kind: "a fractional number in an integer field",
+    converterConfig: {
+      ...BASE_CONFIG,
+      numberPassthroughFields: [
+        { canonical: "additionalContextLimit", tool: "additionalContextLimit" },
+      ] as const,
+    },
+    tool: "additionalContextLimit",
+    canonical: "additionalContextLimit",
+    invalid: 12.5,
+    valid: 2500,
+  },
+  {
+    kind: "a negative number in a non-negative field",
+    converterConfig: {
+      ...BASE_CONFIG,
+      numberPassthroughFields: [
+        { canonical: "additionalContextLimit", tool: "additionalContextLimit" },
+      ] as const,
+    },
+    tool: "additionalContextLimit",
+    canonical: "additionalContextLimit",
+    invalid: -1,
+    valid: 0,
+  },
+] as const;
+
+describe.each(CANONICALLY_INVALID_IMPORTS)(
+  "toolHooksToCanonical with $kind",
+  ({ converterConfig, tool, canonical, invalid, valid }) => {
+    it("skips the value and warns instead of importing it", () => {
+      const { definition, logger } = importHook({
+        hook: { type: "command", command: "./run.sh", [tool]: invalid },
+        converterConfig,
+      });
+
+      expect(definition).not.toHaveProperty(canonical);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`is not a value the canonical "${canonical}" field accepts`),
+      );
+    });
+
+    it("imports a value the canonical field accepts", () => {
+      const { definition, logger } = importHook({
+        hook: { type: "command", command: "./run.sh", [tool]: valid },
+        converterConfig,
+      });
+
+      expect(definition).toMatchObject({ [canonical]: valid });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+  },
+);
 
 /** The fields Claude Code documents on `command` hooks only. */
 const CLAUDE_COMMAND_ONLY_FIELDS = {

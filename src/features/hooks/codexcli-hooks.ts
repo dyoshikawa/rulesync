@@ -166,13 +166,18 @@ export class CodexcliHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
-  }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<CodexcliHooks> {
+    logger,
+  }: ToolHooksFromRulesyncHooksParams & {
+    global?: boolean;
+    logger?: Logger;
+  }): Promise<CodexcliHooks> {
     const paths = CodexcliHooks.getSettablePaths({ global });
     const config = rulesyncHooks.getJson();
     const codexHooks = canonicalToToolHooks({
       config,
       toolOverrideHooks: config.codexcli?.hooks,
       converterConfig: CODEXCLI_CONVERTER_CONFIG,
+      logger,
     });
     const fileContent = JSON.stringify({ hooks: codexHooks }, null, 2);
 
