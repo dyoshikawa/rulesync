@@ -1177,6 +1177,12 @@ function definingFields({
   if (hookType === "prompt" || hookType === "agent") {
     fields.push({ field: "prompt", value: h.prompt });
   }
+  if (hookType === "http") {
+    fields.push({ field: "url", value: h.url });
+  }
+  if (hookType === "mcp_tool") {
+    fields.push({ field: "server", value: h.server }, { field: "tool", value: h.tool });
+  }
   return fields;
 }
 

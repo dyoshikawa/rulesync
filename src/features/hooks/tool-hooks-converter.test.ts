@@ -398,9 +398,7 @@ describe("toolHooksToCanonical for fields outside the passthrough kinds", () => 
       field: "description",
       hook: { type: "command", command: "./run.sh", description: "runs\0lint" },
     },
-    { field: "url", hook: { type: "http", url: "https://example.com/\nX-Injected: 1" } },
     { field: "model", hook: { type: "prompt", prompt: "Check", model: "sonnet\n" } },
-    { field: "server", hook: { type: "mcp_tool", server: "files\n", tool: "read" } },
   ])("skips $field when it carries a control character, and warns", ({ field, hook }) => {
     const { definition, logger } = importHook({
       hook,
@@ -478,6 +476,18 @@ describe("toolHooksToCanonical for fields outside the passthrough kinds", () => 
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`Dropping "${dropped}"`));
     },
   );
+
+  it.each([
+    { field: "url", hook: { type: "http", url: "https://example.com/\nX-Injected: 1" } },
+    { field: "server", hook: { type: "mcp_tool", server: "files\n", tool: "read" } },
+  ])("skips a hook whose $field, the body of its type, is unusable", ({ field, hook }) => {
+    const { definition, logger } = importHook({ hook, converterConfig: BASE_CONFIG });
+
+    expect(definition).toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`Skipping a hook while importing: its "${field}"`),
+    );
+  });
 
   it("skips a matcher group whose restricting field cannot be imported", () => {
     const logger = createMockLogger();
