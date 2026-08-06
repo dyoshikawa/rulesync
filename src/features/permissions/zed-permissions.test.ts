@@ -499,9 +499,9 @@ describe("ZedPermissions", () => {
       expect(json.permission.websearch).toEqual({ "*": "allow" });
     });
 
-    it("should pass through non-canonical mcp tool keys across generate → import", async () => {
+    it("should translate a canonical mcp category into Zed's mcp:server:tool key", async () => {
       const rulesyncPermissions = createRulesyncPermissions({
-        "mcp:context7:get-docs": { "*": "allow", secret: "deny" },
+        mcp__context7__get_docs: { "*": "allow" },
       });
 
       const generated = await ZedPermissions.fromRulesyncPermissions({
@@ -509,17 +509,63 @@ describe("ZedPermissions", () => {
         rulesyncPermissions,
       });
 
-      // The unknown tool key is written verbatim under agent.tool_permissions.tools.
       const generatedJson = JSON.parse(generated.getFileContent());
-      expect(generatedJson.agent.tool_permissions.tools["mcp:context7:get-docs"].default).toBe(
-        "allow",
-      );
+      const tools = generatedJson.agent.tool_permissions.tools;
+      expect(tools["mcp:context7:get_docs"]).toEqual({ default: "allow" });
+      // The canonical spelling is a key Zed never looks up, so it must not appear.
+      expect(tools.mcp__context7__get_docs).toBeUndefined();
 
       await writeFileContent(join(testDir, ".zed", "settings.json"), generated.getFileContent());
       const imported = await ZedPermissions.fromFile({ outputRoot: testDir });
       const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
 
-      expect(json.permission["mcp:context7:get-docs"]).toEqual({ "*": "allow", secret: "deny" });
+      expect(json.permission.mcp__context7__get_docs).toEqual({ "*": "allow" });
+    });
+
+    it("should drop pattern-scoped rules inside an mcp category with a warning", async () => {
+      const logger = { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn() };
+      const rulesyncPermissions = createRulesyncPermissions({
+        mcp__context7__get_docs: { "*": "allow", secret: "deny" },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: logger as unknown as Logger,
+      });
+
+      const tool = JSON.parse(generated.getFileContent()).agent.tool_permissions.tools[
+        "mcp:context7:get_docs"
+      ];
+      // Zed matches patterns against a tool's text input and an MCP tool has
+      // none, so only the catch-all survives as the tool's default.
+      expect(tool).toEqual({ default: "allow" });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"secret"'));
+    });
+
+    it("should normalize a Zed-spelled mcp key to the canonical category on import", async () => {
+      const rulesyncPermissions = createRulesyncPermissions({
+        "mcp:context7:get_docs": { "*": "allow" },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      // Already a Zed tool name, so it is written unchanged...
+      expect(
+        JSON.parse(generated.getFileContent()).agent.tool_permissions.tools[
+          "mcp:context7:get_docs"
+        ],
+      ).toEqual({ default: "allow" });
+
+      await writeFileContent(join(testDir, ".zed", "settings.json"), generated.getFileContent());
+      const imported = await ZedPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+
+      // ...but import returns the canonical spelling other targets understand.
+      expect(json.permission.mcp__context7__get_docs).toEqual({ "*": "allow" });
     });
   });
 });

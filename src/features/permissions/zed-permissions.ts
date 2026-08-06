@@ -52,9 +52,15 @@ const ZedToolPermissionsSchema = z.looseObject({
   tools: z.optional(z.record(z.string(), ZedToolPermissionSchema)),
 });
 
+/** Canonical per-tool MCP category prefix: `mcp__<server>__<tool>`. */
+const MCP_CANONICAL_PREFIX = "mcp__";
+
+/** Zed's per-tool MCP name prefix: `mcp:<server>:<tool>`. */
+const MCP_ZED_PREFIX = "mcp:";
+
 /**
  * Mapping from rulesync canonical tool category names to Zed agent tool names.
- * Unknown names are passed through as-is (e.g. `mcp:<server>:<tool>` keys).
+ * Unknown names are passed through as-is.
  */
 const CANONICAL_TO_ZED_TOOL_NAMES: Record<string, string> = {
   bash: "terminal",
@@ -94,12 +100,65 @@ const ZED_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_ZED_TOOL_NAMES).map(([k, v]) => [v, k]),
 );
 
+/**
+ * Zed addresses an MCP tool as `mcp:<server>:<tool>`, where rulesync's canonical
+ * category is `mcp__<server>__<tool>`. Without this translation the canonical
+ * spelling lands under a key Zed never looks up.
+ *
+ * @see https://zed.dev/docs/ai/tool-permissions
+ */
 function toZedToolName(canonical: string): string {
+  if (canonical.startsWith(MCP_CANONICAL_PREFIX)) {
+    const address = canonical.slice(MCP_CANONICAL_PREFIX.length).split("__").join(":");
+    return `${MCP_ZED_PREFIX}${address}`;
+  }
   return CANONICAL_TO_ZED_TOOL_NAMES[canonical] ?? canonical;
 }
 
 function toCanonicalToolName(zedName: string): string {
+  if (zedName.startsWith(MCP_ZED_PREFIX)) {
+    const address = zedName.slice(MCP_ZED_PREFIX.length).split(":").join("__");
+    return `${MCP_CANONICAL_PREFIX}${address}`;
+  }
   return ZED_TO_CANONICAL_TOOL_NAMES[zedName] ?? zedName;
+}
+
+/**
+ * Zed matches `always_allow`/`always_deny`/`always_confirm` regexes against the
+ * tool's text input, and an MCP tool supplies none — the docs state "MCP tools
+ * only support the tool-level option", and Zed's own tests exercise MCP
+ * decisions with an empty input string. A pattern-scoped rule would therefore be
+ * matched against `""` rather than doing what its author meant, so only the
+ * category's `*` rule (Zed's per-tool `default`) is emitted.
+ */
+const isMcpZedToolName = (zedName: string): boolean => zedName.startsWith(MCP_ZED_PREFIX);
+
+/**
+ * Strip pattern-scoped rules from an MCP category, warning once about the ones
+ * dropped. Non-MCP categories are returned untouched.
+ */
+function withoutInertMcpPatterns({
+  category,
+  zedToolName,
+  rules,
+  logger,
+}: {
+  category: string;
+  zedToolName: string;
+  rules: Record<string, PermissionAction>;
+  logger?: { warn: (message: string) => void };
+}): Record<string, PermissionAction> {
+  if (!isMcpZedToolName(zedToolName)) return rules;
+
+  const scopedPatterns = Object.keys(rules).filter((pattern) => pattern !== "*");
+  if (scopedPatterns.length === 0) return rules;
+
+  logger?.warn(
+    `Zed permissions: dropping the pattern-scoped rule(s) ${scopedPatterns.map((pattern) => `"${pattern}"`).join(", ")} ` +
+      `in the "${category}" category — Zed matches its permission patterns against a tool's text input, ` +
+      `and an MCP tool has none, so only the catch-all "*" rule is emitted as the tool's default.`,
+  );
+  return Object.fromEntries(Object.entries(rules).filter(([pattern]) => pattern === "*"));
 }
 
 const CANONICAL_TO_ZED_ACTION: Record<PermissionAction, ZedPermissionAction> = {
@@ -293,9 +352,12 @@ export class ZedPermissions extends ToolPermissions {
         }
         continue;
       }
-      const tool = buildZedToolPermission(rules);
+      const zedToolName = toZedToolName(category);
+      const tool = buildZedToolPermission(
+        withoutInertMcpPatterns({ category, zedToolName, rules, logger }),
+      );
       if (tool) {
-        managedTools[toZedToolName(category)] = tool;
+        managedTools[zedToolName] = tool;
       }
     }
 
