@@ -600,27 +600,57 @@ describe("ZedPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"secret"'));
     });
 
-    it("should drop an mcp category that names no individual tool", async () => {
+    it("should drop an mcp category that omits or wildcards either half", async () => {
       const warn = vi.fn();
 
       const generated = await ZedPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: createRulesyncPermissions({
-          // Zed matches the full mcp:<server>:<tool> triple by exact key, so
-          // neither a server-only address nor a wildcard tool part reaches anything.
+          // Zed matches the full mcp:<server>:<tool> triple by exact key, with
+          // no glob or prefix matching, so none of these reaches anything.
           mcp__context7: { "*": "deny" },
           "mcp__context7__*": { "*": "deny" },
+          "mcp__*__get_docs": { "*": "deny" },
           bash: { "*": "ask" },
         }),
-        logger: { warn } as never,
+        logger: { warn } as unknown as Logger,
       });
 
       const tools = JSON.parse(generated.getFileContent()).agent.tool_permissions.tools;
       expect(Object.keys(tools)).toEqual(["terminal"]);
-      const inertWarning = warn.mock.calls
-        .map(([message]) => message as string)
-        .find((message) => message.includes("exact key"));
-      expect(inertWarning).toContain('"mcp__context7"');
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'dropping the "mcp__context7", "mcp__context7__*", "mcp__*__get_docs" categories',
+        ),
+      );
+    });
+
+    it("should sweep a canonical-spelled key even after its category is removed", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            tool_permissions: {
+              tools: {
+                mcp__context7__get_docs: { default: "deny" },
+                custom_tool: { default: "allow" },
+              },
+            },
+          },
+        }),
+      );
+
+      // The MCP category is gone from the canonical config entirely.
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ bash: { "*": "allow" } }),
+      });
+
+      const tools = JSON.parse(generated.getFileContent()).agent.tool_permissions.tools;
+      // The dead key is rulesync's own output either way, so it goes...
+      expect(tools.mcp__context7__get_docs).toBeUndefined();
+      // ...while a genuine Zed tool name the user may own is left alone.
+      expect(tools.custom_tool).toEqual({ default: "allow" });
     });
 
     it("should normalize a Zed-spelled mcp key to the canonical category on import", async () => {

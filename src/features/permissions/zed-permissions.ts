@@ -144,13 +144,15 @@ const isMcpZedToolName = (zedName: string): boolean => zedName.startsWith(MCP_ZE
 
 /**
  * Zed looks a tool up by exact key on the full `mcp:<server>:<tool>` triple, so
- * an address naming only a server, or a tool part set to a wildcard, matches nothing.
+ * an address is inert unless it names both a concrete server and a concrete
+ * tool: a missing half matches nothing, and so does a wildcard, since Zed does
+ * no glob or prefix matching on the key.
  */
 function isInertMcpAddress(zedToolName: string): boolean {
   if (!isMcpZedToolName(zedToolName)) return false;
   const [server, ...toolParts] = zedToolName.slice(MCP_ZED_PREFIX.length).split(":");
   const tool = toolParts.join(":");
-  return !server || !tool || tool === "*";
+  return !server || server === "*" || !tool || tool === "*";
 }
 
 /**
@@ -408,13 +410,6 @@ export class ZedPermissions extends ToolPermissions {
     const toolPermissions = asRecord(agent.tool_permissions);
     const existingTools = asRecord(toolPermissions.tools);
 
-    // The canonical `*` category is the all-tools catch-all. Zed's counterpart
-    // is `agent.tool_permissions.default` (rung 6 of its precedence ladder),
-    // not a `tools["*"]` entry — `*` is not a Zed tool name, so writing one
-    // produces a rule Zed silently ignores. Only the category's own `*`
-    // pattern can be expressed there: Zed's global default carries no pattern
-    // list, so pattern-scoped rules in the `*` category are dropped with a
-    // warning instead of being emitted as inert config.
     const { managedDefault, managedTools, excludedCategories, inertMcpCategories } =
       buildZedToolPermissions({ permission: config.permission, logger });
 
@@ -431,8 +426,8 @@ export class ZedPermissions extends ToolPermissions {
       logger?.warn(
         `Zed permissions: dropping the ${inertMcpCategories.map((category) => `"${category}"`).join(", ")} ` +
           `${inertMcpCategories.length === 1 ? "category" : "categories"} — Zed looks an MCP tool up by ` +
-          `exact key on the full \`mcp:<server>:<tool>\` triple, so an address naming only a server, or ` +
-          `a tool part set to a wildcard, matches nothing. Name the individual tools instead.`,
+          `exact key on the full \`mcp:<server>:<tool>\` triple, so an address that omits or wildcards ` +
+          `either half matches nothing. Name the individual server and tool instead.`,
       );
     }
 
@@ -444,15 +439,15 @@ export class ZedPermissions extends ToolPermissions {
     if ("*" in config.permission) {
       managedToolNames.add("*");
     }
-    // An MCP category also claims the canonical `mcp__server__tool` spelling an
-    // earlier rulesync version wrote for it. Like `tools["*"]`, that is not a
-    // Zed tool name, so the entry can only be rulesync's own output — leaving it
-    // would strand a dead key that no later generate cleans up, and that import
-    // would fold back into the same canonical category, resurrecting rules the
-    // current config no longer states.
-    for (const category of Object.keys(config.permission)) {
-      if (category.startsWith(MCP_CANONICAL_PREFIX)) {
-        managedToolNames.add(category);
+    // Every canonical-spelled `mcp__server__tool` entry on disk is swept,
+    // whether or not the current config still names that category. Like
+    // `tools["*"]`, it is not a Zed tool name, so it can only be an earlier
+    // rulesync version's output — leaving it would strand a dead key that no
+    // later generate cleans up, and that import would fold back into the
+    // canonical category, resurrecting rules the config no longer states.
+    for (const toolName of Object.keys(existingTools)) {
+      if (toolName.startsWith(MCP_CANONICAL_PREFIX)) {
+        managedToolNames.add(toolName);
       }
     }
     // An inert `tools.read_file`/`tools.grep` entry an earlier rulesync version
