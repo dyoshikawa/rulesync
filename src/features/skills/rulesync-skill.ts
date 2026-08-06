@@ -97,6 +97,16 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.looseObject({})),
     }),
   ),
+  kiro: z.optional(
+    z.looseObject({
+      // Kiro's SKILL.md frontmatter beyond `name`/`description`: `license`,
+      // `compatibility` (a free-form string per the Agent Skills spec), and
+      // `metadata`. https://kiro.dev/docs/skills/
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+      metadata: z.optional(z.looseObject({})),
+    }),
+  ),
   deepagents: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
@@ -328,6 +338,11 @@ export type RulesyncSkillFrontmatterInput = {
   };
   kilo?: {
     "allowed-tools"?: string[];
+  };
+  kiro?: {
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
   };
   deepagents?: {
     "allowed-tools"?: string[];

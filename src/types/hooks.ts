@@ -50,6 +50,12 @@ export const HookDefinitionSchema = z.looseObject({
   // https://kiro.dev/docs/cli/hooks/
   cacheTtl: z.optional(z.number().check(nonnegative())),
   matcher: z.optional(safeString),
+  // Kiro IDE: whether the hook is active. Kiro writes `enabled` on every hook
+  // entry and defaults it to `true`; without a canonical home, importing a
+  // deliberately disabled hook and regenerating would silently switch it back
+  // on. Only the Kiro IDE emitter reads and writes it.
+  // https://kiro.dev/docs/hooks/
+  enabled: z.optional(z.boolean()),
   prompt: z.optional(safeString),
   loop_limit: z.optional(z.nullable(z.number())),
   name: z.optional(safeString),

@@ -65,6 +65,68 @@ describe("KiroMcp", () => {
         },
       });
     });
+
+    it("should translate kiroAutoApprove and kiroAutoBlock onto Kiro's native keys", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            api: {
+              command: "node",
+              kiroAutoApprove: ["read_file", "list_dir"],
+              kiroAutoBlock: ["delete_file"],
+            },
+          },
+        }),
+        validate: true,
+      });
+
+      const kiroMcp = KiroMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      expect(JSON.parse(kiroMcp.getFileContent())).toEqual({
+        mcpServers: {
+          api: {
+            command: "node",
+            autoApprove: ["read_file", "list_dir"],
+            disabledTools: ["delete_file"],
+          },
+        },
+      });
+    });
+
+    it("should union the translated lists with natively spelled ones", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            api: {
+              command: "node",
+              autoApprove: ["read_file"],
+              kiroAutoApprove: ["read_file", "list_dir"],
+              disabledTools: ["delete_file"],
+              kiroAutoBlock: ["drop_table"],
+            },
+          },
+        }),
+        validate: true,
+      });
+
+      const kiroMcp = KiroMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      expect(JSON.parse(kiroMcp.getFileContent())).toEqual({
+        mcpServers: {
+          api: {
+            command: "node",
+            autoApprove: ["read_file", "list_dir"],
+            disabledTools: ["delete_file", "drop_table"],
+          },
+        },
+      });
+    });
   });
 
   describe("fromFile", () => {
@@ -102,6 +164,46 @@ describe("KiroMcp", () => {
           command: "node",
           args: ["server.js"],
           disabledTools: ["delete", "write"],
+        },
+      });
+    });
+
+    it("should translate autoApprove back to kiroAutoApprove and round-trip", () => {
+      const kiroMcp = new KiroMcp({
+        outputRoot: testDir,
+        relativeDirPath: join(".kiro", "settings"),
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            api: {
+              command: "node",
+              autoApprove: ["read_file"],
+              disabledTools: ["delete_file"],
+            },
+          },
+        }),
+        validate: true,
+      });
+
+      const rulesyncMcp = kiroMcp.toRulesyncMcp();
+
+      expect(rulesyncMcp.getMcpServers()).toEqual({
+        api: {
+          command: "node",
+          kiroAutoApprove: ["read_file"],
+          disabledTools: ["delete_file"],
+        },
+      });
+
+      // Regenerating reproduces the file it was imported from.
+      const regenerated = KiroMcp.fromRulesyncMcp({ rulesyncMcp });
+      expect(JSON.parse(regenerated.getFileContent())).toEqual({
+        mcpServers: {
+          api: {
+            command: "node",
+            autoApprove: ["read_file"],
+            disabledTools: ["delete_file"],
+          },
         },
       });
     });

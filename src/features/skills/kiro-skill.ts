@@ -19,6 +19,13 @@ import {
 const KiroSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  // Kiro's remaining documented SKILL.md fields. `compatibility` is a free-form
+  // string in the Agent Skills spec Kiro defers to; the object form stays
+  // accepted for back-compat with existing rulesync skill files.
+  // https://kiro.dev/docs/skills/
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+  metadata: z.optional(z.looseObject({})),
 });
 
 type KiroSkillFrontmatter = z.infer<typeof KiroSkillFrontmatterSchema>;
@@ -121,10 +128,16 @@ export class KiroSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    // `name` and `description` have canonical homes; everything else — the
+    // documented Kiro fields and any key beyond the schema a hand-written
+    // SKILL.md carries — rides the tool-scoped `kiro` section so it survives the
+    // round-trip instead of being erased on the next generate.
+    const { name, description, ...kiroSection } = frontmatter;
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name: frontmatter.name,
-      description: frontmatter.description,
+      name,
+      description,
       targets: ["*"],
+      ...(Object.keys(kiroSection).length > 0 && { kiro: kiroSection }),
     };
 
     return new RulesyncSkill({
@@ -149,6 +162,9 @@ export class KiroSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
     const kiroFrontmatter: KiroSkillFrontmatter = {
+      // The section is written first so the canonical `name`/`description`
+      // still own their keys.
+      ...rulesyncFrontmatter.kiro,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
     };

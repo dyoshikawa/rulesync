@@ -112,6 +112,46 @@ describe("KiroSkill", () => {
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
     });
+
+    it("should round-trip license, compatibility, metadata and unknown keys", () => {
+      const kiroSkill = new KiroSkill({
+        outputRoot: testDir,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "test-skill",
+          description: "Test description",
+          license: "Apache-2.0",
+          compatibility: "Requires network access",
+          metadata: { author: "rulesync", version: "1.0.0" },
+          "future-kiro-key": "kept",
+        },
+        body: "Test body",
+      });
+
+      const rulesyncSkill = kiroSkill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "test-skill",
+        description: "Test description",
+        targets: ["*"],
+        kiro: {
+          license: "Apache-2.0",
+          compatibility: "Requires network access",
+          metadata: { author: "rulesync", version: "1.0.0" },
+          "future-kiro-key": "kept",
+        },
+      });
+
+      const regenerated = KiroSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+      expect(regenerated.getFrontmatter()).toEqual({
+        name: "test-skill",
+        description: "Test description",
+        license: "Apache-2.0",
+        compatibility: "Requires network access",
+        metadata: { author: "rulesync", version: "1.0.0" },
+        "future-kiro-key": "kept",
+      });
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {
