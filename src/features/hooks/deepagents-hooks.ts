@@ -2,10 +2,11 @@ import { join } from "node:path";
 
 import { DEEPAGENTS_DIR, DEEPAGENTS_HOOKS_FILE_NAME } from "../../constants/deepagents-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { HooksConfig } from "../../types/hooks.js";
+import type { HookDefinition, HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_DEEPAGENTS_EVENT_NAMES,
   DEEPAGENTS_HOOK_EVENTS,
+  DEEPAGENTS_LEGACY_TO_CANONICAL_EVENT_NAMES,
   DEEPAGENTS_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
@@ -20,29 +21,40 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-type DeepagentsHookEntry = {
-  command: string[];
-  events?: string[];
+/** One `command` handler inside a Hooks v2 matcher group. */
+type DeepagentsHandler = {
+  type: "command";
+  command: string;
+  timeout?: number;
+  statusMessage?: string;
 };
 
+/** A matcher and its ordered handlers, upstream's `MatcherGroup`. */
+type DeepagentsMatcherGroup = {
+  matcher?: string;
+  hooks: DeepagentsHandler[];
+};
+
+/** The Hooks v2 document: `{ "hooks": { "<Event>": [MatcherGroup] } }`. */
 type DeepagentsHooksFile = {
-  hooks: DeepagentsHookEntry[];
+  hooks: Record<string, DeepagentsMatcherGroup[]>;
 };
 
-function isDeepagentsHooksFile(val: unknown): val is DeepagentsHooksFile {
-  if (typeof val !== "object" || val === null || !("hooks" in val)) return false;
-  return Array.isArray(val.hooks);
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
- * Convert canonical hooks config to deepagents flat array format.
+ * Convert the canonical hooks config to the deepagents Hooks v2 document.
  *
- * deepagents format:
- * { "hooks": [{ "command": ["bash", "-c", "..."], "events": ["session.start"] }] }
+ * ```json
+ * { "hooks": { "PreToolUse": [{ "matcher": "Bash", "hooks": [{ "type": "command", "command": "…" }] }] } }
+ * ```
  *
- * Each canonical hook definition becomes one deepagents hook entry.
+ * Definitions sharing an event and matcher land in one group, preserving their
+ * authored order — upstream runs a group's handlers in sequence.
  */
-function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHookEntry[] {
+function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHooksFile["hooks"] {
   const supported: Set<string> = new Set(DEEPAGENTS_HOOK_EVENTS);
   // Merge shared hooks + deepagents-specific overrides.
   // Note: this class handles the deepagents.hooks merge internally rather than
@@ -54,7 +66,7 @@ function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHookEntry[] 
     ...config.deepagents?.hooks,
   };
 
-  const entries: DeepagentsHookEntry[] = [];
+  const hooks: DeepagentsHooksFile["hooks"] = {};
 
   for (const [canonicalEvent, definitions] of Object.entries(effectiveHooks)) {
     if (!supported.has(canonicalEvent)) continue;
@@ -65,48 +77,93 @@ function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHookEntry[] 
     for (const def of definitions) {
       if ((def.type ?? "command") !== "command") continue;
       if (!def.command) continue;
-      if (def.matcher) continue;
 
-      entries.push({
-        command: ["bash", "-c", def.command],
-        events: [deepagentsEvent],
-      });
+      const handler: DeepagentsHandler = { type: "command", command: def.command };
+      // Upstream validates `timeout` as `> 0`, so a zero or negative value
+      // would make the whole document fail to load.
+      if (def.timeout !== undefined && def.timeout !== null && def.timeout > 0) {
+        handler.timeout = def.timeout;
+      }
+      if (def.statusMessage !== undefined && def.statusMessage !== null) {
+        handler.statusMessage = def.statusMessage;
+      }
+
+      const matcher =
+        def.matcher !== undefined && def.matcher !== null && def.matcher !== ""
+          ? def.matcher
+          : undefined;
+      const groups = (hooks[deepagentsEvent] ??= []);
+      const group = groups.find((candidate) => candidate.matcher === matcher);
+      if (group) {
+        group.hooks.push(handler);
+      } else {
+        groups.push({ ...(matcher !== undefined && { matcher }), hooks: [handler] });
+      }
     }
   }
 
-  return entries;
+  return hooks;
 }
 
 /**
- * Convert deepagents flat array format back to canonical hooks record.
+ * Convert the Hooks v2 document back to the canonical hooks record.
  */
-function deepagentsToCanonicalHooks(hooksEntries: DeepagentsHookEntry[]): HooksConfig["hooks"] {
+function deepagentsToCanonicalHooks(hooks: DeepagentsHooksFile["hooks"]): HooksConfig["hooks"] {
   const canonical: HooksConfig["hooks"] = {};
 
-  for (const entry of hooksEntries) {
-    if (typeof entry !== "object" || entry === null) continue;
-    if (!Array.isArray(entry.command) || entry.command.length === 0) continue;
+  for (const [deepagentsEvent, groups] of Object.entries(hooks)) {
+    const canonicalEvent = DEEPAGENTS_TO_CANONICAL_EVENT_NAMES[deepagentsEvent];
+    if (!canonicalEvent || !Array.isArray(groups)) continue;
 
-    // Reconstruct command string: if it's ["bash", "-c", "..."], extract the script
-    let command: string;
-    if (entry.command.length === 3 && entry.command[0] === "bash" && entry.command[1] === "-c") {
-      command = entry.command[2] ?? "";
-    } else {
-      // Fallback: join all parts
-      command = entry.command.join(" ");
+    for (const group of groups) {
+      if (!isRecord(group) || !Array.isArray(group.hooks)) continue;
+
+      for (const handler of group.hooks) {
+        if (!isRecord(handler) || typeof handler.command !== "string") continue;
+
+        const def: HookDefinition = { type: "command", command: handler.command };
+        if (typeof group.matcher === "string" && group.matcher !== "") {
+          def.matcher = group.matcher;
+        }
+        if (typeof handler.timeout === "number") def.timeout = handler.timeout;
+        if (typeof handler.statusMessage === "string") def.statusMessage = handler.statusMessage;
+
+        (canonical[canonicalEvent] ??= []).push(def);
+      }
     }
+  }
 
-    const events = entry.events ?? [];
-    for (const deepagentsEvent of events) {
-      const canonicalEvent = DEEPAGENTS_TO_CANONICAL_EVENT_NAMES[deepagentsEvent];
+  return canonical;
+}
+
+/**
+ * Read the pre-v2 flat list. deepagents still loads it until 2026-09-01, so a
+ * `hooks.json` a user has not migrated yet is imported rather than discarded —
+ * but rulesync only ever writes the v2 shape, so regenerating migrates it.
+ */
+function deepagentsLegacyToCanonicalHooks(entries: unknown[]): HooksConfig["hooks"] {
+  const canonical: HooksConfig["hooks"] = {};
+
+  for (const entry of entries) {
+    if (!isRecord(entry)) continue;
+    const argv = entry.command;
+    if (!Array.isArray(argv) || argv.length === 0) continue;
+
+    // The legacy writer wrapped the script as `["bash", "-c", <script>]`.
+    const command =
+      argv.length === 3 && argv[0] === "bash" && argv[1] === "-c"
+        ? String(argv[2] ?? "")
+        : argv.join(" ");
+
+    const events = Array.isArray(entry.events) ? entry.events : [];
+    for (const legacyEvent of events) {
+      const canonicalEvent =
+        typeof legacyEvent === "string"
+          ? DEEPAGENTS_LEGACY_TO_CANONICAL_EVENT_NAMES[legacyEvent]
+          : undefined;
       if (!canonicalEvent) continue;
 
-      const existing = canonical[canonicalEvent];
-      if (existing) {
-        existing.push({ type: "command", command });
-      } else {
-        canonical[canonicalEvent] = [{ type: "command", command }];
-      }
+      (canonical[canonicalEvent] ??= []).push({ type: "command", command });
     }
   }
 
@@ -117,7 +174,7 @@ export class DeepagentsHooks extends ToolHooks {
   constructor(params: AiFileParams) {
     super({
       ...params,
-      fileContent: params.fileContent ?? JSON.stringify({ hooks: [] }, null, 2),
+      fileContent: params.fileContent ?? JSON.stringify({ hooks: {} }, null, 2),
     });
   }
 
@@ -140,7 +197,7 @@ export class DeepagentsHooks extends ToolHooks {
     const paths = DeepagentsHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent =
-      (await readFileContentOrNull(filePath)) ?? JSON.stringify({ hooks: [] }, null, 2);
+      (await readFileContentOrNull(filePath)) ?? JSON.stringify({ hooks: {} }, null, 2);
     return new DeepagentsHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
@@ -181,8 +238,14 @@ export class DeepagentsHooks extends ToolHooks {
       );
     }
 
-    const hooksEntries = isDeepagentsHooksFile(parsed) ? parsed.hooks : [];
-    const hooks = deepagentsToCanonicalHooks(hooksEntries);
+    const rawHooks = isRecord(parsed) ? parsed.hooks : undefined;
+    // The v2 document keys hooks by event name; the pre-v2 one held a flat
+    // list. Both are still loadable upstream, so both are imported.
+    const hooks = Array.isArray(rawHooks)
+      ? deepagentsLegacyToCanonicalHooks(rawHooks)
+      : isRecord(rawHooks)
+        ? deepagentsToCanonicalHooks(rawHooks as DeepagentsHooksFile["hooks"])
+        : {};
 
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
@@ -206,7 +269,7 @@ export class DeepagentsHooks extends ToolHooks {
       outputRoot,
       relativeDirPath,
       relativeFilePath,
-      fileContent: JSON.stringify({ hooks: [] }, null, 2),
+      fileContent: JSON.stringify({ hooks: {} }, null, 2),
       validate: false,
     });
   }

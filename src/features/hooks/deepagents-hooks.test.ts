@@ -40,7 +40,7 @@ describe("DeepagentsHooks", () => {
       const hooks = new DeepagentsHooks({
         relativeDirPath: ".deepagents",
         relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify({ hooks: [] }),
+        fileContent: JSON.stringify({ hooks: {} }),
       });
       expect(hooks.isDeletable()).toBe(true);
     });
@@ -51,23 +51,25 @@ describe("DeepagentsHooks", () => {
       const deepagentsDir = join(testDir, ".deepagents");
       await ensureDir(deepagentsDir);
       const content = JSON.stringify({
-        hooks: [{ command: ["bash", "-c", "echo hello"], events: ["session.start"] }],
+        hooks: {
+          SessionStart: [{ hooks: [{ type: "command", command: "echo hello" }] }],
+        },
       });
       await writeFileContent(join(deepagentsDir, "hooks.json"), content);
 
       const hooks = await DeepagentsHooks.fromFile({ outputRoot: testDir });
-      expect(hooks.getFileContent()).toContain("session.start");
+      expect(hooks.getFileContent()).toContain("SessionStart");
     });
 
     it("should return empty hooks if file does not exist", async () => {
       const hooks = await DeepagentsHooks.fromFile({ outputRoot: testDir });
       const parsed = JSON.parse(hooks.getFileContent());
-      expect(parsed.hooks).toEqual([]);
+      expect(parsed.hooks).toEqual({});
     });
   });
 
   describe("fromRulesyncHooks", () => {
-    it("should convert canonical hooks to deepagents flat array format", () => {
+    it("should convert canonical hooks to the Hooks v2 document", () => {
       const rulesyncHooksContent = JSON.stringify({
         version: 1,
         hooks: {
@@ -86,23 +88,15 @@ describe("DeepagentsHooks", () => {
       const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
       const parsed = JSON.parse(hooks.getFileContent());
 
-      expect(Array.isArray(parsed.hooks)).toBe(true);
-      expect(parsed.hooks.length).toBe(2);
-
-      const sessionStartEntry = parsed.hooks.find((h: { events?: string[] }) =>
-        h.events?.includes("session.start"),
-      );
-      expect(sessionStartEntry).toBeDefined();
-      expect(sessionStartEntry.command).toEqual(["bash", "-c", "echo session started"]);
-
-      const stopEntry = parsed.hooks.find((h: { events?: string[] }) =>
-        h.events?.includes("task.complete"),
-      );
-      expect(stopEntry).toBeDefined();
-      expect(stopEntry.command).toEqual(["bash", "-c", "echo task done"]);
+      expect(parsed.hooks.SessionStart).toEqual([
+        { hooks: [{ type: "command", command: "echo session started" }] },
+      ]);
+      expect(parsed.hooks.Stop).toEqual([
+        { hooks: [{ type: "command", command: "echo task done" }] },
+      ]);
     });
 
-    it("should map the canonical contextOffload event to dcode's context.offload", () => {
+    it("should emit matchers as v2 matcher groups", () => {
       const rulesyncHooks = new RulesyncHooks({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
@@ -110,7 +104,10 @@ describe("DeepagentsHooks", () => {
         fileContent: JSON.stringify({
           version: 1,
           hooks: {
-            contextOffload: [{ type: "command", command: "echo offloaded" }],
+            preToolUse: [
+              { type: "command", command: "echo bash tool", matcher: "Bash" },
+              { type: "command", command: "echo any tool" },
+            ],
           },
         }),
       });
@@ -118,18 +115,13 @@ describe("DeepagentsHooks", () => {
       const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
       const parsed = JSON.parse(hooks.getFileContent());
 
-      const offloadEntry = parsed.hooks.find((h: { events?: string[] }) =>
-        h.events?.includes("context.offload"),
-      );
-      expect(offloadEntry).toBeDefined();
-      expect(offloadEntry.command).toEqual(["bash", "-c", "echo offloaded"]);
-
-      // And it should round-trip back to the canonical name.
-      const roundTripped = JSON.parse(hooks.toRulesyncHooks().getFileContent());
-      expect(roundTripped.hooks.contextOffload).toBeDefined();
+      expect(parsed.hooks.PreToolUse).toEqual([
+        { matcher: "Bash", hooks: [{ type: "command", command: "echo bash tool" }] },
+        { hooks: [{ type: "command", command: "echo any tool" }] },
+      ]);
     });
 
-    it("should map the canonical notification event to dcode input.required", () => {
+    it("should group handlers sharing an event and matcher in authored order", () => {
       const rulesyncHooks = new RulesyncHooks({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
@@ -137,21 +129,29 @@ describe("DeepagentsHooks", () => {
         fileContent: JSON.stringify({
           version: 1,
           hooks: {
-            notification: [{ type: "command", command: "echo needs input" }],
+            preToolUse: [
+              { type: "command", command: "echo first", matcher: "Bash" },
+              { type: "command", command: "echo second", matcher: "Bash" },
+            ],
           },
         }),
       });
 
       const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
       const parsed = JSON.parse(hooks.getFileContent());
-      const entry = parsed.hooks.find((h: { events?: string[] }) =>
-        h.events?.includes("input.required"),
-      );
-      expect(entry).toBeDefined();
-      expect(entry.command).toEqual(["bash", "-c", "echo needs input"]);
+
+      expect(parsed.hooks.PreToolUse).toEqual([
+        {
+          matcher: "Bash",
+          hooks: [
+            { type: "command", command: "echo first" },
+            { type: "command", command: "echo second" },
+          ],
+        },
+      ]);
     });
 
-    it("should map the canonical preToolUse/postToolUse events to dcode tool.use/tool.result", () => {
+    it("should carry timeout and statusMessage onto the handler", () => {
       const rulesyncHooks = new RulesyncHooks({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
@@ -159,8 +159,9 @@ describe("DeepagentsHooks", () => {
         fileContent: JSON.stringify({
           version: 1,
           hooks: {
-            preToolUse: [{ type: "command", command: "echo before" }],
-            postToolUse: [{ type: "command", command: "echo after" }],
+            preToolUse: [
+              { type: "command", command: "echo guarded", timeout: 30, statusMessage: "Checking" },
+            ],
           },
         }),
       });
@@ -168,17 +169,78 @@ describe("DeepagentsHooks", () => {
       const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
       const parsed = JSON.parse(hooks.getFileContent());
 
-      const useEntry = parsed.hooks.find((h: { events?: string[] }) =>
-        h.events?.includes("tool.use"),
-      );
-      expect(useEntry).toBeDefined();
-      expect(useEntry.command).toEqual(["bash", "-c", "echo before"]);
+      expect(parsed.hooks.PreToolUse).toEqual([
+        {
+          hooks: [
+            { type: "command", command: "echo guarded", timeout: 30, statusMessage: "Checking" },
+          ],
+        },
+      ]);
+    });
 
-      const resultEntry = parsed.hooks.find((h: { events?: string[] }) =>
-        h.events?.includes("tool.result"),
-      );
-      expect(resultEntry).toBeDefined();
-      expect(resultEntry.command).toEqual(["bash", "-c", "echo after"]);
+    it("should omit a non-positive timeout upstream would reject", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", command: "echo zero", timeout: 0 }],
+          },
+        }),
+      });
+
+      const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      expect(parsed.hooks.PreToolUse).toEqual([
+        { hooks: [{ type: "command", command: "echo zero" }] },
+      ]);
+    });
+
+    it("should map the canonical notification event to the v2 Notification event", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            notification: [
+              { type: "command", command: "echo needs input", matcher: "agent_needs_input" },
+            ],
+          },
+        }),
+      });
+
+      const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      expect(parsed.hooks.Notification).toEqual([
+        { matcher: "agent_needs_input", hooks: [{ type: "command", command: "echo needs input" }] },
+      ]);
+    });
+
+    it("should map the subagent lifecycle events v2 added", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            subagentStart: [{ type: "command", command: "echo spawn" }],
+            subagentStop: [{ type: "command", command: "echo subagent done" }],
+          },
+        }),
+      });
+
+      const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      expect(parsed.hooks.SubagentStart).toBeDefined();
+      expect(parsed.hooks.SubagentStop).toBeDefined();
     });
 
     it("should skip prompt-type hooks", () => {
@@ -200,17 +262,15 @@ describe("DeepagentsHooks", () => {
       const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
       const parsed = JSON.parse(hooks.getFileContent());
 
-      // Only the command hook should be present
-      expect(parsed.hooks.length).toBe(1);
-      expect(parsed.hooks[0].events).toEqual(["task.complete"]);
+      expect(Object.keys(parsed.hooks)).toEqual(["Stop"]);
     });
 
     it("should skip unsupported canonical events", () => {
       const rulesyncHooksContent = JSON.stringify({
         version: 1,
         hooks: {
-          // subagentStop is NOT in DEEPAGENTS_HOOK_EVENTS
-          subagentStop: [{ type: "command", command: "echo tool" }],
+          // contextOffload has no Hooks v2 counterpart
+          contextOffload: [{ type: "command", command: "echo offloaded" }],
           sessionStart: [{ type: "command", command: "echo start" }],
         },
       });
@@ -225,8 +285,7 @@ describe("DeepagentsHooks", () => {
       const hooks = DeepagentsHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
       const parsed = JSON.parse(hooks.getFileContent());
 
-      expect(parsed.hooks.length).toBe(1);
-      expect(parsed.hooks[0].events).toEqual(["session.start"]);
+      expect(Object.keys(parsed.hooks)).toEqual(["SessionStart"]);
     });
 
     it("should apply deepagents-specific hook overrides", () => {
@@ -253,21 +312,19 @@ describe("DeepagentsHooks", () => {
       const parsed = JSON.parse(hooks.getFileContent());
 
       // The override replaces the shared hook for sessionStart
-      const sessionEntries = parsed.hooks.filter((h: { events?: string[] }) =>
-        h.events?.includes("session.start"),
-      );
-      expect(sessionEntries.length).toBe(1);
-      expect(sessionEntries[0].command[2]).toBe("echo overridden");
+      expect(parsed.hooks.SessionStart).toEqual([
+        { hooks: [{ type: "command", command: "echo overridden" }] },
+      ]);
     });
   });
 
   describe("toRulesyncHooks", () => {
-    it("should convert deepagents hooks back to canonical format", () => {
+    it("should convert v2 hooks back to canonical format", () => {
       const deepagentsContent = JSON.stringify({
-        hooks: [
-          { command: ["bash", "-c", "echo start"], events: ["session.start"] },
-          { command: ["bash", "-c", "echo done"], events: ["task.complete"] },
-        ],
+        hooks: {
+          SessionStart: [{ hooks: [{ type: "command", command: "echo start" }] }],
+          Stop: [{ hooks: [{ type: "command", command: "echo done" }] }],
+        },
       });
 
       const hooks = new DeepagentsHooks({
@@ -280,20 +337,22 @@ describe("DeepagentsHooks", () => {
       const rulesyncHooks = hooks.toRulesyncHooks();
       const canonical = rulesyncHooks.getJson();
 
-      expect(canonical.hooks.sessionStart).toBeDefined();
-      expect(canonical.hooks.sessionStart?.[0]?.command).toBe("echo start");
-      expect(canonical.hooks.stop).toBeDefined();
-      expect(canonical.hooks.stop?.[0]?.command).toBe("echo done");
+      expect(canonical.hooks.sessionStart).toEqual([{ type: "command", command: "echo start" }]);
+      expect(canonical.hooks.stop).toEqual([{ type: "command", command: "echo done" }]);
     });
 
-    it("should handle hook entry with multiple events", () => {
+    it("should round-trip matcher, timeout and statusMessage", () => {
       const deepagentsContent = JSON.stringify({
-        hooks: [
-          {
-            command: ["bash", "-c", "echo multi"],
-            events: ["session.start", "session.end"],
-          },
-        ],
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: "Bash",
+              hooks: [
+                { type: "command", command: "echo guarded", timeout: 15, statusMessage: "Guard" },
+              ],
+            },
+          ],
+        },
       });
 
       const hooks = new DeepagentsHooks({
@@ -303,20 +362,29 @@ describe("DeepagentsHooks", () => {
         fileContent: deepagentsContent,
       });
 
-      const rulesyncHooks = hooks.toRulesyncHooks();
-      const canonical = rulesyncHooks.getJson();
+      const canonical = hooks.toRulesyncHooks().getJson();
 
-      expect(canonical.hooks.sessionStart).toBeDefined();
-      expect(canonical.hooks.sessionEnd).toBeDefined();
+      expect(canonical.hooks.preToolUse).toEqual([
+        {
+          type: "command",
+          command: "echo guarded",
+          matcher: "Bash",
+          timeout: 15,
+          statusMessage: "Guard",
+        },
+      ]);
     });
 
-    it("should skip malformed hook entries", () => {
+    it("should skip malformed groups and handlers", () => {
       const hooks = new DeepagentsHooks({
         outputRoot: testDir,
         relativeDirPath: ".deepagents",
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
-          hooks: [null, "invalid", { events: ["session.start"] }, { command: [] }],
+          hooks: {
+            SessionStart: [null, "invalid", { hooks: "nope" }, { hooks: [{ type: "command" }] }],
+            UnknownEvent: [{ hooks: [{ type: "command", command: "echo ignored" }] }],
+          },
         }),
       });
 
@@ -325,20 +393,44 @@ describe("DeepagentsHooks", () => {
       expect(rulesyncHooks.getJson().hooks).toEqual({});
     });
 
-    it("should join command parts when bash fallback pattern is not used", () => {
+    it("should import the pre-v2 flat list format", () => {
       const hooks = new DeepagentsHooks({
         outputRoot: testDir,
         relativeDirPath: ".deepagents",
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
-          hooks: [{ command: ["pnpm", "test", "--runInBand"], events: ["task.complete"] }],
+          hooks: [
+            { command: ["bash", "-c", "echo start"], events: ["session.start"] },
+            { command: ["bash", "-c", "echo multi"], events: ["session.start", "session.end"] },
+            { command: ["pnpm", "test", "--runInBand"], events: ["task.complete"] },
+          ],
         }),
       });
 
-      const rulesyncHooks = hooks.toRulesyncHooks();
+      const canonical = hooks.toRulesyncHooks().getJson();
 
-      expect(rulesyncHooks.getJson().hooks.stop).toEqual([
-        { type: "command", command: "pnpm test --runInBand" },
+      expect(canonical.hooks.sessionStart).toEqual([
+        { type: "command", command: "echo start" },
+        { type: "command", command: "echo multi" },
+      ]);
+      expect(canonical.hooks.sessionEnd).toEqual([{ type: "command", command: "echo multi" }]);
+      expect(canonical.hooks.stop).toEqual([{ type: "command", command: "pnpm test --runInBand" }]);
+    });
+
+    it("should import the legacy context.offload event as canonical contextOffload", () => {
+      const hooks = new DeepagentsHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: [{ command: ["bash", "-c", "echo offloaded"], events: ["context.offload"] }],
+        }),
+      });
+
+      const canonical = hooks.toRulesyncHooks().getJson();
+
+      expect(canonical.hooks.contextOffload).toEqual([
+        { type: "command", command: "echo offloaded" },
       ]);
     });
   });
@@ -353,7 +445,7 @@ describe("DeepagentsHooks", () => {
 
       expect(hooks.getRelativeDirPath()).toBe(".deepagents");
       expect(hooks.getRelativeFilePath()).toBe("hooks.json");
-      expect(JSON.parse(hooks.getFileContent())).toEqual({ hooks: [] });
+      expect(JSON.parse(hooks.getFileContent())).toEqual({ hooks: {} });
     });
   });
 });

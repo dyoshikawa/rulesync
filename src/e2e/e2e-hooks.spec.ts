@@ -51,6 +51,7 @@ const hooksGenerateTargets = [
   { target: "copilot", outputPath: join(".github", "hooks", "copilot-hooks.json") },
   { target: "copilotcli", outputPath: join(".github", "hooks", "copilotcli-hooks.json") },
   { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
+  { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
   { target: "kiro", outputPath: join(".kiro", "agents", "default.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "agents", "default.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
@@ -196,6 +197,16 @@ describe("E2E: hooks", () => {
         expect(triggers).toContain("Stop");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "deepagents") {
+        // deepagents-cli gets the Hooks v2 document: PascalCase HookEvent keys
+        // over matcher groups holding string commands (no bash -c argv
+        // wrapping). See CANONICAL_TO_DEEPAGENTS_EVENT_NAMES in src/types/hooks.ts.
+        expect(parsed.hooks.SessionStart).toEqual([
+          { hooks: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }] },
+        ]);
+        expect(parsed.hooks.Stop).toEqual([
+          { hooks: [{ type: "command", command: ".rulesync/hooks/audit.sh" }] },
+        ]);
       } else {
         // codexcli, factorydroid, goose: event-name casing/mapping
         // varies per tool, so verify the configured hook command paths are preserved.
@@ -608,6 +619,19 @@ describe("E2E: hooks (import)", () => {
       sourceContent: {
         hooks: {
           SessionStart: [{ hooks: [{ type: "command", command: "echo session started" }] }],
+        },
+      },
+    },
+    {
+      // deepagents-cli uses the Hooks v2 document (PascalCase HookEvent keys
+      // over matcher groups); SessionStart round-trips to canonical `sessionStart`.
+      target: "deepagents",
+      sourcePath: join(".deepagents", "hooks.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
+          ],
         },
       },
     },

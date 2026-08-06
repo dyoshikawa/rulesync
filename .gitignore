@@ -250,7 +250,6 @@ rulesync.local.jsonc
 **/.copilot/agents/
 **/.copilot/mcp-config.json
 **/.copilot/hooks/
-**/.deepagents/hooks.json
 **/.hermes/plugins/rulesync-ignore/
 **/.hermes/plugins/rulesync-checks/
 **/.roomodes
@@ -384,6 +383,7 @@ rulesync.local.jsonc
 **/.pi/extensions/rulesync-hooks.ts
 **/.factory/hooks.json
 **/.agents/plugins/rulesync/hooks/hooks.json
+**/.deepagents/hooks.json
 **/.kiro/agents/default.json
 **/.kiro/hooks/rulesync.json
 **/.devin/hooks.v1.json
