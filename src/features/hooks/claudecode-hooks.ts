@@ -169,7 +169,7 @@ export class ClaudecodeHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     let settings: { hooks?: unknown };
     try {
       settings = JSON.parse(this.getFileContent());
@@ -184,6 +184,7 @@ export class ClaudecodeHooks extends ToolHooks {
     const hooks = toolHooksToCanonical({
       hooks: settings.hooks,
       converterConfig: (this.constructor as typeof ClaudecodeHooks).getConverterConfig(),
+      logger,
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(

@@ -129,7 +129,7 @@ export class JunieHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     let settings: { hooks?: unknown };
     try {
       settings = JSON.parse(this.getFileContent());
@@ -144,6 +144,7 @@ export class JunieHooks extends ToolHooks {
     const hooks = toolHooksToCanonical({
       hooks: settings.hooks,
       converterConfig: JUNIE_CONVERTER_CONFIG,
+      logger,
     });
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
