@@ -372,6 +372,10 @@ describe("QwencodePermissions", () => {
       );
     });
 
+    // The scope gate filters the override copy only, so a value the user already
+    // wrote into the project file wins over the override's — even when the override
+    // asks to disable it. That is intentional: Qwen Code ignores the workspace value
+    // either way, and rewriting a key rulesync refuses to author would be worse.
     it("keeps a pre-existing project-scoped allowPrivateNetworkHooks untouched", async () => {
       const settingsDir = join(testDir, ".qwen");
       await ensureDir(settingsDir);
@@ -394,6 +398,23 @@ describe("QwencodePermissions", () => {
 
       const content = JSON.parse(instance.getFileContent());
       expect(content.security).toEqual({ allowPrivateNetworkHooks: true });
+    });
+
+    it("writes no security object when the scope gate empties the override", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger: createMockLogger(),
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { allowPrivateNetworkHooks: true } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).security).toBeUndefined();
     });
 
     it("lifts the HTTP-hook security keys back into the override on import", () => {

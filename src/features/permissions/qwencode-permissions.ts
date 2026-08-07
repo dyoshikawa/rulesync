@@ -334,14 +334,17 @@ export class QwencodePermissions extends ToolPermissions {
       patch.tools = { ...asPlainRecord(settings.tools), ...asPlainRecord(override.tools) };
     }
     if (override?.security !== undefined) {
-      patch.security = {
-        ...asPlainRecord(settings.security),
-        ...scopeOverrideSecurity(override.security, {
-          global,
-          relativeFilePath: paths.relativeFilePath,
-          logger,
-        }),
-      };
+      const scopedSecurity = scopeOverrideSecurity(override.security, {
+        global,
+        relativeFilePath: paths.relativeFilePath,
+        logger,
+      });
+      const mergedSecurity = { ...asPlainRecord(settings.security), ...scopedSecurity };
+      // An override whose only key was scoped away leaves nothing to write, so do
+      // not add an empty `security` object to a file that had none.
+      if (Object.keys(mergedSecurity).length > 0) {
+        patch.security = mergedSecurity;
+      }
     }
 
     const fileContent = applySharedConfigPatch({
@@ -391,6 +394,15 @@ export class QwencodePermissions extends ToolPermissions {
     // file being read carries no scope marker, and dropping a global-only key here
     // would lose a user's real setting. The scope gate lives on the generate side.
     const overrideSecurity = pickQwenOverrideKeys(settings.security, QWEN_OVERRIDE_SECURITY_KEYS);
+    for (const key of QWEN_GLOBAL_ONLY_SECURITY_KEYS) {
+      if (overrideSecurity[key] === undefined) continue;
+      // Regenerating in global scope turns a value Qwen Code ignores in a
+      // workspace file into one it enforces, so flag the promotion rather than
+      // letting a setting imported from a cloned repository slip through.
+      moduleLogger.warn(
+        `Qwen permissions: imported 'security.${key}'. Qwen Code ignores it in workspace settings but enforces it in user/system settings, so review it before generating with the global scope.`,
+      );
+    }
     const overridePermissions = pickQwenOverrideKeys(
       settings.permissions,
       QWEN_OVERRIDE_PERMISSIONS_KEYS,
