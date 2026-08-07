@@ -9,6 +9,8 @@ import { HooksConfig, CONTROL_CHARS } from "../../types/hooks.js";
  *
  * `experimental.session.compacting` receives `(input, output)` and exposes no
  * per-invocation identifier worth matching on, so it takes `null`.
+ * `chat.message` receives `(input, output)` with the prompt text living in
+ * `output.parts` rather than a single matchable field, so it takes `null` too.
  *
  * @see https://opencode.ai/docs/plugins/
  */
@@ -16,6 +18,26 @@ const NAMED_HOOK_MATCHER_SUBJECTS: Record<string, string | null> = {
   "tool.execute.before": "input.tool",
   "tool.execute.after": "input.tool",
   "experimental.session.compacting": null,
+  "chat.message": null,
+};
+
+/**
+ * Generic (`event.type`) dispatches that fire more broadly than the canonical
+ * event they are mapped from, with the extra condition the generated handler
+ * gates on.
+ *
+ * `permission.replied` fires for every reply — `once`, `always` and `reject` —
+ * so the canonical `permissionDenied` handler runs only for a rejecting reply.
+ *
+ * Note the v1 SDK's generated `Event` typing still describes this payload as
+ * `{ permissionID, response }`; the schema source, the v2 typings and the TUI's
+ * live consumer all agree on `{ requestID, reply }`, so the stale codegen is
+ * not followed here.
+ *
+ * @see https://opencode.ai/docs/plugins/
+ */
+const GENERIC_EVENT_PROPERTY_GATES: Record<string, string> = {
+  "permission.replied": 'event.properties.reply === "reject"',
 };
 
 /**
@@ -126,7 +148,11 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
   bodyLines.push("    event: async ({ event }) => {");
   let isFirst = true;
   for (const [eventName, handlers] of Object.entries(genericEventHandlers)) {
-    bodyLines.push(`      ${isFirst ? "if" : "else if"} (event.type === "${eventName}") {`);
+    const gate = GENERIC_EVENT_PROPERTY_GATES[eventName];
+    const condition = gate
+      ? `event.type === "${eventName}" && ${gate}`
+      : `event.type === "${eventName}"`;
+    bodyLines.push(`      ${isFirst ? "if" : "else if"} (${condition}) {`);
     isFirst = false;
     for (const handler of handlers) {
       const escapedCommand = escapeForTemplateLiteral(handler.command);

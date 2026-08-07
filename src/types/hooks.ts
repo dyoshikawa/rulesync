@@ -314,9 +314,10 @@ export const DEVIN_HOOK_EVENTS: readonly HookEvent[] = [
 /**
  * Hook events supported by OpenCode.
  *
- * `preCompact` maps to `experimental.session.compacting`, which the plugin docs
- * document as a named `(input, output)` hook rather than an `event.type`
- * dispatch; the other entries are all generic events.
+ * `preCompact` maps to `experimental.session.compacting` and
+ * `beforeSubmitPrompt` to `chat.message`, both of which the plugin docs
+ * document as named `(input, output)` hooks rather than `event.type`
+ * dispatches; the other entries are all generic events.
  *
  * @see https://opencode.ai/docs/plugins/
  */
@@ -333,6 +334,9 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "postCompact",
   "afterError",
   "fileChanged",
+  "notification",
+  "permissionDenied",
+  "beforeSubmitPrompt",
 ];
 
 /**
@@ -1154,9 +1158,15 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
   // emitted as `tool.execute.before/after` named hooks gated on the `bash`
   // tool — see `SHELL_EVENT_TOOL_GATES` in `opencode-style-generator.ts`.
   permissionRequest: "permission.asked",
-  // A named `(input, output)` hook, not an `event.type` dispatch — see
+  // `permission.replied` fires for every reply, so the generated handler gates
+  // on a rejecting reply — see `GENERIC_EVENT_PROPERTY_GATES` in
+  // `opencode-style-generator.ts`.
+  permissionDenied: "permission.replied",
+  notification: "tui.toast.show",
+  // Named `(input, output)` hooks, not `event.type` dispatches — see
   // `NAMED_HOOK_MATCHER_SUBJECTS` in `opencode-style-generator.ts`.
   preCompact: "experimental.session.compacting",
+  beforeSubmitPrompt: "chat.message",
   postCompact: "session.compacted",
   afterError: "session.error",
   fileChanged: "file.watcher.updated",

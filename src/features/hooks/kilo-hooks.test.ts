@@ -51,10 +51,8 @@ describe("KiloHooks", () => {
           afterFileEdit: [{ command: "format.sh" }],
           afterShellExecution: [{ command: "post-shell.sh" }],
           permissionRequest: [{ command: "perm-check.sh" }],
-          // notification is not supported by Kilo
-          notification: [{ type: "command", command: "echo no" }],
-          // beforeSubmitPrompt has no Kilo equivalent
-          beforeSubmitPrompt: [{ command: "pre-prompt.sh" }],
+          // sessionEnd has no Kilo equivalent
+          sessionEnd: [{ command: "session-end.sh" }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -91,8 +89,40 @@ describe("KiloHooks", () => {
       expect(content).toContain("perm-check.sh");
 
       // Unsupported events should not appear
-      expect(content).not.toContain("notify.sh");
-      expect(content).not.toContain("pre-prompt.sh");
+      expect(content).not.toContain("session-end.sh");
+    });
+
+    it("emits the toast, rejected-permission and chat-message events", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            notification: [{ command: "notify.sh" }],
+            permissionDenied: [{ command: "on-deny.sh" }],
+            beforeSubmitPrompt: [{ command: "pre-prompt.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const content = KiloHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      }).getFileContent();
+
+      expect(content).toContain('event.type === "tui.toast.show"');
+      expect(content).toContain("notify.sh");
+      expect(content).toContain(
+        'event.type === "permission.replied" && event.properties.reply === "reject"',
+      );
+      expect(content).toContain("on-deny.sh");
+      expect(content).toContain('"chat.message": async (input) => {');
+      expect(content).toContain("pre-prompt.sh");
+      expect(content).not.toContain('event.type === "chat.message"');
     });
 
     it("should generate tool event handlers with matcher support", () => {
