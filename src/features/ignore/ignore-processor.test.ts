@@ -441,6 +441,7 @@ describe("IgnoreProcessor", () => {
 
     it("should return only global-capable targets in global mode", () => {
       expect(IgnoreProcessor.getToolTargets({ global: true })).toEqual([
+        "devin",
         "kiro",
         "kiro-cli",
         "kiro-ide",

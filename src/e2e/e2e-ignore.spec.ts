@@ -4,6 +4,10 @@ import { parse as parseToml } from "smol-toml";
 import { describe, expect, it } from "vitest";
 
 import {
+  DEVIN_GLOBAL_IGNORE_DIR_PATH,
+  DEVIN_GLOBAL_IGNORE_FILE_NAME,
+} from "../constants/devin-paths.js";
+import {
   KIRO_GLOBAL_IGNORE_FILE_NAME,
   KIRO_IGNORE_FILE_NAME,
   KIRO_SETTINGS_DIR_PATH,
@@ -295,6 +299,10 @@ credentials/
 describe("E2E: ignore (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
   const globalTargets = [
+    {
+      target: "devin",
+      outputPath: join(DEVIN_GLOBAL_IGNORE_DIR_PATH, DEVIN_GLOBAL_IGNORE_FILE_NAME),
+    },
     { target: "kiro", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },
     { target: "kiro-cli", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },
     { target: "kiro-ide", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },

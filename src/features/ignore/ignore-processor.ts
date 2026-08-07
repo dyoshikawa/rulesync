@@ -83,6 +83,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
 
 const ignoreProcessorToolTargets: ToolTarget[] = [...toolIgnoreFactories.keys()];
 const ignoreProcessorGlobalToolTargets: ToolTarget[] = [
+  "devin",
   "kiro",
   "kiro-cli",
   "kiro-ide",
