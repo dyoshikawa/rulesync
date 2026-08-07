@@ -60,6 +60,7 @@ const hooksGenerateTargets = [
   { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
+  { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
 ] as const;
 
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -115,6 +116,16 @@ describe("E2E: hooks", () => {
       // so assert the canonical command paths survive rather than parsing JSON.
       expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
       expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    } else if (target === "cline") {
+      // Cline resolves an executable per event; the generated file at the
+      // settable path is the manifest naming the scripts rulesync owns.
+      expect(JSON.parse(generatedContent).events).toEqual(["TaskStart"]);
+      const script = await readFileContent(join(testDir, ".clinerules", "hooks", "TaskStart"));
+      expect(script).toContain(".rulesync/hooks/session-start.sh");
+      expect(script).toContain("#!/bin/bash");
+      expect(
+        await readFileContent(join(testDir, ".clinerules", "hooks", "TaskStart.ps1")),
+      ).toContain(".rulesync/hooks/session-start.sh");
     } else if (target === "pi") {
       // Pi emits a TypeScript extension (.pi/extensions/rulesync-hooks.ts)
       // that subscribes to snake_case extension events: sessionStart →
@@ -692,6 +703,7 @@ const hooksGlobalTargets = [
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
+  { target: "cline", outputPath: join("Documents", "Cline", "Hooks", "rulesync-hooks.json") },
 ] as const;
 
 // Global targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -754,6 +766,11 @@ describe("E2E: hooks (global mode)", () => {
         expect(generatedContent).toContain("RulesyncHooksPlugin");
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "cline") {
+        expect(JSON.parse(generatedContent).events).toEqual(["TaskStart"]);
+        expect(
+          await readFileContent(join(homeDir, "Documents", "Cline", "Hooks", "TaskStart")),
+        ).toContain(".rulesync/hooks/session-start.sh");
       } else if (target === "kilo") {
         // Kilo's JS plugin differs from OpenCode's shape; assert command paths.
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");

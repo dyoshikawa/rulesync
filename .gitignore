@@ -383,6 +383,7 @@ rulesync.local.jsonc
 **/.opencode/plugins/rulesync-hooks.js
 **/.pi/extensions/rulesync-hooks.ts
 **/.factory/hooks.json
+**/.clinerules/hooks/rulesync-hooks.json
 **/.agents/plugins/rulesync/hooks/hooks.json
 **/.deepagents/hooks.json
 **/.kiro/agents/default.json
