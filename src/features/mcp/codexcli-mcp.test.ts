@@ -1248,6 +1248,49 @@ args = ["server.js"]
       expect(mcpServers.srv).toEqual({ url: "https://mcp.example.com" });
     });
 
+    it("should warn and drop timeouts and headers Codex would reject (#2496)", async () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const jsonData = {
+        mcpServers: {
+          // A negative timeout makes Codex's `Duration::try_from_secs_f64`
+          // fail, which takes down the whole config.toml.
+          bad: { command: "node", timeout: -1000, networkTimeout: "30s", headers: 42 },
+        },
+      };
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify(jsonData),
+        }),
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers.bad).toEqual({ command: "node" });
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'timeout'"));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'networkTimeout'"));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'headers'"));
+    });
+
+    it("should warn when dropping the canonical tools array (#2496)", async () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({
+            mcpServers: { srv: { command: "node", tools: ["alpha"] } },
+          }),
+        }),
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Dropping 'tools'"));
+    });
+
     it("should accept the raw snake_case spelling of experimental_environment", async () => {
       // What someone copying a server out of a codex config.toml writes. It is
       // stripped for every other tool, so it has to be re-read here or it would
@@ -1610,6 +1653,91 @@ approval_mode = "approve"
       // produce a .rulesync/mcp.jsonc the schema rejects.
       expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers.srv.tools).toBeUndefined();
       expect(rulesyncMcp.validate().success).toBe(true);
+    });
+
+    it("should restate the http transport for a url server on import (#2496)", () => {
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: `[mcp_servers.remote]\nurl = "https://mcp.example.com"\n`,
+      });
+
+      const server = JSON.parse(codexcliMcp.toRulesyncMcp().getFileContent()).mcpServers.remote;
+      // Codex names no transport, so without this a round-trip would leave the
+      // server with none for the adapters that branch on `type`.
+      expect(server.type).toBe("http");
+    });
+
+    it("should ignore malformed http_headers and timeouts on import (#2496)", () => {
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: `[mcp_servers.srv]
+command = "node"
+http_headers = "Authorization: Bearer token"
+tool_timeout_sec = -5
+startup_timeout_ms = "fast"
+`,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+      const server = JSON.parse(rulesyncMcp.getFileContent()).mcpServers.srv;
+      expect(server.headers).toBeUndefined();
+      expect(server.timeout).toBeUndefined();
+      expect(server.networkTimeout).toBeUndefined();
+      expect(rulesyncMcp.validate().success).toBe(true);
+    });
+
+    it("should keep a hand-written canonical headers key over http_headers (#2496)", () => {
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: `[mcp_servers.remote]
+url = "https://mcp.example.com"
+
+[mcp_servers.remote.headers]
+Authorization = "canonical"
+
+[mcp_servers.remote.http_headers]
+Authorization = "codex"
+`,
+      });
+
+      const server = JSON.parse(codexcliMcp.toRulesyncMcp().getFileContent()).mcpServers.remote;
+      expect(server.headers).toEqual({ Authorization: "canonical" });
+    });
+
+    it("should round-trip a remote server through codex and back (#2496)", async () => {
+      const canonical = {
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://mcp.example.com",
+            headers: { Authorization: "Bearer token" },
+            timeout: 30000,
+            networkTimeout: 1500,
+          },
+        },
+      };
+      const generated = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify(canonical),
+        }),
+      });
+
+      const reimported = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: generated.getFileContent(),
+      });
+
+      expect(JSON.parse(reimported.toRulesyncMcp().getFileContent()).mcpServers.remote).toEqual(
+        canonical.mcpServers.remote,
+      );
     });
 
     it("should preserve MCP server data when converting to RulesyncMcp", () => {

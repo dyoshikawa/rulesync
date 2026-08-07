@@ -90,14 +90,32 @@ const CODEX_TO_RULESYNC_TIMEOUT_FIELD_MAP: Record<string, string> = Object.fromE
 
 const MILLISECONDS_PER_SECOND = 1000;
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
+/**
+ * Whether a value is usable as a timeout. Codex builds a `Duration` out of both
+ * timeout fields, and `Duration::try_from_secs_f64` errors on a negative value —
+ * which fails the whole `config.toml`, not just the one server — so a negative
+ * timeout is rejected here rather than written.
+ */
+function isTimeoutValue(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 /**
- * Whether a server config describes a Codex stdio server. Codex picks the
- * transport by `command` first, so a config carrying both `command` and `url`
- * is a stdio server upstream.
+ * Whether a value is usable as the canonical `headers` map, whose schema is
+ * `record(string, string)`. Checked in both directions so a hand-written
+ * `http_headers` can never be imported into a `.rulesync/mcp.jsonc` that the
+ * next generate would refuse to parse.
+ */
+function isHeadersRecord(value: unknown): value is Record<string, string> {
+  return isPlainObject(value) && Object.values(value).every((entry) => typeof entry === "string");
+}
+
+/**
+ * Whether a server config describes a Codex stdio server. Codex branches on
+ * `command` first; a config carrying both `command` and `url` is classified as
+ * stdio here, which matches upstream in the sense that it never reaches the
+ * remote arm — upstream rejects that combination outright ("url is not
+ * supported for stdio").
  */
 function isCodexStdioServer(config: Record<string, unknown>): boolean {
   return config["command"] !== undefined;
@@ -207,14 +225,22 @@ function translateCodexOnlyKey({
     // Codex's spelling of the canonical `headers`. A config rulesync wrote
     // carries only `http_headers`; if a hand-written file has both, the
     // canonical key wins, mirroring `oauth.client_id` / `oauth.clientId`.
-    return "headers" in config ? {} : { entry: ["headers", value] };
+    if ("headers" in config) return {};
+    if (isHeadersRecord(value)) {
+      return { entry: ["headers", omitPrototypePollutionKeys(value)] };
+    }
+    warnWithFallback(
+      undefined,
+      `Ignored malformed value for ${key} in MCP server ${serverName}: expected a table of string values`,
+    );
+    return {};
   }
   const mappedKey = CODEX_TO_RULESYNC_TIMEOUT_FIELD_MAP[key];
   if (mappedKey) {
-    if (isFiniteNumber(value)) return { entry: [mappedKey, value * MILLISECONDS_PER_SECOND] };
+    if (isTimeoutValue(value)) return { entry: [mappedKey, value * MILLISECONDS_PER_SECOND] };
     warnWithFallback(
       undefined,
-      `Ignored malformed value for ${key} in MCP server ${serverName}: expected a finite number of seconds`,
+      `Ignored malformed value for ${key} in MCP server ${serverName}: expected a non-negative number of seconds`,
     );
     return {};
   }
@@ -224,10 +250,10 @@ function translateCodexOnlyKey({
     // only read when the seconds one is absent. Canonical `networkTimeout` is
     // already in milliseconds, so no conversion.
     if ("startup_timeout_sec" in config) return {};
-    if (isFiniteNumber(value)) return { entry: ["networkTimeout", value] };
+    if (isTimeoutValue(value)) return { entry: ["networkTimeout", value] };
     warnWithFallback(
       undefined,
-      `Ignored malformed value for ${key} in MCP server ${serverName}: expected a finite number of milliseconds`,
+      `Ignored malformed value for ${key} in MCP server ${serverName}: expected a non-negative number of milliseconds`,
     );
     return {};
   }
@@ -269,10 +295,10 @@ function translateCanonicalKeyToCodex({
     return {};
   }
   if (key === "headers") {
-    if (!isPlainObject(value)) {
+    if (!isHeadersRecord(value)) {
       warnWithFallback(
         undefined,
-        `[CodexCliMcp] Skipping invalid value type for mapped key 'headers': expected a table, got ${typeof value}`,
+        `[CodexCliMcp] Skipping invalid value type for mapped key 'headers': expected a table of string values, got ${typeof value}`,
       );
       return {};
     }
@@ -290,14 +316,29 @@ function translateCanonicalKeyToCodex({
   }
   const mappedKey = RULESYNC_TO_CODEX_TIMEOUT_FIELD_MAP[key];
   if (mappedKey) {
-    if (isFiniteNumber(value)) return { entry: [mappedKey, value / MILLISECONDS_PER_SECOND] };
+    if (isTimeoutValue(value)) return { entry: [mappedKey, value / MILLISECONDS_PER_SECOND] };
     warnWithFallback(
       undefined,
-      `[CodexCliMcp] Skipping invalid value type for mapped key '${key}': expected a finite number of milliseconds, got ${typeof value}`,
+      `[CodexCliMcp] Skipping invalid value type for mapped key '${key}': expected a non-negative number of milliseconds, got ${typeof value}`,
     );
     return {};
   }
   return undefined;
+}
+
+/**
+ * Codex states no transport of its own — it infers one from `command` versus
+ * `url`, which is why generate drops the canonical `type`. Restate it for a url
+ * server on the way back, so a config imported from Codex reaches the adapters
+ * that branch on `type` as a remote server rather than one with no transport at
+ * all. `streamable_http` is Codex's only remote transport, and canonical spells
+ * that `http`.
+ */
+function restateCanonicalTransport(converted: Record<string, unknown>): void {
+  if (converted["type"] !== undefined) return;
+  if (isCodexStdioServer(converted)) return;
+  if (typeof converted["url"] !== "string") return;
+  converted["type"] = "http";
 }
 
 function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
@@ -343,6 +384,8 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
         converted[key] = value;
       }
     }
+
+    restateCanonicalTransport(converted);
 
     result[name] = converted;
   }
