@@ -166,6 +166,22 @@ describe("registry derivation", () => {
       // .gooseignore and the inert sub-recipe subagents directory.
       "goose::ignore::**/.gooseignore",
       "goose::subagents::**/.goose/recipes/subagents/",
+      // Cline's hook scripts come from getAuxiliaryFiles, not getSettablePaths,
+      // and are listed individually so a hand-authored hook stays tracked.
+      "cline::hooks::**/.clinerules/hooks/Notification",
+      "cline::hooks::**/.clinerules/hooks/Notification.ps1",
+      "cline::hooks::**/.clinerules/hooks/PostToolUse",
+      "cline::hooks::**/.clinerules/hooks/PostToolUse.ps1",
+      "cline::hooks::**/.clinerules/hooks/PreCompact",
+      "cline::hooks::**/.clinerules/hooks/PreCompact.ps1",
+      "cline::hooks::**/.clinerules/hooks/PreToolUse",
+      "cline::hooks::**/.clinerules/hooks/PreToolUse.ps1",
+      "cline::hooks::**/.clinerules/hooks/TaskComplete",
+      "cline::hooks::**/.clinerules/hooks/TaskComplete.ps1",
+      "cline::hooks::**/.clinerules/hooks/TaskStart",
+      "cline::hooks::**/.clinerules/hooks/TaskStart.ps1",
+      "cline::hooks::**/.clinerules/hooks/UserPromptSubmit",
+      "cline::hooks::**/.clinerules/hooks/UserPromptSubmit.ps1",
       // The allowlist is user-scope only; earlier versions wrote a project
       // `.junie/allowlist.json` Junie never reads (issue #2411).
       "junie::permissions::**/.junie/allowlist.json",

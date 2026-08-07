@@ -127,7 +127,6 @@ describe("ClineHooks", () => {
       expect(scriptOf(files, "TaskStart")).toBeUndefined();
       // The .ps1 twin does not exist yet, so it is still generated.
       expect(scriptOf(files, "TaskStart.ps1")).toBeDefined();
-      expect(await hooks.getBlockedScriptEvents()).toEqual(["TaskStart"]);
       expect(await readFileContent(join(testDir, ".clinerules", "hooks", "TaskStart"))).toBe(
         handWritten,
       );
@@ -151,6 +150,59 @@ describe("ClineHooks", () => {
       expect(stale).toContain(CLINE_HOOK_SCRIPT_MARKER);
       expect(stale).not.toContain("echo stale");
       expect(stale).toContain('"cancel": %s');
+    });
+
+    it("ignores a manifest event that is not one of Cline's hook types", async () => {
+      await writeFileContent(
+        join(testDir, ".clinerules", "hooks", "rulesync-hooks.json"),
+        JSON.stringify({
+          generatedBy: "rulesync",
+          events: ["../../.git/hooks/pre-commit", "NotAnEvent", "PreToolUse"],
+        }),
+      );
+
+      const files = await hooksFor({
+        sessionStart: [{ type: "command", command: "echo start" }],
+      }).getScriptFiles();
+
+      expect(files.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        "PreToolUse",
+        "PreToolUse.ps1",
+        "TaskStart",
+        "TaskStart.ps1",
+      ]);
+    });
+
+    it("warns instead of silently skipping a hand-authored collision", async () => {
+      await writeFileContent(
+        join(testDir, ".clinerules", "hooks", "TaskStart"),
+        "#!/bin/bash\necho mine\n",
+      );
+      const logger = createMockLogger();
+
+      await hooksFor({ sessionStart: [{ type: "command", command: "echo start" }] }).getScriptFiles(
+        { logger },
+      );
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("TaskStart"));
+    });
+  });
+
+  describe("getAuxiliaryFiles for deletion", () => {
+    it("collects the rulesync-marked scripts and leaves hand-authored ones", async () => {
+      const hooksDir = join(testDir, ".clinerules", "hooks");
+      await writeFileContent(
+        join(hooksDir, "TaskStart"),
+        `#!/bin/bash\n# ${CLINE_HOOK_SCRIPT_MARKER}\necho generated\n`,
+      );
+      await writeFileContent(join(hooksDir, "PreToolUse"), "#!/bin/bash\necho mine\n");
+
+      const files = await ClineHooks.getAuxiliaryFiles({
+        outputRoot: testDir,
+        forDeletion: true,
+      });
+
+      expect(files.map((file) => file.getRelativeFilePath())).toEqual(["TaskStart"]);
     });
   });
 

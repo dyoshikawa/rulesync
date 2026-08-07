@@ -141,6 +141,26 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   { target: "hermesagent", feature: "ignore", entry: "**/.hermes/plugins/rulesync-ignore/" },
   { target: "hermesagent", feature: "checks", entry: "**/.hermes/plugins/rulesync-checks/" },
 
+  // Cline's hook scripts are produced via `ClineHooks.getAuxiliaryFiles`, not
+  // `getSettablePaths` (which only exposes the manifest), and their names are
+  // fixed by Cline's VALID_HOOK_TYPES. They are listed one by one rather than as
+  // a directory so a hand-authored hook in the same directory — one rulesync
+  // deliberately never manages — stays tracked.
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/Notification" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/Notification.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PostToolUse" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PostToolUse.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreCompact" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreCompact.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreToolUse" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreToolUse.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskComplete" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskComplete.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskStart" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskStart.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/UserPromptSubmit" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/UserPromptSubmit.ps1" },
+
   // Roo aggregates subagents into a single `.roomodes` file (no settable path).
   { target: "roo", feature: "subagents", entry: "**/.roomodes" },
 

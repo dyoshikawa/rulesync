@@ -19,6 +19,11 @@ function sanitizeCommand(command: string): string {
   return sanitized;
 }
 
+/** Single-quote a string for POSIX shells. */
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
 /** Single-quote a string for PowerShell. */
 function powerShellQuote(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
@@ -81,16 +86,27 @@ export function generateClineHookScript({
   ];
 
   for (const command of commands) {
+    const quoted = shellQuote(command);
     lines.push(
       'if [ "$cancel" = false ]; then',
-      `  hook_stderr=$(printf '%s' "$payload" | ${command} 2>&1 >/dev/null)`,
-      "  hook_status=$?",
-      `  if [ "$hook_status" -eq ${CANCEL_EXIT_CODE} ]; then`,
-      "    cancel=true",
-      '    error_message="$hook_stderr"',
-      '  elif [ "$hook_status" -ne 0 ]; then',
-      `    printf '%s\\n' "rulesync ${event} hook failed (exit $hook_status): $hook_stderr" >&2`,
-      '    error_message="$hook_stderr"',
+      // The command is passed as a single quoted argument rather than spliced
+      // into this script, so its own quotes, comments and operators cannot
+      // break the wrapper. A command the shell cannot parse would exit 2 —
+      // the cancel code — so its syntax is checked first and a typo reports an
+      // error instead of silently cancelling the task.
+      `  if bash -n -c ${quoted} 2>/dev/null; then`,
+      `    hook_stderr=$(printf '%s' "$payload" | bash -c ${quoted} 2>&1 >/dev/null)`,
+      "    hook_status=$?",
+      `    if [ "$hook_status" -eq ${CANCEL_EXIT_CODE} ]; then`,
+      "      cancel=true",
+      '      error_message="$hook_stderr"',
+      '    elif [ "$hook_status" -ne 0 ]; then',
+      `      printf '%s\\n' "rulesync ${event} hook failed (exit $hook_status): $hook_stderr" >&2`,
+      '      error_message="$hook_stderr"',
+      "    fi",
+      "  else",
+      `    error_message="rulesync ${event} hook command is not valid shell syntax"`,
+      `    printf '%s\\n' "$error_message" >&2`,
       "  fi",
       "fi",
       "",
@@ -99,7 +115,10 @@ export function generateClineHookScript({
 
   lines.push(
     "escape_json() {",
-    `  printf '%s' "$1" | sed -e 's/\\\\/\\\\\\\\/g' -e 's/"/\\\\"/g' | tr '\\n' ' '`,
+    // Newlines, tabs and carriage returns become spaces and any other control
+    // character is dropped: a raw control character in a JSON string makes the
+    // whole result unparseable, which would silently discard a `cancel`.
+    `  printf '%s' "$1" | tr '\\n\\r\\t' '   ' | tr -d '\\000-\\037' | sed -e 's/\\\\/\\\\\\\\/g' -e 's/"/\\\\"/g'`,
     "}",
     "",
     `printf '{"cancel": %s, "contextModification": "", "errorMessage": "%s"}\\n' "$cancel" "$(escape_json "$error_message")"`,

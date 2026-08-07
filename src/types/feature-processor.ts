@@ -2,6 +2,7 @@ import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/cont
 import {
   addTrailingNewline,
   applyFileMode,
+  restoreMissingExecutableBit,
   readFileContentOrNull,
   removeFile,
   writeFileContent,
@@ -83,7 +84,6 @@ export abstract class FeatureProcessor {
         continue;
       }
 
-      // Optional call: test doubles and older AiFile shapes may not define it.
       const fileMode = aiFile.getFileMode?.();
 
       if (
@@ -96,9 +96,10 @@ export abstract class FeatureProcessor {
         // The content is already right, but the mode may not be: an interrupted
         // run (or a file the user copied in) can leave an executable output
         // without its executable bit, and the write that would have fixed it is
-        // the one being skipped here.
+        // the one being skipped here. Only a *missing* executable bit is
+        // restored, so a user who tightened the mode (0700) keeps it.
         if (fileMode !== undefined && !this.dryRun) {
-          await applyFileMode(filePath, fileMode);
+          await restoreMissingExecutableBit(filePath, fileMode);
         }
         continue;
       }

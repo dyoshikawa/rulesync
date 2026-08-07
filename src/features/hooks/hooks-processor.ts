@@ -92,8 +92,10 @@ type ToolHooksFactory = {
     getAuxiliaryFiles?: (params: {
       outputRoot?: string;
       global?: boolean;
+      forDeletion?: boolean;
       /** The instance just built, for adapters whose extra files derive from it. */
       toolHooks?: ToolHooks;
+      logger?: Logger;
     }) => ToolFile[] | Promise<ToolFile[]>;
   };
   meta: {
@@ -772,7 +774,16 @@ export class HooksProcessor extends FeatureProcessor {
           relativeFilePath: paths.relativeFilePath,
           global: this.global,
         });
-        const list = toolHooks.isDeletable?.() !== false ? [toolHooks] : [];
+        const auxiliaryFiles =
+          (await factory.class.getAuxiliaryFiles?.({
+            outputRoot: this.outputRoot,
+            global: this.global,
+            forDeletion: true,
+          })) ?? [];
+        const list = [
+          ...(toolHooks.isDeletable?.() !== false ? [toolHooks] : []),
+          ...auxiliaryFiles,
+        ];
         this.logger.debug(
           `Successfully loaded ${list.length} ${this.toolTarget} hooks files for deletion`,
         );
@@ -895,6 +906,7 @@ export class HooksProcessor extends FeatureProcessor {
       outputRoot: this.outputRoot,
       global: this.global,
       toolHooks,
+      logger: withToolTargetPrefix({ logger: this.logger, toolTarget: this.toolTarget }),
     });
     if (auxiliaryFiles && auxiliaryFiles.length > 0) {
       result.push(...auxiliaryFiles);

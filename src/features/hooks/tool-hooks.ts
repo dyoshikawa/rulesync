@@ -86,8 +86,10 @@ export abstract class ToolHooks extends ToolFile {
   static async getAuxiliaryFiles(_params: {
     outputRoot?: string;
     global?: boolean;
+    forDeletion?: boolean;
     /** The instance just built, for adapters whose extra files derive from it. */
     toolHooks?: ToolHooks;
+    logger?: Logger;
   }): Promise<ToolFile[]> {
     return [];
   }
