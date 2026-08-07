@@ -306,6 +306,43 @@ describe("CursorPermissions", () => {
       expect(parsed.version).toBe(2);
     });
 
+    it("should warn about a non-object editor only in global scope", async () => {
+      const cursorDir = join(testDir, ".cursor");
+      await ensureDir(cursorDir);
+      await writeFileContent(join(cursorDir, "cli.json"), JSON.stringify({ editor: "bad" }));
+      await writeFileContent(join(cursorDir, "cli-config.json"), JSON.stringify({ editor: "bad" }));
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+      });
+
+      // Project scope passes `editor` straight through, so warning that the
+      // value is being ignored would be untrue.
+      const projectLogger = createMockLogger();
+      const project = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: projectLogger,
+      });
+      expect(vi.mocked(projectLogger.warn)).not.toHaveBeenCalled();
+      expect(JSON.parse(project.getFileContent()).editor).toBe("bad");
+
+      // Global scope really does replace it, so it says so.
+      const globalLogger = createMockLogger();
+      const globalResult = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: globalLogger,
+        global: true,
+      });
+      expect(vi.mocked(globalLogger.warn).mock.calls.flat().join("\n")).toContain(
+        "non-object `editor` field",
+      );
+      expect(JSON.parse(globalResult.getFileContent()).editor).toEqual({ vimMode: false });
+    });
+
     it("should pass a project config's existing keys through untouched", async () => {
       const logger = createMockLogger();
       const cursorDir = join(testDir, ".cursor");
