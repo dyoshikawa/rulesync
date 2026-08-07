@@ -524,9 +524,11 @@ approval_mode = "approve"
       });
     });
 
-    it("does not clobber a rulesync-emitted tools value with the preserved approval table", async () => {
-      // When rulesync itself supplies a `tools` value, rulesync owns it: the
-      // preserved approval table must NOT override it.
+    it("drops a canonical tools array and keeps the existing approval table (#2496)", async () => {
+      // Codex reads `tools` as a per-tool approval table, so a canonical
+      // `tools` string array would be a serde type error that fails the whole
+      // server entry. It is dropped with a warning, which leaves the user's
+      // saved approval table as the value that survives.
       const existingToml = `[mcp_servers.srv]
 command = "node"
 
@@ -554,8 +556,8 @@ approval_mode = "approve"
       });
 
       const servers = codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>;
-      // rulesync's `tools` value wins; the existing approval table is not restored.
-      expect(servers.srv?.tools).toEqual(["explicit_tool"]);
+      // The canonical array never reaches the file; the approval table does.
+      expect(servers.srv?.tools).toEqual({ some_tool: { approval_mode: "approve" } });
     });
 
     it("should create instance from RulesyncMcp with custom outputRoot", async () => {
@@ -684,8 +686,9 @@ approval_mode = "approve"
         )?.["aws-knowledge"];
         expect(server).toBeDefined();
         expect(server!.env).toBeUndefined();
-        // Defensive: assert non-env fields survive the strip.
-        expect(server!.type).toBe(transport);
+        // Defensive: assert non-env fields survive the strip. The canonical
+        // `type` is not written — Codex infers the transport from `url`.
+        expect(server!.type).toBeUndefined();
         expect(server!.url).toBe("https://knowledge-mcp.global.api.aws");
       },
     );
@@ -1145,6 +1148,106 @@ args = ["server.js"]
       expect(mcpServers.pal.experimentalEnvironment).toBeUndefined();
     });
 
+    it("should write headers as http_headers on a url server (#2496)", async () => {
+      const jsonData = {
+        mcpServers: {
+          remote: {
+            type: "http",
+            url: "https://mcp.example.com",
+            headers: { Authorization: "Bearer token" },
+          },
+        },
+      };
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify(jsonData),
+        }),
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers.remote.http_headers).toEqual({ Authorization: "Bearer token" });
+      // Codex has no `headers` key, so the canonical spelling must not linger.
+      expect(mcpServers.remote.headers).toBeUndefined();
+    });
+
+    it("should drop headers from a stdio server rather than fail the entry (#2496)", async () => {
+      // Codex errors with "http_headers is not supported for stdio", which
+      // would take the whole server entry down.
+      const jsonData = {
+        mcpServers: {
+          local: { command: "node", headers: { Authorization: "Bearer token" } },
+        },
+      };
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify(jsonData),
+        }),
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers.local.http_headers).toBeUndefined();
+      expect(mcpServers.local.headers).toBeUndefined();
+      expect(mcpServers.local.command).toBe("node");
+    });
+
+    it("should convert millisecond timeouts into Codex's second-based keys (#2496)", async () => {
+      const jsonData = {
+        mcpServers: {
+          srv: { command: "node", timeout: 30000, networkTimeout: 1500 },
+        },
+      };
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify(jsonData),
+        }),
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers.srv.tool_timeout_sec).toBe(30);
+      // A sub-second remainder stays fractional; Codex reads both as f64.
+      expect(mcpServers.srv.startup_timeout_sec).toBe(1.5);
+      expect(mcpServers.srv.timeout).toBeUndefined();
+      expect(mcpServers.srv.networkTimeout).toBeUndefined();
+    });
+
+    it("should drop canonical keys Codex has no counterpart for (#2496)", async () => {
+      const jsonData = {
+        mcpServers: {
+          srv: {
+            type: "http",
+            transport: "http",
+            url: "https://mcp.example.com",
+            alwaysAllow: ["read"],
+            trust: true,
+          },
+        },
+      };
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify(jsonData),
+        }),
+      });
+
+      const mcpServers = codexcliMcp.getToml().mcp_servers as any;
+      expect(mcpServers.srv).toEqual({ url: "https://mcp.example.com" });
+    });
+
     it("should accept the raw snake_case spelling of experimental_environment", async () => {
       // What someone copying a server out of a codex config.toml writes. It is
       // stripped for every other tool, so it has to be re-read here or it would
@@ -1444,6 +1547,69 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 
       const json = JSON.parse(rulesyncMcp.getFileContent());
       expect((json.mcpServers as any)?.filesystem).toBeDefined();
+    });
+
+    it("should import http_headers and the second-based timeouts (#2496)", () => {
+      const tomlContent = `[mcp_servers.remote]
+url = "https://mcp.example.com"
+tool_timeout_sec = 30
+startup_timeout_sec = 1.5
+
+[mcp_servers.remote.http_headers]
+Authorization = "Bearer token"
+`;
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const server = JSON.parse(codexcliMcp.toRulesyncMcp().getFileContent()).mcpServers.remote;
+      expect(server.headers).toEqual({ Authorization: "Bearer token" });
+      expect(server.http_headers).toBeUndefined();
+      expect(server.timeout).toBe(30000);
+      expect(server.networkTimeout).toBe(1500);
+    });
+
+    it("should read startup_timeout_ms only when the seconds spelling is absent (#2496)", () => {
+      const msOnly = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: `[mcp_servers.srv]\ncommand = "node"\nstartup_timeout_ms = 2500\n`,
+      });
+      expect(
+        JSON.parse(msOnly.toRulesyncMcp().getFileContent()).mcpServers.srv.networkTimeout,
+      ).toBe(2500);
+
+      // Codex prefers `startup_timeout_sec` when a config sets both.
+      const both = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: `[mcp_servers.srv]\ncommand = "node"\nstartup_timeout_sec = 5\nstartup_timeout_ms = 2500\n`,
+      });
+      expect(JSON.parse(both.toRulesyncMcp().getFileContent()).mcpServers.srv.networkTimeout).toBe(
+        5000,
+      );
+    });
+
+    it("should not import Codex's per-tool approval table (#2496)", () => {
+      const tomlContent = `[mcp_servers.srv]
+command = "node"
+
+[mcp_servers.srv.tools.some_tool]
+approval_mode = "approve"
+`;
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+      // The canonical `tools` is a string array, so lifting Codex's table would
+      // produce a .rulesync/mcp.jsonc the schema rejects.
+      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers.srv.tools).toBeUndefined();
+      expect(rulesyncMcp.validate().success).toBe(true);
     });
 
     it("should preserve MCP server data when converting to RulesyncMcp", () => {

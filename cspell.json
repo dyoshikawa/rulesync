@@ -24,6 +24,7 @@
   ],
   "words": [
     "PKCE",
+    "serde",
     "codegen",
     "backgrounding",
     "bugbot",
