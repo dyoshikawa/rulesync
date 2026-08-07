@@ -1,7 +1,15 @@
 import { join } from "node:path";
 
-import { PI_APPEND_SYSTEM_FILE_NAME, PI_DIR, PI_RULE_FILE_NAME } from "../../constants/pi-paths.js";
-import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  PI_APPEND_SYSTEM_FILE_NAME,
+  PI_DIR,
+  PI_RULE_FILE_NAME,
+  PI_RULE_OVERRIDE_FILE_NAME,
+} from "../../constants/pi-paths.js";
+import {
+  RULESYNC_OVERVIEW_FILE_NAME,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -19,6 +27,8 @@ export type PiRuleParams = AiFileParams & {
   root?: boolean;
   /** Marks an instance whose body maps to Pi's append system-prompt file. */
   appendSystemPrompt?: boolean;
+  /** Marks a root instance written as `AGENTS.override.md`. */
+  contextFileOverride?: boolean;
 };
 
 export type PiRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
@@ -65,27 +75,39 @@ export type PiRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
  */
 export class PiRule extends ToolRule {
   private readonly appendSystemPrompt: boolean;
+  private readonly contextFileOverride: boolean;
 
-  constructor({ fileContent, root, appendSystemPrompt = false, ...rest }: PiRuleParams) {
+  constructor({
+    fileContent,
+    root,
+    appendSystemPrompt = false,
+    contextFileOverride = false,
+    ...rest
+  }: PiRuleParams) {
     super({
       ...rest,
       fileContent,
       root: root ?? false,
     });
     this.appendSystemPrompt = appendSystemPrompt;
+    this.contextFileOverride = contextFileOverride;
   }
 
   static getSettablePaths({
     global = false,
     excludeToolDir,
+    contextFile,
   }: {
     global?: boolean;
     excludeToolDir?: boolean;
+    /** `"override"` emits the root context file as `AGENTS.override.md`. */
+    contextFile?: "override" | undefined;
   } = {}): PiRuleSettablePaths {
     return {
       root: {
         relativeDirPath: global ? buildToolPath(PI_DIR, "agent", excludeToolDir) : ".",
-        relativeFilePath: PI_RULE_FILE_NAME,
+        relativeFilePath:
+          contextFile === "override" ? PI_RULE_OVERRIDE_FILE_NAME : PI_RULE_FILE_NAME,
       },
       appendSystemPrompt: {
         // Project scope: `.pi/APPEND_SYSTEM.md`. Global scope: same `.pi/agent`
@@ -104,7 +126,14 @@ export class PiRule extends ToolRule {
   static getExtraFixedFiles({
     global = false,
   }: { global?: boolean } = {}): ToolRuleExtraFixedFile[] {
-    return [this.getSettablePaths({ global }).appendSystemPrompt];
+    // `AGENTS.override.md` is enumerated here rather than only as the root
+    // path: it is Pi-exclusive, so it can be imported and — once no rule opts
+    // in any more — deleted, without ever touching the shared `AGENTS.md` that
+    // other targets also write.
+    return [
+      this.getSettablePaths({ global }).appendSystemPrompt,
+      this.getSettablePaths({ global, contextFile: "override" }).root,
+    ];
   }
 
   /**
@@ -144,16 +173,24 @@ export class PiRule extends ToolRule {
       });
     }
 
-    const relativePath = join(root.relativeDirPath, root.relativeFilePath);
+    // `AGENTS.override.md` is the root context file too — Pi reads it *instead
+    // of* `AGENTS.md` — so it imports back as the root rule carrying the flag.
+    const isOverride = relativeFilePath === PI_RULE_OVERRIDE_FILE_NAME;
+    const rootPaths = isOverride
+      ? this.getSettablePaths({ global, contextFile: "override" }).root
+      : root;
+
+    const relativePath = join(rootPaths.relativeDirPath, rootPaths.relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
 
     return new PiRule({
       outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
+      relativeDirPath: rootPaths.relativeDirPath,
+      relativeFilePath: rootPaths.relativeFilePath,
       fileContent,
       validate,
       root: true,
+      contextFileOverride: isOverride,
     });
   }
 
@@ -163,8 +200,11 @@ export class PiRule extends ToolRule {
     validate = true,
     global = false,
   }: ToolRuleFromRulesyncRuleParams): PiRule {
-    const { root, appendSystemPrompt } = this.getSettablePaths({ global });
     const frontmatter = rulesyncRule.getFrontmatter();
+    const { root, appendSystemPrompt } = this.getSettablePaths({
+      global,
+      contextFile: frontmatter.pi?.contextFile,
+    });
 
     // Opted-in rules route to the append system-prompt file instead of AGENTS.md.
     // The root rule always stays on AGENTS.md: routing it away would leave the
@@ -191,6 +231,7 @@ export class PiRule extends ToolRule {
       fileContent: rulesyncRule.getBody(),
       validate,
       root: isRoot,
+      contextFileOverride: frontmatter.pi?.contextFile === "override",
     });
   }
 
@@ -204,6 +245,20 @@ export class PiRule extends ToolRule {
           root: false,
           targets: ["pi"],
           pi: { systemPrompt: "append" },
+        },
+        body: this.getFileContent(),
+      });
+    }
+    if (this.contextFileOverride) {
+      return new RulesyncRule({
+        outputRoot: process.cwd(),
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_OVERVIEW_FILE_NAME,
+        frontmatter: {
+          root: true,
+          targets: ["pi"],
+          globs: ["**/*"],
+          pi: { contextFile: "override" },
         },
         body: this.getFileContent(),
       });
@@ -237,8 +292,12 @@ export class PiRule extends ToolRule {
       });
     }
 
+    // Both context-file spellings are root files: toggling `pi.contextFile`
+    // must let the abandoned one be cleaned up rather than left behind next to
+    // the new one.
+    const isOverride = relativeFilePath === PI_RULE_OVERRIDE_FILE_NAME;
     const isRoot =
-      relativeFilePath === PI_RULE_FILE_NAME &&
+      (relativeFilePath === PI_RULE_FILE_NAME || isOverride) &&
       (relativeDirPath === "." || relativeDirPath === root.relativeDirPath);
 
     return new PiRule({
@@ -248,6 +307,7 @@ export class PiRule extends ToolRule {
       fileContent: "",
       validate: false,
       root: isRoot,
+      contextFileOverride: isOverride,
     });
   }
 

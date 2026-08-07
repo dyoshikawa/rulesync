@@ -100,7 +100,18 @@ Multiple files can set `root: true` for the same target in project and global mo
 > ---
 > ```
 >
-> See the [Pi usage docs](https://pi.dev/docs/latest/usage).
+> Pi tries `AGENTS.override.md` before `AGENTS.md`, `AGENTS.MD`, `CLAUDE.md` and `CLAUDE.MD` in every directory it scans (including the global `~/.pi/agent/` one), loading it **instead of** the others from that directory. Set `pi.contextFile: override` on the **`root: true`** rule to emit the root context file under that name — useful when another target owns the shared `AGENTS.md`, or when a `CLAUDE.md` sits next to it and Pi should deterministically prefer Rulesync's output. Because Pi folds every rule body into the root context file, the root rule decides for the whole Pi output: the flag is copied onto the non-root rules, and setting it _only_ on a non-root rule is ignored with a warning (emitting both files would hide everything left in `AGENTS.md`). `AGENTS.override.md` is Pi-exclusive, so it is imported and deleted like the root file; toggling the flag off cleans it up, while the plain `AGENTS.md` is left alone because other targets write it too. Example:
+>
+> ```yaml
+> ---
+> root: true
+> targets: ["pi"]
+> pi:
+>   contextFile: override # emits AGENTS.override.md instead of AGENTS.md
+> ---
+> ```
+>
+> See the [Pi usage docs](https://pi.dev/docs/latest/usage) and the [context-file discovery in the Pi source](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/resource-loader.ts).
 
 > **Devin note:** The root rule is emitted to the project-root `AGENTS.md` — the file [Devin CLI / Devin Local actually reads](https://docs.devin.ai/cli/extensibility/rules) (its rules page does not list `.devin/rules/` among its sources) — as plain markdown, while non-root rules keep going to `.devin/rules/*.md`, the Devin Desktop Cascade directory whose `trigger` activation modes (`always_on`, `glob`, `manual`, `model_decision`) are driven by the `devin` frontmatter block. Global mode is unchanged (`~/.config/devin/AGENTS.md`).
 

@@ -319,6 +319,62 @@ describe("RulesProcessor", () => {
       expect(appendRule?.getRelativeDirPath()).toBe(".pi");
     });
 
+    it("should fold every pi rule into AGENTS.override.md when the root opts in", async () => {
+      const processor = new RulesProcessor({ logger, toolTarget: "pi" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["pi"], pi: { contextFile: "override" } },
+          body: "# Root body",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "detail.md",
+          frontmatter: { root: false, targets: ["pi"] },
+          body: "# Detail body",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.getRelativeFilePath()).toBe("AGENTS.override.md");
+      expect(result[0]?.getFileContent()).toBe("# Root body\n\n# Detail body");
+    });
+
+    it("should ignore pi.contextFile set only on a non-root rule", async () => {
+      const processor = new RulesProcessor({ logger, toolTarget: "pi" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["pi"] },
+          body: "# Root body",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "detail.md",
+          frontmatter: { root: false, targets: ["pi"], pi: { contextFile: "override" } },
+          body: "# Detail body",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      // Everything stays in the single AGENTS.md Pi actually reads.
+      expect(result).toHaveLength(1);
+      expect(result[0]?.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(result[0]?.getFileContent()).toBe("# Root body\n\n# Detail body");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("pi.contextFile"));
+    });
+
     it("should trim singleton pi output groups", async () => {
       const processor = new RulesProcessor({ logger, toolTarget: "pi" });
       const rulesyncRules = [

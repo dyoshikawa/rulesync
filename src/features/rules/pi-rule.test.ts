@@ -71,15 +71,17 @@ describe("PiRule", () => {
   });
 
   describe("getExtraFixedFiles", () => {
-    it("should enumerate the append system-prompt file (project)", () => {
+    it("should enumerate the append system-prompt and override context files (project)", () => {
       expect(PiRule.getExtraFixedFiles()).toEqual([
         { relativeDirPath: ".pi", relativeFilePath: "APPEND_SYSTEM.md" },
+        { relativeDirPath: ".", relativeFilePath: "AGENTS.override.md" },
       ]);
     });
 
-    it("should enumerate the append system-prompt file (global)", () => {
+    it("should enumerate the append system-prompt and override context files (global)", () => {
       expect(PiRule.getExtraFixedFiles({ global: true })).toEqual([
         { relativeDirPath: join(".pi", "agent"), relativeFilePath: "APPEND_SYSTEM.md" },
+        { relativeDirPath: join(".pi", "agent"), relativeFilePath: "AGENTS.override.md" },
       ]);
     });
   });
@@ -425,6 +427,72 @@ describe("PiRule", () => {
       expect(rule.isRoot()).toBe(false);
       expect(rule.isDeletable()).toBe(true);
       expect(rule.getFileContent()).toBe("");
+    });
+  });
+
+  describe("pi.contextFile: override", () => {
+    it("emits the root rule as AGENTS.override.md", () => {
+      const rule = PiRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: new RulesyncRule({
+          relativeDirPath: ".rulesync/rules",
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["pi"], pi: { contextFile: "override" } },
+          body: "Root body.",
+        }),
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(".");
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.override.md");
+      expect(rule.isRoot()).toBe(true);
+    });
+
+    it("emits the global root rule as AGENTS.override.md", () => {
+      const rule = PiRule.fromRulesyncRule({
+        outputRoot: testDir,
+        global: true,
+        rulesyncRule: new RulesyncRule({
+          relativeDirPath: ".rulesync/rules",
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["pi"], pi: { contextFile: "override" } },
+          body: "Root body.",
+        }),
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(join(".pi", "agent"));
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.override.md");
+    });
+
+    it("imports AGENTS.override.md back as the root rule carrying the flag", async () => {
+      const content = "# Override";
+      await writeFileContent(join(testDir, "AGENTS.override.md"), content);
+
+      const rule = await PiRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "AGENTS.override.md",
+      });
+
+      expect(rule.isRoot()).toBe(true);
+      expect(rule.getFileContent()).toBe(content);
+      const rulesyncRule = rule.toRulesyncRule();
+      expect(rulesyncRule.getFrontmatter()).toMatchObject({
+        root: true,
+        targets: ["pi"],
+        pi: { contextFile: "override" },
+      });
+      expect(rulesyncRule.getBody()).toBe(content);
+    });
+
+    it("treats both context-file names as deletable root files", () => {
+      for (const relativeFilePath of ["AGENTS.md", "AGENTS.override.md"]) {
+        const rule = PiRule.forDeletion({
+          outputRoot: testDir,
+          relativeDirPath: ".",
+          relativeFilePath,
+        });
+        expect(rule.isRoot()).toBe(true);
+        expect(rule.getRelativeFilePath()).toBe(relativeFilePath);
+      }
     });
   });
 

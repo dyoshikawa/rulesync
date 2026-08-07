@@ -97,6 +97,14 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       // hazard rulesync deliberately does not emit and leaves hand-authored.
       // See docs/reference/file-formats.md.
       systemPrompt: z.optional(z.enum(["append"])),
+      // Emit the root context file as `AGENTS.override.md` instead of
+      // `AGENTS.md`. Pi tries `AGENTS.override.md` first in every directory it
+      // scans, so it deterministically wins over a sibling `AGENTS.md` or
+      // `CLAUDE.md` written by another target. Set it on the `root: true` rule:
+      // the root decides for the whole Pi output, and the flag on a non-root
+      // rule alone is ignored with a warning (folded bodies must land in the
+      // file Pi actually reads).
+      contextFile: z.optional(z.enum(["override"])),
     }),
   ),
   takt: z.optional(
