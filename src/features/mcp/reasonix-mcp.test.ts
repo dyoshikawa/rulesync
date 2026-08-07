@@ -367,7 +367,25 @@ describe("ReasonixMcp", () => {
       expect(roundTripped.mcpServers.slow.startup_timeout_seconds).toBe(60);
     });
 
-    it("should preserve a startup_timeout_seconds of 0, which defers to the global cap", () => {
+    it("should export a startup_timeout_seconds of 0 rather than dropping it as falsy", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            slow: { command: "reasonix-plugin-slow", startup_timeout_seconds: 0 },
+          },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+      expect(parsed.plugins[0].startup_timeout_seconds).toBe(0);
+    });
+
+    it("should preserve an imported startup_timeout_seconds of 0, which defers to the global cap", () => {
       const fileContent = [
         "[[plugins]]",
         'name = "slow"',

@@ -315,7 +315,9 @@ const ReasonixPermissionsOverrideSchema = z.looseObject({
   // Exists for the first-class `Bash=<literal>` exact-command form (SPEC §3.7,
   // v1.18.0), which the canonical tool→pattern→action shape cannot express
   // (glob-style `Bash(...)` matches differently by design). It is the
-  // pattern-level way to pre-authorize dynamic or nested Bash in a headless
+  // pattern-level way to pre-authorize nested or indirect Bash — command and
+  // process substitution, `eval`, `source`, `sh -c` and friends, which SPEC
+  // §3.7 gates harder than a merely dynamic command line — in a headless
   // `reasonix run`; upstream also has the blanket `[permissions]
   // allow_dynamic_bash` opt-in (v1.19.0) and YOLO, neither of which rulesync
   // can author today. Entries are passed through untranslated, so any Reasonix
