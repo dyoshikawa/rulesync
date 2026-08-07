@@ -314,9 +314,10 @@ export const DEVIN_HOOK_EVENTS: readonly HookEvent[] = [
 /**
  * Hook events supported by OpenCode.
  *
- * `preCompact` maps to `experimental.session.compacting`, which the plugin docs
- * document as a named `(input, output)` hook rather than an `event.type`
- * dispatch; the other entries are all generic events.
+ * `preCompact` maps to `experimental.session.compacting` and
+ * `beforeSubmitPrompt` to `chat.message`, both of which the plugin docs
+ * document as named `(input, output)` hooks rather than `event.type`
+ * dispatches; the other entries are all generic events.
  *
  * @see https://opencode.ai/docs/plugins/
  */
@@ -333,16 +334,24 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "postCompact",
   "afterError",
   "fileChanged",
+  "notification",
+  "permissionDenied",
+  "beforeSubmitPrompt",
 ];
 
 /**
- * Hook events supported by Kilo. Identical to OpenCode: Kilo's plugin docs list
- * the same event surface, including `session.compacted`, `session.error`,
- * `file.watcher.updated` and the experimental compaction hook.
+ * Hook events supported by Kilo. Kilo's plugin docs list the same event surface
+ * as OpenCode's — including `session.compacted`, `session.error`,
+ * `file.watcher.updated`, `permission.replied`, `chat.message` and the
+ * experimental compaction hook — with one exception: they document no TUI
+ * events at all, so `tui.toast.show` (canonical `notification`) is left out
+ * rather than emitted into a plugin where it may never fire.
  *
  * @see https://kilo.ai/docs/automate/extending/plugins
  */
-export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS;
+export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS.filter(
+  (event) => event !== "notification",
+);
 
 /**
  * Hook events supported by Pi Coding Agent, bridged through a generated
@@ -1154,9 +1163,15 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
   // emitted as `tool.execute.before/after` named hooks gated on the `bash`
   // tool — see `SHELL_EVENT_TOOL_GATES` in `opencode-style-generator.ts`.
   permissionRequest: "permission.asked",
-  // A named `(input, output)` hook, not an `event.type` dispatch — see
+  // `permission.replied` fires for every reply, so the generated handler gates
+  // on a rejecting reply — see `GENERIC_EVENT_PROPERTY_GATES` in
+  // `opencode-style-generator.ts`.
+  permissionDenied: "permission.replied",
+  notification: "tui.toast.show",
+  // Named `(input, output)` hooks, not `event.type` dispatches — see
   // `NAMED_HOOK_MATCHER_SUBJECTS` in `opencode-style-generator.ts`.
   preCompact: "experimental.session.compacting",
+  beforeSubmitPrompt: "chat.message",
   postCompact: "session.compacted",
   afterError: "session.error",
   fileChanged: "file.watcher.updated",
@@ -1164,7 +1179,10 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
 
 /**
  * Map canonical camelCase event names to Kilo dot-notation.
- * (Currently identical to OpenCode)
+ *
+ * Shared with OpenCode: the two name the same events. The `notification` entry
+ * is unreachable for Kilo because `KILO_HOOK_EVENTS` omits it, and the
+ * generator emits only supported events.
  */
 export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
   CANONICAL_TO_OPENCODE_EVENT_NAMES;

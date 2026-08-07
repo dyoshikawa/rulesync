@@ -80,10 +80,8 @@ describe("OpencodeHooks", () => {
           afterFileEdit: [{ command: "format.sh" }],
           afterShellExecution: [{ command: "post-shell.sh" }],
           permissionRequest: [{ command: "perm-check.sh" }],
-          // notification is not supported by OpenCode
-          notification: [{ command: "notify.sh" }],
-          // beforeSubmitPrompt has no OpenCode equivalent
-          beforeSubmitPrompt: [{ command: "pre-prompt.sh" }],
+          // sessionEnd has no OpenCode equivalent
+          sessionEnd: [{ command: "session-end.sh" }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -120,8 +118,7 @@ describe("OpencodeHooks", () => {
       expect(content).toContain("perm-check.sh");
 
       // Unsupported events should not appear
-      expect(content).not.toContain("notify.sh");
-      expect(content).not.toContain("pre-prompt.sh");
+      expect(content).not.toContain("session-end.sh");
     });
 
     it("emits the compaction, error and file-watcher events", () => {
@@ -158,6 +155,97 @@ describe("OpencodeHooks", () => {
       expect(content).toContain('"experimental.session.compacting": async (input) => {');
       expect(content).toContain("before-compact.sh");
       expect(content).not.toContain('event.type === "experimental.session.compacting"');
+    });
+
+    it("emits the toast, rejected-permission and chat-message events", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            notification: [{ command: "notify.sh" }],
+            permissionDenied: [{ command: "on-deny.sh" }],
+            beforeSubmitPrompt: [{ command: "pre-prompt.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const content = OpencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      }).getFileContent();
+
+      expect(content).toContain('event.type === "tui.toast.show"');
+      expect(content).toContain("notify.sh");
+
+      // permission.replied fires for every reply, so the handler is gated on a
+      // rejecting one.
+      expect(content).toContain('event.type === "permission.replied"');
+      expect(content).toContain('if (event.properties.reply === "reject") {');
+      expect(content).toContain("on-deny.sh");
+
+      // chat.message is a named `(input, output)` hook, not a dispatch.
+      expect(content).toContain('"chat.message": async (input) => {');
+      expect(content).toContain("pre-prompt.sh");
+      expect(content).not.toContain('event.type === "chat.message"');
+
+      // The gate is composed into the emitted `if`, so make sure the result is
+      // still syntactically valid JavaScript.
+      execFileSync("node", ["--input-type=module", "--check"], { input: content });
+    });
+
+    it("drops a matcher on the toast and rejected-permission events", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            notification: [{ command: "notify.sh", matcher: "idle" }],
+            permissionDenied: [{ command: "on-deny.sh", matcher: "bash" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const content = OpencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      }).getFileContent();
+
+      // Generic `event.type` dispatches expose no matchable subject, so a
+      // matcher-carrying definition is skipped rather than run unconditionally.
+      expect(content).not.toContain("notify.sh");
+      expect(content).not.toContain("on-deny.sh");
+      expect(content).not.toContain("new RegExp");
+    });
+
+    it("drops a matcher on the chat-message hook, which has nothing to match on", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { beforeSubmitPrompt: [{ command: "pre-prompt.sh", matcher: "deploy" }] },
+        }),
+        validate: false,
+      });
+
+      const content = OpencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      }).getFileContent();
+
+      expect(content).not.toContain("pre-prompt.sh");
+      expect(content).not.toContain("new RegExp");
     });
 
     it("drops a matcher on the compaction hook, which has nothing to match on", () => {

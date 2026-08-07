@@ -9,6 +9,8 @@ import { HooksConfig, CONTROL_CHARS } from "../../types/hooks.js";
  *
  * `experimental.session.compacting` receives `(input, output)` and exposes no
  * per-invocation identifier worth matching on, so it takes `null`.
+ * `chat.message` receives `(input, output)` with the prompt text living in
+ * `output.parts` rather than a single matchable field, so it takes `null` too.
  *
  * @see https://opencode.ai/docs/plugins/
  */
@@ -16,6 +18,28 @@ const NAMED_HOOK_MATCHER_SUBJECTS: Record<string, string | null> = {
   "tool.execute.before": "input.tool",
   "tool.execute.after": "input.tool",
   "experimental.session.compacting": null,
+  "chat.message": null,
+};
+
+/**
+ * Canonical events whose generic (`event.type`) dispatch fires more broadly
+ * than the canonical event means, mapped to the extra condition the generated
+ * handler gates on. Keyed by canonical event like `SHELL_EVENT_TOOL_GATES`, so
+ * a second canonical event mapped onto the same dispatch does not inherit a
+ * gate meant for its sibling.
+ *
+ * `permission.replied` fires for every reply — `once`, `always` and `reject` —
+ * so the canonical `permissionDenied` handler runs only for a rejecting reply.
+ *
+ * Note the v1 SDK's generated `Event` typing still describes this payload as
+ * `{ permissionID, response }`; the schema source, the v2 typings and the TUI's
+ * live consumer all agree on `{ requestID, reply }`, so the stale codegen is
+ * not followed here.
+ *
+ * @see https://opencode.ai/docs/plugins/
+ */
+const GENERIC_EVENT_PROPERTY_GATES: Record<string, string> = {
+  permissionDenied: 'event.properties.reply === "reject"',
 };
 
 /**
@@ -57,7 +81,7 @@ function validateAndSanitizeMatcher(matcher: string): string {
   return sanitized.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-type Handler = { command: string; matcher?: string; toolGate?: string };
+type Handler = { command: string; matcher?: string; toolGate?: string; propertyGate?: string };
 type HandlerGroup = Record<string, Handler[]>;
 
 /**
@@ -77,6 +101,7 @@ function collectOpencodeStyleHandlers({
 }): void {
   for (const [canonicalEvent, definitions] of Object.entries(effectiveHooks)) {
     const shellGate = SHELL_EVENT_TOOL_GATES[canonicalEvent];
+    const propertyGate = GENERIC_EVENT_PROPERTY_GATES[canonicalEvent];
     const toolEvent = shellGate?.toolEvent ?? eventMap[canonicalEvent];
     if (!toolEvent) continue;
 
@@ -100,6 +125,7 @@ function collectOpencodeStyleHandlers({
         command: def.command,
         matcher: def.matcher ? def.matcher : undefined,
         ...(shellGate ? { toolGate: shellGate.tool } : {}),
+        ...(propertyGate ? { propertyGate } : {}),
       });
     }
 
@@ -130,7 +156,15 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
     isFirst = false;
     for (const handler of handlers) {
       const escapedCommand = escapeForTemplateLiteral(handler.command);
-      bodyLines.push(`        await $\`${escapedCommand}\`;`);
+      if (handler.propertyGate) {
+        // The dispatch fires more broadly than the canonical event it came
+        // from, so this handler narrows it to the matching payload.
+        bodyLines.push(`        if (${handler.propertyGate}) {`);
+        bodyLines.push(`          await $\`${escapedCommand}\`;`);
+        bodyLines.push("        }");
+      } else {
+        bodyLines.push(`        await $\`${escapedCommand}\`;`);
+      }
     }
     bodyLines.push("      }");
   }
