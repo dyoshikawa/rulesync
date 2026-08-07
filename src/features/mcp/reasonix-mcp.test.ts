@@ -340,6 +340,73 @@ describe("ReasonixMcp", () => {
   });
 
   describe("plugin timeout fields round-trip", () => {
+    it("should round-trip startup_timeout_seconds, which overrides the global cap", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            slow: {
+              command: "reasonix-plugin-slow",
+              startup_timeout_seconds: 60,
+            },
+          },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+      expect(parsed.plugins[0]).toMatchObject({
+        name: "slow",
+        startup_timeout_seconds: 60,
+      });
+
+      const roundTripped = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+      expect(roundTripped.mcpServers.slow.startup_timeout_seconds).toBe(60);
+    });
+
+    it("should export a startup_timeout_seconds of 0 rather than dropping it as falsy", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            slow: { command: "reasonix-plugin-slow", startup_timeout_seconds: 0 },
+          },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+      expect(parsed.plugins[0].startup_timeout_seconds).toBe(0);
+    });
+
+    it("should preserve an imported startup_timeout_seconds of 0, which defers to the global cap", () => {
+      const fileContent = [
+        "[[plugins]]",
+        'name = "slow"',
+        'command = "reasonix-plugin-slow"',
+        "startup_timeout_seconds = 0",
+      ].join("\n");
+
+      const reasonixMcp = new ReasonixMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent,
+      });
+
+      const parsed = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      // 0 is meaningful (fall back to `mcp_startup_timeout_seconds`), so it must
+      // survive rather than be dropped as falsy.
+      expect(parsed.mcpServers.slow.startup_timeout_seconds).toBe(0);
+    });
+
     it("should export call_timeout_seconds (per-server) and tool_timeout_seconds (per-tool table)", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,

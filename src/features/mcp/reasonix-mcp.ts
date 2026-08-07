@@ -47,10 +47,17 @@ type ReasonixPlugin = Record<string, unknown> & {
 // round-trip as passthrough fields on the canonical McpServer (a loose zod
 // object, so unknown keys survive), mirroring how other MCP adapters
 // preserve server-specific extra fields they don't deeply model.
+// `startup_timeout_seconds` caps the background
+// launch/authorization/`initialize`/`tools/list` sequence, overriding the global
+// `mcp_startup_timeout_seconds`. Canonical `networkTimeout` covers the same
+// phase (Codex CLI deep-maps it to `startup_timeout_sec`), but it is NOT mapped
+// here: canonical timeouts are milliseconds while this is seconds, and `0` is
+// meaningful to Reasonix — defer to the global cap — with no canonical spelling,
+// so translating would either invent a value or lose one. It therefore passes
+// through verbatim, as Vibe does with its own `startup_timeout_sec`.
 // `call_timeout_seconds` (per-server MCP call timeout) and `tool_timeout_seconds`
-// (a per-tool inline table keyed by raw MCP tool name) are likewise Reasonix-only
-// `[[plugins]]` fields with no canonical equivalent, so they round-trip as
-// passthrough fields too.
+// (a per-tool inline table keyed by raw MCP tool name) have no canonical
+// equivalent at all and round-trip as passthrough fields too.
 // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
 const REASONIX_PLUGIN_FIELDS = [
   "type",
@@ -59,6 +66,7 @@ const REASONIX_PLUGIN_FIELDS = [
   "env",
   "url",
   "headers",
+  "startup_timeout_seconds",
   "call_timeout_seconds",
   "tool_timeout_seconds",
 ] as const;
