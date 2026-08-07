@@ -36,11 +36,15 @@ const RECIPE_VERSION = "1.0.0";
 // Goose does not auto-register a recipe as a slash command: `/name` only works
 // once the recipe is listed under `slash_commands` in the user config
 // (`SlashCommandMapping { command, recipe_path }`, deserialized in
-// `crates/goose/src/slash_commands/recipe_slash_command.rs`). `recipe_path` goes
-// through the same tilde/relative expansion as any other recipe path
-// (`convert_path_with_tilde_expansion` in
-// `crates/goose/src/recipe/read_recipe_file_content.rs`), so the registration is
-// written with a `~`-relative path instead of a machine-specific absolute one.
+// `crates/goose/src/slash_commands/recipe_slash_command.rs`).
+//
+// Two details of that module shape the output:
+// - `recipe_path` is resolved with a bare `PathBuf::from(...)` followed by
+//   `.exists()` — the tilde expansion used for `goose run --recipe` is not on
+//   this path, so a `~/...` registration never resolves. The absolute path is
+//   written instead, exactly as Goose's own `set_recipe_slash_command` stores it.
+// - `get_recipe_for_command` lowercases the *input* and compares it against the
+//   stored `command` verbatim, so an entry carrying uppercase can never match.
 //
 // The registration surface exists at user scope only — there is no project-level
 // `slash_commands` list — so it is written in global mode only.
@@ -50,11 +54,17 @@ const GOOSE_GLOBAL_RECIPES_POSIX_DIR = toPosixPath(GOOSE_GLOBAL_RECIPES_DIR_PATH
 
 type GooseSlashCommandEntry = { command: string; recipe_path: string };
 
-function slashCommandEntry(relativeFilePath: string): GooseSlashCommandEntry {
+function slashCommandEntry({
+  outputRoot,
+  relativeFilePath,
+}: {
+  outputRoot: string;
+  relativeFilePath: string;
+}): GooseSlashCommandEntry {
   const fileName = basename(toPosixPath(relativeFilePath));
   return {
-    command: fileName.replace(/\.ya?ml$/, ""),
-    recipe_path: `~/${GOOSE_GLOBAL_RECIPES_POSIX_DIR}/${fileName}`,
+    command: fileName.replace(/\.ya?ml$/, "").toLowerCase(),
+    recipe_path: join(outputRoot, GOOSE_GLOBAL_RECIPES_DIR_PATH, fileName),
   };
 }
 
@@ -225,7 +235,9 @@ export class GooseCommand extends ToolCommand {
     // deletion candidate; retraction happens through the regenerated content.
     if (!global || forDeletion) return [];
 
-    const entries = toolCommands.map((command) => slashCommandEntry(command.getRelativeFilePath()));
+    const entries = toolCommands.map((command) =>
+      slashCommandEntry({ outputRoot, relativeFilePath: command.getRelativeFilePath() }),
+    );
     const configPath = join(outputRoot, GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME);
     const existingContent = await readFileContentOrNull(configPath);
     if (entries.length === 0) {

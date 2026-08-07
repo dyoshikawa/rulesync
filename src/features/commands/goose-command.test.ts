@@ -240,8 +240,14 @@ describe("GooseCommand", () => {
       expect(files[0]!.getRelativePathFromCwd()).toBe(join(".config", "goose", "config.yaml"));
       expect(configOf(files)).toEqual({
         slash_commands: [
-          { command: "deploy", recipe_path: "~/.config/goose/recipes/deploy.yaml" },
-          { command: "review", recipe_path: "~/.config/goose/recipes/review.yaml" },
+          {
+            command: "deploy",
+            recipe_path: join(testDir, ".config", "goose", "recipes", "deploy.yaml"),
+          },
+          {
+            command: "review",
+            recipe_path: join(testDir, ".config", "goose", "recipes", "review.yaml"),
+          },
         ],
       });
     });
@@ -280,7 +286,27 @@ describe("GooseCommand", () => {
         slash_commands: [
           { command: "standup", recipe_path: "~/my-recipes/standup.yaml" },
           { command: "helper", recipe_path: "~/.config/goose/recipes/subagents/helper.yaml" },
-          { command: "deploy", recipe_path: "~/.config/goose/recipes/deploy.yaml" },
+          {
+            command: "deploy",
+            recipe_path: join(testDir, ".config", "goose", "recipes", "deploy.yaml"),
+          },
+        ],
+      });
+    });
+
+    it("lowercases the command name, which Goose compares verbatim", async () => {
+      const files = await GooseCommand.getAuxiliaryFiles({
+        toolCommands: [globalCommand("Deploy.md")],
+        outputRoot: testDir,
+        global: true,
+      });
+
+      expect(configOf(files)).toEqual({
+        slash_commands: [
+          {
+            command: "deploy",
+            recipe_path: join(testDir, ".config", "goose", "recipes", "Deploy.yaml"),
+          },
         ],
       });
     });
@@ -290,7 +316,10 @@ describe("GooseCommand", () => {
         [
           "slash_commands:",
           "  - command: removed",
-          "    recipe_path: ~/.config/goose/recipes/removed.yaml",
+          `    recipe_path: ${join(testDir, ".config", "goose", "recipes", "removed.yaml")}`,
+          "  - command: legacy",
+          // Written by an earlier rulesync version as a `~`-relative path.
+          "    recipe_path: ~/.config/goose/recipes/legacy.yaml",
           "",
         ].join("\n"),
       );
@@ -302,7 +331,12 @@ describe("GooseCommand", () => {
       });
 
       expect(configOf(files)).toEqual({
-        slash_commands: [{ command: "deploy", recipe_path: "~/.config/goose/recipes/deploy.yaml" }],
+        slash_commands: [
+          {
+            command: "deploy",
+            recipe_path: join(testDir, ".config", "goose", "recipes", "deploy.yaml"),
+          },
+        ],
       });
     });
 
