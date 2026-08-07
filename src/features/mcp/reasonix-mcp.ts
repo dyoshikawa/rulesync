@@ -47,6 +47,9 @@ type ReasonixPlugin = Record<string, unknown> & {
 // round-trip as passthrough fields on the canonical McpServer (a loose zod
 // object, so unknown keys survive), mirroring how other MCP adapters
 // preserve server-specific extra fields they don't deeply model.
+// `startup_timeout_seconds` (per-server cap on the background
+// launch/authorization/`initialize`/`tools/list` sequence, overriding the global
+// `mcp_startup_timeout_seconds`; `0` means fall back to that global cap),
 // `call_timeout_seconds` (per-server MCP call timeout) and `tool_timeout_seconds`
 // (a per-tool inline table keyed by raw MCP tool name) are likewise Reasonix-only
 // `[[plugins]]` fields with no canonical equivalent, so they round-trip as
@@ -59,6 +62,7 @@ const REASONIX_PLUGIN_FIELDS = [
   "env",
   "url",
   "headers",
+  "startup_timeout_seconds",
   "call_timeout_seconds",
   "tool_timeout_seconds",
 ] as const;
