@@ -109,7 +109,9 @@ function warpSettingsDir(): string {
  * `[agents.execution_profiles.<id>]` collection:
  * - `command_allowlist` — commands that auto-execute.
  * - `command_denylist` — commands that always require permission (the denylist
- *   wins over the allowlist).
+ *   wins over the allowlist). Writing it at all replaces Warp's built-in
+ *   default denylist, so rulesync warns whenever it emits a non-empty one.
+ *   https://docs.warp.dev/cli/permissions-and-profiles/
  *
  * The legacy `[agents.profiles]` keys
  * (`agent_mode_command_execution_allowlist` / `denylist`) are consumed only
@@ -250,6 +252,15 @@ export class WarpPermissions extends ToolPermissions {
     }
 
     agents.profiles = profiles;
+
+    if (mergedDeny.length > 0 && logger) {
+      logger.warn(
+        `Warp's command_denylist replaces its built-in default denylist, which covers rm, curl, ` +
+          `wget, eval, ssh, shells, and other risky command patterns. The ${mergedDeny.length} ` +
+          `deny rule(s) from .rulesync/permissions.jsonc are now the whole denylist — add ` +
+          `equivalents for the built-in patterns you want to keep.`,
+      );
+    }
 
     mergeIntoDefaultExecutionProfile({
       agents,

@@ -326,6 +326,40 @@ describe("WarpPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("code-review"));
     });
 
+    it("warns that a written denylist replaces Warp's built-in default denylist", async () => {
+      const logger = createMockLogger();
+
+      await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "rm -rf .*": "deny" } }),
+        logger,
+        global: true,
+      });
+
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("replaces its built-in default denylist"),
+        ),
+      ).toBe(true);
+    });
+
+    it("does not warn about the built-in denylist when no deny rule is written", async () => {
+      const logger = createMockLogger();
+
+      await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "git .*": "allow" } }),
+        logger,
+        global: true,
+      });
+
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("replaces its built-in default denylist"),
+        ),
+      ).toBe(false);
+    });
+
     it("merges the execution_profile override into the default profile on a migrated install", async () => {
       const dir = join(testDir, WarpPermissions.getSettablePaths().relativeDirPath);
       await ensureDir(dir);
