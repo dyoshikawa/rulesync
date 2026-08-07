@@ -98,6 +98,7 @@ export class DevinIgnore extends ToolIgnore {
       relativeFilePath: resolvedFilePath,
       fileContent,
       validate,
+      global,
     });
   }
 
