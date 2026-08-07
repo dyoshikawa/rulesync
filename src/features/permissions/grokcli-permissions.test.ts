@@ -138,7 +138,7 @@ describe("GrokcliPermissions", () => {
       const permissions = await GrokcliPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: makeRulesyncPermissions({
-          websearch: { "*": "deny" },
+          notebookedit: { "*": "deny" },
           glob: { "src/**": "allow" },
         }),
         global: true,
@@ -148,6 +148,32 @@ describe("GrokcliPermissions", () => {
       expect(permission.allow).toEqual([]);
       expect(permission.deny).toEqual([]);
       expect(permission.ask).toEqual([]);
+    });
+
+    it("maps the websearch category onto Grok's WebSearch tool", async () => {
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          websearch: { "*": "allow" },
+        }),
+        global: true,
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      expect(permission.allow).toEqual(["WebSearch"]);
+    });
+
+    it("emits a concrete websearch pattern as WebSearch(pattern)", async () => {
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          websearch: { "docs.x.ai/**": "deny" },
+        }),
+        global: true,
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      expect(permission.deny).toEqual(["WebSearch(docs.x.ai/**)"]);
     });
 
     it("resolves edit/write collapse collisions to the stricter action (no contradiction)", async () => {
@@ -169,7 +195,7 @@ describe("GrokcliPermissions", () => {
     it("preserves user-authored entries for tools rulesync cannot model", async () => {
       await writeFileContent(
         join(testDir, ".grok", "config.toml"),
-        ["[permission]", 'allow = ["WebSearch", "Bash(stale)"]', ""].join("\n"),
+        ["[permission]", 'allow = ["any", "Bash(stale)"]', ""].join("\n"),
       );
 
       const permissions = await GrokcliPermissions.fromRulesyncPermissions({
@@ -179,9 +205,9 @@ describe("GrokcliPermissions", () => {
       });
 
       const permission = readPermission(permissions.getFileContent());
-      // The unmanaged `WebSearch` entry survives; the managed `Bash(stale)` one
+      // The unmanaged `any` entry survives; the managed `Bash(stale)` one
       // (rulesync owns Bash) is replaced by the generated rule.
-      expect(permission.allow).toEqual(["Bash(git *)", "WebSearch"]);
+      expect(permission.allow).toEqual(["Bash(git *)", "any"]);
     });
 
     it("preserves existing [permission] keys such as verbose rules", async () => {
@@ -242,6 +268,38 @@ describe("GrokcliPermissions", () => {
       expect(json.permission.bash["rm *"]).toBe("deny");
       expect(json.permission.webfetch["*"]).toBe("deny");
       expect(json.permission.mcp__github__list_issues["*"]).toBe("ask");
+    });
+
+    it("parses WebSearch entries back into the canonical websearch category", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[permission]", 'allow = ["WebSearch"]', 'deny = ["WebSearch(docs.x.ai/**)"]', ""].join(
+          "\n",
+        ),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission.websearch["*"]).toBe("allow");
+      expect(json.permission.websearch["docs.x.ai/**"]).toBe("deny");
+    });
+
+    it("round-trips the websearch category through export and re-import", async () => {
+      const exported = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          websearch: { "*": "allow", "example.com/**": "deny" },
+        }),
+        global: true,
+      });
+      const reimported = new GrokcliPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".grok",
+        relativeFilePath: "config.toml",
+        fileContent: exported.getFileContent(),
+      });
+      const json = JSON.parse(reimported.toRulesyncPermissions().getFileContent());
+      expect(json.permission.websearch["*"]).toBe("allow");
+      expect(json.permission.websearch["example.com/**"]).toBe("deny");
     });
 
     it("applies deny > ask > allow precedence on collision", async () => {

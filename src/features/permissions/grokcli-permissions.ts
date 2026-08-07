@@ -39,8 +39,8 @@ const MCP_CANONICAL_PREFIX = "mcp__";
 
 // Canonical category ⇒ Grok Claude-style tool prefix. Grok exposes no separate
 // `Write` tool (writes gate through `Edit`), so `write` collapses onto `Edit`;
-// categories with no Grok tool (`websearch`, `glob`, `notebookedit`, `agent`)
-// are skipped. MCP categories are handled separately (see `buildGrokEntry`).
+// categories with no Grok tool (`glob`, `notebookedit`, `agent`) are skipped.
+// MCP categories are handled separately (see `buildGrokEntry`).
 const CATEGORY_TO_GROK_TOOL: Record<string, string> = {
   bash: "Bash",
   read: "Read",
@@ -48,6 +48,7 @@ const CATEGORY_TO_GROK_TOOL: Record<string, string> = {
   write: "Edit",
   grep: "Grep",
   webfetch: "WebFetch",
+  websearch: "WebSearch",
 };
 
 // Grok tool prefix ⇒ canonical category (inverse of the above; `write` is not
@@ -59,6 +60,7 @@ const GROK_TOOL_TO_CATEGORY: Record<string, string> = {
   Edit: "edit",
   Grep: "grep",
   WebFetch: "webfetch",
+  WebSearch: "websearch",
 };
 
 const GROK_MCP_TOOL = "MCPTool";
@@ -126,18 +128,18 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
  *
  * Grok Build CLI ships a Claude-style rule system under `[permission]` in
  * `~/.grok/config.toml`: `allow` / `deny` / `ask` arrays of entries such as
- * `Bash(git *)`, `Read(src/**)`, `Edit`, `Grep`, `MCPTool(server__tool)`, and
- * `WebFetch`, evaluated with precedence `deny > ask > allow`
+ * `Bash(git *)`, `Read(src/**)`, `Edit`, `Grep`, `MCPTool(server__tool)`,
+ * `WebFetch`, and `WebSearch`, evaluated with precedence `deny > ask > allow`
  * (https://docs.x.ai/build/settings/reference). rulesync's canonical
  * per-category, per-pattern model maps almost 1:1:
  *   - Generate: each `permission.<category>.<pattern> = allow|ask|deny` becomes
  *     the matching Grok entry and is bucketed into the `[permission]` array for
- *     that action. `bash|read|edit|grep|webfetch` map to their Grok tool;
- *     `write` collapses onto `Edit` (Grok has no `Write` tool); `mcp__*` maps to
- *     `MCPTool(...)` (a scoped MCP category folds its address into the
+ *     that action. `bash|read|edit|grep|webfetch|websearch` map to their Grok
+ *     tool; `write` collapses onto `Edit` (Grok has no `Write` tool); `mcp__*`
+ *     maps to `MCPTool(...)` (a scoped MCP category folds its address into the
  *     parentheses, so a non-`*` argument pattern on it is not represented).
- *     Categories with no Grok tool (`websearch`, `glob`, `notebookedit`,
- *     `agent`) are skipped (with a warning when they carry a `deny` rule, to
+ *     Categories with no Grok tool (`glob`, `notebookedit`, `agent`) are
+ *     skipped (with a warning when they carry a `deny` rule, to
  *     surface the gap). When two canonical rules collapse onto the same Grok
  *     entry with different actions (e.g. `edit` allow + `write` deny → `Edit`),
  *     the strictest wins (`deny > ask > allow`) and a warning is logged, so the
@@ -164,8 +166,8 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
  * tools it models and (in global scope) the `[ui] permission_mode` value, while
  * every other key
  * (e.g. `[mcp_servers]`, `[permission] rules`, `[sandbox]`) and any user-authored
- * entries for tools rulesync cannot model (e.g. `WebSearch`) are preserved. The
- * file is never deleted.
+ * entries for tool prefixes rulesync cannot model (e.g. `any`) are preserved.
+ * The file is never deleted.
  */
 export class GrokcliPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -233,8 +235,8 @@ export class GrokcliPermissions extends ToolPermissions {
 
     // Fine-grained `[permission]` arrays (the high-fidelity surface). rulesync
     // owns the entries for the tools it models; other `[permission]` keys (e.g.
-    // verbose `rules`) and user-authored entries for tools rulesync cannot model
-    // (e.g. `WebSearch`) are preserved.
+    // verbose `rules`) and user-authored entries for tool prefixes rulesync
+    // cannot model (e.g. `any`) are preserved.
     const existingPermission = isRecord(parsed[GROKCLI_PERMISSION_KEY])
       ? parsed[GROKCLI_PERMISSION_KEY]
       : {};
@@ -334,7 +336,7 @@ const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 
 
 /**
  * Collect user-authored entries from an existing `[permission]` array whose
- * tool prefix rulesync cannot model (e.g. `WebSearch`, `any`). Such entries are
+ * tool prefix rulesync cannot model (e.g. `any`). Such entries are
  * preserved verbatim so replacing the arrays does not silently drop them
  * (mirrors the Cursor adapter's preservation of unmanaged types).
  */
