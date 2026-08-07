@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { KimiCodeHooks } from "./kimi-code-hooks.js";
@@ -75,7 +76,7 @@ describe("KimiCodeHooks", () => {
     });
 
     it("still skips event names Kimi Code does not accept", () => {
-      const warn = vi.fn();
+      const logger = createMockLogger();
       const hooks = KimiCodeHooks.fromRulesyncHooks({
         outputRoot: testDir,
         rulesyncHooks: makeRulesyncHooks({
@@ -83,11 +84,11 @@ describe("KimiCodeHooks", () => {
           hooks: {},
           "kimi-code": { hooks: { NotAnEvent: [{ command: "./nope.sh" }] } },
         }),
-        logger: { warn } as never,
+        logger,
       });
 
       expect(readEntries(hooks.getFileContent())).toEqual([]);
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("NotAnEvent"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NotAnEvent"));
     });
   });
 
