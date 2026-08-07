@@ -137,8 +137,7 @@ describe("CopilotHooks", () => {
       expect(parsed.hooks.stop).toBeUndefined();
     });
 
-    it("should use bash field on non-Windows and timeoutSec instead of timeout", async () => {
-      vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+    it("should write the portable command field and timeoutSec instead of timeout", async () => {
       const config = {
         version: 1,
         hooks: {
@@ -163,20 +162,21 @@ describe("CopilotHooks", () => {
       const parsed = JSON.parse(content);
       const entry = parsed.hooks.sessionStart[0];
       expect(entry.type).toBe("command");
-      expect(entry.bash).toBe("echo hello");
+      // No canonical `shell` selector, so the cross-platform field is written
+      // rather than a shell-specific one chosen from process.platform.
+      expect(entry.command).toBe("echo hello");
+      expect(entry.bash).toBeUndefined();
       expect(entry.powershell).toBeUndefined();
       expect(entry.timeoutSec).toBe(30);
-      // Should NOT have command or timeout fields
-      expect(entry.command).toBeUndefined();
       expect(entry.timeout).toBeUndefined();
     });
 
-    it("should use powershell field on Windows", async () => {
-      vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    it("should key the command field off the canonical shell selector", async () => {
       const config = {
         version: 1,
         hooks: {
-          sessionStart: [{ type: "command", command: "echo hello", timeout: 30 }],
+          sessionStart: [{ type: "command", command: "echo hello", shell: "powershell" }],
+          preToolUse: [{ type: "command", command: "lint.sh", shell: "bash" }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -199,7 +199,75 @@ describe("CopilotHooks", () => {
       expect(entry.type).toBe("command");
       expect(entry.powershell).toBe("echo hello");
       expect(entry.bash).toBeUndefined();
-      expect(entry.timeoutSec).toBe(30);
+      expect(entry.command).toBeUndefined();
+      expect(parsed.hooks.preToolUse[0].bash).toBe("lint.sh");
+      expect(parsed.hooks.preToolUse[0].command).toBeUndefined();
+    });
+
+    it("should generate the same file regardless of the platform it runs on", async () => {
+      const config = {
+        version: 1,
+        hooks: { sessionStart: [{ type: "command", command: "echo hello" }] },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+      const onWindows = (
+        await CopilotHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+          validate: false,
+        })
+      ).getFileContent();
+
+      vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+      const onLinux = (
+        await CopilotHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+          validate: false,
+        })
+      ).getFileContent();
+
+      // The file is committed to the repository, so it must not vary by
+      // generating machine — and a Windows-only `powershell` entry would be
+      // ignored outright by the Linux-sandboxed cloud agent.
+      expect(onWindows).toBe(onLinux);
+      expect(JSON.parse(onLinux).hooks.sessionStart[0].command).toBe("echo hello");
+    });
+
+    it("should emit the canonical env map on a command hook", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: "echo hello", env: { LOG_LEVEL: "debug" } }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const copilotHooks = await CopilotHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      // `env` is a canonical key, so it is filtered out of the unknown-key
+      // passthrough; it has to be emitted explicitly or it never lands.
+      expect(JSON.parse(copilotHooks.getFileContent()).hooks.sessionStart[0].env).toEqual({
+        LOG_LEVEL: "debug",
+      });
     });
 
     it("should not prefix commands with any path variable", async () => {
@@ -227,8 +295,8 @@ describe("CopilotHooks", () => {
       const content = copilotHooks.getFileContent();
       const parsed = JSON.parse(content);
       const entry = parsed.hooks.sessionStart[0];
-      expect(entry.bash).toBe(".rulesync/hooks/session-start.sh");
-      expect(entry.bash).not.toContain("$CLAUDE_PROJECT_DIR");
+      expect(entry.command).toBe(".rulesync/hooks/session-start.sh");
+      expect(entry.command).not.toContain("$CLAUDE_PROJECT_DIR");
     });
 
     it("should skip hooks with matcher", async () => {
@@ -259,7 +327,7 @@ describe("CopilotHooks", () => {
       const parsed = JSON.parse(content);
       // Only the non-matcher hook should be present
       expect(parsed.hooks.preToolUse).toHaveLength(1);
-      expect(parsed.hooks.preToolUse[0].bash).toBe("all-tools.sh");
+      expect(parsed.hooks.preToolUse[0].command).toBe("all-tools.sh");
     });
 
     it("should skip prompt-type hooks", async () => {
@@ -290,7 +358,7 @@ describe("CopilotHooks", () => {
       const parsed = JSON.parse(content);
       expect(parsed.hooks.preToolUse).toHaveLength(1);
       expect(parsed.hooks.preToolUse[0].type).toBe("command");
-      expect(parsed.hooks.preToolUse[0].bash).toBe("lint.sh");
+      expect(parsed.hooks.preToolUse[0].command).toBe("lint.sh");
     });
 
     it("should merge config.copilot.hooks on top of shared hooks", async () => {
@@ -323,10 +391,10 @@ describe("CopilotHooks", () => {
       const content = copilotHooks.getFileContent();
       const parsed = JSON.parse(content);
       // copilot override replaces shared sessionStart
-      expect(parsed.hooks.sessionStart[0].bash).toBe("copilot-override.sh");
+      expect(parsed.hooks.sessionStart[0].command).toBe("copilot-override.sh");
       // copilot-specific afterError is present
       expect(parsed.hooks.errorOccurred).toBeDefined();
-      expect(parsed.hooks.errorOccurred[0].bash).toBe("error-handler.sh");
+      expect(parsed.hooks.errorOccurred[0].command).toBe("error-handler.sh");
     });
 
     it("should produce standalone file without merging existing content", async () => {
@@ -455,11 +523,10 @@ describe("CopilotHooks", () => {
 
       const entry = parsed.hooks.sessionStart[0];
       expect(entry.type).toBe("command");
-      expect(entry.bash).toBe("run.sh");
+      expect(entry.command).toBe("run.sh");
       expect(entry.timeoutSec).toBe(10);
       expect(entry.unknownKey).toBe("keep");
 
-      expect(entry.command).toBeUndefined();
       expect(entry.timeout).toBeUndefined();
       expect(entry.prompt).toBeUndefined();
       expect(entry.matcher).toBeUndefined();
@@ -550,8 +617,7 @@ describe("CopilotHooks", () => {
       expect(json.hooks.sessionStart?.[0]?.timeout).toBe(15);
     });
 
-    it("should use bash when both bash and powershell are present on non-Windows", async () => {
-      vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+    it("should always take bash when both bash and powershell are present", () => {
       const logger = createMockLogger();
 
       const copilotHooks = new CopilotHooks({
@@ -572,12 +638,13 @@ describe("CopilotHooks", () => {
       const rulesyncHooks = copilotHooks.toRulesyncHooks({ logger });
       const json = rulesyncHooks.getJson();
       expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
+      expect(json.hooks.sessionStart?.[0]?.shell).toBe("bash");
       expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
-        "Copilot hook has both bash and powershell commands; using bash and ignoring powershell on this platform.",
+        "Copilot hook has both bash and powershell commands; using bash and ignoring powershell, which the Linux-sandboxed cloud agent does not run.",
       );
     });
 
-    it("should use powershell when both bash and powershell are present on Windows", () => {
+    it("should pick bash on Windows too, so import does not depend on the platform", () => {
       vi.spyOn(process, "platform", "get").mockReturnValue("win32");
       const logger = createMockLogger();
 
@@ -598,10 +665,48 @@ describe("CopilotHooks", () => {
 
       const rulesyncHooks = copilotHooks.toRulesyncHooks({ logger });
       const json = rulesyncHooks.getJson();
-      expect(json.hooks.sessionStart?.[0]?.command).toBe("Write-Output start");
-      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
-        "Copilot hook has both bash and powershell commands; using powershell and ignoring bash on this platform.",
+      // The same file must import to the same canonical config everywhere, and
+      // the cloud agent ignores `powershell` outright.
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
+      expect(json.hooks.sessionStart?.[0]?.shell).toBe("bash");
+    });
+
+    it("should round-trip the shell selector and env through import and re-export", async () => {
+      const copilotHooks = new CopilotHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilot-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [
+              { type: "command", powershell: "Write-Output hi", env: { LOG_LEVEL: "debug" } },
+            ],
+            preToolUse: [{ type: "command", command: "portable.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const imported = copilotHooks.toRulesyncHooks().getJson();
+      expect(imported.hooks.sessionStart?.[0]?.shell).toBe("powershell");
+      expect(imported.hooks.sessionStart?.[0]?.env).toEqual({ LOG_LEVEL: "debug" });
+      // A portable entry leaves `shell` unset, so re-export writes it back
+      // portable rather than promoting it to a shell-specific field.
+      expect(imported.hooks.preToolUse?.[0]?.shell).toBeUndefined();
+
+      const reExported = JSON.parse(
+        (
+          await CopilotHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks: copilotHooks.toRulesyncHooks(),
+            validate: false,
+          })
+        ).getFileContent(),
       );
+      expect(reExported.hooks.sessionStart[0].powershell).toBe("Write-Output hi");
+      expect(reExported.hooks.sessionStart[0].env).toEqual({ LOG_LEVEL: "debug" });
+      expect(reExported.hooks.preToolUse[0].command).toBe("portable.sh");
     });
 
     it("should handle empty hooks", () => {

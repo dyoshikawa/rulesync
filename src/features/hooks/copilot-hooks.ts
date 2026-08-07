@@ -33,12 +33,19 @@ import {
 /**
  * Copilot hook entry as stored in .github/hooks/copilot-hooks.json.
  *
- * On Windows, commands are emitted under `powershell`; on other platforms, under `bash`.
+ * The canonical `shell` selector chooses `bash` or `powershell`; without it the
+ * portable `command` field is written, which upstream copies to both when
+ * neither is present. Note the cloud agent runs hooks in a Linux sandbox and
+ * honors only `bash` and `command` — a `powershell` entry is ignored there.
+ *
+ * @see https://docs.github.com/en/copilot/reference/hooks-reference
  */
 const CopilotHookEntrySchema = z.looseObject({
   type: z.string(),
   bash: z.optional(z.string()),
   powershell: z.optional(z.string()),
+  command: z.optional(z.string()),
+  env: z.optional(z.record(z.string(), z.string())),
   timeoutSec: z.optional(z.number()),
 });
 
@@ -49,13 +56,15 @@ type CopilotHookEntry = z.infer<typeof CopilotHookEntrySchema>;
  * Filters shared hooks to COPILOT_HOOK_EVENTS, merges config.copilot?.hooks,
  * then converts to Copilot event names and field format.
  *
- * On Windows the command is emitted under the `powershell` key;
- * on all other platforms it is emitted under `bash`.
+ * The command field is chosen by the canonical `shell` selector, falling back to
+ * the portable `command` field — never by the platform Rulesync happens to run
+ * on. `.github/hooks/copilot-hooks.json` is committed to the repository, so
+ * keying it off `process.platform` made the artifact differ per generating
+ * machine, and a file generated on Windows carried only `powershell`, which the
+ * Linux-sandboxed cloud agent ignores outright.
  */
 function canonicalToCopilotHooks(config: HooksConfig): Record<string, CopilotHookEntry[]> {
   const canonicalSchemaKeys = Object.keys(HookDefinitionSchema.shape);
-  const isWindows = process.platform === "win32";
-  const commandField = isWindows ? "powershell" : "bash";
   const supported: Set<string> = new Set(COPILOT_HOOK_EVENTS);
   const sharedConfigHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
@@ -80,6 +89,7 @@ function canonicalToCopilotHooks(config: HooksConfig): Record<string, CopilotHoo
 
       const command = def.command;
       const timeout = def.timeout;
+      const commandField = def.shell ?? "command";
 
       const rest = Object.fromEntries(
         Object.entries(def).filter(([k]) => !canonicalSchemaKeys.includes(k)),
@@ -88,6 +98,10 @@ function canonicalToCopilotHooks(config: HooksConfig): Record<string, CopilotHoo
       entries.push({
         type: hookType,
         ...(command !== undefined && command !== null && { [commandField]: command }),
+        // `env` is a canonical field Copilot supports natively on command
+        // hooks. It is filtered out of `rest` as a canonical key, so without
+        // this an authored `env` never reached the generated file.
+        ...(def.env !== undefined && { env: def.env }),
         ...(timeout !== undefined && timeout !== null && { timeoutSec: timeout }),
         ...rest,
       });
@@ -101,30 +115,34 @@ function canonicalToCopilotHooks(config: HooksConfig): Record<string, CopilotHoo
 }
 
 /**
- * Resolve the command string from a Copilot hook entry.
+ * Resolve the command and its shell selector from a Copilot hook entry.
  *
- * - If only `bash` is present, use it.
- * - If only `powershell` is present, use it.
- * - If both are present, use `powershell` on Windows, `bash` otherwise,
- *   and log a warning that the other value was ignored.
+ * - If only one shell-specific field is present, use it and record the shell,
+ *   so a re-export writes the same field back.
+ * - If both are present, take `bash` and warn. The choice is deliberately not
+ *   platform-dependent: the cloud agent runs hooks in a Linux sandbox and
+ *   ignores `powershell` entirely, and importing on Windows must not produce a
+ *   different canonical config than importing the same file on Linux.
+ * - Otherwise fall back to the portable `command` field, leaving `shell` unset
+ *   so a re-export renders the portable field again.
  */
-function resolveImportCommand(entry: CopilotHookEntry, logger?: Logger): string | undefined {
+function resolveImportCommand(
+  entry: CopilotHookEntry,
+  logger?: Logger,
+): { command?: string; shell?: "bash" | "powershell" } {
   const hasBash = typeof entry.bash === "string";
   const hasPowershell = typeof entry.powershell === "string";
   if (hasBash && hasPowershell) {
-    const isWindows = process.platform === "win32";
-    const chosen = isWindows ? "powershell" : "bash";
-    const ignored = isWindows ? "bash" : "powershell";
     logger?.warn(
-      `Copilot hook has both bash and powershell commands; using ${chosen} and ignoring ${ignored} on this platform.`,
+      "Copilot hook has both bash and powershell commands; using bash and ignoring powershell, which the Linux-sandboxed cloud agent does not run.",
     );
-    return isWindows ? entry.powershell : entry.bash;
+    return { command: entry.bash, shell: "bash" };
   } else if (hasBash) {
-    return entry.bash;
+    return { command: entry.bash, shell: "bash" };
   } else if (hasPowershell) {
-    return entry.powershell;
+    return { command: entry.powershell, shell: "powershell" };
   }
-  return undefined;
+  return typeof entry.command === "string" ? { command: entry.command } : {};
 }
 
 /**
@@ -145,12 +163,14 @@ function copilotHooksToCanonical(copilotHooks: unknown, logger?: Logger): HooksC
       const parseResult = CopilotHookEntrySchema.safeParse(rawEntry);
       if (!parseResult.success) continue;
       const entry = parseResult.data;
-      const command = resolveImportCommand(entry, logger);
+      const { command, shell } = resolveImportCommand(entry, logger);
       const timeout = entry.timeoutSec;
 
       defs.push({
         type: "command",
         ...(command !== undefined && { command }),
+        ...(shell !== undefined && { shell }),
+        ...(entry.env !== undefined && { env: entry.env }),
         ...(timeout !== undefined && { timeout }),
       });
     }
