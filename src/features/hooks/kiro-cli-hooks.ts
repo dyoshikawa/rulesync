@@ -1,4 +1,4 @@
-import { KiroIdeHooks } from "./kiro-ide-hooks.js";
+import { KiroIdeHooks, type KiroStandaloneHooksOverrideKey } from "./kiro-ide-hooks.js";
 
 /**
  * Hooks generator for the **Kiro CLI**.
@@ -16,7 +16,7 @@ import { KiroIdeHooks } from "./kiro-ide-hooks.js";
  * @see https://kiro.dev/docs/hooks/
  */
 export class KiroCliHooks extends KiroIdeHooks {
-  protected static override getOverrideKey(): "kiro-ide" | "kiro-cli" {
+  protected static override getOverrideKey(): KiroStandaloneHooksOverrideKey {
     return "kiro-cli";
   }
 }

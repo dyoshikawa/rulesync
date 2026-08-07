@@ -53,10 +53,10 @@ function buildKiroEntriesForEvent(definitions: HooksConfig["hooks"][string]): un
   return entries;
 }
 
-function canonicalToKiroHooks(
-  config: HooksConfig,
-  overrideKey: "kiro" = "kiro",
-): Record<string, unknown[]> {
+function canonicalToKiroHooks(config: HooksConfig): Record<string, unknown[]> {
+  // The `kiro` alias is the sole writer of this format, so its override key is
+  // the only one that can apply here.
+  const overrideKey = "kiro";
   const kiroSupported: Set<string> = new Set(KIRO_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
@@ -164,17 +164,6 @@ export class KiroHooks extends ToolHooks {
     });
   }
 
-  /**
-   * The `HooksConfig` key whose `hooks` block provides tool-specific overrides
-   * for this target. Only the deprecated `kiro` alias writes this embedded
-   * format now, so `kiro` is the sole key; the `kiro-cli` target writes the
-   * standalone v1 format through {@link import("./kiro-cli-hooks.js").
-   * KiroCliHooks} instead.
-   */
-  protected static getOverrideKey(): "kiro" {
-    return "kiro";
-  }
-
   override isDeletable(): boolean {
     return false;
   }
@@ -210,7 +199,7 @@ export class KiroHooks extends ToolHooks {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
     const config = rulesyncHooks.getJson();
-    const kiroHooks = canonicalToKiroHooks(config, this.getOverrideKey());
+    const kiroHooks = canonicalToKiroHooks(config);
     const fileContent = applySharedConfigPatch({
       fileKey: sharedConfigFileKey(paths),
       feature: "hooks",
@@ -238,9 +227,13 @@ export class KiroHooks extends ToolHooks {
       );
     }
     const hooks = kiroHooksToCanonical(agentConfig.hooks);
-    const overrideKey = (this.constructor as typeof KiroHooks).getOverrideKey();
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify(buildImportedHooksConfig({ hooks, overrideKey }), null, 2),
+      fileContent: JSON.stringify(
+        // The embedded format has one writer left, so the override key is fixed.
+        buildImportedHooksConfig({ hooks, overrideKey: "kiro" }),
+        null,
+        2,
+      ),
     });
   }
 

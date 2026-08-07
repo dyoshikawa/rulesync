@@ -87,6 +87,46 @@ describe("KiroCliHooks", () => {
     expect(imported["kiro-ide"]).toBeUndefined();
   });
 
+  it("writes a prompt hook as an agent action", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: "/mock",
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        hooks: {
+          stop: [{ type: "prompt", prompt: "Summarize the session" }],
+          // Kiro's standalone triggers have no SessionEnd, so this is filtered
+          // out rather than folded into Stop the way the legacy format did.
+          sessionEnd: [{ command: "echo bye" }],
+        },
+      }),
+    });
+
+    const hooks = await KiroCliHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks,
+      validate: true,
+    });
+
+    const entries = JSON.parse(hooks.getFileContent()).hooks as Array<{
+      trigger: string;
+      action: { type: string; prompt?: string };
+    }>;
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.trigger).toBe("Stop");
+    expect(entries[0]?.action).toEqual({ type: "agent", prompt: "Summarize the session" });
+  });
+
+  it("keeps its own class identity through forDeletion", () => {
+    const deleted = KiroCliHooks.forDeletion({
+      outputRoot: testDir,
+      relativeDirPath: join(".kiro", "hooks"),
+      relativeFilePath: "rulesync.json",
+    });
+    expect(deleted).toBeInstanceOf(KiroCliHooks);
+    expect(JSON.parse(deleted.getFileContent()).hooks).toEqual([]);
+  });
+
   it("reads and writes the user-scope hooks file in global mode", async () => {
     const rulesyncHooks = new RulesyncHooks({
       outputRoot: "/mock",

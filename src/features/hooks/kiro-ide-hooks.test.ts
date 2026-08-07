@@ -102,6 +102,28 @@ describe("KiroIdeHooks", () => {
     expect(parsed.hooks[0].action).toEqual({ type: "agent", prompt: "Run the formatter" });
   });
 
+  it("ignores the kiro-cli override and keeps its own class identity", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: "/mock",
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        hooks: { sessionStart: [{ command: "echo shared" }] },
+        // The CLI target subclasses this emitter, so guard that its override
+        // block does not leak into the IDE output.
+        "kiro-cli": { hooks: { stop: [{ command: "echo kiro-cli" }] } },
+      }),
+    });
+
+    const hooks = await KiroIdeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+
+    expect(hooks).toBeInstanceOf(KiroIdeHooks);
+    const triggers = (JSON.parse(hooks.getFileContent()).hooks as Array<{ trigger: string }>).map(
+      (entry) => entry.trigger,
+    );
+    expect(triggers).toEqual(["SessionStart"]);
+  });
+
   it("writes to .kiro/hooks/rulesync.json", () => {
     const paths = KiroIdeHooks.getSettablePaths();
     expect(join(paths.relativeDirPath, paths.relativeFilePath)).toBe(

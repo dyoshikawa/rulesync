@@ -535,7 +535,11 @@ export const GOOSE_HOOK_EVENTS: readonly HookEvent[] = [
   "afterShellExecution",
 ];
 
-/** Hook events supported by Kiro CLI. */
+/**
+ * Hook events supported by the embedded agent-config hook format, which only
+ * the deprecated `kiro` alias still writes. See {@link KIRO_IDE_HOOK_EVENTS}
+ * for the standalone format both Kiro products read today.
+ */
 export const KIRO_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
   "sessionEnd",
@@ -546,15 +550,17 @@ export const KIRO_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
- * Hook events supported by the Kiro IDE (`.kiro/hooks/*.json` v1).
+ * Hook events supported by Kiro's standalone hooks format
+ * (`.kiro/hooks/*.json` v1), which the Kiro IDE and Kiro CLI 3.0 both read.
  *
- * Kiro IDE 1.0 exposes PascalCase triggers. rulesync maps the canonical
- * lifecycle events that have a clean 1:1 IDE equivalent: `SessionStart`,
- * `Stop`, `UserPromptSubmit`, `PreToolUse`, and `PostToolUse`. The IDE also
- * documents file-event (`PostFileCreate`/`PostFileSave`/`PostFileDelete`) and
- * spec-task (`PreTaskExec`/`PostTaskExec`) triggers that have no canonical
- * equivalent; those can still be emitted verbatim via a `kiro-ide` override
- * block (unknown event keys pass through unchanged).
+ * Kiro exposes PascalCase triggers. rulesync maps the canonical lifecycle
+ * events that have a clean 1:1 equivalent: `SessionStart`, `Stop`,
+ * `UserPromptSubmit`, `PreToolUse`, and `PostToolUse`. Kiro also documents
+ * file-event (`PostFileCreate`/`PostFileSave`/`PostFileDelete`) and spec-task
+ * (`PreTaskExec`/`PostTaskExec`) triggers that have no canonical equivalent;
+ * those can still be emitted verbatim via a `kiro-ide` or `kiro-cli` override
+ * block (unknown event keys pass through unchanged). There is no `SessionEnd`
+ * trigger, so the canonical `sessionEnd` has no home here.
  * @see https://kiro.dev/docs/hooks/types/
  */
 export const KIRO_IDE_HOOK_EVENTS: readonly HookEvent[] = [

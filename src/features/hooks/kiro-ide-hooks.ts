@@ -103,9 +103,15 @@ function buildKiroIdeEntriesForEvent(
   return entries;
 }
 
+/**
+ * The `HooksConfig` keys whose `hooks` block feeds the standalone format: one
+ * per Kiro target that writes it.
+ */
+export type KiroStandaloneHooksOverrideKey = "kiro-ide" | "kiro-cli";
+
 function canonicalToKiroIdeHooks(
   config: HooksConfig,
-  overrideKey: "kiro-ide" | "kiro-cli",
+  overrideKey: KiroStandaloneHooksOverrideKey,
 ): KiroIdeHookEntry[] {
   const kiroIdeSupported: Set<string> = new Set(KIRO_IDE_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
@@ -197,7 +203,7 @@ export class KiroIdeHooks extends ToolHooks {
    * for this target. {@link import("./kiro-cli-hooks.js").KiroCliHooks}
    * overrides this to `kiro-cli`.
    */
-  protected static getOverrideKey(): "kiro-ide" | "kiro-cli" {
+  protected static getOverrideKey(): KiroStandaloneHooksOverrideKey {
     return "kiro-ide";
   }
 
