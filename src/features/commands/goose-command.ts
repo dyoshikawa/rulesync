@@ -88,6 +88,19 @@ function isManagedRecipePath(value: unknown): boolean {
 }
 
 /**
+ * Whether a config file carries a registration rulesync owns. Rewriting a
+ * config that holds none of them would reformat the user's file (comments and
+ * all) for nothing, so both writers check this first.
+ */
+export function hasManagedGooseSlashCommands(fileContent: string): boolean {
+  const existing = parseSharedConfig({ format: "yaml", fileContent })[SLASH_COMMANDS_KEY];
+  return (
+    Array.isArray(existing) &&
+    existing.some((entry) => isRecord(entry) && isManagedRecipePath(entry.recipe_path))
+  );
+}
+
+/**
  * Recompute `slash_commands` from the entries rulesync generates: user entries
  * pointing outside the managed recipes directory are carried over, entries
  * inside it are replaced (so a deleted command's registration is retracted),
@@ -240,15 +253,8 @@ export class GooseCommand extends ToolCommand {
     );
     const configPath = join(outputRoot, GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME);
     const existingContent = await readFileContentOrNull(configPath);
-    if (entries.length === 0) {
-      const existing = parseSharedConfig({
-        format: "yaml",
-        fileContent: existingContent ?? "",
-      })[SLASH_COMMANDS_KEY];
-      const hasManagedEntries =
-        Array.isArray(existing) &&
-        existing.some((entry) => isRecord(entry) && isManagedRecipePath(entry.recipe_path));
-      if (!hasManagedEntries) return [];
+    if (entries.length === 0 && !hasManagedGooseSlashCommands(existingContent ?? "")) {
+      return [];
     }
 
     return [

@@ -37,7 +37,11 @@ import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
-import { getGooseSlashCommandsConfigContent, GooseCommand } from "./goose-command.js";
+import {
+  getGooseSlashCommandsConfigContent,
+  GooseCommand,
+  hasManagedGooseSlashCommands,
+} from "./goose-command.js";
 import { GrokcliCommand } from "./grokcli-command.js";
 import {
   getDisabledHermesCommandsPluginConfigContent,
@@ -959,7 +963,9 @@ export class CommandsProcessor extends FeatureProcessor {
 
     const configPath = join(this.outputRoot, GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME);
     const currentContent = await readFileContentOrNull(configPath);
-    if (currentContent === null) return 0;
+    // Rewriting a config that holds no managed registration would reformat the
+    // user's file (dropping their comments) for no gain.
+    if (currentContent === null || !hasManagedGooseSlashCommands(currentContent)) return 0;
     const nextContent = getGooseSlashCommandsConfigContent({ currentContent, entries: [] });
     if (nextContent === currentContent) return 0;
 

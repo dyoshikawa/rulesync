@@ -1551,6 +1551,29 @@ describe("CommandsProcessor Goose slash-command retraction", () => {
     expect(await readFileContent(configPath)).not.toContain("removed.yaml");
   });
 
+  it("does not rewrite a config that carries no managed registration", async () => {
+    const configPath = join(testDir, ".config", "goose", "config.yaml");
+    const before = [
+      "# my provider",
+      "GOOSE_PROVIDER: openai # inline",
+      "slash_commands:",
+      "  - command: mine",
+      "    recipe_path: ~/my-recipes/mine.yaml",
+      "",
+    ].join("\n");
+    await writeFileContent(configPath, before);
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "goose",
+      global: true,
+      logger: createMockLogger(),
+    });
+
+    await processor.removeOrphanAiFiles([], []);
+
+    expect(await readFileContent(configPath)).toBe(before);
+  });
+
   it("leaves the config untouched in project scope", async () => {
     const configPath = await writeConfig();
     const before = await readFileContent(configPath);
