@@ -51,6 +51,77 @@ const CODEX_TO_RULESYNC_SCALAR_FIELD_MAP: Record<string, string> = Object.fromEn
 const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
 
 /**
+ * Canonical per-server keys Codex has no counterpart for.
+ *
+ * Codex's deserializer (`RawMcpServerConfig`) does not reject unknown keys, so
+ * these are inert rather than fatal — but they are rulesync's own spellings and
+ * only add noise to a hand-edited `config.toml`. `type`/`transport` are safe to
+ * drop because Codex infers the transport from `command` versus `url`.
+ * `tools` is handled separately: it is fatal rather than inert.
+ * @see https://github.com/openai/codex/blob/rust-v0.146.1/codex-rs/config/src/mcp_types.rs
+ */
+const CODEX_UNSUPPORTED_CANONICAL_KEYS = new Set([
+  "type",
+  "transport",
+  "alwaysAllow",
+  "trust",
+  "kiroAutoApprove",
+  "kiroAutoBlock",
+]);
+
+/**
+ * Canonical millisecond timeouts and the Codex fields they translate to.
+ * Codex takes both as seconds (`f64`), so the value is divided by 1000 and a
+ * fractional result is emitted as-is.
+ * - `timeout` → `tool_timeout_sec`: default timeout for tool calls on the server.
+ * - `networkTimeout` → `startup_timeout_sec`: initialize + list-tools timeout.
+ */
+const RULESYNC_TO_CODEX_TIMEOUT_FIELD_MAP: Record<string, string> = {
+  timeout: "tool_timeout_sec",
+  networkTimeout: "startup_timeout_sec",
+};
+
+const CODEX_TO_RULESYNC_TIMEOUT_FIELD_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(RULESYNC_TO_CODEX_TIMEOUT_FIELD_MAP).map(([canonical, codex]) => [
+    codex,
+    canonical,
+  ]),
+);
+
+const MILLISECONDS_PER_SECOND = 1000;
+
+/**
+ * Whether a value is usable as a timeout. Codex builds a `Duration` out of both
+ * timeout fields, and `Duration::try_from_secs_f64` errors on a negative value —
+ * which fails the whole `config.toml`, not just the one server — so a negative
+ * timeout is rejected here rather than written.
+ */
+function isTimeoutValue(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/**
+ * Whether a value is usable as the canonical `headers` map, whose schema is
+ * `record(string, string)`. Checked in both directions so a hand-written
+ * `http_headers` can never be imported into a `.rulesync/mcp.jsonc` that the
+ * next generate would refuse to parse.
+ */
+function isHeadersRecord(value: unknown): value is Record<string, string> {
+  return isPlainObject(value) && Object.values(value).every((entry) => typeof entry === "string");
+}
+
+/**
+ * Whether a server config describes a Codex stdio server. Codex branches on
+ * `command` first; a config carrying both `command` and `url` is classified as
+ * stdio here, which matches upstream in the sense that it never reaches the
+ * remote arm — upstream rejects that combination outright ("url is not
+ * supported for stdio").
+ */
+function isCodexStdioServer(config: Record<string, unknown>): boolean {
+  return config["command"] !== undefined;
+}
+
+/**
  * `env_vars` entries are either a bare variable name or `{ name, source }`,
  * where `source = "remote"` reads the variable from the remote executor
  * environment. The other renamed keys (`enabled_tools`, `disabled_tools`) stay
@@ -123,6 +194,153 @@ function normalizeCodexMcpServerName(name: string): { codexName: string; usedFal
   return { codexName: `mcp_${hash}`, usedFallback: true };
 }
 
+/** Outcome of a key translation: no entry means the key is dropped. */
+type TranslatedKey = { entry?: [string, unknown] };
+
+/**
+ * Translate the Codex-native per-server keys that carry a canonical
+ * counterpart under a different name or unit. Returns `undefined` for a key
+ * this translation does not own, leaving it to the caller's other branches.
+ */
+function translateCodexOnlyKey({
+  key,
+  value,
+  config,
+  serverName,
+}: {
+  key: string;
+  value: unknown;
+  config: Record<string, unknown>;
+  serverName: string;
+}): TranslatedKey | undefined {
+  if (key === "tools") {
+    // Codex's per-tool approval table is CLI-written state that rulesync does
+    // not model — and it is shaped nothing like the canonical `tools` string
+    // array, so lifting it would produce a `.rulesync/mcp.jsonc` the schema
+    // rejects. It stays in `config.toml`, where the generate path carries it
+    // across regenerates untouched.
+    return {};
+  }
+  if (key === "http_headers") {
+    // Codex's spelling of the canonical `headers`. A config rulesync wrote
+    // carries only `http_headers`; if a hand-written file has both, the
+    // canonical key wins, mirroring `oauth.client_id` / `oauth.clientId`.
+    if ("headers" in config) return {};
+    if (isHeadersRecord(value)) {
+      return { entry: ["headers", omitPrototypePollutionKeys(value)] };
+    }
+    warnWithFallback(
+      undefined,
+      `Ignored malformed value for ${key} in MCP server ${serverName}: expected a table of string values`,
+    );
+    return {};
+  }
+  const mappedKey = CODEX_TO_RULESYNC_TIMEOUT_FIELD_MAP[key];
+  if (mappedKey) {
+    if (isTimeoutValue(value)) return { entry: [mappedKey, value * MILLISECONDS_PER_SECOND] };
+    warnWithFallback(
+      undefined,
+      `Ignored malformed value for ${key} in MCP server ${serverName}: expected a non-negative number of seconds`,
+    );
+    return {};
+  }
+  if (key === "startup_timeout_ms") {
+    // Codex accepts the startup timeout in either unit and prefers
+    // `startup_timeout_sec` when both are set, so the millisecond spelling is
+    // only read when the seconds one is absent. Canonical `networkTimeout` is
+    // already in milliseconds, so no conversion.
+    if ("startup_timeout_sec" in config) return {};
+    if (isTimeoutValue(value)) return { entry: ["networkTimeout", value] };
+    warnWithFallback(
+      undefined,
+      `Ignored malformed value for ${key} in MCP server ${serverName}: expected a non-negative number of milliseconds`,
+    );
+    return {};
+  }
+  return undefined;
+}
+
+/**
+ * Translate the canonical per-server keys that Codex spells differently, reads
+ * in another unit, or cannot accept at all. Returns `undefined` for a key this
+ * translation does not own.
+ */
+function translateCanonicalKeyToCodex({
+  key,
+  value,
+  isStdio,
+  serverName,
+}: {
+  key: string;
+  value: unknown;
+  isStdio: boolean;
+  serverName: string;
+}): TranslatedKey | undefined {
+  if (key === "tools") {
+    // Codex declares `tools` as a table of per-tool approval settings
+    // (`tools.<tool>.approval_mode`), while the canonical `tools` is a string
+    // array. A TOML array where Codex expects a table is a serde type error
+    // that takes the whole server entry down, so it is dropped rather than
+    // written. Codex's own per-tool approvals live in the same key and are
+    // preserved from the existing file instead.
+    warnWithFallback(
+      undefined,
+      `[CodexCliMcp] Dropping 'tools' from MCP server "${serverName}": Codex reads it as a per-tool approval table, not a tool allowlist. Use 'enabledTools' / 'disabledTools' instead.`,
+    );
+    return {};
+  }
+  if (CODEX_UNSUPPORTED_CANONICAL_KEYS.has(key)) {
+    // Inert in Codex, and `type`/`transport` appear on nearly every remote
+    // canonical server, so these are dropped without a warning.
+    return {};
+  }
+  if (key === "headers") {
+    if (!isHeadersRecord(value)) {
+      warnWithFallback(
+        undefined,
+        `[CodexCliMcp] Skipping invalid value type for mapped key 'headers': expected a table of string values, got ${typeof value}`,
+      );
+      return {};
+    }
+    if (isStdio) {
+      // Codex rejects `http_headers` on a stdio server outright ("http_headers
+      // is not supported for stdio"), which would fail the whole entry, so the
+      // headers are dropped instead.
+      warnWithFallback(
+        undefined,
+        `[CodexCliMcp] Dropping 'headers' from stdio MCP server "${serverName}": Codex accepts HTTP headers only on url-based servers.`,
+      );
+      return {};
+    }
+    return { entry: ["http_headers", omitPrototypePollutionKeys(value)] };
+  }
+  const mappedKey = RULESYNC_TO_CODEX_TIMEOUT_FIELD_MAP[key];
+  if (mappedKey) {
+    if (isTimeoutValue(value)) return { entry: [mappedKey, value / MILLISECONDS_PER_SECOND] };
+    warnWithFallback(
+      undefined,
+      `[CodexCliMcp] Skipping invalid value type for mapped key '${key}': expected a non-negative number of milliseconds, got ${typeof value}`,
+    );
+    return {};
+  }
+  return undefined;
+}
+
+/**
+ * Codex states no transport of its own — it infers one from `command` versus
+ * `url`, which is why generate drops the canonical `type`. Restate it for a url
+ * server on the way back, so a config imported from Codex reaches the adapters
+ * that branch on `type` as a remote server rather than one with no transport at
+ * all. `streamable_http` is Codex's only remote transport, and canonical spells
+ * that `http`.
+ */
+function restateCanonicalTransport(converted: Record<string, unknown>): void {
+  if (converted["type"] !== undefined) return;
+  if (isCodexStdioServer(converted)) return;
+  if (typeof converted["url"] !== "string") return;
+  converted["type"] = "http";
+}
+
 function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   const result: McpServers = {};
 
@@ -132,7 +350,10 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-      if (key === "enabled") {
+      const codexOnly = translateCodexOnlyKey({ key, value, config, serverName: name });
+      if (codexOnly) {
+        if (codexOnly.entry) converted[codexOnly.entry[0]] = codexOnly.entry[1];
+      } else if (key === "enabled") {
         if (value === false) {
           converted["disabled"] = true;
         }
@@ -164,6 +385,8 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
       }
     }
 
+    restateCanonicalTransport(converted);
+
     result[name] = converted;
   }
 
@@ -184,9 +407,13 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
       );
     }
     const converted: Record<string, unknown> = {};
+    const isStdio = isCodexStdioServer(config);
     for (const [key, value] of Object.entries(config)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-      if (key === "disabled") {
+      const translated = translateCanonicalKeyToCodex({ key, value, isStdio, serverName: name });
+      if (translated) {
+        if (translated.entry) converted[translated.entry[0]] = translated.entry[1];
+      } else if (key === "disabled") {
         if (value === true) {
           converted["enabled"] = false;
         }
@@ -373,10 +600,11 @@ export class CodexcliMcp extends ToolMcp {
     // re-merging it here a regenerate would wipe the user's saved approvals and
     // re-introduce approval prompts (#1709). It is the only user/CLI-written
     // nested state Codex persists under a server that rulesync does not own.
-    // rulesync still fully owns every field it does emit, including `tools` when
-    // it is supplied as a rulesync value: the existing table is only restored
-    // when rulesync emits no `tools` key at all, so a rulesync-owned `tools`
-    // (e.g. an array) is never clobbered by the preserved approval table.
+    // rulesync never emits `tools` itself — the canonical `tools` array cannot
+    // be represented in Codex's approval table and is dropped on generate — so
+    // in practice the existing table is always carried over. The guard on
+    // `"tools" in serverRecord` is kept so that a future rulesync-owned `tools`
+    // value would win over the preserved table rather than be clobbered by it.
     const existingMcpServers = isRecord(configToml["mcp_servers"]) ? configToml["mcp_servers"] : {};
     const mergedMcpServers = Object.fromEntries(
       Object.entries(filteredMcpServers).map(([name, serverConfig]) => {
