@@ -103,7 +103,16 @@ function buildKiroIdeEntriesForEvent(
   return entries;
 }
 
-function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
+/**
+ * The `HooksConfig` keys whose `hooks` block feeds the standalone format: one
+ * per Kiro target that writes it.
+ */
+export type KiroStandaloneHooksOverrideKey = "kiro-ide" | "kiro-cli";
+
+function canonicalToKiroIdeHooks(
+  config: HooksConfig,
+  overrideKey: KiroStandaloneHooksOverrideKey,
+): KiroIdeHookEntry[] {
   const kiroIdeSupported: Set<string> = new Set(KIRO_IDE_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
@@ -114,9 +123,9 @@ function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
   const effectiveHooks: HooksConfig["hooks"] = {
     ...sharedHooks,
     // Tool-specific overrides bypass the KIRO_IDE_HOOK_EVENTS filter by design:
-    // users targeting `kiro-ide` directly may reference IDE-only triggers such
-    // as `PostFileSave` or `PreTaskExec`, which pass through unchanged.
-    ...config["kiro-ide"]?.hooks,
+    // users targeting Kiro directly may reference triggers such as
+    // `PostFileSave` or `PreTaskExec`, which pass through unchanged.
+    ...config[overrideKey]?.hooks,
   };
 
   const entries: KiroIdeHookEntry[] = [];
@@ -165,16 +174,19 @@ function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hook
 }
 
 /**
- * Hooks generator for the **Kiro IDE** (`.kiro/hooks/*.json` v1).
+ * Hooks generator for the standalone Kiro hooks format (`.kiro/hooks/*.json`
+ * v1), used by the **Kiro IDE** and, since Kiro CLI 3.0, by the CLI too.
  *
- * Kiro IDE 1.0 reads structured JSON hooks from `.kiro/hooks/` (workspace) and
+ * Kiro reads structured JSON hooks from `.kiro/hooks/` (workspace) and
  * `~/.kiro/hooks/` (user). A single file may declare multiple hooks in its
  * `hooks` array, so rulesync emits every generated hook into one
  * `rulesync.json` file per scope (`{ "version": "v1", "hooks": [ ... ] }`),
  * which keeps it within the single-file hooks architecture.
  *
- * This is distinct from the Kiro CLI ({@link import("./kiro-cli-hooks.js").
- * KiroCliHooks}), which uses the `.kiro/agents/default.json` agent-config shape.
+ * {@link import("./kiro-cli-hooks.js").KiroCliHooks} subclasses this to write
+ * the same format for the `kiro-cli` target; only the deprecated `kiro` alias
+ * still writes the embedded `.kiro/agents/default.json` agent-config shape,
+ * which Kiro CLI 3.0 no longer reads.
  *
  * @see https://kiro.dev/docs/hooks/
  */
@@ -184,6 +196,15 @@ export class KiroIdeHooks extends ToolHooks {
       ...params,
       fileContent: params.fileContent ?? JSON.stringify({ version: "v1", hooks: [] }, null, 2),
     });
+  }
+
+  /**
+   * The `HooksConfig` key whose `hooks` block provides tool-specific overrides
+   * for this target. {@link import("./kiro-cli-hooks.js").KiroCliHooks}
+   * overrides this to `kiro-cli`.
+   */
+  protected static getOverrideKey(): KiroStandaloneHooksOverrideKey {
+    return "kiro-ide";
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
@@ -198,12 +219,12 @@ export class KiroIdeHooks extends ToolHooks {
     validate = true,
     global = false,
   }: ToolHooksFromFileParams): Promise<KiroIdeHooks> {
-    const paths = KiroIdeHooks.getSettablePaths({ global });
+    const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent =
       (await readFileContentOrNull(filePath)) ??
       JSON.stringify({ version: "v1", hooks: [] }, null, 2);
-    return new KiroIdeHooks({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -218,11 +239,11 @@ export class KiroIdeHooks extends ToolHooks {
     validate = true,
     global = false,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<KiroIdeHooks> {
-    const paths = KiroIdeHooks.getSettablePaths({ global });
+    const paths = this.getSettablePaths({ global });
     const config = rulesyncHooks.getJson();
-    const hooks = canonicalToKiroIdeHooks(config);
+    const hooks = canonicalToKiroIdeHooks(config, this.getOverrideKey());
     const fileContent = JSON.stringify({ version: "v1", hooks }, null, 2);
-    return new KiroIdeHooks({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -242,12 +263,9 @@ export class KiroIdeHooks extends ToolHooks {
       );
     }
     const hooks = kiroIdeHooksToCanonical(parsed.hooks ?? []);
+    const overrideKey = (this.constructor as typeof KiroIdeHooks).getOverrideKey();
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "kiro-ide" }),
-        null,
-        2,
-      ),
+      fileContent: JSON.stringify(buildImportedHooksConfig({ hooks, overrideKey }), null, 2),
     });
   }
 
@@ -260,7 +278,7 @@ export class KiroIdeHooks extends ToolHooks {
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): KiroIdeHooks {
-    return new KiroIdeHooks({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

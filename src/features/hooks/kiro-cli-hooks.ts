@@ -1,18 +1,22 @@
-import { KiroHooks } from "./kiro-hooks.js";
+import { KiroIdeHooks, type KiroStandaloneHooksOverrideKey } from "./kiro-ide-hooks.js";
 
 /**
  * Hooks generator for the **Kiro CLI**.
  *
- * The Kiro CLI uses the same `.kiro/agents/default.json` agent-hook format as
- * the legacy `kiro` alias, so this reuses {@link KiroHooks} and only redirects
- * the tool-specific override key to `kiro-cli` (so `kiro-cli.hooks` overrides in
- * the rulesync hooks config are honored, rather than the legacy `kiro.hooks`).
+ * Kiro CLI 3.0 reads the same standalone `.kiro/hooks/*.json` v1 format the
+ * Kiro IDE reads, so this reuses {@link KiroIdeHooks} and only redirects the
+ * tool-specific override key to `kiro-cli` (so `kiro-cli.hooks` overrides in
+ * the rulesync hooks config are honored, rather than `kiro-ide.hooks`).
  *
- * (The Kiro IDE uses the structured `.kiro/hooks/*.json` v1 format instead; see
- * {@link import("./kiro-ide-hooks.js").KiroIdeHooks}.)
+ * The embedded `.kiro/agents/default.json` agent-hook format this target used
+ * to emit is documented as not working in 3.0, so it is left to the deprecated
+ * `kiro` alias ({@link import("./kiro-hooks.js").KiroHooks}).
+ *
+ * @see https://kiro.dev/docs/cli/v3/hooks-migration/
+ * @see https://kiro.dev/docs/hooks/
  */
-export class KiroCliHooks extends KiroHooks {
-  protected static getOverrideKey(): "kiro" | "kiro-cli" {
+export class KiroCliHooks extends KiroIdeHooks {
+  protected static override getOverrideKey(): KiroStandaloneHooksOverrideKey {
     return "kiro-cli";
   }
 }

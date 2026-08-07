@@ -53,7 +53,7 @@ const hooksGenerateTargets = [
   { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
   { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
   { target: "kiro", outputPath: join(".kiro", "agents", "default.json") },
-  { target: "kiro-cli", outputPath: join(".kiro", "agents", "default.json") },
+  { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "antigravity-ide", outputPath: join(".agents", "hooks.json") },
   { target: "antigravity-plugin", outputPath: "hooks.json" },
@@ -137,8 +137,8 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks).toBeDefined();
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(parsed.hooks.stop).toBeDefined();
-      } else if (target === "kiro" || target === "kiro-cli") {
-        // Kiro (and the kiro-cli alias, which reuses KiroHooks) share the
+      } else if (target === "kiro") {
+        // The deprecated `kiro` alias keeps the embedded
         // .kiro/agents/default.json agent-hook format and event mapping:
         // sessionStart → agentSpawn, stop → stop.
         expect(parsed.hooks).toBeDefined();
@@ -186,11 +186,12 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.Stop).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
-      } else if (target === "kiro-ide") {
-        // Kiro IDE emits a `{ version: "v1", hooks: [...] }` envelope with one
-        // entry per hook. Canonical `sessionStart` → `SessionStart`,
-        // `stop` → `Stop` (PascalCase triggers). See
-        // CANONICAL_TO_KIRO_IDE_EVENT_NAMES in src/types/hooks.ts.
+      } else if (target === "kiro-ide" || target === "kiro-cli") {
+        // Kiro's standalone hooks format, shared by the IDE and by CLI 3.0:
+        // a `{ version: "v1", hooks: [...] }` envelope with one entry per hook.
+        // Canonical `sessionStart` → `SessionStart`, `stop` → `Stop`
+        // (PascalCase triggers). See CANONICAL_TO_KIRO_IDE_EVENT_NAMES in
+        // src/types/hooks.ts.
         expect(parsed.version).toBe("v1");
         const triggers = (parsed.hooks as Array<{ trigger: string }>).map((h) => h.trigger);
         expect(triggers).toContain("SessionStart");
@@ -240,7 +241,7 @@ describe("E2E: hooks", () => {
     expect(generatedContent).not.toContain("echo stale");
   });
 
-  it("should round-trip Kiro CLI hook cache TTL", async () => {
+  it("should round-trip the legacy Kiro agent-config hook cache TTL", async () => {
     const testDir = getTestDir();
     await writeFileContent(
       join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
@@ -251,13 +252,15 @@ describe("E2E: hooks", () => {
       }),
     );
 
-    await runGenerate({ target: "kiro-cli", features: "hooks" });
+    // `cache_ttl_seconds` belongs to the embedded agent-config format, which
+    // only the deprecated `kiro` alias still writes.
+    await runGenerate({ target: "kiro", features: "hooks" });
 
     const generatedPath = join(testDir, ".kiro", "agents", "default.json");
     const generated = JSON.parse(await readFileContent(generatedPath));
     expect(generated.hooks.userPromptSubmit[0].cache_ttl_seconds).toBe(60);
 
-    await runImport({ target: "kiro-cli", features: "hooks" });
+    await runImport({ target: "kiro", features: "hooks" });
 
     const imported = JSON.parse(
       await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
@@ -687,6 +690,7 @@ const hooksGlobalTargets = [
   { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
+  { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
 ] as const;
 
