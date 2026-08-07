@@ -251,7 +251,7 @@ Events present in the shared `hooks` block but unsupported by a given tool are s
 
 <!-- HOOK_EVENTS_MATRIX:END -->
 
-> **Note:** `beforeSubmitPrompt`, `stop`, `worktreeCreate`, `worktreeRemove`, `messageDisplay`, `postToolBatch`, `taskCreated`, `taskCompleted`, `teammateIdle`, and `cwdChanged` are the Claude Code events the [matcher table](https://code.claude.com/docs/en/hooks) lists as not supporting the `matcher` field (they fire on every occurrence). A matcher authored on one of them is dropped with a warning rather than written into `settings.json` to be ignored. `directoryAdded` is treated the same way for now: the event is announced in the 2.1.219 changelog but has no row in the docs' event table yet, so its matcher support is unknown.
+> **Note:** `beforeSubmitPrompt`, `stop`, `worktreeCreate`, `worktreeRemove`, `messageDisplay`, `postToolBatch`, `taskCreated`, `taskCompleted`, `teammateIdle`, and `cwdChanged` are the Claude Code events the [matcher table](https://code.claude.com/docs/en/hooks) lists as not supporting the `matcher` field (they fire on every occurrence). A matcher authored on one of them is dropped with a warning rather than written into `settings.json` to be ignored. `directoryAdded` is **not** one of them: the matcher table documents it as filtering on how the directory was added (`slash_command`, `register_repo_root`), so a matcher written on it is emitted as-is.
 
 > **Note:** Rulesync implements OpenCode hooks as a plugin at `.opencode/plugins/rulesync-hooks.js` and Kilo hooks as a plugin at `.kilo/plugins/rulesync-hooks.js`, so importing from OpenCode/Kilo to rulesync is not supported. Both only support command-type hooks (not prompt-type).
 
@@ -646,6 +646,13 @@ claudecode: # for claudecode-specific parameters
   paths:
     - "src/**/*.ts"
     - "test/**/*.ts"
+  # Claude Code accepts the three Agent Skills standard fields below but acts on
+  # none of them; they matter for claude.ai skill uploads, the Skills API, and
+  # packaging with package_skill.py.
+  license: Apache-2.0 # (optional) license covering the skill
+  compatibility: Requires Node.js 22 or later # (optional) environment requirements, up to 500 characters
+  metadata: # (optional) free-form map for your own tooling; a non-map value is dropped by Claude Code
+    catalog: internal
 codexcli: # for codexcli-specific parameters
   short-description: A brief user-facing description
   # The following sections are emitted to the agents/openai.yaml sidecar next to SKILL.md.

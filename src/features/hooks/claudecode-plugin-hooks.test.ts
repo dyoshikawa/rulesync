@@ -96,6 +96,35 @@ describe("ClaudecodePluginHooks", () => {
         "$CLAUDE_PROJECT_DIR/scripts/consumer-side.sh",
       );
     });
+
+    it("should inherit the Claude Code matcher rules, keeping DirectoryAdded's matcher", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            directoryAdded: [
+              { type: "command", command: "./scripts/added.sh", matcher: "register_repo_root" },
+            ],
+            taskCreated: [{ type: "command", command: "./scripts/task.sh", matcher: "Bash" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const pluginHooks = await ClaudecodePluginHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(pluginHooks.getFileContent());
+      expect(parsed.hooks.DirectoryAdded[0].matcher).toBe("register_repo_root");
+      // `taskCreated` is still a no-matcher event, so its matcher is dropped.
+      expect(parsed.hooks.TaskCreated[0].matcher).toBeUndefined();
+    });
   });
 
   describe("toRulesyncHooks", () => {
