@@ -346,6 +346,60 @@ describe("RulesProcessor", () => {
       expect(result[0]?.getFileContent()).toBe("# Root body\n\n# Detail body");
     });
 
+    it("should route every root rule to AGENTS.override.md when any of them opts in", async () => {
+      const processor = new RulesProcessor({ logger, toolTarget: "pi" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["pi"], pi: { contextFile: "override" } },
+          body: "# Root body",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "second-root.md",
+          frontmatter: { root: true, targets: ["pi"] },
+          body: "# Second root body",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      // Nothing may be left in AGENTS.md, which Pi stops reading.
+      expect(result).toHaveLength(1);
+      expect(result[0]?.getRelativeFilePath()).toBe("AGENTS.override.md");
+      expect(result[0]?.getFileContent()).toBe("# Root body\n\n# Second root body");
+    });
+
+    it("should not align pi.contextFile from a rule targeting another tool", async () => {
+      const processor = new RulesProcessor({ logger, toolTarget: "pi" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["claudecode"] },
+          body: "# Someone else's root",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "pi-root.md",
+          frontmatter: { root: true, targets: ["pi"], pi: { contextFile: "override" } },
+          body: "# Pi root",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.getRelativeFilePath()).toBe("AGENTS.override.md");
+    });
+
     it("should ignore pi.contextFile set only on a non-root rule", async () => {
       const processor = new RulesProcessor({ logger, toolTarget: "pi" });
 

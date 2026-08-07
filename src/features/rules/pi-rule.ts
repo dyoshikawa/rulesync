@@ -137,6 +137,19 @@ export class PiRule extends ToolRule {
   }
 
   /**
+   * The project-root `AGENTS.md` is written by several other targets
+   * (agentsmd, codexcli, warp, devin, ...), and the root-file ownership map that
+   * arbitrates a shared path only applies to `--check`. With
+   * `pi.contextFile: override` Pi stops writing that file, so leaving it on the
+   * orphan list would make every `pi` generate delete another target's freshly
+   * written output. The global `~/.pi/agent/AGENTS.md` is Pi-exclusive and stays
+   * deletable.
+   */
+  override isDeletable(): boolean {
+    return !(this.getRelativeDirPath() === "." && this.getRelativeFilePath() === PI_RULE_FILE_NAME);
+  }
+
+  /**
    * Pi appends `APPEND_SYSTEM.md` to the system prompt itself, so listing it in
    * the root rule's reference section (toon/explicit discovery modes) would
    * double-load the content.

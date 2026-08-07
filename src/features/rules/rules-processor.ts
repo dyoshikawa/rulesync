@@ -1685,13 +1685,19 @@ As this project's AI coding tool, you must follow the additional conventions bel
   private alignPiContextFile(rules: RulesyncRule[]): RulesyncRule[] {
     if (this.toolTarget !== "pi") return rules;
 
-    const rootContextFile = rules
-      .find((rule) => rule.getFrontmatter().root === true)
-      ?.getFrontmatter().pi?.contextFile;
-    const mismatched = rules.filter(
+    const factory = this.getFactory(this.toolTarget);
+    const targeted = rules.filter((rule) => factory.class.isTargetedByRulesyncRule(rule));
+    // Any root rule opting in decides for the whole output: with several root
+    // rules, honoring only one of them would leave the others in the file Pi
+    // stops reading.
+    const rootContextFile = targeted.some(
       (rule) =>
-        rule.getFrontmatter().root !== true &&
-        rule.getFrontmatter().pi?.contextFile !== rootContextFile,
+        rule.getFrontmatter().root === true && rule.getFrontmatter().pi?.contextFile === "override",
+    )
+      ? ("override" as const)
+      : undefined;
+    const mismatched = targeted.filter(
+      (rule) => rule.getFrontmatter().pi?.contextFile !== rootContextFile,
     );
     if (mismatched.length === 0) return rules;
 
@@ -1719,6 +1725,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
           ...(Object.keys(nextPi).length > 0 ? { pi: nextPi } : { pi: undefined }),
         },
         body: rule.getBody(),
+        // The source rule was already parsed under its own validate setting;
+        // only the pi block changes here.
+        validate: false,
       });
     });
   }

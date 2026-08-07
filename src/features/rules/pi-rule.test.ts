@@ -483,6 +483,31 @@ describe("PiRule", () => {
       expect(rulesyncRule.getBody()).toBe(content);
     });
 
+    it("never deletes the shared project-root AGENTS.md", () => {
+      const rule = PiRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.md",
+      });
+      expect(rule.isDeletable()).toBe(false);
+    });
+
+    it("still deletes the pi-exclusive files", () => {
+      const globalRoot = PiRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: join(".pi", "agent"),
+        relativeFilePath: "AGENTS.md",
+        global: true,
+      });
+      const override = PiRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "AGENTS.override.md",
+      });
+      expect(globalRoot.isDeletable()).toBe(true);
+      expect(override.isDeletable()).toBe(true);
+    });
+
     it("treats both context-file names as deletable root files", () => {
       for (const relativeFilePath of ["AGENTS.md", "AGENTS.override.md"]) {
         const rule = PiRule.forDeletion({

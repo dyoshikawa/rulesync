@@ -295,6 +295,55 @@ pi:
     expect(importedAppend).toContain("Pi Append Two");
   });
 
+  it("should emit pi.contextFile:override as AGENTS.override.md without deleting the shared AGENTS.md", async () => {
+    const testDir = getTestDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Root rule"
+globs: ["**/*"]
+pi:
+  contextFile: override
+---
+
+# Pi Root Rule
+`;
+    const nonRootRuleContent = `---
+targets: ["pi"]
+description: "Detail rule"
+---
+
+# Pi Detail Rule
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "detail.md"),
+      nonRootRuleContent,
+    );
+
+    await runGenerate({ target: "agentsmd,pi", features: "rules", deleteFiles: true });
+
+    // Both pi bodies land in the override file Pi actually reads, and the shared
+    // AGENTS.md written by agentsmd survives pi's orphan sweep.
+    const overrideContent = await readFileContent(join(testDir, "AGENTS.override.md"));
+    expect(overrideContent).toContain("Pi Root Rule");
+    expect(overrideContent).toContain("Pi Detail Rule");
+    expect(await fileExists(join(testDir, "AGENTS.md"))).toBe(true);
+
+    // Import recovers the routing frontmatter.
+    await runImport({ target: "pi", features: "rules" });
+
+    const imported = await readFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+    );
+    expect(imported).toContain("contextFile: override");
+    expect(imported).toContain("Pi Root Rule");
+  });
+
   it("should fold junie non-root rules into the root .junie/AGENTS.md", async () => {
     const testDir = getTestDir();
 
