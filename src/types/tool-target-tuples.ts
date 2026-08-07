@@ -225,6 +225,7 @@ export const skillsProcessorToolTargetTuple = [
 
 export const hooksProcessorToolTargetTuple = [
   "amp",
+  "cline",
   "antigravity-cli",
   "antigravity-ide",
   "antigravity-plugin",

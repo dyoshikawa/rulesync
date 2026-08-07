@@ -1,6 +1,7 @@
 import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
 import {
   addTrailingNewline,
+  applyFileMode,
   readFileContentOrNull,
   removeFile,
   writeFileContent,
@@ -82,6 +83,9 @@ export abstract class FeatureProcessor {
         continue;
       }
 
+      // Optional call: test doubles and older AiFile shapes may not define it.
+      const fileMode = aiFile.getFileMode?.();
+
       if (
         fileContentsEquivalent({
           filePath,
@@ -89,6 +93,13 @@ export abstract class FeatureProcessor {
           existing: existingContent,
         })
       ) {
+        // The content is already right, but the mode may not be: an interrupted
+        // run (or a file the user copied in) can leave an executable output
+        // without its executable bit, and the write that would have fixed it is
+        // the one being skipped here.
+        if (fileMode !== undefined && !this.dryRun) {
+          await applyFileMode(filePath, fileMode);
+        }
         continue;
       }
 
@@ -96,6 +107,9 @@ export abstract class FeatureProcessor {
         this.logger.info(`[DRY RUN] Would write: ${filePath}`);
       } else {
         await writeFileContent(filePath, contentWithNewline);
+        if (fileMode !== undefined) {
+          await applyFileMode(filePath, fileMode);
+        }
       }
       changedCount++;
       changedPaths.push(aiFile.getRelativePathFromCwd());

@@ -14,6 +14,7 @@ import {
   DEEPAGENTS_HOOK_EVENTS,
   DEVIN_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
+  CLINE_HOOK_EVENTS,
   GOOSE_HOOK_EVENTS,
   GROKCLI_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
@@ -42,6 +43,7 @@ import { AntigravityPluginHooks } from "./antigravity-plugin-hooks.js";
 import { AugmentcodeHooks } from "./augmentcode-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
+import { ClineHooks } from "./cline-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
@@ -90,6 +92,8 @@ type ToolHooksFactory = {
     getAuxiliaryFiles?: (params: {
       outputRoot?: string;
       global?: boolean;
+      /** The instance just built, for adapters whose extra files derive from it. */
+      toolHooks?: ToolHooks;
     }) => ToolFile[] | Promise<ToolFile[]>;
   };
   meta: {
@@ -407,6 +411,26 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // supported" — a prompt-type entry in hooks.json is inert.
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+    },
+  ],
+  [
+    "cline",
+    {
+      class: ClineHooks,
+      meta: {
+        // File-based hooks live in `<project>/.clinerules/hooks/` and the global
+        // `~/Documents/Cline/Hooks/`. Generated wrapper scripts cannot be read
+        // back as canonical hook definitions, so import is unsupported.
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: false,
+      },
+      supportedEvents: CLINE_HOOK_EVENTS,
+      // A hook is an executable file; Cline has no prompt/http hook type.
+      supportedHookTypes: ["command"],
+      // The payload shape differs per event and the wrapper is a plain shell
+      // script with no JSON parser to rely on, so a matcher cannot be enforced.
+      supportsMatcher: false,
     },
   ],
   [
@@ -870,6 +894,7 @@ export class HooksProcessor extends FeatureProcessor {
     const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
       outputRoot: this.outputRoot,
       global: this.global,
+      toolHooks,
     });
     if (auxiliaryFiles && auxiliaryFiles.length > 0) {
       result.push(...auxiliaryFiles);
