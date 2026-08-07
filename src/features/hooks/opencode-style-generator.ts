@@ -22,9 +22,11 @@ const NAMED_HOOK_MATCHER_SUBJECTS: Record<string, string | null> = {
 };
 
 /**
- * Generic (`event.type`) dispatches that fire more broadly than the canonical
- * event they are mapped from, with the extra condition the generated handler
- * gates on.
+ * Canonical events whose generic (`event.type`) dispatch fires more broadly
+ * than the canonical event means, mapped to the extra condition the generated
+ * handler gates on. Keyed by canonical event like `SHELL_EVENT_TOOL_GATES`, so
+ * a second canonical event mapped onto the same dispatch does not inherit a
+ * gate meant for its sibling.
  *
  * `permission.replied` fires for every reply — `once`, `always` and `reject` —
  * so the canonical `permissionDenied` handler runs only for a rejecting reply.
@@ -37,7 +39,7 @@ const NAMED_HOOK_MATCHER_SUBJECTS: Record<string, string | null> = {
  * @see https://opencode.ai/docs/plugins/
  */
 const GENERIC_EVENT_PROPERTY_GATES: Record<string, string> = {
-  "permission.replied": 'event.properties.reply === "reject"',
+  permissionDenied: 'event.properties.reply === "reject"',
 };
 
 /**
@@ -79,7 +81,7 @@ function validateAndSanitizeMatcher(matcher: string): string {
   return sanitized.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-type Handler = { command: string; matcher?: string; toolGate?: string };
+type Handler = { command: string; matcher?: string; toolGate?: string; propertyGate?: string };
 type HandlerGroup = Record<string, Handler[]>;
 
 /**
@@ -99,6 +101,7 @@ function collectOpencodeStyleHandlers({
 }): void {
   for (const [canonicalEvent, definitions] of Object.entries(effectiveHooks)) {
     const shellGate = SHELL_EVENT_TOOL_GATES[canonicalEvent];
+    const propertyGate = GENERIC_EVENT_PROPERTY_GATES[canonicalEvent];
     const toolEvent = shellGate?.toolEvent ?? eventMap[canonicalEvent];
     if (!toolEvent) continue;
 
@@ -122,6 +125,7 @@ function collectOpencodeStyleHandlers({
         command: def.command,
         matcher: def.matcher ? def.matcher : undefined,
         ...(shellGate ? { toolGate: shellGate.tool } : {}),
+        ...(propertyGate ? { propertyGate } : {}),
       });
     }
 
@@ -148,15 +152,19 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
   bodyLines.push("    event: async ({ event }) => {");
   let isFirst = true;
   for (const [eventName, handlers] of Object.entries(genericEventHandlers)) {
-    const gate = GENERIC_EVENT_PROPERTY_GATES[eventName];
-    const condition = gate
-      ? `event.type === "${eventName}" && ${gate}`
-      : `event.type === "${eventName}"`;
-    bodyLines.push(`      ${isFirst ? "if" : "else if"} (${condition}) {`);
+    bodyLines.push(`      ${isFirst ? "if" : "else if"} (event.type === "${eventName}") {`);
     isFirst = false;
     for (const handler of handlers) {
       const escapedCommand = escapeForTemplateLiteral(handler.command);
-      bodyLines.push(`        await $\`${escapedCommand}\`;`);
+      if (handler.propertyGate) {
+        // The dispatch fires more broadly than the canonical event it came
+        // from, so this handler narrows it to the matching payload.
+        bodyLines.push(`        if (${handler.propertyGate}) {`);
+        bodyLines.push(`          await $\`${escapedCommand}\`;`);
+        bodyLines.push("        }");
+      } else {
+        bodyLines.push(`        await $\`${escapedCommand}\`;`);
+      }
     }
     bodyLines.push("      }");
   }

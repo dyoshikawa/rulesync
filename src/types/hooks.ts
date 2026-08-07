@@ -340,13 +340,18 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
- * Hook events supported by Kilo. Identical to OpenCode: Kilo's plugin docs list
- * the same event surface, including `session.compacted`, `session.error`,
- * `file.watcher.updated` and the experimental compaction hook.
+ * Hook events supported by Kilo. Kilo's plugin docs list the same event surface
+ * as OpenCode's — including `session.compacted`, `session.error`,
+ * `file.watcher.updated`, `permission.replied`, `chat.message` and the
+ * experimental compaction hook — with one exception: they document no TUI
+ * events at all, so `tui.toast.show` (canonical `notification`) is left out
+ * rather than emitted into a plugin where it may never fire.
  *
  * @see https://kilo.ai/docs/automate/extending/plugins
  */
-export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS;
+export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS.filter(
+  (event) => event !== "notification",
+);
 
 /**
  * Hook events supported by Pi Coding Agent, bridged through a generated
@@ -1174,7 +1179,10 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
 
 /**
  * Map canonical camelCase event names to Kilo dot-notation.
- * (Currently identical to OpenCode)
+ *
+ * Shared with OpenCode: the two name the same events. The `notification` entry
+ * is unreachable for Kilo because `KILO_HOOK_EVENTS` omits it, and the
+ * generator emits only supported events.
  */
 export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
   CANONICAL_TO_OPENCODE_EVENT_NAMES;

@@ -92,7 +92,7 @@ describe("KiloHooks", () => {
       expect(content).not.toContain("session-end.sh");
     });
 
-    it("emits the toast, rejected-permission and chat-message events", () => {
+    it("emits the rejected-permission and chat-message events, but not the toast", () => {
       const rulesyncHooks = new RulesyncHooks({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -114,11 +114,12 @@ describe("KiloHooks", () => {
         validate: false,
       }).getFileContent();
 
-      expect(content).toContain('event.type === "tui.toast.show"');
-      expect(content).toContain("notify.sh");
-      expect(content).toContain(
-        'event.type === "permission.replied" && event.properties.reply === "reject"',
-      );
+      // Kilo's plugin docs document no TUI events, so `notification` is not
+      // part of its supported surface.
+      expect(content).not.toContain("tui.toast.show");
+      expect(content).not.toContain("notify.sh");
+      expect(content).toContain('event.type === "permission.replied"');
+      expect(content).toContain('if (event.properties.reply === "reject") {');
       expect(content).toContain("on-deny.sh");
       expect(content).toContain('"chat.message": async (input) => {');
       expect(content).toContain("pre-prompt.sh");
