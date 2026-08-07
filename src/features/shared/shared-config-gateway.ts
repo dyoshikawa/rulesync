@@ -629,6 +629,11 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     invalidRootPolicy: "error",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["extensions"] },
+      // `slash_commands` registers generated recipes as `/name` commands. It is
+      // co-owned the same way: the list is recomputed from the existing file
+      // (entries pointing outside the rulesync-managed recipes directory carried
+      // over) before being applied, so the whole key is owned here.
+      commands: { kind: "replace-owned-keys", ownedKeys: ["slash_commands"] },
     },
   },
   // Codex CLI config: hooks/mcp/permissions each own an exclusive top-level
