@@ -5,9 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import type { ToolFile } from "../../types/tool-file.js";
 import { writeFileContent } from "../../utils/file.js";
 import { GooseCommand } from "./goose-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
+
+const configOf = (files: ToolFile[]): Record<string, unknown> =>
+  load(files[0]!.getFileContent()) as Record<string, unknown>;
 
 const buildRulesyncCommand = (overrides?: {
   body?: string;
@@ -201,6 +205,181 @@ describe("GooseCommand", () => {
         fileContent: "version: 1.0.0\ntitle: t\ndescription: d\nprompt: p\n",
       });
       expect(command.validate().success).toBe(true);
+    });
+  });
+
+  describe("getExtraSharedWritePaths", () => {
+    it("declares the user config only in global mode", () => {
+      expect(GooseCommand.getExtraSharedWritePaths({ global: true })).toEqual([
+        { relativeDirPath: join(".config", "goose"), relativeFilePath: "config.yaml" },
+      ]);
+      expect(GooseCommand.getExtraSharedWritePaths({ global: false })).toEqual([]);
+    });
+  });
+
+  describe("getAuxiliaryFiles", () => {
+    const globalCommand = (relativeFilePath: string): GooseCommand =>
+      GooseCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: buildRulesyncCommand({ relativeFilePath }),
+        global: true,
+      });
+
+    const writeConfig = async (content: string): Promise<void> => {
+      await writeFileContent(join(testDir, ".config", "goose", "config.yaml"), content);
+    };
+
+    it("registers each generated recipe as a slash command", async () => {
+      const files = await GooseCommand.getAuxiliaryFiles({
+        toolCommands: [globalCommand("deploy.md"), globalCommand("review.md")],
+        outputRoot: testDir,
+        global: true,
+      });
+
+      expect(files).toHaveLength(1);
+      expect(files[0]!.getRelativePathFromCwd()).toBe(join(".config", "goose", "config.yaml"));
+      expect(configOf(files)).toEqual({
+        slash_commands: [
+          {
+            command: "deploy",
+            recipe_path: join(testDir, ".config", "goose", "recipes", "deploy.yaml"),
+          },
+          {
+            command: "review",
+            recipe_path: join(testDir, ".config", "goose", "recipes", "review.yaml"),
+          },
+        ],
+      });
+    });
+
+    it("does not touch the user config in project scope", async () => {
+      expect(
+        await GooseCommand.getAuxiliaryFiles({
+          toolCommands: [globalCommand("deploy.md")],
+          outputRoot: testDir,
+          global: false,
+        }),
+      ).toEqual([]);
+    });
+
+    it("keeps unrelated settings and slash commands pointing outside the managed directory", async () => {
+      await writeConfig(
+        [
+          "GOOSE_PROVIDER: openai",
+          "slash_commands:",
+          "  - command: standup",
+          "    recipe_path: ~/my-recipes/standup.yaml",
+          "  - command: helper",
+          "    recipe_path: ~/.config/goose/recipes/subagents/helper.yaml",
+          "",
+        ].join("\n"),
+      );
+
+      const files = await GooseCommand.getAuxiliaryFiles({
+        toolCommands: [globalCommand("deploy.md")],
+        outputRoot: testDir,
+        global: true,
+      });
+
+      expect(configOf(files)).toEqual({
+        GOOSE_PROVIDER: "openai",
+        slash_commands: [
+          { command: "standup", recipe_path: "~/my-recipes/standup.yaml" },
+          { command: "helper", recipe_path: "~/.config/goose/recipes/subagents/helper.yaml" },
+          {
+            command: "deploy",
+            recipe_path: join(testDir, ".config", "goose", "recipes", "deploy.yaml"),
+          },
+        ],
+      });
+    });
+
+    it("lowercases the command name, which Goose compares verbatim", async () => {
+      const files = await GooseCommand.getAuxiliaryFiles({
+        toolCommands: [globalCommand("Deploy.md")],
+        outputRoot: testDir,
+        global: true,
+      });
+
+      expect(configOf(files)).toEqual({
+        slash_commands: [
+          {
+            command: "deploy",
+            recipe_path: join(testDir, ".config", "goose", "recipes", "Deploy.yaml"),
+          },
+        ],
+      });
+    });
+
+    it("replaces a stale registration of a recipe that is no longer generated", async () => {
+      await writeConfig(
+        [
+          "slash_commands:",
+          "  - command: removed",
+          `    recipe_path: ${join(testDir, ".config", "goose", "recipes", "removed.yaml")}`,
+          "  - command: legacy",
+          // Written by an earlier rulesync version as a `~`-relative path.
+          "    recipe_path: ~/.config/goose/recipes/legacy.yaml",
+          "",
+        ].join("\n"),
+      );
+
+      const files = await GooseCommand.getAuxiliaryFiles({
+        toolCommands: [globalCommand("deploy.md")],
+        outputRoot: testDir,
+        global: true,
+      });
+
+      expect(configOf(files)).toEqual({
+        slash_commands: [
+          {
+            command: "deploy",
+            recipe_path: join(testDir, ".config", "goose", "recipes", "deploy.yaml"),
+          },
+        ],
+      });
+    });
+
+    it("retracts the whole key when the last generated command is gone", async () => {
+      await writeConfig(
+        [
+          "GOOSE_PROVIDER: openai",
+          "slash_commands:",
+          "  - command: removed",
+          "    recipe_path: ~/.config/goose/recipes/removed.yaml",
+          "",
+        ].join("\n"),
+      );
+
+      const files = await GooseCommand.getAuxiliaryFiles({
+        toolCommands: [],
+        outputRoot: testDir,
+        global: true,
+      });
+
+      expect(files).toHaveLength(1);
+      expect(configOf(files)).toEqual({ GOOSE_PROVIDER: "openai" });
+    });
+
+    it("does not create a config file when there is nothing to register or retract", async () => {
+      expect(
+        await GooseCommand.getAuxiliaryFiles({
+          toolCommands: [],
+          outputRoot: testDir,
+          global: true,
+        }),
+      ).toEqual([]);
+    });
+
+    it("is never a deletion candidate", async () => {
+      expect(
+        await GooseCommand.getAuxiliaryFiles({
+          toolCommands: [globalCommand("deploy.md")],
+          outputRoot: testDir,
+          global: true,
+          forDeletion: true,
+        }),
+      ).toEqual([]);
     });
   });
 });

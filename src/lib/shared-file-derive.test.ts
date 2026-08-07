@@ -143,6 +143,10 @@ describe("shared-file write derivation", () => {
           "hooks",
           "permissions",
         ],
+        ".config/goose/config.yaml": [
+          "commands",
+          "mcp",
+        ],
         ".config/opencode/opencode.json": [
           "mcp",
           "permissions",

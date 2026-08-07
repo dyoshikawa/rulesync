@@ -2,6 +2,7 @@ import { basename, dirname, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
+import { GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME } from "../../constants/goose-paths.js";
 import {
   HERMESAGENT_CONFIG_FILE_PATH,
   HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
@@ -36,7 +37,11 @@ import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
-import { GooseCommand } from "./goose-command.js";
+import {
+  getGooseSlashCommandsConfigContent,
+  GooseCommand,
+  hasManagedGooseSlashCommands,
+} from "./goose-command.js";
 import { GrokcliCommand } from "./grokcli-command.js";
 import {
   getDisabledHermesCommandsPluginConfigContent,
@@ -919,6 +924,8 @@ export class CommandsProcessor extends FeatureProcessor {
       !generatedFiles.some((file) => file.getFilePath() === ownershipPath);
     let changedCount = await super.removeOrphanAiFiles(existingFiles, generatedFiles);
 
+    changedCount += await this.retractGooseSlashCommands(generatedFiles);
+
     if (!shouldDisableHermesCommandsPlugin) return changedCount;
     const configPath = join(
       this.outputRoot,
@@ -942,6 +949,32 @@ export class CommandsProcessor extends FeatureProcessor {
     }
     changedCount++;
     return changedCount;
+  }
+
+  /**
+   * Drop the `slash_commands` registrations when no Goose recipe is generated
+   * any more. `GooseCommand.getAuxiliaryFiles` handles every other case, but it
+   * is not reached when the whole feature has no source files left (`--delete`
+   * removes the recipes there), which would strand `/name` on a deleted recipe.
+   */
+  private async retractGooseSlashCommands(generatedFiles: AiFile[]): Promise<number> {
+    if (this.toolTarget !== "goose" || !this.global) return 0;
+    if (generatedFiles.some((file) => file instanceof GooseCommand)) return 0;
+
+    const configPath = join(this.outputRoot, GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME);
+    const currentContent = await readFileContentOrNull(configPath);
+    // Rewriting a config that holds no managed registration would reformat the
+    // user's file (dropping their comments) for no gain.
+    if (currentContent === null || !hasManagedGooseSlashCommands(currentContent)) return 0;
+    const nextContent = getGooseSlashCommandsConfigContent({ currentContent, entries: [] });
+    if (nextContent === currentContent) return 0;
+
+    if (this.dryRun) {
+      this.logger.info(`[DRY RUN] Would write: ${configPath}`);
+    } else {
+      await writeFileContent(configPath, nextContent);
+    }
+    return 1;
   }
 
   /**

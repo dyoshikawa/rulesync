@@ -4,14 +4,24 @@ import { dump } from "js-yaml";
 import { z } from "zod/mini";
 
 import {
+  GOOSE_GLOBAL_DIR,
   GOOSE_GLOBAL_RECIPES_DIR_PATH,
+  GOOSE_MCP_FILE_NAME,
   GOOSE_RECIPES_DIR_PATH,
 } from "../../constants/goose-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContentOrNull, readFileContent, toPosixPath } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
+import {
+  applySharedConfigPatch,
+  parseSharedConfig,
+  sharedConfigFileKey,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -22,6 +32,142 @@ import {
 } from "./tool-command.js";
 
 const RECIPE_VERSION = "1.0.0";
+
+// Goose does not auto-register a recipe as a slash command: `/name` only works
+// once the recipe is listed under `slash_commands` in the user config
+// (`SlashCommandMapping { command, recipe_path }`, deserialized in
+// `crates/goose/src/slash_commands/recipe_slash_command.rs`).
+//
+// Two details of that module shape the output:
+// - `recipe_path` is resolved with a bare `PathBuf::from(...)` followed by
+//   `.exists()` — the tilde expansion used for `goose run --recipe` is not on
+//   this path, so a `~/...` registration never resolves. The absolute path is
+//   written instead, exactly as Goose's own `set_recipe_slash_command` stores it.
+// - `get_recipe_for_command` lowercases the *input* and compares it against the
+//   stored `command` verbatim, so an entry carrying uppercase can never match.
+//
+// The registration surface exists at user scope only — there is no project-level
+// `slash_commands` list — so it is written in global mode only.
+// @see https://github.com/block/goose/blob/main/crates/goose/src/slash_commands/recipe_slash_command.rs
+const SLASH_COMMANDS_KEY = "slash_commands";
+const GOOSE_GLOBAL_RECIPES_POSIX_DIR = toPosixPath(GOOSE_GLOBAL_RECIPES_DIR_PATH);
+
+type GooseSlashCommandEntry = { command: string; recipe_path: string };
+
+function slashCommandEntry({
+  outputRoot,
+  relativeFilePath,
+}: {
+  outputRoot: string;
+  relativeFilePath: string;
+}): GooseSlashCommandEntry {
+  const fileName = basename(toPosixPath(relativeFilePath));
+  return {
+    command: fileName.replace(/\.ya?ml$/, "").toLowerCase(),
+    recipe_path: join(outputRoot, GOOSE_GLOBAL_RECIPES_DIR_PATH, fileName),
+  };
+}
+
+/**
+ * Whether an existing `slash_commands` entry points at a recipe rulesync owns:
+ * a direct child of the global recipes directory. Anything else — a recipe
+ * elsewhere on disk, or a sub-recipe under `recipes/subagents/` — belongs to
+ * the user and is carried over untouched. A path that cannot be resolved into
+ * the managed directory is preserved rather than claimed.
+ */
+function isManagedRecipePath(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const segments = toPosixPath(value).replace(/^~\//, "").split("/");
+  const fileName = segments.pop();
+  if (fileName === undefined || fileName === "") return false;
+  const dirSegments = GOOSE_GLOBAL_RECIPES_POSIX_DIR.split("/");
+  return (
+    segments.length >= dirSegments.length &&
+    segments.slice(-dirSegments.length).join("/") === GOOSE_GLOBAL_RECIPES_POSIX_DIR
+  );
+}
+
+/**
+ * Whether a config file carries a registration rulesync owns. Rewriting a
+ * config that holds none of them would reformat the user's file (comments and
+ * all) for nothing, so both writers check this first.
+ */
+export function hasManagedGooseSlashCommands(fileContent: string): boolean {
+  const existing = parseSharedConfig({ format: "yaml", fileContent })[SLASH_COMMANDS_KEY];
+  return (
+    Array.isArray(existing) &&
+    existing.some((entry) => isRecord(entry) && isManagedRecipePath(entry.recipe_path))
+  );
+}
+
+/**
+ * Recompute `slash_commands` from the entries rulesync generates: user entries
+ * pointing outside the managed recipes directory are carried over, entries
+ * inside it are replaced (so a deleted command's registration is retracted),
+ * and the key is dropped entirely when nothing is left.
+ */
+export function getGooseSlashCommandsConfigContent({
+  currentContent,
+  entries,
+}: {
+  currentContent: string;
+  entries: GooseSlashCommandEntry[];
+}): string {
+  const config = parseSharedConfig({ format: "yaml", fileContent: currentContent });
+  const existing = Array.isArray(config[SLASH_COMMANDS_KEY]) ? config[SLASH_COMMANDS_KEY] : [];
+  const preserved = existing.filter(
+    (entry) => !isRecord(entry) || !isManagedRecipePath(entry.recipe_path),
+  );
+  const next = [...preserved, ...entries];
+
+  return applySharedConfigPatch({
+    fileKey: sharedConfigFileKey({
+      relativeDirPath: GOOSE_GLOBAL_DIR,
+      relativeFilePath: GOOSE_MCP_FILE_NAME,
+    }),
+    feature: "commands",
+    existingContent: currentContent,
+    patch: { [SLASH_COMMANDS_KEY]: next.length > 0 ? next : undefined },
+  });
+}
+
+/**
+ * The Goose user `config.yaml`, carrying the `slash_commands` registrations for
+ * the generated recipes. The file is shared with the user's own settings, so it
+ * is always merged into rather than replaced.
+ */
+class GooseCommandConfigFile extends ToolFile {
+  private readonly entries: GooseSlashCommandEntry[];
+
+  constructor(params: AiFileParams & { entries: GooseSlashCommandEntry[] }) {
+    super(params);
+    this.entries = params.entries;
+  }
+
+  validate(): ValidationResult {
+    return { success: true, error: null };
+  }
+
+  shouldMergeExistingFileContent(): boolean {
+    return true;
+  }
+
+  setFileContent(newFileContent: string): void {
+    super.setFileContent(
+      getGooseSlashCommandsConfigContent({
+        currentContent: newFileContent,
+        entries: this.entries,
+      }),
+    );
+  }
+
+  getFileContent(): string {
+    return getGooseSlashCommandsConfigContent({
+      currentContent: super.getFileContent(),
+      entries: this.entries,
+    });
+  }
+}
 
 /**
  * Goose recipe files are reusable YAML workflow documents. A recipe requires
@@ -68,6 +214,59 @@ export class GooseCommand extends ToolCommand {
     return {
       relativeDirPath: global ? GOOSE_GLOBAL_RECIPES_DIR_PATH : GOOSE_RECIPES_DIR_PATH,
     };
+  }
+
+  /**
+   * The user `config.yaml` holding the `slash_commands` registrations. Global
+   * scope only — Goose has no project-level registration surface.
+   */
+  static getExtraSharedWritePaths({
+    global = false,
+  }: { global?: boolean } = {}): SharedWritePath[] {
+    if (!global) return [];
+    return [{ relativeDirPath: GOOSE_GLOBAL_DIR, relativeFilePath: GOOSE_MCP_FILE_NAME }];
+  }
+
+  /**
+   * Register the generated recipes as slash commands. The config file is also
+   * emitted when no command is generated but the existing file still carries
+   * managed registrations, so removing the last command retracts them instead of
+   * leaving `/name` pointing at a deleted recipe.
+   */
+  static override async getAuxiliaryFiles({
+    toolCommands,
+    outputRoot = process.cwd(),
+    global = false,
+    forDeletion = false,
+  }: {
+    toolCommands: ToolCommand[];
+    outputRoot?: string;
+    global?: boolean;
+    forDeletion?: boolean;
+  }): Promise<ToolFile[]> {
+    // The user's config.yaml is shared with their own settings and is never a
+    // deletion candidate; retraction happens through the regenerated content.
+    if (!global || forDeletion) return [];
+
+    const entries = toolCommands.map((command) =>
+      slashCommandEntry({ outputRoot, relativeFilePath: command.getRelativeFilePath() }),
+    );
+    const configPath = join(outputRoot, GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME);
+    const existingContent = await readFileContentOrNull(configPath);
+    if (entries.length === 0 && !hasManagedGooseSlashCommands(existingContent ?? "")) {
+      return [];
+    }
+
+    return [
+      new GooseCommandConfigFile({
+        outputRoot,
+        relativeDirPath: GOOSE_GLOBAL_DIR,
+        relativeFilePath: GOOSE_MCP_FILE_NAME,
+        fileContent: existingContent ?? "",
+        entries,
+        global,
+      }),
+    ];
   }
 
   private parseRecipeContent(content: string): GooseCommandRecipe {

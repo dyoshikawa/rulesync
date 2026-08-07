@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, MockedFunction, vi } from 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, findFilesByGlobs, writeFileContent } from "../../utils/file.js";
+import {
+  ensureDir,
+  findFilesByGlobs,
+  readFileContent,
+  writeFileContent,
+} from "../../utils/file.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClineCommand } from "./cline-command.js";
 import { CommandsProcessor, CommandsProcessorToolTarget } from "./commands-processor.js";
@@ -1497,5 +1502,89 @@ describe("CommandsProcessor secondary import roots", () => {
       join("docs", "commit.md"),
       join("git", "commit.md"),
     ]);
+  });
+});
+
+describe("CommandsProcessor Goose slash-command retraction", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const writeConfig = async (): Promise<string> => {
+    const configPath = join(testDir, ".config", "goose", "config.yaml");
+    await writeFileContent(
+      configPath,
+      [
+        "GOOSE_PROVIDER: openai",
+        "slash_commands:",
+        "  - command: removed",
+        `    recipe_path: ${join(testDir, ".config", "goose", "recipes", "removed.yaml")}`,
+        "  - command: mine",
+        "    recipe_path: ~/my-recipes/mine.yaml",
+        "",
+      ].join("\n"),
+    );
+    return configPath;
+  };
+
+  it("drops the managed registrations when no recipe is generated any more", async () => {
+    const configPath = await writeConfig();
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "goose",
+      global: true,
+      logger: createMockLogger(),
+    });
+
+    await processor.removeOrphanAiFiles([], []);
+
+    expect(await readFileContent(configPath)).toContain("my-recipes/mine.yaml");
+    expect(await readFileContent(configPath)).not.toContain("removed.yaml");
+  });
+
+  it("does not rewrite a config that carries no managed registration", async () => {
+    const configPath = join(testDir, ".config", "goose", "config.yaml");
+    const before = [
+      "# my provider",
+      "GOOSE_PROVIDER: openai # inline",
+      "slash_commands:",
+      "  - command: mine",
+      "    recipe_path: ~/my-recipes/mine.yaml",
+      "",
+    ].join("\n");
+    await writeFileContent(configPath, before);
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "goose",
+      global: true,
+      logger: createMockLogger(),
+    });
+
+    await processor.removeOrphanAiFiles([], []);
+
+    expect(await readFileContent(configPath)).toBe(before);
+  });
+
+  it("leaves the config untouched in project scope", async () => {
+    const configPath = await writeConfig();
+    const before = await readFileContent(configPath);
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "goose",
+      logger: createMockLogger(),
+    });
+
+    await processor.removeOrphanAiFiles([], []);
+
+    expect(await readFileContent(configPath)).toBe(before);
   });
 });
