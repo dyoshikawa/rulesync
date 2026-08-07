@@ -757,7 +757,11 @@ export const GROKCLI_HOOK_EVENTS: readonly HookEvent[] = [
 /**
  * Hook events supported by Kimi Code.
  *
- * Kimi Code also exposes `Interrupt`, which has no canonical rulesync event.
+ * Kimi Code also exposes `PermissionResult`, `Interrupt`, and the four events
+ * added in 0.32.0 (`TurnStarted`, `UserPromptQueued`, `TaskStarted`,
+ * `SessionHeartbeat`), none of which have a canonical rulesync event. They are
+ * listed in `KIMI_CODE_NATIVE_HOOK_EVENTS` so a per-tool `kimi-code` override
+ * can address them by their native name.
  *
  * @see https://moonshotai.github.io/kimi-code/en/customization/hooks.html
  */
@@ -795,10 +799,27 @@ export const CANONICAL_TO_KIMI_CODE_EVENT_NAMES: Record<string, string> = {
   postCompact: "PostCompact",
 };
 
+/**
+ * Every event name Kimi Code accepts in a `[[hooks]]` entry: the ones with a
+ * canonical rulesync counterpart plus the native-only ones, which are reachable
+ * through a per-tool `kimi-code` override that names them directly.
+ *
+ * `TurnStarted`, `UserPromptQueued`, `TaskStarted`, and `SessionHeartbeat` were
+ * added in Kimi Code 0.32.0. They stay native-only: `TaskStarted` fires when a
+ * background task starts and matches on task kind, whereas the canonical
+ * `taskCreated` models Claude Code's blocking, matcher-less `TaskCreated`
+ * (fired while a task is being created), so the two are not interchangeable.
+ *
+ * @see https://moonshotai.github.io/kimi-code/en/customization/hooks.html
+ */
 export const KIMI_CODE_NATIVE_HOOK_EVENTS = [
   ...Object.values(CANONICAL_TO_KIMI_CODE_EVENT_NAMES),
   "PermissionResult",
   "Interrupt",
+  "TurnStarted",
+  "UserPromptQueued",
+  "TaskStarted",
+  "SessionHeartbeat",
 ] as const;
 
 export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
