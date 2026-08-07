@@ -43,10 +43,6 @@ const CLAUDE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "cwdChanged",
   "beforeSubmitPrompt",
   "stop",
-  // Not in the docs' matcher table yet — the event is only announced in the
-  // 2.1.219 changelog. Listed here so a matcher authored on it is dropped with
-  // the usual warning rather than written into settings.json to be ignored.
-  "directoryAdded",
 ]);
 
 const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {

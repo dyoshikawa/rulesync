@@ -69,6 +69,16 @@ export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   "disable-model-invocation": z.optional(z.boolean()),
   "user-invocable": z.optional(z.boolean()),
   paths: z.optional(z.union([z.string(), z.array(z.string())])),
+  // Agent Skills standard frontmatter. Claude Code accepts all three but acts
+  // on none of them; they matter for claude.ai skill uploads, the Skills API,
+  // and `package_skill.py`. https://code.claude.com/docs/en/skills
+  license: z.optional(z.string()),
+  // The spec defines `compatibility` as a free-form string (up to 500 chars).
+  // The object form is also accepted to stay permissive for existing inputs
+  // (mirrors AgentsSkillsSkillFrontmatterSchema).
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+  // Free-form map for the author's own tooling; Claude Code drops a non-map.
+  metadata: z.optional(z.looseObject({})),
 });
 
 export type ClaudecodeSkillFrontmatter = z.infer<typeof ClaudecodeSkillFrontmatterSchema>;
@@ -104,6 +114,8 @@ function buildClaudecodeSkillFrontmatter({
     context: section.context,
     agent: section.agent,
     shell: section.shell,
+    license: section.license,
+    compatibility: section.compatibility,
   };
   const definedFields: Record<string, unknown> = {
     // Defined rather than truthy: `background: false` is the whole point of the
@@ -114,6 +126,9 @@ function buildClaudecodeSkillFrontmatter({
     "disable-model-invocation": resolvedDisableModelInvocation,
     "user-invocable": resolvedUserInvocable,
     paths: section.paths,
+    // Defined rather than truthy: `metadata` is a map, and an author writing an
+    // empty one still means to carry the key through.
+    metadata: section.metadata,
   };
 
   const frontmatter: Record<string, unknown> = {
@@ -132,6 +147,62 @@ function buildClaudecodeSkillFrontmatter({
   }
 
   return frontmatter as ClaudecodeSkillFrontmatter;
+}
+
+/**
+ * Builds the `claudecode:` section of a rulesync skill from a Claude Code
+ * SKILL.md frontmatter — the inverse of `buildClaudecodeSkillFrontmatter`, and
+ * extracted for the same reason: to keep `toRulesyncSkill` under the
+ * cyclomatic-complexity cap as fields are added. The truthy/defined split
+ * mirrors that function exactly so the conversion stays symmetric.
+ */
+function buildClaudecodeSkillSection({
+  frontmatter,
+  resolvedPaths,
+  scheduledTask,
+}: {
+  frontmatter: ClaudecodeSkillFrontmatter;
+  resolvedPaths: string | string[] | undefined;
+  scheduledTask: boolean;
+}): Record<string, unknown> {
+  const truthyFields: Record<string, unknown> = {
+    when_to_use: frontmatter.when_to_use,
+    "allowed-tools": frontmatter["allowed-tools"],
+    "disallowed-tools": frontmatter["disallowed-tools"],
+    model: frontmatter.model,
+    effort: frontmatter.effort,
+    "argument-hint": frontmatter["argument-hint"],
+    context: frontmatter.context,
+    agent: frontmatter.agent,
+    shell: frontmatter.shell,
+    license: frontmatter.license,
+    compatibility: frontmatter.compatibility,
+  };
+  const definedFields: Record<string, unknown> = {
+    arguments: frontmatter.arguments,
+    background: frontmatter.background,
+    hooks: frontmatter.hooks,
+    "disable-model-invocation": frontmatter["disable-model-invocation"],
+    "user-invocable": frontmatter["user-invocable"],
+    paths: resolvedPaths,
+    metadata: frontmatter.metadata,
+  };
+
+  const section: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(truthyFields)) {
+    if (value) {
+      section[key] = value;
+    }
+  }
+  for (const [key, value] of Object.entries(definedFields)) {
+    if (value !== undefined) {
+      section[key] = value;
+    }
+  }
+  if (scheduledTask) {
+    section["scheduled-task"] = true;
+  }
+  return section;
 }
 
 /**
@@ -328,32 +399,11 @@ export class ClaudecodeSkill extends ToolSkill {
       frontmatter.paths !== undefined
         ? frontmatter.paths
         : deriveNestedSkillPaths(this.relativeDirPath);
-    const claudecodeSection = {
-      ...(frontmatter.when_to_use && { when_to_use: frontmatter.when_to_use }),
-      ...(frontmatter["allowed-tools"] && { "allowed-tools": frontmatter["allowed-tools"] }),
-      ...(frontmatter["disallowed-tools"] && {
-        "disallowed-tools": frontmatter["disallowed-tools"],
-      }),
-      ...(frontmatter.model && { model: frontmatter.model }),
-      ...(frontmatter.effort && { effort: frontmatter.effort }),
-      ...(frontmatter["argument-hint"] && { "argument-hint": frontmatter["argument-hint"] }),
-      ...(frontmatter.arguments !== undefined && { arguments: frontmatter.arguments }),
-      ...(frontmatter.context && { context: frontmatter.context }),
-      ...(frontmatter.agent && { agent: frontmatter.agent }),
-      ...(frontmatter.background !== undefined && { background: frontmatter.background }),
-      ...(frontmatter.hooks !== undefined && { hooks: frontmatter.hooks }),
-      ...(frontmatter.shell && { shell: frontmatter.shell }),
-      ...(frontmatter["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": frontmatter["disable-model-invocation"],
-      }),
-      ...(frontmatter["user-invocable"] !== undefined && {
-        "user-invocable": frontmatter["user-invocable"],
-      }),
-      ...(this.relativeDirPath === CLAUDECODE_SCHEDULED_TASKS_DIR_PATH && {
-        "scheduled-task": true,
-      }),
-      ...(resolvedPaths !== undefined && { paths: resolvedPaths }),
-    };
+    const claudecodeSection = buildClaudecodeSkillSection({
+      frontmatter,
+      resolvedPaths,
+      scheduledTask: this.relativeDirPath === CLAUDECODE_SCHEDULED_TASKS_DIR_PATH,
+    });
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,

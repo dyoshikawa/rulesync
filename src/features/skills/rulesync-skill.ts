@@ -38,6 +38,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "user-invocable": z.optional(z.boolean()),
       "scheduled-task": z.optional(z.boolean()),
       paths: z.optional(z.union([z.string(), z.array(z.string())])),
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+      metadata: z.optional(z.looseObject({})),
     }),
   ),
   codexcli: z.optional(
@@ -302,6 +305,9 @@ export type RulesyncSkillFrontmatterInput = {
     "user-invocable"?: boolean;
     "scheduled-task"?: boolean;
     paths?: string | string[];
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
   };
   grokcli?: {
     "disable-model-invocation"?: boolean;

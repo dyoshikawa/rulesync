@@ -382,6 +382,54 @@ describe("ClaudecodeSkill", () => {
       expect(roundTripped.shell).toBe("bash");
     });
 
+    it("should round-trip the Agent Skills standard fields", () => {
+      const frontmatter: ClaudecodeSkillFrontmatter = {
+        name: "standard-skill",
+        description: "Skill with the Agent Skills standard fields",
+        license: "Apache-2.0",
+        compatibility: "Requires Node.js 22 or later",
+        metadata: { catalog: "internal", tier: 2 },
+      };
+
+      const skill = new ClaudecodeSkill({
+        dirName: "standard-skill",
+        frontmatter,
+        body: "Standard body",
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().claudecode).toEqual({
+        license: "Apache-2.0",
+        compatibility: "Requires Node.js 22 or later",
+        metadata: { catalog: "internal", tier: 2 },
+      });
+
+      const roundTripped = ClaudecodeSkill.fromRulesyncSkill({
+        rulesyncSkill: skill.toRulesyncSkill(),
+      }).getFrontmatter();
+      expect(roundTripped.license).toBe("Apache-2.0");
+      expect(roundTripped.compatibility).toBe("Requires Node.js 22 or later");
+      expect(roundTripped.metadata).toEqual({ catalog: "internal", tier: 2 });
+    });
+
+    it("should carry the object form of compatibility and an empty metadata map", () => {
+      const skill = new ClaudecodeSkill({
+        dirName: "object-compatibility",
+        frontmatter: {
+          name: "object-compatibility",
+          description: "Skill with the object form of compatibility",
+          compatibility: { products: ["claude-code"] },
+          metadata: {},
+        },
+        body: "Body",
+      });
+
+      const roundTripped = ClaudecodeSkill.fromRulesyncSkill({
+        rulesyncSkill: skill.toRulesyncSkill(),
+      }).getFrontmatter();
+      expect(roundTripped.compatibility).toEqual({ products: ["claude-code"] });
+      expect(roundTripped.metadata).toEqual({});
+    });
+
     it("should convert to RulesyncSkill with both model and allowed-tools", () => {
       const frontmatter: ClaudecodeSkillFrontmatter = {
         name: "full-skill",

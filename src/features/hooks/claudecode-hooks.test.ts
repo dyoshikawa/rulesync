@@ -470,6 +470,33 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.PostToolUseFailure[0].matcher).toBe("Bash");
     });
 
+    it("keeps the matcher on DirectoryAdded", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            directoryAdded: [{ matcher: "slash_command", command: "a.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      expect(parsed.hooks.DirectoryAdded[0].matcher).toBe("slash_command");
+    });
+
     it("should only prefix dot-relative commands with $CLAUDE_PROJECT_DIR", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));

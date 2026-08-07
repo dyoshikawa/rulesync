@@ -272,11 +272,10 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "configChange",
   "cwdChanged",
   "fileChanged",
-  // Announced in the 2.1.219 changelog — "fires after `/add-dir` or the SDK
-  // `register_repo_root` control request registers a new working directory
-  // mid-session" — but not yet in the docs' event table, so its matcher support
-  // is unknown and it is treated as no-matcher (see CLAUDE_NO_MATCHER_EVENTS).
-  // https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
+  // Fires after `/add-dir` or the SDK `register_repo_root` control request
+  // registers a new working directory mid-session. The matcher filters on how
+  // the directory was added (`slash_command`, `register_repo_root`).
+  // https://code.claude.com/docs/en/hooks
   "directoryAdded",
   "postCompact",
   "elicitation",
