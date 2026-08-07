@@ -235,9 +235,9 @@ describe("CopilotHooks", () => {
         })
       ).getFileContent();
 
-      // The file is committed to the repository, so it must not vary by
-      // generating machine — and a Windows-only `powershell` entry would be
-      // ignored outright by the Linux-sandboxed cloud agent.
+      // A Windows-only `powershell` entry would be ignored outright by the
+      // Linux-sandboxed cloud agent, so the output must not vary by the machine
+      // that generated it.
       expect(onWindows).toBe(onLinux);
       expect(JSON.parse(onLinux).hooks.sessionStart[0].command).toBe("echo hello");
     });

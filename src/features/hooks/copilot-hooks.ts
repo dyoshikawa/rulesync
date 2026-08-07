@@ -58,10 +58,11 @@ type CopilotHookEntry = z.infer<typeof CopilotHookEntrySchema>;
  *
  * The command field is chosen by the canonical `shell` selector, falling back to
  * the portable `command` field — never by the platform Rulesync happens to run
- * on. `.github/hooks/copilot-hooks.json` is committed to the repository, so
- * keying it off `process.platform` made the artifact differ per generating
- * machine, and a file generated on Windows carried only `powershell`, which the
- * Linux-sandboxed cloud agent ignores outright.
+ * on. Keying it off `process.platform` meant a file generated on Windows carried
+ * only `powershell`, which the Linux-sandboxed cloud agent ignores outright, so
+ * the hook silently never ran; it also made the output differ per generating
+ * machine, which shows up as churn for anyone who checks the file in (the cloud
+ * agent reads it from the repository).
  */
 function canonicalToCopilotHooks(config: HooksConfig): Record<string, CopilotHookEntry[]> {
   const canonicalSchemaKeys = Object.keys(HookDefinitionSchema.shape);
