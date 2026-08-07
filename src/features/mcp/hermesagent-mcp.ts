@@ -56,7 +56,8 @@ function resolveHermesTimeout(config: Record<string, unknown>): number | undefin
  * Copies the advanced Hermes-recognized per-server fields that have no canonical
  * alias — `auth` (`oauth` for OAuth 2.1/PKCE), mTLS `client_cert` (string PEM
  * path, or `[cert, key]`/`[cert, key, password]` list) and `client_key`,
- * `connect_timeout` (seconds), and `supports_parallel_tool_calls` — verbatim
+ * `connect_timeout` (seconds), `supports_parallel_tool_calls`,
+ * `keepalive_interval`, and `elicitation` — verbatim
  * from `source` to `target`. Field names are identical on both sides (the
  * canonical `McpServerSchema` is a `looseObject`), so this serves export and
  * import alike. See the Hermes mcp-config-reference.
@@ -135,6 +136,18 @@ function copyHermesAdvancedFields(
     target.sampling = omitPrototypePollutionKeys(structuredClone(source.sampling));
     copied = true;
   }
+  // Liveness ping cadence in seconds (v0.20.0; default 180, floored at 5).
+  if (typeof source.keepalive_interval === "number") {
+    target.keepalive_interval = source.keepalive_interval;
+    copied = true;
+  }
+  // Server-initiated user-input requests (v0.20.0): `enabled` (default true)
+  // and `timeout` in seconds (default 300). Copied as an opaque mapping for the
+  // same reason `sampling` is.
+  if (isPlainObject(source.elicitation)) {
+    target.elicitation = omitPrototypePollutionKeys(structuredClone(source.elicitation));
+    copied = true;
+  }
   return copied;
 }
 
@@ -184,8 +197,10 @@ function applyHermesToolsBlock(
  * `url`/`headers`, and per-server tool scoping lives under a `tools: { include,
  * exclude }` block (from the canonical `enabledTools`/`disabledTools`). Only
  * fields Hermes understands are emitted, so the shared `config.yaml` is not
- * polluted with canonical-only aliases (`type`, `transport`, `httpUrl`,
- * `networkTimeout`, ...).
+ * polluted with canonical-only aliases (`type`, `httpUrl`, `networkTimeout`,
+ * ...) — with one exception since v0.20.0: a canonical `sse` server is written
+ * as Hermes's own `transport: sse`, without which Hermes would connect to it
+ * over Streamable HTTP.
  */
 function convertServerToHermes(config: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -207,6 +222,11 @@ function convertServerToHermes(config: Record<string, unknown>): Record<string, 
   } else if (url !== undefined) {
     out.url = url;
     if (isPlainObject(config.headers)) out.headers = omitPrototypePollutionKeys(config.headers);
+    // Hermes speaks Streamable HTTP to a `url` server unless told otherwise, so
+    // a canonical `sse` server has to say so (v0.20.0). Only `sse` is a value
+    // upstream reads; the canonical `http` spellings are the default and stay
+    // implicit, as they were before this key existed.
+    if (config.type === "sse" || config.transport === "sse") out.transport = "sse";
   }
 
   // Hermes defaults a server to enabled, so only emit the flag when disabling.
@@ -280,6 +300,9 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): {
     if (isPlainObject(config.env)) server.env = omitPrototypePollutionKeys(config.env);
     if (typeof config.url === "string") server.url = config.url;
     if (isPlainObject(config.headers)) server.headers = omitPrototypePollutionKeys(config.headers);
+    // The counterpart of the generate direction: `transport: sse` is the only
+    // value Hermes reads, and it maps onto the canonical `sse` transport.
+    if (typeof config.url === "string" && config.transport === "sse") server.type = "sse";
     if (config.enabled === false) server.disabled = true;
     if (typeof config.timeout === "number") server.networkTimeout = config.timeout;
     if (isRecord(config.tools)) applyHermesToolsBlock(config.tools, server);

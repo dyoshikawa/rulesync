@@ -316,6 +316,11 @@ const HERMES_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
     commands: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
     subagents: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
     mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+    // rulesync owns the native event keys inside `hooks`, not the whole
+    // mapping — v0.20.0 nests the `outbound:` webhook registry there too. The
+    // hooks writer recomputes the mapping from the existing file (sibling keys
+    // carried over, event keys replaced) before patching, the same way the
+    // `plugins` writers above recompute their key.
     hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
     // Deep-merged so `approvals.mode`-style user keys coexist with generated
     // `approvals.deny`; the `permissions` round-trip blob is an authoritative
