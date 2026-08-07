@@ -11,7 +11,6 @@ import {
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
-import { warnIfGlobalVibeConfigIsShadowed } from "../shared/vibe-config-scope.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -126,13 +125,9 @@ export class VibeMcp extends ToolMcp {
     outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
-    logger,
     global = false,
   }: ToolMcpFromRulesyncMcpParams): Promise<VibeMcp> {
     const paths = this.getSettablePaths({ global });
-    if (global) {
-      await warnIfGlobalVibeConfigIsShadowed(logger);
-    }
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     // Through the gateway rather than `parseVibeConfig`, so a malformed file

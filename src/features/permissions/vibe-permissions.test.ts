@@ -678,7 +678,7 @@ describe("VibePermissions", () => {
     expect(imported.vibe.enabled_tools).toEqual(["bash", "grep"]);
   });
 
-  it("should warn when --global writes a config shadowed by a project config.toml", async () => {
+  it("should not warn about shadowing when --global writes alongside a project config.toml", async () => {
     const logger = createMockLogger();
     await ensureDir(join(testDir, ".vibe"));
     await writeFileContent(join(testDir, ".vibe", "config.toml"), "");
@@ -690,15 +690,21 @@ describe("VibePermissions", () => {
       fileContent: JSON.stringify({ permission: { bash: { "*": "allow" } } }),
     });
 
-    await VibePermissions.fromRulesyncPermissions({
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
       outputRoot: join(testDir, "home"),
       rulesyncPermissions,
       logger,
       global: true,
     });
 
+    // Since v2.24.0 Vibe stacks the user and project layers instead of picking
+    // one, so the global write is inherited by the project layer rather than
+    // being shadowed by it: it carries a real rule and warns about nothing.
+    expect(vibePermissions.getRelativeDirPath()).toBe(".vibe");
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+    expect(parsed.tools.bash.permission).toBe("always");
     expect(logger.warn.mock.calls.some(([message]) => String(message).includes("ignored"))).toBe(
-      true,
+      false,
     );
   });
 });
