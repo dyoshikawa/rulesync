@@ -708,6 +708,22 @@ describe("HooksProcessor", () => {
       ]);
     });
 
+    it("keeps a shared auxiliary config out of the deletion sweep", async () => {
+      // Codex CLI's getAuxiliaryFiles returns the user's shared .codex/config.toml;
+      // only the adapter's own hooks file may be a deletion candidate.
+      const processor = new HooksProcessor({
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+        logger: createMockLogger(),
+      });
+
+      const files = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(files.map((file) => file.getRelativePathFromCwd())).toEqual([
+        join(".codex", "hooks.json"),
+      ]);
+    });
+
     it("should exclude non-importable targets when importOnly is true", () => {
       const targets = HooksProcessor.getToolTargets({ global: false, importOnly: true });
       expect(targets).toEqual([

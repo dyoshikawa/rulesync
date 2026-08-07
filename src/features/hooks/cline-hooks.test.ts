@@ -188,7 +188,7 @@ describe("ClineHooks", () => {
     });
   });
 
-  describe("getAuxiliaryFiles for deletion", () => {
+  describe("getDeletableAuxiliaryFiles", () => {
     it("collects the rulesync-marked scripts and leaves hand-authored ones", async () => {
       const hooksDir = join(testDir, ".clinerules", "hooks");
       await writeFileContent(
@@ -197,10 +197,7 @@ describe("ClineHooks", () => {
       );
       await writeFileContent(join(hooksDir, "PreToolUse"), "#!/bin/bash\necho mine\n");
 
-      const files = await ClineHooks.getAuxiliaryFiles({
-        outputRoot: testDir,
-        forDeletion: true,
-      });
+      const files = await ClineHooks.getDeletableAuxiliaryFiles({ outputRoot: testDir });
 
       expect(files.map((file) => file.getRelativeFilePath())).toEqual(["TaskStart"]);
     });

@@ -92,10 +92,19 @@ type ToolHooksFactory = {
     getAuxiliaryFiles?: (params: {
       outputRoot?: string;
       global?: boolean;
-      forDeletion?: boolean;
       /** The instance just built, for adapters whose extra files derive from it. */
       toolHooks?: ToolHooks;
       logger?: Logger;
+    }) => ToolFile[] | Promise<ToolFile[]>;
+    /**
+     * Extra files the deletion sweep may remove. Deliberately separate from
+     * {@link getAuxiliaryFiles}: several adapters return a shared, user-owned
+     * config file there (Codex CLI's `config.toml`), which must never become a
+     * deletion candidate.
+     */
+    getDeletableAuxiliaryFiles?: (params: {
+      outputRoot?: string;
+      global?: boolean;
     }) => ToolFile[] | Promise<ToolFile[]>;
   };
   meta: {
@@ -775,14 +784,13 @@ export class HooksProcessor extends FeatureProcessor {
           global: this.global,
         });
         const auxiliaryFiles =
-          (await factory.class.getAuxiliaryFiles?.({
+          (await factory.class.getDeletableAuxiliaryFiles?.({
             outputRoot: this.outputRoot,
             global: this.global,
-            forDeletion: true,
           })) ?? [];
         const list = [
           ...(toolHooks.isDeletable?.() !== false ? [toolHooks] : []),
-          ...auxiliaryFiles,
+          ...auxiliaryFiles.filter((file) => file.isDeletable()),
         ];
         this.logger.debug(
           `Successfully loaded ${list.length} ${this.toolTarget} hooks files for deletion`,

@@ -200,35 +200,31 @@ export class ClineHooks extends ToolHooks {
    * back here.
    */
   static override async getAuxiliaryFiles({
-    outputRoot = process.cwd(),
     global = false,
-    forDeletion = false,
     toolHooks,
     logger,
   }: {
     outputRoot?: string;
     global?: boolean;
-    forDeletion?: boolean;
     toolHooks?: ToolHooks;
     logger?: Logger;
   } = {}): Promise<ToolFile[]> {
-    if (forDeletion) {
-      // Dropping the target must take the scripts with it: they hold the actual
-      // commands, and leaving them behind keeps a removed hook running.
-      return ClineHooks.getDeletableScriptFiles({ outputRoot, global });
-    }
     if (!(toolHooks instanceof ClineHooks)) return [];
     return toolHooks.getScriptFiles({ global, logger });
   }
 
-  /** Every rulesync-marked script currently on disk, for the deletion sweep. */
-  private static async getDeletableScriptFiles({
-    outputRoot,
-    global,
+  /**
+   * Every rulesync-marked script currently on disk. Dropping the target must
+   * take the scripts with it: they hold the actual commands, and leaving them
+   * behind keeps a removed hook running.
+   */
+  static override async getDeletableAuxiliaryFiles({
+    outputRoot = process.cwd(),
+    global = false,
   }: {
-    outputRoot: string;
-    global: boolean;
-  }): Promise<ToolFile[]> {
+    outputRoot?: string;
+    global?: boolean;
+  } = {}): Promise<ToolFile[]> {
     const paths = ClineHooks.getSettablePaths({ global });
     const files: ToolFile[] = [];
     for (const event of [...MANAGED_EVENT_NAMES].toSorted()) {
