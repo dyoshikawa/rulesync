@@ -646,9 +646,9 @@ claudecode: # for claudecode-specific parameters
   paths:
     - "src/**/*.ts"
     - "test/**/*.ts"
-  # The three Agent Skills standard fields below are accepted by Claude Code but
-  # acted on by none of it; they matter for claude.ai skill uploads, the Skills
-  # API, and packaging with package_skill.py.
+  # Claude Code accepts the three Agent Skills standard fields below but acts on
+  # none of them; they matter for claude.ai skill uploads, the Skills API, and
+  # packaging with package_skill.py.
   license: Apache-2.0 # (optional) license covering the skill
   compatibility: Requires Node.js 22 or later # (optional) environment requirements, up to 500 characters
   metadata: # (optional) free-form map for your own tooling; a non-map value is dropped by Claude Code

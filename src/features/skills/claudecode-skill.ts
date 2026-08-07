@@ -101,9 +101,9 @@ function buildClaudecodeSkillFrontmatter({
   const section = rulesyncFrontmatter.claudecode ?? {};
   // Build the frontmatter data-driven so the function stays well under the
   // cyclomatic-complexity cap as fields are added. The two presence rules mirror
-  // `toRulesyncSkill` exactly so the conversion is symmetric: most fields are
-  // included only when truthy, while `arguments`/`hooks`/`paths` and the resolved
-  // invocation flags are included whenever they are explicitly defined.
+  // `buildClaudecodeSkillSection` exactly so the conversion is symmetric: most
+  // fields are included only when truthy, while the ones listed under
+  // `definedFields` are included whenever they are explicitly defined.
   const truthyFields: Record<string, unknown> = {
     when_to_use: section.when_to_use,
     "allowed-tools": section["allowed-tools"],
@@ -114,8 +114,6 @@ function buildClaudecodeSkillFrontmatter({
     context: section.context,
     agent: section.agent,
     shell: section.shell,
-    license: section.license,
-    compatibility: section.compatibility,
   };
   const definedFields: Record<string, unknown> = {
     // Defined rather than truthy: `background: false` is the whole point of the
@@ -126,8 +124,10 @@ function buildClaudecodeSkillFrontmatter({
     "disable-model-invocation": resolvedDisableModelInvocation,
     "user-invocable": resolvedUserInvocable,
     paths: section.paths,
-    // Defined rather than truthy: `metadata` is a map, and an author writing an
-    // empty one still means to carry the key through.
+    // The Agent Skills standard fields are defined rather than truthy, matching
+    // how every other adapter carrying them treats them.
+    license: section.license,
+    compatibility: section.compatibility,
     metadata: section.metadata,
   };
 
@@ -165,42 +165,36 @@ function buildClaudecodeSkillSection({
   resolvedPaths: string | string[] | undefined;
   scheduledTask: boolean;
 }): Record<string, unknown> {
-  const truthyFields: Record<string, unknown> = {
-    when_to_use: frontmatter.when_to_use,
-    "allowed-tools": frontmatter["allowed-tools"],
-    "disallowed-tools": frontmatter["disallowed-tools"],
-    model: frontmatter.model,
-    effort: frontmatter.effort,
-    "argument-hint": frontmatter["argument-hint"],
-    context: frontmatter.context,
-    agent: frontmatter.agent,
-    shell: frontmatter.shell,
-    license: frontmatter.license,
-    compatibility: frontmatter.compatibility,
-  };
-  const definedFields: Record<string, unknown> = {
-    arguments: frontmatter.arguments,
-    background: frontmatter.background,
-    hooks: frontmatter.hooks,
-    "disable-model-invocation": frontmatter["disable-model-invocation"],
-    "user-invocable": frontmatter["user-invocable"],
-    paths: resolvedPaths,
-    metadata: frontmatter.metadata,
-  };
+  // One ordered list rather than a truthy map plus a defined map, so the emitted
+  // key order stays exactly what the inline literal produced and a re-import
+  // does not reshuffle an existing `.rulesync/skills/*.md`.
+  const fields: [key: string, value: unknown, presence: "truthy" | "defined"][] = [
+    ["when_to_use", frontmatter.when_to_use, "truthy"],
+    ["allowed-tools", frontmatter["allowed-tools"], "truthy"],
+    ["disallowed-tools", frontmatter["disallowed-tools"], "truthy"],
+    ["model", frontmatter.model, "truthy"],
+    ["effort", frontmatter.effort, "truthy"],
+    ["argument-hint", frontmatter["argument-hint"], "truthy"],
+    ["arguments", frontmatter.arguments, "defined"],
+    ["context", frontmatter.context, "truthy"],
+    ["agent", frontmatter.agent, "truthy"],
+    ["background", frontmatter.background, "defined"],
+    ["hooks", frontmatter.hooks, "defined"],
+    ["shell", frontmatter.shell, "truthy"],
+    ["disable-model-invocation", frontmatter["disable-model-invocation"], "defined"],
+    ["user-invocable", frontmatter["user-invocable"], "defined"],
+    ["scheduled-task", scheduledTask || undefined, "defined"],
+    ["paths", resolvedPaths, "defined"],
+    ["license", frontmatter.license, "defined"],
+    ["compatibility", frontmatter.compatibility, "defined"],
+    ["metadata", frontmatter.metadata, "defined"],
+  ];
 
   const section: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(truthyFields)) {
-    if (value) {
+  for (const [key, value, presence] of fields) {
+    if (presence === "truthy" ? Boolean(value) : value !== undefined) {
       section[key] = value;
     }
-  }
-  for (const [key, value] of Object.entries(definedFields)) {
-    if (value !== undefined) {
-      section[key] = value;
-    }
-  }
-  if (scheduledTask) {
-    section["scheduled-task"] = true;
   }
   return section;
 }
