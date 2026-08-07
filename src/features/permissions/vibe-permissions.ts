@@ -12,7 +12,6 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
-import { warnIfGlobalVibeConfigIsShadowed } from "../shared/vibe-config-scope.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -121,9 +120,6 @@ export class VibePermissions extends ToolPermissions {
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<VibePermissions> {
     const paths = this.getSettablePaths({ global });
-    if (global) {
-      await warnIfGlobalVibeConfigIsShadowed(logger);
-    }
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const config = parseVibeConfig(existingContent);

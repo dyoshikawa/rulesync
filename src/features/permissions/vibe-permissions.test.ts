@@ -678,7 +678,7 @@ describe("VibePermissions", () => {
     expect(imported.vibe.enabled_tools).toEqual(["bash", "grep"]);
   });
 
-  it("should warn when --global writes a config shadowed by a project config.toml", async () => {
+  it("should not warn about shadowing when --global writes alongside a project config.toml", async () => {
     const logger = createMockLogger();
     await ensureDir(join(testDir, ".vibe"));
     await writeFileContent(join(testDir, ".vibe", "config.toml"), "");
@@ -697,8 +697,10 @@ describe("VibePermissions", () => {
       global: true,
     });
 
+    // Since v2.24.0 Vibe stacks the user and project layers instead of picking
+    // one, so the global file is not shadowed and there is nothing to warn about.
     expect(logger.warn.mock.calls.some(([message]) => String(message).includes("ignored"))).toBe(
-      true,
+      false,
     );
   });
 });
