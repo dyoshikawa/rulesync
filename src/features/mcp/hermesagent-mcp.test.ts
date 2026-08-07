@@ -416,6 +416,69 @@ describe("HermesagentMcp", () => {
       expect(servers.local?.ssl_verify).toBe(false);
     });
 
+    it("writes the v0.20.0 transport/keepalive_interval/elicitation keys (issue #2414)", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            events: {
+              type: "sse",
+              url: "https://example.com/sse",
+              keepalive_interval: 30,
+              elicitation: { enabled: false, timeout: 120 },
+            },
+            streamable: { type: "http", url: "https://example.com/mcp" },
+          },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const servers = getMcpServers(mcp.getFileContent());
+
+      // Without `transport: sse` Hermes connects over Streamable HTTP.
+      expect(servers.events?.transport).toBe("sse");
+      expect(servers.events?.keepalive_interval).toBe(30);
+      expect(servers.events?.elicitation).toEqual({ enabled: false, timeout: 120 });
+      // Streamable HTTP is the default, so it stays implicit.
+      expect(servers.streamable?.transport).toBeUndefined();
+    });
+
+    it("imports the v0.20.0 keys back into the canonical model (issue #2414)", () => {
+      const mcp = new HermesagentMcp({
+        outputRoot: testDir,
+        relativeDirPath: HERMES_DIR,
+        relativeFilePath: HERMES_FILE,
+        validate: false,
+        fileContent: [
+          "mcp_servers:",
+          "  events:",
+          "    url: https://example.com/sse",
+          "    transport: sse",
+          "    keepalive_interval: 30",
+          "    elicitation:",
+          "      enabled: false",
+          "      timeout: 120",
+          "",
+        ].join("\n"),
+        global: true,
+      });
+
+      const imported = JSON.parse(mcp.toRulesyncMcp().getFileContent());
+      expect(imported.mcpServers.events.type).toBe("sse");
+      // The Hermes-only keys ride the tool-scoped override block, like the
+      // other advanced fields.
+      expect(imported.hermesagent.mcpServers.events.keepalive_interval).toBe(30);
+      expect(imported.hermesagent.mcpServers.events.elicitation).toEqual({
+        enabled: false,
+        timeout: 120,
+      });
+    });
+
     it("maps promptsEnabled/resourcesEnabled to Hermes's boolean tools.prompts/resources (issue #2236)", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",

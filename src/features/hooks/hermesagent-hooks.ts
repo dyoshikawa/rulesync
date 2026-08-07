@@ -23,6 +23,7 @@ import {
 } from "../../utils/hermesagent.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -59,6 +60,15 @@ const HERMESAGENT_MATCHER_EVENTS: ReadonlySet<string> = new Set([
 ]);
 const HERMESAGENT_CANONICAL_EVENTS: ReadonlySet<string> = new Set(HERMESAGENT_HOOK_EVENTS);
 const HERMESAGENT_NATIVE_EVENTS: ReadonlySet<string> = new Set(HERMESAGENT_NATIVE_HOOK_EVENTS);
+
+/**
+ * The sibling of the event keys under `hooks:`: a list of outbound webhook
+ * targets (`name`, `url`, `events`, `secret_env`, `matcher`, `timeout`) added
+ * in Hermes v0.20.0. rulesync neither authors nor imports it, it only makes
+ * sure a regenerate does not delete it.
+ * @see https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks
+ */
+const HERMESAGENT_OUTBOUND_HOOKS_KEY = "outbound";
 
 /**
  * Convert the canonical hooks config into Hermes's native
@@ -184,7 +194,7 @@ function canonicalToHermesHooks({
     }
     if (!HERMESAGENT_NATIVE_EVENTS.has(nativeEvent)) {
       logger?.warn(
-        `Hermes hook event "${nativeEvent}" is not documented by Hermes Agent v0.19.0; preserving it for forward compatibility.`,
+        `Hermes hook event "${nativeEvent}" is not documented by Hermes Agent v0.20.0; preserving it for forward compatibility.`,
       );
     }
     setHermesHookEntries({ result, event: nativeEvent, definitions, logger });
@@ -208,6 +218,13 @@ function hermesHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
 
   for (const [nativeEvent, entries] of Object.entries(hooks as Record<string, unknown>)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(nativeEvent) || !Array.isArray(entries)) {
+      continue;
+    }
+    // `outbound` is the webhook registry, not a hook event. Its entries carry
+    // no `command` so they are dropped by the loop below anyway, but skipping
+    // the key outright keeps a future registry field from being read as a hook
+    // and written back in the wrong shape.
+    if (nativeEvent === HERMESAGENT_OUTBOUND_HOOKS_KEY) {
       continue;
     }
     const rulesyncEvent = HERMESAGENT_TO_CANONICAL_EVENT_NAMES[nativeEvent] ?? nativeEvent;
@@ -241,6 +258,37 @@ function hermesHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
   }
 
   return canonical;
+}
+
+/**
+ * Recompute the `hooks:` mapping that is written back to `config.yaml`.
+ *
+ * rulesync owns the native `VALID_HOOKS` event keys inside that mapping, but
+ * not the mapping itself: Hermes v0.20.0 nests the outbound webhook registry
+ * under the same key as `hooks.outbound`, and it is a list of webhook targets
+ * rather than a hook event, so it has no rulesync spelling and no migration
+ * path. Replacing the whole mapping destroyed it on every generate. Every key
+ * that is not a native event is therefore carried over from the existing file,
+ * while the event keys are still replaced wholesale so a hook deleted from the
+ * rulesync source is retracted.
+ * @see https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks
+ */
+function mergeHermesHooksBlock({
+  existingHooks,
+  generatedHooks,
+}: {
+  existingHooks: unknown;
+  generatedHooks: unknown;
+}): Record<string, unknown> {
+  const preserved: Record<string, unknown> = {};
+  if (isPlainObject(existingHooks)) {
+    for (const [key, value] of Object.entries(existingHooks)) {
+      if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+      if (HERMESAGENT_NATIVE_EVENTS.has(key)) continue;
+      preserved[key] = value;
+    }
+  }
+  return { ...preserved, ...(isPlainObject(generatedHooks) ? generatedHooks : {}) };
 }
 
 /**
@@ -323,11 +371,19 @@ export class HermesagentHooks extends ToolHooks {
   }
 
   setFileContent(fileContent: string): void {
+    const existing = parseSharedConfig({ format: "yaml", fileContent });
+    const generated = parseSharedConfig({ format: "yaml", fileContent: this.fileContent });
     this.fileContent = applySharedConfigPatch({
       fileKey: getHermesagentConfigSharedFileKey({ global: this.global }),
       feature: "hooks",
       existingContent: fileContent,
-      patch: parseSharedConfig({ format: "yaml", fileContent: this.fileContent }),
+      patch: {
+        ...generated,
+        hooks: mergeHermesHooksBlock({
+          existingHooks: existing.hooks,
+          generatedHooks: generated.hooks,
+        }),
+      },
     });
   }
 
