@@ -263,7 +263,10 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * Tool-scoped override block for Qwen Code. Qwen's `settings.json` exposes
  * autonomy/sandbox controls with no canonical permission category — under
  * `tools` (`approvalMode` = plan/default/auto-edit/auto/yolo, `autoAccept`,
- * `sandbox`, `sandboxImage`, `disabled`) and `security` (`folderTrust`). It also
+ * `sandbox`, `sandboxImage`, `disabled`) and `security` (`folderTrust`,
+ * `allowedHttpHookUrls`, `allowPrivateNetworkHooks` — the latter is honored by
+ * Qwen Code only in user/system settings, so generate skips it in project scope).
+ * It also
  * exposes `permissions.autoMode` (the Auto Mode classifier config:
  * `hints.{allow,softDeny,hardDeny}`, `environment`, `classifyAllShell` — see
  * https://qwenlm.github.io/qwen-code-docs/en/users/features/auto-mode/), which
