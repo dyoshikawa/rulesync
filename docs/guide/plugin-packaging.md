@@ -19,7 +19,7 @@ rulesync generate \
 
 rulesync generate \
   --targets antigravity-plugin \
-  --features rules,mcp,skills,hooks \
+  --features rules,mcp,subagents,skills,hooks \
   --output-roots ./plugins/review-tools
 ```
 
@@ -33,7 +33,7 @@ The same configuration can be persisted in `rulesync.jsonc`:
   },
   "targets": {
     "claudecode-plugin": ["mcp", "commands", "subagents", "skills", "hooks"],
-    "antigravity-plugin": ["rules", "mcp", "skills", "hooks"],
+    "antigravity-plugin": ["rules", "mcp", "subagents", "skills", "hooks"],
   },
 }
 ```
@@ -59,7 +59,7 @@ rulesync import \
 
 rulesync import \
   --targets antigravity-plugin \
-  --features rules,mcp,skills,hooks \
+  --features rules,mcp,subagents,skills,hooks \
   --output-root ./plugins/review-tools
 ```
 
@@ -70,7 +70,7 @@ The `convert` command does not accept packaging targets because it has no separa
 | Target               | Rules        | MCP               | Commands        | Subagents     | Skills              | Hooks              |
 | -------------------- | ------------ | ----------------- | --------------- | ------------- | ------------------- | ------------------ |
 | `claudecode-plugin`  | —            | `.mcp.json`       | `commands/*.md` | `agents/*.md` | `skills/*/SKILL.md` | `hooks/hooks.json` |
-| `antigravity-plugin` | `rules/*.md` | `mcp_config.json` | —               | —             | `skills/*/SKILL.md` | `hooks.json`       |
+| `antigravity-plugin` | `rules/*.md` | `mcp_config.json` | —               | `agents/*.md` | `skills/*/SKILL.md` | `hooks.json`       |
 
 Claude-specific frontmatter and hook overrides continue to use the `claudecode` sections in Rulesync source files. Antigravity plugin output uses the `antigravity-ide` conversion model and override sections because its plugin components follow the Antigravity IDE format.
 
