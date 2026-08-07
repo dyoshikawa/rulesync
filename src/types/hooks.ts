@@ -206,6 +206,7 @@ export const HOOK_EVENTS = [
   "directoryAdded",
   "elicitation",
   "elicitationResult",
+  "sessionDelete",
 ] as const;
 
 /** All canonical hook event names. */
@@ -681,6 +682,10 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   // `hooks.MessageDisplay` landed in Qwen Code v0.19.10 (PR #6489): fires
   // repeatedly as the reply streams (payload message_id/displayed_text/is_final).
   "messageDisplay",
+  // `hooks.SessionDelete` landed in Qwen Code v0.21.3 (PR #8059): fires after an
+  // explicitly selected session is deleted (interactive `/delete` and the ACP
+  // `deleteSession` request). It has no matcher support.
+  "sessionDelete",
 ];
 
 /**
@@ -1461,6 +1466,7 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
   todoCreated: "TodoCreated",
   todoCompleted: "TodoCompleted",
   messageDisplay: "MessageDisplay",
+  sessionDelete: "SessionDelete",
 };
 
 /**

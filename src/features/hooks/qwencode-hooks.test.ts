@@ -103,6 +103,7 @@ describe("QwencodeHooks", () => {
               ],
               beforeSubmitPrompt: [{ command: "echo prompt" }],
               postToolUseFailure: [{ command: "echo failure" }],
+              sessionDelete: [{ command: "echo deleted" }],
               // Not in QWENCODE_HOOK_EVENTS -> should be dropped.
               afterFileEdit: [{ command: "echo ignored" }],
             },
@@ -126,6 +127,9 @@ describe("QwencodeHooks", () => {
       expect(parsed.hooks.UserPromptSubmit[0].hooks[0].command).toBe("echo prompt");
       expect(parsed.hooks.PostToolUseFailure).toBeDefined();
       expect(parsed.hooks.PostToolUseFailure[0].hooks[0].command).toBe("echo failure");
+      // SessionDelete (Qwen Code v0.21.3) carries no matcher.
+      expect(parsed.hooks.SessionDelete[0].hooks[0].command).toBe("echo deleted");
+      expect(parsed.hooks.SessionDelete[0].matcher).toBeUndefined();
       // Unsupported canonical event must not leak through.
       expect(parsed.hooks.AfterFileEdit).toBeUndefined();
     });
@@ -513,6 +517,26 @@ describe("QwencodeHooks", () => {
       expect(def.type).toBe("prompt");
       expect(def.prompt).toBe("Decide on $ARGUMENTS");
       expect(def.model).toBe("qwen3-coder-flash");
+    });
+
+    it("should import the SessionDelete event instead of rejecting it (issue #2595)", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              SessionDelete: [{ hooks: [{ type: "command", command: "echo deleted" }] }],
+            },
+          }),
+        }),
+      );
+
+      const rulesyncHooks = qwencodeHooks.toRulesyncHooks();
+      // Validation used to fail with `unknown hook event name(s): SessionDelete`,
+      // which made the whole settings.json impossible to import.
+      expect(rulesyncHooks.validate().success).toBe(true);
+      const parsed = rulesyncHooks.getJson() as any;
+      expect(parsed.hooks.sessionDelete[0].command).toBe("echo deleted");
+      expect(parsed.hooks.sessionDelete[0].matcher).toBeUndefined();
     });
 
     it("should round-trip Qwen Code PascalCase back to canonical", () => {

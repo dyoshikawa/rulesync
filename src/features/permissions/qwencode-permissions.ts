@@ -127,7 +127,21 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   // Added in Qwen Code v0.19.7. https://github.com/QwenLM/qwen-code/pull/6372
   "visible",
 ] as const;
-const QWEN_OVERRIDE_SECURITY_KEYS = ["folderTrust"] as const;
+// `allowedHttpHookUrls` (URL patterns allowed as `type: "http"` hook targets; an
+// empty list means allow-all) and `allowPrivateNetworkHooks` (relaxes the SSRF
+// private-IP check) gate the HTTP hooks rulesync emits. Both are authored through
+// the override's `security` group.
+const QWEN_OVERRIDE_SECURITY_KEYS = [
+  "folderTrust",
+  "allowedHttpHookUrls",
+  "allowPrivateNetworkHooks",
+] as const;
+// Upstream's settings schema documents `allowPrivateNetworkHooks` as honored only
+// from User/System/SystemDefaults scopes: a Workspace (project) value is ignored
+// by design so that a cloned repository cannot self-grant private-network access.
+// Emitting it into project settings would therefore be dead configuration, so
+// generate drops it there with a warning.
+const QWEN_GLOBAL_ONLY_SECURITY_KEYS = ["allowPrivateNetworkHooks"] as const;
 // The `permissions` sub-keys the `qwencode` override authors. `autoMode` (the
 // Auto Mode classifier config) is a sibling of `allow`/`ask`/`deny` under
 // `permissions` with no canonical category, so it round-trips through the
@@ -148,6 +162,31 @@ function pickQwenOverrideKeys(group: unknown, keys: readonly string[]): Record<s
     if (source[key] !== undefined) picked[key] = source[key];
   }
   return picked;
+}
+
+/**
+ * Drop the global-only `security` keys from the override when generating project
+ * settings, warning once per dropped key. Only the override copy is filtered, so
+ * a value the user already wrote into the project file stays untouched.
+ */
+function scopeOverrideSecurity(
+  overrideSecurity: unknown,
+  {
+    global,
+    relativeFilePath,
+    logger,
+  }: { global: boolean; relativeFilePath: string; logger?: Logger },
+): Record<string, unknown> {
+  const scoped = { ...asPlainRecord(overrideSecurity) };
+  if (global) return scoped;
+  for (const key of QWEN_GLOBAL_ONLY_SECURITY_KEYS) {
+    if (scoped[key] === undefined) continue;
+    delete scoped[key];
+    logger?.warn(
+      `Qwen permissions: 'security.${key}' is only honored in user/system settings, so it is skipped for the project-scoped ${relativeFilePath}. Author it in the global scope instead.`,
+    );
+  }
+  return scoped;
 }
 
 export class QwencodePermissions extends ToolPermissions {
@@ -295,10 +334,17 @@ export class QwencodePermissions extends ToolPermissions {
       patch.tools = { ...asPlainRecord(settings.tools), ...asPlainRecord(override.tools) };
     }
     if (override?.security !== undefined) {
-      patch.security = {
-        ...asPlainRecord(settings.security),
-        ...asPlainRecord(override.security),
-      };
+      const scopedSecurity = scopeOverrideSecurity(override.security, {
+        global,
+        relativeFilePath: paths.relativeFilePath,
+        logger,
+      });
+      const mergedSecurity = { ...asPlainRecord(settings.security), ...scopedSecurity };
+      // An override whose only key was scoped away leaves nothing to write, so do
+      // not add an empty `security` object to a file that had none.
+      if (Object.keys(mergedSecurity).length > 0) {
+        patch.security = mergedSecurity;
+      }
     }
 
     const fileContent = applySharedConfigPatch({
@@ -344,7 +390,19 @@ export class QwencodePermissions extends ToolPermissions {
     // Route Qwen's autonomy/sandbox settings into the `qwencode` override — they
     // have no canonical category and would otherwise be dropped on round-trip.
     const overrideTools = pickQwenOverrideKeys(settings.tools, QWEN_OVERRIDE_TOOLS_KEYS);
+    // Import lifts every override-managed `security` key regardless of scope: the
+    // file being read carries no scope marker, and dropping a global-only key here
+    // would lose a user's real setting. The scope gate lives on the generate side.
     const overrideSecurity = pickQwenOverrideKeys(settings.security, QWEN_OVERRIDE_SECURITY_KEYS);
+    for (const key of QWEN_GLOBAL_ONLY_SECURITY_KEYS) {
+      if (overrideSecurity[key] === undefined) continue;
+      // Regenerating in global scope turns a value Qwen Code ignores in a
+      // workspace file into one it enforces, so flag the promotion rather than
+      // letting a setting imported from a cloned repository slip through.
+      moduleLogger.warn(
+        `Qwen permissions: imported 'security.${key}'. Qwen Code ignores it in workspace settings but enforces it in user/system settings, so review it before generating with the global scope.`,
+      );
+    }
     const overridePermissions = pickQwenOverrideKeys(
       settings.permissions,
       QWEN_OVERRIDE_PERMISSIONS_KEYS,

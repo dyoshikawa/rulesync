@@ -6,6 +6,7 @@ import {
   RULESYNC_PERMISSIONS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
@@ -308,6 +309,132 @@ describe("QwencodePermissions", () => {
       expect(content.security).toEqual({
         auth: { type: "oauth" },
         folderTrust: { enabled: true },
+      });
+    });
+
+    it("authors the HTTP-hook security keys in global scope (issue #2595)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: {
+              security: {
+                allowedHttpHookUrls: ["https://hooks.example.com/*"],
+                allowPrivateNetworkHooks: true,
+              },
+            },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.security).toEqual({
+        allowedHttpHookUrls: ["https://hooks.example.com/*"],
+        allowPrivateNetworkHooks: true,
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("skips allowPrivateNetworkHooks with a warning in project scope (issue #2595)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: {
+              security: {
+                allowedHttpHookUrls: ["https://hooks.example.com/*"],
+                allowPrivateNetworkHooks: true,
+              },
+            },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // Qwen Code ignores a Workspace-scoped `allowPrivateNetworkHooks`, so only
+      // the allowlist is emitted here.
+      expect(content.security).toEqual({
+        allowedHttpHookUrls: ["https://hooks.example.com/*"],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("security.allowPrivateNetworkHooks"),
+      );
+    });
+
+    // The scope gate filters the override copy only, so a value the user already
+    // wrote into the project file wins over the override's — even when the override
+    // asks to disable it. That is intentional: Qwen Code ignores the workspace value
+    // either way, and rewriting a key rulesync refuses to author would be worse.
+    it("keeps a pre-existing project-scoped allowPrivateNetworkHooks untouched", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ security: { allowPrivateNetworkHooks: true } }),
+      );
+
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { allowPrivateNetworkHooks: false } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.security).toEqual({ allowPrivateNetworkHooks: true });
+    });
+
+    it("writes no security object when the scope gate empties the override", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger: createMockLogger(),
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { allowPrivateNetworkHooks: true } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).security).toBeUndefined();
+    });
+
+    it("lifts the HTTP-hook security keys back into the override on import", () => {
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          security: {
+            allowedHttpHookUrls: ["https://hooks.example.com/*"],
+            allowPrivateNetworkHooks: true,
+          },
+        }),
+      });
+
+      const json = instance.toRulesyncPermissions().getJson();
+      expect(json.qwencode).toEqual({
+        security: {
+          allowedHttpHookUrls: ["https://hooks.example.com/*"],
+          allowPrivateNetworkHooks: true,
+        },
       });
     });
 

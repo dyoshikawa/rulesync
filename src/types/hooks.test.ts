@@ -20,6 +20,9 @@ import {
   JUNIE_HOOK_EVENTS,
   JUNIE_TO_CANONICAL_EVENT_NAMES,
   OPENCODE_HOOK_EVENTS,
+  CANONICAL_TO_QWENCODE_EVENT_NAMES,
+  QWENCODE_HOOK_EVENTS,
+  QWENCODE_TO_CANONICAL_EVENT_NAMES,
 } from "./hooks.js";
 
 describe("Event map completeness", () => {
@@ -163,6 +166,18 @@ describe("Claude Code event naming", () => {
 
   it("should list messageDisplay as a supported Claude hook event", () => {
     expect(CLAUDE_HOOK_EVENTS).toContain("messageDisplay");
+  });
+});
+
+describe("Qwen Code event naming", () => {
+  it("should map the sessionDelete event to Qwen Code's SessionDelete name", () => {
+    // Added in Qwen Code v0.21.3 (https://github.com/QwenLM/qwen-code/pull/8059).
+    expect(CANONICAL_TO_QWENCODE_EVENT_NAMES.sessionDelete).toBe("SessionDelete");
+    expect(QWENCODE_TO_CANONICAL_EVENT_NAMES.SessionDelete).toBe("sessionDelete");
+  });
+
+  it("should list sessionDelete as a supported Qwen Code hook event", () => {
+    expect(QWENCODE_HOOK_EVENTS).toContain("sessionDelete");
   });
 });
 
