@@ -124,6 +124,16 @@ export abstract class AiFile {
   }
 
   /**
+   * POSIX mode to apply after writing, or `undefined` to leave the default
+   * alone. Override in subclasses whose output the tool executes directly
+   * (e.g. Cline's hook scripts, which are spawned by path and therefore need
+   * the executable bit).
+   */
+  getFileMode(): number | undefined {
+    return undefined;
+  }
+
+  /**
    * Returns whether this file can be deleted by rulesync.
    * Override in subclasses that should not be deleted (e.g., user-managed config files).
    */

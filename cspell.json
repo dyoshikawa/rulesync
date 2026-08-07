@@ -23,6 +23,9 @@
     "src/generated/**"
   ],
   "words": [
+    "diffable",
+    "extensionless",
+    "LASTEXITCODE",
     "PKCE",
     "serde",
     "codegen",

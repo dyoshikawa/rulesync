@@ -392,6 +392,30 @@ export const AMP_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Hook events supported by Cline's file-based hooks. Cline resolves one
+ * executable per lifecycle event from its hooks directory, and the event names
+ * it accepts are fixed by `VALID_HOOK_TYPES` in
+ * `apps/vscode/src/core/hooks/utils.ts`: `TaskStart`, `TaskResume`,
+ * `TaskCancel`, `TaskComplete`, `PreToolUse`, `PostToolUse`,
+ * `UserPromptSubmit`, `Notification` and `PreCompact`.
+ *
+ * `TaskResume` and `TaskCancel` have no canonical counterpart and stay
+ * unmapped rather than being approximated by `sessionEnd` / `stop`, whose
+ * semantics differ.
+ *
+ * @see https://github.com/cline/cline/blob/main/apps/vscode/src/core/hooks/utils.ts
+ */
+export const CLINE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "preToolUse",
+  "postToolUse",
+  "beforeSubmitPrompt",
+  "preCompact",
+  "notification",
+  "taskCompleted",
+];
+
+/**
  * Hook events supported by GitHub Copilot (cloud coding agent).
  *
  * GitHub now documents an eight-event surface for `.github/hooks/*.json`:
@@ -1229,6 +1253,17 @@ export const CANONICAL_TO_AMP_EVENT_NAMES: Record<string, string> = {
   postToolUse: "tool.result",
   beforeSubmitPrompt: "agent.start",
   stop: "agent.end",
+};
+
+/** Map canonical hook events to Cline's `VALID_HOOK_TYPES` file names. */
+export const CANONICAL_TO_CLINE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "TaskStart",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preCompact: "PreCompact",
+  notification: "Notification",
+  taskCompleted: "TaskComplete",
 };
 
 /**

@@ -86,6 +86,21 @@ export abstract class ToolHooks extends ToolFile {
   static async getAuxiliaryFiles(_params: {
     outputRoot?: string;
     global?: boolean;
+    /** The instance just built, for adapters whose extra files derive from it. */
+    toolHooks?: ToolHooks;
+    logger?: Logger;
+  }): Promise<ToolFile[]> {
+    return [];
+  }
+
+  /**
+   * Extra files the deletion sweep may remove, for adapters that write more
+   * than their settable path. Kept separate from {@link getAuxiliaryFiles},
+   * which may legitimately return a shared user-owned config file.
+   */
+  static async getDeletableAuxiliaryFiles(_params: {
+    outputRoot?: string;
+    global?: boolean;
   }): Promise<ToolFile[]> {
     return [];
   }

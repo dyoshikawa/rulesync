@@ -14,6 +14,7 @@ import {
   DEEPAGENTS_HOOK_EVENTS,
   DEVIN_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
+  CLINE_HOOK_EVENTS,
   GOOSE_HOOK_EVENTS,
   GROKCLI_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
@@ -42,6 +43,7 @@ import { AntigravityPluginHooks } from "./antigravity-plugin-hooks.js";
 import { AugmentcodeHooks } from "./augmentcode-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
+import { ClineHooks } from "./cline-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
@@ -88,6 +90,19 @@ type ToolHooksFactory = {
     };
     isDeletable?: (instance: ToolHooks) => boolean;
     getAuxiliaryFiles?: (params: {
+      outputRoot?: string;
+      global?: boolean;
+      /** The instance just built, for adapters whose extra files derive from it. */
+      toolHooks?: ToolHooks;
+      logger?: Logger;
+    }) => ToolFile[] | Promise<ToolFile[]>;
+    /**
+     * Extra files the deletion sweep may remove. Deliberately separate from
+     * {@link getAuxiliaryFiles}: several adapters return a shared, user-owned
+     * config file there (Codex CLI's `config.toml`), which must never become a
+     * deletion candidate.
+     */
+    getDeletableAuxiliaryFiles?: (params: {
       outputRoot?: string;
       global?: boolean;
     }) => ToolFile[] | Promise<ToolFile[]>;
@@ -407,6 +422,26 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // supported" — a prompt-type entry in hooks.json is inert.
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+    },
+  ],
+  [
+    "cline",
+    {
+      class: ClineHooks,
+      meta: {
+        // File-based hooks live in `<project>/.clinerules/hooks/` and the global
+        // `~/Documents/Cline/Hooks/`. Generated wrapper scripts cannot be read
+        // back as canonical hook definitions, so import is unsupported.
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: false,
+      },
+      supportedEvents: CLINE_HOOK_EVENTS,
+      // A hook is an executable file; Cline has no prompt/http hook type.
+      supportedHookTypes: ["command"],
+      // The payload shape differs per event and the wrapper is a plain shell
+      // script with no JSON parser to rely on, so a matcher cannot be enforced.
+      supportsMatcher: false,
     },
   ],
   [
@@ -748,7 +783,15 @@ export class HooksProcessor extends FeatureProcessor {
           relativeFilePath: paths.relativeFilePath,
           global: this.global,
         });
-        const list = toolHooks.isDeletable?.() !== false ? [toolHooks] : [];
+        const auxiliaryFiles =
+          (await factory.class.getDeletableAuxiliaryFiles?.({
+            outputRoot: this.outputRoot,
+            global: this.global,
+          })) ?? [];
+        const list = [
+          ...(toolHooks.isDeletable?.() !== false ? [toolHooks] : []),
+          ...auxiliaryFiles.filter((file) => file.isDeletable()),
+        ];
         this.logger.debug(
           `Successfully loaded ${list.length} ${this.toolTarget} hooks files for deletion`,
         );
@@ -870,6 +913,8 @@ export class HooksProcessor extends FeatureProcessor {
     const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
       outputRoot: this.outputRoot,
       global: this.global,
+      toolHooks,
+      logger: withToolTargetPrefix({ logger: this.logger, toolTarget: this.toolTarget }),
     });
     if (auxiliaryFiles && auxiliaryFiles.length > 0) {
       result.push(...auxiliaryFiles);

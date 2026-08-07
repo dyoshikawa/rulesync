@@ -661,6 +661,7 @@ describe("HooksProcessor", () => {
         "opencode",
         "pi",
         "factorydroid",
+        "cline",
         "goose",
         "deepagents",
         "kiro",
@@ -690,6 +691,7 @@ describe("HooksProcessor", () => {
         "opencode",
         "pi",
         "factorydroid",
+        "cline",
         "goose",
         "hermesagent",
         "kimi-code",
@@ -703,6 +705,22 @@ describe("HooksProcessor", () => {
         "qwencode",
         "reasonix",
         "grokcli",
+      ]);
+    });
+
+    it("keeps a shared auxiliary config out of the deletion sweep", async () => {
+      // Codex CLI's getAuxiliaryFiles returns the user's shared .codex/config.toml;
+      // only the adapter's own hooks file may be a deletion candidate.
+      const processor = new HooksProcessor({
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+        logger: createMockLogger(),
+      });
+
+      const files = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(files.map((file) => file.getRelativePathFromCwd())).toEqual([
+        join(".codex", "hooks.json"),
       ]);
     });
 

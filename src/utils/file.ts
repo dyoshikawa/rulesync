@@ -1,4 +1,5 @@
 import {
+  chmod,
   cp,
   lstat,
   mkdir,
@@ -326,6 +327,38 @@ export function addTrailingNewline(content: string): string {
 export async function writeFileContent(filepath: string, content: string): Promise<void> {
   await ensureDir(dirname(filepath));
   await writeFile(filepath, content, "utf-8");
+}
+
+/**
+ * Apply a POSIX mode to an existing file. Windows has no executable bit and
+ * `chmod` there only toggles the read-only flag, so the call is skipped rather
+ * than writing a mode the platform cannot honor.
+ */
+export async function applyFileMode(filepath: string, mode: number): Promise<void> {
+  if (process.platform === "win32") {
+    return;
+  }
+  await chmod(filepath, mode);
+}
+
+/**
+ * Restore an executable bit that went missing (interrupted run, a copy that
+ * dropped the mode). A file whose mode is merely stricter than `mode` — the
+ * user chose 0700 over 0755 — is left alone.
+ */
+export async function restoreMissingExecutableBit(filepath: string, mode: number): Promise<void> {
+  if (process.platform === "win32") {
+    return;
+  }
+  try {
+    const current = (await stat(filepath)).mode;
+    if ((current & 0o111) !== 0) {
+      return;
+    }
+  } catch {
+    return;
+  }
+  await chmod(filepath, mode);
 }
 
 export async function writeFileBuffer(filepath: string, buffer: Buffer): Promise<void> {
