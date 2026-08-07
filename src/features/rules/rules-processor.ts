@@ -965,9 +965,11 @@ export class RulesProcessor extends FeatureProcessor {
       (file): file is RulesyncRule => file instanceof RulesyncRule,
     );
 
+    const alignedRules = this.alignPiContextFile(rulesyncRules);
+
     // Separate localRoot rules from normal rules
-    const localRootRules = rulesyncRules.filter((rule) => rule.getFrontmatter().localRoot);
-    const nonLocalRootRules = rulesyncRules.filter((rule) => !rule.getFrontmatter().localRoot);
+    const localRootRules = alignedRules.filter((rule) => rule.getFrontmatter().localRoot);
+    const nonLocalRootRules = alignedRules.filter((rule) => !rule.getFrontmatter().localRoot);
 
     const factory = this.getFactory(this.toolTarget);
     const { meta } = factory;
@@ -1670,6 +1672,64 @@ As this project's AI coding tool, you must follow the additional conventions bel
       (rule) => !rule.getFrontmatter().root && factory.class.isTargetedByRulesyncRule(rule),
     );
     return [...targetedRootRules, ...nonRootRules];
+  }
+
+  /**
+   * Pi reads `AGENTS.override.md` *instead of* `AGENTS.md` from a directory, and
+   * non-root Pi rules are folded into whichever file the root emits. A mix of
+   * opted-in and opted-out rules would therefore split the output across both
+   * files and let Pi silently ignore everything in `AGENTS.md`, so the root rule
+   * decides for all of them: its `pi.contextFile` is copied onto the non-root
+   * rules, and the flag set only on a non-root rule is dropped with a warning.
+   */
+  private alignPiContextFile(rules: RulesyncRule[]): RulesyncRule[] {
+    if (this.toolTarget !== "pi") return rules;
+
+    const factory = this.getFactory(this.toolTarget);
+    const targeted = rules.filter((rule) => factory.class.isTargetedByRulesyncRule(rule));
+    // Any root rule opting in decides for the whole output: with several root
+    // rules, honoring only one of them would leave the others in the file Pi
+    // stops reading.
+    const rootContextFile = targeted.some(
+      (rule) =>
+        rule.getFrontmatter().root === true && rule.getFrontmatter().pi?.contextFile === "override",
+    )
+      ? ("override" as const)
+      : undefined;
+    const mismatched = targeted.filter(
+      (rule) => rule.getFrontmatter().pi?.contextFile !== rootContextFile,
+    );
+    if (mismatched.length === 0) return rules;
+
+    if (rootContextFile === undefined) {
+      this.logger.warn(
+        `pi.contextFile is set on ${mismatched.length} non-root rule(s) but not on the root rule, ` +
+          `so it is ignored: Pi folds every rule body into the root context file, and emitting ` +
+          `AGENTS.override.md for some of them would hide the rest. Set it on the root rule ` +
+          `instead: ${formatRulePaths(mismatched)}`,
+      );
+    }
+
+    const mismatchedSet = new Set(mismatched);
+    return rules.map((rule) => {
+      if (!mismatchedSet.has(rule)) return rule;
+      const frontmatter = rule.getFrontmatter();
+      const { contextFile: _dropped, ...pi } = frontmatter.pi ?? {};
+      const nextPi = { ...pi, ...(rootContextFile ? { contextFile: rootContextFile } : {}) };
+      return new RulesyncRule({
+        outputRoot: rule.getOutputRoot(),
+        relativeDirPath: rule.getRelativeDirPath(),
+        relativeFilePath: rule.getRelativeFilePath(),
+        frontmatter: {
+          ...frontmatter,
+          ...(Object.keys(nextPi).length > 0 ? { pi: nextPi } : { pi: undefined }),
+        },
+        body: rule.getBody(),
+        // The source rule was already parsed under its own validate setting;
+        // only the pi block changes here.
+        validate: false,
+      });
+    });
   }
 
   /**

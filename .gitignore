@@ -279,6 +279,7 @@ rulesync.local.jsonc
 **/.kiro/steering/
 **/.opencode/memories/
 **/.pi/APPEND_SYSTEM.md
+**/AGENTS.override.md
 **/QWEN.md
 **/.qwen/rules/
 **/REASONIX.md
