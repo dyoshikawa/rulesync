@@ -36,3 +36,19 @@ export const DEVIN_HOOKS_V1_FILE_NAME = "hooks.v1.json";
 export const DEVIN_GLOBAL_AGENTS_FILE_NAME = "AGENTS.md";
 export const DEVIN_IGNORE_FILE_NAME = ".devinignore";
 export const DEVIN_LEGACY_IGNORE_FILE_NAME = ".codeiumignore";
+// Enterprise-wide ignore file at `~/.codeium/.codeiumignore`, applied across
+// every repository. Three things about it are deliberate and worth recording:
+//
+// 1. It keeps the legacy `.codeium`/`.codeiumignore` brand spelling. Unlike the
+//    project file, which was renamed to `.devinignore` in Desktop v3.1.7, the
+//    global one is documented only under the pre-rebrand name, so no
+//    `.devinignore` variant is emitted or read here.
+// 2. It is documented in the Devin *Desktop* docs tree, not the Devin Local
+//    (CLI) one, so it does not live under `~/.config/devin` with the other
+//    global Devin paths.
+// 3. It is positioned as an enterprise feature for managing multiple
+//    repositories, not a general per-user setting.
+//
+// https://docs.devin.ai/desktop/context-awareness/windsurf-ignore
+export const DEVIN_GLOBAL_IGNORE_DIR_PATH = ".codeium";
+export const DEVIN_GLOBAL_IGNORE_FILE_NAME = DEVIN_LEGACY_IGNORE_FILE_NAME;

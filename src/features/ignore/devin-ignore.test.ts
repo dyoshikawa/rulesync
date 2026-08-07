@@ -631,6 +631,54 @@ dist/
     });
   });
 
+  describe("global scope", () => {
+    it("should write the enterprise-wide ~/.codeium/.codeiumignore", () => {
+      expect(DevinIgnore.getSettablePaths({ global: true })).toEqual({
+        relativeDirPath: ".codeium",
+        relativeFilePath: ".codeiumignore",
+      });
+    });
+
+    it("should generate the global file from a rulesync ignore", () => {
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
+        fileContent: "secrets/\n*.pem",
+      });
+
+      const devinIgnore = DevinIgnore.fromRulesyncIgnore({
+        outputRoot: testDir,
+        rulesyncIgnore,
+        global: true,
+      });
+
+      expect(devinIgnore.getRelativeDirPath()).toBe(".codeium");
+      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+      expect(devinIgnore.getFileContent()).toBe("secrets/\n*.pem");
+    });
+
+    it("should read the global file back without a legacy-name fallback", async () => {
+      await writeFileContent(join(testDir, ".codeium", ".codeiumignore"), "node_modules/");
+
+      const devinIgnore = await DevinIgnore.fromFile({
+        outputRoot: testDir,
+        global: true,
+      });
+
+      expect(devinIgnore.getRelativeDirPath()).toBe(".codeium");
+      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+      expect(devinIgnore.getFileContent()).toBe("node_modules/");
+    });
+
+    it("should not fall back to a .devinignore sitting next to the global file", async () => {
+      await writeFileContent(join(testDir, ".codeium", ".devinignore"), "wrong-file");
+
+      // The global path is documented only under the legacy brand spelling, so
+      // a `.devinignore` in the same directory is not a valid source.
+      await expect(DevinIgnore.fromFile({ outputRoot: testDir, global: true })).rejects.toThrow();
+    });
+  });
+
   describe("DevinIgnore-specific behavior", () => {
     it("should use .devinignore as the default generated filename", () => {
       expect(DevinIgnore.getSettablePaths().relativeFilePath).toBe(".devinignore");
