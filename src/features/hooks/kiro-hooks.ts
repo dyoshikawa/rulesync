@@ -26,11 +26,12 @@ import {
 } from "./tool-hooks.js";
 
 /**
- * Convert canonical hooks config to Kiro CLI format.
+ * Convert canonical hooks config to the legacy embedded Kiro agent-config
+ * format.
  * Filters shared hooks to KIRO_HOOK_EVENTS, merges config.kiro?.hooks,
- * then maps event names and emits Kiro CLI hook arrays.
+ * then maps event names and emits the agent config's hook arrays.
  */
-/** Build the Kiro CLI hook entries for a single canonical event's definitions. */
+/** Build the agent-config hook entries for a single canonical event's definitions. */
 function buildKiroEntriesForEvent(definitions: HooksConfig["hooks"][string]): unknown[] {
   const entries: unknown[] = [];
   for (const def of definitions) {
@@ -54,7 +55,7 @@ function buildKiroEntriesForEvent(definitions: HooksConfig["hooks"][string]): un
 
 function canonicalToKiroHooks(
   config: HooksConfig,
-  overrideKey: "kiro" | "kiro-cli" = "kiro",
+  overrideKey: "kiro" = "kiro",
 ): Record<string, unknown[]> {
   const kiroSupported: Set<string> = new Set(KIRO_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
@@ -68,8 +69,7 @@ function canonicalToKiroHooks(
     // Note: Tool-specific overrides (config[overrideKey]?.hooks) bypass the
     // KIRO_HOOK_EVENTS filter by design — users who define tool-level overrides
     // are expected to know the target tool's event surface. The HooksProcessor
-    // already warns about unsupported events before calling this function. The
-    // override key is `kiro` for the legacy alias and `kiro-cli` for the CLI.
+    // already warns about unsupported events before calling this function.
     ...config[overrideKey]?.hooks,
   };
   const kiro: Record<string, unknown[]> = {};
@@ -88,8 +88,8 @@ function canonicalToKiroHooks(
 }
 
 /**
- * Kiro CLI hook entry as stored in each event's array.
- * Uses `z.looseObject` so that unknown fields added by future Kiro CLI
+ * Hook entry as stored in each event's array of the agent config.
+ * Uses `z.looseObject` so that unknown fields added by future Kiro
  * versions are accepted and silently ignored during import.
  */
 const KiroHookEntrySchema = z.looseObject({
@@ -108,7 +108,7 @@ function importCacheTtl(entry: KiroHookEntry): { cacheTtl?: number } {
 }
 
 /**
- * Extract hooks from Kiro CLI agent config into canonical format.
+ * Extract hooks from the Kiro agent config into canonical format.
  */
 function kiroHooksToCanonical(kiroHooks: unknown): HooksConfig["hooks"] {
   if (kiroHooks === null || kiroHooks === undefined || typeof kiroHooks !== "object") {
@@ -145,6 +145,17 @@ function kiroHooksToCanonical(kiroHooks: unknown): HooksConfig["hooks"] {
   return canonical;
 }
 
+/**
+ * Hooks generator for the deprecated `kiro` alias: the embedded hook block of
+ * `.kiro/agents/default.json`.
+ *
+ * Kiro's hooks migration guide states this format "does not work in 3.0", so
+ * the `kiro-cli` target writes the standalone `.kiro/hooks/*.json` v1 format
+ * instead ({@link import("./kiro-cli-hooks.js").KiroCliHooks}). It is kept here
+ * so an existing agent config still round-trips.
+ *
+ * @see https://kiro.dev/docs/cli/v3/hooks-migration/
+ */
 export class KiroHooks extends ToolHooks {
   constructor(params: AiFileParams) {
     super({
@@ -155,10 +166,12 @@ export class KiroHooks extends ToolHooks {
 
   /**
    * The `HooksConfig` key whose `hooks` block provides tool-specific overrides
-   * for this target. The legacy `kiro` alias uses `kiro`; {@link import(
-   * "./kiro-cli-hooks.js").KiroCliHooks} overrides this to `kiro-cli`.
+   * for this target. Only the deprecated `kiro` alias writes this embedded
+   * format now, so `kiro` is the sole key; the `kiro-cli` target writes the
+   * standalone v1 format through {@link import("./kiro-cli-hooks.js").
+   * KiroCliHooks} instead.
    */
-  protected static getOverrideKey(): "kiro" | "kiro-cli" {
+  protected static getOverrideKey(): "kiro" {
     return "kiro";
   }
 

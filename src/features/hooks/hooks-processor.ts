@@ -486,20 +486,26 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     },
   ],
   [
-    // The Kiro CLI uses the same `.kiro/agents/default.json` agent-hook format
-    // as the legacy `kiro` alias. (Kiro IDE hooks use the structured
-    // `.kiro/hooks/*.json` v1 format — see the `kiro-ide` entry below.)
+    // Kiro CLI 3.0 reads the same standalone `.kiro/hooks/*.json` v1 format the
+    // IDE reads — its migration guide states the embedded agent-config format
+    // the legacy `kiro` alias writes "does not work in 3.0" — so this entry
+    // mirrors the `kiro-ide` one below, including the user-scope
+    // `~/.kiro/hooks/` location. Only the override key differs.
+    // Reference: https://kiro.dev/docs/cli/v3/hooks-migration/
     "kiro-cli",
     {
       class: KiroCliHooks,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: KIRO_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      supportedEvents: KIRO_IDE_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt"],
       supportsMatcher: true,
+      // Triggers with no canonical event (PostFileSave, PreTaskExec, …)
+      // supplied via the `kiro-cli` override block are emitted verbatim.
+      passthroughOverrideEvents: true,
     },
   ],
   [
