@@ -236,7 +236,6 @@ function asCursorPermissionEntryArray(
  */
 function mergeCursorCliConfig({
   settings,
-  existingEditor,
   mergedPermissions,
   cursorOverride,
   global,
@@ -244,7 +243,6 @@ function mergeCursorCliConfig({
   logger,
 }: {
   settings: CursorCliConfig;
-  existingEditor: Record<string, unknown>;
   mergedPermissions: Record<string, unknown>;
   cursorOverride: Record<string, unknown>;
   global: boolean;
@@ -260,6 +258,7 @@ function mergeCursorCliConfig({
     return { ...settings, permissions: mergedPermissions };
   }
 
+  const existingEditor = asExistingEditor({ settings, filePath, logger });
   return {
     ...settings,
     // Overlay the Cursor-scoped override's top-level cli-config.json fields
@@ -271,13 +270,53 @@ function mergeCursorCliConfig({
     // file. Any pre-existing `version` value (including a non-`1` value) is
     // preserved verbatim to keep the round-trip stable; if Cursor ever bumps
     // the schema version, hand-edited values will not be silently overwritten.
+    // Note the configuration reference marks `version` required in its schema
+    // table without saying which file it is required in, and shows no project
+    // `cli.json` example at all — stamping it only here follows from the
+    // documented rule that a project config carries permissions alone.
     version: settings.version ?? 1,
     editor: { ...existingEditor, vimMode: existingEditor.vimMode ?? false },
     permissions: mergedPermissions,
   };
 }
 
-/** Name the override keys a project-scope config cannot carry. */
+/**
+ * The existing `editor` object to merge rulesync's managed `vimMode` into.
+ * Only called in global scope: a project config's `editor` is passed through
+ * untouched, so narrowing it there would warn about a value nothing ignores.
+ */
+function asExistingEditor({
+  settings,
+  filePath,
+  logger,
+}: {
+  settings: CursorCliConfig;
+  filePath: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const raw = settings.editor;
+  if (raw === undefined) return {};
+  if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) return raw;
+
+  logger?.warn(
+    `Cursor CLI config at ${filePath} has a non-object \`editor\` field; ignoring existing editor settings.`,
+  );
+  return {};
+}
+
+/**
+ * Override keys that never reach the file from the override in any scope,
+ * because rulesync re-applies its own managed value over them. Naming them in
+ * the project-scope warning would wrongly promise that `--global` makes them
+ * take effect.
+ */
+const CURSOR_OVERRIDE_KEYS_ALWAYS_CLOBBERED = new Set(["version", "editor", "permissions"]);
+
+/**
+ * Name the override keys that would have been written in global scope but are
+ * dropped here, so the user learns the setting did not take effect and how to
+ * make it.
+ */
 function warnAboutGlobalOnlyOverrideKeys({
   cursorOverride,
   filePath,
@@ -287,7 +326,9 @@ function warnAboutGlobalOnlyOverrideKeys({
   filePath: string;
   logger?: Logger;
 }): void {
-  const strandedKeys = Object.keys(cursorOverride).toSorted();
+  const strandedKeys = Object.keys(cursorOverride)
+    .filter((key) => !CURSOR_OVERRIDE_KEYS_ALWAYS_CLOBBERED.has(key))
+    .toSorted();
   if (strandedKeys.length === 0) return;
 
   const names = strandedKeys.map((key) => `\`${key}\``).join(", ");
@@ -370,23 +411,6 @@ export class CursorPermissions extends ToolPermissions {
       Object.keys(config.permission).map((category) => toCursorType(category)),
     );
 
-    const existingEditorRaw = settings.editor;
-    let existingEditor: Record<string, unknown>;
-    if (existingEditorRaw === undefined) {
-      existingEditor = {};
-    } else if (
-      existingEditorRaw !== null &&
-      typeof existingEditorRaw === "object" &&
-      !Array.isArray(existingEditorRaw)
-    ) {
-      existingEditor = existingEditorRaw;
-    } else {
-      logger?.warn(
-        `Cursor CLI config at ${filePath} has a non-object \`editor\` field; ignoring existing editor settings.`,
-      );
-      existingEditor = {};
-    }
-
     const existingPermissionsRaw = settings.permissions;
     let existingPermissions: Record<string, unknown>;
     if (existingPermissionsRaw === undefined) {
@@ -436,7 +460,6 @@ export class CursorPermissions extends ToolPermissions {
 
     const merged = mergeCursorCliConfig({
       settings,
-      existingEditor,
       mergedPermissions,
       cursorOverride: config.cursor ?? {},
       global,
@@ -483,6 +506,12 @@ export class CursorPermissions extends ToolPermissions {
     // Route Cursor's autonomy settings (`approvalMode`, `sandbox`) into the
     // `cursor` override — they have no canonical category and would otherwise be
     // dropped on round-trip.
+    //
+    // This is deliberately scope-blind, even though generate writes them in
+    // global scope only: importing is about not losing what is in the file, and
+    // a project `cli.json` can still carry them (hand-written, or left by an
+    // older rulesync). The asymmetry surfaces as a warning on the next project
+    // generate, which is the correct place to say the setting has no effect.
     const result: Record<string, unknown> = { ...config };
     const cursorOverride: Record<string, unknown> = {};
     if (settings.approvalMode !== undefined) cursorOverride.approvalMode = settings.approvalMode;

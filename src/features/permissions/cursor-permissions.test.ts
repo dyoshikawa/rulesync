@@ -244,8 +244,10 @@ describe("CursorPermissions", () => {
       const logger = createMockLogger();
       const cursorDir = join(testDir, ".cursor");
       await ensureDir(cursorDir);
+      // `editor` is only rulesync-managed in global scope, so the preserving
+      // merge is exercised against the global file.
       await writeFileContent(
-        join(cursorDir, "cli.json"),
+        join(cursorDir, "cli-config.json"),
         JSON.stringify({
           version: 1,
           editor: { vimMode: true, fontSize: 14 },
@@ -265,39 +267,20 @@ describe("CursorPermissions", () => {
         outputRoot: testDir,
         rulesyncPermissions,
         logger,
+        global: true,
       });
 
       const parsed = JSON.parse(cursorPermissions.getFileContent());
       expect(parsed.editor).toEqual({ vimMode: true, fontSize: 14 });
     });
 
-    it("should default-stamp version: 1 when generating from a fresh config (global)", async () => {
-      const logger = createMockLogger();
-      const rulesyncPermissions = new RulesyncPermissions({
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-        fileContent: JSON.stringify({
-          permission: { bash: { "git *": "allow" } },
-        }),
-      });
-
-      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
-        outputRoot: testDir,
-        rulesyncPermissions,
-        logger,
-        global: true,
-      });
-
-      const parsed = JSON.parse(cursorPermissions.getFileContent());
-      expect(parsed.version).toBe(1);
-    });
-
     it("should preserve a pre-existing non-1 version value", async () => {
       const logger = createMockLogger();
       const cursorDir = join(testDir, ".cursor");
       await ensureDir(cursorDir);
+      // `version` is only rulesync-managed in global scope.
       await writeFileContent(
-        join(cursorDir, "cli.json"),
+        join(cursorDir, "cli-config.json"),
         JSON.stringify({
           version: 2,
           permissions: {},
@@ -316,10 +299,38 @@ describe("CursorPermissions", () => {
         outputRoot: testDir,
         rulesyncPermissions,
         logger,
+        global: true,
       });
 
       const parsed = JSON.parse(cursorPermissions.getFileContent());
       expect(parsed.version).toBe(2);
+    });
+
+    it("should pass a project config's existing keys through untouched", async () => {
+      const logger = createMockLogger();
+      const cursorDir = join(testDir, ".cursor");
+      await ensureDir(cursorDir);
+      // Including a `version` an earlier rulesync stamped here: rulesync cannot
+      // tell its own key from a hand-written one, so it does not delete either.
+      await writeFileContent(
+        join(cursorDir, "cli.json"),
+        JSON.stringify({ version: 2, editor: { vimMode: true }, permissions: {} }),
+      );
+
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+        }),
+        logger,
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.version).toBe(2);
+      expect(parsed.editor).toEqual({ vimMode: true });
+      expect(parsed.permissions.allow).toEqual(["Shell(git *)"]);
     });
 
     it("should write to global path .cursor/cli-config.json when global=true", async () => {
@@ -435,7 +446,28 @@ describe("CursorPermissions", () => {
       expect(warning).toContain("--global");
     });
 
-    it("does not warn in project scope when the override has no global-only keys", async () => {
+    it("does not warn in project scope for override keys that never take effect anyway", async () => {
+      const logger = createMockLogger();
+      await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            // rulesync re-applies its own managed value over these in global
+            // scope too, so pointing the user at --global would be a false
+            // promise: the override never reaches the file either way.
+            cursor: { version: 99, editor: { vimMode: true }, permissions: { allow: ["x"] } },
+          }),
+        }),
+        logger,
+      });
+
+      expect(vi.mocked(logger.warn)).not.toHaveBeenCalled();
+    });
+
+    it("does not warn in project scope when there is no cursor override at all", async () => {
       const logger = createMockLogger();
       await CursorPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -448,6 +480,24 @@ describe("CursorPermissions", () => {
       });
 
       expect(vi.mocked(logger.warn)).not.toHaveBeenCalled();
+    });
+
+    it("lifts approvalMode out of a project cli.json on import, losing nothing", () => {
+      const cursorPermissions = new CursorPermissions({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "cli.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          approvalMode: "unrestricted",
+          permissions: { allow: ["Shell(git *)"] },
+        }),
+      });
+
+      // Import is scope-blind on purpose: a project file can still carry these
+      // (hand-written, or left by an older rulesync), and dropping them here
+      // would lose data. The next project generate warns instead.
+      const parsed = JSON.parse(cursorPermissions.toRulesyncPermissions().getFileContent());
+      expect(parsed.cursor.approvalMode).toBe("unrestricted");
     });
 
     it("routes cli.json approvalMode/sandbox back into the cursor override on import", () => {

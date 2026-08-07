@@ -237,14 +237,20 @@ export type VibePermissionsOverride = z.infer<typeof VibePermissionsOverrideSche
  * Tool-scoped override block for Cursor CLI. Cursor's `cli.json` carries scalar
  * autonomy settings with no canonical permission category — `approvalMode`
  * (`allowlist` | `auto-review` | `unrestricted`) and a `sandbox` object
- * (`mode`/`networkAccess`). Fields placed here are merged into the top-level of
- * `.cursor/cli.json` (project) / `~/.cursor/cli-config.json` (global) and emitted
- * only for Cursor, while the shared `permission` block continues to drive the
- * `permissions.allow`/`permissions.deny` arrays. Kept a `looseObject` so extra
- * `cli.json` keys can be authored (they are merged verbatim on generate);
- * `sandbox`'s accepted values are not documented so it passes through verbatim.
+ * (`mode`/`networkAccess`). Fields placed here are merged into the top level of
+ * `~/.cursor/cli-config.json` and emitted only for Cursor, while the shared
+ * `permission` block continues to drive the `permissions.allow`/`permissions.deny`
+ * arrays. Kept a `looseObject` so extra config keys can be authored (they are
+ * merged verbatim on generate); `sandbox`'s accepted values are not documented
+ * so it passes through verbatim.
+ *
+ * These are **global-only** settings: Cursor documents that "Only permissions
+ * can be configured at the project level. All other CLI settings must be set
+ * globally", so a project generate skips them with a warning instead of writing
+ * keys `.cursor/cli.json` would ignore. Author them with `--global`.
+ *
  * Note: only `approvalMode` and `sandbox` round-trip back on import — other keys
- * authored here reach `cli.json` on generate but are not re-extracted.
+ * authored here reach the global config on generate but are not re-extracted.
  *
  * @example
  * { "approvalMode": "auto-review" }
