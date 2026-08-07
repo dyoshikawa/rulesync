@@ -170,7 +170,28 @@ describe("CursorPermissions", () => {
       expect(parsed.permissions.deny).toContain("Mcp(github:create_issue)");
     });
 
-    it("should default-stamp version: 1 when generating from a fresh config (project)", async () => {
+    it("should default-stamp version: 1 when generating from a fresh config (global)", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+        }),
+      });
+
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+        global: true,
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.version).toBe(1);
+    });
+
+    it("should not stamp version or editor into a project config", async () => {
       const logger = createMockLogger();
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -186,11 +207,15 @@ describe("CursorPermissions", () => {
         logger,
       });
 
+      // Cursor applies only `permissions` from a project config, so anything
+      // else rulesync wrote here would be a key Cursor ignores.
       const parsed = JSON.parse(cursorPermissions.getFileContent());
-      expect(parsed.version).toBe(1);
+      expect(parsed.version).toBeUndefined();
+      expect(parsed.editor).toBeUndefined();
+      expect(parsed.permissions.allow).toEqual(["Shell(git *)"]);
     });
 
-    it("should default-stamp editor.vimMode and keep allow as an empty array for deny-only configs", async () => {
+    it("should default-stamp editor.vimMode (global) and keep allow empty for deny-only configs", async () => {
       const logger = createMockLogger();
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -206,6 +231,7 @@ describe("CursorPermissions", () => {
         outputRoot: testDir,
         rulesyncPermissions,
         logger,
+        global: true,
       });
 
       const parsed = JSON.parse(cursorPermissions.getFileContent());
@@ -319,7 +345,7 @@ describe("CursorPermissions", () => {
   });
 
   describe("cursor override (approvalMode / sandbox)", () => {
-    it("merges approvalMode and sandbox from the cursor override into cli.json", async () => {
+    it("merges approvalMode and sandbox from the cursor override into cli-config.json", async () => {
       const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: new RulesyncPermissions({
@@ -330,6 +356,7 @@ describe("CursorPermissions", () => {
             cursor: { approvalMode: "auto-review", sandbox: { mode: "workspace-write" } },
           }),
         }),
+        global: true,
       });
 
       const parsed = JSON.parse(cursorPermissions.getFileContent());
@@ -351,6 +378,7 @@ describe("CursorPermissions", () => {
             cursor: { approvalMode: "unrestricted", permissions: { allow: ["Shell(evil)"] } },
           }),
         }),
+        global: true,
       });
 
       const parsed = JSON.parse(cursorPermissions.getFileContent());
@@ -369,6 +397,7 @@ describe("CursorPermissions", () => {
             cursor: { approvalMode: "auto-review", version: 99, editor: { vimMode: true } },
           }),
         }),
+        global: true,
       });
 
       const parsed = JSON.parse(cursorPermissions.getFileContent());
@@ -376,6 +405,49 @@ describe("CursorPermissions", () => {
       // rulesync-managed fields win over the override.
       expect(parsed.version).toBe(1);
       expect(parsed.editor).toEqual({ vimMode: false });
+    });
+
+    it("warns and skips the global-only override keys in project scope", async () => {
+      const logger = createMockLogger();
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            cursor: { approvalMode: "auto-review", sandbox: { mode: "workspace-write" } },
+          }),
+        }),
+        logger,
+      });
+
+      // Written into `.cursor/cli.json`, these would be keys Cursor ignores,
+      // so the authored autonomy settings would silently never take effect.
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.approvalMode).toBeUndefined();
+      expect(parsed.sandbox).toBeUndefined();
+      expect(parsed.permissions.allow).toEqual(["Shell(git *)"]);
+
+      const warning = vi.mocked(logger.warn).mock.calls.flat().join("\n");
+      expect(warning).toContain("approvalMode");
+      expect(warning).toContain("sandbox");
+      expect(warning).toContain("--global");
+    });
+
+    it("does not warn in project scope when the override has no global-only keys", async () => {
+      const logger = createMockLogger();
+      await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+        }),
+        logger,
+      });
+
+      expect(vi.mocked(logger.warn)).not.toHaveBeenCalled();
     });
 
     it("routes cli.json approvalMode/sandbox back into the cursor override on import", () => {
