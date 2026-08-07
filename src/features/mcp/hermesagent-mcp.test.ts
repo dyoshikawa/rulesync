@@ -448,6 +448,24 @@ describe("HermesagentMcp", () => {
       expect(servers.streamable?.transport).toBeUndefined();
     });
 
+    it("writes transport: sse for an sse server spelled with the httpUrl alias", async () => {
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({
+            mcpServers: { events: { transport: "sse", httpUrl: "https://example.com/sse" } },
+          }),
+        }),
+      });
+
+      const server = getMcpServers(mcp.getFileContent()).events;
+      expect(server?.url).toBe("https://example.com/sse");
+      expect(server?.transport).toBe("sse");
+    });
+
     it("imports the v0.20.0 keys back into the canonical model (issue #2414)", () => {
       const mcp = new HermesagentMcp({
         outputRoot: testDir,

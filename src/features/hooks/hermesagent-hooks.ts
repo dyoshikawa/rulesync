@@ -62,13 +62,30 @@ const HERMESAGENT_CANONICAL_EVENTS: ReadonlySet<string> = new Set(HERMESAGENT_HO
 const HERMESAGENT_NATIVE_EVENTS: ReadonlySet<string> = new Set(HERMESAGENT_NATIVE_HOOK_EVENTS);
 
 /**
- * The sibling of the event keys under `hooks:`: a list of outbound webhook
- * targets (`name`, `url`, `events`, `secret_env`, `matcher`, `timeout`) added
- * in Hermes v0.20.0. rulesync neither authors nor imports it, it only makes
- * sure a regenerate does not delete it.
+ * Whether an entry of the `hooks:` mapping is a hook-event list rather than one
+ * of its non-event siblings.
+ *
+ * The mapping is not all events: Hermes v0.20.0 nests the outbound webhook
+ * registry there as `hooks.outbound`, a list of targets (`name`, `url`,
+ * `events`, `secret_env`, `matcher`, `timeout`) that rulesync neither authors
+ * nor imports. A documented native event is an event whatever its value; for
+ * anything else the value decides, because rulesync also emits *undocumented*
+ * event names supplied through the `hermesagent.hooks` override (forward
+ * compatibility), and those must stay retractable. Everything rulesync writes
+ * is a non-empty list of entries carrying a string `command`, which no registry
+ * entry has — `outbound` entries carry `url`/`events` instead.
+ *
+ * Both directions ask this one question, so import and generate cannot drift.
  * @see https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks
  */
-const HERMESAGENT_OUTBOUND_HOOKS_KEY = "outbound";
+function isHermesHookEventEntry(key: string, value: unknown): boolean {
+  if (HERMESAGENT_NATIVE_EVENTS.has(key)) return true;
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((entry) => isPlainObject(entry) && typeof entry.command === "string")
+  );
+}
 
 /**
  * Convert the canonical hooks config into Hermes's native
@@ -220,11 +237,10 @@ function hermesHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
     if (PROTOTYPE_POLLUTION_KEYS.has(nativeEvent) || !Array.isArray(entries)) {
       continue;
     }
-    // `outbound` is the webhook registry, not a hook event. Its entries carry
-    // no `command` so they are dropped by the loop below anyway, but skipping
-    // the key outright keeps a future registry field from being read as a hook
-    // and written back in the wrong shape.
-    if (nativeEvent === HERMESAGENT_OUTBOUND_HOOKS_KEY) {
+    // A non-event sibling such as the `outbound` webhook registry is not a hook
+    // and must not be read as one, or a regenerate would write it back in the
+    // wrong shape.
+    if (!isHermesHookEventEntry(nativeEvent, entries)) {
       continue;
     }
     const rulesyncEvent = HERMESAGENT_TO_CANONICAL_EVENT_NAMES[nativeEvent] ?? nativeEvent;
@@ -263,14 +279,15 @@ function hermesHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
 /**
  * Recompute the `hooks:` mapping that is written back to `config.yaml`.
  *
- * rulesync owns the native `VALID_HOOKS` event keys inside that mapping, but
- * not the mapping itself: Hermes v0.20.0 nests the outbound webhook registry
- * under the same key as `hooks.outbound`, and it is a list of webhook targets
- * rather than a hook event, so it has no rulesync spelling and no migration
- * path. Replacing the whole mapping destroyed it on every generate. Every key
- * that is not a native event is therefore carried over from the existing file,
- * while the event keys are still replaced wholesale so a hook deleted from the
- * rulesync source is retracted.
+ * rulesync owns the hook events inside that mapping, but not the mapping
+ * itself: Hermes v0.20.0 nests the outbound webhook registry under the same key
+ * as `hooks.outbound`, and it is a list of webhook targets rather than a hook
+ * event, so it has no rulesync spelling and no migration path. Replacing the
+ * whole mapping destroyed it on every generate. Every key that is not an event
+ * ({@link isHermesHookEventEntry}) is therefore carried over from the existing
+ * file, while event keys are replaced wholesale so a hook deleted from the
+ * rulesync source is retracted — including one written under an undocumented
+ * event name through the `hermesagent.hooks` override.
  * @see https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks
  */
 function mergeHermesHooksBlock({
@@ -284,7 +301,7 @@ function mergeHermesHooksBlock({
   if (isPlainObject(existingHooks)) {
     for (const [key, value] of Object.entries(existingHooks)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-      if (HERMESAGENT_NATIVE_EVENTS.has(key)) continue;
+      if (isHermesHookEventEntry(key, value)) continue;
       preserved[key] = value;
     }
   }
@@ -378,7 +395,6 @@ export class HermesagentHooks extends ToolHooks {
       feature: "hooks",
       existingContent: fileContent,
       patch: {
-        ...generated,
         hooks: mergeHermesHooksBlock({
           existingHooks: existing.hooks,
           generatedHooks: generated.hooks,

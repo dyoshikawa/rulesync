@@ -50,12 +50,30 @@ const sharedWriteTargets = (writers: SharedFileWriter[]): ToolTarget[] => [
 
 const USER_SENTINEL_KEY = "rulesyncContractSentinel";
 
+/**
+ * Hermes nests its outbound webhook registry inside the same `hooks:` mapping
+ * the hooks feature owns, so that file is seeded one level deeper as well: a
+ * top-level sentinel alone let the registry be destroyed (issue #2414).
+ */
+const HERMES_OUTBOUND_SENTINEL_KEY_PATHS = ["hooks", "hooks.outbound"];
+
+const isHermesConfigKey = (key: string): boolean => key.endsWith("hermes/config.yaml");
+
+const seededKeyPaths = (key: string): Set<string> =>
+  new Set(
+    isHermesConfigKey(key)
+      ? [USER_SENTINEL_KEY, ...HERMES_OUTBOUND_SENTINEL_KEY_PATHS]
+      : [USER_SENTINEL_KEY],
+  );
+
 const expectFilesSeen = (seenKeyPaths: Map<string, Set<string>>, keys: string[]): void => {
   // Sanity guard: the fixture must actually exercise the multi-format core of
   // the shared-write surface; an empty pass would prove nothing. Every shared
-  // file is pre-seeded with the sentinel, so "generated" means the final key
-  // paths hold more than the sentinel alone.
-  const missing = keys.filter((key) => (seenKeyPaths.get(key)?.size ?? 0) <= 1);
+  // file is pre-seeded, so "generated" means the final key paths hold more than
+  // what was seeded.
+  const missing = keys.filter(
+    (key) => (seenKeyPaths.get(key)?.size ?? 0) <= seededKeyPaths(key).size,
+  );
   expect(
     missing,
     `expected shared files to be generated on top of the seeded sentinel; observed: ${[
@@ -192,7 +210,15 @@ describe("shared-file cross-feature write contract", () => {
   }): Promise<void> => {
     for (const writer of writers) {
       const filePath = join(fileRoot, writer.relativeDirPath, writer.relativeFilePath);
-      if (writer.relativeFilePath.endsWith(".toml")) {
+      if (isHermesConfigKey(writer.key)) {
+        // Hermes nests its outbound webhook registry inside the same `hooks:`
+        // mapping the hooks feature owns, so the sentinel has to sit one level
+        // down to cover it — a top-level key alone let #2414 ship.
+        await writeFileContent(
+          filePath,
+          `${USER_SENTINEL_KEY}: keep\nhooks:\n  outbound:\n    - name: ci-notify\n      url: https://ci.example.com/hermes-events\n      events: [on_session_end]\n`,
+        );
+      } else if (writer.relativeFilePath.endsWith(".toml")) {
         await writeFileContent(filePath, `${USER_SENTINEL_KEY} = "keep"\n`);
       } else if (
         writer.relativeFilePath.endsWith(".yaml") ||
@@ -224,7 +250,7 @@ describe("shared-file cross-feature write contract", () => {
     const targets = sharedWriteTargets(writers);
     await seedUserSentinels({ writers, fileRoot });
     const seenKeyPaths = new Map<string, Set<string>>(
-      writers.map((writer) => [writer.key, new Set([USER_SENTINEL_KEY])]),
+      writers.map((writer) => [writer.key, seededKeyPaths(writer.key)]),
     );
 
     for (const feature of SHARED_WRITE_FEATURE_ORDER) {

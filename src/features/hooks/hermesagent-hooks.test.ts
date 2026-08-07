@@ -353,9 +353,44 @@ hooks:
         outbound: [{ url: "https://ci.example.com/hermes-events" }],
       });
     });
+
+    it("retracts an undocumented event key it wrote through the override block", async () => {
+      // Written by an earlier generate from `hermesagent.hooks`, which emits
+      // event names Hermes does not document yet. Those are rulesync's, so
+      // removing them from the source has to remove them from the file — the
+      // sibling-preserving merge must not mistake them for a registry.
+      const hooks = await HermesagentHooks.fromRulesyncHooks({
+        outputRoot: ".",
+        rulesyncHooks: rulesyncHooksFrom({ version: 1, hooks: {} }),
+      });
+
+      hooks.setFileContent(`hooks:
+  on_context_compact:
+    - command: stale.sh
+`);
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
+      expect(config.hooks).toEqual({});
+    });
   });
 
   describe("toRulesyncHooks", () => {
+    it("does not import the outbound webhook registry as a hook (#2414)", () => {
+      const hooks = new HermesagentHooks({
+        outputRoot: ".",
+        fileContent: `hooks:
+  outbound:
+    - name: ci-notify
+      url: https://ci.example.com/hermes-events
+      events: [on_session_end]
+`,
+      });
+
+      const imported = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+      expect(imported.hooks).toEqual({});
+      expect(imported.hermesagent).toBeUndefined();
+    });
+
     it("round-trips native VALID_HOOKS event keys back to canonical event names", () => {
       const hooks = new HermesagentHooks({
         outputRoot: ".",
