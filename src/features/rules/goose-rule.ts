@@ -34,7 +34,7 @@ export type GooseRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * touches during a session. The separate `.goose/memories/` tree is the Memory
  * extension's storage and is NOT auto-loaded as session context.
  * (Verified against the official docs:
- * https://block.github.io/goose/docs/guides/context-engineering/using-goosehints/)
+ * https://goose-docs.ai/docs/guides/context-engineering/using-goosehints/)
  *
  * rulesync's topic-based non-root rules have no project subdirectory to map onto,
  * so writing them under `.goose/memories/` made them effectively invisible to
@@ -45,7 +45,7 @@ export type GooseRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * Goose uses plain markdown files (.goosehints) without frontmatter.
  *
  * Global scope emits only `~/.config/goose/.goosehints`. Goose v1.41.0 (PR
- * block/goose#9736) additionally loads the vendor-neutral
+ * aaif-goose/goose#9736) additionally loads the vendor-neutral
  * `~/.agents/AGENTS.md` alongside the config-dir hints, but rulesync
  * deliberately does not emit that shared path from the goose target: the
  * config-dir hints remain fully loaded (no capability loss), and the

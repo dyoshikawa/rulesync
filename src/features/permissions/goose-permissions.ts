@@ -25,7 +25,7 @@ const GOOSE_GLOBAL_ONLY_MESSAGE =
 // Goose stores user-set permission decisions under the top-level `user` key of
 // permission.yaml; other keys (e.g. `smart_approve`) hold cached LLM/annotation
 // decisions and are preserved verbatim.
-// https://github.com/block/goose/blob/main/crates/goose/src/config/permission.rs
+// https://github.com/aaif-goose/goose/blob/main/crates/goose/src/config/permission.rs
 const GOOSE_USER_KEY = "user";
 
 // The catch-all rulesync pattern. Goose permission lists hold whole tool names
@@ -35,7 +35,7 @@ const CATCH_ALL_PATTERN = "*";
 
 // Goose's built-in Developer extension tools are namespaced `extension__tool`.
 // rulesync's canonical categories map onto the matching Developer tool name.
-// https://block.github.io/goose/docs/mcp/developer-mcp/
+// https://goose-docs.ai/docs/mcp/developer-mcp/
 const RULESYNC_TO_GOOSE_TOOL_NAME: Record<string, string> = {
   bash: "developer__shell",
   edit: "developer__text_editor",
