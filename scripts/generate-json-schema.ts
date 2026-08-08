@@ -12,7 +12,6 @@ import {
 } from "../src/constants/rulesync-paths.js";
 import { RulesyncMcpFileSchema } from "../src/features/mcp/rulesync-mcp.js";
 import { RulesyncPermissionsFileSchema } from "../src/types/permissions.js";
-import { runOxfmt } from "./run-oxfmt.js";
 
 type SchemaMeta = {
   $id: string;
@@ -69,5 +68,7 @@ generateSchema(
   permissionsOutputPath,
 );
 
-// Format generated schema files with oxfmt for consistent formatting
-runOxfmt([outputPath, mcpOutputPath, permissionsOutputPath]);
+// No oxfmt pass here: since oxfmt 0.62.0, gitignored paths are skipped even
+// when passed explicitly, and these schema files are gitignored. The
+// JSON.stringify output above is already deterministic, and no drift check
+// compares these files, so the formatter pass is unnecessary.
