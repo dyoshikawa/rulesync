@@ -49,7 +49,7 @@ const GOOSE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  *
  * The JSON shape matches Claude Code's: each PascalCase event maps to an array of
  * `{ matcher, hooks: [{ type: "command", command }] }` entries.
- * @see https://block.github.io/goose/docs/guides/context-engineering/hooks/
+ * @see https://goose-docs.ai/docs/guides/context-engineering/hooks/
  */
 export class GooseHooks extends ToolHooks {
   constructor(params: AiFileParams) {

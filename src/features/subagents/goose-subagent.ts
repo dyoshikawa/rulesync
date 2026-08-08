@@ -32,7 +32,7 @@ import {
  * `sub_recipes` list, which rulesync never wrote) — so those files were inert.
  * The custom-agent surface is the one Goose actually reads.
  *
- * @see https://block.github.io/goose/docs/guides/context-engineering/custom-agents/
+ * @see https://goose-docs.ai/docs/guides/context-engineering/custom-agents/
  */
 export const GooseSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),

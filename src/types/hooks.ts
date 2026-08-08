@@ -550,8 +550,8 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
  * has NO `SubagentStart`/`SubagentStop` arms — emitting them would write keys
  * Goose silently ignores, so `subagentStart`/`subagentStop` are intentionally
  * excluded here and from `CANONICAL_TO_GOOSE_EVENT_NAMES`.
- * @see https://github.com/block/goose/blob/v1.41.0/crates/goose/src/hooks/mod.rs
- * @see https://block.github.io/goose/docs/guides/context-engineering/hooks/
+ * @see https://github.com/aaif-goose/goose/blob/v1.41.0/crates/goose/src/hooks/mod.rs
+ * @see https://goose-docs.ai/docs/guides/context-engineering/hooks/
  */
 export const GOOSE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
