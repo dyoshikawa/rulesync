@@ -521,6 +521,23 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
     },
   },
+  // Muse Code user settings (`~/.config/muse/settings.json`): mcp is its only
+  // writer (Muse Code documents no project-scoped MCP location; hooks live in
+  // `.muse/hooks.json`, which is not emitted). Declared anyway so the write
+  // goes through the same codec and ownership enforcement, like the global
+  // kilo config. `schema_version` is co-owned because the file is unusable
+  // without it — Muse Code fails startup with `malformed settings file` — so
+  // the mcp writer bootstraps it on file creation (an existing value is
+  // carried over before the patch is applied, so the whole key is owned here).
+  ".config/muse/settings.json": {
+    format: "json",
+    // The user's primary Muse Code config: refuse to read-modify-write a file
+    // we could not parse rather than replacing it with generated output.
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers", "schema_version"] },
+    },
+  },
   // Kiro agent config: `allowedTools`/`toolsSettings` are recomputed from the
   // existing file (existing tools and settings folded in) before being applied.
   ".kiro/agents/default.json": {
