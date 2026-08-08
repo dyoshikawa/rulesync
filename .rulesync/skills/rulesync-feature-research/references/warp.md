@@ -7,7 +7,7 @@
 | index         | `https://docs.warp.dev/`                                             | Warp documentation index                                                                                 |
 | `rules`       | `https://docs.warp.dev/agent-platform/capabilities/rules`            | Global Rules, Project Rules, `AGENTS.md`, `WARP.md`, global `~/.agents/AGENTS.md`, imported legacy rules |
 | `ignore`      | `https://docs.warp.dev/agent-platform/capabilities/codebase-context` | `.warpindexingignore` (project root, gitignore syntax)                                                   |
-| `mcp`         | `https://docs.warp.dev/agent-platform/mcp`                           | `.warp/.mcp.json` (project) and `~/.agents/.mcp.json` (global)                                           |
+| `mcp`         | `https://docs.warp.dev/agent-platform/mcp`                           | `.warp/.mcp.json` (project) and `~/.warp/.mcp.json` (global)                                             |
 | `commands`    | `https://docs.warp.dev/agent-platform/capabilities/skills`           | Emitted onto the native skills surface (`/{skill-name}` invocation)                                      |
 | `subagents`   | No dedicated upstream subagents surface in map                       | No Rulesync-supported Warp subagents target in map (child agents are runtime constructs, no file format) |
 | `skills`      | `https://docs.warp.dev/agent-platform/capabilities/skills`           | `.warp/skills/` (first in local discovery precedence) and `.agents/skills/`                              |
