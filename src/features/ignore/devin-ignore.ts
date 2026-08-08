@@ -5,6 +5,7 @@ import {
   DEVIN_GLOBAL_IGNORE_FILE_NAME,
   DEVIN_IGNORE_FILE_NAME,
   DEVIN_LEGACY_IGNORE_FILE_NAME,
+  DEVIN_WINDSURF_IGNORE_FILE_NAME,
 } from "../../constants/devin-paths.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -22,9 +23,11 @@ import { ToolIgnore } from "./tool-ignore.js";
  *
  * Generates the brand-aligned `.devinignore` file with gitignore-compatible
  * syntax. Devin automatically respects `.gitignore` patterns and has built-in
- * defaults for node_modules/ and hidden files. On import, the legacy
- * `.codeiumignore` filename is read as a fallback so existing projects still
- * round-trip.
+ * defaults for node_modules/ and hidden files. On import, the pre-rebrand
+ * `.codeiumignore` and `.windsurfignore` filenames are read as fallbacks so
+ * existing projects still round-trip. The docs list the three names side by
+ * side without defining a precedence between them, so the order below is
+ * rulesync's own choice: brand-aligned name first, then the legacy names.
  *
  * In global mode the enterprise-wide `~/.codeium/.codeiumignore` is written
  * instead; see `DEVIN_GLOBAL_IGNORE_DIR_PATH` for why that path keeps the
@@ -82,14 +85,25 @@ export class DevinIgnore extends ToolIgnore {
       });
     }
 
-    const primaryPath = join(outputRoot, relativeDirPath, relativeFilePath);
-    const legacyPath = join(outputRoot, relativeDirPath, DEVIN_LEGACY_IGNORE_FILE_NAME);
+    // Prefer the brand-aligned `.devinignore`; fall back to the pre-rebrand
+    // names only when the earlier candidates are absent so projects generated
+    // before the rebrand still round-trip on import. When none of them exist,
+    // read the primary path anyway so the missing-file error is reported
+    // against `.devinignore`.
+    const candidateFileNames = [
+      relativeFilePath,
+      DEVIN_LEGACY_IGNORE_FILE_NAME,
+      DEVIN_WINDSURF_IGNORE_FILE_NAME,
+    ];
 
-    // Prefer the brand-aligned `.devinignore`; fall back to the legacy
-    // `.codeiumignore` only when `.devinignore` is absent so projects generated
-    // before the rebrand still round-trip on import.
-    const useLegacy = !(await fileExists(primaryPath)) && (await fileExists(legacyPath));
-    const resolvedFilePath = useLegacy ? DEVIN_LEGACY_IGNORE_FILE_NAME : relativeFilePath;
+    let resolvedFilePath = relativeFilePath;
+    for (const candidateFileName of candidateFileNames) {
+      if (await fileExists(join(outputRoot, relativeDirPath, candidateFileName))) {
+        resolvedFilePath = candidateFileName;
+        break;
+      }
+    }
+
     const fileContent = await readFileContent(join(outputRoot, relativeDirPath, resolvedFilePath));
 
     return new DevinIgnore({
