@@ -120,8 +120,9 @@ const CopilotCliHookEntrySchema = z.looseObject({
   bash: z.optional(z.string()),
   powershell: z.optional(z.string()),
   // Cross-platform fallback: upstream copies it to both `bash` and
-  // `powershell` when those fields are absent, so it is import-only here —
-  // generate always writes the platform-specific field.
+  // `powershell` when those fields are absent. Generate writes it whenever the
+  // canonical `shell` selector is unset (see `buildCopilotCliEntriesForEvent`),
+  // and writes the shell-specific field otherwise.
   command: z.optional(z.string()),
   prompt: z.optional(z.string()),
   url: z.optional(z.string()),
@@ -302,6 +303,12 @@ function importPassthrough(entry: CopilotCliHookEntry): Record<string, unknown> 
  * A shell-specific field carries its `shell` through so re-export writes the
  * same field back. An entry using only the portable `command` field leaves
  * `shell` unset, which re-export renders as the portable field again.
+ *
+ * When both shell-specific fields are present, `bash` wins and a warning names
+ * the ignored `powershell`. The choice is deliberately not platform-dependent:
+ * importing on Windows must not produce a different canonical config than
+ * importing the same file on Linux, which would make the rulesync hooks file
+ * differ per machine for anyone who checks it in.
  */
 function resolveImportCommand(
   entry: CopilotCliHookEntry,
@@ -310,15 +317,10 @@ function resolveImportCommand(
   const hasBash = typeof entry.bash === "string";
   const hasPowershell = typeof entry.powershell === "string";
   if (hasBash && hasPowershell) {
-    const isWindows = process.platform === "win32";
-    const chosen = isWindows ? "powershell" : "bash";
-    const ignored = isWindows ? "bash" : "powershell";
     logger?.warn(
-      `Copilot CLI hook has both bash and powershell commands; using ${chosen} and ignoring ${ignored} on this platform.`,
+      "Copilot CLI hook has both bash and powershell commands; using bash and ignoring powershell, so the imported config does not depend on the machine the import ran on.",
     );
-    return isWindows
-      ? { command: entry.powershell, shell: "powershell" }
-      : { command: entry.bash, shell: "bash" };
+    return { command: entry.bash, shell: "bash" };
   } else if (hasBash) {
     return { command: entry.bash, shell: "bash" };
   } else if (hasPowershell) {

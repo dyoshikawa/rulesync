@@ -709,6 +709,62 @@ describe("CopilotHooks", () => {
       expect(reExported.hooks.preToolUse[0].command).toBe("portable.sh");
     });
 
+    it("should round-trip cwd through import and re-export", async () => {
+      const copilotHooks = new CopilotHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilot-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [
+              { type: "command", bash: "echo hi", cwd: "packages/api", timeoutSec: 30 },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const imported = copilotHooks.toRulesyncHooks().getJson();
+      expect(imported.hooks.sessionStart?.[0]?.cwd).toBe("packages/api");
+      expect(imported.hooks.sessionStart?.[0]?.timeout).toBe(30);
+
+      // Generate re-emits non-canonical keys through `rest`, so `cwd` only
+      // survives a round trip if import preserved it.
+      const reExported = JSON.parse(
+        (
+          await CopilotHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks: copilotHooks.toRulesyncHooks(),
+            validate: false,
+          })
+        ).getFileContent(),
+      );
+      expect(reExported.hooks.sessionStart[0].cwd).toBe("packages/api");
+      expect(reExported.hooks.sessionStart[0].timeoutSec).toBe(30);
+    });
+
+    it("should read the timeout alias when timeoutSec is absent", () => {
+      const copilotHooks = new CopilotHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilot-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [{ type: "command", bash: "echo hi", timeout: 45 }],
+            sessionEnd: [{ type: "command", bash: "echo bye", timeout: 45, timeoutSec: 10 }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = copilotHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.sessionStart?.[0]?.timeout).toBe(45);
+      // `timeoutSec` is the documented spelling, so it wins over the alias.
+      expect(json.hooks.sessionEnd?.[0]?.timeout).toBe(10);
+    });
+
     it("should handle empty hooks", () => {
       const copilotHooks = new CopilotHooks({
         outputRoot: testDir,

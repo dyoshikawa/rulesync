@@ -45,8 +45,12 @@ const CopilotHookEntrySchema = z.looseObject({
   bash: z.optional(z.string()),
   powershell: z.optional(z.string()),
   command: z.optional(z.string()),
+  cwd: z.optional(z.string()),
   env: z.optional(z.record(z.string(), z.string())),
   timeoutSec: z.optional(z.number()),
+  // Alias for `timeoutSec`, used only when `timeoutSec` is absent, matching how
+  // the Copilot CLI sibling reads the two spellings.
+  timeout: z.optional(z.number()),
 });
 
 type CopilotHookEntry = z.infer<typeof CopilotHookEntrySchema>;
@@ -147,6 +151,23 @@ function resolveImportCommand(
 }
 
 /**
+ * Extract the non-command fields preserved across import.
+ *
+ * Generate re-emits any non-canonical key verbatim through `rest`, so a key
+ * dropped here does not survive an import → generate round trip. `cwd` is a
+ * documented Copilot hook field and was previously lost that way.
+ *
+ * @see https://docs.github.com/en/copilot/reference/hooks-reference
+ * @see https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks
+ */
+function importPassthrough(entry: CopilotHookEntry): Record<string, unknown> {
+  const passthrough: Record<string, unknown> = {};
+  if (entry.cwd !== undefined) passthrough.cwd = entry.cwd;
+  if (entry.env !== undefined) passthrough.env = entry.env;
+  return passthrough;
+}
+
+/**
  * Extract hooks from Copilot hooks JSON into canonical format.
  * Copilot format: { version: 1, hooks: { eventName: [...hookEntries] } }
  */
@@ -165,14 +186,14 @@ function copilotHooksToCanonical(copilotHooks: unknown, logger?: Logger): HooksC
       if (!parseResult.success) continue;
       const entry = parseResult.data;
       const { command, shell } = resolveImportCommand(entry, logger);
-      const timeout = entry.timeoutSec;
+      const timeout = entry.timeoutSec ?? entry.timeout;
 
       defs.push({
         type: "command",
         ...(command !== undefined && { command }),
         ...(shell !== undefined && { shell }),
-        ...(entry.env !== undefined && { env: entry.env }),
         ...(timeout !== undefined && { timeout }),
+        ...importPassthrough(entry),
       });
     }
     if (defs.length > 0) {
