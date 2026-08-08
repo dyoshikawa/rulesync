@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_MCP_SCHEMA_URL } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { readFileContent, writeFileContent } from "../../utils/file.js";
 import { MusecodeMcp } from "./musecode-mcp.js";
@@ -124,6 +125,41 @@ describe("MusecodeMcp", () => {
       expect(mcp.getJson().mcp_servers).toEqual({
         off: { transport: "stdio", command: "srv", args: [], enabled: false },
       });
+    });
+
+    it("should warn-and-skip sse and ws servers instead of rewriting them to streamable_http", async () => {
+      const logger = createMockLogger();
+      const mcp = await MusecodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          legacy: { type: "sse", url: "https://example.com/sse" },
+          socket: { type: "ws", url: "wss://example.com/ws" },
+          "bare-ws-url": { url: "ws://example.com/ws" },
+          kept: { type: "http", url: "https://example.com/mcp" },
+        }),
+        global: true,
+        logger,
+      });
+
+      // Only the streamable-HTTP-capable server survives; sse/ws servers would
+      // not connect over Muse Code's streamable_http transport.
+      expect(mcp.getJson().mcp_servers).toEqual({
+        kept: { transport: "streamable_http", url: "https://example.com/mcp" },
+      });
+      for (const [serverName, transport] of [
+        ["legacy", "sse"],
+        ["socket", "ws"],
+        ["bare-ws-url", "ws"],
+      ] as const) {
+        expect(
+          logger.warn.mock.calls.some(
+            ([message]) =>
+              typeof message === "string" &&
+              message.includes(`"${serverName}"`) &&
+              message.includes(`"${transport}"`),
+          ),
+        ).toBe(true);
+      }
     });
 
     it("should bootstrap schema_version: 1 when creating the file", async () => {

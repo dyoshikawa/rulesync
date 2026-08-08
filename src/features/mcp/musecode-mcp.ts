@@ -37,6 +37,21 @@ const MUSECODE_GLOBAL_ONLY_MESSAGE =
   "Muse Code MCP is global-only; use --global to sync ~/.config/muse/settings.json";
 
 /**
+ * Single spelling of the settings.json codec/policy, matching the
+ * `SHARED_CONFIG_OWNERSHIP` declaration for `.config/muse/settings.json`:
+ * fail closed on an unparseable root rather than replacing the user's primary
+ * Muse Code config with generated output.
+ */
+function parseMusecodeSettings(fileContent: string, filePath?: string): Record<string, unknown> {
+  return parseSharedConfig({
+    format: "json",
+    fileContent,
+    filePath,
+    invalidRootPolicy: "error",
+  });
+}
+
+/**
  * Convert canonical rulesync servers to Muse Code's native `mcp_servers` shape.
  * Each entry carries a `transport` discriminator: `stdio` servers spawn a
  * `command` (single string) with `args`/`env`, and `streamable_http` servers
@@ -68,6 +83,25 @@ function convertToMusecodeFormat(mcpServers: McpServers, logger?: Logger): Recor
           toolName: "Muse Code",
           serverName: name,
           reason: "a remote transport without a url",
+          logger,
+        });
+        continue;
+      }
+      // `streamable_http` is Muse Code's only documented remote transport. A
+      // server that states `sse` or `ws` does not speak it, so rewriting the
+      // entry would hand Muse Code a server it cannot connect to; those are
+      // skipped out loud instead (the rovodev `ws` / reasonix `sse` precedent).
+      // An explicit `type` is taken at its word; with none stated, a
+      // `ws://`/`wss://` URL takes the same unsupported path rather than being
+      // guessed at as HTTP.
+      const stated = config.type ?? config.transport;
+      const unsupportedRemote =
+        stated === "sse" || stated === "ws" || (stated === undefined && /^wss?:\/\//i.test(url));
+      if (unsupportedRemote) {
+        warnAndSkipMcpServer({
+          toolName: "Muse Code",
+          serverName: name,
+          reason: `the "${stated ?? "ws"}" transport, which Muse Code does not implement (only stdio and streamable_http are supported)`,
           logger,
         });
         continue;
@@ -157,12 +191,10 @@ export class MusecodeMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = parseSharedConfig({
-      format: "json",
-      fileContent: this.fileContent ?? "",
-      filePath: join(this.relativeDirPath, this.relativeFilePath),
-      invalidRootPolicy: "error",
-    });
+    this.json = parseMusecodeSettings(
+      this.fileContent ?? "",
+      join(this.relativeDirPath, this.relativeFilePath),
+    );
   }
 
   getJson(): Record<string, unknown> {
@@ -219,12 +251,7 @@ export class MusecodeMcp extends ToolMcp {
 
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    const existing = parseSharedConfig({
-      format: "json",
-      fileContent: existingContent,
-      filePath,
-      invalidRootPolicy: "error",
-    });
+    const existing = parseMusecodeSettings(existingContent, filePath);
 
     const converted = convertToMusecodeFormat(rulesyncMcp.getMcpServers(), logger);
 
