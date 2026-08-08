@@ -396,8 +396,8 @@ function convertToGoosePluginMcpServers(
  *   shape and cannot express `url`/`headers`, so remote servers are skipped with
  *   a warning in project mode (use `--global` to sync them instead).
  *
- * @see https://block.github.io/goose/docs/getting-started/using-extensions/
- * @see https://github.com/block/goose/pull/9471
+ * @see https://goose-docs.ai/docs/getting-started/using-extensions/
+ * @see https://github.com/aaif-goose/goose/pull/9471
  */
 export class GooseMcp extends ToolMcp {
   private readonly config: Record<string, unknown>;

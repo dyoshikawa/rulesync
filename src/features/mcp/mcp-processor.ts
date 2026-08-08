@@ -313,8 +313,8 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       // `~/.config/goose/config.yaml`, and (since v1.39.0) discovers stdio-only
       // MCP extensions in open plugins at project scope
       // `.agents/plugins/rulesync/.mcp.json` (Claude-style `mcpServers`).
-      // https://block.github.io/goose/docs/getting-started/using-extensions/
-      // https://github.com/block/goose/pull/9471
+      // https://goose-docs.ai/docs/getting-started/using-extensions/
+      // https://github.com/aaif-goose/goose/pull/9471
       class: GooseMcp,
       meta: {
         supportsProject: true,
