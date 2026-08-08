@@ -848,13 +848,66 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
 export type CodexcliPermissionsOverride = z.infer<typeof CodexcliPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Zed. Two Zed surfaces sit outside the canonical
+ * allow/ask/deny model that `agent.tool_permissions` implements, and both are
+ * authored here verbatim:
+ *
+ * - `sandbox_permissions` — the OS-level agent sandbox, on by default since Zed
+ *   1.14.2 for the `terminal` and `fetch` tools. Its defaults forbid network
+ *   access, writing outside the project directories, and writing to `.git`, so a
+ *   real setup usually needs to relax one of them (`network_hosts` with exact
+ *   hostnames or leading `*.` wildcards, `allow_all_hosts`, `write_paths`,
+ *   `allow_fs_write_all`, `allow_unsandboxed`). This is containment, not tool
+ *   gating: no canonical category expresses it, so the block is written straight
+ *   into `agent.sandbox_permissions`, mirroring the Kilo / Claude Code / Codex
+ *   CLI `sandbox` passthrough precedent. Kept a bare `looseObject` rather than
+ *   enumerating the keys, since upstream adds to them release over release.
+ * - `profiles` — the tool-availability layer, a separate enforcement stage from
+ *   `tool_permissions`: a tool absent from the active profile cannot be used no
+ *   matter what the permission rules say. Per-profile keys are `name`, `tools`
+ *   (per-tool booleans), `enable_all_context_servers`, `context_servers` and
+ *   `default_model`. Like Kimi Code's `tools.enabled`/`disabled` block this is a
+ *   verbatim passthrough — no canonicalization is attempted.
+ *
+ * Neither surface can weaken a canonical deny, because `agent.tool_permissions`
+ * is off-limits to this override: the translator consumes only the two keys
+ * above by name and rejects a `tool_permissions` key with a warning.
+ *
+ * @see https://zed.dev/docs/ai/sandboxing
+ * @see https://zed.dev/docs/ai/agent-profiles
+ *
+ * @example
+ * { "sandbox_permissions": { "network_hosts": ["*.github.com"], "write_paths": ["/tmp"] },
+ *   "profiles": { "review": { "name": "Review", "tools": { "terminal": false } } } }
+ */
+const ZedPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  // @see https://zed.dev/docs/ai/sandboxing
+  sandbox_permissions: z.optional(z.looseObject({})),
+  // @see https://zed.dev/docs/ai/agent-profiles
+  profiles: z.optional(
+    z.record(
+      z.string(),
+      z.looseObject({
+        name: z.optional(z.string()),
+        tools: z.optional(z.record(z.string(), z.boolean())),
+        enable_all_context_servers: z.optional(z.boolean()),
+        context_servers: z.optional(z.looseObject({})),
+        default_model: z.optional(z.looseObject({})),
+      }),
+    ),
+  ),
+});
+export type ZedPermissionsOverride = z.infer<typeof ZedPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
  * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
  * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie`/`takt`/`amp`/
- * `antigravity-cli`/`augmentcode`/`kiro`/`codexcli` keys are tool-scoped
+ * `antigravity-cli`/`augmentcode`/`kiro`/`codexcli`/`zed` keys are tool-scoped
  * overrides consumed only by their respective translator (see the matching
  * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
  * block and ignores them.
@@ -894,6 +947,7 @@ const PermissionsConfigSchema = z.looseObject({
   augmentcode: z.optional(AugmentcodePermissionsOverrideSchema),
   kiro: z.optional(KiroPermissionsOverrideSchema),
   codexcli: z.optional(CodexcliPermissionsOverrideSchema),
+  zed: z.optional(ZedPermissionsOverrideSchema),
   // Tools without tool-specific override keys still accept the canonical
   // tool-scoped `permission` block (see ToolScopedPermissionSchema).
   "antigravity-ide": z.optional(CanonicalPermissionsOverrideSchema),
@@ -903,7 +957,6 @@ const PermissionsConfigSchema = z.looseObject({
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),
   "kimi-code": z.optional(KimiCodePermissionsOverrideSchema),
   rovodev: z.optional(CanonicalPermissionsOverrideSchema),
-  zed: z.optional(CanonicalPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 

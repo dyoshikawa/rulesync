@@ -20,6 +20,15 @@ function createRulesyncPermissions(permission: Record<string, Record<string, str
   });
 }
 
+function createRulesyncPermissionsWithConfig(config: Record<string, unknown>) {
+  return new RulesyncPermissions({
+    relativeDirPath: ".rulesync",
+    relativeFilePath: "permissions.json",
+    fileContent: JSON.stringify(config),
+    validate: true,
+  });
+}
+
 describe("ZedPermissions", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -676,6 +685,145 @@ describe("ZedPermissions", () => {
 
       // ...but import returns the canonical spelling other targets understand.
       expect(json.permission.mcp__context7__get_docs).toEqual({ "*": "allow" });
+    });
+  });
+
+  describe("zed override (sandbox_permissions / profiles)", () => {
+    const sandboxPermissions = {
+      network_hosts: ["*.github.com", "registry.npmjs.org"],
+      write_paths: ["/tmp/build"],
+      allow_fs_write_all: false,
+    };
+    const profiles = {
+      review: {
+        name: "Review",
+        tools: { terminal: false, edit_file: true },
+        enable_all_context_servers: false,
+      },
+    };
+
+    it("should write both blocks verbatim into agent alongside tool_permissions", async () => {
+      const rulesyncPermissions = createRulesyncPermissionsWithConfig({
+        permission: { bash: { "*": "ask" } },
+        zed: { sandbox_permissions: sandboxPermissions, profiles },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      const agent = JSON.parse(generated.getFileContent()).agent;
+
+      expect(agent.sandbox_permissions).toEqual(sandboxPermissions);
+      expect(agent.profiles).toEqual(profiles);
+      expect(agent.tool_permissions.tools.terminal).toEqual({ default: "confirm" });
+    });
+
+    it("should round-trip both blocks through generate → import in project scope", async () => {
+      const rulesyncPermissions = createRulesyncPermissionsWithConfig({
+        permission: { bash: { "*": "deny" } },
+        zed: { sandbox_permissions: sandboxPermissions, profiles },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      await writeFileContent(join(testDir, ".zed", "settings.json"), generated.getFileContent());
+
+      const imported = await ZedPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+
+      expect(json.permission.bash).toEqual({ "*": "deny" });
+      expect(json.zed).toEqual({ sandbox_permissions: sandboxPermissions, profiles });
+    });
+
+    it("should round-trip both blocks through generate → import in global scope", async () => {
+      const rulesyncPermissions = createRulesyncPermissionsWithConfig({
+        permission: { bash: { "*": "deny" } },
+        zed: { sandbox_permissions: sandboxPermissions, profiles },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        global: true,
+      });
+      await writeFileContent(
+        join(testDir, expectedZedGlobalDir, "settings.json"),
+        generated.getFileContent(),
+      );
+
+      const imported = await ZedPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+
+      expect(json.zed).toEqual({ sandbox_permissions: sandboxPermissions, profiles });
+    });
+
+    it("should omit the zed override on import when the settings carry neither block", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: { tool_permissions: { tools: { terminal: { default: "deny" } } } },
+        }),
+      );
+
+      const imported = await ZedPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+
+      expect(json.zed).toBeUndefined();
+    });
+
+    it("should replace an existing block wholesale but preserve one the override omits", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            sandbox_permissions: { network_hosts: ["old.example.com"], allow_all_hosts: true },
+            profiles: { legacy: { name: "Legacy" } },
+          },
+        }),
+      );
+
+      const rulesyncPermissions = createRulesyncPermissionsWithConfig({
+        permission: { bash: { "*": "ask" } },
+        zed: { sandbox_permissions: { network_hosts: ["new.example.com"] } },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      const agent = JSON.parse(generated.getFileContent()).agent;
+
+      // Authored: replaced as one unit, so the stale allow_all_hosts is gone.
+      expect(agent.sandbox_permissions).toEqual({ network_hosts: ["new.example.com"] });
+      // Not authored: left exactly as the user wrote it.
+      expect(agent.profiles).toEqual({ legacy: { name: "Legacy" } });
+    });
+
+    it("should ignore a tool_permissions key in the override with a warning", async () => {
+      const logger = { warn: vi.fn() } as unknown as Logger;
+      const rulesyncPermissions = createRulesyncPermissionsWithConfig({
+        permission: { bash: { "rm *": "deny" } },
+        zed: {
+          tool_permissions: { default: "allow", tools: { terminal: { default: "allow" } } },
+        },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+      const toolPermissions = JSON.parse(generated.getFileContent()).agent.tool_permissions;
+
+      // The canonical deny stands; the override could not relax it.
+      expect(toolPermissions.default).toBeUndefined();
+      expect(toolPermissions.tools.terminal).toEqual({
+        always_deny: [{ pattern: "rm *", case_sensitive: false }],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("tool_permissions"));
     });
   });
 });

@@ -10,9 +10,10 @@ import {
 } from "../../constants/zed-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction } from "../../types/permissions.js";
+import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -315,6 +316,66 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 /**
+ * The `agent` keys the `zed` override may author. Everything else — above all
+ * `tool_permissions`, which the canonical `permission` block owns end to end —
+ * is refused, so an override can never reach past its own surface and weaken a
+ * canonical deny. The override object is read key by key rather than spread, so
+ * an unlisted key is inert whether or not it is named here; `tool_permissions`
+ * is called out only to warn instead of failing silently.
+ */
+const ZED_OVERRIDE_AGENT_KEYS = ["sandbox_permissions", "profiles"] as const;
+const ZED_CANONICAL_AGENT_KEY = "tool_permissions";
+
+/**
+ * Build the `agent` patch fragment carrying the `zed` override's verbatim
+ * blocks. A key the override supplies replaces the existing block wholesale
+ * (Zed reads each as one unit — a deep merge would leave half of a rewritten
+ * sandbox policy behind); a key it omits is left out of the fragment, so the
+ * existing value survives via the caller's spread of `agent`.
+ */
+function buildZedOverridePatch({
+  override,
+  logger,
+}: {
+  override: PermissionsConfig["zed"];
+  logger?: { warn: (message: string) => void };
+}): Record<string, unknown> {
+  if (!isPlainObject(override)) return {};
+
+  if (ZED_CANONICAL_AGENT_KEY in override) {
+    logger?.warn(
+      `Zed permissions: ignoring the 'zed.${ZED_CANONICAL_AGENT_KEY}' override; \`agent.${ZED_CANONICAL_AGENT_KEY}\` is driven by the canonical permission block.`,
+    );
+  }
+
+  const patch: Record<string, unknown> = {};
+  for (const key of ZED_OVERRIDE_AGENT_KEYS) {
+    const value = override[key];
+    if (isPlainObject(value)) {
+      patch[key] = value;
+    }
+  }
+  return patch;
+}
+
+/**
+ * The write-side inverse: lift `agent.sandbox_permissions` / `agent.profiles`
+ * back into the `zed` override so a hand-written sandbox policy or profile set
+ * round-trips instead of being lost on the next generate. Returns `undefined`
+ * when the settings carry neither, so the override key is omitted.
+ */
+function extractZedOverride(agent: Record<string, unknown>): Record<string, unknown> | undefined {
+  const override: Record<string, unknown> = {};
+  for (const key of ZED_OVERRIDE_AGENT_KEYS) {
+    const value = agent[key];
+    if (isPlainObject(value)) {
+      override[key] = value;
+    }
+  }
+  return Object.keys(override).length > 0 ? override : undefined;
+}
+
+/**
  * Permissions generator for the Zed editor.
  *
  * Zed maps tool permissions onto `agent.tool_permissions` inside its settings
@@ -322,6 +383,11 @@ function asRecord(value: unknown): Record<string, unknown> {
  * global). That file is shared with the MCP (`context_servers`) and ignore
  * (`private_files`) features, so reads and writes merge into the existing JSON
  * rather than overwriting it, and the file is never deleted.
+ *
+ * Zed's OS sandbox (`agent.sandbox_permissions`) and its tool-availability
+ * profiles (`agent.profiles`) are separate enforcement layers with no canonical
+ * counterpart; they are authored verbatim through the `zed` override and lifted
+ * back out of the settings on import. See `ZedPermissionsOverrideSchema`.
  */
 export class ZedPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -470,6 +536,7 @@ export class ZedPermissions extends ToolPermissions {
         patch: {
           agent: {
             ...agent,
+            ...buildZedOverridePatch({ override: config.zed, logger }),
             tool_permissions: {
               ...toolPermissions,
               // Canonical `*` sets the global default; when canonical says
@@ -496,7 +563,8 @@ export class ZedPermissions extends ToolPermissions {
       );
     }
 
-    const toolPermissionsRaw = asRecord(settings.agent).tool_permissions;
+    const agent = asRecord(settings.agent);
+    const toolPermissionsRaw = agent.tool_permissions;
     const parsed = ZedToolPermissionsSchema.safeParse(toolPermissionsRaw ?? {});
     const tools = parsed.success ? (parsed.data.tools ?? {}) : {};
     const globalDefault = parsed.success ? parsed.data.default : undefined;
@@ -545,8 +613,14 @@ export class ZedPermissions extends ToolPermissions {
       }
     }
 
+    const zedOverride = extractZedOverride(agent);
+    const result: Record<string, unknown> = { permission };
+    if (zedOverride !== undefined) {
+      result.zed = zedOverride;
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permission }, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
