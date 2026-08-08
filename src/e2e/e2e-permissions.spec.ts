@@ -330,6 +330,38 @@ describe("E2E: permissions", () => {
     expect(tools.read_file).toBeUndefined();
   });
 
+  it("should generate the zed sandbox_permissions and profiles override into .zed/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: { bash: { "rm *": "deny" } },
+          zed: {
+            sandbox_permissions: { network_hosts: ["*.github.com"], write_paths: ["/tmp/build"] },
+            profiles: { review: { name: "Review", tools: { terminal: false } } },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "zed", features: "permissions" });
+
+    const agent = JSON.parse(await readFileContent(join(testDir, ".zed", "settings.json"))).agent;
+    expect(agent.sandbox_permissions).toEqual({
+      network_hosts: ["*.github.com"],
+      write_paths: ["/tmp/build"],
+    });
+    expect(agent.profiles).toEqual({ review: { name: "Review", tools: { terminal: false } } });
+    // The canonical block still owns tool_permissions.
+    expect(agent.tool_permissions.tools.terminal.always_deny).toEqual([
+      { pattern: "rm *", case_sensitive: false },
+    ]);
+  });
+
   it("should generate amp permissions into .amp/settings.json", async () => {
     const testDir = getTestDir();
 
