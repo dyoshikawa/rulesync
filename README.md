@@ -110,6 +110,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Takt                      |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
 | Vibe Code                 |  ✅   |   ✅   | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Qwen Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Meta Muse Code            |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |
 | Reasonix                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro ⚠️                   |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro CLI                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |

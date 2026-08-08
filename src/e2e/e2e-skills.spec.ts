@@ -38,6 +38,10 @@ const skillsGenerateTargets = [
     outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "musecode",
+    outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "grokcli",
     outputPath: join(".grok", "skills", "test-skill", "SKILL.md"),
   },
@@ -586,6 +590,10 @@ const skillsGlobalTargets = [
   {
     target: "codexcli",
     outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "musecode",
+    outputPath: join(".config", "muse", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "copilot",

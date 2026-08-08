@@ -30,6 +30,7 @@ import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KimiCodeMcp } from "./kimi-code-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
+import { MusecodeMcp } from "./musecode-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
 import { ReasonixMcp } from "./reasonix-mcp.js";
@@ -435,6 +436,24 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: JunieMcp,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "musecode",
+    {
+      // Muse Code reads MCP servers only from the `mcp_servers` block of the
+      // GLOBAL user settings file `~/.config/muse/settings.json`
+      // (`"schema_version": 1` required); no project-scoped MCP location is
+      // documented. Transports are `stdio` (command/args/env) and
+      // `streamable_http` (url/headers); there are no per-server tool
+      // allow/deny lists. https://dev.meta.ai/docs/muse-code/extending.md
+      class: MusecodeMcp,
+      meta: {
+        supportsProject: false,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,

@@ -225,7 +225,8 @@ function parseGrokRule(
  *     canonical categories — the compact `allow`/`deny`/`ask` arrays and the
  *     verbose `[[permission.rules]]` tables
  *     (`{ action = "allow", tool = "bash", pattern = "git *" }`), whose `tool`
- *     field is matched case-insensitively against the same tool table. Rules
+ *     field is matched case-insensitively against the same tool table, plus
+ *     the documented `mcp` alias for the compact form's `MCPTool`. Rules
  *     from the two forms are merged with the same `deny > ask > allow`
  *     precedence. When neither form carries a rule (older configs), the coarse
  *     `[ui] permission_mode` is used as a fallback. Generate always emits the

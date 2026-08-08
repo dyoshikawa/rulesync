@@ -63,6 +63,7 @@ import { KimiCodeRule } from "./kimi-code-rule.js";
 import { KiroCliRule } from "./kiro-cli-rule.js";
 import { KiroIdeRule } from "./kiro-ide-rule.js";
 import { KiroRule } from "./kiro-rule.js";
+import { MusecodeRule } from "./musecode-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
@@ -648,6 +649,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+      },
+    },
+  ],
+  [
+    "musecode",
+    {
+      class: MusecodeRule,
+      meta: {
+        // Muse Code reads the shared project-root `AGENTS.md` (preferred over
+        // `CLAUDE.md`) and has no modular non-root instruction directory, so
+        // topic rules fold into the root file (mirrors codexcli). The global
+        // rules path is undocumented, so global scope is not supported.
+        // https://dev.meta.ai/docs/muse-code/configuration.md
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],
