@@ -775,6 +775,7 @@ const mcpGlobalTargets = [
     target: "cline",
     outputPath: join(".cline", "data", "settings", "cline_mcp_settings.json"),
   },
+  { target: "musecode", outputPath: join(".config", "muse", "settings.json") },
   { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
   { target: "kimi-code", outputPath: join(".kimi-code", "mcp.json") },
   { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
