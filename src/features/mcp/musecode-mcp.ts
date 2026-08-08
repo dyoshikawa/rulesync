@@ -43,10 +43,7 @@ const MUSECODE_GLOBAL_ONLY_MESSAGE =
  * are reached at a `url` with optional `headers`. Only documented fields are
  * emitted; a canonical `disabled: true` maps to Muse's `enabled: false`.
  */
-function convertToMusecodeFormat(
-  mcpServers: McpServers,
-  logger?: Logger,
-): Record<string, unknown> {
+function convertToMusecodeFormat(mcpServers: McpServers, logger?: Logger): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
 
   for (const [name, config] of Object.entries(mcpServers)) {
