@@ -893,6 +893,44 @@ web_search_request = true
     expect(toTable(toTable(parsed.mcp_servers).example).command).toBe("echo");
   });
 
+  it("should import grokcli permissions from the verbose [[permission.rules]] form", async () => {
+    const testDir = getTestDir();
+
+    // A config written entirely in the verbose form: no allow/deny/ask arrays,
+    // and a coarse `permission_mode` that must NOT win over the rules.
+    await writeFileContent(
+      join(testDir, ".grok", "config.toml"),
+      [
+        "[ui]",
+        'permission_mode = "always-approve"',
+        "",
+        "[[permission.rules]]",
+        'action = "allow"',
+        'tool = "bash"',
+        'pattern = "git *"',
+        "",
+        "[[permission.rules]]",
+        'action = "deny"',
+        'tool = "bash"',
+        'pattern = "rm -rf *"',
+        "",
+        "[[permission.rules]]",
+        'action = "ask"',
+        'tool = "read"',
+        "",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "grokcli", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.bash["rm -rf *"]).toBe("deny");
+    expect(content.permission.read["*"]).toBe("ask");
+  });
+
   it("should import reasonix permissions from reasonix.toml", async () => {
     const testDir = getTestDir();
 

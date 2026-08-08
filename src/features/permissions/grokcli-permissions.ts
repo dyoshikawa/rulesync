@@ -65,6 +65,20 @@ const GROK_TOOL_TO_CATEGORY: Record<string, string> = {
 
 const GROK_MCP_TOOL = "MCPTool";
 
+// Lowercased view of the tool tables above, used to resolve the `tool` field of
+// a verbose `[[permission.rules]]` entry. The settings reference writes the
+// verbose form with lowercase tool names (`tool = "bash"`) while the compact
+// array entries are capitalized (`Bash(git *)`), so the verbose lookup is
+// case-insensitive to accept both spellings.
+const GROK_TOOL_TO_CATEGORY_LOWER: Record<string, string> = Object.fromEntries(
+  Object.entries(GROK_TOOL_TO_CATEGORY).map(([tool, category]) => [tool.toLowerCase(), category]),
+);
+
+const GROK_MCP_TOOL_LOWER = GROK_MCP_TOOL.toLowerCase();
+
+// Key of the verbose rule form inside `[permission]`.
+const GROKCLI_PERMISSION_RULES_KEY = "rules";
+
 /**
  * Build a Grok Claude-style permission entry (e.g. `Bash(git *)`, `Read`,
  * `MCPTool(server__tool)`) from a canonical category + pattern. Returns `null`
@@ -124,6 +138,58 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
 }
 
 /**
+ * Parse one entry of the verbose `[[permission.rules]]` form
+ * (`{ action = "allow", tool = "bash", pattern = "git *" }`) into a canonical
+ * category + pattern + action. Unlike the compact array entries these are TOML
+ * tables, so the tool name arrives as its own field instead of an entry string.
+ * Returns `null` for malformed entries and for tools with no canonical
+ * equivalent, so callers can skip them (the whole `rules` array is preserved
+ * verbatim on generate regardless).
+ */
+function parseGrokRule(
+  rule: unknown,
+): { category: string; pattern: string; action: PermissionAction } | null {
+  if (!isRecord(rule)) {
+    return null;
+  }
+  const { action, tool, pattern } = rule;
+  if (typeof action !== "string" || !isPermissionAction(action)) {
+    return null;
+  }
+  if (typeof tool !== "string") {
+    return null;
+  }
+  if (pattern !== undefined && typeof pattern !== "string") {
+    return null;
+  }
+  const trimmedPattern = pattern?.trim() ?? "";
+  const resolvedPattern = trimmedPattern.length > 0 ? trimmedPattern : CATCH_ALL_PATTERN;
+
+  const lowerTool = tool.trim().toLowerCase();
+  if (lowerTool === GROK_MCP_TOOL_LOWER) {
+    // Mirrors `parseGrokEntry`: an MCP address folds into the category so the
+    // canonical side keeps the scoped `mcp__<address>` shape.
+    return resolvedPattern === CATCH_ALL_PATTERN
+      ? { category: "mcp", pattern: CATCH_ALL_PATTERN, action }
+      : {
+          category: `${MCP_CANONICAL_PREFIX}${resolvedPattern}`,
+          pattern: CATCH_ALL_PATTERN,
+          action,
+        };
+  }
+
+  const category = GROK_TOOL_TO_CATEGORY_LOWER[lowerTool];
+  if (category === undefined) {
+    return null;
+  }
+  return { category, pattern: resolvedPattern, action };
+}
+
+function isPermissionAction(value: string): value is PermissionAction {
+  return value === "allow" || value === "ask" || value === "deny";
+}
+
+/**
  * Permissions adapter for the xAI Grok Build CLI (`grokcli`).
  *
  * Grok Build CLI ships a Claude-style rule system under `[permission]` in
@@ -144,9 +210,16 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
  *     entry with different actions (e.g. `edit` allow + `write` deny → `Edit`),
  *     the strictest wins (`deny > ask > allow`) and a warning is logged, so the
  *     entry never lands contradictorily in two arrays.
- *   - Import: the `[permission]` arrays are parsed back into canonical
- *     categories. When no `[permission]` section is present (older configs), the
- *     coarse `[ui] permission_mode` is used as a fallback.
+ *   - Import: both documented `[permission]` forms are parsed back into
+ *     canonical categories — the compact `allow`/`deny`/`ask` arrays and the
+ *     verbose `[[permission.rules]]` tables
+ *     (`{ action = "allow", tool = "bash", pattern = "git *" }`), whose `tool`
+ *     field is matched case-insensitively against the same tool table. Rules
+ *     from the two forms are merged with the same `deny > ask > allow`
+ *     precedence. When neither form carries a rule (older configs), the coarse
+ *     `[ui] permission_mode` is used as a fallback. Generate always emits the
+ *     compact arrays, so a user-authored `rules` array is preserved verbatim
+ *     but not reconciled against them.
  *
  * The coarse `[ui] permission_mode` toggle is still written for backward
  * compatibility with older Grok versions: `always-approve` when the config is
@@ -398,11 +471,13 @@ function buildGrokPermissionArrays(
 }
 
 /**
- * Parse Grok's `[permission]` allow/deny/ask arrays back into a canonical
- * permission map. Returns `null` when the section defines none of the three
- * arrays, so the caller can fall back to the coarse `permission_mode`.
- * Precedence `deny > ask > allow` is applied so a tool listed in multiple
- * arrays resolves to the strictest action.
+ * Parse Grok's `[permission]` section back into a canonical permission map,
+ * reading both supported forms: the compact `allow`/`deny`/`ask` arrays of
+ * Claude-style entries and the verbose `[[permission.rules]]` tables
+ * (`{ action, tool, pattern }`). Returns `null` only when neither form carries
+ * any rule, so the caller can fall back to the coarse `permission_mode`.
+ * Precedence `deny > ask > allow` is applied across both forms, so a tool
+ * described more than once resolves to the strictest action.
  */
 function parseGrokPermissionArrays(
   permission: Record<string, unknown>,
@@ -410,28 +485,55 @@ function parseGrokPermissionArrays(
   const allow = isStringArray(permission.allow) ? permission.allow : undefined;
   const deny = isStringArray(permission.deny) ? permission.deny : undefined;
   const ask = isStringArray(permission.ask) ? permission.ask : undefined;
-  // Treat absent *and* all-empty arrays as "no fine-grained rules" so the
+  const rules = Array.isArray(permission[GROKCLI_PERMISSION_RULES_KEY])
+    ? permission[GROKCLI_PERMISSION_RULES_KEY]
+    : undefined;
+  // Treat absent *and* all-empty forms as "no fine-grained rules" so the
   // coarse `permission_mode` fallback still applies (a freshly generated
-  // empty config writes empty arrays alongside the mode).
-  const total = (allow?.length ?? 0) + (deny?.length ?? 0) + (ask?.length ?? 0);
+  // empty config writes empty arrays alongside the mode). A non-empty `rules`
+  // array counts even if none of its entries turn out to be parseable, so a
+  // verbose-form config is never mistaken for a config with no rules at all.
+  const total =
+    (allow?.length ?? 0) + (deny?.length ?? 0) + (ask?.length ?? 0) + (rules?.length ?? 0);
   if (total === 0) {
     return null;
   }
 
   const result: Record<string, Record<string, PermissionAction>> = {};
-  const apply = (entries: string[] | undefined, action: PermissionAction) => {
+  const record = ({
+    category,
+    pattern,
+    action,
+  }: {
+    category: string;
+    pattern: string;
+    action: PermissionAction;
+  }) => {
+    const bucket = (result[category] ??= {});
+    const existing = bucket[pattern];
+    // Strictest wins across both forms (deny > ask > allow), independent of the
+    // order the two sources are read in.
+    if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+      bucket[pattern] = action;
+    }
+  };
+
+  const applyEntries = (entries: string[] | undefined, action: PermissionAction) => {
     for (const entry of entries ?? []) {
       const parsed = parseGrokEntry(entry);
       if (parsed === null) continue;
-      const bucket = (result[parsed.category] ??= {});
-      bucket[parsed.pattern] = action;
+      record({ ...parsed, action });
     }
   };
-  // Apply weakest first so stricter actions overwrite on collision
-  // (deny > ask > allow).
-  apply(allow, "allow");
-  apply(ask, "ask");
-  apply(deny, "deny");
+  applyEntries(allow, "allow");
+  applyEntries(ask, "ask");
+  applyEntries(deny, "deny");
+
+  for (const rule of rules ?? []) {
+    const parsed = parseGrokRule(rule);
+    if (parsed === null) continue;
+    record(parsed);
+  }
 
   return result;
 }
