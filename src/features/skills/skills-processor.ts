@@ -42,6 +42,7 @@ import { KimiCodeSkill } from "./kimi-code-skill.js";
 import { KiroCliSkill } from "./kiro-cli-skill.js";
 import { KiroIdeSkill } from "./kiro-ide-skill.js";
 import { KiroSkill } from "./kiro-skill.js";
+import { MusecodeSkill } from "./musecode-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { PiSkill } from "./pi-skill.js";
 import { QwencodeSkill } from "./qwencode-skill.js";
@@ -370,6 +371,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "kiro-ide",
     {
       class: KiroIdeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "musecode",
+    {
+      // Muse Code reads Agent Skills from `.agents/skills/` (project) and from
+      // `$XDG_CONFIG_HOME/muse/skills` / `~/.agents/skills` (user). Only the
+      // XDG-default `~/.config/muse/skills` is emitted at global scope.
+      // https://dev.meta.ai/docs/muse-code/extending.md
+      class: MusecodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

@@ -51,6 +51,7 @@ const rulesRootTargets = [
   { target: "zed", outputPath: ".rules" },
   { target: "vibe", outputPath: "AGENTS.md" },
   { target: "reasonix", outputPath: "REASONIX.md" },
+  { target: "musecode", outputPath: "AGENTS.md" },
 ] as const;
 
 // Tools that emit every rule as a directory entry.
