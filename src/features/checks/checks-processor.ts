@@ -2,6 +2,7 @@ import { join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
+import { AUGMENTCODE_CODE_REVIEW_GUIDELINES_FILE_NAME } from "../../constants/augmentcode-paths.js";
 import { CURSOR_BUGBOT_FILE_NAME } from "../../constants/cursor-paths.js";
 import { ROVODEV_REVIEW_AGENT_FILE_NAME } from "../../constants/rovodev-paths.js";
 import { TAKT_CONFIG_FILE_NAME } from "../../constants/takt-paths.js";
@@ -14,6 +15,7 @@ import { formatError } from "../../utils/error.js";
 import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AmpCheck } from "./amp-check.js";
+import { AugmentcodeCheck } from "./augmentcode-check.js";
 import { CursorCheck } from "./cursor-check.js";
 import { HermesagentCheck } from "./hermesagent-check.js";
 import { RovodevCheck } from "./rovodev-check.js";
@@ -87,6 +89,23 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
       // https://ampcode.com/manual
       class: AmpCheck,
       meta: { supportsGlobal: true, filePattern: "*.md" },
+    },
+  ],
+  [
+    "augmentcode",
+    {
+      // Augment Code Review reads one YAML guidelines file of named areas, so
+      // every check targeting AugmentCode collapses into
+      // `.augment/code_review_guidelines.yaml`.
+      // https://docs.augmentcode.com/codereview/review-guidelines
+      class: AugmentcodeCheck,
+      // `committedOutput`: the reviewer reads the guidelines from the committed
+      // repository, so the derived .gitignore must not ignore the file.
+      meta: {
+        supportsGlobal: false,
+        filePattern: AUGMENTCODE_CODE_REVIEW_GUIDELINES_FILE_NAME,
+        committedOutput: true,
+      },
     },
   ],
   [

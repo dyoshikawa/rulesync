@@ -30,5 +30,12 @@ export const AUGMENTCODE_SETTINGS_FILE_NAME = "settings.json";
 // writes it (it stays a user-owned, gitignored file).
 // @see https://docs.augmentcode.com/cli/config
 export const AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME = "settings.local.json";
+/**
+ * Augment Code Review's custom guidelines file. Read from the repository root's
+ * `.augment/` folder, project scope only — Augment documents no user-level
+ * equivalent, and the reviewer runs against the committed tree.
+ * @see https://docs.augmentcode.com/codereview/review-guidelines
+ */
+export const AUGMENTCODE_CODE_REVIEW_GUIDELINES_FILE_NAME = "code_review_guidelines.yaml";
 export const AUGMENTCODE_IGNORE_FILE_NAME = ".augmentignore";
 export const AUGMENTCODE_LEGACY_RULE_FILE_NAME = ".augment-guidelines";
