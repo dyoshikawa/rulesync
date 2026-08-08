@@ -157,6 +157,74 @@ describe("AugmentcodeCheck", () => {
       ]);
     });
 
+    it("should not emit YAML anchors when several areas share the default globs", async () => {
+      const [generated] = await generate({
+        outputRoot: testDir,
+        rulesyncChecks: [createCheck({ name: "first" }), createCheck({ name: "second" })],
+      });
+
+      // A repeated reference would serialize as `&ref_0` / `*ref_0`, which has no
+      // business in a file Augment tells users to hand-edit.
+      const content = generated!.getFileContent();
+      expect(content).not.toContain("&ref");
+      expect(content).not.toContain("*ref");
+      const yaml = loadYaml(content) as Record<string, any>;
+      expect(yaml.areas.first.globs).toEqual(["**"]);
+      expect(yaml.areas.second.globs).toEqual(["**"]);
+    });
+
+    it("should use an authored area key verbatim rather than slugifying it", async () => {
+      const [generated] = await generate({
+        outputRoot: testDir,
+        rulesyncChecks: [
+          createCheck({ name: "no-pii", frontmatter: { augmentcode: { area: "memory_safety" } } }),
+        ],
+      });
+
+      const yaml = loadYaml(generated!.getFileContent()) as Record<string, any>;
+      // Augment's own documented example uses an underscored key; slugifying it
+      // would make import → generate build a second area beside the original.
+      expect(Object.keys(yaml.areas)).toEqual(["memory_safety"]);
+    });
+
+    it("should keep an authored empty globs list rather than widening it", async () => {
+      const [generated] = await generate({
+        outputRoot: testDir,
+        rulesyncChecks: [
+          createCheck({ name: "paused", frontmatter: { augmentcode: { globs: [] } } }),
+        ],
+      });
+
+      const yaml = loadYaml(generated!.getFileContent()) as Record<string, any>;
+      expect(yaml.areas.paused.globs).toEqual([]);
+    });
+
+    it("should disambiguate rule ids for same-named checks in different directories", async () => {
+      const [generated] = await generate({
+        outputRoot: testDir,
+        rulesyncChecks: [
+          new RulesyncCheck({
+            relativeDirPath: ".rulesync/checks",
+            relativeFilePath: join("a", "security.md"),
+            frontmatter: { targets: ["*"], augmentcode: { area: "shared" } },
+            body: "First.",
+          }),
+          new RulesyncCheck({
+            relativeDirPath: ".rulesync/checks",
+            relativeFilePath: join("b", "security.md"),
+            frontmatter: { targets: ["*"], augmentcode: { area: "shared" } },
+            body: "Second.",
+          }),
+        ],
+      });
+
+      const yaml = loadYaml(generated!.getFileContent()) as Record<string, any>;
+      expect(yaml.areas.shared.rules.map((rule: any) => rule.id)).toEqual([
+        "security",
+        "security-2",
+      ]);
+    });
+
     it("should preserve unclaimed areas, file_paths_to_ignore and unknown keys", async () => {
       await writeFileContent(
         join(testDir, GUIDELINES_PATH),
@@ -328,6 +396,34 @@ describe("AugmentcodeCheck", () => {
       const [regenerated] = await generate({ outputRoot: testDir, rulesyncChecks: checks });
 
       expect(loadYaml(regenerated!.getFileContent())).toEqual(loadYaml(original));
+    });
+
+    it("should round-trip an underscored area key without duplicating its rules", async () => {
+      const original = [
+        "areas:",
+        "  memory_safety:",
+        '    description: "Memory safety rules"',
+        '    globs: ["src/**"]',
+        "    rules:",
+        '      - id: "no_unchecked_index"',
+        '        description: "Do not index without a bounds check."',
+        '        severity: "high"',
+      ].join("\n");
+      await writeFileContent(join(testDir, GUIDELINES_PATH), original);
+
+      const imported = await AugmentcodeCheck.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "code_review_guidelines.yaml",
+      });
+      const [regenerated] = await generate({
+        outputRoot: testDir,
+        rulesyncChecks: imported.toRulesyncChecks(),
+      });
+
+      // One area, still under the key the user wrote — not a second, slugified one.
+      const yaml = loadYaml(regenerated!.getFileContent()) as Record<string, any>;
+      expect(Object.keys(yaml.areas)).toEqual(["memory_safety"]);
+      expect(yaml).toEqual(loadYaml(original));
     });
 
     it("should not recover canonical critical, which generated as high", async () => {

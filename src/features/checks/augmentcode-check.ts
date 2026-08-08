@@ -52,8 +52,13 @@ const CANONICAL_TO_AUGMENTCODE_SEVERITY: Record<string, AugmentcodeSeverity> = {
  */
 const DEFAULT_AUGMENTCODE_SEVERITY: AugmentcodeSeverity = "medium";
 
-/** Augment's own example uses `["**"]`, and `globs` is required per area. */
-const DEFAULT_AREA_GLOBS = ["**"];
+/**
+ * Augment's own example uses `["**"]`, and `globs` is required per area. Built
+ * fresh per area rather than shared: js-yaml serializes a repeated reference as
+ * an anchor/alias pair, which would litter a file Augment tells users to edit by
+ * hand with `&ref_0` / `*ref_0`.
+ */
+const defaultAreaGlobs = (): string[] => ["**"];
 
 /**
  * The `augmentcode` block of a check's frontmatter, carrying the two things the
@@ -96,6 +101,23 @@ function stemOf(rulesyncCheck: RulesyncCheck): string {
 }
 
 /**
+ * Disambiguate a name against the ones already taken. Used for rule ids on
+ * generate (two same-named checks in different subdirectories) and for check
+ * file names on import (one rule id repeated across two areas), since a
+ * collision in either direction silently loses one of the pair.
+ */
+function uniqueName(preferred: string, used: Set<string>): string {
+  let name = preferred;
+  let suffix = 2;
+  while (used.has(name)) {
+    name = `${preferred}-${suffix}`;
+    suffix += 1;
+  }
+  used.add(name);
+  return name;
+}
+
+/**
  * A rule's `description` is the whole instruction Augment acts on, so the check
  * body is preferred; the frontmatter `description` is a summary, used only when
  * there is no body. Both empty falls back to the check name, which at least
@@ -109,10 +131,16 @@ function toRuleDescription(rulesyncCheck: RulesyncCheck): string {
   return rulesyncCheck.getFrontmatter().description?.trim() || stemOf(rulesyncCheck);
 }
 
-function toRule(rulesyncCheck: RulesyncCheck, override: AugmentcodeCheckOverride): AugmentcodeRule {
+function toRule(
+  rulesyncCheck: RulesyncCheck,
+  override: AugmentcodeCheckOverride,
+  usedRuleIds: Set<string>,
+): AugmentcodeRule {
   const severity = rulesyncCheck.getFrontmatter().severity;
   return {
-    id: override.id ?? slugifyCheckName(stemOf(rulesyncCheck)),
+    // Two checks of the same name in different subdirectories would otherwise
+    // both claim one id, and Augment reports findings by it.
+    id: uniqueName(override.id ?? slugifyCheckName(stemOf(rulesyncCheck)), usedRuleIds),
     description: toRuleDescription(rulesyncCheck),
     severity: severity
       ? (CANONICAL_TO_AUGMENTCODE_SEVERITY[severity] ?? DEFAULT_AUGMENTCODE_SEVERITY)
@@ -133,20 +161,32 @@ function buildAreas(
     { description: string; globs: string[]; rules: AugmentcodeRule[] }
   >();
 
+  const usedRuleIds = new Set<string>();
+
   for (const { rulesyncCheck, override } of entries) {
-    const key = slugifyCheckName(override.area ?? stemOf(rulesyncCheck));
+    // An authored area key is used verbatim. Slugifying it would rewrite the
+    // underscores in Augment's own documented example (`memory_safety`), and
+    // since import writes the key back unchanged, the next generate would build
+    // a second area under the slugified spelling while the original stayed put —
+    // the same rules twice. Only the file-stem default is slugified, because
+    // that one has to become a legal area key from an arbitrary file name.
+    const key = override.area ?? slugifyCheckName(stemOf(rulesyncCheck));
+    const rule = toRule(rulesyncCheck, override, usedRuleIds);
     const existing = areas.get(key);
     if (existing) {
-      existing.rules.push(toRule(rulesyncCheck, override));
+      existing.rules.push(rule);
       continue;
     }
     areas.set(key, {
       description:
-        override.areaDescription ??
-        rulesyncCheck.getFrontmatter().description?.trim() ??
+        override.areaDescription ||
+        rulesyncCheck.getFrontmatter().description?.trim() ||
         stemOf(rulesyncCheck),
-      globs: override.globs ?? DEFAULT_AREA_GLOBS,
-      rules: [toRule(rulesyncCheck, override)],
+      // `?? `, not `|| `: an authored empty list is an area matching nothing,
+      // which is a narrower thing to say than the default catch-all, not an
+      // absent value.
+      globs: override.globs ?? defaultAreaGlobs(),
+      rules: [rule],
     });
   }
 
@@ -183,12 +223,14 @@ function readArea(rawArea: Record<string, unknown>): {
   globs?: string[];
   rules: unknown[];
 } {
+  // An empty list round-trips as an empty list: it says the area matches
+  // nothing, which regenerating it as the catch-all `["**"]` would invert.
   const globs = Array.isArray(rawArea.globs)
     ? rawArea.globs.filter((glob): glob is string => typeof glob === "string")
     : undefined;
   return {
     ...(typeof rawArea.description === "string" && { description: rawArea.description }),
-    ...(globs && globs.length > 0 && { globs }),
+    ...(globs && { globs }),
     rules: Array.isArray(rawArea.rules) ? rawArea.rules : [],
   };
 }
@@ -206,21 +248,6 @@ function readRule(
   if (!id || !description) return undefined;
   const severity = AUGMENTCODE_SEVERITIES.find((value) => value === rawRule.severity);
   return { id, description, ...(severity && { severity }) };
-}
-
-/**
- * A rule id repeated across two areas would otherwise have the second check
- * overwrite the first's file.
- */
-function uniqueCheckName(preferred: string, usedNames: Set<string>): string {
-  let name = preferred;
-  let suffix = 2;
-  while (usedNames.has(name)) {
-    name = `${preferred}-${suffix}`;
-    suffix += 1;
-  }
-  usedNames.add(name);
-  return name;
 }
 
 /**
@@ -339,7 +366,9 @@ export class AugmentcodeCheck extends ToolCheck {
     // carried through untouched.
     const fileContent = dump(
       { ...existing, areas: { ...existingAreas, ...generatedAreas } },
-      { lineWidth: -1 },
+      // `noRefs`: repeated values must be written out, not aliased — an
+      // anchor/alias pair in a file users hand-edit is a trap.
+      { lineWidth: -1, noRefs: true },
     );
 
     return [
@@ -423,7 +452,7 @@ export class AugmentcodeCheck extends ToolCheck {
         const rule = readRule(rawRule);
         if (!rule) continue;
 
-        const name = uniqueCheckName(
+        const name = uniqueName(
           slugifyCheckName(rule.id) || slugifyCheckName(areaKey) || "check",
           usedNames,
         );
