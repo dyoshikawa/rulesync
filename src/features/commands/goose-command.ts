@@ -48,7 +48,7 @@ const RECIPE_VERSION = "1.0.0";
 //
 // The registration surface exists at user scope only — there is no project-level
 // `slash_commands` list — so it is written in global mode only.
-// @see https://github.com/block/goose/blob/main/crates/goose/src/slash_commands/recipe_slash_command.rs
+// @see https://github.com/aaif-goose/goose/blob/main/crates/goose/src/slash_commands/recipe_slash_command.rs
 const SLASH_COMMANDS_KEY = "slash_commands";
 const GOOSE_GLOBAL_RECIPES_POSIX_DIR = toPosixPath(GOOSE_GLOBAL_RECIPES_DIR_PATH);
 
@@ -180,7 +180,7 @@ class GooseCommandConfigFile extends ToolFile {
  * The whole file is a YAML mapping (not frontmatter + markdown body), so the
  * class stores the parsed recipe object rather than a frontmatter/body split.
  *
- * @see https://block.github.io/goose/docs/guides/recipes/recipe-reference/
+ * @see https://goose-docs.ai/docs/guides/recipes/recipe-reference/
  */
 const GooseCommandRecipeSchema = z.looseObject({
   version: z.optional(z.string()),
