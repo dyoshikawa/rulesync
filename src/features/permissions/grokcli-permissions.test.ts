@@ -328,6 +328,17 @@ describe("GrokcliPermissions", () => {
           'tool = "MCPTool"',
           'pattern = "github__list_issues"',
           "",
+          // `mcp` is the spelling the settings reference documents for the
+          // verbose form; `MCPTool` above is the compact-form name.
+          "[[permission.rules]]",
+          'action = "deny"',
+          'tool = "mcp"',
+          'pattern = "shell__exec"',
+          "",
+          "[[permission.rules]]",
+          'action = "ask"',
+          'tool = "mcp"',
+          "",
         ].join("\n"),
       );
       const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
@@ -339,6 +350,8 @@ describe("GrokcliPermissions", () => {
       // A rule without a `pattern` applies to the whole tool.
       expect(json.permission.read["*"]).toBe("ask");
       expect(json.permission.mcp__github__list_issues["*"]).toBe("allow");
+      expect(json.permission.mcp__shell__exec["*"]).toBe("deny");
+      expect(json.permission.mcp["*"]).toBe("ask");
       expect(json.permission.bash["*"]).toBeUndefined();
     });
 

@@ -5,7 +5,11 @@ import * as smolToml from "smol-toml";
 
 import { GROKCLI_CONFIG_FILE_NAME, GROKCLI_DIR } from "../../constants/grokcli-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import {
+  PermissionActionSchema,
+  type PermissionAction,
+  type PermissionsConfig,
+} from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -66,15 +70,18 @@ const GROK_TOOL_TO_CATEGORY: Record<string, string> = {
 const GROK_MCP_TOOL = "MCPTool";
 
 // Lowercased view of the tool tables above, used to resolve the `tool` field of
-// a verbose `[[permission.rules]]` entry. The settings reference writes the
-// verbose form with lowercase tool names (`tool = "bash"`) while the compact
-// array entries are capitalized (`Bash(git *)`), so the verbose lookup is
-// case-insensitive to accept both spellings.
+// a verbose `[[permission.rules]]` entry. The settings reference spells the two
+// forms differently — the verbose `tool` field takes
+// `any | bash | edit | read | grep | mcp | webfetch` (lowercase) while the
+// compact array entries are capitalized (`Bash(git *)`, `MCPTool(server__*)`) —
+// so the verbose lookup is case-insensitive and accepts both spellings.
 const GROK_TOOL_TO_CATEGORY_LOWER: Record<string, string> = Object.fromEntries(
   Object.entries(GROK_TOOL_TO_CATEGORY).map(([tool, category]) => [tool.toLowerCase(), category]),
 );
 
-const GROK_MCP_TOOL_LOWER = GROK_MCP_TOOL.toLowerCase();
+// Both spellings of Grok's MCP tool: `mcp` is the documented verbose value,
+// and the lowercased compact name (`MCPTool`) is accepted for symmetry.
+const GROK_MCP_TOOL_ALIASES: ReadonlySet<string> = new Set(["mcp", GROK_MCP_TOOL.toLowerCase()]);
 
 // Key of the verbose rule form inside `[permission]`.
 const GROKCLI_PERMISSION_RULES_KEY = "rules";
@@ -152,10 +159,12 @@ function parseGrokRule(
   if (!isRecord(rule)) {
     return null;
   }
-  const { action, tool, pattern } = rule;
-  if (typeof action !== "string" || !isPermissionAction(action)) {
+  const { action: rawAction, tool, pattern } = rule;
+  const parsedAction = PermissionActionSchema.safeParse(rawAction);
+  if (!parsedAction.success) {
     return null;
   }
+  const action = parsedAction.data;
   if (typeof tool !== "string") {
     return null;
   }
@@ -166,7 +175,7 @@ function parseGrokRule(
   const resolvedPattern = trimmedPattern.length > 0 ? trimmedPattern : CATCH_ALL_PATTERN;
 
   const lowerTool = tool.trim().toLowerCase();
-  if (lowerTool === GROK_MCP_TOOL_LOWER) {
+  if (GROK_MCP_TOOL_ALIASES.has(lowerTool)) {
     // Mirrors `parseGrokEntry`: an MCP address folds into the category so the
     // canonical side keeps the scoped `mcp__<address>` shape.
     return resolvedPattern === CATCH_ALL_PATTERN
@@ -178,15 +187,17 @@ function parseGrokRule(
         };
   }
 
+  // `hasOwn` so a `tool` naming an inherited `Object.prototype` member
+  // (`constructor`, `toString`, ...) is rejected instead of resolving to a
+  // bogus category.
+  if (!Object.hasOwn(GROK_TOOL_TO_CATEGORY_LOWER, lowerTool)) {
+    return null;
+  }
   const category = GROK_TOOL_TO_CATEGORY_LOWER[lowerTool];
   if (category === undefined) {
     return null;
   }
   return { category, pattern: resolvedPattern, action };
-}
-
-function isPermissionAction(value: string): value is PermissionAction {
-  return value === "allow" || value === "ask" || value === "deny";
 }
 
 /**
