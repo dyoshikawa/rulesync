@@ -74,6 +74,46 @@ function stripTrustedDirectoryWrapper(command: string): string {
   return windows?.[1] ?? command;
 }
 
+/**
+ * Native Kimi Code events whose Event Reference row lists the matcher as
+ * "Empty string" — the matcher has nothing to match against, so Kimi Code
+ * ignores it and rulesync drops it rather than emitting a dead field.
+ *
+ * Keyed on native names because the check runs after the canonical → native
+ * mapping: `SessionHeartbeat` and `Interrupt` have no canonical counterpart and
+ * are only reachable through a per-tool `kimi-code` override naming them
+ * directly.
+ *
+ * Deliberately narrower than Claude Code's equivalent set: Kimi Code's
+ * `UserPromptSubmit` matches the submitted prompt text, and `PermissionResult`
+ * matches the tool name, so a matcher on either is meaningful and is kept.
+ *
+ * @see https://moonshotai.github.io/kimi-code/en/customization/hooks.html
+ */
+const KIMI_CODE_NO_MATCHER_EVENTS = new Set(["Stop", "SessionHeartbeat", "Interrupt"]);
+
+/** Resolve the `matcher` part of an emitted entry, dropping dead matchers. */
+function resolveMatcherPart({
+  matcher,
+  nativeEvent,
+  logger,
+}: {
+  matcher: string | undefined;
+  nativeEvent: string;
+  logger?: Logger;
+}): { matcher?: string } {
+  if (!matcher) {
+    return {};
+  }
+  if (!KIMI_CODE_NO_MATCHER_EVENTS.has(nativeEvent)) {
+    return { matcher };
+  }
+  logger?.warn(
+    `matcher "${matcher}" on "${nativeEvent}" hook will be ignored — this event does not support matchers`,
+  );
+  return {};
+}
+
 function buildEffectiveHooks(
   config: HooksConfig,
   toolOverrideHooks: HooksConfig["hooks"] | undefined,
@@ -127,7 +167,7 @@ function canonicalToKimiCodeHooks({
           command: definition.command,
           trustedDirectory,
         }),
-        ...(definition.matcher && { matcher: definition.matcher }),
+        ...resolveMatcherPart({ matcher: definition.matcher, nativeEvent, logger }),
         ...(validTimeout && timeout !== undefined && { timeout }),
       });
     }
