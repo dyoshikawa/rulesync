@@ -520,6 +520,57 @@ describe("CopilotcliHooks", () => {
       expect(json.hooks.preToolUse?.[0]?.timeout).toBe(10);
     });
 
+    it("should always take bash when both bash and powershell are present", () => {
+      const logger = createMockLogger();
+
+      const hooks = new CopilotcliHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilotcli-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [
+              { type: "command", bash: "echo start", powershell: "Write-Output start" },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = hooks.toRulesyncHooks({ logger }).getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
+      expect(json.hooks.sessionStart?.[0]?.shell).toBe("bash");
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        "Copilot CLI hook has both bash and powershell commands; using bash and ignoring powershell, so the imported config does not depend on the machine the import ran on.",
+      );
+    });
+
+    it("should pick bash on Windows too, so import does not depend on the platform", () => {
+      vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+
+      const hooks = new CopilotcliHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilotcli-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [
+              { type: "command", bash: "echo start", powershell: "Write-Output start" },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      // The same file must import to the same canonical config everywhere,
+      // otherwise the rulesync hooks file differs per contributor's machine.
+      const json = hooks.toRulesyncHooks().getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
+      expect(json.hooks.sessionStart?.[0]?.shell).toBe("bash");
+    });
+
     it("should default missing 'type' field to 'command' when importing", () => {
       const hooks = new CopilotcliHooks({
         outputRoot: testDir,
