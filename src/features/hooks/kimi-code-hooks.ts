@@ -76,8 +76,12 @@ function stripTrustedDirectoryWrapper(command: string): string {
 
 /**
  * Native Kimi Code events whose Event Reference row lists the matcher as
- * "Empty string" — the matcher has nothing to match against, so Kimi Code
- * ignores it and rulesync drops it rather than emitting a dead field.
+ * "Empty string". Kimi Code documents `matcher` as "a regular expression to
+ * filter event targets; if omitted, matches all", so on these events the
+ * regex is tested against `""`: any non-trivial matcher simply never matches
+ * and the hook silently never runs. Dropping the matcher is what makes the
+ * hook fire at all, which is the authored intent — these events have no target
+ * to filter on in the first place.
  *
  * Keyed on native names because the check runs after the canonical → native
  * mapping: `SessionHeartbeat` and `Interrupt` have no canonical counterpart and

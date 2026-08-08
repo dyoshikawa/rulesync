@@ -183,6 +183,31 @@ describe("KimiCodeHooks", () => {
       expect(config["kimi-code"].hooks.SessionHeartbeat).toHaveLength(1);
     });
 
+    it("preserves a matcher on the matcher-less events, unlike generate", () => {
+      const hooks = new KimiCodeHooks({
+        outputRoot: testDir,
+        fileContent: [
+          "[[hooks]]",
+          'event = "Stop"',
+          'command = "./stop.sh"',
+          'matcher = "Bash"',
+          "",
+          "[[hooks]]",
+          'event = "Interrupt"',
+          'command = "./interrupt.sh"',
+          'matcher = "Bash"',
+          "",
+        ].join("\n"),
+        validate: false,
+      });
+
+      // Import stays lossless so a hand-written matcher is never silently
+      // erased from the user's config; generate is the side that drops it.
+      const config = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+      expect(config.hooks.stop?.[0]?.matcher).toBe("Bash");
+      expect(config["kimi-code"].hooks.Interrupt?.[0]?.matcher).toBe("Bash");
+    });
+
     it("round-trips the 0.32.0 events through generate and import", () => {
       const generated = KimiCodeHooks.fromRulesyncHooks({
         outputRoot: testDir,
