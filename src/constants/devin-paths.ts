@@ -36,6 +36,12 @@ export const DEVIN_HOOKS_V1_FILE_NAME = "hooks.v1.json";
 export const DEVIN_GLOBAL_AGENTS_FILE_NAME = "AGENTS.md";
 export const DEVIN_IGNORE_FILE_NAME = ".devinignore";
 export const DEVIN_LEGACY_IGNORE_FILE_NAME = ".codeiumignore";
+// Third project-scope ignore filename Devin Desktop honors, carried over from
+// the Windsurf era. The docs list `.devinignore`, `.codeiumignore`, and
+// `.windsurfignore` side by side without defining a precedence, so rulesync
+// reads all three on import and emits only `.devinignore`.
+// https://docs.devin.ai/desktop/context-awareness/windsurf-ignore
+export const DEVIN_WINDSURF_IGNORE_FILE_NAME = ".windsurfignore";
 // Enterprise-wide ignore file at `~/.codeium/.codeiumignore`, applied across
 // every repository. Three things about it are deliberate and worth recording:
 //

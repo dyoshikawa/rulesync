@@ -307,6 +307,44 @@ Thumbs.db`;
       expect(devinIgnore.getFileContent()).toBe(fileContent);
     });
 
+    it("should fall back to legacy .windsurfignore file from current directory", async () => {
+      const fileContent = "*.log\nnode_modules/\n.env";
+      await writeFileContent(join(testDir, ".windsurfignore"), fileContent);
+
+      const devinIgnore = await DevinIgnore.fromFile({
+        outputRoot: testDir,
+      });
+
+      expect(devinIgnore).toBeInstanceOf(DevinIgnore);
+      expect(devinIgnore.getRelativeDirPath()).toBe(".");
+      expect(devinIgnore.getRelativeFilePath()).toBe(".windsurfignore");
+      expect(devinIgnore.getFileContent()).toBe(fileContent);
+    });
+
+    it("should prefer .devinignore over .windsurfignore when both exist", async () => {
+      await writeFileContent(join(testDir, ".devinignore"), "from-devinignore");
+      await writeFileContent(join(testDir, ".windsurfignore"), "from-windsurfignore");
+
+      const devinIgnore = await DevinIgnore.fromFile({
+        outputRoot: testDir,
+      });
+
+      expect(devinIgnore.getRelativeFilePath()).toBe(".devinignore");
+      expect(devinIgnore.getFileContent()).toBe("from-devinignore");
+    });
+
+    it("should prefer .codeiumignore over .windsurfignore when .devinignore is absent", async () => {
+      await writeFileContent(join(testDir, ".codeiumignore"), "from-codeiumignore");
+      await writeFileContent(join(testDir, ".windsurfignore"), "from-windsurfignore");
+
+      const devinIgnore = await DevinIgnore.fromFile({
+        outputRoot: testDir,
+      });
+
+      expect(devinIgnore.getRelativeFilePath()).toBe(".codeiumignore");
+      expect(devinIgnore.getFileContent()).toBe("from-codeiumignore");
+    });
+
     it("should use default outputRoot when not provided", async () => {
       // process.cwd() is already mocked to return testDir in beforeEach
       const fileContent = "*.log\nnode_modules/";
