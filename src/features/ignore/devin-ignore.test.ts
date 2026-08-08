@@ -470,7 +470,7 @@ jspm_packages/
       expect(devinIgnore.getFileContent()).toBe(fileContent);
     });
 
-    it("should throw error when neither .devinignore nor .codeiumignore exists", async () => {
+    it("should throw error when none of .devinignore, .codeiumignore, .windsurfignore exists", async () => {
       await expect(DevinIgnore.fromFile({ outputRoot: testDir })).rejects.toThrow();
     });
 
