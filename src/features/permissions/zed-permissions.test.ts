@@ -825,5 +825,31 @@ describe("ZedPermissions", () => {
       });
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("tool_permissions"));
     });
+
+    it("should ignore an unsupported override key with a warning rather than silently", async () => {
+      const logger = { warn: vi.fn() } as unknown as Logger;
+      const rulesyncPermissions = createRulesyncPermissionsWithConfig({
+        permission: { bash: { "*": "ask" } },
+        zed: {
+          // A misspelling of sandbox_permissions, plus a real Zed `agent` key
+          // that would disarm every permission rule if the block were spread.
+          sandboxPermissions: { allow_all_hosts: true },
+          always_allow_tool_actions: true,
+        },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+      const agent = JSON.parse(generated.getFileContent()).agent;
+
+      expect(agent.sandboxPermissions).toBeUndefined();
+      expect(agent.always_allow_tool_actions).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("'zed.sandboxPermissions', 'zed.always_allow_tool_actions'"),
+      );
+    });
   });
 });

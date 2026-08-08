@@ -320,11 +320,22 @@ function asRecord(value: unknown): Record<string, unknown> {
  * `tool_permissions`, which the canonical `permission` block owns end to end —
  * is refused, so an override can never reach past its own surface and weaken a
  * canonical deny. The override object is read key by key rather than spread, so
- * an unlisted key is inert whether or not it is named here; `tool_permissions`
- * is called out only to warn instead of failing silently.
+ * an unlisted key is inert whether or not it is named here — an allowlist, not a
+ * denylist, because `agent` carries blunt instruments of its own (Zed's
+ * `always_allow_tool_actions` would disarm every permission rule at once), and a
+ * verbatim `agent` merge would hand them to the override.
+ *
+ * Every key the patch does not consume is reported, so an unsupported or
+ * misspelled one surfaces as a warning rather than as config that quietly does
+ * nothing. `permission` is exempt: it is the canonical tool-scoped block, and
+ * `RulesyncPermissions.forTarget` has already consumed and stripped it.
  */
 const ZED_OVERRIDE_AGENT_KEYS = ["sandbox_permissions", "profiles"] as const;
 const ZED_CANONICAL_AGENT_KEY = "tool_permissions";
+const ZED_OVERRIDE_CONSUMED_KEYS: ReadonlySet<string> = new Set<string>([
+  ...ZED_OVERRIDE_AGENT_KEYS,
+  "permission",
+]);
 
 /**
  * Build the `agent` patch fragment carrying the `zed` override's verbatim
@@ -345,6 +356,17 @@ function buildZedOverridePatch({
   if (ZED_CANONICAL_AGENT_KEY in override) {
     logger?.warn(
       `Zed permissions: ignoring the 'zed.${ZED_CANONICAL_AGENT_KEY}' override; \`agent.${ZED_CANONICAL_AGENT_KEY}\` is driven by the canonical permission block.`,
+    );
+  }
+
+  const unsupportedKeys = Object.keys(override).filter(
+    (key) => key !== ZED_CANONICAL_AGENT_KEY && !ZED_OVERRIDE_CONSUMED_KEYS.has(key),
+  );
+  if (unsupportedKeys.length > 0) {
+    logger?.warn(
+      `Zed permissions: ignoring the ${unsupportedKeys.map((key) => `'zed.${key}'`).join(", ")} ` +
+        `override ${unsupportedKeys.length === 1 ? "key" : "keys"} — the \`zed\` block authors only ` +
+        `${ZED_OVERRIDE_AGENT_KEYS.map((key) => `\`${key}\``).join(" and ")}.`,
     );
   }
 
