@@ -302,6 +302,131 @@ describe("GrokcliPermissions", () => {
       expect(json.permission.websearch["example.com/**"]).toBe("deny");
     });
 
+    it("parses the verbose [[permission.rules]] form when no arrays are present", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        [
+          "[ui]",
+          'permission_mode = "always-approve"',
+          "",
+          "[[permission.rules]]",
+          'action = "allow"',
+          'tool = "bash"',
+          'pattern = "git *"',
+          "",
+          "[[permission.rules]]",
+          'action = "deny"',
+          'tool = "Bash"',
+          'pattern = "rm *"',
+          "",
+          "[[permission.rules]]",
+          'action = "ask"',
+          'tool = "read"',
+          "",
+          "[[permission.rules]]",
+          'action = "allow"',
+          'tool = "MCPTool"',
+          'pattern = "github__list_issues"',
+          "",
+          // `mcp` is the spelling the settings reference documents for the
+          // verbose form; `MCPTool` above is the compact-form name.
+          "[[permission.rules]]",
+          'action = "deny"',
+          'tool = "mcp"',
+          'pattern = "shell__exec"',
+          "",
+          "[[permission.rules]]",
+          'action = "ask"',
+          'tool = "mcp"',
+          "",
+        ].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      // The verbose form counts as fine-grained rules, so the coarse
+      // `permission_mode` fallback is not taken despite `always-approve`.
+      expect(json.permission.bash["git *"]).toBe("allow");
+      expect(json.permission.bash["rm *"]).toBe("deny");
+      // A rule without a `pattern` applies to the whole tool.
+      expect(json.permission.read["*"]).toBe("ask");
+      expect(json.permission.mcp__github__list_issues["*"]).toBe("allow");
+      expect(json.permission.mcp__shell__exec["*"]).toBe("deny");
+      expect(json.permission.mcp["*"]).toBe("ask");
+      expect(json.permission.bash["*"]).toBeUndefined();
+    });
+
+    it("merges the verbose rules with the compact arrays, strictest winning", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        [
+          "[permission]",
+          'allow = ["Bash(git *)", "Read"]',
+          "",
+          "[[permission.rules]]",
+          'action = "deny"',
+          'tool = "bash"',
+          'pattern = "git *"',
+          "",
+          "[[permission.rules]]",
+          'action = "allow"',
+          'tool = "grep"',
+          "",
+        ].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission.bash["git *"]).toBe("deny");
+      expect(json.permission.read["*"]).toBe("allow");
+      expect(json.permission.grep["*"]).toBe("allow");
+    });
+
+    it("skips malformed or unsupported verbose rules without falling back", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        [
+          "[ui]",
+          'permission_mode = "always-approve"',
+          "",
+          "[[permission.rules]]",
+          'action = "sometimes"',
+          'tool = "bash"',
+          "",
+          "[[permission.rules]]",
+          'action = "deny"',
+          'tool = "any"',
+          "",
+          "[[permission.rules]]",
+          'action = "allow"',
+          'tool = "edit"',
+          'pattern = "src/**"',
+          "",
+        ].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission.edit["src/**"]).toBe("allow");
+      expect(json.permission.bash).toBeUndefined();
+      expect(json.permission.any).toBeUndefined();
+    });
+
+    it("keeps the coarse fallback out of reach when rules are present but all unsupported", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        [
+          "[ui]",
+          'permission_mode = "always-approve"',
+          "",
+          "[[permission.rules]]",
+          'action = "deny"',
+          'tool = "any"',
+          "",
+        ].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission).toEqual({});
+    });
+
     it("applies deny > ask > allow precedence on collision", async () => {
       await writeFileContent(
         join(testDir, ".grok", "config.toml"),
