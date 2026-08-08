@@ -520,6 +520,38 @@ describe("CopilotcliHooks", () => {
       expect(json.hooks.preToolUse?.[0]?.timeout).toBe(10);
     });
 
+    it("should round-trip cwd through import and re-export", async () => {
+      const hooks = new CopilotcliHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilotcli-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [
+              { type: "command", bash: "echo hi", cwd: "packages/api", timeoutSec: 30 },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const imported = hooks.toRulesyncHooks().getJson();
+      expect(imported.hooks.sessionStart?.[0]?.cwd).toBe("packages/api");
+
+      const reExported = JSON.parse(
+        (
+          await CopilotcliHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks: hooks.toRulesyncHooks(),
+            validate: false,
+          })
+        ).getFileContent(),
+      );
+      expect(reExported.hooks.sessionStart[0].cwd).toBe("packages/api");
+      expect(reExported.hooks.sessionStart[0].timeoutSec).toBe(30);
+    });
+
     it("should always take bash when both bash and powershell are present", () => {
       const logger = createMockLogger();
 
