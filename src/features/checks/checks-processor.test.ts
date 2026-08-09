@@ -17,6 +17,7 @@ describe("ChecksProcessor.getToolTargets", () => {
   it("should return project-scoped check targets", () => {
     expect(ChecksProcessor.getToolTargets()).toEqual([
       "amp",
+      "augmentcode",
       "cursor",
       "hermesagent",
       "rovodev",

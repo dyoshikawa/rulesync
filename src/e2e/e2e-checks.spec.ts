@@ -20,6 +20,11 @@ const checksGenerateTargets = [
     outputPath: join(".agents", "checks", "security.md"),
   },
   {
+    // Augment Code Review reads one YAML guidelines file of named areas.
+    target: "augmentcode",
+    outputPath: join(".augment", "code_review_guidelines.yaml"),
+  },
+  {
     // Bugbot reads one aggregated instruction file rather than per-check files.
     target: "cursor",
     outputPath: join(".cursor", "BUGBOT.md"),
@@ -87,6 +92,15 @@ Look for injection vulnerabilities.
       });
 
       const generatedContent = await readFileContent(join(testDir, outputPath));
+      if (target === "augmentcode") {
+        // One area per check, keyed by the source file basename.
+        expect(generatedContent).toContain("areas:");
+        expect(generatedContent).toContain("security:");
+        expect(generatedContent).toContain("id: security");
+        expect(generatedContent).toContain("severity: high");
+        expect(generatedContent).toContain("Look for injection vulnerabilities.");
+        return;
+      }
       if (target === "takt") {
         // One quality gate per check, in the shared config's owned block.
         expect(generatedContent).toContain("workflow_overrides:");

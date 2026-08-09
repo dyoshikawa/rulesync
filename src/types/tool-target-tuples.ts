@@ -291,6 +291,7 @@ export const permissionsProcessorToolTargetTuple = [
 
 export const checksProcessorToolTargetTuple = [
   "amp",
+  "augmentcode",
   "cursor",
   "hermesagent",
   "rovodev",
