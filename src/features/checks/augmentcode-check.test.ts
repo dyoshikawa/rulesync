@@ -199,6 +199,33 @@ describe("AugmentcodeCheck", () => {
       expect(yaml.areas.paused.globs).toEqual([]);
     });
 
+    it("should not reuse a rule id a preserved hand-written area already holds", async () => {
+      await writeFileContent(
+        join(testDir, GUIDELINES_PATH),
+        [
+          "areas:",
+          "  handwritten:",
+          '    description: "Written by a human"',
+          '    globs: ["**"]',
+          "    rules:",
+          '      - id: "security"',
+          '        description: "Theirs."',
+          '        severity: "low"',
+        ].join("\n"),
+      );
+
+      const [generated] = await generate({
+        outputRoot: testDir,
+        rulesyncChecks: [createCheck({ name: "security", body: "Ours." })],
+      });
+
+      // Augment reports findings by id, so two rules sharing one are
+      // indistinguishable in its output.
+      const yaml = loadYaml(generated!.getFileContent()) as Record<string, any>;
+      expect(yaml.areas.handwritten.rules[0].id).toBe("security");
+      expect(yaml.areas.security.rules[0].id).toBe("security-2");
+    });
+
     it("should disambiguate rule ids for same-named checks in different directories", async () => {
       const [generated] = await generate({
         outputRoot: testDir,
@@ -440,6 +467,38 @@ describe("AugmentcodeCheck", () => {
 
       // Documented one-way fold: Augment has no band above `high`.
       expect(imported.toRulesyncChecks()[0]!.getFrontmatter().severity).toBe("high");
+    });
+
+    it("should keep an authored empty globs list across import but not a malformed one", async () => {
+      await writeFileContent(
+        join(testDir, GUIDELINES_PATH),
+        [
+          "areas:",
+          "  paused:",
+          '    description: "Matches nothing on purpose"',
+          "    globs: []",
+          '    rules: [{ id: "a", description: "One." }]',
+          "  malformed:",
+          '    description: "Every glob is the wrong type"',
+          "    globs: [123]",
+          '    rules: [{ id: "b", description: "Two." }]',
+        ].join("\n"),
+      );
+
+      const imported = await AugmentcodeCheck.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "code_review_guidelines.yaml",
+      });
+      const [regenerated] = await generate({
+        outputRoot: testDir,
+        rulesyncChecks: imported.toRulesyncChecks(),
+      });
+
+      const yaml = loadYaml(regenerated!.getFileContent()) as Record<string, any>;
+      // Deliberately empty stays empty...
+      expect(yaml.areas.paused.globs).toEqual([]);
+      // ...but nothing was authored in the malformed one to preserve.
+      expect(yaml.areas.malformed.globs).toEqual(["**"]);
     });
 
     it("should skip a rule missing a required field rather than invent a check", async () => {

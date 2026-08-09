@@ -149,28 +149,55 @@ function toRule(
 }
 
 /**
+ * An authored area key is used verbatim. Slugifying it would rewrite the
+ * underscores in Augment's own documented example (`memory_safety`), and since
+ * import writes the key back unchanged, the next generate would build a second
+ * area under the slugified spelling while the original stayed put — the same
+ * rules twice. Only the file-stem default is slugified, because that one has to
+ * become a legal area key from an arbitrary file name.
+ */
+function areaKeyFor(rulesyncCheck: RulesyncCheck, override: AugmentcodeCheckOverride): string {
+  return override.area ?? slugifyCheckName(stemOf(rulesyncCheck));
+}
+
+/** Rule ids belonging to areas this generate preserves rather than rewrites. */
+function collectRuleIds(
+  existingAreas: Record<string, unknown>,
+  claimedKeys: ReadonlySet<string>,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const [areaKey, rawArea] of Object.entries(existingAreas)) {
+    if (claimedKeys.has(areaKey) || !isPlainObject(rawArea)) continue;
+    for (const rawRule of readArea(rawArea).rules) {
+      const rule = readRule(rawRule);
+      if (rule) ids.add(rule.id);
+    }
+  }
+  return ids;
+}
+
+/**
  * Group the checks into `areas`. One area per check by default; checks naming
  * the same `augmentcode.area` share one, with the first check to name it
  * supplying the area's `description` and `globs`.
  */
-function buildAreas(
-  entries: { rulesyncCheck: RulesyncCheck; override: AugmentcodeCheckOverride }[],
-): Record<string, unknown> {
+function buildAreas({
+  entries,
+  reservedRuleIds,
+}: {
+  entries: { rulesyncCheck: RulesyncCheck; override: AugmentcodeCheckOverride }[];
+  /** Ids already spoken for by areas this generate preserves rather than rewrites. */
+  reservedRuleIds: Set<string>;
+}): Record<string, unknown> {
   const areas = new Map<
     string,
     { description: string; globs: string[]; rules: AugmentcodeRule[] }
   >();
 
-  const usedRuleIds = new Set<string>();
+  const usedRuleIds = new Set(reservedRuleIds);
 
   for (const { rulesyncCheck, override } of entries) {
-    // An authored area key is used verbatim. Slugifying it would rewrite the
-    // underscores in Augment's own documented example (`memory_safety`), and
-    // since import writes the key back unchanged, the next generate would build
-    // a second area under the slugified spelling while the original stayed put —
-    // the same rules twice. Only the file-stem default is slugified, because
-    // that one has to become a legal area key from an arbitrary file name.
-    const key = override.area ?? slugifyCheckName(stemOf(rulesyncCheck));
+    const key = areaKeyFor(rulesyncCheck, override);
     const rule = toRule(rulesyncCheck, override, usedRuleIds);
     const existing = areas.get(key);
     if (existing) {
@@ -224,13 +251,16 @@ function readArea(rawArea: Record<string, unknown>): {
   rules: unknown[];
 } {
   // An empty list round-trips as an empty list: it says the area matches
-  // nothing, which regenerating it as the catch-all `["**"]` would invert.
-  const globs = Array.isArray(rawArea.globs)
-    ? rawArea.globs.filter((glob): glob is string => typeof glob === "string")
-    : undefined;
+  // nothing, which regenerating it as the catch-all `["**"]` would invert. A
+  // list whose entries were all non-strings is a different case — nothing was
+  // authored there to preserve, so it falls back to the default rather than
+  // silently turning a malformed area into an inert one.
+  const rawGlobs = Array.isArray(rawArea.globs) ? rawArea.globs : undefined;
+  const globs = rawGlobs?.filter((glob): glob is string => typeof glob === "string");
+  const authoredGlobs = globs && (globs.length > 0 || rawGlobs?.length === 0) ? globs : undefined;
   return {
     ...(typeof rawArea.description === "string" && { description: rawArea.description }),
-    ...(globs && { globs }),
+    ...(authoredGlobs && { globs: authoredGlobs }),
     rules: Array.isArray(rawArea.rules) ? rawArea.rules : [],
   };
 }
@@ -360,7 +390,16 @@ export class AugmentcodeCheck extends ToolCheck {
       ),
     }));
 
-    const generatedAreas = buildAreas(entries);
+    // A generated id must not land on one a hand-written area already uses:
+    // Augment reports findings by id, so two rules sharing one are
+    // indistinguishable in its output.
+    const claimedKeys = new Set(
+      entries.map(({ rulesyncCheck, override }) => areaKeyFor(rulesyncCheck, override)),
+    );
+    const generatedAreas = buildAreas({
+      entries,
+      reservedRuleIds: collectRuleIds(existingAreas, claimedKeys),
+    });
     // Only the areas this generate claims are rewritten; the rest of the file —
     // other areas, `file_paths_to_ignore`, anything Augment adds later — is
     // carried through untouched.
