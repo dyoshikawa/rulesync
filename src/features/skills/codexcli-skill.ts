@@ -150,7 +150,8 @@ export type CodexCliSkillParams = {
 /**
  * Represents a Codex CLI skill directory.
  * Codex CLI supports skills in both project mode (under $CWD/.agents/skills)
- * and global mode (under $CODEX_HOME/skills, typically ~/.agents/skills).
+ * and global mode (under ~/.agents/skills — Rulesync resolves the home
+ * directory rather than $CODEX_HOME).
  */
 export class CodexCliSkill extends ToolSkill {
   constructor({
@@ -190,7 +191,7 @@ export class CodexCliSkill extends ToolSkill {
     // Codex CLI skills use the same relative path for both project and global modes
     // The actual location differs based on outputRoot:
     // - Project mode: {process.cwd()}/.agents/skills/
-    // - Global mode: {$CODEX_HOME}/skills/ (typically ~/.agents/skills/)
+    // - Global mode: {home}/.agents/skills/
     return {
       relativeDirPath: CODEXCLI_SKILLS_DIR_PATH,
     };
