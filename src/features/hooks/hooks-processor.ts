@@ -534,6 +534,12 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: KIRO_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+      // The shared `kiro` override block carries this format's own native keys
+      // (`fileEdited`, `fileCreated`, …) plus the standalone-format triggers the
+      // other Kiro targets read. The adapter filters that block against its own
+      // vocabulary and reports what it drops, so a generic "not supported"
+      // warning here would be both duplicate and wrong.
+      passthroughOverrideEvents: true,
     },
   ],
   [

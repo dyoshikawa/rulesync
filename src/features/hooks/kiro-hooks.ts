@@ -9,6 +9,7 @@ import type { HooksConfig } from "../../types/hooks.js";
 import {
   KIRO_HOOK_EVENTS,
   CANONICAL_TO_KIRO_EVENT_NAMES,
+  KIRO_AGENT_CONFIG_NATIVE_EVENT_NAMES,
   KIRO_TO_CANONICAL_EVENT_NAMES,
   safeString,
 } from "../../types/hooks.js";
@@ -66,7 +67,7 @@ function buildKiroEntriesForEvent(definitions: HooksConfig["hooks"][string]): un
  */
 const KIRO_AGENT_CONFIG_EVENT_KEYS: ReadonlySet<string> = new Set([
   ...KIRO_HOOK_EVENTS,
-  ...Object.keys(KIRO_TO_CANONICAL_EVENT_NAMES),
+  ...KIRO_AGENT_CONFIG_NATIVE_EVENT_NAMES,
 ]);
 
 function canonicalToKiroHooks({
@@ -102,7 +103,7 @@ function canonicalToKiroHooks({
   }
   if (droppedEvents.length > 0) {
     logger?.warn(
-      `Skipped hook event(s) from the "kiro" override block for the deprecated kiro agent config (not part of its event surface): ${droppedEvents.join(", ")}. They are emitted for the kiro-cli / kiro-ide targets, which read the same block.`,
+      `Skipped hook event(s) from the "kiro" override block for the deprecated kiro agent config (no event key of that format): ${droppedEvents.join(", ")}. They are emitted for the kiro-cli / kiro-ide targets, which read the same block.`,
     );
   }
   const effectiveHooks: HooksConfig["hooks"] = {

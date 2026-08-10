@@ -9,6 +9,7 @@ import {
   CANONICAL_TO_KIRO_IDE_EVENT_NAMES,
   KIRO_IDE_HOOK_EVENTS,
   KIRO_IDE_TO_CANONICAL_EVENT_NAMES,
+  KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES,
   safeString,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
@@ -139,7 +140,15 @@ function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
 
   const entries: KiroIdeHookEntry[] = [];
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const trigger = CANONICAL_TO_KIRO_IDE_EVENT_NAMES[eventName] ?? eventName;
+    // The shared `kiro` block is also read by the deprecated alias, whose
+    // format spells the same events differently (`agentSpawn`, `fileEdited`,
+    // …). Those spellings are translated to their v1 trigger rather than
+    // emitted verbatim, which would write a trigger this format does not
+    // define. Anything else still passes through unchanged.
+    const trigger =
+      CANONICAL_TO_KIRO_IDE_EVENT_NAMES[eventName] ??
+      KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES[eventName] ??
+      eventName;
     entries.push(...buildKiroIdeEntriesForEvent(trigger, definitions));
   }
   return entries;

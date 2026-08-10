@@ -92,6 +92,37 @@ describe("KiroHooks", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("PostFileSave"));
     });
 
+    it("should keep agent-config-native event keys that have no canonical equivalent", async () => {
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {},
+            // `fileEdited` / `fileCreated` exist only in this format's own
+            // vocabulary, so the shared-block filter must not drop them.
+            kiro: {
+              hooks: {
+                fileEdited: [{ command: "echo edited" }],
+                fileCreated: [{ command: "echo created" }],
+              },
+            },
+          }),
+        }),
+      );
+
+      const kiroHooks = await KiroHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+        logger,
+      });
+
+      const parsed = JSON.parse(kiroHooks.getFileContent());
+      expect(parsed.hooks.fileEdited[0].command).toBe("echo edited");
+      expect(parsed.hooks.fileCreated[0].command).toBe("echo created");
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("should map canonical event names to Kiro CLI event names", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({

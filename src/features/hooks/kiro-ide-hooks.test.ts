@@ -160,6 +160,35 @@ describe("KiroIdeHooks", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"kiro-cli.hooks" block'));
   });
 
+  it("translates deprecated agent-config spellings in the shared block to v1 triggers", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: "/mock",
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        hooks: {},
+        // The `kiro` block is shared with the deprecated alias, whose format
+        // spells these events differently. Emitting them verbatim would write
+        // triggers the standalone v1 format does not define.
+        kiro: {
+          hooks: {
+            fileEdited: [{ command: "echo edited" }],
+            agentSpawn: [{ command: "echo spawn" }],
+            PreTaskExec: [{ command: "echo task" }],
+          },
+        },
+      }),
+    });
+
+    const hooks = await KiroIdeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+
+    const triggers = (JSON.parse(hooks.getFileContent()).hooks as Array<{ trigger: string }>).map(
+      (entry) => entry.trigger,
+    );
+    // Unknown-to-rulesync v1 triggers still pass through unchanged.
+    expect(triggers).toEqual(["PostFileSave", "SessionStart", "PreTaskExec"]);
+  });
+
   it("writes to .kiro/hooks/rulesync.json", () => {
     const paths = KiroIdeHooks.getSettablePaths();
     expect(join(paths.relativeDirPath, paths.relativeFilePath)).toBe(
