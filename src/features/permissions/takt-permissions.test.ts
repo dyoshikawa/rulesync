@@ -28,6 +28,9 @@ const toRecord = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {};
 
+const writeRuntimeYaml = (root: string, yaml: string): Promise<void> =>
+  writeFileContent(join(root, ".takt", "runtime.yaml"), yaml);
+
 const readMode = (content: string, provider: string): unknown => {
   const parsed = toRecord(load(content));
   const profiles = toRecord(parsed.provider_profiles);
@@ -232,6 +235,218 @@ describe("TaktPermissions", () => {
 
       const tool = await TaktPermissions.fromFile({ outputRoot: testDir });
       const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.takt).toBeUndefined();
+    });
+  });
+
+  describe("runtime provider mode (runtime.yaml, Takt 0.56.0+)", () => {
+    const ACTIVE_RUNTIME_YAML = [
+      "version: 1",
+      "provider:",
+      "  defaults:",
+      "    profile: default",
+      "  profiles:",
+      "    default:",
+      "      provider: codex",
+      "      model: gpt-5",
+      "      options:",
+      "        reasoning_effort: high",
+    ].join("\n");
+
+    const generateWithProviderOptions = async (logger?: ReturnType<typeof createMockLogger>) =>
+      TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: { bash: { "*": "allow" } },
+          takt: { provider_options: { codex: { network_access: true } } },
+        }),
+        ...(logger !== undefined && { logger }),
+      });
+
+    it("refuses to write provider_options while runtime mode is active", async () => {
+      await writeRuntimeYaml(testDir, ACTIVE_RUNTIME_YAML);
+      const logger = createMockLogger();
+
+      const permissions = await generateWithProviderOptions(logger);
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.provider_options).toBeUndefined();
+      // The permission mode itself still lands: `provider_profiles` is not a
+      // legacy provider signal, and it is keyed by the runtime-resolved provider.
+      expect(readMode(permissions.getFileContent(), "codex")).toBe("full");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Mixed provider configuration detected"),
+      );
+    });
+
+    it("leaves an existing provider_options in config.yaml untouched", async () => {
+      await writeRuntimeYaml(testDir, ACTIVE_RUNTIME_YAML);
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["provider_options:", "  codex:", "    base_url: http://127.0.0.1:8080"].join("\n"),
+      );
+
+      const permissions = await generateWithProviderOptions();
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      const codexOptions = toRecord(toRecord(parsed.provider_options).codex);
+      expect(codexOptions.network_access).toBeUndefined();
+      expect(codexOptions.base_url).toBe("http://127.0.0.1:8080");
+    });
+
+    it("keeps writing provider_options when runtime.yaml is inactive", async () => {
+      await writeRuntimeYaml(testDir, "version: 1\n");
+
+      const permissions = await generateWithProviderOptions();
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(toRecord(toRecord(parsed.provider_options).codex).network_access).toBe(true);
+    });
+
+    it("does not treat empty nested maps as an assignment", async () => {
+      await writeRuntimeYaml(
+        testDir,
+        [
+          "version: 1",
+          "provider:",
+          "  defaults: {}",
+          "  profiles: {}",
+          "  targets:",
+          "    personas: {}",
+          "  auto_routing: {}",
+        ].join("\n"),
+      );
+
+      const permissions = await generateWithProviderOptions();
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(toRecord(toRecord(parsed.provider_options).codex).network_access).toBe(true);
+    });
+
+    it("treats a non-empty targets map as an assignment", async () => {
+      await writeRuntimeYaml(
+        testDir,
+        [
+          "version: 1",
+          "provider:",
+          "  targets:",
+          "    personas:",
+          "      reviewer:",
+          "        profile: default",
+        ].join("\n"),
+      );
+
+      const permissions = await generateWithProviderOptions();
+
+      expect(toRecord(load(permissions.getFileContent())).provider_options).toBeUndefined();
+    });
+
+    it("fails closed when runtime.yaml cannot be parsed", async () => {
+      await writeRuntimeYaml(testDir, "provider:\n  profiles:\n - broken: [\n");
+      const logger = createMockLogger();
+
+      const permissions = await generateWithProviderOptions(logger);
+
+      expect(toRecord(load(permissions.getFileContent())).provider_options).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("could not parse"));
+    });
+
+    it("detects an active runtime.yaml in the home directory during a project generate", async () => {
+      const { testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true });
+      try {
+        // `getHomeDirectory()` honours HOME_DIR ahead of everything else, so the
+        // pseudo-home is reached without module-mocking the whole file utils.
+        vi.stubEnv("HOME_DIR", homeDir);
+        await writeRuntimeYaml(homeDir, ACTIVE_RUNTIME_YAML);
+
+        const permissions = await generateWithProviderOptions();
+
+        expect(toRecord(load(permissions.getFileContent())).provider_options).toBeUndefined();
+        expect(readMode(permissions.getFileContent(), "codex")).toBe("full");
+      } finally {
+        vi.unstubAllEnvs();
+        await cleanupHome();
+      }
+    });
+
+    it("resolves the active provider from the sole runtime profile", async () => {
+      await writeRuntimeYaml(
+        testDir,
+        ["version: 1", "provider:", "  profiles:", "    only:", "      provider: opencode"].join(
+          "\n",
+        ),
+      );
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
+      });
+
+      expect(readMode(permissions.getFileContent(), "opencode")).toBe("full");
+    });
+
+    it("falls through to config.yaml when the runtime default names no profile provider", async () => {
+      await writeRuntimeYaml(
+        testDir,
+        ["version: 1", "provider:", "  defaults:", "    pool: general"].join("\n"),
+      );
+      await writeFileContent(join(testDir, ".takt", "config.yaml"), "provider: claude\n");
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
+      });
+
+      expect(readMode(permissions.getFileContent(), "claude")).toBe("full");
+    });
+
+    it("lifts runtime profile options into the takt override on import", async () => {
+      await writeRuntimeYaml(
+        testDir,
+        [
+          ACTIVE_RUNTIME_YAML,
+          "    secondary:",
+          "      provider: claude",
+          "      options:",
+          "        sandbox: true",
+        ].join("\n"),
+      );
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["provider_profiles:", "  codex:", "    default_permission_mode: full"].join("\n"),
+      );
+
+      const tool = await TaktPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+
+      // Keyed by each profile's own provider, not by the profile name.
+      expect(json.takt.provider_options).toEqual({
+        codex: { reasoning_effort: "high" },
+        claude: { sandbox: true },
+      });
+      // The provider comes from runtime.yaml, so the mode is read off `codex`.
+      expect(json.permission.bash["*"]).toBe("allow");
+    });
+
+    it("ignores runtime profile options when runtime mode is inactive", async () => {
+      await writeRuntimeYaml(
+        testDir,
+        ["version: 1", "provider:", "  profiles: {}"].join("\n") +
+          "\nunrelated:\n  options:\n    x: 1\n",
+      );
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        [
+          "provider: claude",
+          "provider_profiles:",
+          "  claude:",
+          "    default_permission_mode: full",
+        ].join("\n"),
+      );
+
+      const tool = await TaktPermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+
       expect(json.takt).toBeUndefined();
     });
   });
