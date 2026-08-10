@@ -43,6 +43,14 @@ in-scope tool:
 Do not hardcode the tool list from memory — re-read the matrix each run so the
 skill stays in sync with the README.
 
+Then read `references/new-target-watchlist.md` in the `rulesync-feature-research`
+skill. It records products that are not targets yet but were worth re-checking,
+each with the condition that would change that. Evaluate every entry in the same
+run: promote one whose condition is met to a target proposal (a GitHub issue,
+after the duplicate check in Step 4-1) and remove it from the file, retire an
+entry that can no longer be met, and leave the rest. Report which entries were
+promoted, retired or left in the final report.
+
 ## Step 2: Launch One Research Subagent per Target Tool
 
 For each in-scope tool, delegate the investigation to a subagent via the Agent
