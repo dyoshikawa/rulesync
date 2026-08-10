@@ -290,13 +290,14 @@ describe("HooksProcessor", () => {
       expect(Array.isArray(parsed.hooks.SessionStart)).toBe(true);
     });
 
-    it("should not warn about kiro-ide override-block IDE-only triggers (passthrough)", async () => {
+    it("should not warn about kiro override-block IDE-only triggers (passthrough)", async () => {
       const config = {
         version: 1,
         hooks: {
           sessionStart: [{ type: "command", command: "echo start" }],
         },
-        "kiro-ide": {
+        // Both Kiro standalone-hooks targets read this one shared block.
+        kiro: {
           hooks: {
             // IDE-only trigger supplied via the override block; it is emitted
             // verbatim and must NOT be reported as a skipped/unsupported event.
@@ -463,7 +464,7 @@ describe("HooksProcessor", () => {
       // The event list must be part of the same message, and must name only the
       // events that actually carry a disabled hook.
       expect(logger.warn).toHaveBeenCalledWith(
-        'Emitting "enabled: false" hook(s) as active for claudecode (only kiro-ide supports the flag): preToolUse',
+        'Emitting "enabled: false" hook(s) as active for claudecode (only the kiro-cli / kiro-ide standalone hooks format supports the flag): preToolUse',
       );
     });
 
@@ -490,26 +491,29 @@ describe("HooksProcessor", () => {
       );
     });
 
-    it("should not warn about a disabled hook for kiro-ide, which honors the flag", async () => {
-      const config = {
-        version: 1,
-        hooks: { preToolUse: [{ type: "command", command: "lint.sh", enabled: false }] },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
+    it.each(["kiro-ide", "kiro-cli"] as const)(
+      "should not warn about a disabled hook for %s, which honors the flag",
+      async (toolTarget) => {
+        const config = {
+          version: 1,
+          hooks: { preToolUse: [{ type: "command", command: "lint.sh", enabled: false }] },
+        };
+        const rulesyncHooks = new RulesyncHooks({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify(config),
+          validate: false,
+        });
 
-      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "kiro-ide" });
-      await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+        const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget });
+        await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
 
-      expect(logger.warn).not.toHaveBeenCalledWith(
-        expect.stringContaining('Emitting "enabled: false"'),
-      );
-    });
+        expect(logger.warn).not.toHaveBeenCalledWith(
+          expect.stringContaining('Emitting "enabled: false"'),
+        );
+      },
+    );
 
     it("should log warning when matcher hooks exist and target does not support them", async () => {
       const config = {

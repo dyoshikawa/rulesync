@@ -9,11 +9,13 @@ import type { HooksConfig } from "../../types/hooks.js";
 import {
   KIRO_HOOK_EVENTS,
   CANONICAL_TO_KIRO_EVENT_NAMES,
+  KIRO_AGENT_CONFIG_NATIVE_EVENT_NAMES,
   KIRO_TO_CANONICAL_EVENT_NAMES,
   safeString,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
@@ -53,9 +55,30 @@ function buildKiroEntriesForEvent(definitions: HooksConfig["hooks"][string]): un
   return entries;
 }
 
-function canonicalToKiroHooks(config: HooksConfig): Record<string, unknown[]> {
-  // The `kiro` alias is the sole writer of this format, so its override key is
-  // the only one that can apply here.
+/**
+ * Event keys the embedded agent-config format defines: the canonical events it
+ * supports plus its own native spellings (`agentSpawn`, `userPromptSubmit`, …).
+ *
+ * The `kiro` override block is shared with the standalone `.kiro/hooks/*.json`
+ * targets, whose vocabulary is different (`PostFileSave`, `PreTaskExec`, …).
+ * Passing those through here would write event keys Kiro does not define into
+ * `.kiro/agents/default.json`, so they are dropped instead.
+ * @see https://kiro.dev/docs/cli/v3/hooks-migration/
+ */
+const KIRO_AGENT_CONFIG_EVENT_KEYS: ReadonlySet<string> = new Set([
+  ...KIRO_HOOK_EVENTS,
+  ...KIRO_AGENT_CONFIG_NATIVE_EVENT_NAMES,
+]);
+
+function canonicalToKiroHooks({
+  config,
+  logger,
+}: {
+  config: HooksConfig;
+  logger?: Logger;
+}): Record<string, unknown[]> {
+  // The `kiro` alias is the sole writer of this format, but the block it reads
+  // is shared with the standalone-format targets (see KIRO_HOOKS_OVERRIDE_KEY).
   const overrideKey = "kiro";
   const kiroSupported: Set<string> = new Set(KIRO_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
@@ -64,13 +87,28 @@ function canonicalToKiroHooks(config: HooksConfig): Record<string, unknown[]> {
       sharedHooks[event] = defs;
     }
   }
+  // Tool-specific overrides bypass the KIRO_HOOK_EVENTS filter by design —
+  // users who define tool-level overrides are expected to know the target
+  // tool's event surface — but only within this format's own vocabulary: the
+  // block is shared with the standalone-format targets, whose triggers this
+  // file cannot express.
+  const overrideHooks: HooksConfig["hooks"] = {};
+  const droppedEvents: string[] = [];
+  for (const [event, defs] of Object.entries(config[overrideKey]?.hooks ?? {})) {
+    if (KIRO_AGENT_CONFIG_EVENT_KEYS.has(event)) {
+      overrideHooks[event] = defs;
+    } else {
+      droppedEvents.push(event);
+    }
+  }
+  if (droppedEvents.length > 0) {
+    logger?.warn(
+      `Skipped hook event(s) from the "kiro" override block for the deprecated kiro agent config (no event key of that format): ${droppedEvents.join(", ")}. They are emitted for the kiro-cli / kiro-ide targets, which read the same block.`,
+    );
+  }
   const effectiveHooks: HooksConfig["hooks"] = {
     ...sharedHooks,
-    // Note: Tool-specific overrides (config[overrideKey]?.hooks) bypass the
-    // KIRO_HOOK_EVENTS filter by design — users who define tool-level overrides
-    // are expected to know the target tool's event surface. The HooksProcessor
-    // already warns about unsupported events before calling this function.
-    ...config[overrideKey]?.hooks,
+    ...overrideHooks,
   };
   const kiro: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
@@ -194,12 +232,13 @@ export class KiroHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
+    logger,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<KiroHooks> {
     const paths = KiroHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
     const config = rulesyncHooks.getJson();
-    const kiroHooks = canonicalToKiroHooks(config);
+    const kiroHooks = canonicalToKiroHooks({ config, logger });
     const fileContent = applySharedConfigPatch({
       fileKey: sharedConfigFileKey(paths),
       feature: "hooks",

@@ -2,9 +2,11 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { KiroCliHooks } from "./kiro-cli-hooks.js";
+import { KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
 describe("KiroCliHooks", () => {
@@ -28,15 +30,17 @@ describe("KiroCliHooks", () => {
     });
   });
 
-  it("honors the kiro-cli override key and ignores the kiro-ide override", async () => {
+  it("reads the shared kiro override block and warns about per-target blocks", async () => {
+    const logger = createMockLogger();
     const rulesyncHooks = new RulesyncHooks({
       outputRoot: "/mock",
       relativeDirPath: ".rulesync",
       relativeFilePath: "hooks.json",
       fileContent: JSON.stringify({
         hooks: { sessionStart: [{ command: "echo shared" }] },
-        // The IDE override must NOT leak into kiro-cli output.
-        "kiro-ide": { hooks: { stop: [{ command: "echo kiro-ide" }] } },
+        kiro: { hooks: { stop: [{ command: "echo kiro" }] } },
+        // Per-target blocks are read by nothing: both Kiro targets write the
+        // same file, so they share the `kiro` block.
         "kiro-cli": { hooks: { stop: [{ command: "echo kiro-cli" }] } },
       }),
     });
@@ -45,6 +49,7 @@ describe("KiroCliHooks", () => {
       outputRoot: testDir,
       rulesyncHooks,
       validate: true,
+      logger,
     });
 
     expect(hooks).toBeInstanceOf(KiroCliHooks);
@@ -57,10 +62,43 @@ describe("KiroCliHooks", () => {
       ]),
     );
     expect(triggers.SessionStart).toBe("echo shared");
-    expect(triggers.Stop).toBe("echo kiro-cli");
+    expect(triggers.Stop).toBe("echo kiro");
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"kiro-cli.hooks" block'));
   });
 
-  it("routes imported hooks into the kiro-cli override block", async () => {
+  it("generates the identical file for kiro-cli and kiro-ide", async () => {
+    const fileContent = JSON.stringify({
+      hooks: { sessionStart: [{ command: "echo shared" }] },
+      kiro: { hooks: { PostFileSave: [{ command: "echo saved" }] } },
+    });
+    const makeRulesyncHooks = () =>
+      new RulesyncHooks({
+        outputRoot: "/mock",
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "hooks.json",
+        fileContent,
+      });
+
+    const cli = await KiroCliHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: makeRulesyncHooks(),
+      validate: true,
+    });
+    const ide = await KiroIdeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: makeRulesyncHooks(),
+      validate: true,
+    });
+
+    // Both targets write the same `.kiro/hooks/rulesync.json`, so whichever
+    // runs last must not change the result.
+    expect(cli.getRelativeDirPath()).toBe(ide.getRelativeDirPath());
+    expect(cli.getRelativeFilePath()).toBe(ide.getRelativeFilePath());
+    expect(cli.getFileContent()).toBe(ide.getFileContent());
+    expect(cli.getFileContent()).toContain("echo saved");
+  });
+
+  it("routes imported hooks into the shared kiro override block", async () => {
     const hooksDir = join(testDir, ".kiro", "hooks");
     await ensureDir(hooksDir);
     await writeFileContent(
@@ -83,7 +121,8 @@ describe("KiroCliHooks", () => {
     expect(hooks).toBeInstanceOf(KiroCliHooks);
 
     const imported = JSON.parse(hooks.toRulesyncHooks().getFileContent());
-    expect(imported["kiro-cli"].hooks.PostFileSave[0].command).toBe("echo saved");
+    expect(imported.kiro.hooks.PostFileSave[0].command).toBe("echo saved");
+    expect(imported["kiro-cli"]).toBeUndefined();
     expect(imported["kiro-ide"]).toBeUndefined();
   });
 

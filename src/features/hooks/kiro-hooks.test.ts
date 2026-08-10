@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { KiroHooks } from "./kiro-hooks.js";
@@ -55,6 +56,71 @@ describe("KiroHooks", () => {
       expect(parsed.hooks.agentSpawn).toBeDefined();
       expect(parsed.hooks.agentSpawn[0].command).toBe("echo start");
       expect(parsed.hooks.UnsupportedEvent).toBeUndefined();
+    });
+
+    it("should drop standalone-format triggers from the shared kiro override block", async () => {
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: { sessionStart: [{ command: "echo start" }] },
+            // The `kiro` block is shared with the standalone-format targets
+            // (kiro-cli / kiro-ide). `PostFileSave` belongs to that format's
+            // trigger vocabulary and is not an event this agent config defines,
+            // while `userPromptSubmit` is one of its own native spellings.
+            kiro: {
+              hooks: {
+                PostFileSave: [{ command: "echo saved" }],
+                userPromptSubmit: [{ command: "echo prompt" }],
+              },
+            },
+          }),
+        }),
+      );
+
+      const kiroHooks = await KiroHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+        logger,
+      });
+
+      const parsed = JSON.parse(kiroHooks.getFileContent());
+      expect(parsed.hooks.agentSpawn[0].command).toBe("echo start");
+      expect(parsed.hooks.userPromptSubmit[0].command).toBe("echo prompt");
+      expect(parsed.hooks.PostFileSave).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("PostFileSave"));
+    });
+
+    it("should keep agent-config-native event keys that have no canonical equivalent", async () => {
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {},
+            // `fileEdited` / `fileCreated` exist only in this format's own
+            // vocabulary, so the shared-block filter must not drop them.
+            kiro: {
+              hooks: {
+                fileEdited: [{ command: "echo edited" }],
+                fileCreated: [{ command: "echo created" }],
+              },
+            },
+          }),
+        }),
+      );
+
+      const kiroHooks = await KiroHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+        logger,
+      });
+
+      const parsed = JSON.parse(kiroHooks.getFileContent());
+      expect(parsed.hooks.fileEdited[0].command).toBe("echo edited");
+      expect(parsed.hooks.fileCreated[0].command).toBe("echo created");
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should map canonical event names to Kiro CLI event names", async () => {

@@ -9,6 +9,7 @@ import {
   CANONICAL_TO_KIRO_IDE_EVENT_NAMES,
   KIRO_IDE_HOOK_EVENTS,
   KIRO_IDE_TO_CANONICAL_EVENT_NAMES,
+  KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES,
   safeString,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
@@ -104,15 +105,24 @@ function buildKiroIdeEntriesForEvent(
 }
 
 /**
- * The `HooksConfig` keys whose `hooks` block feeds the standalone format: one
- * per Kiro target that writes it.
+ * The single `HooksConfig` key every Kiro target reads its tool-specific
+ * overrides from.
+ *
+ * `kiro-ide` and `kiro-cli` write the same `.kiro/hooks/rulesync.json` at both
+ * scopes, so per-target override blocks would make that one file's content
+ * depend on generation order (last writer wins). All Kiro variants therefore
+ * share the `kiro` block — the same resolution the Kiro MCP and permissions
+ * wiring already use for the file they share.
  */
-export type KiroStandaloneHooksOverrideKey = "kiro-ide" | "kiro-cli";
+export const KIRO_HOOKS_OVERRIDE_KEY = "kiro";
 
-function canonicalToKiroIdeHooks(
-  config: HooksConfig,
-  overrideKey: KiroStandaloneHooksOverrideKey,
-): KiroIdeHookEntry[] {
+/**
+ * Override keys a user might reach for that nothing reads, mapped to the key
+ * that is actually read.
+ */
+const KIRO_HOOKS_IGNORED_OVERRIDE_KEYS = ["kiro-ide", "kiro-cli"] as const;
+
+function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
   const kiroIdeSupported: Set<string> = new Set(KIRO_IDE_HOOK_EVENTS);
   const sharedHooks: HooksConfig["hooks"] = {};
   for (const [event, defs] of Object.entries(config.hooks)) {
@@ -125,12 +135,20 @@ function canonicalToKiroIdeHooks(
     // Tool-specific overrides bypass the KIRO_IDE_HOOK_EVENTS filter by design:
     // users targeting Kiro directly may reference triggers such as
     // `PostFileSave` or `PreTaskExec`, which pass through unchanged.
-    ...config[overrideKey]?.hooks,
+    ...config[KIRO_HOOKS_OVERRIDE_KEY]?.hooks,
   };
 
   const entries: KiroIdeHookEntry[] = [];
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const trigger = CANONICAL_TO_KIRO_IDE_EVENT_NAMES[eventName] ?? eventName;
+    // The shared `kiro` block is also read by the deprecated alias, whose
+    // format spells the same events differently (`agentSpawn`, `fileEdited`,
+    // …). Those spellings are translated to their v1 trigger rather than
+    // emitted verbatim, which would write a trigger this format does not
+    // define. Anything else still passes through unchanged.
+    const trigger =
+      CANONICAL_TO_KIRO_IDE_EVENT_NAMES[eventName] ??
+      KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES[eventName] ??
+      eventName;
     entries.push(...buildKiroIdeEntriesForEvent(trigger, definitions));
   }
   return entries;
@@ -188,6 +206,11 @@ function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hook
  * still writes the embedded `.kiro/agents/default.json` agent-config shape,
  * which Kiro CLI 3.0 no longer reads.
  *
+ * Because both targets write the very same file, they resolve their
+ * tool-specific overrides from one shared block
+ * ({@link KIRO_HOOKS_OVERRIDE_KEY}) rather than per-target blocks, so
+ * generating either or both targets always yields the same file.
+ *
  * @see https://kiro.dev/docs/hooks/
  */
 export class KiroIdeHooks extends ToolHooks {
@@ -196,15 +219,6 @@ export class KiroIdeHooks extends ToolHooks {
       ...params,
       fileContent: params.fileContent ?? JSON.stringify({ version: "v1", hooks: [] }, null, 2),
     });
-  }
-
-  /**
-   * The `HooksConfig` key whose `hooks` block provides tool-specific overrides
-   * for this target. {@link import("./kiro-cli-hooks.js").KiroCliHooks}
-   * overrides this to `kiro-cli`.
-   */
-  protected static getOverrideKey(): KiroStandaloneHooksOverrideKey {
-    return "kiro-ide";
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
@@ -238,10 +252,21 @@ export class KiroIdeHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
+    logger,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<KiroIdeHooks> {
     const paths = this.getSettablePaths({ global });
     const config = rulesyncHooks.getJson();
-    const hooks = canonicalToKiroIdeHooks(config, this.getOverrideKey());
+
+    // A block authored under a per-target name is not read by anything —
+    // surface that instead of silently dropping the hooks in it.
+    for (const ignoredKey of KIRO_HOOKS_IGNORED_OVERRIDE_KEYS) {
+      if (config[ignoredKey]?.hooks === undefined) continue;
+      logger?.warn(
+        `The "${ignoredKey}.hooks" block in ${join(rulesyncHooks.getRelativeDirPath(), rulesyncHooks.getRelativeFilePath())} is ignored. Author it under the "${KIRO_HOOKS_OVERRIDE_KEY}.hooks" key instead: the Kiro IDE and Kiro CLI targets write the same hooks file, so they read one shared block.`,
+      );
+    }
+
+    const hooks = canonicalToKiroIdeHooks(config);
     const fileContent = JSON.stringify({ version: "v1", hooks }, null, 2);
     return new this({
       outputRoot,
@@ -263,9 +288,12 @@ export class KiroIdeHooks extends ToolHooks {
       );
     }
     const hooks = kiroIdeHooksToCanonical(parsed.hooks ?? []);
-    const overrideKey = (this.constructor as typeof KiroIdeHooks).getOverrideKey();
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify(buildImportedHooksConfig({ hooks, overrideKey }), null, 2),
+      fileContent: JSON.stringify(
+        buildImportedHooksConfig({ hooks, overrideKey: KIRO_HOOKS_OVERRIDE_KEY }),
+        null,
+        2,
+      ),
     });
   }
 

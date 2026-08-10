@@ -279,6 +279,49 @@ describe("E2E: hooks", () => {
     expect(imported.hooks.beforeSubmitPrompt[0].cacheTtl).toBe(60);
   });
 
+  it("should write one consistent Kiro hooks file whichever standalone target runs last", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        hooks: {
+          sessionStart: [{ command: "echo shared" }],
+        },
+        // Both standalone targets write `.kiro/hooks/rulesync.json`, so they
+        // read this one shared block instead of per-target blocks.
+        kiro: {
+          hooks: {
+            PostFileSave: [{ command: "echo saved" }],
+          },
+        },
+      }),
+    );
+
+    const generatedPath = join(testDir, ".kiro", "hooks", "rulesync.json");
+
+    await runGenerate({ target: "kiro-ide", features: "hooks" });
+    const afterIde = await readFileContent(generatedPath);
+
+    await runGenerate({ target: "kiro-cli", features: "hooks" });
+    const afterCli = await readFileContent(generatedPath);
+
+    expect(afterCli).toBe(afterIde);
+    const triggers = (JSON.parse(afterCli).hooks as Array<{ trigger: string }>).map(
+      (entry) => entry.trigger,
+    );
+    expect(triggers).toEqual(expect.arrayContaining(["SessionStart", "PostFileSave"]));
+
+    // The deprecated `kiro` alias reads the same block but writes the embedded
+    // agent-config format, which does not define `PostFileSave`, so the trigger
+    // must not leak into it.
+    await runGenerate({ target: "kiro", features: "hooks" });
+    const agentConfig = JSON.parse(
+      await readFileContent(join(testDir, ".kiro", "agents", "default.json")),
+    );
+    expect(agentConfig.hooks.agentSpawn).toBeDefined();
+    expect(agentConfig.hooks.PostFileSave).toBeUndefined();
+  });
+
   it("should map canonical stop/subagentStop to copilot agentStop/subagentStop", async () => {
     const testDir = getTestDir();
 

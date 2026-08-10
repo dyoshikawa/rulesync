@@ -59,7 +59,7 @@ import { KiloHooks } from "./kilo-hooks.js";
 import { KimiCodeHooks } from "./kimi-code-hooks.js";
 import { KiroCliHooks } from "./kiro-cli-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
-import { KiroIdeHooks } from "./kiro-ide-hooks.js";
+import { KIRO_HOOKS_OVERRIDE_KEY, KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
@@ -205,6 +205,22 @@ function unsupportedMatcherEventNames({
   }
   return [...eventsWithMatcher];
 }
+
+/**
+ * Targets that read their tool-scoped `{key}.hooks` override from a differently
+ * named key. The two Kiro standalone-format targets write the very same
+ * `.kiro/hooks/rulesync.json`, so they share the `kiro` block: a per-target
+ * block would make that one file's content depend on generation order. The same
+ * resolution is used by the MCP (`MCP_BLOCK_KEY_ALIASES`) and permissions
+ * (`PERMISSION_OVERRIDE_KEY_ALIASES`) features for the files they share.
+ */
+const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
+  "kiro-cli": KIRO_HOOKS_OVERRIDE_KEY,
+  "kiro-ide": KIRO_HOOKS_OVERRIDE_KEY,
+};
+
+/** The targets writing the standalone `.kiro/hooks/*.json` v1 format. */
+const KIRO_STANDALONE_HOOKS_TARGETS: ReadonlySet<ToolTarget> = new Set(["kiro-cli", "kiro-ide"]);
 
 export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
   [
@@ -518,6 +534,12 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: KIRO_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+      // The shared `kiro` override block carries this format's own native keys
+      // (`fileEdited`, `fileCreated`, …) plus the standalone-format triggers the
+      // other Kiro targets read. The adapter filters that block against its own
+      // vocabulary and reports what it drops, so a generic "not supported"
+      // warning here would be both duplicate and wrong.
+      passthroughOverrideEvents: true,
     },
   ],
   [
@@ -525,7 +547,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     // IDE reads — its migration guide states the embedded agent-config format
     // the legacy `kiro` alias writes "does not work in 3.0" — so this entry
     // mirrors the `kiro-ide` one below, including the user-scope
-    // `~/.kiro/hooks/` location. Only the override key differs.
+    // `~/.kiro/hooks/` location and the shared `kiro` override key (both write
+    // the same file, so a per-target key would be last-writer-wins).
     // Reference: https://kiro.dev/docs/cli/v3/hooks-migration/
     "kiro-cli",
     {
@@ -539,7 +562,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command", "prompt"],
       supportsMatcher: true,
       // Triggers with no canonical event (PostFileSave, PreTaskExec, …)
-      // supplied via the `kiro-cli` override block are emitted verbatim.
+      // supplied via the shared `kiro` override block are emitted verbatim.
       passthroughOverrideEvents: true,
     },
   ],
@@ -562,7 +585,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command", "prompt"],
       supportsMatcher: true,
       // IDE-only triggers (PostFileSave, PreTaskExec, …) supplied via the
-      // `kiro-ide` override block are emitted verbatim, so don't warn on them.
+      // shared `kiro` override block are emitted verbatim, so don't warn on them.
       passthroughOverrideEvents: true,
     },
   ],
@@ -827,7 +850,8 @@ export class HooksProcessor extends FeatureProcessor {
 
     const config = rulesyncHooks.getJson();
     const sharedHooks = config.hooks;
-    const overrideHooks = (config[this.toolTarget] as { hooks?: unknown } | undefined)?.hooks ?? {};
+    const overrideKey = HOOKS_OVERRIDE_KEY_ALIASES[this.toolTarget] ?? this.toolTarget;
+    const overrideHooks = (config[overrideKey] as { hooks?: unknown } | undefined)?.hooks ?? {};
     const effectiveHooks = { ...sharedHooks, ...overrideHooks };
 
     // Warn about unsupported events
@@ -863,13 +887,14 @@ export class HooksProcessor extends FeatureProcessor {
       }
     }
 
-    // Warn that `enabled: false` cannot be expressed outside Kiro IDE. Kiro IDE
-    // is the only target with an on-disk per-definition enable flag; everywhere
+    // Warn that `enabled: false` cannot be expressed outside the Kiro
+    // standalone hooks format, whose entries carry an on-disk per-definition
+    // enable flag (both `kiro-ide` and `kiro-cli` write it); everywhere
     // else the hook is emitted as an ordinary, active hook, so a user who paused
     // one hook would otherwise see it keep firing with no explanation.
     // Only canonical definitions are considered: a tool-native `enabled` inside
     // an override block is passed through verbatim and honored by that tool.
-    if (this.toolTarget !== "kiro-ide") {
+    if (!KIRO_STANDALONE_HOOKS_TARGETS.has(this.toolTarget)) {
       // Events the target does not support are already reported as skipped and
       // produce no output at all, so warning about them here would contradict
       // that message.
@@ -885,7 +910,7 @@ export class HooksProcessor extends FeatureProcessor {
         .map(([event]) => event);
       if (eventsWithDisabledHooks.length > 0) {
         this.logger.warn(
-          `Emitting "enabled: false" hook(s) as active for ${this.toolTarget} (only kiro-ide supports the flag): ${eventsWithDisabledHooks.join(", ")}`,
+          `Emitting "enabled: false" hook(s) as active for ${this.toolTarget} (only the kiro-cli / kiro-ide standalone hooks format supports the flag): ${eventsWithDisabledHooks.join(", ")}`,
         );
       }
     }

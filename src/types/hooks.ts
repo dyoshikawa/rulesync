@@ -590,8 +590,8 @@ export const KIRO_HOOK_EVENTS: readonly HookEvent[] = [
  * `UserPromptSubmit`, `PreToolUse`, and `PostToolUse`. Kiro also documents
  * file-event (`PostFileCreate`/`PostFileSave`/`PostFileDelete`) and spec-task
  * (`PreTaskExec`/`PostTaskExec`) triggers that have no canonical equivalent;
- * those can still be emitted verbatim via a `kiro-ide` or `kiro-cli` override
- * block (unknown event keys pass through unchanged). There is no `SessionEnd`
+ * those can still be emitted verbatim via the shared `kiro` override block
+ * (unknown event keys pass through unchanged). There is no `SessionEnd`
  * trigger, so the canonical `sessionEnd` has no home here.
  * @see https://kiro.dev/docs/hooks/types/
  */
@@ -1441,6 +1441,49 @@ export const CANONICAL_TO_KIRO_EVENT_NAMES: Record<string, string> = {
 };
 
 /**
+ * Native event keys of the embedded agent-config hook format, as listed by the
+ * Kiro CLI 3.0 migration guide's old-format column: `agentSpawn`,
+ * `userPromptSubmit`, `preToolUse`, `postToolUse`, `fileEdited`, `fileCreated`
+ * and `agentStop`/`stop`. Two of them (`fileEdited`, `fileCreated`) have no
+ * canonical equivalent, so they exist only here.
+ *
+ * The `kiro` override block is shared with the standalone-format targets, whose
+ * trigger vocabulary is different, so the alias writer uses this list to decide
+ * what it can express.
+ * @see https://kiro.dev/docs/cli/v3/hooks-migration/
+ */
+export const KIRO_AGENT_CONFIG_NATIVE_EVENT_NAMES: readonly string[] = [
+  "agentSpawn",
+  "userPromptSubmit",
+  "preToolUse",
+  "postToolUse",
+  "fileEdited",
+  "fileCreated",
+  "agentStop",
+  "stop",
+];
+
+/**
+ * Old agent-config event keys mapped to their standalone v1 trigger, so a
+ * `kiro.hooks` block authored in the deprecated spelling still emits a valid
+ * trigger for the `kiro-cli` / `kiro-ide` targets that read the same block.
+ * The migration guide states the old names "map directly to their newer
+ * equivalents" and spells out `agentSpawn` → `SessionStart` and `fileEdited` →
+ * `PostFileSave`; the rest are the same event under the v1 casing.
+ * @see https://kiro.dev/docs/cli/v3/hooks-migration/
+ */
+export const KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES: Record<string, string> = {
+  agentSpawn: "SessionStart",
+  userPromptSubmit: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  fileEdited: "PostFileSave",
+  fileCreated: "PostFileCreate",
+  agentStop: "Stop",
+  stop: "Stop",
+};
+
+/**
  * Map Kiro CLI camelCase event names to canonical camelCase.
  */
 export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
@@ -1451,8 +1494,8 @@ export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.from
  * Map canonical camelCase event names to Kiro IDE PascalCase triggers.
  *
  * Only the canonical lifecycle events with a clean IDE equivalent are mapped.
- * Unknown keys (e.g. IDE-only `PostFileSave`/`PreTaskExec` set via a `kiro-ide`
- * override) pass through unchanged.
+ * Unknown keys (e.g. IDE-only `PostFileSave`/`PreTaskExec` set via the shared
+ * `kiro` override block) pass through unchanged.
  * @see https://kiro.dev/docs/hooks/types/
  */
 export const CANONICAL_TO_KIRO_IDE_EVENT_NAMES: Record<string, string> = {
