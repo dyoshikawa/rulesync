@@ -432,6 +432,30 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
     },
   },
+  // Copilot CLI repository settings (`.github/copilot/settings.json`, CLI
+  // v1.0.60+): a committed, hand-edited file that also carries `model`,
+  // `effortLevel`, `hooks` and other repository-scope keys rulesync does not
+  // own. Only `deniedUrls` is owned — `allowedUrls` is not accepted at
+  // repository scope upstream, so a hand-written one here is left alone rather
+  // than retracted.
+  ".github/copilot/settings.json": {
+    format: "json",
+    // The user's committed Copilot CLI config: refuse to read-modify-write a
+    // file we could not parse rather than replacing it with generated output.
+    invalidRootPolicy: "error",
+    features: {
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["deniedUrls"] },
+    },
+  },
+  // Copilot CLI user settings (`~/.copilot/settings.json`): the same file the
+  // CLI writes its own preferences into, so only the two URL lists are owned.
+  ".copilot/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["allowedUrls", "deniedUrls"] },
+    },
+  },
   // VS Code workspace settings (`.vscode/settings.json`): a general-purpose
   // user/project settings file. Copilot permissions owns only the three flat
   // dotted `chat.tools.*.autoApprove` keys (VS Code stores dotted setting keys

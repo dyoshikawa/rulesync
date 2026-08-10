@@ -37,6 +37,7 @@ const permissionsGenerateTargets = [
   "codexcli",
   "cursor",
   "copilot",
+  "copilotcli",
   "kiro",
   "kiro-cli",
   "kiro-ide",
@@ -59,6 +60,7 @@ const permissionsGlobalTargets = [
   "claudecode",
   "opencode",
   "codexcli",
+  "copilotcli",
   "cursor",
   "kilo",
   "augmentcode",
@@ -539,6 +541,44 @@ web_search_request = true
       expect.arrayContaining(["Shell(git *)", "Read(src/**)", "WebFetch(github.com)"]),
     );
     expect(generated.permissions.deny).toEqual(expect.arrayContaining(["Shell(rm -rf *)"]));
+  });
+
+  it("should generate copilotcli permissions into .github/copilot/settings.json", async () => {
+    const testDir = getTestDir();
+
+    // Pre-existing repository settings owned by the user must survive the merge.
+    await writeFileContent(
+      join(testDir, ".github", "copilot", "settings.json"),
+      JSON.stringify({ model: "claude-sonnet-4.5" }, null, 2),
+    );
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            webfetch: {
+              "https://evil.example.com/*": "deny",
+              // Repository settings accept no `allowedUrls`, so this is dropped
+              // with a warning instead of being written to an ignored key.
+              "https://docs.example.com/*": "allow",
+            },
+            bash: { "git *": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "copilotcli", features: "permissions" });
+
+    const generated = JSON.parse(
+      await readFileContent(join(testDir, ".github", "copilot", "settings.json")),
+    );
+    expect(generated.deniedUrls).toEqual(["https://evil.example.com/*"]);
+    expect(generated.allowedUrls).toBeUndefined();
+    expect(generated.model).toBe("claude-sonnet-4.5");
   });
 
   it("should generate copilot permissions into .vscode/settings.json", async () => {
@@ -1412,6 +1452,29 @@ enabled = true
     expect(content.permission.bash["rm *"]).toBe("deny");
   });
 
+  it("should import copilotcli permissions into .rulesync/permissions.jsonc", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".github", "copilot", "settings.json"),
+      JSON.stringify(
+        {
+          model: "claude-sonnet-4.5",
+          deniedUrls: ["https://evil.example.com/*"],
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "copilotcli", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.webfetch["https://evil.example.com/*"]).toBe("deny");
+  });
+
   it("should import copilot permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
@@ -1486,6 +1549,40 @@ describe("E2E: permissions (global mode)", () => {
       expect(generated).toContain("rm *");
     },
   );
+
+  it("should generate copilotcli permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            webfetch: {
+              "https://docs.example.com/*": "allow",
+              "https://evil.example.com/*": "deny",
+              "https://ask.example.com/*": "ask",
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "copilotcli",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(await readFileContent(join(homeDir, ".copilot", "settings.json")));
+    // User scope is the only scope that accepts an allow list.
+    expect(generated.allowedUrls).toEqual(["https://docs.example.com/*"]);
+    expect(generated.deniedUrls).toEqual(["https://evil.example.com/*"]);
+  });
 
   it("should generate junie permissions as AllowListRuleSet objects (global-only)", async () => {
     const projectDir = getProjectDir();

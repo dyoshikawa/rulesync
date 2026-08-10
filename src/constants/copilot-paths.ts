@@ -22,6 +22,13 @@ export const COPILOT_MCP_FILE_NAME = "mcp.json";
 // lives alongside `.vscode/mcp.json`.
 // https://code.visualstudio.com/docs/agents/approvals
 export const COPILOT_VSCODE_SETTINGS_FILE_NAME = "settings.json";
+// Copilot CLI settings. The user-scope file is `~/.copilot/settings.json`
+// (COPILOT_DIR); the repository-scope file is `.github/copilot/settings.json`,
+// which shipped in CLI v1.0.60 and accepts a documented subset of the user-scope
+// keys.
+// https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference
+export const COPILOTCLI_SETTINGS_FILE_NAME = "settings.json";
+export const COPILOTCLI_PROJECT_SETTINGS_DIR_PATH = join(GITHUB_DIR, "copilot");
 export const COPILOTCLI_MCP_FILE_NAME = "mcp-config.json";
 // Copilot CLI auto-loads project-scoped MCP servers from `.github/mcp.json`
 // (workspace config). Global/personal MCP servers live in
