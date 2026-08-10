@@ -212,11 +212,13 @@ export class TaktPermissions extends ToolPermissions {
       invalidRootPolicy: "error",
     });
 
-    const runtimeConfigs = await readTaktRuntimeConfigs({ outputRoot, logger });
-    const activeRuntime = runtimeConfigs.find((runtime) => runtime.active);
+    const runtime = await readTaktRuntimeConfig({ outputRoot, logger });
 
     const rulesyncJson = rulesyncPermissions.getJson();
-    const provider = resolveActiveProvider({ config, runtime: activeRuntime?.config });
+    const provider = resolveActiveProvider({
+      config,
+      runtime: runtime.active ? runtime.config : undefined,
+    });
     const mode = deriveTaktPermissionMode(rulesyncJson);
     const override = isPlainObject(rulesyncJson.takt) ? rulesyncJson.takt : undefined;
 
@@ -239,12 +241,12 @@ export class TaktPermissions extends ToolPermissions {
     // scope-specific, and upstream replaces a same-named profile wholesale
     // rather than merging it, so there is no safe key for rulesync to own).
     const runtimeModeRefusesProviderOptions =
-      authoredProviderOptions !== undefined && activeRuntime !== undefined;
+      authoredProviderOptions !== undefined && runtime.active;
     if (runtimeModeRefusesProviderOptions) {
       logger?.warn(
         `Takt permissions: not writing "${TAKT_PROVIDER_OPTIONS_KEY}" to ${filePath} because ` +
-          `${activeRuntime.filePath} puts Takt in runtime provider mode (Takt 0.56.0+), where any ` +
-          `legacy provider setting in config.yaml makes Takt fail with "Mixed provider ` +
+          `${runtime.filePaths.join(" + ")} puts Takt in runtime provider mode (Takt 0.56.0+), ` +
+          `where any legacy provider setting in config.yaml makes Takt fail with "Mixed provider ` +
           `configuration detected". Move those options to ` +
           `\`provider.profiles.<profile>.options\` in runtime.yaml, and remove them from the ` +
           `\`takt\` block of the rulesync source. A "${TAKT_PROVIDER_OPTIONS_KEY}" already in ` +
@@ -423,12 +425,10 @@ export class TaktPermissions extends ToolPermissions {
  *
  * Under runtime mode (Takt 0.56.0+) the real provider assignment lives in
  * `runtime.yaml`, and `config.yaml:provider` cannot coexist with it, so the
- * runtime document is consulted first: the profile named by
- * `provider.defaults.profile`, else the sole profile. Everything else falls
- * through to the legacy chain — the top-level `provider:` value, else the sole
- * key in `provider_profiles`, else the `claude` default. `provider.defaults.pool`
- * resolves through `auto_routing` at run time and names no single provider, so
- * it deliberately falls through too.
+ * runtime document is consulted first: the provider of the profile named by
+ * `provider.defaults.profile`. Everything else falls through to the legacy
+ * chain — the top-level `provider:` value, else the sole key in
+ * `provider_profiles`, else the `claude` default.
  */
 function resolveActiveProvider({
   config,
@@ -509,17 +509,18 @@ function resolveRuntimeProvider(runtime: Record<string, unknown>): string | unde
     return typeof value === "string" && value.trim() !== "" ? value : undefined;
   };
 
-  if (isPlainObject(provider)) {
-    const defaults = provider[TAKT_RUNTIME_DEFAULTS_KEY];
-    if (isPlainObject(defaults) && typeof defaults[TAKT_RUNTIME_PROFILE_KEY] === "string") {
-      const resolved = providerOf(defaults[TAKT_RUNTIME_PROFILE_KEY]);
-      if (resolved !== undefined) {
-        return resolved;
-      }
-    }
+  if (!isPlainObject(provider)) {
+    return undefined;
   }
-  const names = Object.keys(profiles);
-  return names.length === 1 ? providerOf(names[0]) : undefined;
+  const defaults = provider[TAKT_RUNTIME_DEFAULTS_KEY];
+  if (!isPlainObject(defaults) || typeof defaults[TAKT_RUNTIME_PROFILE_KEY] !== "string") {
+    // Upstream names no provider without `defaults.profile` — a lone profile is
+    // not promoted to the default, and `defaults.pool`/ladder forms resolve at
+    // run time. Falling through keeps the legacy chain (and ultimately Takt's
+    // own `claude` default) rather than inventing a resolution Takt lacks.
+    return undefined;
+  }
+  return providerOf(defaults[TAKT_RUNTIME_PROFILE_KEY]);
 }
 
 /**
@@ -546,67 +547,135 @@ function collectRuntimeProviderOptions(runtime: Record<string, unknown>): Record
 }
 
 /**
- * Read a `runtime.yaml` and report whether it activates runtime mode. A file
- * that cannot be parsed counts as active: Takt refuses to start on a broken
- * runtime.yaml, and treating it as legacy would be the one outcome that can
- * write the mixed-configuration key into the user's config.yaml.
+ * Read one `runtime.yaml`. A file that cannot be parsed reports `unparsable`
+ * rather than a document: Takt refuses to start on a broken runtime.yaml, and
+ * treating it as legacy would be the one outcome that writes the
+ * mixed-configuration key into the user's config.yaml.
  */
-async function readTaktRuntimeConfig({
+async function readTaktRuntimeFile({
   filePath,
   logger,
 }: {
   filePath: string;
   logger?: Logger | undefined;
-}): Promise<{ filePath: string; config: Record<string, unknown>; active: boolean } | undefined> {
+}): Promise<{ config: Record<string, unknown>; unparsable: boolean } | undefined> {
   const fileContent = await readFileContentOrNull(filePath);
   if (fileContent === null) {
     return undefined;
   }
-  let config: Record<string, unknown>;
   try {
-    config = parseSharedConfig({ format: "yaml", fileContent, filePath });
+    return {
+      config: parseSharedConfig({ format: "yaml", fileContent, filePath }),
+      unparsable: false,
+    };
   } catch (error) {
     logger?.warn(
       `Takt permissions: could not parse ${filePath} (${formatError(error)}); assuming Takt's ` +
         `runtime provider mode is active so no legacy provider setting is written to config.yaml.`,
     );
-    return { filePath, config: {}, active: true };
+    return { config: {}, unparsable: true };
   }
-  return { filePath, config, active: isRuntimeModeActive(config) };
 }
 
 /**
- * The `runtime.yaml` documents that decide the mode for a generate run, in
- * Takt's precedence order (project over global).
+ * Collapse the project and global `runtime.yaml` into the single document Takt
+ * itself resolves against, matching upstream's loader: `profiles` is a union
+ * with the project definition of a same-named profile replacing the global one,
+ * while `defaults`, `targets` and `auto_routing` are taken from the project file
+ * whole whenever it states them at all (`??`, so a project `targets: {}` masks
+ * the global one rather than merging with it).
+ * https://github.com/nrslib/takt/blob/main/src/infra/config/runtime-provider/loader.ts
+ *
+ * Merging before mode detection matters in both directions: a project file
+ * active only through `targets:` still resolves its provider from the global
+ * file's `defaults`/`profiles`, and a project section that masks the global one
+ * leaves the merged document inactive even though the global file alone was not.
+ */
+function mergeTaktRuntimeConfigs({
+  project,
+  global: globalConfig,
+}: {
+  project: Record<string, unknown> | undefined;
+  global: Record<string, unknown> | undefined;
+}): Record<string, unknown> {
+  const sectionOf = (config: Record<string, unknown> | undefined): Record<string, unknown> => {
+    const provider = config?.[TAKT_RUNTIME_PROVIDER_KEY];
+    return isPlainObject(provider) ? provider : {};
+  };
+  const projectSection = sectionOf(project);
+  const globalSection = sectionOf(globalConfig);
+  const replaced = (key: string): unknown => projectSection[key] ?? globalSection[key];
+
+  const profilesOf = (section: Record<string, unknown>): Record<string, unknown> | undefined =>
+    isPlainObject(section[TAKT_RUNTIME_PROFILES_KEY])
+      ? section[TAKT_RUNTIME_PROFILES_KEY]
+      : undefined;
+  const globalProfiles = profilesOf(globalSection);
+  const projectProfiles = profilesOf(projectSection);
+
+  const provider: Record<string, unknown> = {};
+  if (globalProfiles !== undefined || projectProfiles !== undefined) {
+    provider[TAKT_RUNTIME_PROFILES_KEY] = { ...globalProfiles, ...projectProfiles };
+  }
+  for (const key of [
+    TAKT_RUNTIME_DEFAULTS_KEY,
+    TAKT_RUNTIME_TARGETS_KEY,
+    TAKT_RUNTIME_AUTO_ROUTING_KEY,
+  ]) {
+    const value = replaced(key);
+    if (value !== undefined) {
+      provider[key] = value;
+    }
+  }
+  return { [TAKT_RUNTIME_PROVIDER_KEY]: provider };
+}
+
+/**
+ * The runtime provider configuration in force for a generate run: the project
+ * and global `runtime.yaml` merged the way Takt merges them, plus whether the
+ * result puts Takt in runtime mode.
  *
  * Both scopes are read whichever scope is being generated: Takt collects legacy
  * signals from the project and global `config.yaml` alike, so a global
  * `runtime.yaml` — the one Takt generates on first launch — makes a legacy key
  * in the project config.yaml a hard failure just the same.
  */
-async function readTaktRuntimeConfigs({
+async function readTaktRuntimeConfig({
   outputRoot,
   logger,
 }: {
   outputRoot: string;
   logger?: Logger | undefined;
-}): Promise<Array<{ filePath: string; config: Record<string, unknown>; active: boolean }>> {
-  const filePaths = [join(outputRoot, TAKT_DIR, TAKT_RUNTIME_CONFIG_FILE_NAME)];
+}): Promise<{ filePaths: string[]; config: Record<string, unknown>; active: boolean }> {
+  const projectPath = join(outputRoot, TAKT_DIR, TAKT_RUNTIME_CONFIG_FILE_NAME);
+  let globalPath: string | undefined;
   try {
     // In global scope `outputRoot` already is the home directory, hence the
     // dedupe. `getHomeDirectory()` throws when it cannot be resolved (and in
     // tests unless mocked), which just means "no global runtime.yaml here".
-    const globalPath = join(getHomeDirectory(), TAKT_DIR, TAKT_RUNTIME_CONFIG_FILE_NAME);
-    if (!filePaths.includes(globalPath)) {
-      filePaths.push(globalPath);
-    }
+    const resolved = join(getHomeDirectory(), TAKT_DIR, TAKT_RUNTIME_CONFIG_FILE_NAME);
+    globalPath = resolved === projectPath ? undefined : resolved;
   } catch {
     // Ignored on purpose: an unresolvable home directory is not a generate error.
   }
-  const configs = await Promise.all(
-    filePaths.map((filePath) => readTaktRuntimeConfig({ filePath, logger })),
-  );
-  return configs.filter((config) => config !== undefined);
+
+  const [project, globalFile] = await Promise.all([
+    readTaktRuntimeFile({ filePath: projectPath, logger }),
+    globalPath === undefined
+      ? Promise.resolve(undefined)
+      : readTaktRuntimeFile({ filePath: globalPath, logger }),
+  ]);
+
+  const filePaths = [
+    ...(project === undefined ? [] : [projectPath]),
+    ...(globalFile === undefined || globalPath === undefined ? [] : [globalPath]),
+  ];
+  const config = mergeTaktRuntimeConfigs({
+    project: project?.config,
+    global: globalFile?.config,
+  });
+  const unparsable = project?.unparsable === true || globalFile?.unparsable === true;
+  return { filePaths, config, active: unparsable || isRuntimeModeActive(config) };
 }
 
 /**

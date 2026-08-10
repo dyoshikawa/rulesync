@@ -369,7 +369,7 @@ describe("TaktPermissions", () => {
       }
     });
 
-    it("resolves the active provider from the sole runtime profile", async () => {
+    it("does not promote a lone runtime profile to the default, as upstream does not", async () => {
       await writeRuntimeYaml(
         testDir,
         ["version: 1", "provider:", "  profiles:", "    only:", "      provider: opencode"].join(
@@ -382,7 +382,108 @@ describe("TaktPermissions", () => {
         rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
       });
 
-      expect(readMode(permissions.getFileContent(), "opencode")).toBe("full");
+      // No `defaults.profile`, so Takt names no provider here either: the legacy
+      // chain decides, ending at its `claude` default.
+      expect(readMode(permissions.getFileContent(), "claude")).toBe("full");
+    });
+
+    it("merges the project and global runtime.yaml before resolving the provider", async () => {
+      const { testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true });
+      try {
+        vi.stubEnv("HOME_DIR", homeDir);
+        // The project file is active through `targets:` alone; the assignment
+        // that names the provider lives in the global file. Takt merges the two
+        // before resolving (profiles union, `defaults` project-else-global), so
+        // the provider is codex rather than the legacy `claude` default.
+        await writeRuntimeYaml(
+          testDir,
+          [
+            "version: 1",
+            "provider:",
+            "  targets:",
+            "    personas:",
+            "      reviewer:",
+            "        profile: default",
+          ].join("\n"),
+        );
+        await writeRuntimeYaml(
+          homeDir,
+          [
+            "version: 1",
+            "provider:",
+            "  defaults:",
+            "    profile: default",
+            "  profiles:",
+            "    default:",
+            "      provider: codex",
+          ].join("\n"),
+        );
+
+        const permissions = await TaktPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
+        });
+
+        expect(readMode(permissions.getFileContent(), "codex")).toBe("full");
+      } finally {
+        vi.unstubAllEnvs();
+        await cleanupHome();
+      }
+    });
+
+    it("lets a project profile of the same name replace the global one", async () => {
+      const { testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true });
+      try {
+        vi.stubEnv("HOME_DIR", homeDir);
+        await writeRuntimeYaml(homeDir, ACTIVE_RUNTIME_YAML);
+        await writeRuntimeYaml(
+          testDir,
+          ["version: 1", "provider:", "  profiles:", "    default:", "      provider: claude"].join(
+            "\n",
+          ),
+        );
+
+        const permissions = await TaktPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
+        });
+
+        // `defaults.profile: default` comes from the global file, but the profile
+        // it names is the project one, so the provider is claude, not codex.
+        expect(readMode(permissions.getFileContent(), "claude")).toBe("full");
+      } finally {
+        vi.unstubAllEnvs();
+        await cleanupHome();
+      }
+    });
+
+    it("lets an empty project section mask an active global one", async () => {
+      const { testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true });
+      try {
+        vi.stubEnv("HOME_DIR", homeDir);
+        await writeRuntimeYaml(
+          homeDir,
+          [
+            "version: 1",
+            "provider:",
+            "  targets:",
+            "    personas:",
+            "      reviewer:",
+            "        profile: default",
+          ].join("\n"),
+        );
+        // `targets` is replaced whole rather than merged, so the project's empty
+        // one wins and the merged document carries no assignment at all.
+        await writeRuntimeYaml(testDir, ["version: 1", "provider:", "  targets: {}"].join("\n"));
+
+        const permissions = await generateWithProviderOptions();
+
+        const parsed = toRecord(load(permissions.getFileContent()));
+        expect(toRecord(toRecord(parsed.provider_options).codex).network_access).toBe(true);
+      } finally {
+        vi.unstubAllEnvs();
+        await cleanupHome();
+      }
     });
 
     it("falls through to config.yaml when the runtime default names no profile provider", async () => {
