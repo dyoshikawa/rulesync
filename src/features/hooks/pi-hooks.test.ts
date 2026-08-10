@@ -135,6 +135,52 @@ describe("PiHooks", () => {
       expect(content).toContain("post-tool.sh");
     });
 
+    it("should block the tool call when a preToolUse hook command fails", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "command", command: "guard.sh", matcher: "Bash" }],
+          postToolUse: [{ type: "command", command: "post-tool.sh" }],
+        },
+      };
+      const piHooks = PiHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
+        validate: false,
+      });
+
+      const content = piHooks.getFileContent();
+      // `tool_call` is Pi's only blocking event, so a non-zero exit must deny
+      // the call instead of letting it run.
+      expect(content).toContain("function toBlockReason(error: unknown): string {");
+      expect(content).toContain("      try {");
+      expect(content).toContain('        await run("guard.sh");');
+      expect(content).toContain("      } catch (error) {");
+      expect(content).toContain("        return { block: true, reason: toBlockReason(error) };");
+      // A denied call hands control back to the model rather than ending the turn.
+      expect(content).not.toContain("terminate");
+      // `tool_result` cannot block, so it stays observe-only.
+      expect(content).toContain('    await run("post-tool.sh");');
+    });
+
+    it("should omit the block-reason helper when no preToolUse hook is configured", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          postToolUse: [{ type: "command", command: "post-tool.sh" }],
+        },
+      };
+      const piHooks = PiHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
+        validate: false,
+      });
+
+      const content = piHooks.getFileContent();
+      expect(content).not.toContain("toBlockReason");
+      expect(content).not.toContain("block: true");
+    });
+
     it("should normalize only bare wildcard matcher to regex match-all pattern", () => {
       const config = {
         version: 1,
