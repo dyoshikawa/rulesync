@@ -19,6 +19,20 @@ export const TAKT_RULE_OVERVIEW_FILE_NAME = "overview.md";
 export const TAKT_CONFIG_FILE_NAME = "config.yaml";
 
 /**
+ * Takt's runtime provider config (Takt 0.56.0+). Lives at `.takt/runtime.yaml`
+ * (project) and `~/.takt/runtime.yaml` (global), and owns provider/model/
+ * provider-option assignment. Takt generates the global file on first launch,
+ * so most installs have one; "runtime mode" only activates when its `provider:`
+ * section carries an actual assignment.
+ *
+ * rulesync only ever READS this file: it resolves the active provider from it,
+ * and it refuses to write the legacy `provider_options` key into `config.yaml`
+ * while runtime mode is active (Takt hard-fails on that combination).
+ * @see https://github.com/nrslib/takt/blob/main/docs/configuration.md
+ */
+export const TAKT_RUNTIME_CONFIG_FILE_NAME = "runtime.yaml";
+
+/**
  * Top-level key in Takt's `config.yaml` holding the workflow MCP transport
  * allowlist (`stdio` / `sse` / `http` booleans). Takt is default-deny: a
  * transport must be explicitly enabled here before any workflow-defined MCP
