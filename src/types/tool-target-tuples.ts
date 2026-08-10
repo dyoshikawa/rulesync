@@ -267,6 +267,7 @@ export const permissionsProcessorToolTargetTuple = [
   "cline",
   "codexcli",
   "copilot",
+  "copilotcli",
   "cursor",
   "devin",
   "factorydroid",

@@ -28,6 +28,12 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".claude/settings.json",
   ".claude/settings.local.json",
   ".codex/config.toml",
+  // Copilot CLI settings: `.github/copilot/settings.json` is upstream's
+  // repository-scope surface (a trusted repo pins `model`/`effortLevel` and
+  // extends the deny lists there for everyone), and `~/.copilot/settings.json`
+  // is the user's own preference file the CLI writes into.
+  ".copilot/settings.json",
+  ".github/copilot/settings.json",
   ".devin/config.json",
   ".factory/settings.json",
   ".grok/config.toml",

@@ -16,6 +16,7 @@ import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { CopilotPermissions } from "./copilot-permissions.js";
+import { CopilotcliPermissions } from "./copilotcli-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
 import { DevinPermissions } from "./devin-permissions.js";
 import { FactorydroidPermissions } from "./factorydroid-permissions.js";
@@ -166,6 +167,21 @@ export const toolPermissionsFactories = new Map<
         // global model, so only project scope is supported.
         supportsProject: true,
         supportsGlobal: false,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "copilotcli",
+    {
+      class: CopilotcliPermissions,
+      meta: {
+        // The Copilot CLI keeps the canonical `webfetch` category in its
+        // `deniedUrls` / `allowedUrls` lists: `.github/copilot/settings.json`
+        // (repository, deny only — upstream accepts no `allowedUrls` there) and
+        // `~/.copilot/settings.json` (user, both lists).
+        supportsProject: true,
+        supportsGlobal: true,
         supportsImport: true,
       },
     },
