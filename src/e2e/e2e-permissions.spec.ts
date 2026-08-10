@@ -96,6 +96,9 @@ describe("E2E: permissions", () => {
     { target: "antigravity-ide", relativePaths: [[".antigravity", "settings.json"]] },
     { target: "factorydroid", relativePaths: [[".factory", "settings.json"]] },
     { target: "copilot", relativePaths: [[".vscode", "settings.json"]] },
+    // `.github/copilot/settings.json` is upstream's committed repository
+    // settings file, so an empty payload must not leave a bare `{}` behind.
+    { target: "copilotcli", relativePaths: [[".github", "copilot", "settings.json"]] },
     // opencode writes the `.jsonc` twin when neither file exists yet, so both
     // spellings must stay absent.
     { target: "opencode", relativePaths: [["opencode.json"], ["opencode.jsonc"]] },

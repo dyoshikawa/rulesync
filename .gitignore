@@ -407,7 +407,6 @@ rulesync.local.jsonc
 **/.reasonix/settings.json
 **/.grok/hooks/rulesync.json
 **/.cline/command-permissions.json
-**/.github/copilot/settings.json
 **/.cursor/cli.json
 **/.aiignore
 **/.geminiignore

@@ -103,6 +103,12 @@ describe("registry derivation", () => {
       // Preferred over `opencode.json` when neither file exists yet, so it is
       // chosen at write time rather than declared by getSettablePaths.
       "**/opencode.jsonc",
+      // Copilot CLI user settings: emitted in GLOBAL scope only (project scope
+      // writes `.github/copilot/settings.json` instead), so project derivation
+      // never yields it. It stays listed as a shared user-managed config so a
+      // global generate with nothing to contribute does not create `{}` in the
+      // user's home directory.
+      "**/.copilot/settings.json",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(

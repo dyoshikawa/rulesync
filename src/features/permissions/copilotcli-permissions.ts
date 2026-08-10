@@ -82,8 +82,9 @@ function splitUrlRules(rules: Record<string, PermissionAction>): {
  * (union — a repository may add entries, never remove them) but NOT
  * `allowedUrls`, so an allow rule is only enforceable at user scope. At project
  * scope allow rules are therefore dropped with a warning rather than written to
- * a key the CLI ignores — since v1.0.79 the CLI also prints a startup warning
- * for unrecognized top-level keys, so only documented keys are ever emitted.
+ * a key the CLI ignores. (v1.0.79 additionally warns on startup about unknown
+ * top-level keys in the user `settings.json`, so only documented keys are ever
+ * emitted there either.)
  *
  * @see https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference
  * @see https://github.com/github/copilot-cli/blob/main/changelog.md
