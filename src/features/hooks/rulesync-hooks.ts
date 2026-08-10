@@ -13,7 +13,6 @@ import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
-import type { Logger } from "../../utils/logger.js";
 import {
   getRulesyncSourceCandidates,
   type RulesyncSourceSettablePaths,
@@ -30,9 +29,6 @@ export type RulesyncHooksSettablePaths = RulesyncSourceSettablePaths;
 
 export class RulesyncHooks extends RulesyncFile {
   private readonly json: HooksConfig;
-
-  /** Keys already warned about, so one message is emitted per source file. */
-  private readonly warnedKeys = new Set<string>();
 
   constructor(params: RulesyncHooksParams) {
     super({ ...params });
@@ -99,18 +95,5 @@ export class RulesyncHooks extends RulesyncFile {
 
   getJson(): HooksConfig {
     return this.json;
-  }
-
-  /**
-   * Emit `message` once per source file, however many targets read this config.
-   * Generating several targets that share one override block would otherwise
-   * repeat the same diagnostic once per target.
-   */
-  warnOncePerFile({ key, message, logger }: { key: string; message: string; logger?: Logger }) {
-    if (this.warnedKeys.has(key)) {
-      return;
-    }
-    this.warnedKeys.add(key);
-    logger?.warn(message);
   }
 }

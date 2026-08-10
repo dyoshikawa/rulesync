@@ -252,11 +252,9 @@ export class KiroIdeHooks extends ToolHooks {
     // surface that instead of silently dropping the hooks in it.
     for (const ignoredKey of KIRO_HOOKS_IGNORED_OVERRIDE_KEYS) {
       if (config[ignoredKey]?.hooks === undefined) continue;
-      rulesyncHooks.warnOncePerFile({
-        key: `kiro-hooks-alias:${ignoredKey}`,
-        message: `The "${ignoredKey}.hooks" block in ${join(rulesyncHooks.getRelativeDirPath(), rulesyncHooks.getRelativeFilePath())} is ignored. Author it under the "${KIRO_HOOKS_OVERRIDE_KEY}.hooks" key instead: the Kiro IDE and Kiro CLI targets write the same hooks file, so they read one shared block.`,
-        logger,
-      });
+      logger?.warn(
+        `The "${ignoredKey}.hooks" block in ${join(rulesyncHooks.getRelativeDirPath(), rulesyncHooks.getRelativeFilePath())} is ignored. Author it under the "${KIRO_HOOKS_OVERRIDE_KEY}.hooks" key instead: the Kiro IDE and Kiro CLI targets write the same hooks file, so they read one shared block.`,
+      );
     }
 
     const hooks = canonicalToKiroIdeHooks(config);

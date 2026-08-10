@@ -310,6 +310,16 @@ describe("E2E: hooks", () => {
       (entry) => entry.trigger,
     );
     expect(triggers).toEqual(expect.arrayContaining(["SessionStart", "PostFileSave"]));
+
+    // The deprecated `kiro` alias reads the same block but writes the embedded
+    // agent-config format, which does not define `PostFileSave`, so the trigger
+    // must not leak into it.
+    await runGenerate({ target: "kiro", features: "hooks" });
+    const agentConfig = JSON.parse(
+      await readFileContent(join(testDir, ".kiro", "agents", "default.json")),
+    );
+    expect(agentConfig.hooks.agentSpawn).toBeDefined();
+    expect(agentConfig.hooks.PostFileSave).toBeUndefined();
   });
 
   it("should map canonical stop/subagentStop to copilot agentStop/subagentStop", async () => {

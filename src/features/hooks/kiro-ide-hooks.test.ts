@@ -131,6 +131,35 @@ describe("KiroIdeHooks", () => {
     expect(triggers).toEqual(["SessionStart"]);
   });
 
+  it("warns about every per-target override block that is authored", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: "/mock",
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        hooks: { sessionStart: [{ command: "echo shared" }] },
+        "kiro-ide": { hooks: { stop: [{ command: "echo kiro-ide" }] } },
+        "kiro-cli": { hooks: { stop: [{ command: "echo kiro-cli" }] } },
+      }),
+    });
+
+    const logger = createMockLogger();
+    const hooks = await KiroIdeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks,
+      logger,
+    });
+
+    // Neither block is read, so nothing but the shared event is emitted...
+    const triggers = (JSON.parse(hooks.getFileContent()).hooks as Array<{ trigger: string }>).map(
+      (entry) => entry.trigger,
+    );
+    expect(triggers).toEqual(["SessionStart"]);
+    // ...and both are reported by name.
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"kiro-ide.hooks" block'));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"kiro-cli.hooks" block'));
+  });
+
   it("writes to .kiro/hooks/rulesync.json", () => {
     const paths = KiroIdeHooks.getSettablePaths();
     expect(join(paths.relativeDirPath, paths.relativeFilePath)).toBe(
