@@ -290,13 +290,14 @@ describe("HooksProcessor", () => {
       expect(Array.isArray(parsed.hooks.SessionStart)).toBe(true);
     });
 
-    it("should not warn about kiro-ide override-block IDE-only triggers (passthrough)", async () => {
+    it("should not warn about kiro override-block IDE-only triggers (passthrough)", async () => {
       const config = {
         version: 1,
         hooks: {
           sessionStart: [{ type: "command", command: "echo start" }],
         },
-        "kiro-ide": {
+        // Both Kiro standalone-hooks targets read this one shared block.
+        kiro: {
           hooks: {
             // IDE-only trigger supplied via the override block; it is emitted
             // verbatim and must NOT be reported as a skipped/unsupported event.

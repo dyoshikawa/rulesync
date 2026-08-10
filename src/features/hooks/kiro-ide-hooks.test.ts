@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { HooksConfigSchema } from "../../types/hooks.js";
 import { KiroIdeHooks } from "./kiro-ide-hooks.js";
@@ -76,14 +77,14 @@ describe("KiroIdeHooks", () => {
     expect(byTrigger("Stop").action).toEqual({ type: "agent", prompt: "Summarize the changes" });
   });
 
-  it("passes IDE-only triggers through a kiro-ide override block verbatim", async () => {
+  it("passes IDE-only triggers through the shared kiro override block verbatim", async () => {
     const rulesyncHooks = new RulesyncHooks({
       outputRoot: "/mock",
       relativeDirPath: ".rulesync",
       relativeFilePath: "hooks.json",
       fileContent: JSON.stringify({
         hooks: {},
-        "kiro-ide": {
+        kiro: {
           hooks: {
             PostFileSave: [{ type: "prompt", prompt: "Run the formatter" }],
           },
@@ -102,22 +103,28 @@ describe("KiroIdeHooks", () => {
     expect(parsed.hooks[0].action).toEqual({ type: "agent", prompt: "Run the formatter" });
   });
 
-  it("ignores the kiro-cli override and keeps its own class identity", async () => {
+  it("ignores a per-target override block and warns about it", async () => {
     const rulesyncHooks = new RulesyncHooks({
       outputRoot: "/mock",
       relativeDirPath: ".rulesync",
       relativeFilePath: "hooks.json",
       fileContent: JSON.stringify({
         hooks: { sessionStart: [{ command: "echo shared" }] },
-        // The CLI target subclasses this emitter, so guard that its override
-        // block does not leak into the IDE output.
+        // Both Kiro targets write the same file and read one shared `kiro`
+        // block, so a per-target block is read by neither.
         "kiro-cli": { hooks: { stop: [{ command: "echo kiro-cli" }] } },
       }),
     });
 
-    const hooks = await KiroIdeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+    const logger = createMockLogger();
+    const hooks = await KiroIdeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks,
+      logger,
+    });
 
     expect(hooks).toBeInstanceOf(KiroIdeHooks);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"kiro-cli.hooks" block'));
     const triggers = (JSON.parse(hooks.getFileContent()).hooks as Array<{ trigger: string }>).map(
       (entry) => entry.trigger,
     );
@@ -212,7 +219,7 @@ describe("KiroIdeHooks", () => {
     expect(entries.find((entry) => entry.name === "active-lint")?.enabled).toBe(true);
   });
 
-  it("routes IDE-only triggers into the kiro-ide override block on import", async () => {
+  it("routes IDE-only triggers into the shared kiro override block on import", async () => {
     const hooks = new KiroIdeHooks({
       outputRoot: testDir,
       relativeDirPath: join(".kiro", "hooks"),
@@ -239,11 +246,12 @@ describe("KiroIdeHooks", () => {
     const rulesyncHooks = hooks.toRulesyncHooks();
     const canonical = JSON.parse(rulesyncHooks.getFileContent());
     // The IDE-only trigger must not land in the top-level hooks record (whose
-    // keys are restricted to canonical event names) but under the kiro-ide
+    // keys are restricted to canonical event names) but under the shared `kiro`
     // override block, which passes tool-native keys through verbatim.
     expect(canonical.hooks.PostFileSave).toBeUndefined();
     expect(canonical.hooks.preToolUse[0].command).toBe("echo lint");
-    expect(canonical["kiro-ide"].hooks.PostFileSave[0].command).toBe("pnpm fmt");
+    expect(canonical.kiro.hooks.PostFileSave[0].command).toBe("pnpm fmt");
+    expect(canonical["kiro-ide"]).toBeUndefined();
     // The imported content must survive canonical re-validation, so the next
     // generate run does not fail on it.
     expect(HooksConfigSchema.safeParse(canonical).success).toBe(true);
