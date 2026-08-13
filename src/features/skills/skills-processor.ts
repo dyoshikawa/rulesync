@@ -334,7 +334,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "junie",
     {
       class: JunieSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+      // Junie derives a missing `description` from the body and, when it cannot
+      // ("the body is also empty or contains only headings"), fails to load
+      // that one skill rather than the whole set. Importing follows suit: the
+      // skill is skipped with a warning instead of aborting the run.
+      // https://junie.jetbrains.com/docs/agent-skills.html
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        lenientImport: true,
+      },
     },
   ],
   [
