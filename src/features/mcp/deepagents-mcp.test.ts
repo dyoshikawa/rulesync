@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
@@ -111,6 +112,101 @@ describe("DeepagentsMcp", () => {
       expect(mcp.getRelativeDirPath()).toBe(".deepagents");
       expect(mcp.getRelativeFilePath()).toBe(".mcp.json");
     });
+
+    it("should normalize transports and skip the WebSocket one dcode rejects", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            local: { type: "local", command: "npx", args: ["server"] },
+            remote: { type: "streamable-http", url: "https://example.com/mcp" },
+            events: { transport: "sse", url: "https://example.com/events" },
+            socket: { type: "ws", url: "wss://example.com/mcp" },
+          },
+        }),
+      });
+
+      const mcp = await DeepagentsMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        local: { type: "stdio", command: "npx", args: ["server"] },
+        remote: { type: "http", url: "https://example.com/mcp" },
+        // The authored key is preserved: dcode reads `type` and `transport`
+        // interchangeably.
+        events: { transport: "sse", url: "https://example.com/events" },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("socket"));
+    });
+
+    it("should translate enabledTools to allowedTools and keep disabledTools", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            allowed: { command: "npx", enabledTools: ["read_*"] },
+            denied: { command: "npx", disabledTools: ["delete"] },
+          },
+        }),
+      });
+
+      const mcp = await DeepagentsMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        allowed: { command: "npx", allowedTools: ["read_*"] },
+        denied: { command: "npx", disabledTools: ["delete"] },
+      });
+    });
+
+    it("should skip a server that sets both filters rather than publishing every tool", async () => {
+      // Upstream refuses the server outright, and writing neither filter would
+      // leave it running with all tools — the denied ones included.
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            both: { command: "npx", enabledTools: ["read"], disabledTools: ["write"] },
+            kept: { command: "npx" },
+          },
+        }),
+      });
+
+      const mcp = await DeepagentsMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+
+      expect(mcp.getJson().mcpServers).toEqual({ kept: { command: "npx" } });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("both"));
+    });
+
+    it("should skip an empty allowlist but only drop an empty denylist", async () => {
+      // The two empty forms mean opposite things: an empty allowlist allows no
+      // tools (so the server is skipped), while an empty denylist denies nothing
+      // (so only the key is dropped). Both are rejected by upstream.
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            emptyAllow: { command: "npx", enabledTools: [] },
+            emptyDeny: { command: "npx", disabledTools: [] },
+          },
+        }),
+      });
+
+      const mcp = await DeepagentsMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+
+      expect(mcp.getJson().mcpServers).toEqual({ emptyDeny: { command: "npx" } });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("emptyAllow"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("emptyDeny"));
+    });
   });
 
   describe("toRulesyncMcp", () => {
@@ -131,6 +227,30 @@ describe("DeepagentsMcp", () => {
 
       expect(rulesyncMcp.getMcpServers()).toEqual({
         "test-server": { command: "npx", args: ["-y", "test-server"] },
+      });
+    });
+
+    it("should lift allowedTools and the streamable_http alias back to canonical", () => {
+      const mcp = new DeepagentsMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            filtered: { command: "npx", allowedTools: ["read_*"] },
+            denied: { command: "npx", disabledTools: ["delete"] },
+            snake: { type: "streamable_http", url: "https://example.com/mcp" },
+            kebab: { transport: "streamable-http", url: "https://example.com/mcp" },
+          },
+        }),
+      });
+
+      expect(mcp.toRulesyncMcp().getMcpServers()).toEqual({
+        filtered: { command: "npx", enabledTools: ["read_*"] },
+        // Already the canonical spelling, so it survives untouched.
+        denied: { command: "npx", disabledTools: ["delete"] },
+        snake: { type: "http", url: "https://example.com/mcp" },
+        kebab: { transport: "http", url: "https://example.com/mcp" },
       });
     });
   });

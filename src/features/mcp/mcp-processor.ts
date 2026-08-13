@@ -289,8 +289,13 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: true,
-        supportsEnabledTools: false,
-        supportsDisabledTools: false,
+        // dcode filters a server's tools with `allowedTools` / `disabledTools`
+        // (each entry a tool name or an fnmatch glob). `DeepagentsMcp`
+        // translates the canonical `enabledTools` onto `allowedTools`, so both
+        // have to survive the strip.
+        // https://docs.langchain.com/oss/deepagents/code/mcp-tools
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
       },
     },
   ],
