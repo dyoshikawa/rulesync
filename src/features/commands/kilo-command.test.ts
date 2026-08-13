@@ -124,6 +124,31 @@ describe("KiloCommand", () => {
       });
       expect(rulesyncCommand.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
     });
+
+    it("should round-trip variant, the reasoning-effort override", async () => {
+      const filePath = join(testDir, ".kilo", "commands", "effort.md");
+      await ensureDir(join(testDir, ".kilo", "commands"));
+      await writeFileContent(
+        filePath,
+        stringifyFrontmatter("Do the thing", { description: "Effort", variant: "high" }),
+      );
+
+      const command = await KiloCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "effort.md",
+      });
+      expect(command.getFrontmatter()).toEqual({ description: "Effort", variant: "high" });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["*"],
+        description: "Effort",
+        kilo: { variant: "high" },
+      });
+
+      const regenerated = KiloCommand.fromRulesyncCommand({ outputRoot: testDir, rulesyncCommand });
+      expect(regenerated.getFrontmatter()).toEqual({ description: "Effort", variant: "high" });
+    });
   });
 
   describe("fromFile", () => {
