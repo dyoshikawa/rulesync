@@ -1,5 +1,6 @@
 import { Command } from "commander";
 
+import { DEFAULT_LATEST_COUNT } from "../lib/release-notes.js";
 import { ALL_FEATURES, RulesyncFeatures } from "../types/features.js";
 import { FetchOptions } from "../types/fetch.js";
 import type { Logger } from "../utils/logger.js";
@@ -15,6 +16,7 @@ import { importCommand, ImportOptions } from "./commands/import.js";
 import { initCommand } from "./commands/init.js";
 import { INSTALL_MODES, InstallMode, installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
+import { releaseNotesCommand, type ReleaseNotesCommandOptions } from "./commands/release-notes.js";
 import { resolveGitignoreTargets } from "./commands/resolve-gitignore-targets.js";
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
@@ -350,6 +352,36 @@ export function createProgram(): Command {
         const document = positionalArgs[0] as string | undefined;
         await docsCommand(logger, document, options as DocsOptions);
       }),
+    );
+
+  program
+    .command("release-notes <source>")
+    .description("Print GitHub release notes for a repository (e.g., 'owner/repo')")
+    .option(
+      "--latest <count>",
+      `Print the most recent <count> releases (default: ${DEFAULT_LATEST_COUNT})`,
+    )
+    .option("--since <date>", "Only releases published on or after this date (e.g., 2026-01-01)")
+    .option("--until <date>", "Only releases published on or before this date (e.g., 2026-06-30)")
+    .option("--tag <tag>", "Print a single release by tag name (e.g., v16.11.0)")
+    .option("--from <tag>", "Start tag of a version range (requires --to)")
+    .option("--to <tag>", "End tag of a version range (requires --from)")
+    .option("--include-prereleases", "Include prereleases (excluded by default)")
+    .option("--token <token>", "GitHub token for private repositories or higher rate limits")
+    .option("-V, --verbose", "Verbose output")
+    .option("-s, --silent", "Suppress all output")
+    .action(
+      wrapCommand(
+        "release-notes",
+        "RELEASE_NOTES_FAILED",
+        async (logger, options, _globalOpts, positionalArgs) => {
+          const source = positionalArgs[0] as string;
+          await releaseNotesCommand(logger, {
+            ...(options as Omit<ReleaseNotesCommandOptions, "source">),
+            source,
+          });
+        },
+      ),
     );
 
   program
