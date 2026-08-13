@@ -29,29 +29,25 @@ import {
 /**
  * Grok CLI hook events that have no `matcher` field.
  *
- * Grok tests `matcher` (a regex) against the tool name — verbatim: "matcher is
- * a regular expression tested against the tool name … omit it to match
- * everything." The docs don't enumerate matcher support per event, but since
- * Grok is Claude-Code-compatible (it also reads `.claude/settings.json`), a
- * matcher is only meaningful on the events that carry a tool name in their
- * context: `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, and
- * `PermissionDenied`. The remaining session/turn/notification/subagent/
- * compaction events are matcher-less; any matcher defined on them is dropped
- * with a warning during export (mirroring `CLAUDE_NO_MATCHER_EVENTS`).
+ * Grok's hooks guide enumerates what `matcher` (a regex) tests per event: the
+ * tool name on `PreToolUse` / `PostToolUse` / `PostToolUseFailure` /
+ * `PermissionDenied`, the notification type on `Notification`, the subagent
+ * type on `SubagentStart` / `SubagentStop`, the start source on `SessionStart`,
+ * the end reason on `SessionEnd`, the compaction trigger on `PreCompact` /
+ * `PostCompact`, and the error type on `StopFailure` (`rate_limit`,
+ * `authentication_failed`, …). Only `Stop` and `UserPromptSubmit` ignore a
+ * matcher — verbatim: "A matcher on `Stop` or `UserPromptSubmit` is ignored
+ * with a warning (those events always fire)."
+ *
+ * This set used to hold ten events, inferred from Claude Code compatibility
+ * rather than read off that table, so matchers Grok honors — `idle_prompt` on
+ * `Notification`, `explore` on `SubagentStart`, `rate_limit` on `StopFailure` —
+ * were dropped and the hook fired on everything instead.
+ *
+ * @see https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/10-hooks.md
  * @see https://docs.x.ai/build/features/hooks
  */
-const GROKCLI_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
-  "sessionStart",
-  "sessionEnd",
-  "beforeSubmitPrompt",
-  "stop",
-  "stopFailure",
-  "notification",
-  "subagentStart",
-  "subagentStop",
-  "preCompact",
-  "postCompact",
-]);
+const GROKCLI_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["stop", "beforeSubmitPrompt"]);
 
 const GROKCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: GROKCLI_HOOK_EVENTS,

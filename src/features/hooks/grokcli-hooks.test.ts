@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { GrokcliHooks } from "./grokcli-hooks.js";
@@ -72,14 +73,14 @@ describe("GrokcliHooks", () => {
       const parsed = JSON.parse(grokHooks.getFileContent());
       // Everything nests under the top-level `hooks` key.
       expect(parsed.hooks).toBeDefined();
-      // PreToolUse keeps its matcher (the only matcher-aware event).
+      // PreToolUse keeps its matcher, tested against the tool name.
       expect(parsed.hooks.PreToolUse).toEqual([
         {
           matcher: "exec",
           hooks: [{ type: "command", command: "./scripts/check.sh", timeout: 10 }],
         },
       ]);
-      // Matcher-less events carry no matcher key.
+      // A hook authored without a matcher carries no matcher key.
       expect(parsed.hooks.PostToolUse).toEqual([
         { hooks: [{ type: "command", command: "./scripts/after.sh" }] },
       ]);
@@ -114,6 +115,45 @@ describe("GrokcliHooks", () => {
       expect(parsed.hooks.Stop).toEqual([
         { hooks: [{ type: "command", command: "./scripts/stop.sh" }] },
       ]);
+    });
+
+    it("should keep matchers on the non-tool events Grok documents them for", async () => {
+      // Grok's per-event matcher table: the notification type on Notification,
+      // the subagent type on SubagentStart/SubagentStop, the start source on
+      // SessionStart, the end reason on SessionEnd, the compaction trigger on
+      // PreCompact/PostCompact, and the error type on StopFailure. Only Stop and
+      // UserPromptSubmit ignore one.
+      const logger = createMockLogger();
+      const config = {
+        version: 1,
+        hooks: {
+          notification: [{ matcher: "idle_prompt", command: "./scripts/chime.sh" }],
+          subagentStart: [{ matcher: "explore", command: "./scripts/sub.sh" }],
+          stopFailure: [{ matcher: "rate_limit", command: "./scripts/backoff.sh" }],
+          preCompact: [{ matcher: "auto", command: "./scripts/compact.sh" }],
+          sessionStart: [{ matcher: "resume", command: "./scripts/resume.sh" }],
+        },
+      };
+
+      const grokHooks = await GrokcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: makeRulesyncHooks(config),
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(grokHooks.getFileContent());
+      expect(parsed.hooks.Notification[0].matcher).toBe("idle_prompt");
+      expect(parsed.hooks.SubagentStart[0].matcher).toBe("explore");
+      expect(parsed.hooks.StopFailure[0].matcher).toBe("rate_limit");
+      expect(parsed.hooks.PreCompact[0].matcher).toBe("auto");
+      expect(parsed.hooks.SessionStart[0].matcher).toBe("resume");
+      expect(logger.warn).not.toHaveBeenCalled();
+
+      // And they survive the trip back into canonical hooks.
+      const json = grokHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.notification?.[0]?.matcher).toBe("idle_prompt");
+      expect(json.hooks.stopFailure?.[0]?.matcher).toBe("rate_limit");
     });
 
     it("should drop canonical events without a Grok equivalent", async () => {
