@@ -418,14 +418,18 @@ export const CLINE_HOOK_EVENTS: readonly HookEvent[] = [
 /**
  * Hook events supported by GitHub Copilot (cloud coding agent).
  *
- * GitHub now documents an eight-event surface for `.github/hooks/*.json`:
+ * The events rulesync writes to `.github/hooks/*.json`:
  * `sessionStart`, `sessionEnd`, `userPromptSubmitted` ← `beforeSubmitPrompt`,
- * `preToolUse`, `postToolUse`, `agentStop` ← `stop`, `subagentStop`, and
- * `errorOccurred` ← `afterError`. `subagentStart` is intentionally absent: it is
- * not part of the documented cloud-agent surface.
+ * `preToolUse`, `postToolUse`, `agentStop` ← `stop`, `subagentStart`,
+ * `subagentStop`, `errorOccurred` ← `afterError`, and `preCompact`.
  *
+ * The set is narrower than the CLI's ({@link COPILOTCLI_HOOK_EVENTS}) because
+ * the unified hooks reference marks `notification` and `permissionRequest` as
+ * the two events that do not fire on the cloud agent at all — everything else
+ * in that column fires there, so it is authorable here.
+ *
+ * @see https://docs.github.com/en/copilot/reference/hooks-reference
  * @see https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks
- * @see https://docs.github.com/en/copilot/concepts/agents/hooks
  */
 export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -434,8 +438,10 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "preToolUse",
   "postToolUse",
   "stop",
+  "subagentStart",
   "subagentStop",
   "afterError",
+  "preCompact",
 ];
 
 /**
@@ -1276,8 +1282,12 @@ export const CANONICAL_TO_COPILOT_EVENT_NAMES: Record<string, string> = {
   preToolUse: "preToolUse",
   postToolUse: "postToolUse",
   stop: "agentStop",
+  subagentStart: "subagentStart",
   subagentStop: "subagentStop",
   afterError: "errorOccurred",
+  // On the cloud agent this fires only with trigger "auto" — there is no user
+  // to request a manual compaction.
+  preCompact: "preCompact",
 };
 
 /**
