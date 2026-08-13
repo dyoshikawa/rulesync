@@ -16,14 +16,14 @@ export const MAX_RELEASE_PAGES = 10;
 export type ReleaseNotesFilter =
   | { kind: "latest"; count: number }
   | { kind: "dateRange"; since?: string; until?: string }
-  | { kind: "version"; tag: string }
+  | { kind: "singleTag"; tag: string }
   | { kind: "tagRange"; from: string; to: string };
 
 export type ReleaseNotesOptions = {
   latest?: string;
   since?: string;
   until?: string;
-  version?: string;
+  tag?: string;
   from?: string;
   to?: string;
   includePrereleases?: boolean;
@@ -67,12 +67,12 @@ export function resolveReleaseNotesFilter(options: ReleaseNotesOptions): Release
   const usedModes: string[] = [];
   if (options.latest !== undefined) usedModes.push("--latest");
   if (options.since !== undefined || options.until !== undefined) usedModes.push("--since/--until");
-  if (options.version !== undefined) usedModes.push("--version");
+  if (options.tag !== undefined) usedModes.push("--tag");
   if (options.from !== undefined || options.to !== undefined) usedModes.push("--from/--to");
 
   if (usedModes.length > 1) {
     throw new Error(
-      `Conflicting filter options: ${usedModes.join(", ")}. Use only one of --latest, --since/--until, --version, or --from/--to.`,
+      `Conflicting filter options: ${usedModes.join(", ")}. Use only one of --latest, --since/--until, --tag, or --from/--to.`,
     );
   }
 
@@ -92,8 +92,8 @@ export function resolveReleaseNotesFilter(options: ReleaseNotesOptions): Release
     return { kind: "dateRange", since: options.since, until: options.until };
   }
 
-  if (options.version !== undefined) {
-    return { kind: "version", tag: options.version };
+  if (options.tag !== undefined) {
+    return { kind: "singleTag", tag: options.tag };
   }
 
   if (options.from !== undefined || options.to !== undefined) {
@@ -332,7 +332,7 @@ export async function fetchReleaseNotes(params: {
       });
       return releases.map(toReleaseNote);
     }
-    case "version": {
+    case "singleTag": {
       // An explicitly named tag is returned regardless of prerelease status.
       const release = await client.getReleaseByTag({ owner, repo, tag: filter.tag });
       return release.draft ? [] : [toReleaseNote(release)];

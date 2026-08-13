@@ -71,10 +71,10 @@ describe("releaseNotesCommand", () => {
     expect(output).toContain("## v1.0.0");
   });
 
-  it("fetches a single release by tag with --version", async () => {
+  it("fetches a single release by tag with --tag", async () => {
     getReleaseByTag.mockResolvedValueOnce(createRelease({ tag_name: "v1.2.3" }));
 
-    await releaseNotesCommand(createMockLogger(), { source: "owner/repo", version: "v1.2.3" });
+    await releaseNotesCommand(createMockLogger(), { source: "owner/repo", tag: "v1.2.3" });
 
     expect(getReleaseByTag).toHaveBeenCalledWith({
       owner: "owner",
@@ -114,7 +114,7 @@ describe("releaseNotesCommand", () => {
       releaseNotesCommand(createMockLogger(), {
         source: "owner/repo",
         latest: "3",
-        version: "v1.0.0",
+        tag: "v1.0.0",
       }),
     ).rejects.toThrow(/Conflicting filter options/);
     expect(listReleases).not.toHaveBeenCalled();

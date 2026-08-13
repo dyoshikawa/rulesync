@@ -88,7 +88,7 @@ describe("resolveReleaseNotesFilter", () => {
   });
 
   it("rejects combinations of filter modes", () => {
-    expect(() => resolveReleaseNotesFilter({ latest: "3", version: "v1.0.0" })).toThrow(
+    expect(() => resolveReleaseNotesFilter({ latest: "3", tag: "v1.0.0" })).toThrow(
       /Conflicting filter options/,
     );
     expect(() => resolveReleaseNotesFilter({ since: "2026-01-01", from: "v1.0.0" })).toThrow(
@@ -195,7 +195,7 @@ describe("fetchReleaseNotes", () => {
       client,
       owner: "owner",
       repo: "repo",
-      filter: { kind: "version", tag: "v2.1.0-beta.1" },
+      filter: { kind: "singleTag", tag: "v2.1.0-beta.1" },
     });
 
     expect(releases.map((release) => release.tagName)).toEqual(["v2.1.0-beta.1"]);

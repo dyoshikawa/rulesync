@@ -366,7 +366,7 @@ export function createProgram(): Command {
     )
     .option("--since <date>", "Only releases published on or after this date (e.g., 2026-01-01)")
     .option("--until <date>", "Only releases published on or before this date (e.g., 2026-06-30)")
-    .option("--version <tag>", "Print a single release by tag name (e.g., v16.11.0)")
+    .option("--tag <tag>", "Print a single release by tag name (e.g., v16.11.0)")
     .option("--from <tag>", "Start tag of a version range (requires --to)")
     .option("--to <tag>", "End tag of a version range (requires --from)")
     .option("--include-prereleases", "Include prereleases (excluded by default)")
