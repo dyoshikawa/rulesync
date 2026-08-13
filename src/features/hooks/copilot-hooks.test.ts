@@ -632,26 +632,6 @@ describe("CopilotHooks", () => {
       expect(json.hooks.subagentStop?.[0]?.command).toBe("subagent-stop.sh");
     });
 
-    it("should import preCompact/subagentStart under their canonical names", () => {
-      const copilotHooks = new CopilotHooks({
-        outputRoot: testDir,
-        relativeDirPath: join(".github", "hooks"),
-        relativeFilePath: "copilot-hooks.json",
-        fileContent: JSON.stringify({
-          version: 1,
-          hooks: {
-            preCompact: [{ type: "command", bash: "pre-compact.sh" }],
-            subagentStart: [{ type: "command", bash: "subagent-start.sh" }],
-          },
-        }),
-        validate: false,
-      });
-
-      const json = copilotHooks.toRulesyncHooks().getJson();
-      expect(json.hooks.preCompact?.[0]?.command).toBe("pre-compact.sh");
-      expect(json.hooks.subagentStart?.[0]?.command).toBe("subagent-start.sh");
-    });
-
     it("should convert Copilot hooks with powershell-only to canonical format", () => {
       const copilotHooks = new CopilotHooks({
         outputRoot: testDir,

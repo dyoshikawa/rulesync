@@ -423,13 +423,18 @@ export const CLINE_HOOK_EVENTS: readonly HookEvent[] = [
  * `preToolUse`, `postToolUse`, `agentStop` ← `stop`, `subagentStart`,
  * `subagentStop`, `errorOccurred` ← `afterError`, and `preCompact`.
  *
- * The set is narrower than the CLI's ({@link COPILOTCLI_HOOK_EVENTS}) because
- * the unified hooks reference marks `notification` and `permissionRequest` as
- * the two events that do not fire on the cloud agent at all — everything else
- * in that column fires there, so it is authorable here.
+ * `preCompact` and `subagentStart` are authorable because the unified hooks
+ * reference's per-event "Cloud agent" column says both fire there. That column
+ * is the authority for this set: the older cloud-agent concept page still
+ * lists only the eight events this set began as, and re-narrowing to it would
+ * undo that. `notification` and `permissionRequest` stay out because the same
+ * column is explicit that they do not fire on the cloud agent.
+ *
+ * Two further CLI events — `postToolUseFailure` and `userPromptTransformed`
+ * ({@link COPILOTCLI_HOOK_EVENTS}) — are documented as firing on the cloud
+ * agent as well but are not modelled here yet.
  *
  * @see https://docs.github.com/en/copilot/reference/hooks-reference
- * @see https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks
  */
 export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
