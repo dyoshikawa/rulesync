@@ -105,6 +105,30 @@ This is the body of the junie skill.`;
       });
     });
 
+    it("should derive a missing description from the first body paragraph", async () => {
+      // `description` is optional upstream: "If `description` is not provided in
+      // the frontmatter, Junie CLI extracts the first paragraph of the body
+      // content as the description." Importing such a skill used to abort.
+      const skillDir = join(testDir, ".junie", "skills", "test-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---\nname: test-skill\n---\n\nSummarizes a changelog\nfor a release.\n\nA second paragraph that is not part of the description.`,
+      );
+
+      const skill = await JunieSkill.fromDir({ outputRoot: testDir, dirName: "test-skill" });
+
+      // Wrapped lines are joined so the value is a single-line YAML scalar on
+      // the next generate; the second paragraph is not included.
+      expect(skill.getFrontmatter()).toEqual({
+        name: "test-skill",
+        description: "Summarizes a changelog for a release.",
+      });
+      expect(skill.toRulesyncSkill().getFrontmatter().description).toBe(
+        "Summarizes a changelog for a release.",
+      );
+    });
+
     it("should throw error when frontmatter name does not match dirName", async () => {
       const skillDir = join(testDir, ".junie", "skills", "test-skill");
       await ensureDir(skillDir);

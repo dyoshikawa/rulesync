@@ -7,6 +7,7 @@ import { JUNIE_SKILLS_DIR_PATH } from "../../constants/junie-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -33,6 +34,30 @@ export type JunieSkillParams = {
   validate?: boolean;
   global?: boolean;
 };
+
+/**
+ * Junie's own fallback for a `SKILL.md` with no `description`: "If
+ * `description` is not provided in the frontmatter, Junie CLI extracts the
+ * first paragraph of the body content as the description."
+ *
+ * This is import-only. The canonical `RulesyncSkillFrontmatter` requires a
+ * description, so without the fallback a skill Junie itself loads fine aborts
+ * the whole import; generation keeps emitting an explicit description, which
+ * the same docs recommend.
+ *
+ * A paragraph ends at the first blank line. The result is collapsed onto one
+ * line because it becomes a YAML frontmatter value on the next generate.
+ *
+ * @see https://junie.jetbrains.com/docs/agent-skills.html
+ */
+function deriveDescriptionFromBody(body: string): string {
+  const paragraph = body.trim().split(/\r?\n\s*\r?\n/)[0] ?? "";
+  return paragraph
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .join(" ")
+    .trim();
+}
 
 /**
  * Represents a JetBrains Junie skill directory.
@@ -176,7 +201,14 @@ export class JunieSkill extends ToolSkill {
       getSettablePaths: JunieSkill.getSettablePaths,
     });
 
-    const result = JunieSkillFrontmatterSchema.safeParse(loaded.frontmatter);
+    // `description` is optional upstream, so it is filled in from the body
+    // before validation rather than failing a skill Junie loads fine.
+    const frontmatter =
+      isRecord(loaded.frontmatter) && loaded.frontmatter.description === undefined
+        ? { ...loaded.frontmatter, description: deriveDescriptionFromBody(loaded.body) }
+        : loaded.frontmatter;
+
+    const result = JunieSkillFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
