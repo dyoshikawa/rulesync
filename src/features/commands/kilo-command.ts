@@ -24,6 +24,11 @@ export const KiloCommandFrontmatterSchema = z.looseObject({
   agent: z.optional(z.string()),
   subtask: z.optional(z.boolean()),
   model: z.optional(z.string()),
+  // Reasoning-effort override (e.g. `low` / `high`) for models that support
+  // variants — the fifth field of Kilo's command schema, and the same key
+  // `KiloSubagentFrontmatterSchema` models.
+  // https://kilo.ai/docs/customize/workflows
+  variant: z.optional(z.string()),
 });
 
 export type KiloCommandFrontmatter = z.infer<typeof KiloCommandFrontmatterSchema>;
