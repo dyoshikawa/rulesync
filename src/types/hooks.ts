@@ -409,9 +409,9 @@ export const AMP_HOOK_EVENTS: readonly HookEvent[] = [
  * search paths and a script named for an event the running one does not know
  * is simply never spawned. That holds for unknown *names* only: for an event a
  * runtime does know, the SDK/CLI spawns both the extensionless script and its
- * `.ps1` twin, so the generated `.ps1` opens with a non-Windows guard (see
- * {@link generateClineHookPowerShellScript}) to keep the commands from running
- * twice there.
+ * `.ps1` twin, so each generated script opens with a guard that stands down on
+ * the platform the other one owns — see `generateClineHookScript` and
+ * `generateClineHookPowerShellScript`.
  *
  * `TaskResume` and `TaskCancel` have no canonical counterpart and stay
  * unmapped rather than being approximated by `sessionEnd` / `stop`, whose

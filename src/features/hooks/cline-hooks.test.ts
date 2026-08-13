@@ -131,6 +131,24 @@ describe("ClineHooks", () => {
       expect(scriptOf(files, "TaskStart.ps1")?.getFileMode()).toBeUndefined();
     });
 
+    it("guards the POSIX script so it is a no-op under a Windows POSIX shell", async () => {
+      // The mirror of the .ps1 guard. On Windows the SDK/CLI normalizes this
+      // file's `#!/bin/bash` shebang to a bare `bash`, so with Git Bash on PATH
+      // both spellings really do run the commands — the one quadrant where the
+      // duplication is real rather than noise.
+      const files = await hooksFor({
+        sessionStart: [{ type: "command", command: "echo start" }],
+      }).getScriptFiles();
+
+      const posix = scriptOf(files, "TaskStart")?.getFileContent() ?? "";
+      const guardIndex = posix.indexOf('case "${OSTYPE:-$(uname -s 2>/dev/null || true)}" in');
+      expect(guardIndex).toBeGreaterThan(-1);
+      expect(posix).toContain("msys*|MSYS*|cygwin*|CYGWIN*|MINGW*|mingw*)");
+      // The guard has to precede any work, including reading stdin.
+      expect(guardIndex).toBeLessThan(posix.indexOf("payload=$(cat)"));
+      expect(guardIndex).toBeLessThan(posix.indexOf("echo start"));
+    });
+
     it("guards the PowerShell twin so it is a no-op off Windows", async () => {
       // The SDK/CLI runtime lists hook files per path, not per event, and spawns
       // a .ps1 through pwsh on Unix too — so without this guard both spellings
