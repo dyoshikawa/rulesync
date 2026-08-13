@@ -86,8 +86,7 @@ describe("releaseNotesCommand", () => {
 
   it("captures structured data and prints nothing raw in JSON mode", async () => {
     listReleases.mockResolvedValueOnce([createRelease({ tag_name: "v1.0.0" })]);
-    const logger = createMockLogger();
-    logger.jsonMode = true;
+    const logger = { ...createMockLogger(), jsonMode: true };
 
     await releaseNotesCommand(logger, { source: "owner/repo" });
 

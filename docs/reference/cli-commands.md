@@ -79,6 +79,12 @@ rulesync doctor
 # Diagnose and fail CI on warnings too
 rulesync doctor --strict
 
+# Print GitHub release notes for a repository (latest 10 by default)
+rulesync release-notes dyoshikawa/rulesync
+
+# Print the most recent 5 releases
+rulesync release-notes dyoshikawa/rulesync --latest 5
+
 # Update rulesync to the latest version (single-binary installs)
 rulesync update
 
@@ -469,3 +475,65 @@ rulesync docs --search "global mode"
 - A missing document, an invalid identifier, an empty search text, a search with no matches, or combining a document argument with `--search` each exit with code 1 and an explanatory error.
 - Document output is printed verbatim, so it can be piped to other tools.
 - The global `--json` flag is not supported (the command's output is raw Markdown, not a JSON document) and exits with code 1.
+
+## Release Notes Command
+
+The `release-notes` command prints GitHub release notes for any repository, so you can review what changed in an upstream AI coding tool — or in Rulesync itself — without leaving the terminal. Releases are fetched through the GitHub Releases API and rendered as Markdown on standard output, newest first.
+
+The repository is given in the same source syntax the `fetch` command accepts: `owner/repo` or a full `https://github.com/owner/repo` URL. Only GitHub is supported; other Git providers have no equivalent Releases API.
+
+### Usage
+
+```bash
+# Latest 10 releases (default)
+rulesync release-notes dyoshikawa/rulesync
+
+# Most recent N releases
+rulesync release-notes dyoshikawa/rulesync --latest 5
+
+# Releases published within a date range (either end may be omitted)
+rulesync release-notes dyoshikawa/rulesync --since 2026-01-01 --until 2026-06-30
+
+# A single release by tag name
+rulesync release-notes dyoshikawa/rulesync --tag v16.11.0
+
+# Every release between two tags, inclusive
+rulesync release-notes dyoshikawa/rulesync --from v16.0.0 --to v16.11.0
+
+# Include prereleases
+rulesync release-notes dyoshikawa/rulesync --include-prereleases
+
+# Machine-readable output
+rulesync --json release-notes dyoshikawa/rulesync --latest 3
+```
+
+### Filtering
+
+The four filtering modes — `--latest`, `--since`/`--until`, `--tag`, and `--from`/`--to` — are mutually exclusive; combining them exits with code 1. With no filter, the latest 10 releases are printed.
+
+| Option                              | Description                                                                                                                                        |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--latest <count>`                  | Print the most recent `<count>` releases. Must be a positive integer.                                                                              |
+| `--since <date>` / `--until <date>` | Print releases published within the range. Either end may be omitted for an open-ended range. Dates are parsed as ISO 8601, e.g. `2026-01-31`.     |
+| `--tag <tag>`                       | Print a single release by tag name. Named `--tag` rather than `--version` because `--version` is the global flag that prints the Rulesync version. |
+| `--from <tag>` / `--to <tag>`       | Print every release between two tags, inclusive. Both are required.                                                                                |
+| `--include-prereleases`             | Include prereleases in the output.                                                                                                                 |
+| `--token <token>`                   | GitHub token for private repositories or higher rate limits.                                                                                       |
+
+Tag ranges are resolved by position in the repository's release history, not by parsing semver, so non-semver tag names work and the order of `--from` and `--to` does not matter. A tag that does not appear in the history exits with code 1.
+
+### Authentication
+
+Requests are unauthenticated by default, which is enough for public repositories but subject to GitHub's stricter anonymous rate limit. Set `GITHUB_TOKEN` or `GH_TOKEN` (or pass `--token`) for private repositories and higher limits:
+
+```bash
+GITHUB_TOKEN=$(gh auth token) rulesync release-notes owner/private-repo
+```
+
+### Behavior
+
+- Draft releases are never printed: they are unpublished and only visible to accounts with write access.
+- Prereleases are excluded unless `--include-prereleases` is given, matching how GitHub itself resolves the "latest" release. `--tag` is the exception — an explicitly named tag is printed regardless of its prerelease status.
+- A repository with no matching releases prints a warning and exits with code `0`.
+- Range queries walk at most 10 API pages (1,000 releases); tags older than that are reported as not found.
+- Default output is Markdown on standard output, so it can be piped to other tools. With the global `--json` flag, the releases are emitted as structured `data` instead and no Markdown is printed; failures use the standard error document with code `RELEASE_NOTES_FAILED`.

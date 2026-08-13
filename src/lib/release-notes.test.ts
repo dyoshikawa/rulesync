@@ -26,7 +26,13 @@ function createRelease(overrides: Partial<GitHubRelease> & { tag_name: string })
 function createClient(releases: GitHubRelease[]) {
   return {
     listReleases: vi.fn(
-      ({ page = 1, perPage = 100 }: { page?: number; perPage?: number }): Promise<GitHubRelease[]> =>
+      ({
+        page = 1,
+        perPage = 100,
+      }: {
+        page?: number;
+        perPage?: number;
+      }): Promise<GitHubRelease[]> =>
         Promise.resolve(releases.slice((page - 1) * perPage, page * perPage)),
     ),
     getReleaseByTag: vi.fn(({ tag }: { tag: string }): Promise<GitHubRelease> => {
