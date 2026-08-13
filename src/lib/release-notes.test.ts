@@ -118,6 +118,11 @@ describe("parseRepository", () => {
   it("rejects non-GitHub providers", () => {
     expect(() => parseRepository("gitlab:owner/repo")).toThrow(/GitHub repositories only/);
   });
+
+  it("rejects ref and path suffixes instead of ignoring them", () => {
+    expect(() => parseRepository("owner/repo@v1.0.0")).toThrow(/without a ref/);
+    expect(() => parseRepository("owner/repo:docs")).toThrow(/without a ref/);
+  });
 });
 
 describe("fetchReleaseNotes", () => {
@@ -189,6 +194,41 @@ describe("fetchReleaseNotes", () => {
     });
 
     expect(releases.map((release) => release.tagName)).toEqual(["v2.0.0"]);
+  });
+
+  it("includes releases published on the --until day itself", async () => {
+    const client = createClient([
+      createRelease({ tag_name: "v2.0.0", published_at: "2026-08-13T14:20:00Z" }),
+      createRelease({ tag_name: "v1.0.0", published_at: "2026-08-13T02:05:00Z" }),
+    ]);
+
+    const releases = await fetchReleaseNotes({
+      client,
+      owner: "owner",
+      repo: "repo",
+      filter: { kind: "dateRange", since: "2026-08-13", until: "2026-08-13" },
+    });
+
+    expect(releases.map((release) => release.tagName)).toEqual(["v2.0.0", "v1.0.0"]);
+  });
+
+  it("keeps in-window releases that follow an older one in the listing order", async () => {
+    // The API orders releases by creation date, so a hotfix published from a
+    // long-lived branch can appear after older releases.
+    const client = createClient([
+      createRelease({ tag_name: "v3.0.0", published_at: "2026-06-01T00:00:00Z" }),
+      createRelease({ tag_name: "v2.0.0", published_at: "2025-01-01T00:00:00Z" }),
+      createRelease({ tag_name: "v1.0.1", published_at: "2026-05-01T00:00:00Z" }),
+    ]);
+
+    const releases = await fetchReleaseNotes({
+      client,
+      owner: "owner",
+      repo: "repo",
+      filter: { kind: "dateRange", since: "2026-01-01" },
+    });
+
+    expect(releases.map((release) => release.tagName)).toEqual(["v3.0.0", "v1.0.1"]);
   });
 
   it("fetches a single release by tag even when it is a prerelease", async () => {

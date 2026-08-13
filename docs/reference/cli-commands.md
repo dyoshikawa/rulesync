@@ -480,7 +480,7 @@ rulesync docs --search "global mode"
 
 The `release-notes` command prints GitHub release notes for any repository, so you can review what changed in an upstream AI coding tool — or in Rulesync itself — without leaving the terminal. Releases are fetched through the GitHub Releases API and rendered as Markdown on standard output, newest first.
 
-The repository is given in the same source syntax the `fetch` command accepts: `owner/repo` or a full `https://github.com/owner/repo` URL. Only GitHub is supported; other Git providers have no equivalent Releases API.
+The repository is given as `owner/repo` or a full `https://github.com/owner/repo` URL. Unlike `fetch`, ref (`@`) and path (`:`) suffixes are rejected — use `--tag` to select a single release. Only GitHub is supported; other Git providers have no equivalent Releases API.
 
 ### Usage
 
@@ -511,14 +511,14 @@ rulesync --json release-notes dyoshikawa/rulesync --latest 3
 
 The four filtering modes — `--latest`, `--since`/`--until`, `--tag`, and `--from`/`--to` — are mutually exclusive; combining them exits with code 1. With no filter, the latest 10 releases are printed.
 
-| Option                              | Description                                                                                                                                        |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--latest <count>`                  | Print the most recent `<count>` releases. Must be a positive integer.                                                                              |
-| `--since <date>` / `--until <date>` | Print releases published within the range. Either end may be omitted for an open-ended range. Dates are parsed as ISO 8601, e.g. `2026-01-31`.     |
-| `--tag <tag>`                       | Print a single release by tag name. Named `--tag` rather than `--version` because `--version` is the global flag that prints the Rulesync version. |
-| `--from <tag>` / `--to <tag>`       | Print every release between two tags, inclusive. Both are required.                                                                                |
-| `--include-prereleases`             | Include prereleases in the output.                                                                                                                 |
-| `--token <token>`                   | GitHub token for private repositories or higher rate limits.                                                                                       |
+| Option                              | Description                                                                                                                                                                                                                      |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--latest <count>`                  | Print the most recent `<count>` releases. Must be a positive integer.                                                                                                                                                            |
+| `--since <date>` / `--until <date>` | Print releases published within the range, both ends inclusive. Either end may be omitted for an open-ended range. Dates are parsed as ISO 8601, e.g. `2026-01-31`; a bare date given to `--until` covers that whole day in UTC. |
+| `--tag <tag>`                       | Print a single release by tag name. Named `--tag` rather than `--version` because `--version` is the global flag that prints the Rulesync version.                                                                               |
+| `--from <tag>` / `--to <tag>`       | Print every release between two tags, inclusive. Both are required.                                                                                                                                                              |
+| `--include-prereleases`             | Include prereleases in the output.                                                                                                                                                                                               |
+| `--token <token>`                   | GitHub token for private repositories or higher rate limits.                                                                                                                                                                     |
 
 Tag ranges are resolved by position in the repository's release history, not by parsing semver, so non-semver tag names work and the order of `--from` and `--to` does not matter. A tag that does not appear in the history exits with code 1.
 
@@ -536,4 +536,5 @@ GITHUB_TOKEN=$(gh auth token) rulesync release-notes owner/private-repo
 - Prereleases are excluded unless `--include-prereleases` is given, matching how GitHub itself resolves the "latest" release. `--tag` is the exception — an explicitly named tag is printed regardless of its prerelease status.
 - A repository with no matching releases prints a warning and exits with code `0`.
 - Range queries walk at most 10 API pages (1,000 releases); tags older than that are reported as not found.
+- Date ranges scan the whole walked history rather than stopping at the first out-of-range release, because the API orders releases by creation date and a release published from a long-lived branch can appear out of publication order.
 - Default output is Markdown on standard output, so it can be piped to other tools. With the global `--json` flag, the releases are emitted as structured `data` instead and no Markdown is printed; failures use the standard error document with code `RELEASE_NOTES_FAILED`.

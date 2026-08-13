@@ -48,6 +48,21 @@ function parseDate(value: string): number | null {
   return Number.isNaN(timestamp) ? null : timestamp;
 }
 
+/** A bare `YYYY-MM-DD` with no time part. */
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Parse the inclusive end of a date range. A bare `YYYY-MM-DD` parses as
+ * midnight UTC, which would drop every release published later that same day,
+ * so a date-only `--until` is stretched to the end of that day.
+ */
+function parseUntilDate(value: string): number | null {
+  if (DATE_ONLY_PATTERN.test(value.trim())) {
+    return parseDate(`${value.trim()}T23:59:59.999Z`);
+  }
+  return parseDate(value);
+}
+
 function parseLatestCount(raw: string): number {
   if (!/^\d+$/.test(raw.trim())) {
     throw new Error(`Invalid --latest value "${raw}". Expected a positive integer.`);
@@ -115,6 +130,11 @@ export function parseRepository(source: string): { owner: string; repo: string }
   if (parsed.provider !== "github") {
     throw new Error(
       `The release-notes command supports GitHub repositories only, but "${source}" resolves to ${parsed.provider}.`,
+    );
+  }
+  if (parsed.ref !== undefined || parsed.path !== undefined) {
+    throw new Error(
+      `Invalid repository "${source}". Expected owner/repo without a ref ("@") or path (":") suffix; use --tag to select a single release.`,
     );
   }
   return { owner: parsed.owner, repo: parsed.repo };
@@ -216,7 +236,7 @@ async function collectDateRange(params: {
 }): Promise<GitHubRelease[]> {
   const { client, owner, repo, since, until, includePrereleases } = params;
   const sinceTime = since === undefined ? undefined : parseDate(since);
-  const untilTime = until === undefined ? undefined : parseDate(until);
+  const untilTime = until === undefined ? undefined : parseUntilDate(until);
   const collected: GitHubRelease[] = [];
 
   await walkReleases({
@@ -239,9 +259,11 @@ async function collectDateRange(params: {
         return true;
       }
       if (sinceTime !== undefined && sinceTime !== null && publishedTime < sinceTime) {
-        // Releases arrive newest first, so everything past this point is older
-        // than the requested window.
-        return false;
+        // The API orders releases by creation date, not publication date, so an
+        // older-looking release can still be followed by one inside the window
+        // (a hotfix published from a long-lived branch). The walk therefore runs
+        // to the end of the history, bounded by the page cap.
+        return true;
       }
       collected.push(release);
       return true;
