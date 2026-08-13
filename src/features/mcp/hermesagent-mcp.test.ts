@@ -735,6 +735,51 @@ describe("HermesagentMcp", () => {
       });
     });
 
+    it("round-trips trust and identity_header (issue #2414)", async () => {
+      const dir = join(testDir, HERMES_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, HERMES_FILE),
+        [
+          "mcp_servers:",
+          "  team_api:",
+          "    url: https://mcp.team.example.com/mcp",
+          "    trust: untrusted",
+          "    identity_header:",
+          "      name: X-User-Id",
+          "      value_from: profile",
+          "      __proto__: polluted",
+          "",
+        ].join("\n"),
+      );
+
+      const imported = await HermesagentMcp.fromFile({ outputRoot: testDir, global: true });
+      const canonical = imported.toRulesyncMcp();
+      const hermesOverride = JSON.parse(canonical.getFileContent()).hermesagent.mcpServers.team_api;
+
+      expect(hermesOverride.trust).toBe("untrusted");
+      expect(hermesOverride.identity_header).toEqual({
+        name: "X-User-Id",
+        value_from: "profile",
+      });
+
+      // Regenerating must not silently downgrade `untrusted` back to the `full`
+      // default, nor drop the identity header.
+      const regenerated = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent: canonical.getFileContent(),
+        }).forTarget({ toolTarget: "hermesagent" }),
+        global: true,
+      });
+      const server = getMcpServers(regenerated.getFileContent()).team_api;
+
+      expect(server?.trust).toBe("untrusted");
+      expect(server?.identity_header).toEqual({ name: "X-User-Id", value_from: "profile" });
+    });
+
     it("strips prototype-pollution keys from a server's headers on import", async () => {
       const dir = join(testDir, HERMES_DIR);
       await ensureDir(dir);

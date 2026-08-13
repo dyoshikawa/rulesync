@@ -201,6 +201,79 @@ describe("HermesagentHooks", () => {
       );
     });
 
+    it("emits failClosed as fail_closed on pre_tool_call", async () => {
+      const rulesyncHooks = rulesyncHooksFrom({
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { command: "guard.sh", failClosed: true },
+            { command: "audit.sh", failClosed: false },
+          ],
+        },
+      });
+
+      const hooks = await HermesagentHooks.fromRulesyncHooks({
+        outputRoot: ".",
+        rulesyncHooks,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
+      expect(config.hooks).toEqual({
+        pre_tool_call: [
+          { command: "guard.sh", fail_closed: true },
+          { command: "audit.sh", fail_closed: false },
+        ],
+      });
+    });
+
+    it("drops failClosed: true (with a warning) on events other than pre_tool_call", async () => {
+      const warnSpy = vi.spyOn(logger, "warn");
+      const rulesyncHooks = rulesyncHooksFrom({
+        version: 1,
+        hooks: {
+          postToolUse: [{ command: "format.sh", failClosed: true }],
+        },
+      });
+
+      const hooks = await HermesagentHooks.fromRulesyncHooks({
+        outputRoot: ".",
+        rulesyncHooks,
+        logger,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
+      expect(config.hooks).toEqual({
+        post_tool_call: [{ command: "format.sh" }],
+      });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('failClosed on "postToolUse" hook will be ignored'),
+      );
+    });
+
+    it("does not warn about failClosed: false on another event (it is the upstream default)", async () => {
+      // The mock logger is shared across this file, so drop the calls earlier
+      // cases recorded before asserting on absence.
+      const warnSpy = vi.spyOn(logger, "warn").mockClear();
+      const rulesyncHooks = rulesyncHooksFrom({
+        version: 1,
+        hooks: {
+          sessionStart: [{ command: "init.sh", failClosed: false }],
+        },
+      });
+
+      const hooks = await HermesagentHooks.fromRulesyncHooks({
+        outputRoot: ".",
+        rulesyncHooks,
+        logger,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
+      expect(config.hooks).toEqual({
+        on_session_start: [{ command: "init.sh" }],
+      });
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("failClosed"));
+    });
+
     it("merges the hermesagent override block on top of shared hooks", async () => {
       const rulesyncHooks = rulesyncHooksFrom({
         version: 1,
@@ -448,6 +521,33 @@ hooks:
         pre_verify: [{ type: "command", command: "verify.sh" }],
         transform_tool_result: [{ type: "command", command: "redact.sh" }],
       });
+    });
+
+    it("imports both fail_closed spellings back into canonical failClosed (#2414)", () => {
+      const hooks = new HermesagentHooks({
+        outputRoot: ".",
+        fileContent: `hooks:
+  pre_tool_call:
+    - command: guard.sh
+      fail_closed: true
+    - command: audit.sh
+      failClosed: true
+    - command: plain.sh
+  post_tool_call:
+    - command: format.sh
+      fail_closed: true
+`,
+      });
+
+      const json = hooks.toRulesyncHooks().getJson();
+      expect(json.hooks.preToolUse).toEqual([
+        { type: "command", command: "guard.sh", failClosed: true },
+        { type: "command", command: "audit.sh", failClosed: true },
+        { type: "command", command: "plain.sh" },
+      ]);
+      // Upstream ignores the key outside pre_tool_call, so importing it there
+      // would only produce a value the next generate warns about and drops.
+      expect(json.hooks.postToolUse).toEqual([{ type: "command", command: "format.sh" }]);
     });
 
     it("returns an empty canonical hooks map when no hooks key is present", () => {
