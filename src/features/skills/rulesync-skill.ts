@@ -177,6 +177,10 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   cline: z.optional(z.looseObject({})),
   roo: z.optional(z.looseObject({})),
+  // Amp reads the open Agent Skills standard and documents no field beyond
+  // `name`/`description`, so this section only carries keys a hand-written
+  // SKILL.md happens to add.
+  amp: z.optional(z.looseObject({})),
   devin: z.optional(
     z.looseObject({
       "argument-hint": z.optional(z.string()),
@@ -389,6 +393,7 @@ export type RulesyncSkillFrontmatterInput = {
   };
   roo?: Record<string, unknown>;
   cline?: Record<string, unknown>;
+  amp?: Record<string, unknown>;
   devin?: {
     "argument-hint"?: string;
     model?: string;
