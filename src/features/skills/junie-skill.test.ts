@@ -129,6 +129,55 @@ This is the body of the junie skill.`;
       );
     });
 
+    it("should skip markdown headings when deriving a missing description", async () => {
+      // A body opening with its title would otherwise import "# Skill Name" as
+      // the description — and the next generate would write that back
+      // explicitly, replacing Junie's own correct fallback everywhere. Upstream
+      // does not count headings: "If the body is also empty or contains only
+      // headings, the skill will fail to load."
+      const skillDir = join(testDir, ".junie", "skills", "test-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---\nname: test-skill\n---\n\n# Test Skill\n\n## Overview\n\nSummarizes a changelog\nfor a release.\n\nA second paragraph.`,
+      );
+
+      const skill = await JunieSkill.fromDir({ outputRoot: testDir, dirName: "test-skill" });
+
+      expect(skill.getFrontmatter().description).toBe("Summarizes a changelog for a release.");
+    });
+
+    it("should take a leading code fence as content, having no heading to skip", async () => {
+      // Fences are not special-cased: whatever the first non-heading paragraph
+      // holds becomes the description, fence markers included.
+      const skillDir = join(testDir, ".junie", "skills", "test-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---\nname: test-skill\n---\n\n# Title\n\n\`\`\`bash\nnpm install\n\`\`\`\n\nProse after the fence.`,
+      );
+
+      const skill = await JunieSkill.fromDir({ outputRoot: testDir, dirName: "test-skill" });
+
+      expect(skill.getFrontmatter().description).toBe("```bash npm install ```");
+    });
+
+    it.each([
+      ["a headings-only body", `---\nname: test-skill\n---\n\n# Title\n\n## Section\n`],
+      ["an empty body", `---\nname: test-skill\n---\n`],
+    ])("should refuse to import a skill with %s", async (_label, fileContent) => {
+      // Junie cannot load such a skill either. The throw is turned into a
+      // single skipped skill by the processor's lenientImport flag, so it never
+      // aborts the whole import.
+      const skillDir = join(testDir, ".junie", "skills", "test-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), fileContent);
+
+      await expect(
+        JunieSkill.fromDir({ outputRoot: testDir, dirName: "test-skill" }),
+      ).rejects.toThrow(/no description and its body has no paragraph/);
+    });
+
     it("should throw error when frontmatter name does not match dirName", async () => {
       const skillDir = join(testDir, ".junie", "skills", "test-skill");
       await ensureDir(skillDir);

@@ -35,28 +35,49 @@ export type JunieSkillParams = {
   global?: boolean;
 };
 
+/** An ATX markdown heading line (`#` … `######`). */
+const HEADING_LINE = /^#{1,6}(\s|$)/;
+
 /**
  * Junie's own fallback for a `SKILL.md` with no `description`: "If
  * `description` is not provided in the frontmatter, Junie CLI extracts the
- * first paragraph of the body content as the description."
+ * first paragraph of the body content as the description." Headings do not
+ * count as that paragraph — "If the body is also empty or contains only
+ * headings, the skill will fail to load."
  *
  * This is import-only. The canonical `RulesyncSkillFrontmatter` requires a
  * description, so without the fallback a skill Junie itself loads fine aborts
  * the whole import; generation keeps emitting an explicit description, which
  * the same docs recommend.
  *
- * A paragraph ends at the first blank line. The result is collapsed onto one
- * line because it becomes a YAML frontmatter value on the next generate.
+ * Heading lines are therefore skipped rather than taken: a body opening with
+ * `# Skill Name` would otherwise import that title as the description and —
+ * because the next generate writes it out explicitly — replace Junie's own
+ * correct fallback with the wrong value everywhere, canonical config included.
+ *
+ * A paragraph runs to the first blank line or heading, and is collapsed onto
+ * one line because it becomes a YAML frontmatter value. A fenced code block is
+ * not treated specially: it is ordinary content, so a body whose first
+ * paragraph is a fence yields the fence text. Returns an empty string when the
+ * body holds no such paragraph, which the caller turns into a skipped skill.
  *
  * @see https://junie.jetbrains.com/docs/agent-skills.html
  */
 function deriveDescriptionFromBody(body: string): string {
-  const paragraph = body.trim().split(/\r?\n\s*\r?\n/)[0] ?? "";
-  return paragraph
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .join(" ")
-    .trim();
+  const paragraph: string[] = [];
+  for (const rawLine of body.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (paragraph.length === 0) {
+      // Still looking for the paragraph: blank lines and headings are skipped.
+      if (line === "" || HEADING_LINE.test(line)) continue;
+      paragraph.push(line);
+      continue;
+    }
+    // Inside the paragraph: a blank line or a heading ends it.
+    if (line === "" || HEADING_LINE.test(line)) break;
+    paragraph.push(line);
+  }
+  return paragraph.join(" ").trim();
 }
 
 /**
@@ -203,10 +224,21 @@ export class JunieSkill extends ToolSkill {
 
     // `description` is optional upstream, so it is filled in from the body
     // before validation rather than failing a skill Junie loads fine.
-    const frontmatter =
-      isRecord(loaded.frontmatter) && loaded.frontmatter.description === undefined
-        ? { ...loaded.frontmatter, description: deriveDescriptionFromBody(loaded.body) }
-        : loaded.frontmatter;
+    let frontmatter = loaded.frontmatter;
+    if (isRecord(frontmatter) && frontmatter.description === undefined) {
+      const derived = deriveDescriptionFromBody(loaded.body);
+      if (derived === "") {
+        // Junie says such a skill "will fail to load", so there is nothing to
+        // import. Throwing here — with `lenientImport` set for this target —
+        // skips this one skill rather than the whole run.
+        throw new Error(
+          `Cannot import ${join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName, SKILL_FILE_NAME)}: ` +
+            `it has no description and its body has no paragraph to derive one from, so Junie ` +
+            `cannot load it either. Add a description to the frontmatter.`,
+        );
+      }
+      frontmatter = { ...frontmatter, description: derived };
+    }
 
     const result = JunieSkillFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
