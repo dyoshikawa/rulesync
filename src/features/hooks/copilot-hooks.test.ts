@@ -173,6 +173,39 @@ describe("CopilotHooks", () => {
       expect(parsed.hooks.permissionRequest).toBeUndefined();
     });
 
+    it("should emit postToolUseFailure and userPromptTransformed, which also fire on the cloud agent", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          postToolUseFailure: [{ command: ".rulesync/hooks/tool-failed.sh" }],
+          userPromptExpansion: [{ command: ".rulesync/hooks/expand-prompt.sh" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const copilotHooks = await CopilotHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(copilotHooks.getFileContent());
+      expect(parsed.hooks.postToolUseFailure).toEqual([
+        { type: "command", command: ".rulesync/hooks/tool-failed.sh" },
+      ]);
+      expect(parsed.hooks.userPromptTransformed).toEqual([
+        { type: "command", command: ".rulesync/hooks/expand-prompt.sh" },
+      ]);
+      // The canonical name must not leak into the generated Copilot file.
+      expect(parsed.hooks.userPromptExpansion).toBeUndefined();
+    });
+
     it("should write the portable command field and timeoutSec instead of timeout", async () => {
       const config = {
         version: 1,
@@ -630,6 +663,28 @@ describe("CopilotHooks", () => {
       expect(json.hooks.stop?.[0]?.command).toBe("agent-stop.sh");
       expect(json.hooks.subagentStop).toHaveLength(1);
       expect(json.hooks.subagentStop?.[0]?.command).toBe("subagent-stop.sh");
+    });
+
+    it("should map userPromptTransformed back to canonical userPromptExpansion", () => {
+      const copilotHooks = new CopilotHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilot-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            postToolUseFailure: [{ type: "command", bash: "tool-failed.sh" }],
+            userPromptTransformed: [{ type: "command", bash: "expand-prompt.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = copilotHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.postToolUseFailure).toHaveLength(1);
+      expect(json.hooks.postToolUseFailure?.[0]?.command).toBe("tool-failed.sh");
+      expect(json.hooks.userPromptExpansion).toHaveLength(1);
+      expect(json.hooks.userPromptExpansion?.[0]?.command).toBe("expand-prompt.sh");
     });
 
     it("should convert Copilot hooks with powershell-only to canonical format", () => {

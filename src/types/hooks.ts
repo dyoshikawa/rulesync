@@ -420,8 +420,9 @@ export const CLINE_HOOK_EVENTS: readonly HookEvent[] = [
  *
  * The events rulesync writes to `.github/hooks/*.json`:
  * `sessionStart`, `sessionEnd`, `userPromptSubmitted` ← `beforeSubmitPrompt`,
- * `preToolUse`, `postToolUse`, `agentStop` ← `stop`, `subagentStart`,
- * `subagentStop`, `errorOccurred` ← `afterError`, and `preCompact`.
+ * `preToolUse`, `postToolUse`, `postToolUseFailure`, `agentStop` ← `stop`,
+ * `subagentStart`, `subagentStop`, `errorOccurred` ← `afterError`,
+ * `preCompact`, and `userPromptTransformed` ← `userPromptExpansion`.
  *
  * `preCompact` and `subagentStart` are authorable because the unified hooks
  * reference's per-event "Cloud agent" column says both fire there. That column
@@ -430,9 +431,11 @@ export const CLINE_HOOK_EVENTS: readonly HookEvent[] = [
  * undo that. `notification` and `permissionRequest` stay out because the same
  * column is explicit that they do not fire on the cloud agent.
  *
- * Two further CLI events — `postToolUseFailure` and `userPromptTransformed`
- * ({@link COPILOTCLI_HOOK_EVENTS}) — are documented as firing on the cloud
- * agent as well but are not modelled here yet.
+ * `postToolUseFailure` and `userPromptTransformed` are shared with
+ * {@link COPILOTCLI_HOOK_EVENTS}; the same column records both as firing on the
+ * cloud agent, so they are authorable here too. The event surfaces overlap but
+ * the config surfaces do not: `copilot` emits `command` hooks only, while the
+ * CLI adapter also handles `http` and `prompt`.
  *
  * @see https://docs.github.com/en/copilot/reference/hooks-reference
  */
@@ -442,11 +445,13 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "beforeSubmitPrompt",
   "preToolUse",
   "postToolUse",
+  "postToolUseFailure",
   "stop",
   "subagentStart",
   "subagentStop",
   "afterError",
   "preCompact",
+  "userPromptExpansion",
 ];
 
 /**
@@ -1286,6 +1291,7 @@ export const CANONICAL_TO_COPILOT_EVENT_NAMES: Record<string, string> = {
   beforeSubmitPrompt: "userPromptSubmitted",
   preToolUse: "preToolUse",
   postToolUse: "postToolUse",
+  postToolUseFailure: "postToolUseFailure",
   stop: "agentStop",
   subagentStart: "subagentStart",
   subagentStop: "subagentStop",
@@ -1293,6 +1299,7 @@ export const CANONICAL_TO_COPILOT_EVENT_NAMES: Record<string, string> = {
   // On the cloud agent this fires only with trigger "auto" — there is no user
   // to request a manual compaction.
   preCompact: "preCompact",
+  userPromptExpansion: "userPromptTransformed",
 };
 
 /**
