@@ -197,6 +197,37 @@ describe("CodexcliHooks", () => {
       });
     });
 
+    it("should round-trip async, which runs a command hook in the background", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              sessionStart: [{ command: "./scripts/notify.sh", async: true }],
+              sessionEnd: [{ command: "./scripts/teardown.sh", async: false }],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(codexHooks.getFileContent());
+      expect(parsed.hooks.SessionStart[0].hooks[0].async).toBe(true);
+      expect(parsed.hooks.SessionEnd[0].hooks[0].async).toBe(false);
+
+      const json = codexHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.sessionStart?.[0]).toEqual({
+        type: "command",
+        command: "./scripts/notify.sh",
+        async: true,
+      });
+      expect(json.hooks.sessionEnd?.[0]?.async).toBe(false);
+    });
+
     it("should convert subagentStart, subagentStop, and preCompact to PascalCase", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({

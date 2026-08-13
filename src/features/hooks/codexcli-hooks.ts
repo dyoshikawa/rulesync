@@ -56,6 +56,11 @@ const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   numberPassthroughFields: [
     { canonical: "additionalContextLimit", tool: "additionalContextLimit" },
   ],
+  // `async` runs a command hook in the background while Codex continues, with
+  // the same input, matcher, trust review and timeout handling as a
+  // synchronous one (up to eight concurrent per session). Command hooks only.
+  // https://learn.chatgpt.com/docs/hooks
+  booleanPassthroughFields: [{ canonical: "async", tool: "async", commandOnly: true }],
 };
 
 /**
