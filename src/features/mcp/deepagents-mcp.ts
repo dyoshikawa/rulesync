@@ -93,22 +93,49 @@ function toDeepagentsServer({
 
   // Upstream reads `allowedTools`, never `enabledTools`, and ignores unknown
   // keys silently — so forwarding the canonical name verbatim would be a no-op.
-  const allowed = enabledTools;
-  const disabled = disabledTools;
-  if (
-    allowed !== undefined &&
-    allowed.length > 0 &&
-    disabled !== undefined &&
-    disabled.length > 0
-  ) {
-    logger?.warn(
-      `${TOOL_NAME} MCP: "${name}" sets both enabledTools and disabledTools, which deepagents ` +
-        `rejects — pick one. Neither filter is written.`,
-    );
-  } else if (allowed !== undefined && allowed.length > 0) {
-    converted.allowedTools = allowed;
-  } else if (disabled !== undefined && disabled.length > 0) {
-    converted.disabledTools = disabled;
+  //
+  // `_validate_tool_filter_fields` raises on a server that sets both filters and
+  // on an empty list, and dcode drops a server it cannot validate. Each case is
+  // resolved the way that does not hand the model more tools than the canonical
+  // config allows:
+  if (enabledTools !== undefined && disabledTools !== undefined) {
+    // Both set is valid canonically (other targets apply the two lists
+    // independently) but has no form here, and upstream refuses it outright.
+    // Writing neither would leave the server running with every tool, denied
+    // ones included, so the server is skipped like the `ws` case above.
+    return warnAndSkipMcpServer({
+      toolName: TOOL_NAME,
+      serverName: name,
+      reason: "both enabledTools and disabledTools, which deepagents rejects — pick one",
+      logger,
+    });
+  }
+
+  if (enabledTools !== undefined) {
+    if (enabledTools.length === 0) {
+      // An allowlist of nothing means no tools at all. Dropping the key would
+      // publish every tool instead, so the server is skipped — which is also
+      // what an empty allowlist asks for.
+      return warnAndSkipMcpServer({
+        toolName: TOOL_NAME,
+        serverName: name,
+        reason:
+          "an empty enabledTools list, which allows no tools at all and which deepagents rejects",
+        logger,
+      });
+    }
+    converted.allowedTools = enabledTools;
+  } else if (disabledTools !== undefined) {
+    if (disabledTools.length === 0) {
+      // A denylist of nothing is genuinely a no-op, so only the key is dropped —
+      // skipping the server here would remove tools the config never denied.
+      logger?.warn(
+        `${TOOL_NAME} MCP: dropping the empty disabledTools list on "${name}"; it denies nothing, ` +
+          `and deepagents rejects the empty form.`,
+      );
+    } else {
+      converted.disabledTools = disabledTools;
+    }
   }
 
   return converted;

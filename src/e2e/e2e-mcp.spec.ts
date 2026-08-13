@@ -832,7 +832,6 @@ const mcpGlobalTargets = [
   { target: "codexcli", outputPath: join(".codex", "config.toml") },
   { target: "grokcli", outputPath: join(".grok", "config.toml") },
   { target: "copilotcli", outputPath: join(".copilot", "mcp-config.json") },
-  { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
   { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
   { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
   {
@@ -876,7 +875,12 @@ describe("E2E: mcp (global mode)", () => {
       // takt only writes a transport allowlist to ~/.takt/config.yaml (no
       // "test-server" entry), so it is covered by its own dedicated global test
       // "should generate Takt MCP transport allowlist into ~/.takt/config.yaml (global)".
-      untested: ["takt"],
+      //
+      // deepagents skips a server that sets both tool filters — which the shared
+      // fixture below deliberately does — because dcode rejects that combination
+      // outright. It has its own dedicated global test
+      // "should generate deepagents MCP into ~/.deepagents/.mcp.json (global)".
+      untested: ["takt", "deepagents"],
     });
   });
 
@@ -1018,6 +1022,45 @@ describe("E2E: mcp (global mode)", () => {
       }
     },
   );
+
+  it("should generate deepagents MCP into ~/.deepagents/.mcp.json (global)", async () => {
+    // Not part of the shared global matrix: that fixture sets both tool filters
+    // on one server, and dcode rejects a server that does, so deepagents skips
+    // it. This covers the same ground with one filter per server, and pins the
+    // skip end to end.
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        root: true,
+        mcpServers: {
+          "test-server": {
+            type: "stdio",
+            command: "echo",
+            args: ["hello"],
+            enabledTools: ["read"],
+          },
+          denied: { command: "echo", disabledTools: ["delete"] },
+          both: { command: "echo", enabledTools: ["read"], disabledTools: ["delete"] },
+        },
+      }),
+    );
+
+    await runGenerate({
+      target: "deepagents",
+      features: "mcp",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(await readFileContent(join(homeDir, ".deepagents", ".mcp.json")));
+    expect(generated.mcpServers).toEqual({
+      "test-server": { type: "stdio", command: "echo", args: ["hello"], allowedTools: ["read"] },
+      denied: { command: "echo", disabledTools: ["delete"] },
+    });
+  });
 
   it("should generate Takt MCP transport allowlist into ~/.takt/config.yaml (global)", async () => {
     const projectDir = getProjectDir();

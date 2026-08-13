@@ -141,8 +141,7 @@ describe("DeepagentsMcp", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("socket"));
     });
 
-    it("should translate enabledTools to allowedTools and enforce dcode's filter constraints", async () => {
-      const logger = createMockLogger();
+    it("should translate enabledTools to allowedTools and keep disabledTools", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
@@ -151,22 +150,62 @@ describe("DeepagentsMcp", () => {
           mcpServers: {
             allowed: { command: "npx", enabledTools: ["read_*"] },
             denied: { command: "npx", disabledTools: ["delete"] },
-            // dcode rejects a server that sets both, and rejects an empty list.
+          },
+        }),
+      });
+
+      const mcp = await DeepagentsMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        allowed: { command: "npx", allowedTools: ["read_*"] },
+        denied: { command: "npx", disabledTools: ["delete"] },
+      });
+    });
+
+    it("should skip a server that sets both filters rather than publishing every tool", async () => {
+      // Upstream refuses the server outright, and writing neither filter would
+      // leave it running with all tools — the denied ones included.
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
             both: { command: "npx", enabledTools: ["read"], disabledTools: ["write"] },
-            empty: { command: "npx", enabledTools: [] },
+            kept: { command: "npx" },
           },
         }),
       });
 
       const mcp = await DeepagentsMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
 
-      expect(mcp.getJson().mcpServers).toEqual({
-        allowed: { command: "npx", allowedTools: ["read_*"] },
-        denied: { command: "npx", disabledTools: ["delete"] },
-        both: { command: "npx" },
-        empty: { command: "npx" },
-      });
+      expect(mcp.getJson().mcpServers).toEqual({ kept: { command: "npx" } });
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("both"));
+    });
+
+    it("should skip an empty allowlist but only drop an empty denylist", async () => {
+      // The two empty forms mean opposite things: an empty allowlist allows no
+      // tools (so the server is skipped), while an empty denylist denies nothing
+      // (so only the key is dropped). Both are rejected by upstream.
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            emptyAllow: { command: "npx", enabledTools: [] },
+            emptyDeny: { command: "npx", disabledTools: [] },
+          },
+        }),
+      });
+
+      const mcp = await DeepagentsMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+
+      expect(mcp.getJson().mcpServers).toEqual({ emptyDeny: { command: "npx" } });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("emptyAllow"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("emptyDeny"));
     });
   });
 
