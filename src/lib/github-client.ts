@@ -251,14 +251,58 @@ export class GitHubClient {
   async getLatestRelease(owner: string, repo: string): Promise<GitHubRelease> {
     try {
       const { data } = await this.octokit.repos.getLatestRelease({ owner, repo });
-      const parsed = GitHubReleaseSchema.safeParse(data);
-      if (!parsed.success) {
-        throw new GitHubClientError(`Invalid release info response: ${formatError(parsed.error)}`);
-      }
-      return parsed.data;
+      return this.parseRelease(data);
     } catch (error) {
       throw this.handleError(error);
     }
+  }
+
+  /**
+   * List releases of a repository, newest first, one API page at a time.
+   */
+  async listReleases(params: {
+    owner: string;
+    repo: string;
+    perPage?: number;
+    page?: number;
+  }): Promise<GitHubRelease[]> {
+    const { owner, repo, perPage = 100, page = 1 } = params;
+    try {
+      const { data } = await this.octokit.repos.listReleases({
+        owner,
+        repo,
+        per_page: perPage,
+        page,
+      });
+      return data.map((item) => this.parseRelease(item));
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Get a single release by its tag name
+   */
+  async getReleaseByTag(params: {
+    owner: string;
+    repo: string;
+    tag: string;
+  }): Promise<GitHubRelease> {
+    const { owner, repo, tag } = params;
+    try {
+      const { data } = await this.octokit.repos.getReleaseByTag({ owner, repo, tag });
+      return this.parseRelease(data);
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  private parseRelease(data: unknown): GitHubRelease {
+    const parsed = GitHubReleaseSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new GitHubClientError(`Invalid release info response: ${formatError(parsed.error)}`);
+    }
+    return parsed.data;
   }
 
   /**

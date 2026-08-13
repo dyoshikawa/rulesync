@@ -127,5 +127,11 @@ export const GitHubReleaseSchema = z.looseObject({
   prerelease: z.boolean(),
   draft: z.boolean(),
   assets: z.array(GitHubReleaseAssetSchema),
+  // Drafts have no publication date, and older API mirrors may omit the
+  // remaining descriptive fields entirely, so all of them stay optional.
+  published_at: z.optional(z.nullable(z.string())),
+  created_at: z.optional(z.nullable(z.string())),
+  body: z.optional(z.nullable(z.string())),
+  html_url: z.optional(z.string()),
 });
 export type GitHubRelease = z.infer<typeof GitHubReleaseSchema>;
