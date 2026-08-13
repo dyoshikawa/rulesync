@@ -143,9 +143,12 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
 
   // Cline's hook scripts are produced via `ClineHooks.getAuxiliaryFiles`, not
   // `getSettablePaths` (which only exposes the manifest), and their names are
-  // fixed by Cline's VALID_HOOK_TYPES. They are listed one by one rather than as
-  // a directory so a hand-authored hook in the same directory — one rulesync
-  // deliberately never manages — stays tracked.
+  // fixed by the two runtimes that read the hooks directory: the VS Code
+  // extension's `VALID_HOOK_TYPES` and the SDK/CLI's `HookConfigFileName`. This
+  // list is the union rulesync emits, mirroring `CANONICAL_TO_CLINE_EVENT_NAMES`.
+  // They are listed one by one rather than as a directory so a hand-authored
+  // hook in the same directory — one rulesync deliberately never manages —
+  // stays tracked.
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/Notification" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/Notification.ps1" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PostToolUse" },
@@ -154,8 +157,12 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreCompact.ps1" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreToolUse" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreToolUse.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/SessionShutdown" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/SessionShutdown.ps1" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskComplete" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskComplete.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskError" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskError.ps1" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskStart" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskStart.ps1" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/UserPromptSubmit" },

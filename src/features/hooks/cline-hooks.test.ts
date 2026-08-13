@@ -51,8 +51,8 @@ describe("ClineHooks", () => {
           hooks: {
             sessionStart: [{ type: "command", command: "echo start" }],
             preToolUse: [{ type: "command", command: "echo pre" }],
-            // Not part of Cline's VALID_HOOK_TYPES.
-            sessionEnd: [{ type: "command", command: "echo end" }],
+            // No Cline hook script name corresponds to this event.
+            stop: [{ type: "command", command: "echo stop" }],
           },
         }),
       });
@@ -61,6 +61,33 @@ describe("ClineHooks", () => {
         generatedBy: "rulesync",
         events: ["PreToolUse", "TaskStart"],
       });
+    });
+
+    it("maps the SDK-only script names for afterError and sessionEnd", async () => {
+      const hooks = ClineHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          hooks: {
+            afterError: [{ type: "command", command: "echo failed" }],
+            sessionEnd: [{ type: "command", command: "echo end" }],
+          },
+        }),
+      });
+
+      expect(JSON.parse(hooks.getFileContent())).toEqual({
+        generatedBy: "rulesync",
+        events: ["SessionShutdown", "TaskError"],
+      });
+
+      const files = await hooks.getScriptFiles();
+      expect(files.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        "SessionShutdown",
+        "SessionShutdown.ps1",
+        "TaskError",
+        "TaskError.ps1",
+      ]);
+      expect(scriptOf(files, "TaskError")?.getFileContent()).toContain("echo failed");
+      expect(scriptOf(files, "SessionShutdown")?.getFileContent()).toContain("echo end");
     });
 
     it("layers the cline override block over the shared hooks", async () => {
@@ -102,6 +129,43 @@ describe("ClineHooks", () => {
       // Cline spawns the POSIX file itself; the .ps1 twin runs via powershell -File.
       expect(posix?.getFileMode()).toBe(0o755);
       expect(scriptOf(files, "TaskStart.ps1")?.getFileMode()).toBeUndefined();
+    });
+
+    it("guards the POSIX script so it is a no-op under a Windows POSIX shell", async () => {
+      // The mirror of the .ps1 guard. On Windows the SDK/CLI normalizes this
+      // file's `#!/bin/bash` shebang to a bare `bash`, so with Git Bash on PATH
+      // both spellings really do run the commands — the one quadrant where the
+      // duplication is real rather than noise.
+      const files = await hooksFor({
+        sessionStart: [{ type: "command", command: "echo start" }],
+      }).getScriptFiles();
+
+      const posix = scriptOf(files, "TaskStart")?.getFileContent() ?? "";
+      const guardIndex = posix.indexOf('case "${OSTYPE:-$(uname -s 2>/dev/null || true)}" in');
+      expect(guardIndex).toBeGreaterThan(-1);
+      expect(posix).toContain("msys*|MSYS*|cygwin*|CYGWIN*|MINGW*|mingw*)");
+      // The guard has to precede any work, including reading stdin.
+      expect(guardIndex).toBeLessThan(posix.indexOf("payload=$(cat)"));
+      expect(guardIndex).toBeLessThan(posix.indexOf("echo start"));
+    });
+
+    it("guards the PowerShell twin so it is a no-op off Windows", async () => {
+      // The SDK/CLI runtime lists hook files per path, not per event, and spawns
+      // a .ps1 through pwsh on Unix too — so without this guard both spellings
+      // run and every command fires twice. The test pins the exact condition:
+      // `-not $IsWindows` alone would be true under Windows PowerShell 5.1,
+      // where the variable does not exist, disabling the script on Windows.
+      const files = await hooksFor({
+        sessionStart: [{ type: "command", command: "echo start" }],
+      }).getScriptFiles();
+
+      const ps1 = scriptOf(files, "TaskStart.ps1")?.getFileContent() ?? "";
+      const guardIndex = ps1.indexOf("if ($null -ne $IsWindows -and -not $IsWindows) {");
+      expect(guardIndex).toBeGreaterThan(-1);
+      expect(ps1).toContain('Write-Output \'{"cancel": false, "contextModification": "", ');
+      // The guard has to precede any work, including reading stdin.
+      expect(guardIndex).toBeLessThan(ps1.indexOf("[Console]::In.ReadToEnd()"));
+      expect(guardIndex).toBeLessThan(ps1.indexOf("echo start"));
     });
 
     it("runs several commands for one event in source order", async () => {
@@ -195,11 +259,15 @@ describe("ClineHooks", () => {
         join(hooksDir, "TaskStart"),
         `#!/bin/bash\n# ${CLINE_HOOK_SCRIPT_MARKER}\necho generated\n`,
       );
+      await writeFileContent(
+        join(hooksDir, "TaskError"),
+        `#!/bin/bash\n# ${CLINE_HOOK_SCRIPT_MARKER}\necho generated\n`,
+      );
       await writeFileContent(join(hooksDir, "PreToolUse"), "#!/bin/bash\necho mine\n");
 
       const files = await ClineHooks.getDeletableAuxiliaryFiles({ outputRoot: testDir });
 
-      expect(files.map((file) => file.getRelativeFilePath())).toEqual(["TaskStart"]);
+      expect(files.map((file) => file.getRelativeFilePath())).toEqual(["TaskError", "TaskStart"]);
     });
   });
 

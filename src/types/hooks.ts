@@ -393,26 +393,43 @@ export const AMP_HOOK_EVENTS: readonly HookEvent[] = [
 
 /**
  * Hook events supported by Cline's file-based hooks. Cline resolves one
- * executable per lifecycle event from its hooks directory, and the event names
- * it accepts are fixed by `VALID_HOOK_TYPES` in
- * `apps/vscode/src/core/hooks/utils.ts`: `TaskStart`, `TaskResume`,
- * `TaskCancel`, `TaskComplete`, `PreToolUse`, `PostToolUse`,
- * `UserPromptSubmit`, `Notification` and `PreCompact`.
+ * executable per lifecycle event from its hooks directory, and the accepted
+ * event names come from two runtimes that read the same directory:
+ *
+ * - The VS Code extension fixes them in `VALID_HOOK_TYPES`
+ *   (`apps/vscode/src/core/hooks/utils.ts`): `TaskStart`, `TaskResume`,
+ *   `TaskCancel`, `TaskComplete`, `PreToolUse`, `PostToolUse`,
+ *   `UserPromptSubmit`, `Notification` and `PreCompact`.
+ * - The SDK/CLI fixes them in `HookConfigFileName`
+ *   (`sdk/packages/core/src/hooks/hook-file-config.ts`), which drops
+ *   `Notification` but adds `TaskError` (→ `agent_error`) and
+ *   `SessionShutdown` (→ `session_shutdown`).
+ *
+ * This set is the union, because `.clinerules/hooks` is in both runtimes'
+ * search paths and a script named for an event the running one does not know
+ * is simply never spawned. That holds for unknown *names* only: for an event a
+ * runtime does know, the SDK/CLI spawns both the extensionless script and its
+ * `.ps1` twin, so each generated script opens with a guard that stands down on
+ * the platform the other one owns — see `generateClineHookScript` and
+ * `generateClineHookPowerShellScript`.
  *
  * `TaskResume` and `TaskCancel` have no canonical counterpart and stay
  * unmapped rather than being approximated by `sessionEnd` / `stop`, whose
  * semantics differ.
  *
  * @see https://github.com/cline/cline/blob/main/apps/vscode/src/core/hooks/utils.ts
+ * @see https://github.com/cline/cline/blob/main/sdk/packages/core/src/hooks/hook-file-config.ts
  */
 export const CLINE_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
+  "sessionEnd",
   "preToolUse",
   "postToolUse",
   "beforeSubmitPrompt",
   "preCompact",
   "notification",
   "taskCompleted",
+  "afterError",
 ];
 
 /**
@@ -1271,15 +1288,21 @@ export const CANONICAL_TO_AMP_EVENT_NAMES: Record<string, string> = {
   stop: "agent.end",
 };
 
-/** Map canonical hook events to Cline's `VALID_HOOK_TYPES` file names. */
+/**
+ * Map canonical hook events to Cline's hook script file names — the union of
+ * the VS Code extension's `VALID_HOOK_TYPES` and the SDK/CLI's
+ * `HookConfigFileName`, see {@link CLINE_HOOK_EVENTS}.
+ */
 export const CANONICAL_TO_CLINE_EVENT_NAMES: Record<string, string> = {
   sessionStart: "TaskStart",
+  sessionEnd: "SessionShutdown",
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
   beforeSubmitPrompt: "UserPromptSubmit",
   preCompact: "PreCompact",
   notification: "Notification",
   taskCompleted: "TaskComplete",
+  afterError: "TaskError",
 };
 
 /**

@@ -25,8 +25,11 @@
   "words": [
     "aaif",
     "diffable",
+    "esac",
     "extensionless",
     "LASTEXITCODE",
+    "msys",
+    "OSTYPE",
     "PKCE",
     "serde",
     "codegen",

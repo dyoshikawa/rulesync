@@ -82,10 +82,14 @@ class ClineHookScript extends ToolFile {
  * by the contract, so every generated script carries a marker line and a script
  * without it is never overwritten.
  *
- * Cline's CLI and SDK use a different, in-process hook surface (`AgentHooks`
- * from `@cline/core`), which this adapter does not target.
+ * The project hooks directory is in the search paths of both the VS Code
+ * extension and the SDK/CLI, whose accepted event names differ slightly, so the
+ * emitted set is their union ({@link CANONICAL_TO_CLINE_EVENT_NAMES}). Cline's
+ * in-process hook surface (`AgentHooks` from `@cline/core`) is a separate
+ * mechanism this adapter does not target.
  *
  * @see https://github.com/cline/cline/blob/main/apps/vscode/src/core/hooks/utils.ts
+ * @see https://github.com/cline/cline/blob/main/sdk/packages/core/src/hooks/hook-file-config.ts
  */
 export class ClineHooks extends ToolHooks {
   private readonly scriptsByEvent: Record<string, string[]>;
