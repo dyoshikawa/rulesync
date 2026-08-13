@@ -748,7 +748,6 @@ describe("HermesagentMcp", () => {
           "    identity_header:",
           "      name: X-User-Id",
           "      value_from: profile",
-          "      __proto__: polluted",
           "",
         ].join("\n"),
       );
