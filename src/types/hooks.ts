@@ -418,14 +418,23 @@ export const CLINE_HOOK_EVENTS: readonly HookEvent[] = [
 /**
  * Hook events supported by GitHub Copilot (cloud coding agent).
  *
- * GitHub now documents an eight-event surface for `.github/hooks/*.json`:
+ * The events rulesync writes to `.github/hooks/*.json`:
  * `sessionStart`, `sessionEnd`, `userPromptSubmitted` ← `beforeSubmitPrompt`,
- * `preToolUse`, `postToolUse`, `agentStop` ← `stop`, `subagentStop`, and
- * `errorOccurred` ← `afterError`. `subagentStart` is intentionally absent: it is
- * not part of the documented cloud-agent surface.
+ * `preToolUse`, `postToolUse`, `agentStop` ← `stop`, `subagentStart`,
+ * `subagentStop`, `errorOccurred` ← `afterError`, and `preCompact`.
  *
- * @see https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks
- * @see https://docs.github.com/en/copilot/concepts/agents/hooks
+ * `preCompact` and `subagentStart` are authorable because the unified hooks
+ * reference's per-event "Cloud agent" column says both fire there. That column
+ * is the authority for this set: the older cloud-agent concept page still
+ * lists only the eight events this set began as, and re-narrowing to it would
+ * undo that. `notification` and `permissionRequest` stay out because the same
+ * column is explicit that they do not fire on the cloud agent.
+ *
+ * Two further CLI events — `postToolUseFailure` and `userPromptTransformed`
+ * ({@link COPILOTCLI_HOOK_EVENTS}) — are documented as firing on the cloud
+ * agent as well but are not modelled here yet.
+ *
+ * @see https://docs.github.com/en/copilot/reference/hooks-reference
  */
 export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -434,8 +443,10 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
   "preToolUse",
   "postToolUse",
   "stop",
+  "subagentStart",
   "subagentStop",
   "afterError",
+  "preCompact",
 ];
 
 /**
@@ -1276,8 +1287,12 @@ export const CANONICAL_TO_COPILOT_EVENT_NAMES: Record<string, string> = {
   preToolUse: "preToolUse",
   postToolUse: "postToolUse",
   stop: "agentStop",
+  subagentStart: "subagentStart",
   subagentStop: "subagentStop",
   afterError: "errorOccurred",
+  // On the cloud agent this fires only with trigger "auto" — there is no user
+  // to request a manual compaction.
+  preCompact: "preCompact",
 };
 
 /**

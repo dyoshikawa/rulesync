@@ -137,6 +137,42 @@ describe("CopilotHooks", () => {
       expect(parsed.hooks.stop).toBeUndefined();
     });
 
+    it("should emit preCompact and subagentStart, which both fire on the cloud agent", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preCompact: [{ command: ".rulesync/hooks/pre-compact.sh" }],
+          subagentStart: [{ command: ".rulesync/hooks/subagent-start.sh" }],
+          // Documented as not firing on the cloud agent at all.
+          notification: [{ command: ".rulesync/hooks/notify.sh" }],
+          permissionRequest: [{ command: ".rulesync/hooks/permission.sh" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const copilotHooks = await CopilotHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(copilotHooks.getFileContent());
+      expect(parsed.hooks.preCompact).toEqual([
+        { type: "command", command: ".rulesync/hooks/pre-compact.sh" },
+      ]);
+      expect(parsed.hooks.subagentStart).toEqual([
+        { type: "command", command: ".rulesync/hooks/subagent-start.sh" },
+      ]);
+      expect(parsed.hooks.notification).toBeUndefined();
+      expect(parsed.hooks.permissionRequest).toBeUndefined();
+    });
+
     it("should write the portable command field and timeoutSec instead of timeout", async () => {
       const config = {
         version: 1,
