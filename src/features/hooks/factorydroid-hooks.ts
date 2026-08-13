@@ -56,6 +56,20 @@ const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   ],
 };
 
+/** Droid's nine event names, the keys a standalone `hooks.json` is made of. */
+const FACTORYDROID_EVENT_NAMES: ReadonlySet<string> = new Set(
+  Object.values(CANONICAL_TO_FACTORYDROID_EVENT_NAMES),
+);
+
+/**
+ * Whether a parsed hooks file is the standalone shape — keyed directly by event
+ * name — rather than the `settings.json` shape that wraps the same map in a
+ * `hooks` key.
+ */
+function hasFactorydroidEventKey(parsed: object): boolean {
+  return Object.keys(parsed).some((key) => FACTORYDROID_EVENT_NAMES.has(key));
+}
+
 export class FactorydroidHooks extends ToolHooks {
   constructor(params: AiFileParams) {
     super({
@@ -112,17 +126,6 @@ export class FactorydroidHooks extends ToolHooks {
     logger?: Logger;
   }): Promise<FactorydroidHooks> {
     const paths = FactorydroidHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
-    let settings: Record<string, unknown>;
-    try {
-      settings = JSON.parse(existingContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse existing Factory Droid hooks file at ${filePath}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
     const config = rulesyncHooks.getJson();
     const factorydroidHooks = canonicalToToolHooks({
       config,
@@ -130,8 +133,11 @@ export class FactorydroidHooks extends ToolHooks {
       converterConfig: FACTORYDROID_CONVERTER_CONFIG,
       logger,
     });
-    const merged = { ...settings, hooks: factorydroidHooks };
-    const fileContent = JSON.stringify(merged, null, 2);
+    // A standalone `hooks.json` is keyed directly by event name; the `hooks`
+    // wrapper belongs to `settings.json` only. Writing the wrapped shape here
+    // left Droid with no known event key at the top level, so no generated hook
+    // ever fired. https://docs.factory.ai/reference/hooks-reference
+    const fileContent = JSON.stringify(factorydroidHooks, null, 2);
     return new FactorydroidHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
@@ -142,9 +148,9 @@ export class FactorydroidHooks extends ToolHooks {
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    let settings: { hooks?: unknown };
+    let parsed: { hooks?: unknown };
     try {
-      settings = JSON.parse(this.getFileContent());
+      parsed = JSON.parse(this.getFileContent());
     } catch (error) {
       throw new Error(
         `Failed to parse Factory Droid hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
@@ -153,8 +159,12 @@ export class FactorydroidHooks extends ToolHooks {
         },
       );
     }
+    // Both shapes are read: a standalone `hooks.json` keyed by event name, and
+    // the `hooks`-wrapped `settings.json` that `fromFile` falls back to. The
+    // top level wins when it names an event, so a file carrying an event
+    // literally called `hooks` is not mistaken for the wrapped form.
     const hooks = toolHooksToCanonical({
-      hooks: settings.hooks,
+      hooks: hasFactorydroidEventKey(parsed) ? parsed : parsed.hooks,
       converterConfig: FACTORYDROID_CONVERTER_CONFIG,
       logger,
     });
