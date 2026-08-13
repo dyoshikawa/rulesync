@@ -51,8 +51,8 @@ describe("ClineHooks", () => {
           hooks: {
             sessionStart: [{ type: "command", command: "echo start" }],
             preToolUse: [{ type: "command", command: "echo pre" }],
-            // Not part of Cline's VALID_HOOK_TYPES.
-            sessionEnd: [{ type: "command", command: "echo end" }],
+            // No Cline hook script name corresponds to this event.
+            stop: [{ type: "command", command: "echo stop" }],
           },
         }),
       });
@@ -61,6 +61,33 @@ describe("ClineHooks", () => {
         generatedBy: "rulesync",
         events: ["PreToolUse", "TaskStart"],
       });
+    });
+
+    it("maps the SDK-only script names for afterError and sessionEnd", async () => {
+      const hooks = ClineHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          hooks: {
+            afterError: [{ type: "command", command: "echo failed" }],
+            sessionEnd: [{ type: "command", command: "echo end" }],
+          },
+        }),
+      });
+
+      expect(JSON.parse(hooks.getFileContent())).toEqual({
+        generatedBy: "rulesync",
+        events: ["SessionShutdown", "TaskError"],
+      });
+
+      const files = await hooks.getScriptFiles();
+      expect(files.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        "SessionShutdown",
+        "SessionShutdown.ps1",
+        "TaskError",
+        "TaskError.ps1",
+      ]);
+      expect(scriptOf(files, "TaskError")?.getFileContent()).toContain("echo failed");
+      expect(scriptOf(files, "SessionShutdown")?.getFileContent()).toContain("echo end");
     });
 
     it("layers the cline override block over the shared hooks", async () => {
@@ -195,11 +222,15 @@ describe("ClineHooks", () => {
         join(hooksDir, "TaskStart"),
         `#!/bin/bash\n# ${CLINE_HOOK_SCRIPT_MARKER}\necho generated\n`,
       );
+      await writeFileContent(
+        join(hooksDir, "TaskError"),
+        `#!/bin/bash\n# ${CLINE_HOOK_SCRIPT_MARKER}\necho generated\n`,
+      );
       await writeFileContent(join(hooksDir, "PreToolUse"), "#!/bin/bash\necho mine\n");
 
       const files = await ClineHooks.getDeletableAuxiliaryFiles({ outputRoot: testDir });
 
-      expect(files.map((file) => file.getRelativeFilePath())).toEqual(["TaskStart"]);
+      expect(files.map((file) => file.getRelativeFilePath())).toEqual(["TaskError", "TaskStart"]);
     });
   });
 
