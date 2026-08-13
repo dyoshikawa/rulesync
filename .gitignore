@@ -260,8 +260,12 @@ rulesync.local.jsonc
 **/.clinerules/hooks/PreCompact.ps1
 **/.clinerules/hooks/PreToolUse
 **/.clinerules/hooks/PreToolUse.ps1
+**/.clinerules/hooks/SessionShutdown
+**/.clinerules/hooks/SessionShutdown.ps1
 **/.clinerules/hooks/TaskComplete
 **/.clinerules/hooks/TaskComplete.ps1
+**/.clinerules/hooks/TaskError
+**/.clinerules/hooks/TaskError.ps1
 **/.clinerules/hooks/TaskStart
 **/.clinerules/hooks/TaskStart.ps1
 **/.clinerules/hooks/UserPromptSubmit

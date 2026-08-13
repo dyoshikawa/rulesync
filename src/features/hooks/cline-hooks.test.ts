@@ -131,6 +131,25 @@ describe("ClineHooks", () => {
       expect(scriptOf(files, "TaskStart.ps1")?.getFileMode()).toBeUndefined();
     });
 
+    it("guards the PowerShell twin so it is a no-op off Windows", async () => {
+      // The SDK/CLI runtime lists hook files per path, not per event, and spawns
+      // a .ps1 through pwsh on Unix too — so without this guard both spellings
+      // run and every command fires twice. The test pins the exact condition:
+      // `-not $IsWindows` alone would be true under Windows PowerShell 5.1,
+      // where the variable does not exist, disabling the script on Windows.
+      const files = await hooksFor({
+        sessionStart: [{ type: "command", command: "echo start" }],
+      }).getScriptFiles();
+
+      const ps1 = scriptOf(files, "TaskStart.ps1")?.getFileContent() ?? "";
+      const guardIndex = ps1.indexOf("if ($null -ne $IsWindows -and -not $IsWindows) {");
+      expect(guardIndex).toBeGreaterThan(-1);
+      expect(ps1).toContain('Write-Output \'{"cancel": false, "contextModification": "", ');
+      // The guard has to precede any work, including reading stdin.
+      expect(guardIndex).toBeLessThan(ps1.indexOf("[Console]::In.ReadToEnd()"));
+      expect(guardIndex).toBeLessThan(ps1.indexOf("echo start"));
+    });
+
     it("runs several commands for one event in source order", async () => {
       const files = await hooksFor({
         preToolUse: [

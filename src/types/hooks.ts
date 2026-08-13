@@ -407,7 +407,11 @@ export const AMP_HOOK_EVENTS: readonly HookEvent[] = [
  *
  * This set is the union, because `.clinerules/hooks` is in both runtimes'
  * search paths and a script named for an event the running one does not know
- * is simply never spawned.
+ * is simply never spawned. That holds for unknown *names* only: for an event a
+ * runtime does know, the SDK/CLI spawns both the extensionless script and its
+ * `.ps1` twin, so the generated `.ps1` opens with a non-Windows guard (see
+ * {@link generateClineHookPowerShellScript}) to keep the commands from running
+ * twice there.
  *
  * `TaskResume` and `TaskCancel` have no canonical counterpart and stay
  * unmapped rather than being approximated by `sessionEnd` / `stop`, whose
