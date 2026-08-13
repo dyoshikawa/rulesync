@@ -57,7 +57,7 @@ function resolveHermesTimeout(config: Record<string, unknown>): number | undefin
  * alias — `auth` (`oauth` for OAuth 2.1/PKCE), mTLS `client_cert` (string PEM
  * path, or `[cert, key]`/`[cert, key, password]` list) and `client_key`,
  * `connect_timeout` (seconds), `supports_parallel_tool_calls`,
- * `keepalive_interval`, and `elicitation` — verbatim
+ * `keepalive_interval`, `elicitation`, `trust`, and `identity_header` — verbatim
  * from `source` to `target`. Field names are identical on both sides (the
  * canonical `McpServerSchema` is a `looseObject`), so this serves export and
  * import alike. See the Hermes mcp-config-reference.
@@ -146,6 +146,21 @@ function copyHermesAdvancedFields(
   // same reason `sampling` is.
   if (isPlainObject(source.elicitation)) {
     target.elicitation = omitPrototypePollutionKeys(structuredClone(source.elicitation));
+    copied = true;
+  }
+  // Trust tier: `full` (default) or `untrusted`, where every write-capable tool
+  // call needs approval. Copied verbatim rather than validated — upstream reads
+  // any unrecognized value as `untrusted`, so narrowing the accepted set here
+  // would turn a typo into a silent privilege escalation on regenerate.
+  if (typeof source.trust === "string") {
+    target.trust = source.trust;
+    copied = true;
+  }
+  // Per-user identity header for remote HTTP/SSE servers:
+  // `{name, value_from: "static" | "profile", value}`. Copied as an opaque
+  // mapping for the same reason `sampling` is.
+  if (isPlainObject(source.identity_header)) {
+    target.identity_header = omitPrototypePollutionKeys(structuredClone(source.identity_header));
     copied = true;
   }
   return copied;

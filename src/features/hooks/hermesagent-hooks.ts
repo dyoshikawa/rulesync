@@ -23,7 +23,7 @@ import {
 } from "../../utils/hermesagent.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
-import { isPlainObject } from "../../utils/type-guards.js";
+import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -45,6 +45,7 @@ type HermesHookEntry = {
   command: string;
   matcher?: string;
   timeout?: number;
+  fail_closed?: boolean;
 };
 
 /**
@@ -58,6 +59,14 @@ const HERMESAGENT_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "pre_tool_call",
   "post_tool_call",
 ]);
+
+/**
+ * The only Hermes event that can block, and therefore the only one whose
+ * entries accept `fail_closed`. Upstream warns and ignores the key on every
+ * other event ("only blocking-capable events can fail closed").
+ * @see https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
+ */
+const HERMESAGENT_FAIL_CLOSED_EVENT = "pre_tool_call";
 const HERMESAGENT_CANONICAL_EVENTS: ReadonlySet<string> = new Set(HERMESAGENT_HOOK_EVENTS);
 const HERMESAGENT_NATIVE_EVENTS: ReadonlySet<string> = new Set(HERMESAGENT_NATIVE_HOOK_EVENTS);
 
@@ -97,7 +106,9 @@ function isHermesHookEventEntry(key: string, value: unknown): boolean {
  * unsupported hook types centrally). `matcher` is only carried through for
  * `pre_tool_call`/`post_tool_call`; on any other event it is dropped with a
  * warning, mirroring how other adapters (e.g. AugmentCode) handle
- * matcher-less lifecycle events.
+ * matcher-less lifecycle events. The canonical `failClosed` field (shared with
+ * Cursor, whose semantics Hermes copied) becomes `fail_closed`, which upstream
+ * only honours on `pre_tool_call`.
  */
 function definitionsToHermesEntries({
   event,
@@ -134,6 +145,17 @@ function definitionsToHermesEntries({
     }
     if (typeof definition.timeout === "number") {
       entry.timeout = definition.timeout;
+    }
+    if (typeof definition.failClosed === "boolean") {
+      if (event === HERMESAGENT_FAIL_CLOSED_EVENT) {
+        entry.fail_closed = definition.failClosed;
+      } else if (definition.failClosed) {
+        // Only warn about a `true` that is being dropped: `false` is upstream's
+        // own default, so silently omitting it changes nothing.
+        logger?.warn(
+          `failClosed on "${sourceEvent}" hook will be ignored — Hermes Agent only supports fail_closed on pre_tool_call`,
+        );
+      }
     }
     entries.push(entry);
   }
@@ -221,6 +243,57 @@ function canonicalToHermesHooks({
 }
 
 /**
+ * Reads a hook entry's fail-closed flag. Upstream accepts its own `fail_closed`
+ * and the Cursor/Claude Code `failClosed` spelling alike, so both have to be
+ * read back into the single canonical field.
+ */
+function readHermesFailClosed(entry: Record<string, unknown>): boolean | undefined {
+  if (typeof entry.fail_closed === "boolean") return entry.fail_closed;
+  if (typeof entry.failClosed === "boolean") return entry.failClosed;
+  return undefined;
+}
+
+/**
+ * Converts one serialized Hermes hook entry back into a canonical definition,
+ * or `undefined` when it is not a hook rulesync models (no string `command`).
+ * `matcher` and `fail_closed` are read only on the events upstream honours them
+ * on, so an imported value is never one the next generate warns about and drops.
+ */
+function hermesEntryToDefinition({
+  nativeEvent,
+  raw,
+}: {
+  nativeEvent: string;
+  raw: unknown;
+}): HookDefinition | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  const entry = raw;
+  if (typeof entry.command !== "string") {
+    return undefined;
+  }
+  const def: HookDefinition = { type: "command", command: entry.command };
+  if (
+    HERMESAGENT_MATCHER_EVENTS.has(nativeEvent) &&
+    typeof entry.matcher === "string" &&
+    entry.matcher !== ""
+  ) {
+    def.matcher = entry.matcher;
+  }
+  if (typeof entry.timeout === "number") {
+    def.timeout = entry.timeout;
+  }
+  if (nativeEvent === HERMESAGENT_FAIL_CLOSED_EVENT) {
+    const failClosed = readHermesFailClosed(entry);
+    if (failClosed !== undefined) {
+      def.failClosed = failClosed;
+    }
+  }
+  return def;
+}
+
+/**
  * Reverse {@link canonicalToHermesHooks}: parse Hermes's native
  * `hooks: { <event>: [...] }` map back into a canonical event → definition[]
  * record. Native events with no canonical equivalent (`pre_verify`,
@@ -245,28 +318,9 @@ function hermesHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
     }
     const rulesyncEvent = HERMESAGENT_TO_CANONICAL_EVENT_NAMES[nativeEvent] ?? nativeEvent;
 
-    const defs: HookDefinition[] = [];
-    for (const raw of entries) {
-      if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
-        continue;
-      }
-      const entry = raw as Record<string, unknown>;
-      if (typeof entry.command !== "string") {
-        continue;
-      }
-      const def: HookDefinition = { type: "command", command: entry.command };
-      if (
-        HERMESAGENT_MATCHER_EVENTS.has(nativeEvent) &&
-        typeof entry.matcher === "string" &&
-        entry.matcher !== ""
-      ) {
-        def.matcher = entry.matcher;
-      }
-      if (typeof entry.timeout === "number") {
-        def.timeout = entry.timeout;
-      }
-      defs.push(def);
-    }
+    const defs = entries
+      .map((raw) => hermesEntryToDefinition({ nativeEvent, raw }))
+      .filter((def): def is HookDefinition => def !== undefined);
 
     if (defs.length > 0) {
       canonical[rulesyncEvent] = defs;
