@@ -33,7 +33,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "cline", label: "Cline", group: "ai" },
   { key: "kilo", label: "Kilo Code", group: "ai" },
   { key: "kimi-code", label: "Kimi Code", group: "ai" },
-  { key: "roo", label: "Roo Code", group: "ai" },
+  { key: "roo", label: "Roo Code ⚠️", group: "ai" },
   { key: "zoocode", label: "Zoo Code", group: "ai" },
   { key: "rovodev", label: "Rovodev (Atlassian)", group: "ai" },
   { key: "takt", label: "Takt", group: "ai" },
