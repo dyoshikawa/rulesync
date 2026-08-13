@@ -103,6 +103,29 @@ describe("GrokcliPermissions", () => {
       expect(parsed.mcp_servers).toBeDefined();
     });
 
+    it("leaves an existing permission_mode = auto alone", async () => {
+      // `auto` is Grok's classifier-based third mode. Nothing in the canonical
+      // permissions model derives it, so overwriting it with the derived value
+      // would silently downgrade the user to `ask` on every generate --global.
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[ui]", 'permission_mode = "auto"', 'theme = "dark"'].join("\n"),
+      );
+
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
+        global: true,
+      });
+
+      const parsed = smolToml.parse(permissions.getFileContent());
+      expect((parsed.ui as Record<string, unknown>).permission_mode).toBe("auto");
+      expect((parsed.ui as Record<string, unknown>).theme).toBe("dark");
+      // The fine-grained arrays are still written — only the coarse toggle is
+      // left as it is.
+      expect(readPermission(permissions.getFileContent()).allow).toEqual(["Bash"]);
+    });
+
     it("emits fine-grained [permission] allow/deny/ask arrays as Claude-style entries", async () => {
       const permissions = await GrokcliPermissions.fromRulesyncPermissions({
         outputRoot: testDir,

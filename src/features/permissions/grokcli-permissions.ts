@@ -35,6 +35,12 @@ const GROKCLI_PERMISSION_KEY = "permission";
 
 type GrokPermissionMode = "ask" | "always-approve";
 
+// Grok's third mode: classifier-based approval, toggled in the TUI with
+// `/auto`. Nothing in the canonical permissions model derives it, so rulesync
+// never writes it — but it is preserved when a config already selects it.
+// https://docs.x.ai/build/features/permissions
+const GROKCLI_AUTO_PERMISSION_MODE = "auto";
+
 // rulesync canonical catch-all pattern (Grok's coarse mode is global, so only a
 // catch-all maps cleanly back on import from `permission_mode`).
 const CATCH_ALL_PATTERN = "*";
@@ -339,14 +345,21 @@ export class GrokcliPermissions extends ToolPermissions {
     // permission rules — not full user configs — so the fine-grained
     // `[permission]` arrays are the only permission surface written in project
     // scope. In global scope the `ui` key is patched alongside `permission`.
-    const uiPatch = global
-      ? {
-          [GROKCLI_UI_KEY]: {
-            ...(isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {}),
-            [GROKCLI_PERMISSION_MODE_KEY]: deriveGrokPermissionMode(config),
-          },
-        }
-      : {};
+    //
+    // Grok's third mode, `auto`, is left exactly as it is when the config
+    // already selects it: it has no canonical counterpart to derive it from, so
+    // overwriting it would silently downgrade the user to `ask` on every
+    // `generate --global`.
+    const existingUi = isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {};
+    const uiPatch =
+      global && existingUi[GROKCLI_PERMISSION_MODE_KEY] !== GROKCLI_AUTO_PERMISSION_MODE
+        ? {
+            [GROKCLI_UI_KEY]: {
+              ...existingUi,
+              [GROKCLI_PERMISSION_MODE_KEY]: deriveGrokPermissionMode(config),
+            },
+          }
+        : {};
 
     return new GrokcliPermissions({
       outputRoot,
