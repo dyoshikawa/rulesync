@@ -12,6 +12,7 @@ import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
+import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { HermesagentMcp } from "./hermesagent-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
@@ -1073,6 +1074,28 @@ describe("McpProcessor", () => {
         expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith(["enabledTools"]);
       },
     );
+    it("should preserve disabledTools but strip enabledTools for Factory Droid", async () => {
+      // Droid documents a per-server `disabledTools` exclusion list and no
+      // allowlist, so only `enabledTools` may be stripped.
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      vi.spyOn(FactorydroidMcp, "fromRulesyncMcp").mockResolvedValue({} as FactorydroidMcp);
+
+      const processor = new McpProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "factorydroid",
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith(["enabledTools"]);
+    });
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {

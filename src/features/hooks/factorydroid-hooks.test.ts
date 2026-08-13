@@ -64,9 +64,9 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.hooks.SessionStart).toBeDefined();
-      expect(parsed.hooks.Stop).toBeDefined();
-      expect(parsed.hooks.afterFileEdit).toBeUndefined();
+      expect(parsed.SessionStart).toBeDefined();
+      expect(parsed.Stop).toBeDefined();
+      expect(parsed.afterFileEdit).toBeUndefined();
     });
 
     it("should prefix project-relative commands with $FACTORY_PROJECT_DIR", async () => {
@@ -95,7 +95,7 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      const sessionStartEntry = parsed.hooks.SessionStart[0];
+      const sessionStartEntry = parsed.SessionStart[0];
       expect(sessionStartEntry).toBeDefined();
       expect(sessionStartEntry.matcher).toBeUndefined();
       expect(sessionStartEntry.hooks[0].command).toContain("$FACTORY_PROJECT_DIR");
@@ -127,9 +127,9 @@ describe("FactorydroidHooks", () => {
       });
       const parsed = JSON.parse(factorydroidHooks.getFileContent());
 
-      expect(
-        parsed.hooks.SessionStart[0].hooks.map((hook: { command: string }) => hook.command),
-      ).toEqual(commands);
+      expect(parsed.SessionStart[0].hooks.map((hook: { command: string }) => hook.command)).toEqual(
+        commands,
+      );
     });
 
     it("should preserve absolute commands when the converter prefixes other command forms", () => {
@@ -181,12 +181,12 @@ describe("FactorydroidHooks", () => {
       });
       const parsed = JSON.parse(factorydroidHooks.getFileContent());
 
-      expect(
-        parsed.hooks.SessionStart[0].hooks.map((hook: { command: string }) => hook.command),
-      ).toEqual([
-        `"$FACTORY_PROJECT_DIR"/"scripts/my hook.sh" --fix`,
-        `"$FACTORY_PROJECT_DIR"/'scripts/my hook.sh' --fix`,
-      ]);
+      expect(parsed.SessionStart[0].hooks.map((hook: { command: string }) => hook.command)).toEqual(
+        [
+          `"$FACTORY_PROJECT_DIR"/"scripts/my hook.sh" --fix`,
+          `"$FACTORY_PROJECT_DIR"/'scripts/my hook.sh' --fix`,
+        ],
+      );
     });
 
     it("should preserve bare executable commands", async () => {
@@ -209,7 +209,7 @@ describe("FactorydroidHooks", () => {
       });
       const parsed = JSON.parse(factorydroidHooks.getFileContent());
 
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(command);
+      expect(parsed.SessionStart[0].hooks[0].command).toBe(command);
     });
 
     it("should quote only the $FACTORY_PROJECT_DIR variable, keeping trailing arguments outside the quotes", async () => {
@@ -238,7 +238,7 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+      expect(parsed.SessionStart[0].hooks[0].command).toBe(
         '"$FACTORY_PROJECT_DIR"/scripts/format.sh --fix --quiet',
       );
     });
@@ -271,7 +271,7 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+      expect(parsed.SessionStart[0].hooks[0].command).toBe(
         "$FACTORY_PROJECT_DIR/.factory/hooks/start.sh",
       );
     });
@@ -313,9 +313,9 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toContain("factory-override.sh");
-      expect(parsed.hooks.Notification).toBeDefined();
-      expect(parsed.hooks.Notification[0].matcher).toBe("permission_prompt");
+      expect(parsed.SessionStart[0].hooks[0].command).toContain("factory-override.sh");
+      expect(parsed.Notification).toBeDefined();
+      expect(parsed.Notification[0].matcher).toBe("permission_prompt");
     });
 
     it("should not leak Claude config hooks into Factory Droid output", async () => {
@@ -356,41 +356,23 @@ describe("FactorydroidHooks", () => {
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
       // Shared hooks should be present
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toContain("shared.sh");
+      expect(parsed.SessionStart[0].hooks[0].command).toContain("shared.sh");
       // Factory Droid-specific override should be present
-      expect(parsed.hooks.Stop).toBeDefined();
+      expect(parsed.Stop).toBeDefined();
       // Claude-specific hooks must NOT leak into Factory Droid output
       expect(JSON.stringify(parsed)).not.toContain("claude-only.sh");
       expect(JSON.stringify(parsed)).not.toContain("claude-notify.sh");
     });
 
-    it("should throw error with descriptive message when existing hooks.json contains invalid JSON", async () => {
-      await ensureDir(join(testDir, ".factory"));
-      await writeFileContent(join(testDir, ".factory", "hooks.json"), "invalid json {");
-
-      const config = { version: 1, hooks: {} };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
-
-      await expect(
-        FactorydroidHooks.fromRulesyncHooks({
-          outputRoot: testDir,
-          rulesyncHooks,
-          validate: false,
-        }),
-      ).rejects.toThrow(/Failed to parse existing Factory Droid hooks file/);
-    });
-
-    it("should merge rulesync hooks into existing .factory/hooks.json content", async () => {
+    it("should replace a hooks.json left in the legacy wrapped shape", async () => {
+      // hooks.json is a dedicated, rulesync-owned file whose whole content is
+      // the event map, so a file written by an earlier version — which nested
+      // the map under `hooks`, a shape Droid ignores in this file — is replaced
+      // rather than merged into.
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(
         join(testDir, ".factory", "hooks.json"),
-        JSON.stringify({ otherKey: "preserved" }),
+        JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ command: "stale.sh" }] }] } }),
       );
 
       const config = {
@@ -413,9 +395,9 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.otherKey).toBe("preserved");
-      expect(parsed.hooks).toBeDefined();
-      expect(parsed.hooks.SessionStart).toBeDefined();
+      expect(parsed.SessionStart[0].hooks[0].command).toBe("echo");
+      expect(parsed.hooks).toBeUndefined();
+      expect(content).not.toContain("stale.sh");
     });
 
     it("should handle hooks with matcher grouping", async () => {
@@ -448,15 +430,15 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.hooks.PreToolUse).toHaveLength(2);
+      expect(parsed.PreToolUse).toHaveLength(2);
 
-      const writeEntry = parsed.hooks.PreToolUse.find(
+      const writeEntry = parsed.PreToolUse.find(
         (e: Record<string, unknown>) => e.matcher === "Write",
       );
       expect(writeEntry).toBeDefined();
       expect(writeEntry.hooks).toHaveLength(2);
 
-      const editEntry = parsed.hooks.PreToolUse.find(
+      const editEntry = parsed.PreToolUse.find(
         (e: Record<string, unknown>) => e.matcher === "Edit",
       );
       expect(editEntry).toBeDefined();
@@ -486,7 +468,7 @@ describe("FactorydroidHooks", () => {
         validate: false,
       });
 
-      const entry = JSON.parse(factorydroidHooks.getFileContent()).hooks.PreToolUse[0];
+      const entry = JSON.parse(factorydroidHooks.getFileContent()).PreToolUse[0];
       expect(entry.matcher).toBe("Execute");
       expect(entry.commandRegex).toBe("^git ");
       // Group-level, so it must not be duplicated onto the hook itself.
@@ -520,7 +502,7 @@ describe("FactorydroidHooks", () => {
         validate: false,
       });
 
-      const entries = JSON.parse(factorydroidHooks.getFileContent()).hooks.PreToolUse;
+      const entries = JSON.parse(factorydroidHooks.getFileContent()).PreToolUse;
       expect(entries).toHaveLength(3);
       // The unfiltered hook keeps firing on every Execute rather than
       // inheriting a neighboring hook's regex.
@@ -556,7 +538,7 @@ describe("FactorydroidHooks", () => {
         validate: false,
       });
 
-      expect(JSON.parse(factorydroidHooks.getFileContent()).hooks.PreToolUse[0].commandRegex).toBe(
+      expect(JSON.parse(factorydroidHooks.getFileContent()).PreToolUse[0].commandRegex).toBe(
         undefined,
       );
     });
@@ -587,7 +569,7 @@ describe("FactorydroidHooks", () => {
 
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      const hookDef = parsed.hooks.PreToolUse[0].hooks[0];
+      const hookDef = parsed.PreToolUse[0].hooks[0];
       expect(hookDef.type).toBe("command");
       expect(hookDef.timeout).toBe(30000);
     });
@@ -623,7 +605,7 @@ describe("FactorydroidHooks", () => {
       });
 
       const parsed = JSON.parse(factorydroidHooks.getFileContent());
-      const entries = parsed.hooks.PreToolUse[0].hooks;
+      const entries = parsed.PreToolUse[0].hooks;
       expect(entries).toHaveLength(1);
       expect(entries[0].type).toBe("command");
       expect(JSON.stringify(parsed)).not.toContain("prompt");
@@ -667,6 +649,42 @@ describe("FactorydroidHooks", () => {
         type: "prompt",
         prompt: "Check this tool call",
       });
+    });
+
+    it("should import a standalone hooks.json keyed directly by event name", () => {
+      // The shape Droid actually reads from this file. Importing it used to
+      // yield an empty config, because only `settings.hooks` was consulted.
+      const factorydroidHooks = new FactorydroidHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          SessionStart: [{ hooks: [{ type: "command", command: "start.sh" }] }],
+          PreToolUse: [{ matcher: "Execute", hooks: [{ type: "command", command: "audit.sh" }] }],
+        }),
+        validate: false,
+      });
+
+      const json = factorydroidHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("start.sh");
+      expect(json.hooks.preToolUse?.[0]?.matcher).toBe("Execute");
+    });
+
+    it("should still import the hooks-wrapped settings.json shape", () => {
+      const factorydroidHooks = new FactorydroidHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: { SessionStart: [{ hooks: [{ type: "command", command: "legacy.sh" }] }] },
+          theme: "dark",
+        }),
+        validate: false,
+      });
+
+      expect(factorydroidHooks.toRulesyncHooks().getJson().hooks.sessionStart?.[0]?.command).toBe(
+        "legacy.sh",
+      );
     });
 
     it("should convert Factory Droid PascalCase hooks to canonical camelCase", () => {
@@ -908,9 +926,10 @@ describe("FactorydroidHooks", () => {
   describe("fromFile", () => {
     it("should load from .factory/hooks.json when it exists", async () => {
       await ensureDir(join(testDir, ".factory"));
+      // A standalone hooks.json is keyed directly by event name.
       await writeFileContent(
         join(testDir, ".factory", "hooks.json"),
-        JSON.stringify({ hooks: { SessionStart: [] } }),
+        JSON.stringify({ SessionStart: [] }),
       );
 
       const factorydroidHooks = await FactorydroidHooks.fromFile({
@@ -920,7 +939,7 @@ describe("FactorydroidHooks", () => {
       expect(factorydroidHooks).toBeInstanceOf(FactorydroidHooks);
       const content = factorydroidHooks.getFileContent();
       const parsed = JSON.parse(content);
-      expect(parsed.hooks.SessionStart).toEqual([]);
+      expect(parsed.SessionStart).toEqual([]);
     });
 
     it("should fall back to .factory/settings.json hooks key when hooks.json is absent", async () => {
@@ -936,7 +955,7 @@ describe("FactorydroidHooks", () => {
       });
       expect(factorydroidHooks).toBeInstanceOf(FactorydroidHooks);
       const parsed = JSON.parse(factorydroidHooks.getFileContent());
-      // The legacy settings.json `hooks` key is read back via the fallback.
+      // settings.json keeps the wrapped shape, and the file is read verbatim.
       expect(parsed.hooks.Stop).toEqual([]);
     });
 
@@ -944,7 +963,7 @@ describe("FactorydroidHooks", () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(
         join(testDir, ".factory", "hooks.json"),
-        JSON.stringify({ hooks: { SessionStart: [] } }),
+        JSON.stringify({ SessionStart: [] }),
       );
       await writeFileContent(
         join(testDir, ".factory", "settings.json"),
@@ -956,8 +975,8 @@ describe("FactorydroidHooks", () => {
         validate: false,
       });
       const parsed = JSON.parse(factorydroidHooks.getFileContent());
-      expect(parsed.hooks.SessionStart).toEqual([]);
-      expect(parsed.hooks.Stop).toBeUndefined();
+      expect(parsed.SessionStart).toEqual([]);
+      expect(parsed.Stop).toBeUndefined();
     });
 
     it("should initialize empty hooks when neither hooks.json nor settings.json exists", async () => {
@@ -1019,7 +1038,7 @@ describe("FactorydroidHooks", () => {
       });
       const generatedCommands = JSON.parse(
         factorydroidHooks.getFileContent(),
-      ).hooks.SessionStart[0].hooks.map((hook: { command: string }) => hook.command);
+      ).SessionStart[0].hooks.map((hook: { command: string }) => hook.command);
       expect(generatedCommands).toEqual(commands);
 
       await ensureDir(join(testDir, ".factory"));

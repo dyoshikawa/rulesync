@@ -301,8 +301,12 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: true,
+        // Droid documents a per-server `disabledTools` ("Tool names to exclude
+        // from this server. Excluded tools are never loaded into context") and
+        // no allowlist counterpart, so the filter is denylist-only.
+        // https://docs.factory.ai/cli/configuration/mcp
         supportsEnabledTools: false,
-        supportsDisabledTools: false,
+        supportsDisabledTools: true,
       },
     },
   ],

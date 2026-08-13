@@ -18,12 +18,14 @@ import {
 /**
  * Verify that a parsed hooks config preserves the canonical command paths
  * configured in the rulesync source. Event-name casing/mapping varies per tool
- * (e.g. claudecode uses PascalCase `Stop`), so checking command paths inside
- * the serialized hooks block is the most tool-agnostic assertion.
+ * (e.g. claudecode uses PascalCase `Stop`), and so does the file shape — Factory
+ * Droid's standalone `hooks.json` is keyed directly by event name with no
+ * `hooks` wrapper — so checking the command paths anywhere in the serialized
+ * file is the most tool-agnostic assertion.
  */
 function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
-  expect(parsed.hooks).toBeDefined();
-  const serialized = JSON.stringify(parsed.hooks);
+  expect(Object.keys(parsed).length).toBeGreaterThan(0);
+  const serialized = JSON.stringify(parsed.hooks ?? parsed);
   expect(serialized).toContain(".rulesync/hooks/session-start.sh");
   expect(serialized).toContain(".rulesync/hooks/audit.sh");
 }
