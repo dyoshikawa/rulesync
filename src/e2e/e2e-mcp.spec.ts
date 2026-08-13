@@ -177,6 +177,43 @@ describe("E2E: mcp", () => {
     });
   });
 
+  it("should translate deepagents MCP transports and tool filters in both directions", async () => {
+    const testDir = getTestDir();
+
+    // dcode drops an individual server it cannot validate and keeps loading the
+    // rest, so an untranslated `local` transport or an `enabledTools` key fails
+    // silently at run time rather than at generate time.
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: {
+          local: { type: "local", command: "npx", args: ["server"], enabledTools: ["read_*"] },
+          remote: { type: "streamable-http", url: "https://example.com/mcp" },
+          denied: { command: "npx", disabledTools: ["delete"] },
+          socket: { type: "ws", url: "wss://example.com/mcp" },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "deepagents", features: "mcp" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".deepagents", ".mcp.json")));
+    expect(generated.mcpServers).toEqual({
+      local: { type: "stdio", command: "npx", args: ["server"], allowedTools: ["read_*"] },
+      remote: { type: "http", url: "https://example.com/mcp" },
+      denied: { command: "npx", disabledTools: ["delete"] },
+    });
+
+    await runImport({ target: "deepagents", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.mcpServers.local.enabledTools).toEqual(["read_*"]);
+    expect(imported.mcpServers.denied.disabledTools).toEqual(["delete"]);
+    expect(imported.mcpServers.remote.type).toBe("http");
+  });
+
   it("should apply tool-scoped {toolname}.mcpServers blocks and the deprecated targets filter", async () => {
     const testDir = getTestDir();
 

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
@@ -111,6 +112,62 @@ describe("DeepagentsMcp", () => {
       expect(mcp.getRelativeDirPath()).toBe(".deepagents");
       expect(mcp.getRelativeFilePath()).toBe(".mcp.json");
     });
+
+    it("should normalize transports and skip the WebSocket one dcode rejects", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            local: { type: "local", command: "npx", args: ["server"] },
+            remote: { type: "streamable-http", url: "https://example.com/mcp" },
+            events: { transport: "sse", url: "https://example.com/events" },
+            socket: { type: "ws", url: "wss://example.com/mcp" },
+          },
+        }),
+      });
+
+      const mcp = await DeepagentsMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        local: { type: "stdio", command: "npx", args: ["server"] },
+        remote: { type: "http", url: "https://example.com/mcp" },
+        // The authored key is preserved: dcode reads `type` and `transport`
+        // interchangeably.
+        events: { transport: "sse", url: "https://example.com/events" },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("socket"));
+    });
+
+    it("should translate enabledTools to allowedTools and enforce dcode's filter constraints", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            allowed: { command: "npx", enabledTools: ["read_*"] },
+            denied: { command: "npx", disabledTools: ["delete"] },
+            // dcode rejects a server that sets both, and rejects an empty list.
+            both: { command: "npx", enabledTools: ["read"], disabledTools: ["write"] },
+            empty: { command: "npx", enabledTools: [] },
+          },
+        }),
+      });
+
+      const mcp = await DeepagentsMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        allowed: { command: "npx", allowedTools: ["read_*"] },
+        denied: { command: "npx", disabledTools: ["delete"] },
+        both: { command: "npx" },
+        empty: { command: "npx" },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("both"));
+    });
   });
 
   describe("toRulesyncMcp", () => {
@@ -131,6 +188,30 @@ describe("DeepagentsMcp", () => {
 
       expect(rulesyncMcp.getMcpServers()).toEqual({
         "test-server": { command: "npx", args: ["-y", "test-server"] },
+      });
+    });
+
+    it("should lift allowedTools and the streamable_http alias back to canonical", () => {
+      const mcp = new DeepagentsMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            filtered: { command: "npx", allowedTools: ["read_*"] },
+            denied: { command: "npx", disabledTools: ["delete"] },
+            snake: { type: "streamable_http", url: "https://example.com/mcp" },
+            kebab: { transport: "streamable-http", url: "https://example.com/mcp" },
+          },
+        }),
+      });
+
+      expect(mcp.toRulesyncMcp().getMcpServers()).toEqual({
+        filtered: { command: "npx", enabledTools: ["read_*"] },
+        // Already the canonical spelling, so it survives untouched.
+        denied: { command: "npx", disabledTools: ["delete"] },
+        snake: { type: "http", url: "https://example.com/mcp" },
+        kebab: { transport: "http", url: "https://example.com/mcp" },
       });
     });
   });
