@@ -111,10 +111,15 @@ export class AmpSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    // `name` and `description` have canonical homes; any other key a
+    // hand-written SKILL.md carries rides the tool-scoped `amp` section so it
+    // survives the round-trip instead of being erased on the next generate.
+    const { name, description, ...ampSection } = frontmatter;
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name: frontmatter.name,
-      description: frontmatter.description,
+      name,
+      description,
       targets: ["*"],
+      ...(Object.keys(ampSection).length > 0 && { amp: ampSection }),
     };
 
     return new RulesyncSkill({
@@ -139,6 +144,9 @@ export class AmpSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
     const ampFrontmatter: AmpSkillFrontmatter = {
+      // The section is written first so the canonical `name`/`description`
+      // still own their keys.
+      ...rulesyncFrontmatter.amp,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
     };

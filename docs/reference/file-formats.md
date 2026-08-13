@@ -774,6 +774,12 @@ agentsskills: # for the Agent Skills standard target (optional; supports project
   metadata: # (optional) free-form metadata (spec-recommended place for skill versioning)
     version: "1.0.0"
   allowed-tools: "shell" # (optional, experimental) space-separated string or list
+amp: # for Amp-specific parameters (optional; project .agents/skills/, global ~/.config/agents/skills/)
+  # Amp reads the open Agent Skills standard and documents no frontmatter field beyond
+  # `name`/`description`, so this section exists only to carry keys a hand-written SKILL.md adds:
+  # they are imported into it and written back to the top level of the generated file instead of
+  # being erased on regeneration. `name` and `description` are the exception — they have canonical
+  # homes at the top level and a section value of either is ignored.
 copilot: # for GitHub Copilot-specific parameters (optional; project .github/skills/, global ~/.copilot/skills/)
   license: MIT # (optional)
   allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation

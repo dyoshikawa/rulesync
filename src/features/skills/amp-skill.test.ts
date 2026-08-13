@@ -65,6 +65,31 @@ describe("AmpSkill", () => {
       const ampSkill = AmpSkill.fromRulesyncSkill({ rulesyncSkill, validate: true, global: true });
       expect(ampSkill.getRelativeDirPath()).toBe(join(".config", "agents", "skills"));
     });
+
+    it("writes the amp section's keys back to the top level without letting it shadow name/description", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "my-skill",
+        frontmatter: {
+          name: "my-skill",
+          description: "Does a thing",
+          amp: {
+            mcpServers: { docs: { command: "npx", args: ["-y", "docs-mcp"] } },
+            name: "shadowed",
+          },
+        },
+        body: "Skill body",
+        validate: true,
+      });
+
+      const ampSkill = AmpSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+      expect(ampSkill.getFrontmatter()).toEqual({
+        name: "my-skill",
+        description: "Does a thing",
+        mcpServers: { docs: { command: "npx", args: ["-y", "docs-mcp"] } },
+      });
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {
@@ -102,6 +127,32 @@ describe("AmpSkill", () => {
         targets: ["*"],
       });
       expect(rulesyncSkill.getBody()).toBe("Skill body.");
+    });
+
+    it("preserves a frontmatter key beyond the schema across a full round-trip", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "my-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---\nname: my-skill\ndescription: Does a thing\nmcpServers:\n  docs:\n    command: npx\n---\n\nSkill body.`,
+      );
+
+      const rulesyncSkill = (
+        await AmpSkill.fromDir({ outputRoot: testDir, dirName: "my-skill" })
+      ).toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "my-skill",
+        description: "Does a thing",
+        targets: ["*"],
+        amp: { mcpServers: { docs: { command: "npx" } } },
+      });
+
+      const regenerated = AmpSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+      expect(regenerated.getFrontmatter()).toEqual({
+        name: "my-skill",
+        description: "Does a thing",
+        mcpServers: { docs: { command: "npx" } },
+      });
     });
   });
 });
