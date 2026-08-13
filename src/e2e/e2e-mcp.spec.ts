@@ -484,6 +484,33 @@ describe("E2E: mcp", () => {
     expect(imported.mcpServers.srv.disabledTools).toEqual(["rm"]);
   });
 
+  it("should carry disabledTools through the Zoo Code processor in both directions", async () => {
+    const testDir = getTestDir();
+
+    // Zoo Code's per-server MCP schema is denylist-only: `disabledTools` clears
+    // each named tool's `enabledForPrompt`, and there is no `enabledTools`.
+    // `RooMcp` spreads the server verbatim, so only the processor's
+    // `supportsDisabledTools` flag decides whether the field survives.
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: { srv: { command: "node", args: ["server.js"], disabledTools: ["rm"] } },
+      }),
+    );
+
+    await runGenerate({ target: "zoocode", features: "mcp" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".roo", "mcp.json")));
+    expect(generated.mcpServers.srv.disabledTools).toEqual(["rm"]);
+
+    await runImport({ target: "zoocode", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.mcpServers.srv.disabledTools).toEqual(["rm"]);
+  });
+
   it("should generate Vibe MCP and permissions into shared config.toml", async () => {
     const testDir = getTestDir();
 

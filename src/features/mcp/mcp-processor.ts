@@ -512,21 +512,28 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: false,
+        // The per-server MCP schema carries `disabledTools` (a denylist that
+        // clears each named tool's `enabledForPrompt`) but no `enabledTools`,
+        // so the filter is denylist-only. Leaving the flag false stripped the
+        // value before `RooMcp` saw it, deleting a filter already written in
+        // `.roo/mcp.json` on the next generate.
+        // https://github.com/Zoo-Code-Org/Zoo-Code/blob/main/src/services/mcp/McpHub.ts
         supportsEnabledTools: false,
-        supportsDisabledTools: false,
+        supportsDisabledTools: true,
       },
     },
   ],
   [
     "zoocode",
     {
-      // Zoo Code keeps Roo's `.roo/mcp.json`; the class is shared.
+      // Zoo Code keeps Roo's `.roo/mcp.json`; the class is shared, and so is
+      // the denylist-only tool filter described on the `roo` entry above.
       class: RooMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: false,
         supportsEnabledTools: false,
-        supportsDisabledTools: false,
+        supportsDisabledTools: true,
       },
     },
   ],

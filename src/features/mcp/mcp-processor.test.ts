@@ -1046,6 +1046,33 @@ describe("McpProcessor", () => {
 
       expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith(["enabledTools"]);
     });
+
+    it.each(["roo", "zoocode"] as const)(
+      "should preserve disabledTools but strip enabledTools for %s",
+      async (toolTarget) => {
+        // Zoo Code's per-server MCP schema carries `disabledTools` and no
+        // `enabledTools`, so the filter is denylist-only. Stripping it deleted a
+        // filter already written in `.roo/mcp.json` on the next generate.
+        const rulesyncMcp = new RulesyncMcp({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({ mcpServers: {} }),
+        });
+
+        vi.spyOn(RooMcp, "fromRulesyncMcp").mockReturnValue({} as RooMcp);
+
+        const processor = new McpProcessor({
+          logger: createMockLogger(),
+          outputRoot: testDir,
+          toolTarget,
+        });
+
+        await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+        expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith(["enabledTools"]);
+      },
+    );
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {
