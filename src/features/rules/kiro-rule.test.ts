@@ -602,6 +602,73 @@ describe("KiroRule", () => {
     });
   });
 
+  describe("nested AGENTS.md steering files (issue #2408)", () => {
+    const makeScopedRule = (subprojectPath: string) =>
+      new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "api-rules.md",
+        frontmatter: {
+          root: false,
+          targets: ["kiro"],
+          description: "API rules",
+          globs: [`${subprojectPath}/**/*`],
+          agentsmd: { subprojectPath },
+        },
+        body: "# API rules",
+        validate: false,
+      });
+
+    it("should emit a directory-scoped rule as <dir>/AGENTS.md instead of .kiro/steering", () => {
+      const rule = KiroRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeScopedRule("services/api"),
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(join("services", "api"));
+      expect(rule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rule.isRoot()).toBe(false);
+      // A nested AGENTS.md is a plain steering file: no `inclusion` frontmatter.
+      expect(rule.getFileContent()).toBe("# API rules");
+    });
+
+    it("should ignore subprojectPath in global mode (no workspace to nest under)", () => {
+      const rule = KiroRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeScopedRule("services/api"),
+        global: true,
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(join(".kiro", "steering"));
+      expect(rule.getRelativeFilePath()).toBe("api-rules.md");
+    });
+
+    it("should import a nested AGENTS.md back into a kiro-scoped rulesync rule", async () => {
+      await ensureDir(join(testDir, "services", "api"));
+      await writeFileContent(join(testDir, "services", "api", "AGENTS.md"), "# Nested");
+
+      const rule = await KiroRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join("services", "api"),
+        relativeFilePath: "AGENTS.md",
+      });
+      expect(rule.isRoot()).toBe(false);
+
+      const rulesyncRule = rule.toRulesyncRule();
+      expect(rulesyncRule.getRelativeFilePath()).toBe("services-api-kiro.md");
+      const frontmatter = rulesyncRule.getFrontmatter();
+      expect(frontmatter.targets).toEqual(["kiro"]);
+      expect(frontmatter.agentsmd?.subprojectPath).toBe("services/api");
+      expect(rulesyncRule.getBody()).toBe("# Nested");
+    });
+
+    it("should exclude the workspace-root AGENTS.md from the nested scan", () => {
+      const patterns = KiroRule.getNestedFilePatterns({ outputRoot: testDir });
+      expect(patterns.include).toEqual([`${testDir}/**/AGENTS.md`]);
+      expect(patterns.ignore).toContain(`${testDir}/AGENTS.md`);
+    });
+  });
+
   describe("toRulesyncRule", () => {
     it("should convert KiroRule to RulesyncRule for root rule", () => {
       const kiroRule = new KiroRule({
