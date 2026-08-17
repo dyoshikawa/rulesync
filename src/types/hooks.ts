@@ -897,16 +897,10 @@ export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object
 /**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
- * Hermes validates hook events against a fixed `VALID_HOOKS` set:
- * `pre_tool_call`, `post_tool_call`, `pre_llm_call`, `post_llm_call`,
- * `pre_verify`, `pre_api_request`, `post_api_request`, `api_request_error`,
- * `on_session_start`, `on_session_end`, `on_session_finalize`,
- * `on_session_reset`, `subagent_start`, `subagent_stop`, `pre_gateway_dispatch`,
- * `pre_approval_request`, `post_approval_response`, `transform_tool_result`,
- * `transform_terminal_output`, `transform_llm_output`, and the three
- * `kanban_task_*` events. Only the events with a clean 1:1 canonical equivalent
- * are mapped here. All other native events round-trip through
- * `hermesagent.hooks`.
+ * Hermes validates hook events against a fixed `VALID_HOOKS` set — 37 entries as
+ * of v0.20.2 (`v2026.8.16`); see {@link HERMESAGENT_NATIVE_HOOK_EVENTS} for the
+ * full list. Only the events with a clean 1:1 canonical equivalent are mapped
+ * here. All other native events round-trip through `hermesagent.hooks`.
  * @see https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
  */
 export const HERMESAGENT_HOOK_EVENTS: readonly HookEvent[] = [
@@ -920,6 +914,20 @@ export const HERMESAGENT_HOOK_EVENTS: readonly HookEvent[] = [
   "subagentStop",
 ];
 
+/**
+ * Hermes Agent's native `VALID_HOOKS` set, in upstream source order.
+ *
+ * The authority is `hermes_cli/plugins.py`'s `VALID_HOOKS`, not the docs: at
+ * v0.20.2 `website/docs/user-guide/features/plugins.md` says "26 lifecycle
+ * events" and then lists 30, omitting the five `on_kanban_*` worker/task/dispatch
+ * observers, `gateway_platform_event` and `transform_api_error_classification`.
+ * Shell hooks are gated on the same set.
+ *
+ * Verified against the tag `v2026.8.16` (v0.20.2): 37 entries, grown from 23 at
+ * `v2026.8.3` (v0.20.0).
+ *
+ * @see https://github.com/NousResearch/hermes-agent/blob/v2026.8.16/hermes_cli/plugins.py
+ */
 export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
   "pre_tool_call",
   "post_tool_call",
@@ -928,22 +936,36 @@ export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
   "transform_llm_output",
   "pre_llm_call",
   "post_llm_call",
+  "on_stream_start",
+  "on_stream_delta",
+  "on_stream_end",
+  "on_interim_message",
   "pre_verify",
   "pre_api_request",
   "post_api_request",
   "api_request_error",
+  "transform_api_error_classification",
   "on_session_start",
   "on_session_end",
   "on_session_finalize",
   "on_session_reset",
+  "on_skill_lifecycle",
   "subagent_start",
   "subagent_stop",
   "pre_gateway_dispatch",
   "pre_approval_request",
   "post_approval_response",
+  "pre_transcription",
   "kanban_task_claimed",
   "kanban_task_completed",
   "kanban_task_blocked",
+  "on_kanban_worker_spawned",
+  "on_kanban_worker_exited",
+  "on_kanban_worker_stale_claim",
+  "on_kanban_task_updated",
+  "on_kanban_dispatch_tick",
+  "gateway_platform_event",
+  "pre_command",
 ] as const;
 
 /**
