@@ -265,6 +265,73 @@ This is the body of the cursor skill.`;
       expect(cursorSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
     });
 
+    it("should pick up root-level user-invocable when cursor section omits it (issue #2399)", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "root-user-invocable",
+        frontmatter: {
+          name: "Root User Invocable",
+          description: "Root-level flag",
+          "user-invocable": false,
+        },
+        body: "Body",
+      });
+
+      const cursorSkill = CursorSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(cursorSkill.getFrontmatter()["user-invocable"]).toBe(false);
+    });
+
+    it("should let cursor user-invocable override the root-level value", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "override-user-invocable",
+        frontmatter: {
+          name: "Override",
+          description: "Cursor opts out of root default",
+          "user-invocable": false,
+          cursor: { "user-invocable": true },
+        },
+        body: "Body",
+      });
+
+      const cursorSkill = CursorSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(cursorSkill.getFrontmatter()["user-invocable"]).toBe(true);
+    });
+
+    it("should round-trip user-invocable into the cursor section on import", () => {
+      const skill = new CursorSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".cursor", "skills"),
+        dirName: "model-only",
+        frontmatter: {
+          name: "Model Only",
+          description: "Hidden from slash commands",
+          "user-invocable": false,
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      // It lands in the `cursor:` section rather than at the root, matching
+      // grokcli-skill.ts — the root key is a shared default across targets.
+      expect(rulesyncSkill.getFrontmatter().cursor).toEqual({ "user-invocable": false });
+      expect(rulesyncSkill.getFrontmatter()["user-invocable"]).toBeUndefined();
+      expect(
+        CursorSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()["user-invocable"],
+      ).toBe(false);
+    });
+
+    it("should omit user-invocable when neither root nor cursor set it", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        dirName: "no-user-invocable",
+        frontmatter: { name: "No Flag", description: "No flag" },
+        body: "Body",
+      });
+
+      expect(
+        CursorSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()["user-invocable"],
+      ).toBeUndefined();
+    });
+
     it("should omit disable-model-invocation when neither root nor cursor set it", () => {
       const rulesyncSkill = new RulesyncSkill({
         dirName: "no-flag",

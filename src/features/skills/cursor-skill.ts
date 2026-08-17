@@ -8,7 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation } from "./skills-utils.js";
+import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -23,6 +23,10 @@ const CursorSkillFrontmatterSchema = z.looseObject({
   // Optional Cursor SKILL.md frontmatter. https://cursor.com/docs/skills
   paths: z.optional(z.union([z.string(), z.array(z.string())])),
   "disable-model-invocation": z.optional(z.boolean()),
+  // Documented only in the CLI changelog (July 6, 2026 release), not yet in the
+  // skills frontmatter reference table.
+  // https://cursor.com/docs/cli/changelog
+  "user-invocable": z.optional(z.boolean()),
   metadata: z.optional(z.looseObject({})),
 });
 
@@ -122,6 +126,9 @@ export class CursorSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
+      ...(frontmatter["user-invocable"] !== undefined && {
+        "user-invocable": frontmatter["user-invocable"],
+      }),
       ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
@@ -156,6 +163,10 @@ export class CursorSkill extends ToolSkill {
       rootFrontmatter: rulesyncFrontmatter,
       section: cursorSection,
     });
+    const resolvedUserInvocable = resolveUserInvocable({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: cursorSection,
+    });
 
     const cursorFrontmatter: CursorSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
@@ -163,6 +174,9 @@ export class CursorSkill extends ToolSkill {
       ...(cursorSection?.paths !== undefined && { paths: cursorSection.paths }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
+      }),
+      ...(resolvedUserInvocable !== undefined && {
+        "user-invocable": resolvedUserInvocable,
       }),
       ...(cursorSection?.metadata !== undefined && { metadata: cursorSection.metadata }),
     };

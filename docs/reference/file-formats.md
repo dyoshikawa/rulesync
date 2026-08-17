@@ -654,8 +654,8 @@ targets: ["*"] # * = all, or specific tools
 # value below.
 disable-model-invocation: true
 # (optional) shared default for tools that support the flag — claudecode, copilot,
-# copilotcli, qwencode, vibe, grokcli, and factorydroid. Any of those tool sections
-# can override it by setting their own `user-invocable` value below.
+# copilotcli, cursor, qwencode, vibe, grokcli, and factorydroid. Any of those tool
+# sections can override it by setting their own `user-invocable` value below.
 user-invocable: false
 claudecode: # for claudecode-specific parameters
   model: sonnet # opus, sonnet, haiku, or any string
@@ -820,6 +820,7 @@ cursor: # for Cursor-specific parameters (optional)
   paths: # (optional) glob patterns (string or list) scoping the skill to matching files
     - "src/**/*.ts"
   disable-model-invocation: true # (optional) only include the skill when invoked via /skill-name
+  user-invocable: false # (optional) hide from / autocomplete and typed /skill-name, keep model access
   metadata: # (optional) free-form metadata
     author: rulesync
 factorydroid: # for Factory Droid-specific parameters (optional)
