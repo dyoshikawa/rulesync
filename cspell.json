@@ -31,6 +31,7 @@
     "LASTEXITCODE",
     "msys",
     "OSTYPE",
+    "pydantic",
     "syncable",
     "PKCE",
     "serde",

@@ -74,6 +74,11 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_LOCAL_RULE_FILE_NAME}`,
   },
 
+  // Vibe subagent system prompts: written by the subagents feature next to the
+  // agent TOML, but outside `getSettablePaths` (which names only
+  // `.vibe/agents/`), so the derived list does not cover them.
+  { target: "vibe", feature: "subagents", entry: "**/.vibe/prompts/" },
+
   // Third-party tool by-products rulesync gitignores but never writes itself.
   { target: "claudecode", feature: "general", entry: `**/${CLAUDECODE_DIR}/*.lock` },
   {
