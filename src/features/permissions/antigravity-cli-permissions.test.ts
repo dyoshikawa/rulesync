@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { AntigravityCliPermissions } from "./antigravity-cli-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -535,6 +536,7 @@ describe("AntigravityCliPermissions", () => {
         }),
       );
 
+      const warnSpy = vi.spyOn(fallbackLogger, "warn");
       const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
       const json = loaded.toRulesyncPermissions().getJson() as {
         "antigravity-cli"?: Record<string, unknown>;
@@ -542,6 +544,13 @@ describe("AntigravityCliPermissions", () => {
       // Both keys are `z.enum` in the override schema, so an unrecognized value
       // carried through would fail validation of the whole permissions file.
       expect(json["antigravity-cli"]).toEqual({ enableTerminalSandbox: true });
+      // A preset rulesync does not know about yet must be visible, not silently
+      // missing from the imported config.
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'toolPermission: yolo'"));
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'artifactReviewPolicy: asks-for-reviews'"),
+      );
+      warnSpy.mockRestore();
     });
 
     it("omits the override when neither knob is present", async () => {
