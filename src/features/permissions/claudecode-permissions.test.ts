@@ -230,7 +230,7 @@ describe("ClaudecodePermissions", () => {
         relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
         fileContent: JSON.stringify({
           permission: { bash: { "npm *": "allow" } },
-          claudecode: { sandbox: { network: { strictAllowlist: true } } },
+          claudecode: { sandbox: { network: { allowedDomains: ["good.test"] } } },
         }),
       });
 
@@ -240,12 +240,102 @@ describe("ClaudecodePermissions", () => {
       });
 
       const content = JSON.parse(instance.getFileContent());
-      // Deep-merged: the restriction beside the authored flag survives, and so
+      // Deep-merged: the restriction beside the authored key survives, and so
       // does the sibling settings key.
       expect(content.model).toBe("opus");
       expect(content.sandbox).toEqual({
         credentials: "keep",
-        network: { deniedDomains: ["evil.test"], strictAllowlist: true },
+        network: { deniedDomains: ["evil.test"], allowedDomains: ["good.test"] },
+      });
+    });
+
+    it("should drop user/managed-only sandbox keys from a project settings.json (issue #2664)", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {},
+          claudecode: {
+            sandbox: {
+              network: { strictAllowlist: true, deniedDomains: ["evil.test"] },
+              filesystem: { disabled: true },
+              credentials: { allowPlaintextInject: true },
+              allowAppleEvents: true,
+              ripgrep: "/usr/bin/rg",
+              enabled: true,
+            },
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // Claude Code ignores these in a repository's settings.json, so committing
+      // them would read as an enforced sandbox policy that does nothing.
+      expect(content.sandbox).toEqual({
+        network: { deniedDomains: ["evil.test"] },
+        enabled: true,
+      });
+    });
+
+    it("should emit the same sandbox keys unchanged in global scope", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {},
+          claudecode: {
+            sandbox: {
+              network: { strictAllowlist: true },
+              filesystem: { disabled: true },
+              allowAppleEvents: true,
+            },
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        global: true,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.sandbox).toEqual({
+        network: { strictAllowlist: true },
+        filesystem: { disabled: true },
+        allowAppleEvents: true,
+      });
+    });
+
+    it("should leave a hand-written value in the project settings.json untouched", async () => {
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({ sandbox: { network: { strictAllowlist: true } } }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {},
+          claudecode: { sandbox: { network: { strictAllowlist: false } } },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      // Only the override copy is filtered; rulesync never rewrites what the
+      // user already put in the file.
+      expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({
+        network: { strictAllowlist: true },
       });
     });
 

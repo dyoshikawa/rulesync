@@ -101,6 +101,80 @@ function deepMergeRecords(
   return merged;
 }
 
+/**
+ * `sandbox.*` paths Claude Code honors only from user settings, managed settings
+ * and the `--settings` CLI flag. Written into a project `.claude/settings.json`
+ * they are silently ignored, so a committed file would read as though it
+ * enforced a sandbox policy while doing nothing — security-relevant for
+ * `network.strictAllowlist` and the credential-masking keys in particular.
+ * Generation therefore drops them at project scope with a per-key warning and
+ * emits them only under `--global`.
+ *
+ * Deliberately NOT listed:
+ * - `bwrapPath` / `socatPath`: v2.1.232 added them to the managed-settings
+ *   approval dialog, which is a consent prompt, not a project-scope rejection.
+ * - `credentials.files[].mode: "mask"`: the ignored-at-project-scope unit is the
+ *   individual entry's mode, not a settings key, and the same `files` list
+ *   carries `deny` entries that project settings *do* honor — dropping the list
+ *   would remove real restrictions.
+ *
+ * @see https://code.claude.com/docs/en/sandboxing
+ * @see https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md — v2.1.232 scoped `sandbox.ripgrep`
+ */
+const CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS: readonly (readonly string[])[] = [
+  ["filesystem", "disabled"],
+  ["network", "strictAllowlist"],
+  ["network", "tlsTerminate"],
+  ["credentials", "allowPlaintextInject"],
+  ["credentials", "awsPairs"],
+  ["credentials", "sigv4"],
+  ["allowAppleEvents"],
+  ["ripgrep"],
+];
+
+/**
+ * Copy of the authored `sandbox` override with the user/managed-only paths
+ * removed, warning once per dropped path. Only the override copy is filtered —
+ * a value already hand-written in the target file is left untouched, matching
+ * the `qwencode` `security.allowPrivateNetworkHooks` precedent.
+ */
+function stripGlobalOnlySandboxPaths({
+  sandbox,
+  relativeFilePath,
+  logger,
+}: {
+  sandbox: Record<string, unknown>;
+  relativeFilePath: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const filtered = structuredClone(sandbox);
+  for (const path of CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS) {
+    const leaf = path.at(-1);
+    if (leaf === undefined) continue;
+    const parentPath = path.slice(0, -1);
+    let parent: Record<string, unknown> = filtered;
+    for (const segment of parentPath) {
+      const next = parent[segment];
+      if (!isPlainRecord(next)) {
+        parent = {};
+        break;
+      }
+      parent = next;
+    }
+    if (parent[leaf] === undefined) continue;
+    delete parent[leaf];
+    // Drop a container the removal emptied so no `"network": {}` noise is written.
+    const [container] = parentPath;
+    if (container !== undefined && isPlainRecord(filtered[container])) {
+      if (Object.keys(filtered[container]).length === 0) delete filtered[container];
+    }
+    logger?.warn(
+      `Claude Code permissions: 'sandbox.${path.join(".")}' is only honored in user/managed/--settings settings, so it is skipped for the project-scoped ${relativeFilePath}. Author it in the global scope instead.`,
+    );
+  }
+  return filtered;
+}
+
 const CLAUDE_PATH_RULE_ALIASES: Record<string, string> = {
   Write: "Edit",
   NotebookEdit: "Edit",
@@ -170,6 +244,7 @@ export class ClaudecodePermissions extends ToolPermissions {
   static async fromRulesyncPermissions({
     outputRoot = process.cwd(),
     rulesyncPermissions,
+    global = false,
     logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<ClaudecodePermissions> {
     const paths = ClaudecodePermissions.getSettablePaths();
@@ -204,10 +279,22 @@ export class ClaudecodePermissions extends ToolPermissions {
     // wholesale to set one flag would drop the restrictions beside it.
     const overrideSandbox = config.claudecode?.sandbox;
     if (isPlainRecord(overrideSandbox)) {
-      settings.sandbox = deepMergeRecords(
-        isPlainRecord(settings.sandbox) ? settings.sandbox : {},
-        overrideSandbox,
-      );
+      // A subset of `sandbox.*` is ignored in a repository's settings.json, so
+      // at project scope those paths are dropped rather than committed as a
+      // policy that never applies.
+      const scopedSandbox = global
+        ? overrideSandbox
+        : stripGlobalOnlySandboxPaths({
+            sandbox: overrideSandbox,
+            relativeFilePath: paths.relativeFilePath,
+            logger,
+          });
+      if (Object.keys(scopedSandbox).length > 0) {
+        settings.sandbox = deepMergeRecords(
+          isPlainRecord(settings.sandbox) ? settings.sandbox : {},
+          scopedSandbox,
+        );
+      }
     }
 
     const managedToolNames = managedClaudeToolNames(config);
