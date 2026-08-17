@@ -579,6 +579,30 @@ const AmpPermissionsOverrideSchema = z.looseObject({
 export type AmpPermissionsOverride = z.infer<typeof AmpPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Pi Coding Agent. Pi has no allow/ask/deny rule
+ * surface: the only repository-syncable tool gate is `defaultTools`, the list of
+ * built-in tools enabled at startup (added in v0.84.2). It is an enable-list
+ * rather than a canonical allow/deny rule set, so it is authored here rather
+ * than mapped onto `permission`, mirroring `KimiCodePermissionsOverrideSchema`'s
+ * `tools.enabled` and `VibePermissionsOverrideSchema`'s `enabled_tools`.
+ *
+ * An empty array is meaningful upstream — it starts Pi with no built-in tools
+ * while keeping extension and SDK custom tools — so it is emitted as written.
+ * CLI flags (`--tools`, `--no-tools`, `--no-builtin-tools`, `--exclude-tools`)
+ * outrank the setting, and a project array **replaces** the global one rather
+ * than merging with it.
+ *
+ * @example
+ * { "defaultTools": ["bash", "edit", "write"] }
+ * @see https://pi.dev/docs/latest/settings
+ */
+const PiPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  defaultTools: z.optional(z.array(z.string())),
+});
+export type PiPermissionsOverride = z.infer<typeof PiPermissionsOverrideSchema>;
+
+/**
  * Tool-scoped override block for the Google Antigravity CLI. Antigravity's CLI
  * `settings.json` carries five global autonomy/sandbox knobs outside the
  * `permissions.allow/ask/deny` arrays rulesync manages: `toolPermission` (the
@@ -954,6 +978,7 @@ const PermissionsConfigSchema = z.looseObject({
   takt: z.optional(TaktPermissionsOverrideSchema),
   amp: z.optional(AmpPermissionsOverrideSchema),
   "antigravity-cli": z.optional(AntigravityCliPermissionsOverrideSchema),
+  pi: z.optional(PiPermissionsOverrideSchema),
   augmentcode: z.optional(AugmentcodePermissionsOverrideSchema),
   kiro: z.optional(KiroPermissionsOverrideSchema),
   codexcli: z.optional(CodexcliPermissionsOverrideSchema),

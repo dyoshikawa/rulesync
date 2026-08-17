@@ -412,6 +412,7 @@ rulesync.local.jsonc
 **/.grok/hooks/rulesync.json
 **/.cline/command-permissions.json
 **/.cursor/cli.json
+**/.pi/settings.json
 **/.aiignore
 **/.geminiignore
 **/.augmentignore

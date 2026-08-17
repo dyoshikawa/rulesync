@@ -432,6 +432,24 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
     },
   },
+  // Pi Coding Agent settings (`.pi/settings.json` project /
+  // `~/.pi/agent/settings.json` global): a hand-edited file carrying `theme`,
+  // `defaultModel`, `packages`, `sessionDir` and more. Permissions owns the one
+  // repository-syncable tool gate, `defaultTools`.
+  ".pi/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["defaultTools"] },
+    },
+  },
+  ".pi/agent/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["defaultTools"] },
+    },
+  },
   // Copilot CLI repository settings (`.github/copilot/settings.json`, CLI
   // v1.0.60+): a committed, hand-edited file that also carries `model`,
   // `effortLevel`, `hooks` and other repository-scope keys rulesync does not
