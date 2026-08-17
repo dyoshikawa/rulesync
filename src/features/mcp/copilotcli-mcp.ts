@@ -83,9 +83,11 @@ const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType =>
  * names — so the canonical `enabledTools` is written under that name rather
  * than passed through as a key the CLI ignores.
  *
- * When a server carries both, the native `tools` wins and `enabledTools` is
- * dropped with a warning: `tools` is already the exact upstream spelling, so
- * overwriting it would discard the more specific of the two.
+ * When a server carries both, the canonical `enabledTools` wins and the native
+ * `tools` is dropped with a warning. rulesync owns the generated allowlist, and
+ * the `tools` value most likely present is the upstream default `["*"]` — left
+ * to win, it would silently discard a real allowlist in favour of "expose every
+ * tool", which is the failure this mapping exists to prevent.
  *
  * `disabledTools` has no counterpart upstream (expressing it would need the
  * server's full tool list), so the target keeps `supportsDisabledTools: false`
@@ -108,11 +110,23 @@ function renameEnabledToolsToTools({
   }
   if (rest.tools !== undefined) {
     logger?.warn(
-      `[CopilotcliMcp] MCP server "${serverName}" declares both 'tools' and 'enabledTools'; keeping 'tools' and dropping 'enabledTools'.`,
+      `[CopilotcliMcp] MCP server "${serverName}" declares both 'tools' and 'enabledTools'; keeping 'enabledTools' and dropping 'tools'.`,
     );
-    return rest;
   }
   return { ...rest, tools: enabledTools };
+}
+
+/**
+ * Copilot CLI's `tools` accepts more than the canonical `enabledTools` shape:
+ * `--tools` documents `*`, a comma-separated list, or `""`, so a hand-written or
+ * CLI-written entry can be a bare string. Canonical `enabledTools` is
+ * `string[]`, and `RulesyncMcp` throws on a schema failure — carrying a string
+ * through would reject the WHOLE imported MCP file rather than one key. Anything
+ * that is not a string array is therefore left under `tools` untouched, matching
+ * `codexcli-mcp.ts`'s `isValidRenamedArray` guard on the same class of rename.
+ */
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
 /**
@@ -212,12 +226,15 @@ function removeTypeField(config: CopilotcliMcpConfig): McpServers {
 
   for (const [name, server] of Object.entries(config.mcpServers ?? {})) {
     // `tools` is Copilot CLI's spelling of the canonical `enabledTools`; it is
-    // read back so a hand-written allowlist survives an import round-trip.
+    // read back so a hand-written allowlist survives an import round-trip. A
+    // value the canonical schema cannot hold (e.g. the documented bare `"*"`)
+    // stays under `tools` rather than failing validation of the whole file.
     const { tools, ...withoutTools } = server;
-    const restored = {
-      ...withoutTools,
-      ...(tools !== undefined && { enabledTools: tools }),
-    } as McpServers[string];
+    const restored = (
+      isStringArray(tools)
+        ? { ...withoutTools, enabledTools: tools }
+        : { ...withoutTools, ...(tools !== undefined && { tools }) }
+    ) as McpServers[string];
 
     if (restored.type !== "stdio") {
       result[name] = restored;

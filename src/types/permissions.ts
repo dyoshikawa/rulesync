@@ -612,7 +612,7 @@ export type PiPermissionsOverride = z.infer<typeof PiPermissionsOverrideSchema>;
  * agent's artifact changes are gated on a review prompt — `asks-for-review`
  * (default) / `agent-decides` / `always-proceed`) and `allowNonWorkspaceAccess`
  * (a boolean, off by default, letting the agent read or write files outside the
- * active workspace roots) and `agentMode` (the baseline execution mode a session
+ * active workspace roots), and `agentMode` (the baseline execution mode a session
  * starts in — `default` / `accept-edits` / `plan`). Antigravity applies the allow/deny
  * lists as per-rule exceptions to the preset at runtime, so rulesync only
  * authors these keys verbatim — no precedence modeling is needed on our side.

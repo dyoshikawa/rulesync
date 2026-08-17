@@ -169,7 +169,7 @@ function stripGlobalOnlySandboxPaths({
       if (Object.keys(filtered[container]).length === 0) delete filtered[container];
     }
     logger?.warn(
-      `Claude Code permissions: 'sandbox.${path.join(".")}' is only honored in user/managed/--settings settings, so it is skipped for the project-scoped ${relativeFilePath}. Author it in the global scope instead.`,
+      `Claude Code permissions: 'sandbox.${path.join(".")}' is only honored in user/managed/--settings settings, so it is not written to the project-scoped ${relativeFilePath}. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
     );
   }
   return filtered;

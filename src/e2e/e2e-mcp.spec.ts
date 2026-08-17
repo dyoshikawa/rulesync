@@ -177,6 +177,39 @@ describe("E2E: mcp", () => {
     });
   });
 
+  it("should translate copilotcli enabledTools into the tools allowlist in both directions", async () => {
+    const testDir = getTestDir();
+
+    // Covers the processor-level `supportsEnabledTools` flag, not just the
+    // adapter: with it off the field is stripped before the adapter sees it and
+    // the server silently keeps exposing every tool (issue #2402).
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: {
+          github: { command: "gh-mcp", enabledTools: ["create_issue", "list_issues"] },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "copilotcli", features: "mcp" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".github", "mcp.json")));
+    expect(generated.mcpServers.github).toEqual({
+      type: "stdio",
+      command: "gh-mcp",
+      tools: ["create_issue", "list_issues"],
+    });
+
+    await runImport({ target: "copilotcli", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.mcpServers.github.enabledTools).toEqual(["create_issue", "list_issues"]);
+    expect(imported.mcpServers.github.tools).toBeUndefined();
+  });
+
   it("should translate deepagents MCP transports and tool filters in both directions", async () => {
     const testDir = getTestDir();
 
