@@ -348,6 +348,8 @@ This file is used by the GitHub Copilot CLI for MCP server configuration. Rulesy
 
 Rulesync preserves explicit `type` values for `http`, `sse`, and `local` servers. For command-based servers that omit a transport type, Rulesync emits the mandatory `"type": "stdio"` field required by the Copilot CLI. `streamable-http` is written as `http`, the transport it names, and the canonical `httpUrl` alias is normalized to the `url` Copilot CLI reads. A server the Copilot CLI config cannot express is skipped with a warning rather than failing the run: one that declares no transport at all (the shape a Kilo `{"enabled": …}` toggle imports as, which switches off a server some other config layer defines — every entry here defines a server), one that names a remote transport but no `url`/`httpUrl`, one that names a local transport but no `command`, and a `ws` server, since Copilot CLI has no WebSocket transport.
 
+The canonical per-server `enabledTools` is written as Copilot CLI's own [`tools` allowlist](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers) — `["*"]` (the default) exposes every tool, a list exposes only those names — and imports back as `enabledTools`. A server that already carries a native `tools` value keeps it, and a colliding `enabledTools` is dropped with a warning. `disabledTools` has no counterpart upstream (expressing it would need the server's full tool list), so it is not emitted.
+
 ## `rulesync/commands/*.md`
 
 Example:

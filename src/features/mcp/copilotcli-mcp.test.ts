@@ -1013,10 +1013,74 @@ describe("CopilotcliMcp", () => {
         type: "stdio",
       });
 
-      // Round-trip back to RulesyncMcp
+      // Round-trip back to RulesyncMcp. `tools` is Copilot CLI's spelling of the
+      // canonical allowlist, so it normalizes onto `enabledTools`; regenerating
+      // writes `tools` again, so the tool-side file is stable.
       const backToRulesync = copilotCliMcp.toRulesyncMcp();
       const backJson = JSON.parse(backToRulesync.getFileContent());
-      expect(backJson.mcpServers["test-server"]).toEqual(originalServers["test-server"]);
+      const { tools, ...withoutTools } = originalServers["test-server"];
+      expect(backJson.mcpServers["test-server"]).toEqual({
+        ...withoutTools,
+        enabledTools: tools,
+      });
+    });
+
+    it("should write canonical enabledTools as the documented tools allowlist (issue #2402)", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_MCP_FILE_NAME,
+        fileContent: JSON.stringify({
+          mcpServers: {
+            github: { command: "gh-mcp", enabledTools: ["create_issue", "list_issues"] },
+          },
+        }),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      // Copilot CLI ignores an `enabledTools` key and keeps every tool exposed.
+      expect(copilotCliMcp.getJson().mcpServers!.github).toEqual({
+        type: "stdio",
+        command: "gh-mcp",
+        tools: ["create_issue", "list_issues"],
+      });
+
+      const backJson = JSON.parse(copilotCliMcp.toRulesyncMcp().getFileContent());
+      expect(backJson.mcpServers.github.enabledTools).toEqual(["create_issue", "list_issues"]);
+      expect(backJson.mcpServers.github.tools).toBeUndefined();
+    });
+
+    it("should keep a native tools value and drop a colliding enabledTools", async () => {
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_MCP_FILE_NAME,
+        fileContent: JSON.stringify({
+          mcpServers: {
+            github: { command: "gh-mcp", tools: ["*"], enabledTools: ["create_issue"] },
+          },
+        }),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger: mockLogger,
+      });
+
+      expect(copilotCliMcp.getJson().mcpServers!.github).toEqual({
+        type: "stdio",
+        command: "gh-mcp",
+        tools: ["*"],
+      });
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("dropping 'enabledTools'"),
+      );
     });
 
     it("should maintain data consistency across transformations", async () => {
