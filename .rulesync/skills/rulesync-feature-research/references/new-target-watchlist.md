@@ -9,22 +9,9 @@ the entry to a target proposal (a GitHub issue) and remove it from this file;
 when the product is discontinued or the condition can no longer be met, retire
 the entry the same way. An entry that is neither promoted nor retired stays.
 
-| Candidate                      | Recorded   | Re-check condition                                                                                                                    |
-| ------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| GitHub Copilot app (desktop)   | 2026-08-08 | Whether Rulesync should emit `.github/github-app.yml` — a third Copilot product, distinct from the `copilot` and `copilotcli` targets |
-| Zoo Code CLI (`@roo-code/cli`) | 2026-08-08 | Whether the package ships publicly; today it is `private: true`, unpublished and undocumented                                         |
-
-## GitHub Copilot app (desktop) — `.github/github-app.yml`
-
-A repo-committed config file documented on 2026-08-05:
-`https://docs.github.com/en/copilot/reference/github-copilot-app-reference/repository-configuration`.
-It carries an `instructions:` block plus `scripts`, `server_ready_pattern`,
-`auto_open_in_browser` and `automation`.
-
-The `instructions:` block overlaps what Rulesync already generates for other
-targets, so the open question is a new-target one — which product owns the file
-— not a capability gap on `copilot` or `copilotcli`. Neither of those targets
-reads or writes this file.
+| Candidate                      | Recorded   | Re-check condition                                                                            |
+| ------------------------------ | ---------- | --------------------------------------------------------------------------------------------- |
+| Zoo Code CLI (`@roo-code/cli`) | 2026-08-08 | Whether the package ships publicly; today it is `private: true`, unpublished and undocumented |
 
 ## Zoo Code CLI — `apps/cli` in the Zoo-Code repo
 
@@ -35,3 +22,15 @@ Roo-branded, and undocumented. It runs the same agent core against the same
 target only if it ships publicly **and** introduces a CLI-only config surface.
 Check the package's `private` flag and npm publication first; if it is public,
 diff its config discovery against `references/roo.md`.
+
+Re-checked 2026-08-17 and still unmet: `apps/cli/package.json` on the default
+branch is unchanged, and `https://registry.npmjs.org/@roo-code%2Fcli` returns
+`{"error":"Not found"}`. That 404 is conclusive rather than a registry artifact
+— the same endpoint serves `@roo-code/types`, so the scope itself is public and
+resolvable. Zoo Code v3.78.0 did touch `apps/cli/`, so the entry stays.
+
+## Promoted entries
+
+- **GitHub Copilot app (desktop)** — `.github/github-app.yml`. Condition met and
+  promoted to #2671 on 2026-08-13; removed from the table on 2026-08-17. Do not
+  re-add it — track the proposal on that issue instead.
