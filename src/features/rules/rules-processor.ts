@@ -880,6 +880,16 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         ruleDiscoveryMode: "auto",
         // No additionalConventions.skills needed: Devin auto-discovers skills
         // from .devin/skills/ (project) and ~/.config/devin/skills/ (global).
+        //
+        // Personal instructions go to `AGENTS.local.md` beside the root
+        // `AGENTS.md`, which Devin loads "alongside AGENTS.md with the same
+        // always-on behavior" and documents as gitignored. Without this they
+        // were concatenated into the committed `AGENTS.md` by the
+        // `append-to-root` default, i.e. shared with collaborators — the
+        // opposite of what upstream documents.
+        // @see https://docs.devin.ai/cli/extensibility/rules
+        localRootMode: "separate-local-file",
+        localRootFileName: "AGENTS.local.md",
       },
     },
   ],
@@ -1446,6 +1456,20 @@ export class RulesProcessor extends FeatureProcessor {
         relativeDirPath: relativeDirPath ?? ".",
         relativeFilePath: fileName,
         fileContent: body,
+        validate: true,
+        root: true,
+        localRoot,
+      });
+    }
+    if (isClassOrSubclassOf({ candidate: factory.class, base: DevinRule })) {
+      // `AGENTS.local.md` sits next to the project-root `AGENTS.md` Devin reads,
+      // not under `.devin/`, and is plain markdown with no trigger frontmatter.
+      return new DevinRule({
+        outputRoot: this.outputRoot,
+        relativeDirPath: relativeDirPath ?? ".",
+        relativeFilePath: fileName,
+        frontmatter: {},
+        body,
         validate: true,
         root: true,
         localRoot,

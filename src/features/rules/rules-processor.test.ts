@@ -2168,6 +2168,20 @@ Content that would fail parsing`;
       expect((localRule as RulesyncRule).getFrontmatter().localRoot).toBe(true);
     });
 
+    it("should import AGENTS.local.md as a localRoot rulesync rule for devin (issue #2688)", async () => {
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "AGENTS.local.md"), "# Personal devin rules");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "devin" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const localRule = findLocalRule(rulesyncFiles, "AGENTS.local.md");
+      expect(localRule).toBeInstanceOf(RulesyncRule);
+      expect((localRule as RulesyncRule).getFrontmatter().localRoot).toBe(true);
+    });
+
     it("should import .claude/CLAUDE.local.md from the alternative root directory", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Root");
@@ -2593,6 +2607,36 @@ targets: ["*"]
         ).not.toContain("# Local overrides");
       },
     );
+
+    it("should generate AGENTS.local.md for devin instead of folding it into AGENTS.md (issue #2688)", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "devin" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { root: true, targets: ["devin"] },
+          body: "# Root",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { localRoot: true, targets: ["devin"] },
+          body: "# Personal overrides",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      const localRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.local.md");
+      expect(localRule).toBeDefined();
+      // Plain markdown: Devin's local file carries no trigger frontmatter.
+      expect(localRule?.getFileContent()).toBe("# Personal overrides");
+      const rootRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.md");
+      expect(rootRule?.getFileContent()).not.toContain("# Personal overrides");
+    });
 
     it("should append localRoot content to root file for other tools", async () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "copilot" });
