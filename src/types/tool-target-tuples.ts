@@ -281,6 +281,7 @@ export const permissionsProcessorToolTargetTuple = [
   "kiro-cli",
   "kiro-ide",
   "opencode",
+  "pi",
   "qwencode",
   "reasonix",
   "rovodev",

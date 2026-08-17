@@ -28,6 +28,7 @@ import { KiloPermissions } from "./kilo-permissions.js";
 import { KimiCodePermissions } from "./kimi-code-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
+import { PiPermissions } from "./pi-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RovodevPermissions } from "./rovodev-permissions.js";
@@ -344,6 +345,19 @@ export const toolPermissionsFactories = new Map<
     {
       class: OpencodePermissions,
       meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "pi",
+    {
+      class: PiPermissions,
+      meta: {
+        // `.pi/settings.json` (project) and `~/.pi/agent/settings.json`
+        // (global); a project `defaultTools` array replaces the global one.
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

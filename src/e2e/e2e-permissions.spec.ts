@@ -31,6 +31,7 @@ import {
 // green. Keep this list in sync with the actual `it`s by hand.
 const permissionsGenerateTargets = [
   "opencode",
+  "pi",
   "zed",
   "amp",
   "devin",
@@ -58,6 +59,7 @@ const permissionsGenerateTargets = [
 // Permissions targets exercised by the global-scope generate `it`s below.
 const permissionsGlobalTargets = [
   "claudecode",
+  "pi",
   "opencode",
   "codexcli",
   "copilotcli",
@@ -925,6 +927,27 @@ web_search_request = true
     // The MCP [[plugins]] table (written by the MCP adapter) must survive.
     expect(toTableArray(parsed.plugins)).toMatchObject([{ name: "filesystem", command: "npx" }]);
     expect(parsed.default_model).toBe("deepseek");
+  });
+
+  it("should generate pi permissions into .pi/settings.json and preserve unrelated keys", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".pi", "settings.json"),
+      JSON.stringify({ theme: "dark", defaultModel: "sonnet" }, null, 2),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: {}, pi: { defaultTools: ["bash", "edit"] } }, null, 2),
+    );
+
+    await runGenerate({ target: "pi", features: "permissions" });
+
+    const parsed = JSON.parse(await readFileContent(join(testDir, ".pi", "settings.json")));
+    expect(parsed.defaultTools).toEqual(["bash", "edit"]);
+    // The hand-edited settings file carries many unrelated keys.
+    expect(parsed.theme).toBe("dark");
+    expect(parsed.defaultModel).toBe("sonnet");
   });
 
   it("should generate grokcli permissions into .grok/config.toml and preserve MCP config", async () => {
@@ -2714,6 +2737,33 @@ describe("E2E: permissions (global mode)", () => {
       memory: { write_approval: false },
     });
     expect(imported.model).toBeUndefined();
+  });
+
+  it("should generate pi permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: {}, pi: { defaultTools: ["bash"] } }, null, 2),
+    );
+    await writeFileContent(
+      join(homeDir, ".pi", "agent", "settings.json"),
+      JSON.stringify({ theme: "light" }, null, 2),
+    );
+
+    await runGenerate({
+      target: "pi",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = JSON.parse(
+      await readFileContent(join(homeDir, ".pi", "agent", "settings.json")),
+    );
+    expect(parsed.defaultTools).toEqual(["bash"]);
+    expect(parsed.theme).toBe("light");
   });
 
   it("should generate reasonix permissions in home directory with --global", async () => {
