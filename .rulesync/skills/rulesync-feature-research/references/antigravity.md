@@ -41,5 +41,4 @@ Common adapter paths: `rulesync-source-map.md`.
 
 ## Open Questions
 
-- **Execution mode has no documented persisted key.** `https://antigravity.google/docs/cli/reference` documents `editorMode` (`default` | `vim`), `vimInsertFirst`, and `toolPermission` among the `settings.json` keys, but no `agentMode` / `executionMode` / `defaultMode`. The key has only ever been observed in a generated `settings.json`. Do not model it on an unverified name — a post-1.1.11 docs refresh passed without it appearing.
 - **CLI permissions have no project scope in Rulesync**, although the CLI has merged project-level permissions since v1.0.5. The committable file would be the workspace `.antigravity/settings.json` the IDE already writes.

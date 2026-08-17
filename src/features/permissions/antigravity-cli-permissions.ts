@@ -20,6 +20,25 @@ import {
 } from "./tool-permissions.js";
 
 /**
+ * Top-level `~/.gemini/antigravity-cli/settings.json` keys the `antigravity-cli`
+ * permissions override may author. They are siblings of `permissions`, passed
+ * through verbatim in both directions.
+ */
+const ANTIGRAVITY_CLI_OVERRIDE_KEYS = [
+  "toolPermission",
+  "enableTerminalSandbox",
+  "artifactReviewPolicy",
+  "allowNonWorkspaceAccess",
+  "agentMode",
+] as const;
+
+/**
+ * The baseline execution modes the CLI persists as `agentMode`.
+ * @see https://antigravity.google/docs/cli/modes
+ */
+const ANTIGRAVITY_CLI_AGENT_MODES: readonly string[] = ["default", "accept-edits", "plan"];
+
+/**
  * Shape of the Antigravity CLI `settings.json` permissions block.
  *
  * The CLI reuses the Claude-Code-style `permissions.allow/ask/deny` arrays of
@@ -114,9 +133,10 @@ function buildPermissionEntry(toolName: string, pattern: string): string {
  * file (global scope only). The file holds other CLI settings besides
  * permissions, so it is never deleted.
  *
- * Four CLI-only autonomy/sandbox knobs outside the allow/ask/deny arrays —
+ * Five CLI-only autonomy/sandbox knobs outside the allow/ask/deny arrays —
  * `toolPermission` (the global autonomy preset), `enableTerminalSandbox`,
- * `artifactReviewPolicy` and `allowNonWorkspaceAccess` — are authored and
+ * `artifactReviewPolicy`, `allowNonWorkspaceAccess` and `agentMode` (the
+ * baseline execution mode) — are authored and
  * round-tripped through the `antigravity-cli` permissions override (see
  * `AntigravityCliPermissionsOverrideSchema`).
  */
@@ -224,17 +244,11 @@ export class AntigravityCliPermissions extends ToolPermissions {
     // applies the allow/deny lists as runtime exceptions to `toolPermission`, so
     // they pass through verbatim with no precedence modeling here.
     const override = config["antigravity-cli"];
-    if (override?.toolPermission !== undefined) {
-      merged.toolPermission = override.toolPermission;
-    }
-    if (override?.enableTerminalSandbox !== undefined) {
-      merged.enableTerminalSandbox = override.enableTerminalSandbox;
-    }
-    if (override?.artifactReviewPolicy !== undefined) {
-      merged.artifactReviewPolicy = override.artifactReviewPolicy;
-    }
-    if (override?.allowNonWorkspaceAccess !== undefined) {
-      merged.allowNonWorkspaceAccess = override.allowNonWorkspaceAccess;
+    for (const key of ANTIGRAVITY_CLI_OVERRIDE_KEYS) {
+      const value = override?.[key];
+      if (value !== undefined) {
+        merged[key] = value;
+      }
     }
 
     const fileContent = JSON.stringify(merged, null, 2);
@@ -281,6 +295,16 @@ export class AntigravityCliPermissions extends ToolPermissions {
     }
     if (typeof settings.allowNonWorkspaceAccess === "boolean") {
       override.allowNonWorkspaceAccess = settings.allowNonWorkspaceAccess;
+    }
+    // `agentMode` is checked against the three documented values rather than
+    // accepted as any string: the override schema declares it as an enum, so a
+    // hand-written typo would otherwise fail validation of the whole imported
+    // permissions file instead of being dropped.
+    if (
+      typeof settings.agentMode === "string" &&
+      ANTIGRAVITY_CLI_AGENT_MODES.includes(settings.agentMode)
+    ) {
+      override.agentMode = settings.agentMode;
     }
 
     const result: Record<string, unknown> = { ...config };

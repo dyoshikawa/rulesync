@@ -473,6 +473,54 @@ describe("AntigravityCliPermissions", () => {
       });
     });
 
+    it("authors and round-trips agentMode (issue #2509)", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {},
+          "antigravity-cli": { agentMode: "accept-edits" },
+        }),
+      });
+
+      const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const settings = JSON.parse(permissions.getFileContent()) as SettingsJson & {
+        agentMode?: string;
+      };
+      expect(settings.agentMode).toBe("accept-edits");
+
+      const dir = join(testDir, ".gemini", "antigravity-cli");
+      await ensureDir(dir);
+      await writeFileContent(join(dir, "settings.json"), permissions.getFileContent());
+      const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
+      const json = loaded.toRulesyncPermissions().getJson() as {
+        "antigravity-cli"?: Record<string, unknown>;
+      };
+      expect(json["antigravity-cli"]).toEqual({ agentMode: "accept-edits" });
+    });
+
+    it("drops an agentMode value outside the documented enum on import", async () => {
+      const dir = join(testDir, ".gemini", "antigravity-cli");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.json"),
+        JSON.stringify({ permissions: {}, agentMode: "turbo" }),
+      );
+
+      const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
+      const json = loaded.toRulesyncPermissions().getJson() as {
+        "antigravity-cli"?: Record<string, unknown>;
+      };
+      // Carrying an unknown value through would make the whole imported permissions file
+      // fail the override schema's enum, so the key is dropped instead.
+      expect(json["antigravity-cli"]).toBeUndefined();
+    });
+
     it("omits the override when neither knob is present", async () => {
       const dir = join(testDir, ".gemini", "antigravity-cli");
       await ensureDir(dir);
