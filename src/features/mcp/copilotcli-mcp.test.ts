@@ -1054,7 +1054,24 @@ describe("CopilotcliMcp", () => {
       expect(backJson.mcpServers.github.tools).toBeUndefined();
     });
 
-    it("should keep a native tools value and drop a colliding enabledTools", async () => {
+    it("should keep a non-array tools value under tools on import (issue #2402 follow-up)", async () => {
+      const copilotCliMcp = new CopilotcliMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".github",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { github: { type: "stdio", command: "gh-mcp", tools: "*" } },
+        }),
+      });
+
+      const backJson = JSON.parse(copilotCliMcp.toRulesyncMcp().getFileContent());
+      // Canonical `enabledTools` is `string[]`; carrying the documented bare
+      // `"*"` there would reject the whole imported MCP file.
+      expect(backJson.mcpServers.github.enabledTools).toBeUndefined();
+      expect(backJson.mcpServers.github.tools).toBe("*");
+    });
+
+    it("should keep enabledTools and drop a colliding native tools", async () => {
       const mockLogger = { warn: vi.fn() } as unknown as Logger;
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
@@ -1073,14 +1090,14 @@ describe("CopilotcliMcp", () => {
         logger: mockLogger,
       });
 
+      // The canonical allowlist wins: a stale `tools: ["*"]` (the upstream
+      // default) must not silently re-expose every tool.
       expect(copilotCliMcp.getJson().mcpServers!.github).toEqual({
         type: "stdio",
         command: "gh-mcp",
-        tools: ["*"],
+        tools: ["create_issue"],
       });
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("dropping 'enabledTools'"),
-      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("dropping 'tools'"));
     });
 
     it("should maintain data consistency across transformations", async () => {

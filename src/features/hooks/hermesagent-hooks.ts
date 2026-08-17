@@ -10,6 +10,7 @@ import {
   CANONICAL_TO_HERMESAGENT_EVENT_NAMES,
   HERMESAGENT_HOOK_EVENTS,
   HERMESAGENT_NATIVE_HOOK_EVENTS,
+  HERMESAGENT_SHELL_UNSUPPORTED_HOOK_EVENTS,
   HERMESAGENT_TO_CANONICAL_EVENT_NAMES,
   type HookDefinition,
   type HooksConfig,
@@ -69,6 +70,9 @@ const HERMESAGENT_MATCHER_EVENTS: ReadonlySet<string> = new Set([
 const HERMESAGENT_FAIL_CLOSED_EVENT = "pre_tool_call";
 const HERMESAGENT_CANONICAL_EVENTS: ReadonlySet<string> = new Set(HERMESAGENT_HOOK_EVENTS);
 const HERMESAGENT_NATIVE_EVENTS: ReadonlySet<string> = new Set(HERMESAGENT_NATIVE_HOOK_EVENTS);
+const HERMESAGENT_SHELL_UNSUPPORTED_EVENTS: ReadonlySet<string> = new Set(
+  HERMESAGENT_SHELL_UNSUPPORTED_HOOK_EVENTS,
+);
 
 /**
  * Whether an entry of the `hooks:` mapping is a hook-event list rather than one
@@ -231,7 +235,14 @@ function canonicalToHermesHooks({
     if (HERMESAGENT_CANONICAL_EVENTS.has(nativeEvent)) {
       continue;
     }
-    if (!HERMESAGENT_NATIVE_EVENTS.has(nativeEvent)) {
+    if (HERMESAGENT_SHELL_UNSUPPORTED_EVENTS.has(nativeEvent)) {
+      // In `VALID_HOOKS`, but subtracted from the shell-hook allow-list: Hermes
+      // refuses the registration outright, so the entry is emitted with an
+      // accurate warning rather than passing as a documented event.
+      logger?.warn(
+        `Hermes hook event "${nativeEvent}" is Python-plugin-only; Hermes Agent refuses it for shell hooks, so the generated entry will never run.`,
+      );
+    } else if (!HERMESAGENT_NATIVE_EVENTS.has(nativeEvent)) {
       logger?.warn(
         `Hermes hook event "${nativeEvent}" is not documented by Hermes Agent v0.20.2; preserving it for forward compatibility.`,
       );

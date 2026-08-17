@@ -929,8 +929,9 @@ export const HERMESAGENT_HOOK_EVENTS: readonly HookEvent[] = [
  * observers, `gateway_platform_event` and `transform_api_error_classification`.
  * Shell hooks are gated on the same set.
  *
- * Verified against the tag `v2026.8.16` (v0.20.2): 37 entries, grown from 23 at
- * `v2026.8.3` (v0.20.0).
+ * Verified against the tag `v2026.8.16` (v0.20.2): `VALID_HOOKS` holds 37
+ * entries, grown from 23 at `v2026.8.3` (v0.20.0). This list holds 36 of them —
+ * see {@link HERMESAGENT_SHELL_UNSUPPORTED_HOOK_EVENTS} for the exclusion.
  *
  * @see https://github.com/NousResearch/hermes-agent/blob/v2026.8.16/hermes_cli/plugins.py
  */
@@ -950,7 +951,6 @@ export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
   "pre_api_request",
   "post_api_request",
   "api_request_error",
-  "transform_api_error_classification",
   "on_session_start",
   "on_session_end",
   "on_session_finalize",
@@ -972,6 +972,23 @@ export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
   "on_kanban_dispatch_tick",
   "gateway_platform_event",
   "pre_command",
+] as const;
+
+/**
+ * `VALID_HOOKS` entries a SHELL hook may not register for. `VALID_HOOKS` doubles
+ * as the shell-hook allow-list, but `SHELL_UNSUPPORTED_HOOKS` is subtracted from
+ * it first: shell hooks cannot return these events' directives, so
+ * `_parse_hooks_block` refuses the registration with a warning rather than
+ * accepting it and dropping the return value.
+ *
+ * rulesync only ever writes shell hooks, so these are excluded from
+ * {@link HERMESAGENT_NATIVE_HOOK_EVENTS} and warned about with their own message.
+ *
+ * @see https://github.com/NousResearch/hermes-agent/blob/v2026.8.16/hermes_cli/plugins.py — `SHELL_UNSUPPORTED_HOOKS`
+ * @see https://github.com/NousResearch/hermes-agent/blob/v2026.8.16/agent/shell_hooks.py — `_parse_hooks_block`
+ */
+export const HERMESAGENT_SHELL_UNSUPPORTED_HOOK_EVENTS = [
+  "transform_api_error_classification",
 ] as const;
 
 /**
