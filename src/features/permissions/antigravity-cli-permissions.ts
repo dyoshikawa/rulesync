@@ -16,6 +16,7 @@ import {
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { fallbackLogger, type Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -38,16 +39,37 @@ const ANTIGRAVITY_CLI_OVERRIDE_KEYS = [
   "agentMode",
 ] as const;
 
+// Shared fallback logger used by the importing direction (toRulesyncPermissions),
+// where the instance method has no `logger` parameter. Mirrors the AugmentCode
+// and Qwen permissions translators; `fallbackLogger` is configured from CLI
+// flags and the resolved config, so `silent` is honored.
+const moduleLogger: Logger = fallbackLogger;
+
 /**
  * Narrow an imported `settings.json` value to one of the documented values of
  * an enum-typed override key. The override schema declares `toolPermission`,
  * `artifactReviewPolicy` and `agentMode` as `z.enum`, so carrying an
  * unrecognized value through — a hand-written typo, or a preset a newer
  * Antigravity release added — would fail validation of the whole imported
- * `.rulesync/permissions.jsonc` instead of dropping just that key.
+ * `.rulesync/permissions.jsonc` instead of dropping just that key. A dropped
+ * value is warned about rather than discarded silently, so a preset rulesync
+ * does not know about yet is visible instead of quietly missing.
  */
-function pickDocumentedValue(value: unknown, documented: readonly string[]): string | undefined {
-  return typeof value === "string" && documented.includes(value) ? value : undefined;
+function pickDocumentedValue({
+  key,
+  value,
+  documented,
+}: {
+  key: string;
+  value: unknown;
+  documented: readonly string[];
+}): string | undefined {
+  if (typeof value !== "string") return undefined;
+  if (documented.includes(value)) return value;
+  moduleLogger.warn(
+    `Antigravity CLI permissions: dropping '${key}: ${value}' on import — it is not one of the documented values (${documented.join(", ")}), and carrying it through would fail validation of the whole permissions file. Author it under the 'antigravity-cli' override by hand once rulesync supports it.`,
+  );
+  return undefined;
 }
 
 /**
@@ -298,27 +320,33 @@ export class AntigravityCliPermissions extends ToolPermissions {
     const override: Record<string, unknown> = {};
     // The three enum-typed keys are checked against their documented values
     // rather than accepted as any string — see `pickDocumentedValue`.
-    const toolPermission = pickDocumentedValue(
-      settings.toolPermission,
-      ANTIGRAVITY_CLI_TOOL_PERMISSIONS,
-    );
+    const toolPermission = pickDocumentedValue({
+      key: "toolPermission",
+      value: settings.toolPermission,
+      documented: ANTIGRAVITY_CLI_TOOL_PERMISSIONS,
+    });
     if (toolPermission !== undefined) {
       override.toolPermission = toolPermission;
     }
     if (typeof settings.enableTerminalSandbox === "boolean") {
       override.enableTerminalSandbox = settings.enableTerminalSandbox;
     }
-    const artifactReviewPolicy = pickDocumentedValue(
-      settings.artifactReviewPolicy,
-      ANTIGRAVITY_CLI_ARTIFACT_REVIEW_POLICIES,
-    );
+    const artifactReviewPolicy = pickDocumentedValue({
+      key: "artifactReviewPolicy",
+      value: settings.artifactReviewPolicy,
+      documented: ANTIGRAVITY_CLI_ARTIFACT_REVIEW_POLICIES,
+    });
     if (artifactReviewPolicy !== undefined) {
       override.artifactReviewPolicy = artifactReviewPolicy;
     }
     if (typeof settings.allowNonWorkspaceAccess === "boolean") {
       override.allowNonWorkspaceAccess = settings.allowNonWorkspaceAccess;
     }
-    const agentMode = pickDocumentedValue(settings.agentMode, ANTIGRAVITY_CLI_AGENT_MODES);
+    const agentMode = pickDocumentedValue({
+      key: "agentMode",
+      value: settings.agentMode,
+      documented: ANTIGRAVITY_CLI_AGENT_MODES,
+    });
     if (agentMode !== undefined) {
       override.agentMode = agentMode;
     }

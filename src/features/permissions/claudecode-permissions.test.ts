@@ -302,10 +302,22 @@ describe("ClaudecodePermissions", () => {
         }),
       });
 
+      const mockLogger = createMockLogger();
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions,
+        logger: mockLogger,
       });
+
+      // Dropping a credential entry silently is exactly the failure mode this
+      // guards against, so the user is told once per list.
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("'sandbox.credentials.files' entries with 'mode: \"mask\"'"),
+      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("1 of them was not"));
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("'sandbox.credentials.envVars' entries with 'mode: \"mask\"'"),
+      );
 
       // Claude Code ignores `mask` entries in a repository's settings.json, so a
       // committed one would read as a masked credential while nothing protects

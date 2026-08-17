@@ -173,28 +173,39 @@ function stripGlobalOnlySandboxPaths({
       `Claude Code permissions: 'sandbox.${path.join(".")}' is only honored in user/managed/--settings settings, so it is not written to the project-scoped ${relativeFilePath}. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
     );
   }
-  return stripProjectIgnoredMaskEntries({ sandbox: filtered, relativeFilePath, logger });
+  return filtered;
 }
 
+/** The `sandbox.credentials` lists whose entries accept `"mode": "mask"`. */
+const CLAUDECODE_MASKABLE_CREDENTIAL_LISTS = ["envVars", "files"] as const;
+
 /**
- * `credentials.envVars` / `credentials.files` entries whose `mode` is `"mask"`.
- * Masking authorizes the sandbox proxy to send the real credential to the
- * listed hosts, so Claude Code honors it only from user settings, managed
- * settings and the `--settings` CLI flag; a `mask` entry in a repository's
+ * Copy of the authored `sandbox` override with the `credentials.envVars` /
+ * `credentials.files` entries whose `mode` is `"mask"` removed, warning once per
+ * list.
+ *
+ * Masking authorizes the sandbox proxy to send the real credential to the listed
+ * hosts, so Claude Code honors it only from user settings, managed settings and
+ * the `--settings` CLI flag; a `mask` entry in a repository's
  * `.claude/settings.json` is ignored outright. Keeping it would read as though
  * the credential were masked while nothing protects it — the one project-scope
  * gap whose consequence is a live credential leaving the sandbox unmasked.
  *
  * Filtered per entry rather than per key, because the same lists carry `deny`
- * entries that project settings *do* honor.
+ * entries that project settings *do* honor. `mode` is matched exactly: an entry
+ * Claude Code cannot read as `mask` is not treated as one either (it degrades
+ * such entries to `deny`), so the "reads as masked but isn't" state this guards
+ * against cannot slip through a differently-spelled value.
+ *
+ * Like `stripGlobalOnlySandboxPaths`, only the override copy is filtered — a
+ * value already in the target file is left untouched, which is why the warning
+ * points at it.
  *
  * @see https://code.claude.com/docs/en/sandboxing — "`mask` entries … are all
  *   ignored in a repository's `.claude/settings.json` or
  *   `.claude/settings.local.json`"; the file-entry section states the same
  *   settings-source restriction applies there.
  */
-const CLAUDECODE_MASKABLE_CREDENTIAL_LISTS = ["envVars", "files"] as const;
-
 function stripProjectIgnoredMaskEntries({
   sandbox,
   relativeFilePath,
@@ -217,9 +228,7 @@ function stripProjectIgnoredMaskEntries({
     changed = true;
     const dropped = list.length - kept.length;
     logger?.warn(
-      `Claude Code permissions: ${dropped} 'sandbox.credentials.${listKey}' ${
-        dropped === 1 ? "entry" : "entries"
-      } with 'mode: "mask"' are only honored in user/managed/--settings settings, so they are not written to the project-scoped ${relativeFilePath}. Author them in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+      `Claude Code permissions: 'sandbox.credentials.${listKey}' entries with 'mode: "mask"' are only honored in user/managed/--settings settings, so ${dropped} of them ${dropped === 1 ? "was" : "were"} not written to the project-scoped ${relativeFilePath}. Author them in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
     );
     if (kept.length === 0) {
       delete filteredCredentials[listKey];
@@ -347,8 +356,12 @@ export class ClaudecodePermissions extends ToolPermissions {
       // policy that never applies.
       const scopedSandbox = global
         ? overrideSandbox
-        : stripGlobalOnlySandboxPaths({
-            sandbox: overrideSandbox,
+        : stripProjectIgnoredMaskEntries({
+            sandbox: stripGlobalOnlySandboxPaths({
+              sandbox: overrideSandbox,
+              relativeFilePath: paths.relativeFilePath,
+              logger,
+            }),
             relativeFilePath: paths.relativeFilePath,
             logger,
           });
