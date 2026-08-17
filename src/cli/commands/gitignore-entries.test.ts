@@ -195,6 +195,9 @@ describe("registry derivation", () => {
       // The allowlist is user-scope only; earlier versions wrote a project
       // `.junie/allowlist.json` Junie never reads (issue #2411).
       "junie::permissions::**/.junie/allowlist.json",
+      // Vibe subagent system prompts live in `.vibe/prompts/`, outside the
+      // `.vibe/agents/` path `getSettablePaths` names (issue #2423).
+      "vibe::subagents::**/.vibe/prompts/",
       "roo::subagents::**/.roomodes",
       "codexcli::ignore::**/.codexignore",
       // Codex CLI's `.codex/rules/rulesync.rules` bash-permission file is written

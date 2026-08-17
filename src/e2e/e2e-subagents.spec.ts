@@ -222,7 +222,16 @@ You are the planner. Analyze files and create a plan.
 
       const generatedContent = await readFileContent(join(testDir, outputPath));
       expect(generatedContent).toContain("planner");
-      expect(generatedContent).toContain("Analyze files and create a plan.");
+      if (target === "vibe") {
+        // Vibe ignores `system_prompt`; the body rides `.vibe/prompts/<id>.md`
+        // referenced by `system_prompt_id` (issue #2423).
+        expect(generatedContent).toContain('system_prompt_id = "planner"');
+        expect(await readFileContent(join(testDir, ".vibe", "prompts", "planner.md"))).toContain(
+          "Analyze files and create a plan.",
+        );
+      } else {
+        expect(generatedContent).toContain("Analyze files and create a plan.");
+      }
 
       if (target === "hermesagent") {
         expect(
@@ -721,6 +730,32 @@ Break down tasks into steps.
       join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
     );
     expect(importedContent).toContain("Planner");
+    // The legacy `system_prompt` key is still read back.
+    expect(importedContent).toContain("Break down tasks into steps.");
+  });
+
+  it("should import a vibe subagent whose prompt lives in .vibe/prompts (issue #2423)", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".vibe", "agents", "planner.toml"),
+      [
+        'agent_type = "agent"',
+        'display_name = "Planner"',
+        'description = "Plans implementation tasks"',
+        'system_prompt_id = "planner"',
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".vibe", "prompts", "planner.md"),
+      "Break down tasks into steps.",
+    );
+
+    await runImport({ target: "vibe", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
     expect(importedContent).toContain("Break down tasks into steps.");
   });
 });
@@ -790,7 +825,14 @@ You are the planner. Analyze files and create a plan.
 
       const generatedContent = await readFileContent(join(homeDir, outputPath));
       expect(generatedContent).toContain("planner");
-      expect(generatedContent).toContain("Analyze files and create a plan.");
+      if (target === "vibe") {
+        expect(generatedContent).toContain('system_prompt_id = "planner"');
+        expect(await readFileContent(join(homeDir, ".vibe", "prompts", "planner.md"))).toContain(
+          "Analyze files and create a plan.",
+        );
+      } else {
+        expect(generatedContent).toContain("Analyze files and create a plan.");
+      }
     },
   );
 

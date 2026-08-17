@@ -228,6 +228,7 @@ rulesync.local.jsonc
 **/CLAUDE.local.md
 **/.qwen/QWEN.local.md
 **/.claude/CLAUDE.local.md
+**/.vibe/prompts/
 **/.claude/*.lock
 **/.claude/settings.local.json
 **/.claude/memories/
