@@ -282,7 +282,11 @@ function translateCanonicalKeyToCodex({
     // array. A TOML array where Codex expects a table is a serde type error
     // that takes the whole server entry down, so it is dropped rather than
     // written. Codex's own per-tool approvals live in the same key and are
-    // preserved from the existing file instead.
+    // preserved from the existing file instead. That is the "refuse the
+    // canonical value" branch of the collision rule documented on
+    // `enabledTools` in `src/types/mcp.ts` — it applies here because Codex's
+    // same-named key means a different thing; `kiro-mcp.ts` merges instead and
+    // `copilotcli-mcp.ts` lets the canonical value win instead.
     warnWithFallback(
       undefined,
       `[CodexCliMcp] Dropping 'tools' from MCP server "${serverName}": Codex reads it as a per-tool approval table, not a tool allowlist. Use 'enabledTools' / 'disabledTools' instead.`,

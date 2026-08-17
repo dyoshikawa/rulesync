@@ -46,7 +46,11 @@ function mergeToolLists(...lists: (readonly string[] | undefined)[]): string[] |
  *
  * Both native names are documented per-server fields, so a config that already
  * spells them natively keeps working: the two lists are merged rather than
- * one overwriting the other.
+ * one overwriting the other. That is the "merge" branch of the collision rule
+ * documented on `enabledTools` in `src/types/mcp.ts` — it applies here because
+ * the native names are redundant spellings of the same additive lists;
+ * `copilotcli-mcp.ts` lets the canonical value win instead, and
+ * `codexcli-mcp.ts` refuses the canonical value instead.
  * @see https://kiro.dev/docs/mcp/configuration/
  */
 function toKiroMcpServers(servers: McpServers): Record<string, unknown> {

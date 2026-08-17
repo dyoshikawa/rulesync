@@ -58,6 +58,10 @@ export function resolveDisableModelInvocation({
  * per-target value. A defined section value (including `false`) always wins
  * over the root default.
  *
+ * `devin` also consumes the root-level value — it maps `false` onto a
+ * model-only `triggers` list (see `devin-skill.ts`) — but has no section
+ * override of its own, so it does not go through this helper.
+ *
  * @returns The resolved boolean, or `undefined` when neither value is set.
  */
 export function resolveUserInvocable({

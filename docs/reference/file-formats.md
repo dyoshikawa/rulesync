@@ -656,11 +656,14 @@ targets: ["*"] # * = all, or specific tools
 # (optional) shared default for tools that support the flag — claudecode, copilot,
 # copilotcli, cursor, zed, pi, qwencode, grokcli, and factorydroid. Any of those
 # tool sections can override it by setting their own `disable-model-invocation`
-# value below.
+# value below. devin also reads this root value (true maps onto a user-only
+# `triggers` list) but has no section key to override it with.
 disable-model-invocation: true
 # (optional) shared default for tools that support the flag — claudecode, copilot,
 # copilotcli, cursor, qwencode, vibe, grokcli, and factorydroid. Any of those tool
 # sections can override it by setting their own `user-invocable` value below.
+# devin also reads this root value (false maps onto a model-only `triggers` list)
+# but has no section key to override it with.
 user-invocable: false
 claudecode: # for claudecode-specific parameters
   model: sonnet # opus, sonnet, haiku, or any string

@@ -113,10 +113,11 @@ function deepMergeRecords(
  * Deliberately NOT listed:
  * - `bwrapPath` / `socatPath`: v2.1.232 added them to the managed-settings
  *   approval dialog, which is a consent prompt, not a project-scope rejection.
- * - `credentials.files[].mode: "mask"`: the ignored-at-project-scope unit is the
- *   individual entry's mode, not a settings key, and the same `files` list
- *   carries `deny` entries that project settings *do* honor — dropping the list
- *   would remove real restrictions.
+ * - `credentials.envVars` / `credentials.files`: the ignored-at-project-scope
+ *   unit is the individual entry's mode, not the settings key, and the same
+ *   lists carry `deny` entries that project settings *do* honor — dropping a
+ *   whole list would remove real restrictions. `stripProjectIgnoredMaskEntries`
+ *   filters those lists per entry instead.
  *
  * @see https://code.claude.com/docs/en/sandboxing
  * @see https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md — v2.1.232 scoped `sandbox.ripgrep`
@@ -171,6 +172,68 @@ function stripGlobalOnlySandboxPaths({
     logger?.warn(
       `Claude Code permissions: 'sandbox.${path.join(".")}' is only honored in user/managed/--settings settings, so it is not written to the project-scoped ${relativeFilePath}. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
     );
+  }
+  return stripProjectIgnoredMaskEntries({ sandbox: filtered, relativeFilePath, logger });
+}
+
+/**
+ * `credentials.envVars` / `credentials.files` entries whose `mode` is `"mask"`.
+ * Masking authorizes the sandbox proxy to send the real credential to the
+ * listed hosts, so Claude Code honors it only from user settings, managed
+ * settings and the `--settings` CLI flag; a `mask` entry in a repository's
+ * `.claude/settings.json` is ignored outright. Keeping it would read as though
+ * the credential were masked while nothing protects it — the one project-scope
+ * gap whose consequence is a live credential leaving the sandbox unmasked.
+ *
+ * Filtered per entry rather than per key, because the same lists carry `deny`
+ * entries that project settings *do* honor.
+ *
+ * @see https://code.claude.com/docs/en/sandboxing — "`mask` entries … are all
+ *   ignored in a repository's `.claude/settings.json` or
+ *   `.claude/settings.local.json`"; the file-entry section states the same
+ *   settings-source restriction applies there.
+ */
+const CLAUDECODE_MASKABLE_CREDENTIAL_LISTS = ["envVars", "files"] as const;
+
+function stripProjectIgnoredMaskEntries({
+  sandbox,
+  relativeFilePath,
+  logger,
+}: {
+  sandbox: Record<string, unknown>;
+  relativeFilePath: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const credentials = sandbox.credentials;
+  if (!isPlainRecord(credentials)) return sandbox;
+
+  const filteredCredentials: Record<string, unknown> = { ...credentials };
+  let changed = false;
+  for (const listKey of CLAUDECODE_MASKABLE_CREDENTIAL_LISTS) {
+    const list = filteredCredentials[listKey];
+    if (!Array.isArray(list)) continue;
+    const kept = list.filter((entry) => !(isPlainRecord(entry) && entry.mode === "mask"));
+    if (kept.length === list.length) continue;
+    changed = true;
+    const dropped = list.length - kept.length;
+    logger?.warn(
+      `Claude Code permissions: ${dropped} 'sandbox.credentials.${listKey}' ${
+        dropped === 1 ? "entry" : "entries"
+      } with 'mode: "mask"' are only honored in user/managed/--settings settings, so they are not written to the project-scoped ${relativeFilePath}. Author them in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+    );
+    if (kept.length === 0) {
+      delete filteredCredentials[listKey];
+    } else {
+      filteredCredentials[listKey] = kept;
+    }
+  }
+  if (!changed) return sandbox;
+
+  const filtered = { ...sandbox };
+  if (Object.keys(filteredCredentials).length === 0) {
+    delete filtered.credentials;
+  } else {
+    filtered.credentials = filteredCredentials;
   }
   return filtered;
 }

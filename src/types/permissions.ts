@@ -628,15 +628,38 @@ export type PiPermissionsOverride = z.infer<typeof PiPermissionsOverrideSchema>;
  * @example
  * { "toolPermission": "strict", "enableTerminalSandbox": true }
  */
+/**
+ * The documented values of the three enum-typed Antigravity CLI override keys.
+ * Exported so the import side of `antigravity-cli-permissions.ts` can filter
+ * against exactly the values the schemas below accept: an unrecognized value
+ * carried in verbatim would fail validation of the *whole*
+ * `.rulesync/permissions.jsonc`, not just that key. Single-sourced here so the
+ * enum and the import filter cannot drift apart.
+ *
+ * @see https://antigravity.google/docs/cli/reference
+ * @see https://antigravity.google/docs/cli/settings
+ * @see https://antigravity.google/docs/cli/modes
+ */
+export const ANTIGRAVITY_CLI_TOOL_PERMISSIONS = [
+  "request-review",
+  "proceed-in-sandbox",
+  "always-proceed",
+  "strict",
+] as const;
+export const ANTIGRAVITY_CLI_ARTIFACT_REVIEW_POLICIES = [
+  "asks-for-review",
+  "agent-decides",
+  "always-proceed",
+] as const;
+export const ANTIGRAVITY_CLI_AGENT_MODES = ["default", "accept-edits", "plan"] as const;
+
 const AntigravityCliPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   // @see https://antigravity.google/docs/cli/reference
-  toolPermission: z.optional(
-    z.enum(["request-review", "proceed-in-sandbox", "always-proceed", "strict"]),
-  ),
+  toolPermission: z.optional(z.enum(ANTIGRAVITY_CLI_TOOL_PERMISSIONS)),
   enableTerminalSandbox: z.optional(z.boolean()),
   // @see https://antigravity.google/docs/cli/settings
-  artifactReviewPolicy: z.optional(z.enum(["asks-for-review", "agent-decides", "always-proceed"])),
+  artifactReviewPolicy: z.optional(z.enum(ANTIGRAVITY_CLI_ARTIFACT_REVIEW_POLICIES)),
   allowNonWorkspaceAccess: z.optional(z.boolean()),
   /**
    * The baseline execution mode the CLI starts a session in (Agent Mode), the
@@ -645,7 +668,7 @@ const AntigravityCliPermissionsOverrideSchema = z.looseObject({
    * override stays global-only.
    * @see https://antigravity.google/docs/cli/modes
    */
-  agentMode: z.optional(z.enum(["default", "accept-edits", "plan"])),
+  agentMode: z.optional(z.enum(ANTIGRAVITY_CLI_AGENT_MODES)),
 });
 export type AntigravityCliPermissionsOverride = z.infer<
   typeof AntigravityCliPermissionsOverrideSchema
