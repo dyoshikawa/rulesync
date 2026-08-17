@@ -54,7 +54,7 @@ export function resolveDisableModelInvocation({
  *
  * The rulesync skill frontmatter exposes a root-level `user-invocable` default
  * that applies to every tool supporting the flag (claudecode, copilot,
- * copilotcli, qwencode, vibe, grokcli, factorydroid). Each tool's own section may override that default with a
+ * copilotcli, cursor, qwencode, vibe, grokcli, factorydroid). Each tool's own section may override that default with a
  * per-target value. A defined section value (including `false`) always wins
  * over the root default.
  *

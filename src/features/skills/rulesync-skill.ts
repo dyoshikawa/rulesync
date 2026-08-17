@@ -17,7 +17,8 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli, factorydroid).
   // A target-section value of the same key overrides this default.
   "disable-model-invocation": z.optional(z.boolean()),
-  // Default for tools that support the flag (claudecode, qwencode, vibe, grokcli, factorydroid).
+  // Default for tools that support the flag (claudecode, copilot, copilotcli, cursor,
+  // qwencode, vibe, grokcli, factorydroid).
   // A target-section value of the same key overrides this default.
   "user-invocable": z.optional(z.boolean()),
   claudecode: z.optional(
@@ -223,6 +224,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     z.looseObject({
       paths: z.optional(z.union([z.string(), z.array(z.string())])),
       "disable-model-invocation": z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
       metadata: z.optional(z.looseObject({})),
     }),
   ),
@@ -423,6 +425,7 @@ export type RulesyncSkillFrontmatterInput = {
   cursor?: {
     paths?: string | string[];
     "disable-model-invocation"?: boolean;
+    "user-invocable"?: boolean;
     metadata?: Record<string, unknown>;
   };
   factorydroid?: {
