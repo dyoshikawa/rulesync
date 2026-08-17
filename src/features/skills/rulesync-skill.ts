@@ -16,10 +16,16 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   targets: z._default(RulesyncTargetsSchema, ["*"]),
   // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli, factorydroid).
   // A target-section value of the same key overrides this default.
+  // `devin` also consumes this root value (mapping `true` onto a user-only
+  // `triggers` list); it has no section key of the same name, but a
+  // `devin.triggers` section value overrides it.
   "disable-model-invocation": z.optional(z.boolean()),
   // Default for tools that support the flag (claudecode, copilot, copilotcli, cursor,
   // qwencode, vibe, grokcli, factorydroid).
   // A target-section value of the same key overrides this default.
+  // `devin` also consumes this root value (mapping `false` onto a model-only
+  // `triggers` list); it has no section key of the same name, but a
+  // `devin.triggers` section value overrides it.
   "user-invocable": z.optional(z.boolean()),
   claudecode: z.optional(
     z.looseObject({

@@ -82,6 +82,25 @@ export const McpServerSchema = z.looseObject({
   // support it. Authoring `disabledTools` directly makes that scope explicit.
   kiroAutoBlock: z.optional(z.array(z.string())),
   headers: z.optional(z.record(z.string(), z.string())),
+  /**
+   * The canonical per-server tool allowlist.
+   *
+   * **Collision rule for adapters.** Several tools spell an allowlist natively
+   * under a name that also exists here, so a single server entry can carry both
+   * a canonical field and its native counterpart. What the *native* key means
+   * decides the resolution — not which one was written first:
+   *
+   * - Native key is a redundant spelling of the same concept, and both lists are
+   *   additive → **merge** them, so a config that already spells the field
+   *   natively keeps working (`kiroAutoApprove`/`kiroAutoBlock` in
+   *   `kiro-mcp.ts`).
+   * - Native key is the same concept but rulesync owns the generated value, so
+   *   keeping both would be ambiguous → the **canonical value wins** and the
+   *   native one is dropped with a warning (`tools` in `copilotcli-mcp.ts`).
+   * - Native key of the same name means something else entirely → **refuse the
+   *   canonical value** rather than write a shape the tool misreads (`tools` in
+   *   `codexcli-mcp.ts`, where Codex reads it as a per-tool approval table).
+   */
   enabledTools: z.optional(z.array(z.string())),
   disabledTools: z.optional(z.array(z.string())),
 });

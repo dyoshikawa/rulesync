@@ -282,6 +282,77 @@ describe("ClaudecodePermissions", () => {
       });
     });
 
+    it("should drop only the mask credential entries from a project settings.json (issue #2704)", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {},
+          claudecode: {
+            sandbox: {
+              credentials: {
+                files: [
+                  { path: "~/.aws/credentials", mode: "mask" },
+                  { path: "~/.ssh/id_rsa", mode: "deny" },
+                ],
+                envVars: [{ name: "GH_TOKEN", mode: "mask", injectHosts: ["api.github.com"] }],
+              },
+            },
+          },
+        }),
+      });
+
+      const mockLogger = createMockLogger();
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      // Dropping a credential entry silently is exactly the failure mode this
+      // guards against, so the user is told once per list.
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("'sandbox.credentials.files' entries with 'mode: \"mask\"'"),
+      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("1 of them was not"));
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("'sandbox.credentials.envVars' entries with 'mode: \"mask\"'"),
+      );
+
+      // Claude Code ignores `mask` entries in a repository's settings.json, so a
+      // committed one would read as a masked credential while nothing protects
+      // it. The `deny` entries in the same list *are* honored, so they stay, and
+      // an emptied list is removed rather than written as `[]`.
+      expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({
+        credentials: { files: [{ path: "~/.ssh/id_rsa", mode: "deny" }] },
+      });
+    });
+
+    it("should keep mask credential entries in global scope", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {},
+          claudecode: {
+            sandbox: {
+              credentials: { files: [{ path: "~/.aws/credentials", mode: "mask" }] },
+            },
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        global: true,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({
+        credentials: { files: [{ path: "~/.aws/credentials", mode: "mask" }] },
+      });
+    });
+
     it("should emit the same sandbox keys unchanged in global scope", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,

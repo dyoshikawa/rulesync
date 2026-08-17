@@ -603,6 +603,40 @@ const PiPermissionsOverrideSchema = z.looseObject({
 export type PiPermissionsOverride = z.infer<typeof PiPermissionsOverrideSchema>;
 
 /**
+ * The Antigravity CLI's four documented `toolPermission` autonomy presets.
+ * Exported so the import side of `antigravity-cli-permissions.ts` filters
+ * against exactly the values the enum below accepts — an unrecognized value
+ * carried in verbatim would fail validation of the *whole*
+ * `.rulesync/permissions.jsonc`, not just that key.
+ * @see https://antigravity.google/docs/cli/reference
+ */
+export const ANTIGRAVITY_CLI_TOOL_PERMISSIONS = [
+  "request-review",
+  "proceed-in-sandbox",
+  "always-proceed",
+  "strict",
+] as const;
+
+/**
+ * The Antigravity CLI's three documented `artifactReviewPolicy` values. Shared
+ * with the import filter for the same reason as
+ * {@link ANTIGRAVITY_CLI_TOOL_PERMISSIONS}.
+ * @see https://antigravity.google/docs/cli/settings
+ */
+export const ANTIGRAVITY_CLI_ARTIFACT_REVIEW_POLICIES = [
+  "asks-for-review",
+  "agent-decides",
+  "always-proceed",
+] as const;
+
+/**
+ * The baseline execution modes the CLI persists as `agentMode`. Shared with the
+ * import filter for the same reason as {@link ANTIGRAVITY_CLI_TOOL_PERMISSIONS}.
+ * @see https://antigravity.google/docs/cli/modes
+ */
+export const ANTIGRAVITY_CLI_AGENT_MODES = ["default", "accept-edits", "plan"] as const;
+
+/**
  * Tool-scoped override block for the Google Antigravity CLI. Antigravity's CLI
  * `settings.json` carries five global autonomy/sandbox knobs outside the
  * `permissions.allow/ask/deny` arrays rulesync manages: `toolPermission` (the
@@ -631,12 +665,10 @@ export type PiPermissionsOverride = z.infer<typeof PiPermissionsOverrideSchema>;
 const AntigravityCliPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   // @see https://antigravity.google/docs/cli/reference
-  toolPermission: z.optional(
-    z.enum(["request-review", "proceed-in-sandbox", "always-proceed", "strict"]),
-  ),
+  toolPermission: z.optional(z.enum(ANTIGRAVITY_CLI_TOOL_PERMISSIONS)),
   enableTerminalSandbox: z.optional(z.boolean()),
   // @see https://antigravity.google/docs/cli/settings
-  artifactReviewPolicy: z.optional(z.enum(["asks-for-review", "agent-decides", "always-proceed"])),
+  artifactReviewPolicy: z.optional(z.enum(ANTIGRAVITY_CLI_ARTIFACT_REVIEW_POLICIES)),
   allowNonWorkspaceAccess: z.optional(z.boolean()),
   /**
    * The baseline execution mode the CLI starts a session in (Agent Mode), the
@@ -645,7 +677,7 @@ const AntigravityCliPermissionsOverrideSchema = z.looseObject({
    * override stays global-only.
    * @see https://antigravity.google/docs/cli/modes
    */
-  agentMode: z.optional(z.enum(["default", "accept-edits", "plan"])),
+  agentMode: z.optional(z.enum(ANTIGRAVITY_CLI_AGENT_MODES)),
 });
 export type AntigravityCliPermissionsOverride = z.infer<
   typeof AntigravityCliPermissionsOverrideSchema

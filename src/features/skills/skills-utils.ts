@@ -37,6 +37,11 @@ export async function getLocalSkillDirNames(outputRoot: string): Promise<Set<str
  * default with a per-target value. A defined section value (including `false`)
  * always wins over the root default.
  *
+ * `devin` also consumes the root-level value — it maps `true` onto a user-only
+ * `triggers` list (see `devin-skill.ts`) — but has no section key of the same
+ * name, so it does not go through this helper. A `devin.triggers` section value
+ * still overrides it.
+ *
  * @returns The resolved boolean, or `undefined` when neither value is set.
  */
 export function resolveDisableModelInvocation({
@@ -57,6 +62,11 @@ export function resolveDisableModelInvocation({
  * copilotcli, cursor, qwencode, vibe, grokcli, factorydroid). Each tool's own section may override that default with a
  * per-target value. A defined section value (including `false`) always wins
  * over the root default.
+ *
+ * `devin` also consumes the root-level value — it maps `false` onto a
+ * model-only `triggers` list (see `devin-skill.ts`) — but has no section key of
+ * the same name, so it does not go through this helper. A `devin.triggers`
+ * section value still overrides it.
  *
  * @returns The resolved boolean, or `undefined` when neither value is set.
  */

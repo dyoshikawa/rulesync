@@ -87,7 +87,11 @@ const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType =>
  * `tools` is dropped with a warning. rulesync owns the generated allowlist, and
  * the `tools` value most likely present is the upstream default `["*"]` — left
  * to win, it would silently discard a real allowlist in favour of "expose every
- * tool", which is the failure this mapping exists to prevent.
+ * tool", which is the failure this mapping exists to prevent. That is the
+ * "canonical wins" branch of the collision rule documented on `enabledTools` in
+ * `src/types/mcp.ts`; `kiro-mcp.ts` merges instead (its native names are
+ * redundant spellings of additive lists) and `codexcli-mcp.ts` refuses instead
+ * (Codex's same-named key means a different thing).
  *
  * `disabledTools` has no counterpart upstream (expressing it would need the
  * server's full tool list), so the target keeps `supportsDisabledTools: false`
