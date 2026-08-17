@@ -78,6 +78,44 @@ const resolveCopilotcliServerType = (server: McpServer): CopilotcliServerType =>
 };
 
 /**
+ * Copilot CLI's per-server tool allowlist. `tools` selects which of the
+ * server's tools are exposed — `["*"]` (the default) for all, or a list of
+ * names — so the canonical `enabledTools` is written under that name rather
+ * than passed through as a key the CLI ignores.
+ *
+ * When a server carries both, the native `tools` wins and `enabledTools` is
+ * dropped with a warning: `tools` is already the exact upstream spelling, so
+ * overwriting it would discard the more specific of the two.
+ *
+ * `disabledTools` has no counterpart upstream (expressing it would need the
+ * server's full tool list), so the target keeps `supportsDisabledTools: false`
+ * and the processor strips it before it reaches here.
+ *
+ * @see https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers
+ */
+function renameEnabledToolsToTools({
+  server,
+  serverName,
+  logger,
+}: {
+  server: McpServer;
+  serverName: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const { enabledTools, ...rest } = server;
+  if (enabledTools === undefined) {
+    return rest;
+  }
+  if (rest.tools !== undefined) {
+    logger?.warn(
+      `[CopilotcliMcp] MCP server "${serverName}" declares both 'tools' and 'enabledTools'; keeping 'tools' and dropping 'enabledTools'.`,
+    );
+    return rest;
+  }
+  return { ...rest, tools: enabledTools };
+}
+
+/**
  * Resolves and sets the transport type for each MCP server config.
  * GitHub Copilot CLI requires the "type" field for each server. A server it
  * cannot express — one that names no transport, or names one it carries no way
@@ -132,7 +170,11 @@ function addTypeField(mcpServers: McpServers, logger?: Logger): CopilotcliMcpCon
       // `httpUrl` is a canonical-only alias; Copilot CLI reads `url`, so the
       // resolved value is written there and the alias does not go out.
       const { httpUrl: _httpUrl, ...rest } = parsed;
-      result[name] = { ...rest, type, url };
+      result[name] = {
+        ...renameEnabledToolsToTools({ server: rest, serverName: name, logger }),
+        type,
+        url,
+      };
       continue;
     }
 
@@ -152,7 +194,7 @@ function addTypeField(mcpServers: McpServers, logger?: Logger): CopilotcliMcpCon
     }
 
     result[name] = {
-      ...local,
+      ...renameEnabledToolsToTools({ server: local, serverName: name, logger }),
       type,
       command: head,
       ...(tail.length > 0 && { args: tail }),
@@ -169,12 +211,20 @@ function removeTypeField(config: CopilotcliMcpConfig): McpServers {
   const result: McpServers = {};
 
   for (const [name, server] of Object.entries(config.mcpServers ?? {})) {
-    if (server.type !== "stdio") {
-      result[name] = server;
+    // `tools` is Copilot CLI's spelling of the canonical `enabledTools`; it is
+    // read back so a hand-written allowlist survives an import round-trip.
+    const { tools, ...withoutTools } = server;
+    const restored = {
+      ...withoutTools,
+      ...(tools !== undefined && { enabledTools: tools }),
+    } as McpServers[string];
+
+    if (restored.type !== "stdio") {
+      result[name] = restored;
       continue;
     }
 
-    const { type: _, ...rest } = server;
+    const { type: _, ...rest } = restored;
     result[name] = rest;
   }
 

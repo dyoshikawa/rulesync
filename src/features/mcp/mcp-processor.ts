@@ -265,7 +265,9 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: true,
-        supportsEnabledTools: false,
+        // Emitted as the documented per-server `tools` allowlist. There is no
+        // `disabledTools` counterpart upstream.
+        supportsEnabledTools: true,
         supportsDisabledTools: false,
       },
     },
