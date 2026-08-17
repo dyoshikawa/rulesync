@@ -26,6 +26,15 @@ export const MUSECODE_SKILLS_DIR_PATH = join(".agents", "skills");
 export const MUSECODE_GLOBAL_CONFIG_DIR_PATH = join(".config", "muse");
 export const MUSECODE_GLOBAL_SKILLS_DIR_PATH = join(MUSECODE_GLOBAL_CONFIG_DIR_PATH, "skills");
 
+// Deliberately NOT emitted: committed project memory at `<repo>/.agents/memory/`
+// (an `MEMORY.md` index plus one Markdown file per topic). It is agent-maintained
+// durable memory rather than an author-written instruction file, and rulesync has
+// no canonical memory dimension to map onto, so it stays out of scope. If it is
+// ever brought in scope, note that Muse Code injects `MEMORY.md` even in an
+// untrusted workspace — unlike rules, skills and hooks — so anything written there
+// reaches the model context before any trust decision.
+// https://dev.meta.ai/docs/muse-code/configuration.md
+
 // User settings file. Holds the `mcp_servers` block (Muse Code documents no
 // project-scoped MCP location) and MUST carry `"schema_version": 1` — a
 // settings.json without that key fails every command at startup with
