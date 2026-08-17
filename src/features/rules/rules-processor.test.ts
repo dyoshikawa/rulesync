@@ -2154,6 +2154,20 @@ Content that would fail parsing`;
       expect((localRule as RulesyncRule).getFrontmatter().localRoot).toBe(true);
     });
 
+    it("should import AGENTS.local.md as a localRoot rulesync rule for zoocode (issue #2596)", async () => {
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "AGENTS.local.md"), "# Personal zoocode rules");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "zoocode" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const localRule = findLocalRule(rulesyncFiles, "AGENTS.local.md");
+      expect(localRule).toBeInstanceOf(RulesyncRule);
+      expect((localRule as RulesyncRule).getFrontmatter().localRoot).toBe(true);
+    });
+
     it("should import .claude/CLAUDE.local.md from the alternative root directory", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Root");
@@ -2543,6 +2557,42 @@ targets: ["*"]
       const rootRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.md");
       expect(rootRule?.getFileContent()).not.toContain("# Local overrides");
     });
+
+    it.each(["roo", "zoocode"] as const)(
+      "should generate the same AGENTS.local.md for %s (issue #2596)",
+      async (toolTarget) => {
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget });
+
+        const rulesyncRules = [
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "root.md",
+            frontmatter: { root: true, targets: ["*"] },
+            body: "# Root",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "local.md",
+            frontmatter: { localRoot: true, targets: ["*"] },
+            body: "# Local overrides",
+          }),
+        ];
+
+        const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+        // `ZoocodeRule extends RooRule`, so the local-root dispatch must be
+        // subclass-aware; a strict class-identity check silently produced no
+        // AGENTS.local.md for zoocode while the target declared support for it.
+        const localRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.local.md");
+        expect(localRule).toBeDefined();
+        expect(localRule?.getFileContent()).toBe("# Local overrides");
+        expect(
+          result.find((r) => r.getRelativeFilePath() === "AGENTS.md")?.getFileContent(),
+        ).not.toContain("# Local overrides");
+      },
+    );
 
     it("should append localRoot content to root file for other tools", async () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "copilot" });
