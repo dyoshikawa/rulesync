@@ -580,7 +580,7 @@ export type AmpPermissionsOverride = z.infer<typeof AmpPermissionsOverrideSchema
 
 /**
  * Tool-scoped override block for the Google Antigravity CLI. Antigravity's CLI
- * `settings.json` carries four global autonomy/sandbox knobs outside the
+ * `settings.json` carries five global autonomy/sandbox knobs outside the
  * `permissions.allow/ask/deny` arrays rulesync manages: `toolPermission` (the
  * global autonomy preset — `request-review` (default) / `proceed-in-sandbox` /
  * `always-proceed` / `strict`), `enableTerminalSandbox` (a boolean confining
@@ -588,7 +588,8 @@ export type AmpPermissionsOverride = z.infer<typeof AmpPermissionsOverrideSchema
  * agent's artifact changes are gated on a review prompt — `asks-for-review`
  * (default) / `agent-decides` / `always-proceed`) and `allowNonWorkspaceAccess`
  * (a boolean, off by default, letting the agent read or write files outside the
- * active workspace roots). Antigravity applies the allow/deny
+ * active workspace roots) and `agentMode` (the baseline execution mode a session
+ * starts in — `default` / `accept-edits` / `plan`). Antigravity applies the allow/deny
  * lists as per-rule exceptions to the preset at runtime, so rulesync only
  * authors these keys verbatim — no precedence modeling is needed on our side.
  * Fields placed here are merged onto the top level of
@@ -596,8 +597,9 @@ export type AmpPermissionsOverride = z.infer<typeof AmpPermissionsOverrideSchema
  * the CLI. The Antigravity IDE exposes the same concepts through a GUI (no
  * documented JSON schema), so this override does NOT apply to `antigravity-ide`.
  * Verified against https://antigravity.google/docs/cli/reference,
- * https://antigravity.google/docs/cli/sandbox and
- * https://antigravity.google/docs/cli/settings.
+ * https://antigravity.google/docs/cli/sandbox,
+ * https://antigravity.google/docs/cli/settings and
+ * https://antigravity.google/docs/cli/modes.
  *
  * @example
  * { "toolPermission": "strict", "enableTerminalSandbox": true }
@@ -612,6 +614,14 @@ const AntigravityCliPermissionsOverrideSchema = z.looseObject({
   // @see https://antigravity.google/docs/cli/settings
   artifactReviewPolicy: z.optional(z.enum(["asks-for-review", "agent-decides", "always-proceed"])),
   allowNonWorkspaceAccess: z.optional(z.boolean()),
+  /**
+   * The baseline execution mode the CLI starts a session in (Agent Mode), the
+   * persisted form of the `/settings` panel's Agent Mode row. Only
+   * `~/.gemini/antigravity-cli/settings.json` is read for it, which is why this
+   * override stays global-only.
+   * @see https://antigravity.google/docs/cli/modes
+   */
+  agentMode: z.optional(z.enum(["default", "accept-edits", "plan"])),
 });
 export type AntigravityCliPermissionsOverride = z.infer<
   typeof AntigravityCliPermissionsOverrideSchema
