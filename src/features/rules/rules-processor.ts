@@ -209,6 +209,19 @@ type McpInstructionsRegistrar = {
   }): Promise<ToolFile | null>;
 };
 
+/**
+ * Whether `candidate` is `base` itself or a class that extends it.
+ *
+ * Class-identity dispatch (`factory.class === Base`) is subclass-blind: a target
+ * whose adapter merely narrows another one — `ZoocodeRule extends RooRule` — fails
+ * a strict `===` and silently falls through. That is how `zoocode` ended up
+ * declaring `localRootMode: "separate-local-file"` while never emitting
+ * `AGENTS.local.md`, in both directions and without a warning.
+ */
+function isClassOrSubclassOf({ candidate, base }: { candidate: object; base: object }): boolean {
+  return candidate === base || Object.prototype.isPrototypeOf.call(base, candidate);
+}
+
 type LocalRootMode = "separate-local-file" | "append-to-root";
 type RuleCollisionPolicy = "compose" | "fold" | "preserve";
 type RuleConversion = {
@@ -1391,7 +1404,7 @@ export class RulesProcessor extends FeatureProcessor {
     /** True when importing an existing local file back to a rulesync rule. */
     localRoot?: boolean;
   }): ToolRule | null {
-    if (factory.class === ClaudecodeRule) {
+    if (isClassOrSubclassOf({ candidate: factory.class, base: ClaudecodeRule })) {
       const paths = ClaudecodeRule.getSettablePaths({ global: this.global });
       return new ClaudecodeRule({
         outputRoot: this.outputRoot,
@@ -1404,7 +1417,7 @@ export class RulesProcessor extends FeatureProcessor {
         localRoot,
       });
     }
-    if (factory.class === ClaudecodeLegacyRule) {
+    if (isClassOrSubclassOf({ candidate: factory.class, base: ClaudecodeLegacyRule })) {
       const paths = ClaudecodeLegacyRule.getSettablePaths({ global: this.global });
       return new ClaudecodeLegacyRule({
         outputRoot: this.outputRoot,
@@ -1416,7 +1429,7 @@ export class RulesProcessor extends FeatureProcessor {
         localRoot,
       });
     }
-    if (factory.class === RovodevRule) {
+    if (isClassOrSubclassOf({ candidate: factory.class, base: RovodevRule })) {
       return new RovodevRule({
         outputRoot: this.outputRoot,
         relativeDirPath: relativeDirPath ?? ".",
@@ -1427,7 +1440,7 @@ export class RulesProcessor extends FeatureProcessor {
         localRoot,
       });
     }
-    if (factory.class === RooRule) {
+    if (isClassOrSubclassOf({ candidate: factory.class, base: RooRule })) {
       return new RooRule({
         outputRoot: this.outputRoot,
         relativeDirPath: relativeDirPath ?? ".",
@@ -1438,7 +1451,7 @@ export class RulesProcessor extends FeatureProcessor {
         localRoot,
       });
     }
-    if (factory.class === QwencodeRule) {
+    if (isClassOrSubclassOf({ candidate: factory.class, base: QwencodeRule })) {
       // Qwen Code reads the personal local context file from `.qwen/`, not the
       // project root (project scope only; global handling never reaches here).
       return new QwencodeRule({
