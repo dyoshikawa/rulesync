@@ -274,6 +274,64 @@ describe("HermesagentHooks", () => {
       expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("failClosed"));
     });
 
+    it("does not warn about the events VALID_HOOKS gained in v0.20.1/v0.20.2 (issue #2414)", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockClear();
+      // The 14 names `VALID_HOOKS` grew by between v2026.8.3 (23) and
+      // v2026.8.16 (37); each used to be reported as undocumented.
+      const addedEvents = [
+        "pre_transcription",
+        "on_stream_start",
+        "on_stream_delta",
+        "on_stream_end",
+        "on_interim_message",
+        "on_skill_lifecycle",
+        "gateway_platform_event",
+        "pre_command",
+        "transform_api_error_classification",
+        "on_kanban_worker_spawned",
+        "on_kanban_worker_exited",
+        "on_kanban_worker_stale_claim",
+        "on_kanban_task_updated",
+        "on_kanban_dispatch_tick",
+      ];
+      const rulesyncHooks = rulesyncHooksFrom({
+        version: 1,
+        hooks: {},
+        hermesagent: {
+          hooks: Object.fromEntries(
+            addedEvents.map((event) => [event, [{ command: `${event}.sh` }]]),
+          ),
+        },
+      });
+
+      const hooks = await HermesagentHooks.fromRulesyncHooks({
+        outputRoot: ".",
+        rulesyncHooks,
+        logger,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: hooks.getFileContent() });
+      expect(Object.keys(config.hooks as Record<string, unknown>).toSorted()).toEqual(
+        addedEvents.toSorted(),
+      );
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("is not documented"));
+    });
+
+    it("still warns about an event outside VALID_HOOKS", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockClear();
+      const rulesyncHooks = rulesyncHooksFrom({
+        version: 1,
+        hooks: {},
+        hermesagent: { hooks: { on_future_event: [{ command: "future.sh" }] } },
+      });
+
+      await HermesagentHooks.fromRulesyncHooks({ outputRoot: ".", rulesyncHooks, logger });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"on_future_event" is not documented by Hermes Agent v0.20.2'),
+      );
+    });
+
     it("merges the hermesagent override block on top of shared hooks", async () => {
       const rulesyncHooks = rulesyncHooksFrom({
         version: 1,

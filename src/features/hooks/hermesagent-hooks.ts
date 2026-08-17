@@ -233,7 +233,7 @@ function canonicalToHermesHooks({
     }
     if (!HERMESAGENT_NATIVE_EVENTS.has(nativeEvent)) {
       logger?.warn(
-        `Hermes hook event "${nativeEvent}" is not documented by Hermes Agent v0.20.0; preserving it for forward compatibility.`,
+        `Hermes hook event "${nativeEvent}" is not documented by Hermes Agent v0.20.2; preserving it for forward compatibility.`,
       );
     }
     setHermesHookEntries({ result, event: nativeEvent, definitions, logger });
