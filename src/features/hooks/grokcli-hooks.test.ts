@@ -156,6 +156,35 @@ describe("GrokcliHooks", () => {
       expect(json.hooks.stopFailure?.[0]?.matcher).toBe("rate_limit");
     });
 
+    it("should map stopCancelled onto StopCancelled and keep its reason matcher (issue #2498)", async () => {
+      const logger = createMockLogger();
+      const config = {
+        version: 1,
+        hooks: {
+          stopCancelled: [{ matcher: "user_interrupt", command: "./scripts/cancelled.sh" }],
+        },
+      };
+
+      const grokHooks = await GrokcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: makeRulesyncHooks(config),
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(grokHooks.getFileContent());
+      expect(parsed.hooks.StopCancelled[0].command).toBeUndefined();
+      expect(parsed.hooks.StopCancelled[0].hooks[0].command).toBe("./scripts/cancelled.sh");
+      // Upstream tests the cancellation reason on this event, so unlike `Stop`
+      // the matcher must survive rather than be dropped with a warning.
+      expect(parsed.hooks.StopCancelled[0].matcher).toBe("user_interrupt");
+      expect(logger.warn).not.toHaveBeenCalled();
+
+      const json = grokHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.stopCancelled?.[0]?.matcher).toBe("user_interrupt");
+      expect(json.hooks.stopCancelled?.[0]?.command).toBe("./scripts/cancelled.sh");
+    });
+
     it("should drop canonical events without a Grok equivalent", async () => {
       const config = {
         version: 1,

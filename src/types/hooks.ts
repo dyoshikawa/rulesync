@@ -193,6 +193,7 @@ export const HOOK_EVENTS = [
   "todoCreated",
   "todoCompleted",
   "stopFailure",
+  "stopCancelled",
   "instructionsLoaded",
   "userPromptExpansion",
   "postToolBatch",
@@ -812,6 +813,11 @@ export const GROKCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "permissionDenied",
   "stop",
   "stopFailure",
+  // Runs instead of `stop` when a turn ends without completing (user interrupt,
+  // `max_turns`, no-progress bail-out, declined permission prompt), so a `stop`
+  // hook alone no longer covers interrupted turns. Observe-only, and
+  // matcher-capable (the matcher tests `reason`).
+  "stopCancelled",
   "notification",
   "subagentStart",
   "subagentStop",
@@ -1707,6 +1713,7 @@ export const CANONICAL_TO_GROKCLI_EVENT_NAMES: Record<string, string> = {
   permissionDenied: "PermissionDenied",
   stop: "Stop",
   stopFailure: "StopFailure",
+  stopCancelled: "StopCancelled",
   notification: "Notification",
   subagentStart: "SubagentStart",
   subagentStop: "SubagentStop",
