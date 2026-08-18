@@ -669,6 +669,48 @@ const defaultGetFactory: GetFactory = (target) => {
   return factory;
 };
 
+/**
+ * Warn about per-server tool filters the target tool cannot express.
+ *
+ * `enabledTools`/`disabledTools` are canonical fields, so a single
+ * `.rulesync/.mcp.json` can carry a filter that only some targets read. The
+ * unsupported ones are stripped before generation (writing them would produce a
+ * key the tool discards on load), which used to happen silently — the filter
+ * simply did not apply and nothing said so. Warning names the servers whose
+ * filter is being dropped for this target so the gap is visible at generate
+ * time rather than in the tool's behavior.
+ *
+ * Only fields actually present are reported, so a config that never authored
+ * the filter stays quiet.
+ */
+function warnStrippedMcpServerFields({
+  mcpServers,
+  fields,
+  toolTarget,
+  logger,
+}: {
+  // The parsed `mcpServers` block. Typed optional because this reads the raw
+  // parsed JSON: a file that omits the block entirely (or was constructed with
+  // `validate: false`) has no map to inspect, and that is not a reason to fail
+  // a generate.
+  mcpServers: Record<string, Record<string, unknown>> | undefined;
+  fields: string[];
+  toolTarget: ToolTarget;
+  logger: Logger;
+}): void {
+  for (const field of fields) {
+    const serverNames = Object.entries(mcpServers ?? {})
+      .filter(([, serverConfig]) => serverConfig[field] !== undefined)
+      .map(([serverName]) => serverName);
+    if (serverNames.length === 0) {
+      continue;
+    }
+    logger.warn(
+      `${toolTarget} does not read the per-server \`${field}\` MCP tool filter; dropping it from ${serverNames.join(", ")}.`,
+    );
+  }
+}
+
 export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
   private readonly global: boolean;
@@ -791,6 +833,12 @@ export class McpProcessor extends FeatureProcessor {
         const fieldsToStrip: string[] = [];
         if (!factory.meta.supportsEnabledTools) fieldsToStrip.push("enabledTools");
         if (!factory.meta.supportsDisabledTools) fieldsToStrip.push("disabledTools");
+        warnStrippedMcpServerFields({
+          mcpServers: targetedRulesyncMcp.getJson().mcpServers,
+          fields: fieldsToStrip,
+          toolTarget: this.toolTarget,
+          logger: this.logger,
+        });
         const filteredRulesyncMcp = targetedRulesyncMcp.stripMcpServerFields(fieldsToStrip);
 
         return await factory.class.fromRulesyncMcp({
