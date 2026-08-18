@@ -289,6 +289,7 @@ export const permissionsProcessorToolTargetTuple = [
   "vibe",
   "warp",
   "zed",
+  "zoocode",
 ] as const;
 
 export const checksProcessorToolTargetTuple = [

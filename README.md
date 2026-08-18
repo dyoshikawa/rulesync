@@ -105,7 +105,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Kilo Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kimi Code                 |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Roo Code ⚠️               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
-| Zoo Code                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
+| Zoo Code                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |        |
 | Rovodev (Atlassian)       |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
 | Takt                      |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
 | Vibe Code                 |  ✅   |   ✅   | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |

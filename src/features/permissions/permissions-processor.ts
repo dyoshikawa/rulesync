@@ -44,6 +44,7 @@ import { ToolPermissions } from "./tool-permissions.js";
 import { VibePermissions } from "./vibe-permissions.js";
 import { WarpPermissions } from "./warp-permissions.js";
 import { ZedPermissions } from "./zed-permissions.js";
+import { ZoocodePermissions } from "./zoocode-permissions.js";
 
 export type PermissionsProcessorToolTarget = (typeof permissionsProcessorToolTargetTuple)[number];
 
@@ -456,6 +457,23 @@ export const toolPermissionsFactories = new Map<
         // `~/.config/zed/settings.json` (global).
         supportsProject: true,
         supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "zoocode",
+    {
+      class: ZoocodePermissions,
+      meta: {
+        // Zoo Code is a VS Code extension: its committable command allow/deny
+        // lists are the `zoo-code.allowedCommands` / `zoo-code.deniedCommands`
+        // workspace settings in `.vscode/settings.json`, not a file in the
+        // `.roo/` tree. VS Code's user-scope settings.json is at a
+        // platform-dependent path outside rulesync's home-relative global
+        // model, so only project scope is supported.
+        supportsProject: true,
+        supportsGlobal: false,
         supportsImport: true,
       },
     },
