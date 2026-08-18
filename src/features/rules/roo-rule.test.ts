@@ -658,6 +658,36 @@ describe("RooRule", () => {
       expect(rooRule.toRulesyncRule().getFrontmatter().roo).toEqual({ mode: "architect" });
     });
 
+    it("converges on repeated import/generate cycles instead of growing the name", () => {
+      const first = new RooRule({
+        outputRoot: testDir,
+        relativeDirPath: join(".roo", "rules-architect"),
+        relativeFilePath: "review.md",
+        fileContent: "# Architect rule",
+        root: false,
+      }).toRulesyncRule();
+
+      const regenerated = RooRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule: first });
+      const second = regenerated.toRulesyncRule();
+
+      expect(first.getRelativeFilePath()).toBe("review-architect.md");
+      expect(second.getRelativeFilePath()).toBe("review-architect.md");
+    });
+
+    it("scopes an imported mode rule to the importing target", () => {
+      const imported = new RooRule({
+        outputRoot: testDir,
+        relativeDirPath: join(".roo", "rules-architect"),
+        relativeFilePath: "review.md",
+        fileContent: "# Architect rule",
+        root: false,
+      }).toRulesyncRule();
+
+      // A wildcard would make every other target emit this mode-scoped rule as
+      // an always-on rule on the next generate.
+      expect(imported.getFrontmatter().targets).toEqual(["roo"]);
+    });
+
     it("enumerates mode directories for import only", () => {
       const patterns = RooRule.getNestedFilePatterns({ outputRoot: testDir });
       expect(patterns.include).toEqual([`${toPosixPath(testDir)}/.roo/rules-*/**/*.md`]);

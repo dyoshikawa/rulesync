@@ -2,6 +2,7 @@ import { dirname, join } from "node:path";
 
 import { ROO_DIR, ROO_MODE_SLUG_PATTERN, rooModeRulesDirName } from "../../constants/roo-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -164,15 +165,22 @@ export class RooRule extends ToolRule {
 
     // Mode-scoped rules import under a mode-suffixed name: `.roo/rules/x.md`
     // and `.roo/rules-code/x.md` are different rules that would otherwise
-    // collide on one `.rulesync/rules/x.md`.
+    // collide on one `.rulesync/rules/x.md`. An already-suffixed name (the file
+    // a previous import produced) is left alone, so repeated
+    // generate/import cycles converge instead of growing the name each round.
     const baseName = this.getRelativeFilePath().replace(/\.md$/, "");
+    const suffix = `-${mode}`;
+    const importedName = baseName.endsWith(suffix) ? baseName : `${baseName}${suffix}`;
     return new RulesyncRule({
       outputRoot: this.getOutputRoot(),
       relativeDirPath: RulesyncRule.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath: `${baseName}-${mode}.md`,
+      relativeFilePath: `${importedName}.md`,
       frontmatter: {
         root: false,
-        targets: ["*"],
+        // Scoped to the importing target rather than `"*"`: a mode-scoped rule
+        // is written for one mode of one tool, and a wildcard would make every
+        // other target emit it as an always-on rule on the next generate.
+        targets: [(this.constructor as typeof RooRule).getToolTargetName()],
         description: this.description,
         globs: this.globs ?? [],
         roo: { mode },
@@ -218,8 +226,17 @@ export class RooRule extends ToolRule {
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
     return this.isTargetedByRulesyncRuleDefault({
       rulesyncRule,
-      toolTarget: "roo",
+      toolTarget: this.getToolTargetName(),
     });
+  }
+
+  /**
+   * The tool target this class imports as. `ZoocodeRule` narrows the same
+   * `.roo/` adapters to the `zoocode` target, so the name has to come from the
+   * class rather than a literal.
+   */
+  protected static getToolTargetName(): ToolTarget {
+    return "roo";
   }
 
   /**
