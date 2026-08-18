@@ -479,7 +479,14 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // dotted `chat.tools.*.autoApprove` keys (VS Code stores dotted setting keys
   // flat at the top level); every unrelated editor setting is preserved by the
   // shallow merge. The Copilot MCP feature writes a SEPARATE file
-  // (`.vscode/mcp.json`, declared just below), so this file has a single writer.
+  // (`.vscode/mcp.json`, declared just below).
+  //
+  // Two targets reach this file through the same `permissions` feature —
+  // `copilot` (the `chat.tools.*` keys) and `zoocode` (the `zoo-code.*` command
+  // lists) — so `ownedKeys` is their union. They stay independent because a
+  // patch only ever names the keys its own adapter builds: generating for one
+  // target never mentions the other's keys, and a key is dropped only when its
+  // own adapter explicitly retracts it (patch value `undefined`).
   ".vscode/settings.json": {
     format: "jsonc",
     // A general-purpose user file we promise to preserve untouched apart from
@@ -495,6 +502,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
           "chat.tools.terminal.autoApprove",
           "chat.tools.edits.autoApprove",
           "chat.tools.urls.autoApprove",
+          "zoo-code.allowedCommands",
+          "zoo-code.deniedCommands",
         ],
       },
     },

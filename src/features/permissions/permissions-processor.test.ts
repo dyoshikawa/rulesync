@@ -102,6 +102,7 @@ describe("PermissionsProcessor", () => {
         "takt",
         "vibe",
         "zed",
+        "zoocode",
       ]);
     });
 
@@ -162,6 +163,7 @@ describe("PermissionsProcessor", () => {
         "takt",
         "vibe",
         "zed",
+        "zoocode",
       ]);
     });
   });
