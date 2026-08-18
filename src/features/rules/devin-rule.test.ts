@@ -112,10 +112,19 @@ This is a test rule.`);
     it("should return global root path under .config/devin/AGENTS.md", () => {
       const paths = DevinRule.getSettablePaths({ global: true });
 
-      expect("nonRoot" in paths).toBe(false);
       const root = (paths as { root: { relativeDirPath: string; relativeFilePath: string } }).root;
       expect(root.relativeDirPath).toBe(join(".config", "devin"));
       expect(root.relativeFilePath).toBe("AGENTS.md");
+    });
+
+    it("should return the home .devin/rules directory for global non-root rules (issue #2688)", () => {
+      const paths = DevinRule.getSettablePaths({ global: true });
+
+      // Documented as `~/.devin/rules/*.md` — deliberately NOT under the
+      // `~/.config/devin/` tree the global root and every other Devin global
+      // surface uses.
+      const nonRoot = (paths as { nonRoot?: { relativeDirPath: string } }).nonRoot;
+      expect(nonRoot?.relativeDirPath).toBe(join(".devin", "rules"));
     });
 
     it("should exclude the tool dir for project scope when requested", () => {
@@ -198,6 +207,54 @@ This is a test rule.`);
       expect(devinRule.getRelativeFilePath()).toBe("AGENTS.md");
       expect(devinRule.getBody().trim()).toBe(content);
       expect(devinRule.getFileContent()).not.toContain("trigger:");
+    });
+
+    it("should parse a global non-root rule from ~/.devin/rules (issue #2688)", async () => {
+      const rulesDir = join(testDir, ".devin", "rules");
+      await ensureDir(rulesDir);
+      await writeFileContent(
+        join(rulesDir, "typescript.md"),
+        "---\ntrigger: glob\nglobs: src/**/*.ts\n---\n# TS\n",
+      );
+
+      const devinRule = await DevinRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".devin", "rules"),
+        relativeFilePath: "typescript.md",
+        global: true,
+      });
+
+      // Global non-root rules keep their activation frontmatter; only the
+      // always-on root file is plain markdown.
+      expect(devinRule.isRoot()).toBe(false);
+      expect(devinRule.getRelativeDirPath()).toBe(join(".devin", "rules"));
+      expect(devinRule.getFrontmatter()).toMatchObject({
+        trigger: "glob",
+        globs: "src/**/*.ts",
+      });
+      expect(devinRule.getBody().trim()).toBe("# TS");
+    });
+
+    it("should not misread a rule named AGENTS.md inside the rules directory as the root file", async () => {
+      const rulesDir = join(testDir, ".devin", "rules");
+      await ensureDir(rulesDir);
+      await writeFileContent(
+        join(rulesDir, "AGENTS.md"),
+        "---\ntrigger: manual\n---\n# Not the root\n",
+      );
+
+      const devinRule = await DevinRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".devin", "rules"),
+        relativeFilePath: "AGENTS.md",
+        global: true,
+      });
+
+      // Dispatch is on the directory, not the file name — otherwise this would
+      // read `~/.config/devin/AGENTS.md` (and throw, since it does not exist).
+      expect(devinRule.isRoot()).toBe(false);
+      expect(devinRule.getRelativeDirPath()).toBe(join(".devin", "rules"));
+      expect(devinRule.getFrontmatter()).toMatchObject({ trigger: "manual" });
     });
 
     it("should throw when the file does not exist", async () => {
@@ -390,7 +447,7 @@ This is a test rule.`);
       expect(devinRule.getFileContent()).not.toContain("trigger:");
     });
 
-    it("should emit the body without frontmatter even when globs are present", () => {
+    it("should emit a non-root rule into ~/.devin/rules with its trigger frontmatter (issue #2688)", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "non-root.md",
@@ -402,6 +459,31 @@ This is a test rule.`);
 
       const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule, global: true });
 
+      // Global non-root rules carry the same activation frontmatter as project
+      // ones; only the always-on root file is plain markdown.
+      expect(devinRule.getRelativeDirPath()).toBe(join(".devin", "rules"));
+      expect(devinRule.getRelativeFilePath()).toBe("non-root.md");
+      expect(devinRule.isRoot()).toBe(false);
+      expect(devinRule.getFileContent()).toContain("trigger: glob");
+      expect(devinRule.getFileContent()).toContain("globs: src/**/*.ts");
+      expect(devinRule.getFileContent()).toContain("# Global Body");
+    });
+
+    it("should keep the global root rule as plain markdown without frontmatter", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          globs: ["src/**/*.ts"],
+        },
+        body: "# Global Body",
+      });
+
+      const devinRule = DevinRule.fromRulesyncRule({ rulesyncRule, global: true });
+
+      expect(devinRule.getRelativeDirPath()).toBe(join(".config", "devin"));
       expect(devinRule.getFileContent().trim()).toBe("# Global Body");
       expect(devinRule.getFileContent()).not.toContain("trigger:");
       expect(devinRule.getFileContent()).not.toContain("globs:");
@@ -572,7 +654,7 @@ This is a test rule.`);
       expect(devinRule.isRoot()).toBe(false);
     });
 
-    it("should mark the instance as root for global deletion", () => {
+    it("should mark the instance as root for global root deletion", () => {
       const devinRule = DevinRule.forDeletion({
         outputRoot: testDir,
         relativeDirPath: join(".config", "devin"),
@@ -581,6 +663,19 @@ This is a test rule.`);
       });
 
       expect(devinRule.isRoot()).toBe(true);
+    });
+
+    it("should not mark a global non-root deletion as root (issue #2688)", () => {
+      const devinRule = DevinRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: join(".devin", "rules"),
+        relativeFilePath: "old.md",
+        global: true,
+      });
+
+      // `global` no longer implies the root file now that global scope has a
+      // non-root rules directory of its own.
+      expect(devinRule.isRoot()).toBe(false);
     });
   });
 

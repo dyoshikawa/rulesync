@@ -1247,6 +1247,58 @@ globs: ["src/**/*.ts"]
     expect(nonRootContent).toContain("src/**/*.ts");
   });
 
+  it("should generate devin non-root rules into ~/.devin/rules in global mode", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Root Rule Content
+`;
+    const nonRootRuleContent = `---
+targets: ["*"]
+description: "Global coding guidelines"
+globs: ["src/**/*.ts"]
+---
+
+# Global Non-Root Rule
+`;
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+      nonRootRuleContent,
+    );
+
+    await runGenerate({
+      target: "devin",
+      features: "rules",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Root rule -> plain ~/.config/devin/AGENTS.md (no frontmatter).
+    const rootContent = await readFileContent(join(homeDir, ".config", "devin", "AGENTS.md"));
+    expect(rootContent).toContain("Root Rule Content");
+    expect(rootContent).not.toContain("trigger:");
+
+    // Non-root rule -> ~/.devin/rules/*.md with its trigger frontmatter. Note
+    // the home `.devin/` directory, NOT the `.config/devin/` tree the root uses.
+    const nonRootContent = await readFileContent(
+      join(homeDir, ".devin", "rules", "coding-guidelines.md"),
+    );
+    expect(nonRootContent).toContain("Global Non-Root Rule");
+    expect(nonRootContent).toContain("trigger: glob");
+    expect(nonRootContent).toContain("src/**/*.ts");
+  });
+
   it("should generate cline non-root rules into ~/Documents/Cline/Rules in global mode", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

@@ -291,8 +291,13 @@ const STRATEGIES: TriggerStrategy[] = [
  *   file per rule under `.devin/rules/*.md` (Devin Desktop Cascade) with YAML
  *   frontmatter carrying a `trigger` (always_on | glob | manual | model_decision)
  *   plus companion `globs`/`description` fields.
- * - Global scope: a single plain-markdown, always-on file (no frontmatter) at
- *   `~/.config/devin/AGENTS.md` (Devin Local global always-on rules).
+ * - Global scope: mirrors the project layout. The root rule is a single
+ *   plain-markdown, always-on file (no frontmatter) at
+ *   `~/.config/devin/AGENTS.md`; non-root rules are one file per rule under
+ *   `~/.devin/rules/*.md` with the same `trigger`/`globs` frontmatter as project
+ *   scope. Note the directory split — the per-rule global directory is the home
+ *   `~/.devin/`, not the `~/.config/devin/` tree every other Devin global
+ *   surface uses. That is what the rules page documents.
  *
  * Trigger inference (when no explicit devin trigger is persisted):
  * - Specific globs (non wildcard) → glob
@@ -337,6 +342,21 @@ export class DevinRule extends ToolRule {
     };
   }
 
+  /**
+   * The always-on root rule file for a scope: the project-root `AGENTS.md`
+   * Devin CLI / Devin Local reads, or `~/.config/devin/AGENTS.md` in global
+   * scope. Single-sourced so `getSettablePaths`, `fromFile` and
+   * `fromRulesyncRule` cannot disagree about it.
+   */
+  private static getRootPath(
+    global: boolean,
+    excludeToolDir?: boolean,
+  ): { relativeDirPath: string; relativeFilePath: string } {
+    return global
+      ? DevinRule.getGlobalRootPath(excludeToolDir)
+      : { relativeDirPath: ".", relativeFilePath: "AGENTS.md" };
+  }
+
   static getSettablePaths({
     global = false,
     excludeToolDir,
@@ -346,7 +366,17 @@ export class DevinRule extends ToolRule {
   } = {}): DevinRuleSettablePaths | ToolRuleSettablePathsGlobal {
     if (global) {
       return {
-        root: DevinRule.getGlobalRootPath(excludeToolDir),
+        root: DevinRule.getRootPath(true, excludeToolDir),
+        // Per-rule global rules live in the home `~/.devin/rules/` directory,
+        // NOT under `~/.config/devin/` where every other Devin global surface
+        // sits (`AGENTS.md`, `config.json`, `mcp_config.json`, `agents/`,
+        // `skills/`). The rules page is explicit about the split: "You can also
+        // place them in your home directory (`~/.devin/rules/*.md`,
+        // `~/.devin/global_rules.md`) to apply them to every project."
+        // @see https://docs.devin.ai/cli/extensibility/rules
+        nonRoot: {
+          relativeDirPath: buildToolPath(DEVIN_DIR, "rules", excludeToolDir),
+        },
       };
     }
     return {
@@ -355,10 +385,7 @@ export class DevinRule extends ToolRule {
       // `.devin/rules/*.md` remains the Devin Desktop Cascade directory for
       // non-root rules with activation modes.
       // @see https://docs.devin.ai/cli/extensibility/rules
-      root: {
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
-      },
+      root: DevinRule.getRootPath(false, excludeToolDir),
       nonRoot: {
         relativeDirPath: buildToolPath(DEVIN_DIR, "rules", excludeToolDir),
       },
@@ -367,16 +394,29 @@ export class DevinRule extends ToolRule {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<DevinRule> {
-    if (global) {
-      const rootPath = DevinRule.getGlobalRootPath();
+    const nonRootDirPath = buildToolPath(DEVIN_DIR, "rules");
+    // Dispatch on the directory the processor resolved, not on the file name: a
+    // rule file legitimately named `AGENTS.md` inside the rules directory would
+    // otherwise be misread as the always-on root file. `relativeDirPath` is
+    // optional on the shared params type, so fall back to the file name when a
+    // caller omits it.
+    const isRootFile =
+      relativeDirPath !== undefined
+        ? relativeDirPath !== nonRootDirPath
+        : relativeFilePath === DevinRule.getRootPath(global).relativeFilePath;
+
+    if (isRootFile) {
+      const rootPath = DevinRule.getRootPath(global);
+      // Both the project and the global AGENTS.md are plain markdown without
+      // Devin frontmatter.
       const fileContent = await readFileContent(
         join(outputRoot, rootPath.relativeDirPath, rootPath.relativeFilePath),
       );
-      // The global AGENTS.md is plain markdown without Devin frontmatter.
       return new DevinRule({
         outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
@@ -388,21 +428,6 @@ export class DevinRule extends ToolRule {
       });
     }
 
-    if (relativeFilePath === "AGENTS.md") {
-      // The project-root AGENTS.md is plain markdown without Cascade frontmatter.
-      const fileContent = await readFileContent(join(outputRoot, relativeFilePath));
-      return new DevinRule({
-        outputRoot,
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
-        frontmatter: {},
-        body: fileContent,
-        validate,
-        root: true,
-      });
-    }
-
-    const nonRootDirPath = buildToolPath(DEVIN_DIR, "rules");
     const filePath = join(outputRoot, nonRootDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
@@ -436,29 +461,17 @@ export class DevinRule extends ToolRule {
     validate = true,
     global = false,
   }: ToolRuleFromRulesyncRuleParams): DevinRule {
-    if (global) {
-      // Global scope is a single plain ~/.config/devin/AGENTS.md root file.
-      const rootPath = DevinRule.getGlobalRootPath();
+    const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
+
+    if (rulesyncFrontmatter.root) {
+      // The root rule goes to the always-on AGENTS.md Devin reads as plain
+      // markdown without Cascade frontmatter — the project root in project
+      // scope, `~/.config/devin/AGENTS.md` in global scope.
+      const rootPath = DevinRule.getRootPath(global);
       return new DevinRule({
         outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
         relativeFilePath: rootPath.relativeFilePath,
-        frontmatter: {},
-        body: rulesyncRule.getBody(),
-        validate,
-        root: true,
-      });
-    }
-
-    const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
-
-    if (rulesyncFrontmatter.root) {
-      // The root rule goes to the project-root AGENTS.md Devin CLI / Devin
-      // Local actually reads, as plain markdown without Cascade frontmatter.
-      return new DevinRule({
-        outputRoot,
-        relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
         frontmatter: {},
         body: rulesyncRule.getBody(),
         validate,
@@ -477,8 +490,9 @@ export class DevinRule extends ToolRule {
 
     const frontmatter = strategy.generateFrontmatter(normalized, rulesyncFrontmatter);
 
-    // Non-root rules are placed in the .devin/rules directory (the root rule
-    // returned above went to the project-root AGENTS.md).
+    // Non-root rules are placed in the `.devin/rules` directory — the project
+    // one in project scope, the home `~/.devin/rules/` one in global scope (the
+    // root rule returned above went to the always-on AGENTS.md instead).
     const kebabCaseFilename = toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
 
     return new DevinRule({
@@ -553,7 +567,6 @@ export class DevinRule extends ToolRule {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
-    global = false,
   }: ToolRuleForDeletionParams): DevinRule {
     return new DevinRule({
       outputRoot,
@@ -562,7 +575,9 @@ export class DevinRule extends ToolRule {
       frontmatter: {},
       body: "",
       validate: false,
-      root: global,
+      // Derived from the directory rather than the scope: since global scope
+      // gained `~/.devin/rules/`, `global` no longer implies the root file.
+      root: relativeDirPath !== buildToolPath(DEVIN_DIR, "rules"),
     });
   }
 
