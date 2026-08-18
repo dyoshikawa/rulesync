@@ -874,8 +874,8 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         // The root rule goes to the project-root `AGENTS.md` (the file Devin
         // CLI/Local reads); non-root rules live under `.devin/rules/*.md`
-        // (Devin Desktop Cascade); global always-on rules
-        // are a single plain `~/.config/devin/AGENTS.md` file.
+        // (Devin Desktop Cascade). Global scope mirrors that: a plain
+        // `~/.config/devin/AGENTS.md` root plus per-rule `~/.devin/rules/*.md`.
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         // No additionalConventions.skills needed: Devin auto-discovers skills
