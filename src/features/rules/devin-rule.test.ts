@@ -209,6 +209,54 @@ This is a test rule.`);
       expect(devinRule.getFileContent()).not.toContain("trigger:");
     });
 
+    it("should parse a global non-root rule from ~/.devin/rules (issue #2688)", async () => {
+      const rulesDir = join(testDir, ".devin", "rules");
+      await ensureDir(rulesDir);
+      await writeFileContent(
+        join(rulesDir, "typescript.md"),
+        "---\ntrigger: glob\nglobs: src/**/*.ts\n---\n# TS\n",
+      );
+
+      const devinRule = await DevinRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".devin", "rules"),
+        relativeFilePath: "typescript.md",
+        global: true,
+      });
+
+      // Global non-root rules keep their activation frontmatter; only the
+      // always-on root file is plain markdown.
+      expect(devinRule.isRoot()).toBe(false);
+      expect(devinRule.getRelativeDirPath()).toBe(join(".devin", "rules"));
+      expect(devinRule.getFrontmatter()).toMatchObject({
+        trigger: "glob",
+        globs: "src/**/*.ts",
+      });
+      expect(devinRule.getBody().trim()).toBe("# TS");
+    });
+
+    it("should not misread a rule named AGENTS.md inside the rules directory as the root file", async () => {
+      const rulesDir = join(testDir, ".devin", "rules");
+      await ensureDir(rulesDir);
+      await writeFileContent(
+        join(rulesDir, "AGENTS.md"),
+        "---\ntrigger: manual\n---\n# Not the root\n",
+      );
+
+      const devinRule = await DevinRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".devin", "rules"),
+        relativeFilePath: "AGENTS.md",
+        global: true,
+      });
+
+      // Dispatch is on the directory, not the file name — otherwise this would
+      // read `~/.config/devin/AGENTS.md` (and throw, since it does not exist).
+      expect(devinRule.isRoot()).toBe(false);
+      expect(devinRule.getRelativeDirPath()).toBe(join(".devin", "rules"));
+      expect(devinRule.getFrontmatter()).toMatchObject({ trigger: "manual" });
+    });
+
     it("should throw when the file does not exist", async () => {
       await expect(
         DevinRule.fromFile({
@@ -606,7 +654,7 @@ This is a test rule.`);
       expect(devinRule.isRoot()).toBe(false);
     });
 
-    it("should mark the instance as root for global deletion", () => {
+    it("should mark the instance as root for global root deletion", () => {
       const devinRule = DevinRule.forDeletion({
         outputRoot: testDir,
         relativeDirPath: join(".config", "devin"),
@@ -615,6 +663,19 @@ This is a test rule.`);
       });
 
       expect(devinRule.isRoot()).toBe(true);
+    });
+
+    it("should not mark a global non-root deletion as root (issue #2688)", () => {
+      const devinRule = DevinRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: join(".devin", "rules"),
+        relativeFilePath: "old.md",
+        global: true,
+      });
+
+      // `global` no longer implies the root file now that global scope has a
+      // non-root rules directory of its own.
+      expect(devinRule.isRoot()).toBe(false);
     });
   });
 
