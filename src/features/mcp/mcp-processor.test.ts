@@ -119,6 +119,9 @@ describe("McpProcessor", () => {
     // (no-op for mocked tests)
     (RulesyncMcp.prototype as any).stripMcpServerFields = vi.fn().mockReturnThis();
     (RulesyncMcp.prototype as any).forTarget = vi.fn().mockReturnThis();
+    // The class is auto-mocked, so `fileContent` is never parsed here: tests
+    // that care about the server map override this per case.
+    (RulesyncMcp.prototype as any).getJson = vi.fn().mockReturnValue({ mcpServers: {} });
   });
 
   afterEach(async () => {
@@ -1074,6 +1077,66 @@ describe("McpProcessor", () => {
         expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith(["enabledTools"]);
       },
     );
+
+    it("should warn which servers lose a tool filter the target does not read", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+      vi.mocked(rulesyncMcp.getJson).mockReturnValue({
+        mcpServers: {
+          filtered: { command: "server", enabledTools: ["read"] },
+          denied: { command: "server", disabledTools: ["write"] },
+          plain: { command: "server" },
+        },
+      } as any);
+
+      vi.spyOn(RooMcp, "fromRulesyncMcp").mockReturnValue({} as RooMcp);
+
+      const logger = createMockLogger();
+      const processor = new McpProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "zoocode",
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      // Zoo Code reads `disabledTools` but has no allowlist key, so only the
+      // `enabledTools` server is reported and the untouched ones stay quiet.
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "zoocode does not read the per-server `enabledTools` MCP tool filter; dropping it from filtered.",
+      );
+    });
+
+    it("should not warn when no server authored a dropped tool filter", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+      vi.mocked(rulesyncMcp.getJson).mockReturnValue({
+        mcpServers: { plain: { command: "server" } },
+      } as any);
+
+      vi.spyOn(RooMcp, "fromRulesyncMcp").mockReturnValue({} as RooMcp);
+
+      const logger = createMockLogger();
+      const processor = new McpProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "zoocode",
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("should preserve disabledTools but strip enabledTools for Factory Droid", async () => {
       // Droid documents a per-server `disabledTools` exclusion list and no
       // allowlist, so only `enabledTools` may be stripped.
