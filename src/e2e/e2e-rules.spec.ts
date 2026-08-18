@@ -767,6 +767,43 @@ description: "Root rule"
     expect(stderr).toBe("");
     expect(stdout).toContain("All files are up to date.");
   });
+
+  it("should generate and re-import zoocode mode-specific rules under .roo/rules-{mode}", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "architect-only.md"),
+      `---
+targets: ["zoocode"]
+root: false
+description: "Architect mode rule"
+roo:
+  mode: architect
+---
+
+# Architect Rule
+`,
+    );
+
+    await runGenerate({ target: "zoocode", features: "rules" });
+
+    // Mode rules go to `.roo/rules-{mode}/`, which Zoo Code loads instead of
+    // `.roo/rules/` while that mode is active.
+    const generated = await readFileContent(
+      join(testDir, ".roo", "rules-architect", "architect-only.md"),
+    );
+    expect(generated).toContain("Architect Rule");
+
+    await runImport({ target: "zoocode", features: "rules" });
+
+    // Imported under a mode-suffixed name so it cannot collide with a
+    // same-named generic rule, carrying the mode back in `roo.mode`.
+    const imported = await readFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "architect-only-architect.md"),
+    );
+    expect(imported).toContain("mode: architect");
+    expect(imported).toContain("Architect Rule");
+  });
 });
 
 describe("E2E: rules (import)", () => {

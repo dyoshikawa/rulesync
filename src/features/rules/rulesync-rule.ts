@@ -107,6 +107,18 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       contextFile: z.optional(z.enum(["override"])),
     }),
   ),
+  roo: z.optional(
+    z.looseObject({
+      // Route this rule to a mode-specific directory (`.roo/rules-{mode}/`,
+      // global `~/.roo/rules-{mode}/`) instead of the mode-agnostic
+      // `.roo/rules/`. Roo Code and Zoo Code load a mode's directory INSTEAD of
+      // the generic one while that mode is active, so this is how a rule is
+      // scoped to a single custom mode. Shared by the `roo` and `zoocode`
+      // targets, which write the same `.roo/` tree.
+      // https://github.com/Zoo-Code-Org/Zoo-Code/blob/main/src/core/prompts/sections/custom-instructions.ts
+      mode: z.optional(z.string()),
+    }),
+  ),
   takt: z.optional(
     z.looseObject({
       // Rename the emitted file stem (e.g. "coder.md" → "{name}.md").

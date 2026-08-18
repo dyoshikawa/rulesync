@@ -1,5 +1,5 @@
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { RooRule } from "./roo-rule.js";
-import { RulesyncRule } from "./rulesync-rule.js";
 
 /**
  * Rule generator for **Zoo Code**, the community continuation of Roo Code
@@ -13,10 +13,7 @@ import { RulesyncRule } from "./rulesync-rule.js";
  * @see https://docs.zoocode.dev
  */
 export class ZoocodeRule extends RooRule {
-  static override isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "zoocode",
-    });
+  protected static override getToolTargetName(): ToolTarget {
+    return "zoocode";
   }
 }

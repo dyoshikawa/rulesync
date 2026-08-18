@@ -1,14 +1,17 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
-import { ROO_DIR } from "../../constants/roo-paths.js";
+import { ROO_DIR, ROO_MODE_SLUG_PATTERN, rooModeRulesDirName } from "../../constants/roo-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { readFileContent, toPosixPath } from "../../utils/file.js";
+import { warnWithFallback } from "../../utils/logger.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
   buildToolPath,
 } from "./tool-rule.js";
@@ -51,15 +54,22 @@ export class RooRule extends ToolRule {
   static async fromFile({
     outputRoot = process.cwd(),
     relativeFilePath,
+    relativeDirPath: overrideDirPath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<RooRule> {
-    const fileContent = await readFileContent(
-      join(outputRoot, this.getSettablePaths().nonRoot.relativeDirPath, relativeFilePath),
-    );
+    // A file discovered under `.roo/rules-{mode}/` by `getNestedFilePatterns`:
+    // the processor passes its directory, which is not the generic rules
+    // directory this class otherwise reads.
+    const relativeDirPath =
+      overrideDirPath !== undefined && RooRule.extractModeFromDirPath(overrideDirPath) !== undefined
+        ? overrideDirPath
+        : this.getSettablePaths().nonRoot.relativeDirPath;
+
+    const fileContent = await readFileContent(join(outputRoot, relativeDirPath, relativeFilePath));
 
     return new RooRule({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
@@ -72,14 +82,35 @@ export class RooRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): RooRule {
-    return new RooRule(
-      this.buildToolRuleParamsDefault({
-        outputRoot,
-        rulesyncRule,
-        validate,
-        nonRootPath: this.getSettablePaths().nonRoot,
-      }),
-    );
+    const params = this.buildToolRuleParamsDefault({
+      outputRoot,
+      rulesyncRule,
+      validate,
+      nonRootPath: this.getSettablePaths().nonRoot,
+    });
+
+    // A non-root rule scoped to one mode goes to `.roo/rules-{mode}/`, which
+    // Roo/Zoo Code load INSTEAD of `.roo/rules/` while that mode is active. The
+    // root rule has no mode-specific counterpart, so the key is ignored there.
+    const mode = rulesyncRule.getFrontmatter().roo?.mode;
+    if (!params.root && mode !== undefined && mode !== "") {
+      if (!ROO_MODE_SLUG_PATTERN.test(mode)) {
+        // Fail safe rather than interpolating an arbitrary string into a
+        // directory name: a slug with a separator or a `..` segment would write
+        // outside `.roo/`, and one the tool cannot produce would never be read.
+        warnWithFallback(
+          undefined,
+          `Ignoring roo.mode "${mode}" on ${rulesyncRule.getRelativeFilePath()}: a mode slug may contain only letters, digits and hyphens. Writing the rule to ${params.relativeDirPath} instead.`,
+        );
+      } else {
+        // Derived from the generic directory rather than rebuilt from
+        // constants, so it follows whatever `getSettablePaths` resolved
+        // (`.roo/rules` → `.roo/rules-{mode}`).
+        params.relativeDirPath = join(dirname(params.relativeDirPath), rooModeRulesDirName(mode));
+      }
+    }
+
+    return new RooRule(params);
   }
 
   /**
@@ -105,8 +136,72 @@ export class RooRule extends ToolRule {
     return undefined;
   }
 
+  /**
+   * The mode slug of a `.roo/rules-{mode}/` directory, or `undefined` for the
+   * generic `.roo/rules/` directory and anything else. Path-shaped input is
+   * rejected by the slug pattern, so a crafted directory name cannot be lifted
+   * back into frontmatter.
+   */
+  static extractModeFromDirPath(relativeDirPath: string): string | undefined {
+    // Any segment, not just the last: Roo also reads subfolders of a mode
+    // directory, so an imported file can sit at `.roo/rules-code/sub/`.
+    for (const segment of toPosixPath(relativeDirPath).split("/")) {
+      if (!segment.startsWith("rules-")) {
+        continue;
+      }
+      const mode = segment.slice("rules-".length);
+      if (ROO_MODE_SLUG_PATTERN.test(mode)) {
+        return mode;
+      }
+    }
+    return undefined;
+  }
+
   toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
+    const mode = RooRule.extractModeFromDirPath(this.getRelativeDirPath());
+    if (mode === undefined) {
+      return this.toRulesyncRuleDefault();
+    }
+
+    // Mode-scoped rules import under a mode-suffixed name: `.roo/rules/x.md`
+    // and `.roo/rules-code/x.md` are different rules that would otherwise
+    // collide on one `.rulesync/rules/x.md`. An already-suffixed name (the file
+    // a previous import produced) is left alone, so repeated
+    // generate/import cycles converge instead of growing the name each round.
+    const baseName = this.getRelativeFilePath().replace(/\.md$/, "");
+    const suffix = `-${mode}`;
+    const importedName = baseName.endsWith(suffix) ? baseName : `${baseName}${suffix}`;
+    return new RulesyncRule({
+      outputRoot: this.getOutputRoot(),
+      relativeDirPath: RulesyncRule.getSettablePaths().recommended.relativeDirPath,
+      relativeFilePath: `${importedName}.md`,
+      frontmatter: {
+        root: false,
+        // Scoped to the importing target rather than `"*"`: a mode-scoped rule
+        // is written for one mode of one tool, and a wildcard would make every
+        // other target emit it as an always-on rule on the next generate.
+        targets: [(this.constructor as typeof RooRule).getToolTargetName()],
+        description: this.description,
+        globs: this.globs ?? [],
+        roo: { mode },
+      },
+      body: this.getFileContent(),
+      validate: true,
+    });
+  }
+
+  /**
+   * Mode-specific rule directories (`.roo/rules-{mode}/`), which Roo/Zoo Code
+   * load instead of `.roo/rules/` while that mode is active. Import-only: the
+   * generic directory is the only one the deletion sweep enumerates, because a
+   * `rules-*` glob would also match mode rules a user wrote by hand.
+   */
+  static getNestedFilePatterns({ outputRoot }: { outputRoot: string }): ToolRuleNestedFilePatterns {
+    const root = toPosixPath(outputRoot);
+    return {
+      include: [`${root}/${toPosixPath(ROO_DIR)}/rules-*/**/*.md`],
+      ignore: [],
+    };
   }
 
   validate(): ValidationResult {
@@ -131,8 +226,17 @@ export class RooRule extends ToolRule {
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
     return this.isTargetedByRulesyncRuleDefault({
       rulesyncRule,
-      toolTarget: "roo",
+      toolTarget: this.getToolTargetName(),
     });
+  }
+
+  /**
+   * The tool target this class imports as. `ZoocodeRule` narrows the same
+   * `.roo/` adapters to the `zoocode` target, so the name has to come from the
+   * class rather than a literal.
+   */
+  protected static getToolTargetName(): ToolTarget {
+    return "roo";
   }
 
   /**
