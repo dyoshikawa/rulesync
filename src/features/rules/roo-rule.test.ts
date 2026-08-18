@@ -8,7 +8,7 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, toPosixPath, writeFileContent } from "../../utils/file.js";
 import { RooRule } from "./roo-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
@@ -547,6 +547,120 @@ describe("RooRule", () => {
       // Verify content preservation
       expect(finalRulesync.getFileContent()).toContain(originalBody);
       expect(finalRulesync.getRelativeFilePath()).toBe("roundtrip.md");
+    });
+  });
+  describe("mode-specific rule directories", () => {
+    it("routes a rule with roo.mode to .roo/rules-{mode}/", () => {
+      const rooRule = RooRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "review.md",
+          frontmatter: { targets: ["*"], root: false, roo: { mode: "architect" } },
+          body: "# Architect rule",
+        }),
+      });
+
+      expect(rooRule.getRelativeDirPath()).toBe(join(".roo", "rules-architect"));
+      expect(rooRule.getRelativeFilePath()).toBe("review.md");
+    });
+
+    it("keeps a rule without roo.mode in the generic directory", () => {
+      const rooRule = RooRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "review.md",
+          frontmatter: { targets: ["*"], root: false },
+          body: "# Generic rule",
+        }),
+      });
+
+      expect(rooRule.getRelativeDirPath()).toBe(join(".roo", "rules"));
+    });
+
+    it("ignores a mode slug that is not a valid directory name", () => {
+      const rooRule = RooRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "review.md",
+          frontmatter: { targets: ["*"], root: false, roo: { mode: "../../escape" } },
+          body: "# Escaping rule",
+        }),
+      });
+
+      expect(rooRule.getRelativeDirPath()).toBe(join(".roo", "rules"));
+    });
+
+    it("ignores roo.mode on the root rule", () => {
+      const rooRule = RooRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_OVERVIEW_FILE_NAME,
+          frontmatter: { targets: ["*"], root: true, roo: { mode: "architect" } },
+          body: "# Root rule",
+        }),
+      });
+
+      expect(rooRule.getRelativeDirPath()).not.toBe(join(".roo", "rules-architect"));
+    });
+
+    it("imports a mode directory back into roo.mode frontmatter", async () => {
+      const modeDir = join(testDir, ".roo", "rules-architect");
+      await ensureDir(modeDir);
+      await writeFileContent(join(modeDir, "review.md"), "# Architect rule");
+
+      const rooRule = await RooRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".roo", "rules-architect"),
+        relativeFilePath: "review.md",
+      });
+      const rulesyncRule = rooRule.toRulesyncRule();
+
+      expect(rooRule.getFileContent()).toBe("# Architect rule");
+      // Suffixed so it cannot collide with a same-named generic rule.
+      expect(rulesyncRule.getRelativeFilePath()).toBe("review-architect.md");
+      expect(rulesyncRule.getFrontmatter().roo).toEqual({ mode: "architect" });
+    });
+
+    it("regenerates an imported mode rule into the same directory", () => {
+      const rooRule = new RooRule({
+        outputRoot: testDir,
+        relativeDirPath: join(".roo", "rules-architect"),
+        relativeFilePath: "review.md",
+        fileContent: "# Architect rule",
+        root: false,
+      });
+
+      const regenerated = RooRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: rooRule.toRulesyncRule(),
+      });
+
+      expect(regenerated.getRelativeDirPath()).toBe(join(".roo", "rules-architect"));
+      expect(regenerated.getFileContent()).toBe("# Architect rule");
+    });
+
+    it("reads a nested subfolder of a mode directory", async () => {
+      const nestedDir = join(testDir, ".roo", "rules-architect", "deep");
+      await ensureDir(nestedDir);
+      await writeFileContent(join(nestedDir, "review.md"), "# Nested rule");
+
+      const rooRule = await RooRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".roo", "rules-architect", "deep"),
+        relativeFilePath: "review.md",
+      });
+
+      expect(rooRule.getFileContent()).toBe("# Nested rule");
+      expect(rooRule.toRulesyncRule().getFrontmatter().roo).toEqual({ mode: "architect" });
+    });
+
+    it("enumerates mode directories for import only", () => {
+      const patterns = RooRule.getNestedFilePatterns({ outputRoot: testDir });
+      expect(patterns.include).toEqual([`${toPosixPath(testDir)}/.roo/rules-*/**/*.md`]);
     });
   });
 });
