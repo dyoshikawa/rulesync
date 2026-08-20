@@ -367,9 +367,9 @@ describe("formatTriggerPaths", () => {
 describe("watchTargets", () => {
   // The fs.watch integration tests depend on OS event delivery, which can
   // stall for seconds on loaded CI runners; the default 5s per-test timeout
-  // has produced repeated flakes there.
-  const FS_EVENT_WAIT_TIMEOUT_MS = 20000;
-  const FS_EVENT_TEST_TIMEOUT_MS = 30000;
+  // has produced repeated flakes there (each `waitFor` already polls with its
+  // own 10s budget).
+  const FS_EVENT_TEST_TIMEOUT_MS = 20000;
 
   it(
     "forwards changes under a recursively watched directory",
@@ -391,10 +391,7 @@ describe("watchTargets", () => {
 
         try {
           await writeFile(join(rulesDir, "watched.md"), "# watched\n", "utf8");
-          await waitFor(
-            () => changed.some((path) => path.includes("watched.md")),
-            FS_EVENT_WAIT_TIMEOUT_MS,
-          );
+          await waitFor(() => changed.some((path) => path.includes("watched.md")));
         } finally {
           handle.close();
         }
@@ -427,11 +424,11 @@ describe("watchTargets", () => {
           // A branch switch that drops `.rulesync/` kills the underlying inode
           // watch; without re-arming, nothing below would ever be reported.
           await rm(watchedDir, { recursive: true, force: true });
-          await waitFor(() => changed.length > 0, FS_EVENT_WAIT_TIMEOUT_MS);
+          await waitFor(() => changed.length > 0);
 
           changed.length = 0;
           await mkdir(join(watchedDir, "rules"), { recursive: true });
-          await waitFor(() => changed.length > 0, FS_EVENT_WAIT_TIMEOUT_MS);
+          await waitFor(() => changed.length > 0);
 
           changed.length = 0;
           // Probe at the watched root, not inside `rules/`: the re-attached
@@ -445,7 +442,6 @@ describe("watchTargets", () => {
           await waitForWithProbe({
             probe: () => writeFile(join(watchedDir, "after-rearm.md"), "# after\n", "utf8"),
             until: () => changed.some((path) => path.includes("after-rearm.md")),
-            timeoutMs: FS_EVENT_WAIT_TIMEOUT_MS,
           });
         } finally {
           handle.close();
@@ -500,7 +496,6 @@ describe("watchTargets", () => {
           await waitForWithProbe({
             probe: () => writeFile(configFilePath, "{}\n", "utf8"),
             until: () => changed.some((path) => path.endsWith(RULESYNC_CONFIG_RELATIVE_FILE_PATH)),
-            timeoutMs: FS_EVENT_WAIT_TIMEOUT_MS,
           });
         } finally {
           handle.close();
