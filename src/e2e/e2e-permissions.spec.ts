@@ -9,6 +9,7 @@ import {
   RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_SCHEMA_URL,
+  RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
@@ -1896,7 +1897,7 @@ describe("E2E: permissions (global mode)", () => {
       target: "kimi-code",
       features: "permissions",
       global: true,
-      inputRoots: [homeDir],
+      inputRoots: [join(homeDir, RULESYNC_RELATIVE_DIR_PATH)],
       env: { HOME_DIR: homeDir },
     });
     const regenerated = smolToml.parse(
@@ -1953,7 +1954,7 @@ describe("E2E: permissions (global mode)", () => {
       target: "kimi-code",
       features: "permissions",
       global: true,
-      inputRoots: [homeDir],
+      inputRoots: [join(homeDir, RULESYNC_RELATIVE_DIR_PATH)],
       env: { HOME_DIR: homeDir },
     });
 

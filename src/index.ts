@@ -80,21 +80,21 @@ export async function generate(options: GenerateOptions = {}): Promise<GenerateR
     silent,
   });
 
-  // The pre-flight check probes the input source roots rather than each
-  // output root. This matches the CLI's behavior and the way features load
-  // `.rulesync/**` content (always relative to `config.getInputRoots()`).
-  // Every configured root must exist as a directory (typo protection), and
-  // at least one of them must contain `.rulesync/` — an overlay-only root
-  // is allowed to lack the directory when a base root already has it.
+  // The pre-flight check probes the input source roots rather than each output
+  // root. This matches the CLI's behavior and the way features load content
+  // relative to `config.getInputRoots()`. Empty source roots are allowed so
+  // `generate --delete --check` can still detect orphaned outputs.
   const inputRoots = config.getInputRoots();
 
   await assertInputRootsResolvable(inputRoots);
 
   if (!(await checkRulesyncDirExists({ inputRoots }))) {
     throw new Error(
-      `.rulesync directory not found in any of the configured input roots (${inputRoots
-        .map((root) => `'${root}'`)
-        .join(", ")}). Run 'rulesync init' first.`,
+      inputRoots.length === 1
+        ? `Your configured input root '${inputRoots[0]}' does not exist. Run 'rulesync init' first or update inputRoots.`
+        : `None of your configured input roots exist: ${inputRoots
+            .map((root) => `'${root}'`)
+            .join(", ")}. Run 'rulesync init' first or update inputRoots.`,
     );
   }
 

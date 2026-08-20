@@ -3,7 +3,10 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
-import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import {
+  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
@@ -991,7 +994,7 @@ describe("E2E: hooks (global mode)", () => {
       target: "kimi-code",
       features: "hooks",
       global: true,
-      inputRoots: [homeDir],
+      inputRoots: [join(homeDir, RULESYNC_RELATIVE_DIR_PATH)],
       env: { HOME_DIR: homeDir },
     });
     const regenerated = smolToml.parse(

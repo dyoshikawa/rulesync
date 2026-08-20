@@ -133,7 +133,7 @@ describe("generate", () => {
   it("should throw if .rulesync directory does not exist", async () => {
     vi.mocked(checkRulesyncDirExists).mockResolvedValue(false);
 
-    await expect(generate()).rejects.toThrow(".rulesync directory not found");
+    await expect(generate()).rejects.toThrow("Your configured input root");
   });
 
   it("should call core generate and return result", async () => {

@@ -160,25 +160,23 @@ describe("generateCommand", () => {
 
   describe("rulesync directory check", () => {
     it("should throw error when .rulesync directory does not exist", async () => {
-      vi.mocked(fileExists).mockResolvedValue(false);
+      vi.mocked(directoryExists).mockResolvedValue(false);
       const options: GenerateOptions = {};
 
       await expect(generateCommand(mockLogger, options)).rejects.toThrow(
-        ".rulesync directory not found",
+        "Your configured input root '/test/project/.rulesync' does not exist.",
       );
 
-      // The check probes for feature entries INSIDE the source tree, not
-      // for a nested `.rulesync/` folder; at minimum `rules/` is probed.
-      expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync/rules");
+      expect(directoryExists).toHaveBeenCalledWith("/test/project/.rulesync");
     });
 
     it("should continue when .rulesync directory exists", async () => {
-      vi.mocked(fileExists).mockResolvedValue(true);
+      vi.mocked(directoryExists).mockResolvedValue(true);
       const options: GenerateOptions = {};
 
       await generateCommand(mockLogger, options);
 
-      expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync/rules");
+      expect(directoryExists).toHaveBeenCalledWith("/test/project/.rulesync");
       expect(mockExit).not.toHaveBeenCalled();
     });
   });
@@ -775,8 +773,8 @@ describe("generateCommand", () => {
       await expect(generateCommand(mockLogger, options)).rejects.toThrow("Config error");
     });
 
-    it("should handle file existence check errors", async () => {
-      vi.mocked(fileExists).mockRejectedValue(new Error("File system error"));
+    it("should handle input root directory check errors", async () => {
+      vi.mocked(directoryExists).mockRejectedValue(new Error("File system error"));
       const options: GenerateOptions = {};
 
       await expect(generateCommand(mockLogger, options)).rejects.toThrow("File system error");
@@ -808,10 +806,9 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      // Should check inside the source tree at cwd, not outputRoots[0] (`/home/user`
-      // in global mode). The check probes feature entries inside the tree;
-      // `rules/` is the first entry probed.
-      expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync/rules");
+      // Should check the source tree at cwd, not outputRoots[0] (`/home/user`
+      // in global mode).
+      expect(directoryExists).toHaveBeenCalledWith("/test/project/.rulesync");
     });
 
     it("should use getToolTargets with global: true when global mode is enabled", async () => {
@@ -1098,16 +1095,14 @@ describe("generateCommand", () => {
       mockConfig.getOutputRoots.mockReturnValue(outputRoots);
     });
 
-    it("should check for .rulesync under inputRoots, not under outputRoots", async () => {
+    it("should check configured inputRoots, not outputRoots", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
       await generateCommand(mockLogger, {});
 
-      // The check probes feature entries INSIDE the configured source
-      // tree(s); `rules/` is the first probed entry.
-      expect(fileExists).toHaveBeenCalledWith("/central/rulesync-source/.rulesync/rules");
-      expect(fileExists).not.toHaveBeenCalledWith("/project/app-one/.rulesync/rules");
-      expect(fileExists).not.toHaveBeenCalledWith("/project/app-two/.rulesync/rules");
+      expect(directoryExists).toHaveBeenCalledWith("/central/rulesync-source/.rulesync");
+      expect(directoryExists).not.toHaveBeenCalledWith("/project/app-one/.rulesync");
+      expect(directoryExists).not.toHaveBeenCalledWith("/project/app-two/.rulesync");
     });
 
     it("should construct RulesProcessor with inputRoots distinct from outputRoot for each output dir", async () => {

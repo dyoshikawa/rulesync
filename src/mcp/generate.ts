@@ -4,8 +4,8 @@ import { ConfigResolver } from "../config/config-resolver.js";
 import { Config } from "../config/config.js";
 import {
   assertInputRootsResolvable,
-  checkRulesyncDirExists,
   generate,
+  hasRulesyncSourceContent,
   type GenerateResult,
 } from "../lib/generate.js";
 import { type RulesyncFeatures } from "../types/features.js";
@@ -82,7 +82,7 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
     const inputRoots = config.getInputRoots();
     await assertInputRootsResolvable(inputRoots);
 
-    if (!(await checkRulesyncDirExists({ inputRoots }))) {
+    if (!(await hasRulesyncSourceContent({ inputRoots }))) {
       return {
         success: false,
         error: `No rulesync source content found in the configured input roots (${inputRoots

@@ -149,10 +149,10 @@ async function generateOnce(
   if (!(await checkRulesyncDirExists({ inputRoots }))) {
     throw new CLIError(
       inputRoots.length === 1
-        ? ".rulesync directory not found. Run 'rulesync init' first."
-        : `.rulesync directory not found in any of the configured input roots (${inputRoots
+        ? `Your configured input root '${inputRoots[0]}' does not exist. Run 'rulesync init' first or update inputRoots.`
+        : `None of your configured input roots exist: ${inputRoots
             .map((root) => `'${root}'`)
-            .join(", ")}). Run 'rulesync init' first.`,
+            .join(", ")}. Run 'rulesync init' first or update inputRoots.`,
       ErrorCodes.RULESYNC_DIR_NOT_FOUND,
     );
   }

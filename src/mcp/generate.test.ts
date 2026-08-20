@@ -31,7 +31,8 @@ describe("MCP Generate Tools", () => {
       const result = await executeGenerate();
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("Configured input root does not exist");
+      expect(result.error).toContain("Your configured input root");
+      expect(result.error).toContain("does not exist");
     });
 
     it("should resolve configured inputRoots before checking for source content", async () => {

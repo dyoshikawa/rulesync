@@ -236,14 +236,29 @@ function warnUnsupportedTargets(params: {
  * error (a file where a directory is expected is never useful).
  */
 export async function assertInputRootsResolvable(inputRoots: readonly string[]): Promise<void> {
+  const missingRoots: string[] = [];
+
   for (const root of inputRoots) {
     if (!(await directoryExists(root))) {
-      throw new Error(
-        `Configured input root does not exist as a directory: '${root}'. Check your inputRoots ` +
-          `for typos or removed paths.`,
-      );
+      missingRoots.push(root);
     }
   }
+
+  if (missingRoots.length === 0) {
+    return;
+  }
+
+  if (missingRoots.length === 1) {
+    throw new Error(
+      `Your configured input root '${missingRoots[0]}' does not exist. Check your inputRoots setting.`,
+    );
+  }
+
+  throw new Error(
+    `Your configured input roots do not exist: ${missingRoots
+      .map((root) => `'${root}'`)
+      .join(", ")}. Check your inputRoots setting.`,
+  );
 }
 
 /**
@@ -268,6 +283,26 @@ const RULESYNC_SOURCE_ENTRIES = [
 ] as const;
 
 /**
+ * Check whether any configured input root exists as a rulesync source
+ * directory.
+ *
+ * This intentionally does not require recognizable source files: an existing
+ * but empty `.rulesync/` directory is still meaningful for `generate --delete
+ * --check`, because the generator must be able to detect orphaned output files.
+ */
+export async function checkRulesyncDirExists(params: {
+  inputRoots: readonly string[];
+}): Promise<boolean> {
+  for (const root of params.inputRoots) {
+    if (await directoryExists(root)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Check whether any configured input root contains recognizable rulesync
  * source content.
  *
@@ -278,7 +313,7 @@ const RULESYNC_SOURCE_ENTRIES = [
  * one feature (e.g. only `mcp.jsonc`), but at least one of the configured
  * trees must have something — otherwise there is nothing to generate from.
  */
-export async function checkRulesyncDirExists(params: {
+export async function hasRulesyncSourceContent(params: {
   inputRoots: readonly string[];
 }): Promise<boolean> {
   for (const root of params.inputRoots) {
