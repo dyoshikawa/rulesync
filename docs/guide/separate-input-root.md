@@ -1,19 +1,23 @@
 # Separate Input Root
 
-The `--input-root <path>` flag lets you point `rulesync generate` at a `.rulesync/` source directory that is different from the current working directory. This decouples where your rule definitions live from where the generated tool configuration files are written.
+The `--input-roots <paths...>` flag lets you point `rulesync generate` at one or more rulesync source directories other than the current working directory. This decouples where your rule definitions live from where the generated tool configuration files are written.
 
-> **Currently supported on `generate` only.** At present, `--input-root` is wired into the `rulesync generate` command only. Other commands (`import`, `convert`, `gitignore`, `install`, `fetch`, `init`) still read `.rulesync/` from the current working directory. To use the same source directory with those commands, `cd` into the input-root directory first.
+Each entry in `--input-roots` is a **rulesync source tree** — the directory that directly contains `rules/`, `skills/`, `mcp.jsonc`, and the other rulesync source files. The path you pass is read exactly as given: `--input-roots ~/.aiglobal/.rulesync` reads rules from `~/.aiglobal/.rulesync/rules/`, skills from `~/.aiglobal/.rulesync/skills/`, and so on.
+
+When you pass more than one entry, Rulesync reads all of them and merges the result. The typical reason to do this is to layer a personal or per-machine override tree on top of a shared team tree — see [Combining multiple source trees](#combining-multiple-source-trees) below.
+
+> **Currently supported on `generate` only.** At present, `--input-roots`/`--input-root` are wired into the `rulesync generate` command only. Other commands (`import`, `convert`, `gitignore`, `install`, `fetch`, `init`) still read `.rulesync/` from the current working directory. To use the same source directory with those commands, `cd` into the source-tree's parent directory first.
 
 ## Primary use case: centralized rules across all repos
 
-A common workflow is to keep a single set of AI rules in a shared directory (e.g. `~/.aiglobal`) and apply them to every project without switching directories:
+A common workflow is to keep a single set of AI rules in a shared source tree (e.g. `~/.aiglobal/.rulesync/`) and apply them to every project without switching directories:
 
 ```bash
 # In any project directory — rules are read from ~/.aiglobal/.rulesync/
-rulesync generate --input-root ~/.aiglobal --targets "*" --features rules
+rulesync generate --input-roots ~/.aiglobal/.rulesync --targets "*" --features rules
 ```
 
-Without `--input-root`, you would have to `cd ~/.aiglobal && rulesync generate` and then `cd -` back, and the output files would land in `~/.aiglobal` instead of the current project.
+Without `--input-roots`, you would have to `cd ~/.aiglobal && rulesync generate` and then `cd -` back, and the output files would land in `~/.aiglobal` instead of the current project.
 
 ## Step-by-step setup
 
@@ -31,28 +35,76 @@ Without `--input-root`, you would have to `cd ~/.aiglobal && rulesync generate` 
 
    ```bash
    # In your project directory
-   rulesync generate --input-root ~/.aiglobal --targets claudecode --features rules
+   rulesync generate --input-roots ~/.aiglobal/.rulesync --targets claudecode --features rules
    ```
+
+## Combining multiple source trees
+
+The most common reason to pass more than one entry to `--input-roots` is **per-developer local overrides**: check a shared `.rulesync/` tree into version control and let each developer keep an optional untracked `.rulesync.local/` tree next to it for their own tweaks.
+
+```bash
+rulesync generate --input-roots ./.rulesync ./.rulesync.local --targets "*" --features rules,mcp
+```
+
+With this invocation, Rulesync reads both trees and merges them: files that only exist in `./.rulesync` are used as-is, and any file `./.rulesync.local` also provides replaces the shared version. For example, if a developer creates `./.rulesync.local/rules/coding-style.md`, it replaces `./.rulesync/rules/coding-style.md` only on that developer's machine.
+
+The same mechanism works for other layouts — for example, a globally shared base plus a per-repo overlay:
+
+```bash
+rulesync generate --input-roots ~/.aiglobal/.rulesync ./.rulesync --targets "*" --features rules,mcp
+```
+
+### Merge rules per feature
+
+The general rule is: later entries win. Each feature refines that rule slightly:
+
+- **Rules, commands, subagents, checks, skills** — merged file-by-file (case-insensitive). Files present only in an earlier tree are kept; a file that also exists in a later tree replaces the earlier version. A skill directory is replaced as a single unit (all of its companion files together).
+- **MCP** — merged one level into the JSON: the top-level `mcpServers` map and each `<toolname>.mcpServers` map are merged by server name (later wins per key). An individual server config is replaced as a whole; patching just its `args` or `env` is not supported.
+- **Hooks, permissions, ignore** — the last tree that provides the file wins the whole file. There is no line-level merge.
+
+At least one of the configured source trees must contain recognizable rulesync source content (`rules/`, `skills/`, `mcp.jsonc`, etc.). An overlay-only tree may legitimately supply just one feature — for example, a `.rulesync.local/` that only contains `mcp.jsonc`.
+
+## Setting input roots in `rulesync.jsonc`
+
+You can set the same value in `rulesync.jsonc` (or `rulesync.local.jsonc`) instead of passing it on the command line:
+
+```jsonc
+{
+  "inputRoots": ["~/.aiglobal/.rulesync", "./.rulesync"],
+}
+```
+
+## Deprecated `--input-root` (singular)
+
+An older, singular `--input-root` / `inputRoot` option is still accepted for backward compatibility, but new configurations should use the plural form. If you pass it, Rulesync treats the value as the **parent** of a default `.rulesync/` directory:
+
+```bash
+# These two commands are equivalent:
+rulesync generate --input-root ~/.aiglobal
+rulesync generate --input-roots ~/.aiglobal/.rulesync
+```
+
+The singular and plural flags cannot be combined in the same CLI invocation, and they cannot both be set in the same config file. If one config file uses the singular form and another uses the plural form, the plural form wins.
 
 ## Comparison with `--global`
 
 These two flags serve different but complementary purposes:
 
-|              | `--input-root`                                    | `--global`                                                             |
-| ------------ | ------------------------------------------------- | ---------------------------------------------------------------------- |
-| **Changes**  | Source location (where `.rulesync/` is read from) | Output location (writes to user-scope config paths, e.g. `~/.claude/`) |
-| **Use when** | Your rule definitions live in a non-CWD directory | You want the output to go to the tool's global (user-scope) config     |
+|              | `--input-roots`                                                                  | `--global`                                                             |
+| ------------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **Changes**  | Source location (which rulesync source tree(s) files are read from)              | Output location (writes to user-scope config paths, e.g. `~/.claude/`) |
+| **Use when** | Your rule definitions live in a non-CWD directory, or you overlay multiple trees | You want the output to go to the tool's global (user-scope) config     |
 
-They can be combined. For example, to read rules from `~/.aiglobal` and write them to Claude Code's global settings:
+They can be combined. For example, to read rules from `~/.aiglobal/.rulesync` and write them to Claude Code's global settings:
 
 ```bash
-rulesync generate --input-root ~/.aiglobal --global --targets claudecode --features rules
+rulesync generate --input-roots ~/.aiglobal/.rulesync --global --targets claudecode --features rules
 ```
 
-> **`--input-root` does not enable `--global`.** When `--input-root` is explicitly provided, Rulesync reads `.rulesync/` from that directory, but output scope still follows the CLI flags: use `--global` for user-scope output, and omit it for project-scope output. A `"global": true` setting in the `rulesync.jsonc` under `--input-root` is **not** applied unless you also pass `--global`, and Rulesync will emit a warning when dropping it so the override is visible.
+> **`--input-roots` does not enable `--global`.** When any input root is explicitly provided, Rulesync reads source files from those trees, but output scope still follows the CLI flags: use `--global` for user-scope output, and omit it for project-scope output. A `"global": true` setting in the `rulesync.jsonc` under an explicit input root is **not** applied unless you also pass `--global`, and Rulesync will emit a warning when dropping it so the override is visible.
 
 ## Symlinks and trust
 
-Rulesync follows symbolic links during file discovery. A symlink inside `.rulesync/` that points outside the directory will be followed transparently, and the resolved file content will be copied into the generated output. This is intentional: it lets you centralize shared skills or rules in one place and reference them via symlinks from multiple project directories without duplication.
+Rulesync follows symbolic links during file discovery. A symlink inside a source tree that points outside it will be followed transparently, and the resolved file content will be copied into the generated output. This is intentional: it lets you centralize shared skills or rules in one place and reference them via symlinks from multiple project directories without duplication.
 
-The trust boundary is the directory you point Rulesync at. `--input-root` is `resolve()`-ed to an absolute path before use, but there is no `realpath`-based boundary check on individual symlinks inside it. Only run Rulesync against trees you control. Directory symlink cycles are handled safely — discovery results are deduplicated by real path, so a cycle does not produce duplicated output. See the [File Formats § Symlinks](../reference/file-formats.md#symlinks) note for the behavior that applies across all features.
+The trust boundary is the source tree you point Rulesync at. `--input-roots` entries are `resolve()`-ed to absolute paths before use, but there is no `realpath`-based boundary check on individual symlinks inside them. Only run Rulesync against trees you control. Directory symlink cycles are handled safely — discovery results are deduplicated by real path, so a cycle does not produce duplicated output. See the [File Formats § Symlinks](../reference/file-formats.md#symlinks) note for the behavior that applies across all features.

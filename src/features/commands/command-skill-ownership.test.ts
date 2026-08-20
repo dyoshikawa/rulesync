@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { commandSlug, rulesyncCommandSlugExists } from "./command-skill-ownership.js";
@@ -36,9 +39,12 @@ describe("rulesyncCommandSlugExists", () => {
       "Review.",
     );
 
-    expect(await rulesyncCommandSlugExists({ inputRoot: testDir, dirName: "review-pr" })).toBe(
-      true,
-    );
+    expect(
+      await rulesyncCommandSlugExists({
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        dirName: "review-pr",
+      }),
+    ).toBe(true);
   });
 
   it("should match nested command files by their slug-converted basename", async () => {
@@ -47,9 +53,12 @@ describe("rulesyncCommandSlugExists", () => {
       "Commit.",
     );
 
-    expect(await rulesyncCommandSlugExists({ inputRoot: testDir, dirName: "my-command" })).toBe(
-      true,
-    );
+    expect(
+      await rulesyncCommandSlugExists({
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        dirName: "my-command",
+      }),
+    ).toBe(true);
   });
 
   it("should return false when no command matches", async () => {
@@ -58,12 +67,20 @@ describe("rulesyncCommandSlugExists", () => {
       "Review.",
     );
 
-    expect(await rulesyncCommandSlugExists({ inputRoot: testDir, dirName: "other" })).toBe(false);
+    expect(
+      await rulesyncCommandSlugExists({
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        dirName: "other",
+      }),
+    ).toBe(false);
   });
 
   it("should return false when the commands directory does not exist", async () => {
-    expect(await rulesyncCommandSlugExists({ inputRoot: testDir, dirName: "review-pr" })).toBe(
-      false,
-    );
+    expect(
+      await rulesyncCommandSlugExists({
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        dirName: "review-pr",
+      }),
+    ).toBe(false);
   });
 });

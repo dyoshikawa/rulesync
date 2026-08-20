@@ -125,15 +125,15 @@ describe("HooksProcessor", () => {
       expect(files[0]).toBeInstanceOf(RulesyncHooks);
     });
 
-    // Mirror the per-feature inputRoot threading assertion used in
-    // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
-    // reads `<inputRoot>/.rulesync/hooks.jsonc` instead of
+    // Mirror the per-feature inputRoots threading assertion used in
+    // commands-processor.test.ts: when inputRoots is set, loadRulesyncFiles
+    // reads `<inputRoots[0]>/hooks.jsonc` (source tree itself) instead of
     // `<process.cwd()>/.rulesync/hooks.jsonc`.
-    it("should read rulesync hooks file from inputRoot instead of process.cwd()", async () => {
-      const customInputRoot = join(testDir, "custom-rulesync-dir");
-      await ensureDir(join(customInputRoot, RULESYNC_RELATIVE_DIR_PATH));
+    it("should read rulesync hooks file from inputRoots[0] instead of process.cwd()", async () => {
+      const customInputRoot = join(testDir, "custom-rulesync-dir", RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(customInputRoot);
       await writeFileContent(
-        join(customInputRoot, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+        join(customInputRoot, "hooks.jsonc"),
         JSON.stringify({
           version: 1,
           hooks: { sessionStart: [{ type: "command", command: "from-input-root" }] },
@@ -141,11 +141,11 @@ describe("HooksProcessor", () => {
       );
 
       // outputRoot is testDir; no hooks file exists there, so a successful
-      // load proves the processor read from inputRoot.
+      // load proves the processor read from inputRoots[0].
       const processor = new HooksProcessor({
         logger,
         outputRoot: testDir,
-        inputRoot: customInputRoot,
+        inputRoots: [customInputRoot],
         toolTarget: "claudecode",
       });
       const files = await processor.loadRulesyncFiles();
@@ -836,7 +836,7 @@ describe("HooksProcessor logger plumbing", () => {
     const mockLogger = createMockLogger();
     const processor = new HooksProcessor({
       outputRoot: testDir,
-      inputRoot: testDir,
+      inputRoots: [testDir],
       toolTarget: "augmentcode",
       logger: mockLogger,
     });
@@ -866,7 +866,7 @@ describe("HooksProcessor logger plumbing", () => {
     const mockLogger = createMockLogger();
     const processor = new HooksProcessor({
       outputRoot: testDir,
-      inputRoot: testDir,
+      inputRoots: [testDir],
       toolTarget: "claudecode",
       logger: mockLogger,
     });

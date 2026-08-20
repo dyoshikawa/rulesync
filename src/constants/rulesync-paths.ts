@@ -5,14 +5,41 @@ const { join } = posix;
 export const RULESYNC_CONFIG_RELATIVE_FILE_PATH = "rulesync.jsonc";
 export const RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH = "rulesync.local.jsonc";
 export const RULESYNC_RELATIVE_DIR_PATH = ".rulesync";
-export const RULESYNC_RULES_RELATIVE_DIR_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "rules");
-export const RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH = join(
-  RULESYNC_RULES_RELATIVE_DIR_PATH,
-  ".curated",
+
+// Feature subdirectory names WITHIN a rulesync source tree. Processors use
+// these when they have a source-tree path (`inputRoots[i]`) directly and
+// want to look up its feature subdirectory without hardcoding the
+// `.rulesync/` prefix; the "…_RELATIVE_DIR_PATH" variants below still
+// include `.rulesync/` for legacy call sites that anchor at the project
+// root (`init`/`add`/`import`).
+export const RULES_FEATURE_SUBDIR = "rules";
+export const CURATED_RULES_FEATURE_SUBDIR = join(RULES_FEATURE_SUBDIR, ".curated");
+export const COMMANDS_FEATURE_SUBDIR = "commands";
+export const SUBAGENTS_FEATURE_SUBDIR = "subagents";
+export const CHECKS_FEATURE_SUBDIR = "checks";
+export const SKILLS_FEATURE_SUBDIR = "skills";
+export const CURATED_SKILLS_FEATURE_SUBDIR = join(SKILLS_FEATURE_SUBDIR, ".curated");
+
+export const RULESYNC_RULES_RELATIVE_DIR_PATH = join(
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULES_FEATURE_SUBDIR,
 );
-export const RULESYNC_COMMANDS_RELATIVE_DIR_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "commands");
-export const RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "subagents");
-export const RULESYNC_CHECKS_RELATIVE_DIR_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "checks");
+export const RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH = join(
+  RULESYNC_RELATIVE_DIR_PATH,
+  CURATED_RULES_FEATURE_SUBDIR,
+);
+export const RULESYNC_COMMANDS_RELATIVE_DIR_PATH = join(
+  RULESYNC_RELATIVE_DIR_PATH,
+  COMMANDS_FEATURE_SUBDIR,
+);
+export const RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH = join(
+  RULESYNC_RELATIVE_DIR_PATH,
+  SUBAGENTS_FEATURE_SUBDIR,
+);
+export const RULESYNC_CHECKS_RELATIVE_DIR_PATH = join(
+  RULESYNC_RELATIVE_DIR_PATH,
+  CHECKS_FEATURE_SUBDIR,
+);
 export const RULESYNC_MCP_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc");
 export const RULESYNC_HOOKS_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "hooks.jsonc");
 export const RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH = join(
@@ -34,10 +61,13 @@ export const RULESYNC_AIIGNORE_FILE_NAME = ".aiignore";
 export const RULESYNC_AIIGNORE_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_PATH, ".aiignore");
 export const RULESYNC_IGNORE_RELATIVE_FILE_PATH = ".rulesyncignore";
 export const RULESYNC_OVERVIEW_FILE_NAME = "overview.md";
-export const RULESYNC_SKILLS_RELATIVE_DIR_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "skills");
+export const RULESYNC_SKILLS_RELATIVE_DIR_PATH = join(
+  RULESYNC_RELATIVE_DIR_PATH,
+  SKILLS_FEATURE_SUBDIR,
+);
 export const RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH = join(
-  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-  ".curated",
+  RULESYNC_RELATIVE_DIR_PATH,
+  CURATED_SKILLS_FEATURE_SUBDIR,
 );
 export const RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync.lock";
 export const RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync-npm.lock.json";

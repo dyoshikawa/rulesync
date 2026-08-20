@@ -7,9 +7,12 @@ import {
   HERMESAGENT_CONFIG_FILE_PATH,
   HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
 } from "../../constants/hermesagent-paths.js";
-import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  COMMANDS_FEATURE_SUBDIR,
+  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { AiFile } from "../../types/ai-file.js";
-import { FeatureProcessor } from "../../types/feature-processor.js";
+import { FeatureProcessor, mergeByIdentity } from "../../types/feature-processor.js";
 import type { FlattenedCommandNaming } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -108,7 +111,7 @@ type ToolCommandFactory = {
       global?: boolean;
     }): Promise<boolean> | boolean;
     validateRulesyncCommands?(params: {
-      inputRoot: string;
+      inputRoots: readonly string[];
       rulesyncCommands: RulesyncCommand[];
       logger: Logger;
     }): Promise<void> | void;
@@ -647,7 +650,7 @@ export class CommandsProcessor extends FeatureProcessor {
 
   constructor({
     outputRoot = process.cwd(),
-    inputRoot = process.cwd(),
+    inputRoots,
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
@@ -656,7 +659,7 @@ export class CommandsProcessor extends FeatureProcessor {
     logger,
   }: {
     outputRoot?: string;
-    inputRoot?: string;
+    inputRoots?: readonly [string, ...string[]] | readonly string[];
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
@@ -664,7 +667,7 @@ export class CommandsProcessor extends FeatureProcessor {
     flattenedCommandNaming?: FlattenedCommandNaming;
     logger: Logger;
   }) {
-    super({ outputRoot, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoots, dryRun, logger });
     const result = CommandsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -684,7 +687,7 @@ export class CommandsProcessor extends FeatureProcessor {
 
     const factory = this.getFactory(this.toolTarget);
     await factory.class.validateRulesyncCommands?.({
-      inputRoot: this.inputRoot,
+      inputRoots: this.inputRoots,
       rulesyncCommands,
       logger: this.logger,
     });
@@ -766,23 +769,46 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   /**
-   * Implementation of abstract method from FeatureProcessor
-   * Load and parse rulesync command files from .rulesync/commands/ directory
+   * Load rulesync command files from a single source-tree's `commands/`
+   * subtree. `sourceTree` is the source tree itself (e.g.
+   * `/repo/.rulesync` or `/repo/.rulesync.local`).
    */
-  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const basePath = join(this.inputRoot, RulesyncCommand.getSettablePaths().relativeDirPath);
+  private async loadRulesyncFilesForRoot(sourceTree: string): Promise<RulesyncCommand[]> {
+    const treeParent = dirname(sourceTree);
+    const treeName = basename(sourceTree);
+    const treeCommandsDirPath = join(treeName, COMMANDS_FEATURE_SUBDIR);
+    const basePath = join(sourceTree, COMMANDS_FEATURE_SUBDIR);
     const rulesyncCommandPaths = await findFilesByGlobs(join(basePath, "**", "*.md"));
 
-    const rulesyncCommands = await Promise.all(
+    return await Promise.all(
       rulesyncCommandPaths.map((path) =>
         RulesyncCommand.fromFile({
-          outputRoot: this.inputRoot,
+          outputRoot: treeParent,
+          relativeDirPath: treeCommandsDirPath,
           relativeFilePath: this.safeRelativePath(basePath, path),
         }),
       ),
     );
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   * Load and parse rulesync command files from every configured input root's
+   * `.rulesync/commands/` directory, merging by relative path so a command
+   * with the same target path from a later root replaces the earlier root's
+   * copy.
+   */
+  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    const perRoot = await Promise.all(
+      this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
+    );
+
+    const rulesyncCommands = mergeByIdentity(perRoot, (command) =>
+      command.getRelativeFilePath().toLowerCase(),
+    );
 
     this.logger.debug(`Successfully loaded ${rulesyncCommands.length} rulesync commands`);
+
     return rulesyncCommands;
   }
 

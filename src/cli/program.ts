@@ -304,8 +304,12 @@ export function createProgram(): Command {
       "Generate simulated skills. This feature is only available for copilot, cursor and codexcli.",
     )
     .option(
+      "--input-roots <paths...>",
+      "Ordered list of rulesync source-tree directories (e.g. .rulesync, .rulesync.local). Each entry is a source tree itself — the directory that directly contains rules/, skills/, mcp.jsonc, etc. Later entries override earlier ones when the same relative source path is present in more than one root. Cannot be combined with --input-root.",
+    )
+    .option(
       "--input-root <path>",
-      "Path to the directory containing .rulesync/ (parent of .rulesync/)",
+      "[DEPRECATED] Path to the PARENT directory of a `.rulesync/` source tree. Expands to `--input-roots <path>/.rulesync` for backward compatibility. Prefer `--input-roots` and point it directly at your source tree(s). Cannot be combined with --input-roots.",
     )
     .option("--dry-run", "Dry run: show changes without writing files")
     .option("--check", "Check if files are up to date (exits with code 1 if changes needed)")

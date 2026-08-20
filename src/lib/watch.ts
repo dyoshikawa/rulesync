@@ -1,10 +1,7 @@
 import { existsSync, type FSWatcher, watch as fsWatch, statSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 
-import {
-  RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
-  RULESYNC_RELATIVE_DIR_PATH,
-} from "../constants/rulesync-paths.js";
+import { RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 
 /**
  * Trailing debounce window applied to file-system events before a regeneration
@@ -347,24 +344,38 @@ export function watchTargets({
 }
 
 /**
- * Builds the set of directories watch mode observes: the `.rulesync/` source
- * tree (recursively) and, filtered down to the configuration files themselves,
- * the directory holding `rulesync.jsonc`.
+ * Builds the set of directories watch mode observes: each input root's
+ * source tree (recursively) and, filtered down to the configuration files
+ * themselves, the directory holding `rulesync.jsonc`.
  *
- * Only input paths are watched. Generated output lives outside `.rulesync/`, so
- * a regeneration cannot re-trigger the watcher.
+ * Each `inputRoots[i]` is the rulesync source tree itself (e.g.
+ * `/repo/.rulesync` or `/repo/.rulesync.local`), so watch attaches
+ * directly to it — no implicit `.rulesync/` join. Only input paths are
+ * watched; generated output lives outside every source tree, so a
+ * regeneration cannot re-trigger the watcher. Duplicate roots (after
+ * resolution) are deduped so the same directory is never watched twice.
  */
 export function buildWatchTargets({
-  inputRoot,
+  inputRoots,
   configFilePath,
 }: {
-  inputRoot: string;
+  inputRoots: readonly string[];
   configFilePath: string;
 }): WatchTarget[] {
   const configFilePaths = buildConfigFilePaths({ configFilePath });
 
+  const seen = new Set<string>();
+  const rulesyncTargets: WatchTarget[] = [];
+
+  for (const root of inputRoots) {
+    if (seen.has(root)) continue;
+
+    seen.add(root);
+    rulesyncTargets.push({ directory: root, recursive: true });
+  }
+
   return [
-    { directory: join(inputRoot, RULESYNC_RELATIVE_DIR_PATH), recursive: true },
+    ...rulesyncTargets,
     {
       directory: dirname(configFilePath),
       recursive: false,
@@ -386,19 +397,46 @@ export function buildConfigFilePaths({ configFilePath }: { configFilePath: strin
 }
 
 /**
- * Renders trigger paths relative to `baseDir` for logging, truncating long
- * bursts so a `git checkout` does not flood the terminal.
+ * Renders trigger paths for logging, choosing the base directory per trigger.
+ *
+ * Each trigger is displayed relative to the input root that actually contains
+ * it (matched by longest-prefix, so nested roots pick the deepest one). A
+ * trigger that falls outside every root — the configuration file, or any
+ * path a caller passes explicitly — is displayed absolute, which is what
+ * users expect from the "configuration file changed" message. Long bursts
+ * are truncated so a `git checkout` does not flood the terminal.
  */
 export function formatTriggerPaths({
   triggers,
-  baseDir,
+  inputRoots,
   max = 5,
 }: {
   triggers: readonly string[];
-  baseDir: string;
+  inputRoots: readonly string[];
   max?: number;
 }): string {
-  const displayed = triggers.slice(0, max).map((trigger) => relative(baseDir, trigger) || trigger);
+  // Longest-prefix wins so a trigger under `/a/b` is rendered relative to
+  // `/a/b`, not to a sibling `/a`. Ties by length preserve input order.
+  const rootsByPrecedence = [...inputRoots].toSorted((a, b) => b.length - a.length);
+
+  const displayed = triggers.slice(0, max).map((trigger) => {
+    for (const root of rootsByPrecedence) {
+      const rel = relative(root, trigger);
+
+      // `rel` is empty when trigger === root, starts with `..` when trigger
+      // is outside root, or is absolute on Windows when the two live on
+      // different drives — none of those count as "under" root.
+      if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
+        continue;
+      }
+
+      return rel;
+    }
+
+    return trigger;
+  });
+
   const remaining = triggers.length - displayed.length;
+
   return remaining > 0 ? `${displayed.join(", ")} (+${remaining} more)` : displayed.join(", ");
 }

@@ -6,10 +6,11 @@ import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
-  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+  CURATED_RULES_FEATURE_SUBDIR,
+  RULES_FEATURE_SUBDIR,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import { FeatureProcessor } from "../../types/feature-processor.js";
+import { FeatureProcessor, mergeByIdentity } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -959,7 +960,7 @@ export class RulesProcessor extends FeatureProcessor {
 
   constructor({
     outputRoot = process.cwd(),
-    inputRoot = process.cwd(),
+    inputRoots,
     toolTarget,
     simulateCommands = false,
     simulateSubagents = false,
@@ -972,7 +973,7 @@ export class RulesProcessor extends FeatureProcessor {
     logger,
   }: {
     outputRoot?: string;
-    inputRoot?: string;
+    inputRoots?: readonly [string, ...string[]] | readonly string[];
     toolTarget: ToolTarget;
     global?: boolean;
     simulateCommands?: boolean;
@@ -984,7 +985,7 @@ export class RulesProcessor extends FeatureProcessor {
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ outputRoot, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoots, dryRun, logger });
     const result = RulesProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -1605,27 +1606,45 @@ As this project's AI coding tool, you must follow the additional conventions bel
   }
 
   /**
-   * Implementation of abstract method from FeatureProcessor
-   * Load and parse rulesync rule files from .rulesync/rules/ directory
+   * Load rulesync rule files from a single source-tree's `rules/` (and
+   * `rules/.curated/`) subtree. `sourceTree` is the source tree itself
+   * (e.g. `/repo/.rulesync` or `/repo/.rulesync.local`), NOT its parent.
+   *
+   * Intra-tree behavior — the local-wins-over-curated rule and the
+   * case-insensitive collision handling — is preserved from the previous
+   * single-root implementation. See `loadRulesyncFiles` for how the
+   * per-root results are combined into the effective set.
    */
-  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const rulesyncOutputRoot = join(this.inputRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
-    const curatedOutputRoot = join(this.inputRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
+  private async loadRulesyncFilesForRoot(sourceTree: string): Promise<RulesyncRule[]> {
+    // Anchor `RulesyncRule` instances at the parent of the source tree so
+    // that `getRelativePathFromCwd()` still renders paths like
+    // `.rulesync/rules/foo.md` (or `.rulesync.local/rules/foo.md` for an
+    // overlay tree) — matching the previous behavior exactly.
+    const treeParent = dirname(sourceTree);
+    const treeName = basename(sourceTree);
+    const treeRulesDirPath = join(treeName, RULES_FEATURE_SUBDIR);
+    const rulesyncOutputRoot = join(sourceTree, RULES_FEATURE_SUBDIR);
+    const curatedOutputRoot = join(sourceTree, CURATED_RULES_FEATURE_SUBDIR);
+
     const [discoveredFiles, discoveredCuratedFiles] = await Promise.all([
       findFilesByGlobs(join(rulesyncOutputRoot, "**", "*.md")),
       findFilesByGlobs(join(curatedOutputRoot, "**", "*.md")),
     ]);
+
     const files = [...new Set([...discoveredFiles, ...discoveredCuratedFiles])];
+
     const localFiles = files.filter(
       (file) => !relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`),
     );
     const localRelativePaths = new Set(
       localFiles.map((file) => relative(rulesyncOutputRoot, file)),
     );
+
     const curatedFiles = files
       .filter((file) => relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`))
       .map((file) => ({ file, relativeFilePath: relative(curatedOutputRoot, file) }))
       .filter(({ relativeFilePath }) => !localRelativePaths.has(relativeFilePath));
+
     const selectedFiles = [
       ...localFiles.map((file) => ({
         file,
@@ -1638,28 +1657,51 @@ As this project's AI coding tool, you must follow the additional conventions bel
         relativeFilePath,
       })),
     ];
-    this.logger.debug(`Found ${selectedFiles.length} rulesync files`);
-    const rulesyncRules = await Promise.all(
+
+    this.logger.debug(`Found ${selectedFiles.length} rulesync files under ${rulesyncOutputRoot}`);
+
+    return await Promise.all(
       selectedFiles.map(async ({ sourceRelativeFilePath, relativeFilePath }) => {
         checkPathTraversal({
           relativePath: sourceRelativeFilePath,
           intendedRootDir: rulesyncOutputRoot,
         });
+
         const rule = await RulesyncRule.fromFile({
-          outputRoot: this.inputRoot,
+          outputRoot: treeParent,
+          relativeDirPath: treeRulesDirPath,
           relativeFilePath: sourceRelativeFilePath,
         });
+
         if (sourceRelativeFilePath === relativeFilePath) {
           return rule;
         }
+
         return new RulesyncRule({
-          outputRoot: this.inputRoot,
-          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          outputRoot: treeParent,
+          relativeDirPath: treeRulesDirPath,
           relativeFilePath,
           frontmatter: rule.getFrontmatter(),
           body: rule.getBody(),
         });
       }),
+    );
+  }
+
+  /**
+   * Implementation of abstract method from FeatureProcessor
+   * Load and parse rulesync rule files from every configured input root's
+   * `.rulesync/rules/` directory, merging by relative path so that a rule
+   * with the same target path from a later root replaces the earlier root's
+   * copy (case-insensitive, matching the intra-root collision handling).
+   */
+  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    const perRoot = await Promise.all(
+      this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
+    );
+
+    const rulesyncRules = mergeByIdentity(perRoot, (rule) =>
+      rule.getRelativeFilePath().toLowerCase(),
     );
 
     const factory = this.getFactory(this.toolTarget);

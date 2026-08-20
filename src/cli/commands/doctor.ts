@@ -641,9 +641,24 @@ function parseConfigObjectForMerge(
 }
 
 /**
- * Path sanity: an `inputRoot` that does not exist means every command will
- * fail (or silently read nothing); local config wins, mirroring the merge
- * order in `ConfigResolver`.
+ * Path sanity for the input-root configuration.
+ *
+ * Errors:
+ * - Any entry in the effective `inputRoots`/`inputRoot` list that is not an
+ *   existing directory. A missing root usually means a typo or a stale path
+ *   in a checked-in config; every command would silently read nothing (or
+ *   fail on write) if the doctor did not surface it up front.
+ *
+ * Warnings:
+ * - Duplicate entries in the effective list (after normalization). Duplicates
+ *   are silently deduped at generate time, but they are almost always an
+ *   authoring accident worth mentioning.
+ *
+ * Precedence for the reported source file: `inputRoots`/`inputRoot` from
+ * `rulesync.local.jsonc` wins over the same field in `rulesync.jsonc`, and
+ * a `local` value of one arity does NOT fall back to the base file's other
+ * arity — the two survive independently and `ConfigResolver` picks
+ * `inputRoots` when both are present (see the inputRoots plan).
  */
 async function checkInputRootExists({
   baseConfig,
@@ -656,18 +671,96 @@ async function checkInputRootExists({
   baseFile: string;
   localFile: string;
 }): Promise<DoctorDiagnostic[]> {
-  const mergedInputRoot = localConfig?.inputRoot ?? baseConfig?.inputRoot;
-  if (typeof mergedInputRoot !== "string" || mergedInputRoot.length === 0) return [];
-  if (await directoryExists(resolve(mergedInputRoot))) return [];
-  return [
-    {
-      severity: "error",
-      code: "config/input-root-not-found",
-      file: localConfig?.inputRoot !== undefined ? localFile : baseFile,
-      message: `'inputRoot' points at '${mergedInputRoot}', which is not an existing directory.`,
-      hint: "Create the directory or fix the 'inputRoot' path.",
-    },
-  ];
+  const resolved = resolveDoctorInputRoots({ baseConfig, localConfig });
+
+  if (resolved === undefined) return [];
+
+  const { effective, sourceFile } = resolved;
+  const file = sourceFile === "local" ? localFile : baseFile;
+  const diagnostics: DoctorDiagnostic[] = [];
+
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+
+  for (const entry of effective) {
+    const key = resolve(entry);
+
+    if (seen.has(key)) duplicates.add(entry);
+
+    seen.add(key);
+
+    if (!(await directoryExists(key))) {
+      diagnostics.push({
+        severity: "error",
+        code: "config/input-root-not-found",
+        file,
+        message: `'${effective.length > 1 ? "inputRoots" : "inputRoot"}' entry '${entry}' is not an existing directory.`,
+        hint: `Create the directory or fix the '${effective.length > 1 ? "inputRoots" : "inputRoot"}' path.`,
+      });
+    }
+  }
+
+  for (const duplicate of duplicates) {
+    diagnostics.push({
+      severity: "warning",
+      code: "config/input-roots-duplicate",
+      file,
+      message: `'inputRoots' contains the same directory more than once ('${duplicate}'); duplicates are ignored at generate time.`,
+      hint: "Remove the duplicate entry to make the intent explicit.",
+    });
+  }
+
+  return diagnostics;
+}
+
+/**
+ * Collect the effective input-root list from a base+local config pair,
+ * following the same precedence the resolver uses:
+ * 1. If any local field is set, local wins for that field (both fields
+ *    survive independently; `inputRoots` wins over `inputRoot` when both are
+ *    present).
+ * 2. Otherwise the base file's values are used.
+ * 3. `undefined` means "not configured anywhere", which is a valid state
+ *    (defaults to `cwd`).
+ */
+function resolveDoctorInputRoots({
+  baseConfig,
+  localConfig,
+}: {
+  baseConfig: Record<string, unknown> | undefined;
+  localConfig: Record<string, unknown> | undefined;
+}): { effective: string[]; sourceFile: "base" | "local" } | undefined {
+  const localRoots = readInputRootsField(localConfig);
+  const localRoot = readInputRootField(localConfig);
+
+  if (localRoots !== undefined) return { effective: localRoots, sourceFile: "local" };
+  if (localRoot !== undefined) return { effective: [localRoot], sourceFile: "local" };
+
+  const baseRoots = readInputRootsField(baseConfig);
+  const baseRoot = readInputRootField(baseConfig);
+
+  if (baseRoots !== undefined) return { effective: baseRoots, sourceFile: "base" };
+  if (baseRoot !== undefined) return { effective: [baseRoot], sourceFile: "base" };
+
+  return undefined;
+}
+
+function readInputRootField(config: Record<string, unknown> | undefined): string | undefined {
+  const value = config?.inputRoot;
+
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function readInputRootsField(config: Record<string, unknown> | undefined): string[] | undefined {
+  const value = config?.inputRoots;
+
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+
+  const entries = value.filter(
+    (entry): entry is string => typeof entry === "string" && entry.length > 0,
+  );
+
+  return entries.length === 0 ? undefined : entries;
 }
 
 function reportDiagnostics({

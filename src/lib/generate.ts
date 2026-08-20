@@ -9,7 +9,20 @@ import {
   HERMESAGENT_IGNORE_PLUGIN_MANIFEST_PATH,
   HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_MANIFEST_PATH,
 } from "../constants/hermesagent-paths.js";
-import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import {
+  CHECKS_FEATURE_SUBDIR,
+  COMMANDS_FEATURE_SUBDIR,
+  RULES_FEATURE_SUBDIR,
+  RULESYNC_AIIGNORE_FILE_NAME,
+  RULESYNC_HOOKS_FILE_NAME,
+  RULESYNC_HOOKS_LEGACY_FILE_NAME,
+  RULESYNC_MCP_FILE_NAME,
+  RULESYNC_MCP_LEGACY_FILE_NAME,
+  RULESYNC_PERMISSIONS_FILE_NAME,
+  RULESYNC_PERMISSIONS_LEGACY_FILE_NAME,
+  SKILLS_FEATURE_SUBDIR,
+  SUBAGENTS_FEATURE_SUBDIR,
+} from "../constants/rulesync-paths.js";
 import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
@@ -34,7 +47,7 @@ import { getProcessorRegistryEntry } from "../types/processor-registry.js";
 import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
-import { fileExists, toPosixPath } from "../utils/file.js";
+import { directoryExists, fileExists, toPosixPath } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
@@ -211,14 +224,107 @@ function warnUnsupportedTargets(params: {
 }
 
 /**
- * Check if .rulesync directory exists.
+ * Confirm every configured input-root path resolves to an existing
+ * directory. Each `inputRoots[i]` is a rulesync source tree itself (the
+ * directory that directly holds `rules/`, `skills/`, `mcp.jsonc`, etc.).
  *
- * The `.rulesync/` directory lives under the *input* root (where source rules
- * are read from), not under any individual output root, so callers always pass
- * `config.getInputRoot()` here.
+ * Runs before `checkRulesyncDirExists` to give a precise error when the
+ * user mistypes a root or points at a path that no longer exists — without
+ * this guard the mistake would surface as a confusing "no rulesync source
+ * content found" later, even though the real problem is that the whole
+ * directory is missing. Existence-but-not-directory is treated as a hard
+ * error (a file where a directory is expected is never useful).
  */
-export async function checkRulesyncDirExists(params: { inputRoot: string }): Promise<boolean> {
-  return fileExists(join(params.inputRoot, RULESYNC_RELATIVE_DIR_PATH));
+export async function assertInputRootsResolvable(inputRoots: readonly string[]): Promise<void> {
+  const missingRoots: string[] = [];
+
+  for (const root of inputRoots) {
+    if (!(await directoryExists(root))) {
+      missingRoots.push(root);
+    }
+  }
+
+  if (missingRoots.length === 0) {
+    return;
+  }
+
+  if (missingRoots.length === 1) {
+    throw new Error(
+      `Your configured input root '${missingRoots[0]}' does not exist. Check your inputRoots setting.`,
+    );
+  }
+
+  throw new Error(
+    `Your configured input roots do not exist: ${missingRoots
+      .map((root) => `'${root}'`)
+      .join(", ")}. Check your inputRoots setting.`,
+  );
+}
+
+/**
+ * Recognizable rulesync source entries checked one level below a source
+ * tree. If a tree holds at least one of these, we treat it as a real
+ * rulesync source — either a full layout or an isolated single-feature
+ * root (e.g. an overlay tree with only `mcp.jsonc`).
+ */
+const RULESYNC_SOURCE_ENTRIES = [
+  RULES_FEATURE_SUBDIR,
+  COMMANDS_FEATURE_SUBDIR,
+  SUBAGENTS_FEATURE_SUBDIR,
+  CHECKS_FEATURE_SUBDIR,
+  SKILLS_FEATURE_SUBDIR,
+  RULESYNC_MCP_FILE_NAME,
+  RULESYNC_MCP_LEGACY_FILE_NAME,
+  RULESYNC_HOOKS_FILE_NAME,
+  RULESYNC_HOOKS_LEGACY_FILE_NAME,
+  RULESYNC_PERMISSIONS_FILE_NAME,
+  RULESYNC_PERMISSIONS_LEGACY_FILE_NAME,
+  RULESYNC_AIIGNORE_FILE_NAME,
+] as const;
+
+/**
+ * Check whether any configured input root exists as a rulesync source
+ * directory.
+ *
+ * This intentionally does not require recognizable source files: an existing
+ * but empty `.rulesync/` directory is still meaningful for `generate --delete
+ * --check`, because the generator must be able to detect orphaned output files.
+ */
+export async function checkRulesyncDirExists(params: {
+  inputRoots: readonly string[];
+}): Promise<boolean> {
+  for (const root of params.inputRoots) {
+    if (await directoryExists(root)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Check whether any configured input root contains recognizable rulesync
+ * source content.
+ *
+ * Each `inputRoots[i]` is a source tree itself (e.g. `/repo/.rulesync` or
+ * `/repo/.rulesync.local`), so the check now looks for a feature file or
+ * subdirectory INSIDE the tree, not for a `.rulesync/` folder next to it.
+ * With multi-root support an overlay-only tree may legitimately hold just
+ * one feature (e.g. only `mcp.jsonc`), but at least one of the configured
+ * trees must have something — otherwise there is nothing to generate from.
+ */
+export async function hasRulesyncSourceContent(params: {
+  inputRoots: readonly string[];
+}): Promise<boolean> {
+  for (const root of params.inputRoots) {
+    for (const entry of RULESYNC_SOURCE_ENTRIES) {
+      if (await fileExists(join(root, entry))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 type GenerationStepId =
@@ -418,7 +524,7 @@ async function warnSkillSubagentNameCollisions(params: {
     }
 
     const subagentsProcessor = new SubagentsProcessor({
-      inputRoot: config.getInputRoot(),
+      inputRoots: config.getInputRoots(),
       toolTarget,
       global,
       logger,
@@ -434,7 +540,7 @@ async function warnSkillSubagentNameCollisions(params: {
     }
 
     const skillsProcessor = new SkillsProcessor({
-      inputRoot: config.getInputRoot(),
+      inputRoots: config.getInputRoots(),
       toolTarget,
       global,
       logger,
@@ -698,7 +804,7 @@ async function generateRulesCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         simulateCommands: config.getSimulateCommands(),
@@ -774,7 +880,7 @@ async function generateIgnoreCore(params: {
           // (hermesagent, kimi-code) are not global ignore targets, so there is
           // nothing to redirect. Route through it if that ever changes.
           outputRoot,
-          inputRoot: config.getInputRoot(),
+          inputRoots: config.getInputRoots(),
           toolTarget,
           global,
           dryRun: config.isPreviewMode(),
@@ -835,7 +941,7 @@ async function generateMcpCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -890,7 +996,7 @@ async function generateCommandsCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -951,7 +1057,7 @@ async function generateSubagentsCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -1007,7 +1113,7 @@ async function generateSkillsCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -1071,7 +1177,7 @@ async function generateHooksCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -1123,7 +1229,7 @@ async function generatePermissionsCore(params: {
             toolTarget,
             global: config.getGlobal(),
           }),
-          inputRoot: config.getInputRoot(),
+          inputRoots: config.getInputRoots(),
           toolTarget,
           global: config.getGlobal(),
           dryRun: config.isPreviewMode(),
@@ -1184,7 +1290,7 @@ async function generateChecksCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),

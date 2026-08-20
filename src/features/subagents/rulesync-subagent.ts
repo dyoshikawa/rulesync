@@ -141,10 +141,15 @@ export class RulesyncSubagent extends RulesyncFile {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
   }: RulesyncSubagentFromFileParams): Promise<RulesyncSubagent> {
-    // Read file content
-    const filePath = join(outputRoot, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, relativeFilePath);
+    // `relativeDirPath` overrides the class-level default when the caller
+    // (a processor loading from a non-default source tree such as
+    // `.rulesync.local/subagents`) needs to point at a tree whose basename
+    // differs from `.rulesync`. See the `inputRoots` design note.
+    const dirPath = relativeDirPath ?? this.getSettablePaths().relativeDirPath;
+    const filePath = join(outputRoot, dirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content, hasFrontmatter } = parseFrontmatter(fileContent, filePath);
 
@@ -164,7 +169,7 @@ export class RulesyncSubagent extends RulesyncFile {
 
     return new RulesyncSubagent({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
+      relativeDirPath: dirPath,
       relativeFilePath: filename,
       frontmatter: result.data,
       body: content.trim(),

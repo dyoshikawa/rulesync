@@ -111,6 +111,7 @@ describe("ReasonixSkill", () => {
           outputRoot: testDir,
           relativeDirPath: skillsDir,
           dirName: "my-skill",
+          inputRoots: [testDir],
         }),
       ).resolves.toBe(true);
     });
@@ -128,6 +129,7 @@ describe("ReasonixSkill", () => {
           outputRoot: testDir,
           relativeDirPath: skillsDir,
           dirName: "reviewer",
+          inputRoots: [testDir],
         }),
       ).resolves.toBe(false);
     });
@@ -141,6 +143,7 @@ describe("ReasonixSkill", () => {
           outputRoot: testDir,
           relativeDirPath: skillsDir,
           dirName: "empty",
+          inputRoots: [testDir],
         }),
       ).resolves.toBe(true);
     });

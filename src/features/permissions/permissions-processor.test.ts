@@ -205,13 +205,12 @@ describe("PermissionsProcessor", () => {
       expect(files).toHaveLength(0);
     });
 
-    // Mirror the per-feature inputRoot threading assertion used in
-    // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
-    // reads `<inputRoot>/.rulesync/permissions.jsonc` instead of
-    // `<process.cwd()>/.rulesync/permissions.jsonc`.
-    it("should read rulesync permissions file from inputRoot instead of process.cwd()", async () => {
-      const customInputRoot = join(testDir, "custom-rulesync-dir");
-      const customRulesyncDir = join(customInputRoot, RULESYNC_RELATIVE_DIR_PATH);
+    // Mirror the per-feature inputRoots threading assertion used in
+    // commands-processor.test.ts: when inputRoots is set, loadRulesyncFiles
+    // reads `<inputRoots[0]>/permissions.jsonc` (source tree itself) instead
+    // of `<process.cwd()>/.rulesync/permissions.jsonc`.
+    it("should read rulesync permissions file from inputRoots[0] instead of process.cwd()", async () => {
+      const customRulesyncDir = join(testDir, "custom-rulesync-dir", RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(customRulesyncDir);
       await writeFileContent(
         join(customRulesyncDir, RULESYNC_PERMISSIONS_FILE_NAME),
@@ -223,11 +222,11 @@ describe("PermissionsProcessor", () => {
       );
 
       // outputRoot is testDir (process.cwd()); no permissions file exists
-      // there, so a successful load proves the processor read from inputRoot.
+      // there, so a successful load proves the processor read from inputRoots[0].
       const processor = new PermissionsProcessor({
         logger,
         outputRoot: testDir,
-        inputRoot: customInputRoot,
+        inputRoots: [customRulesyncDir],
         toolTarget: "claudecode",
       });
 

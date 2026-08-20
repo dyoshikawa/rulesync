@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GROKCLI_COMMANDS_DIR_PATH } from "../../constants/grokcli-paths.js";
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
@@ -323,7 +324,7 @@ describe("GrokcliCommand", () => {
       const logger = { warn: vi.fn() };
 
       await GrokcliCommand.validateRulesyncCommands({
-        inputRoot: testDir,
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
         rulesyncCommands: [commandNamed("review")],
         logger: logger as unknown as Logger,
       });
@@ -340,7 +341,7 @@ describe("GrokcliCommand", () => {
       const logger = { warn: vi.fn() };
 
       await GrokcliCommand.validateRulesyncCommands({
-        inputRoot: testDir,
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
         rulesyncCommands: [commandNamed("review")],
         logger: logger as unknown as Logger,
       });

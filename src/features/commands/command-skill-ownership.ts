@@ -1,6 +1,6 @@
 import { basename, join } from "node:path";
 
-import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { COMMANDS_FEATURE_SUBDIR } from "../../constants/rulesync-paths.js";
 import { findFilesByGlobs } from "../../utils/file.js";
 
 /**
@@ -12,25 +12,31 @@ export function commandSlug(relativeFilePath: string): string {
 }
 
 /**
- * Whether a rulesync command exists whose slug matches `dirName`.
+ * Whether a rulesync command exists whose slug matches `dirName` in any of
+ * the configured input roots.
+ *
+ * `inputRoots[i]` is a source tree itself (e.g. `/repo/.rulesync` or
+ * `/repo/.rulesync.local`), so commands live directly under
+ * `<sourceTree>/commands/`.
  *
  * Used by the skills-surface `isDirOwned` hooks of tools whose commands are
  * emitted as `<slug>/SKILL.md` into the skills tree: a directory matching a
  * current command slug is owned by the commands feature, so the skills
  * feature must neither import it as a skill nor delete it as an orphan
- * skill. Once the command is removed from `.rulesync/commands/`, the
- * directory stops matching and the skills feature cleans it up as a regular
- * orphan.
+ * skill. Once the command is removed from every source tree's `commands/`
+ * directory, the directory stops matching and the skills feature cleans
+ * it up as a regular orphan.
  */
 export async function rulesyncCommandSlugExists({
-  inputRoot,
+  inputRoots,
   dirName,
 }: {
-  inputRoot: string;
+  inputRoots: readonly string[];
   dirName: string;
 }): Promise<boolean> {
-  const commandFilePaths = await findFilesByGlobs(
-    join(inputRoot, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "**", "*.md"),
+  const perRootPaths = await Promise.all(
+    inputRoots.map((root) => findFilesByGlobs(join(root, COMMANDS_FEATURE_SUBDIR, "**", "*.md"))),
   );
-  return commandFilePaths.some((filePath) => commandSlug(basename(filePath)) === dirName);
+
+  return perRootPaths.flat().some((filePath) => commandSlug(basename(filePath)) === dirName);
 }

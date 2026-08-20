@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULES_FEATURE_SUBDIR,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -29,7 +31,34 @@ describe("MCP Generate Tools", () => {
       const result = await executeGenerate();
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain(".rulesync directory does not exist");
+      expect(result.error).toContain("Your configured input root");
+      expect(result.error).toContain("does not exist");
+    });
+
+    it("should resolve configured inputRoots before checking for source content", async () => {
+      const sourceTree = join(testDir, "central", RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(join(sourceTree, RULES_FEATURE_SUBDIR));
+      await writeFileContent(
+        join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+        JSON.stringify({
+          inputRoots: [sourceTree],
+          targets: ["agentsmd"],
+          features: ["rules"],
+        }),
+      );
+      await writeFileContent(
+        join(sourceTree, RULES_FEATURE_SUBDIR, "overview.md"),
+        `---
+root: true
+targets: ["*"]
+---
+# Overview`,
+      );
+
+      const result = await executeGenerate();
+
+      expect(result.success).toBe(true);
+      expect(result.config?.features).toContain("rules");
     });
 
     it("should execute generate with default config", async () => {

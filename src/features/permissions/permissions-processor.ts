@@ -1,6 +1,13 @@
+import { basename, dirname } from "node:path";
+
 import { z } from "zod/mini";
 
-import { RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_PERMISSIONS_FILE_NAME,
+  RULESYNC_PERMISSIONS_LEGACY_FILE_NAME,
+  RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
+} from "../../constants/rulesync-paths.js";
+import { pickLastRootWithFile } from "../../types/feature-processor.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import type { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
@@ -486,20 +493,20 @@ export class PermissionsProcessor extends FeatureProcessor {
 
   constructor({
     outputRoot = process.cwd(),
-    inputRoot = process.cwd(),
+    inputRoots,
     toolTarget,
     global = false,
     dryRun = false,
     logger,
   }: {
     outputRoot?: string;
-    inputRoot?: string;
+    inputRoots?: readonly [string, ...string[]] | readonly string[];
     toolTarget: ToolTarget;
     global?: boolean;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ outputRoot, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoots, dryRun, logger });
     const result = PermissionsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -511,10 +518,23 @@ export class PermissionsProcessor extends FeatureProcessor {
   }
 
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    // `inputRoots[i]` is a source tree itself (e.g. `/repo/.rulesync.local`);
+    // permissions files live directly inside it (no implicit `.rulesync/`
+    // prefix).
+    //
+    // Multi-root policy: the last root that provides a permissions file
+    // wins the whole file (see the inputRoots plan).
+    const winningRoot = await pickLastRootWithFile({
+      inputRoots: this.inputRoots,
+      relativePaths: [RULESYNC_PERMISSIONS_FILE_NAME, RULESYNC_PERMISSIONS_LEGACY_FILE_NAME],
+    });
+    const sourceTree = winningRoot ?? this.inputRoots[0];
+
     try {
       return [
         await RulesyncPermissions.fromFile({
-          outputRoot: this.inputRoot,
+          outputRoot: dirname(sourceTree),
+          relativeDirPath: basename(sourceTree),
           validate: true,
         }),
       ];

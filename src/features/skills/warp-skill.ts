@@ -177,14 +177,14 @@ export class WarpSkill extends ToolSkill {
    */
   static async isDirOwned({
     dirName,
-    inputRoot,
+    inputRoots,
   }: {
     outputRoot: string;
     relativeDirPath: string;
     dirName: string;
-    inputRoot: string;
+    inputRoots: readonly string[];
   }): Promise<boolean> {
-    return !(await rulesyncCommandSlugExists({ inputRoot, dirName }));
+    return !(await rulesyncCommandSlugExists({ inputRoots, dirName }));
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<WarpSkill> {

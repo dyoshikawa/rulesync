@@ -2,7 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
@@ -572,30 +575,30 @@ Global agent content`;
       expect(rulesyncSubagent.getFrontmatter().name).toBe("global-agent");
     });
 
-    // Mirror the per-feature inputRoot threading assertion used in
-    // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
-    // reads from `<inputRoot>/.rulesync/subagents` instead of
+    // Mirror the per-feature inputRoots threading assertion used in
+    // commands-processor.test.ts: when inputRoots is set, loadRulesyncFiles
+    // reads from `<inputRoots[0]>/subagents` (source tree itself) instead of
     // `<process.cwd()>/.rulesync/subagents`.
-    it("should read rulesync subagent files from inputRoot instead of process.cwd()", async () => {
-      const customInputRoot = join(testDir, "custom-rulesync-dir");
-      const customSubagentsDir = join(customInputRoot, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+    it("should read rulesync subagent files from inputRoots[0] instead of process.cwd()", async () => {
+      const customInputRoot = join(testDir, "custom-rulesync-dir", RULESYNC_RELATIVE_DIR_PATH);
+      const customSubagentsDir = join(customInputRoot, "subagents");
       await ensureDir(customSubagentsDir);
 
       const subagentContent = `---
 name: input-root-agent
-description: Subagent loaded from inputRoot
+description: Subagent loaded from inputRoots[0]
 targets: ["*"]
 ---
-Body from inputRoot`;
+Body from inputRoots[0]`;
 
       await writeFileContent(join(customSubagentsDir, "input-root-agent.md"), subagentContent);
 
       // outputRoot is testDir (process.cwd()); no subagents file exists there,
-      // so a successful load proves the inputRoot-aware processor read from inputRoot.
+      // so a successful load proves the processor read from inputRoots[0].
       const inputRootProcessor = new SubagentsProcessor({
         logger: createMockLogger(),
         outputRoot: testDir,
-        inputRoot: customInputRoot,
+        inputRoots: [customInputRoot],
         toolTarget: "claudecode",
       });
 
