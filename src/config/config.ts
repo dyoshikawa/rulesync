@@ -1,8 +1,11 @@
-import { isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import { minLength, optional, refine, z } from "zod/mini";
 
-import { RULESYNC_CONFIG_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import {
+  RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
 import {
   ALL_FEATURES,
   Feature,
@@ -124,7 +127,23 @@ export const ConfigParamsSchema = z.object({
   gitignoreDestination: optional(GitignoreDestinationSchema),
   dryRun: optional(z.boolean()),
   check: optional(z.boolean()),
+  // Deprecated: parent-of-`.rulesync/` shorthand kept for backward
+  // compatibility. Expanded to `inputRoots: [join(inputRoot, ".rulesync")]`
+  // (see `normalizeInputRoots`). Prefer the plural `inputRoots` field and
+  // point it directly at your source tree(s).
   inputRoot: optional(z.string()),
+  // Ordered list of rulesync source-tree directories (e.g. `.rulesync`,
+  // `.rulesync.local`). Each entry is a source tree itself — the directory
+  // that directly contains `rules/`, `skills/`, `mcp.jsonc`, etc. No
+  // implicit `.rulesync/` join is applied. Later entries override earlier
+  // ones when the same relative source path appears in more than one root.
+  //
+  // The two fields are rejected together inside a single file via
+  // `assertInputRootFieldsExclusive` (called from `loadConfigFromFile`). A
+  // base file with `inputRoot` and a local file with `inputRoots` (or vice
+  // versa) merge into a state where `inputRoots` wins, so no cross-file
+  // error is raised.
+  inputRoots: optional(z.array(z.string()).check(minLength(1, "inputRoots must be non-empty"))),
   // Declarative rule and skill sources
   sources: optional(z.array(SourceEntrySchema)),
 });
@@ -194,20 +213,63 @@ export type RequiredConfigParams = Omit<InferredRequiredConfigParams, "targets" 
  * Normalizes the configuration file location to an absolute path.
  *
  * `ConfigResolver` always supplies the path it actually loaded; the fallback
- * only covers direct programmatic construction, where the conventional
- * location next to the input root is the best guess.
+ * only covers direct programmatic construction. `anchorDir` is the directory
+ * the config file lives next to — for the default `.rulesync/` layout this
+ * is the parent of the primary source tree.
  */
 function normalizeConfigFilePath({
   configFilePath,
-  inputRoot,
+  anchorDir,
 }: {
   configFilePath: string | undefined;
-  inputRoot: string;
+  anchorDir: string;
 }): string {
   if (configFilePath === undefined) {
-    return join(inputRoot, RULESYNC_CONFIG_RELATIVE_FILE_PATH);
+    return join(anchorDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH);
   }
+
   return isAbsolute(configFilePath) ? configFilePath : resolve(configFilePath);
+}
+
+/**
+ * Resolves any accepted input-root shape (`inputRoot`, `inputRoots`, or
+ * neither) to the canonical non-empty tuple of absolute paths that
+ * `Config` stores. Relative entries are resolved against the current
+ * working directory at call time.
+ *
+ * Semantics (post-refactor):
+ * - Each entry in `inputRoots` is a rulesync **source tree** (the directory
+ *   that directly holds `rules/`, `skills/`, `mcp.jsonc`, etc.). No implicit
+ *   `.rulesync/` join is applied.
+ * - The legacy singular `inputRoot` is a shorthand for "parent of the
+ *   default `.rulesync/` source tree", and is expanded to
+ *   `[join(inputRoot, ".rulesync")]` before hitting any consumer. This is
+ *   the ONLY place `.rulesync` is appended by convention.
+ * - The "nothing configured" default expands to `[join(cwd, ".rulesync")]`
+ *   so existing projects with a single `.rulesync/` tree keep working
+ *   unchanged.
+ *
+ * Callers must have already run `assertInputRootFieldsExclusive`.
+ */
+function normalizeInputRoots({
+  inputRoot,
+  inputRoots,
+}: {
+  inputRoot?: string;
+  inputRoots?: string[];
+}): [string, ...string[]] {
+  const source =
+    inputRoots !== undefined && inputRoots.length > 0
+      ? inputRoots
+      : inputRoot !== undefined
+        ? [join(inputRoot, RULESYNC_RELATIVE_DIR_PATH)]
+        : [join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH)];
+
+  const resolved = source.map((entry) => (isAbsolute(entry) ? entry : resolve(entry)));
+
+  // Non-emptiness is guaranteed above: either `inputRoots.length > 0`, the
+  // `[inputRoot]`-derived singleton branch, or the `cwd`-derived fallback.
+  return [resolved[0]!, ...resolved.slice(1)];
 }
 
 /**
@@ -270,6 +332,33 @@ export const assertTargetsFeaturesExclusive = ({
 };
 
 /**
+ * Rejects a single user-authored config file (or a single programmatic
+ * construction) that defines both `inputRoot` and `inputRoots` — the two
+ * fields express the same setting at singular vs. list level and cannot
+ * be combined within one file without ambiguity.
+ *
+ * The check is intentionally per-file: base and local config files can each
+ * be valid in isolation and merge into a state where both survive, and the
+ * resolver picks `inputRoots` in that case (see `resolveEffectiveInputRoots`).
+ * Only a single file declaring both is a genuine authoring error.
+ */
+export const assertInputRootFieldsExclusive = ({
+  inputRoot,
+  inputRoots,
+}: {
+  inputRoot?: string;
+  inputRoots?: string[];
+}): void => {
+  if (inputRoot !== undefined && inputRoots !== undefined) {
+    throw new Error(
+      "Invalid config: 'inputRoot' and 'inputRoots' cannot be combined. " +
+        "Remove 'inputRoot' and keep 'inputRoots', or reduce 'inputRoots' to a single-element " +
+        "'inputRoot' string.",
+    );
+  }
+};
+
+/**
  * Normalizes a post-resolution `ConfigParams` input by rejecting the case
  * where both `targets` and `features` are undefined — a degenerate state
  * that would silently produce a no-op config (no targets, no features).
@@ -314,7 +403,23 @@ export class Config {
   private readonly gitignoreDestination: GitignoreDestination;
   private readonly dryRun: boolean;
   private readonly check: boolean;
-  private readonly inputRoot: string;
+  /**
+   * Ordered, absolute-path list of rulesync source trees. Each entry is a
+   * source tree itself — the directory that directly contains `rules/`,
+   * `skills/`, `mcp.jsonc`, etc. No implicit `.rulesync/` join is applied.
+   *
+   * Always non-empty by construction — the constructor either normalizes
+   * an `inputRoot`/`inputRoots` input or falls back to a single-element
+   * list containing `join(<cwd>, ".rulesync")`.
+   *
+   * `inputRoot` (singular) is a deprecated backward-compatibility alias
+   * that expands to `[join(inputRoot, ".rulesync")]`.
+   *
+   * Typed as a non-empty tuple so the one internal caller that legitimately
+   * needs "the primary root" (`normalizeConfigFilePath` fallback) can index
+   * `[0]` without a runtime null-check.
+   */
+  private readonly inputRoots: [string, ...string[]];
   private readonly configFilePath: string;
   private readonly sources: SourceEntry[];
 
@@ -335,6 +440,7 @@ export class Config {
     dryRun,
     check,
     inputRoot,
+    inputRoots,
     configFilePath,
     sources,
     configFileTargets,
@@ -344,6 +450,7 @@ export class Config {
     // silently enter the double-defined state. `assertTargetsFeaturesExclusive`
     // is safe to run twice on file-loader inputs — the check is idempotent.
     assertTargetsFeaturesExclusive({ targets, features });
+    assertInputRootFieldsExclusive({ inputRoot, inputRoots });
     // Reject the degenerate "both undefined" state so `new Config(...)` callers
     // can't accidentally produce a no-op config. Defaults in `ConfigResolver`
     // always populate at least one side, so this only fires for programmatic
@@ -392,27 +499,27 @@ export class Config {
     this.gitignoreDestination = gitignoreDestination ?? "gitignore";
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
-    // Capture the input root once at construction time so subsequent
-    // `getInputRoot()` calls are pure (independent of any later `chdir`).
-    // Relative `inputRoot` values are resolved against the current working
-    // directory eagerly for the same reason; the schema accepts them because
-    // they're a legitimate input form, and we normalize them here.
+    // Capture the input roots once at construction time so subsequent
+    // `getInputRoots()` calls are pure (independent of any later `chdir`).
+    // Relative entries are resolved against the current working directory
+    // eagerly for the same reason; the schema accepts them because they're
+    // a legitimate input form, and we normalize them here.
     //
     // The `process.cwd()` fallback only fires for direct programmatic
     // construction (e.g. `new Config({ ... })` in tests or `src/lib/init.ts`).
     // The standard `ConfigResolver.resolve` path always supplies a
-    // pre-resolved absolute `inputRoot`, so this branch is unreachable from
-    // the CLI / programmatic-API surface.
-    this.inputRoot =
-      inputRoot === undefined
-        ? process.cwd()
-        : isAbsolute(inputRoot)
-          ? inputRoot
-          : resolve(inputRoot);
+    // pre-resolved absolute list, so this branch is unreachable from the
+    // CLI / programmatic-API surface.
+    this.inputRoots = normalizeInputRoots({ inputRoot, inputRoots });
+
+    // `inputRoots[0]` is now the primary source tree itself (e.g. `.rulesync`
+    // or `.rulesync.local`); the config file conventionally lives one level
+    // up from it, so anchor the fallback there.
     this.configFilePath = normalizeConfigFilePath({
       configFilePath,
-      inputRoot: this.inputRoot,
+      anchorDir: dirname(this.inputRoots[0]),
     });
+
     this.sources = sources ?? [];
   }
 
@@ -706,16 +813,21 @@ export class Config {
   }
 
   /**
-   * Returns the directory containing the `.rulesync/` source files. The value
-   * is always an absolute path captured at config-construction time, so this
-   * accessor is pure and never depends on a live `process.cwd()` read.
+   * Returns the ordered list of rulesync source trees. Each entry is the
+   * source tree itself — the directory that directly contains `rules/`,
+   * `skills/`, `mcp.jsonc`, etc. Values are absolute paths captured at
+   * config-construction time, so this accessor is pure and never depends on
+   * a live `process.cwd()` read.
    *
-   * When no `inputRoot` was supplied to the constructor, `process.cwd()` is
-   * snapshotted once during construction. When a relative `inputRoot` is
-   * supplied, it is resolved to absolute against the construction-time cwd.
+   * The returned tuple is always non-empty: when no `inputRoot`/`inputRoots`
+   * was supplied, `[join(process.cwd(), ".rulesync")]` is snapshotted once
+   * during construction.
+   * Later entries in the list take precedence when the same relative source
+   * path exists in more than one root (see per-feature merge policies in
+   * the processor `loadRulesync*` methods).
    */
-  public getInputRoot(): string {
-    return this.inputRoot;
+  public getInputRoots(): readonly [string, ...string[]] {
+    return this.inputRoots;
   }
 
   /**

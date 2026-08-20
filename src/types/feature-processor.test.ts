@@ -1,10 +1,13 @@
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { readFileContentOrNull, removeFile, writeFileContent } from "../utils/file.js";
 import { AiFile } from "./ai-file.js";
-import { FeatureProcessor } from "./feature-processor.js";
+import { FeatureProcessor, mergeByIdentity, pickLastRootWithFile } from "./feature-processor.js";
 import { RulesyncFile } from "./rulesync-file.js";
 import { ToolFile } from "./tool-file.js";
 
@@ -291,5 +294,113 @@ describe("FeatureProcessor", () => {
       expect(removeFile).toHaveBeenCalledWith("/path/to/file1.md");
       expect(removeFile).toHaveBeenCalledWith("/path/to/file2.md");
     });
+  });
+});
+
+describe("FeatureProcessor inputRoots default", () => {
+  // `TestProcessor` re-exposes the protected `inputRoots` so we can assert
+  // the base-class constructor's normalization directly. The singular
+  // `inputRoot` alias is deliberately absent — it's collapsed to a
+  // one-element `inputRoots` at the outer input surface (config
+  // schema/resolver + CLI/programmatic API), and every internal consumer,
+  // this base class included, only ever sees the plural form.
+  class ProbeProcessor extends TestProcessor {
+    getInputRoots(): readonly [string, ...string[]] {
+      return this.inputRoots;
+    }
+  }
+
+  it("stores the passed inputRoots verbatim (order preserved)", () => {
+    const processor = new ProbeProcessor({
+      logger: createMockLogger(),
+      outputRoot: "/out",
+      inputRoots: ["/a", "/b", "/c"],
+    });
+    expect(processor.getInputRoots()).toEqual(["/a", "/b", "/c"]);
+  });
+
+  it("falls back to [join(process.cwd(), '.rulesync')] when inputRoots is omitted", () => {
+    const processor = new ProbeProcessor({
+      logger: createMockLogger(),
+      outputRoot: "/out",
+    });
+    expect(processor.getInputRoots()).toEqual([join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH)]);
+  });
+
+  it("falls back to [join(process.cwd(), '.rulesync')] when inputRoots is an empty list", () => {
+    const processor = new ProbeProcessor({
+      logger: createMockLogger(),
+      outputRoot: "/out",
+      inputRoots: [],
+    });
+    expect(processor.getInputRoots()).toEqual([join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH)]);
+  });
+});
+
+describe("mergeByIdentity", () => {
+  it("keeps later entries for the same identity while preserving first-appearance order", () => {
+    const perRoot = [
+      [
+        { id: "a", value: "base-a" },
+        { id: "b", value: "base-b" },
+      ],
+      [
+        { id: "b", value: "overlay-b" },
+        { id: "c", value: "overlay-c" },
+      ],
+    ];
+
+    expect(mergeByIdentity(perRoot, (item) => item.id)).toEqual([
+      { id: "a", value: "base-a" },
+      { id: "b", value: "overlay-b" },
+      { id: "c", value: "overlay-c" },
+    ]);
+  });
+
+  it("returns an empty list when every root is empty", () => {
+    expect(mergeByIdentity<{ id: string }>([[], []], (item) => item.id)).toEqual([]);
+  });
+});
+
+describe("pickLastRootWithFile", () => {
+  // `writeFileContent` is mocked at the top of this file, so we drop down to
+  // node:fs/promises directly here — we need real files on disk for the
+  // real `fileExists` reachable via the `...actual` spread to observe them.
+  it("returns the last root that has any of the candidate files", async () => {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const { testDir: root, cleanup } = await setupTestDirectory();
+    try {
+      const rootA = `${root}/a`;
+      const rootB = `${root}/b`;
+      const rootC = `${root}/c`;
+      await mkdir(rootA, { recursive: true });
+      await mkdir(rootB, { recursive: true });
+      await mkdir(rootC, { recursive: true });
+      await writeFile(`${rootA}/mcp.jsonc`, "{}");
+      await writeFile(`${rootB}/mcp.jsonc`, "{}");
+
+      expect(
+        await pickLastRootWithFile({
+          inputRoots: [rootA, rootB, rootC],
+          relativePaths: ["mcp.jsonc"],
+        }),
+      ).toBe(rootB);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("returns undefined when no root has any candidate", async () => {
+    const { testDir: root, cleanup } = await setupTestDirectory();
+    try {
+      expect(
+        await pickLastRootWithFile({
+          inputRoots: [`${root}/a`, `${root}/b`],
+          relativePaths: ["mcp.jsonc"],
+        }),
+      ).toBeUndefined();
+    } finally {
+      await cleanup();
+    }
   });
 });

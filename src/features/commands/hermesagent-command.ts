@@ -14,7 +14,7 @@ import {
 } from "../../constants/hermesagent-paths.js";
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+  SKILLS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
@@ -254,10 +254,10 @@ export class HermesagentCommand extends ToolCommand {
   }
 
   static async validateRulesyncCommands({
-    inputRoot,
+    inputRoots,
     rulesyncCommands,
   }: {
-    inputRoot: string;
+    inputRoots: readonly string[];
     rulesyncCommands: RulesyncCommand[];
   }): Promise<void> {
     const commandSlugs = new Set<string>();
@@ -279,18 +279,28 @@ export class HermesagentCommand extends ToolCommand {
       commandOrigins.set(slug, origin);
       commandSlugs.add(slug);
     }
-    const skillsRoot = join(inputRoot, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
-    const skillFiles = await findFilesByGlobs(join(skillsRoot, "**", "SKILL.md"));
-    const rulesyncSkills = await Promise.all(
-      skillFiles.map((path) =>
-        RulesyncSkill.fromDir({
-          outputRoot: inputRoot,
-          relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-          dirName: toPosixPath(relative(skillsRoot, dirname(path))),
-        }),
-      ),
-    );
-    const collisions = rulesyncSkills
+    // Skills from any input root can collide with commands. Track the origin
+    // root of each skill so a same-named skill in a later root shadows the
+    // earlier one (matching the overlay semantics used by the skills processor).
+    const skillsByName = new Map<
+      string,
+      { rulesyncSkill: RulesyncSkill; dirName: string; rootPath: string }
+    >();
+    for (const rootPath of inputRoots) {
+      const skillsRoot = join(rootPath, SKILLS_FEATURE_SUBDIR);
+      const skillFiles = await findFilesByGlobs(join(skillsRoot, "**", "SKILL.md"));
+      for (const filePath of skillFiles) {
+        const dirName = toPosixPath(relative(skillsRoot, dirname(filePath)));
+        const rulesyncSkill = await RulesyncSkill.fromDir({
+          outputRoot: rootPath,
+          relativeDirPath: SKILLS_FEATURE_SUBDIR,
+          dirName,
+        });
+        skillsByName.set(dirName, { rulesyncSkill, dirName, rootPath });
+      }
+    }
+    const collisions = [...skillsByName.values()]
+      .map(({ rulesyncSkill }) => rulesyncSkill)
       .filter((skill) => HermesagentSkill.isTargetedByRulesyncSkill(skill))
       .map((skill) => hermesSlashName(skill.getFrontmatter().name))
       .filter((slug) => commandSlugs.has(slug));

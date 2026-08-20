@@ -1,12 +1,13 @@
-import { join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
 import { AUGMENTCODE_CODE_REVIEW_GUIDELINES_FILE_NAME } from "../../constants/augmentcode-paths.js";
 import { CURSOR_BUGBOT_FILE_NAME } from "../../constants/cursor-paths.js";
 import { ROVODEV_REVIEW_AGENT_FILE_NAME } from "../../constants/rovodev-paths.js";
+import { CHECKS_FEATURE_SUBDIR } from "../../constants/rulesync-paths.js";
 import { TAKT_CONFIG_FILE_NAME } from "../../constants/takt-paths.js";
-import { FeatureProcessor } from "../../types/feature-processor.js";
+import { FeatureProcessor, mergeByIdentity } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { checksProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
@@ -187,7 +188,7 @@ export class ChecksProcessor extends FeatureProcessor {
 
   constructor({
     outputRoot = process.cwd(),
-    inputRoot = process.cwd(),
+    inputRoots,
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
@@ -195,14 +196,14 @@ export class ChecksProcessor extends FeatureProcessor {
     logger,
   }: {
     outputRoot?: string;
-    inputRoot?: string;
+    inputRoots?: readonly [string, ...string[]] | readonly string[];
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ outputRoot, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoots, dryRun, logger });
     const result = ChecksProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -256,13 +257,17 @@ export class ChecksProcessor extends FeatureProcessor {
   }
 
   /**
-   * Implementation of abstract method from Processor
-   * Load and parse rulesync check files from .rulesync/checks/ directory
+   * Load check files from a single source-tree's `checks/` subtree.
+   * `sourceTree` is the source tree itself (e.g. `/repo/.rulesync` or
+   * `/repo/.rulesync.local`).
    */
-  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const checksDir = join(this.inputRoot, RulesyncCheck.getSettablePaths().relativeDirPath);
-
+  private async loadRulesyncFilesForRoot(sourceTree: string): Promise<RulesyncCheck[]> {
+    const treeParent = dirname(sourceTree);
+    const treeName = basename(sourceTree);
+    const treeChecksDirPath = join(treeName, CHECKS_FEATURE_SUBDIR);
+    const checksDir = join(sourceTree, CHECKS_FEATURE_SUBDIR);
     const dirExists = await directoryExists(checksDir);
+
     if (!dirExists) {
       this.logger.debug(`Rulesync checks directory not found: ${checksDir}`);
       return [];
@@ -285,7 +290,8 @@ export class ChecksProcessor extends FeatureProcessor {
 
       try {
         const rulesyncCheck = await RulesyncCheck.fromFile({
-          outputRoot: this.inputRoot,
+          outputRoot: treeParent,
+          relativeDirPath: treeChecksDirPath,
           relativeFilePath: mdFile,
           validate: true,
         });
@@ -298,7 +304,26 @@ export class ChecksProcessor extends FeatureProcessor {
       }
     }
 
+    return rulesyncChecks;
+  }
+
+  /**
+   * Implementation of abstract method from Processor
+   * Load and parse rulesync check files from every configured input root's
+   * `.rulesync/checks/` directory, merging by relative file path so a check
+   * from a later root replaces the earlier root's copy.
+   */
+  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    const perRoot = await Promise.all(
+      this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
+    );
+
+    const rulesyncChecks = mergeByIdentity(perRoot, (check) =>
+      check.getRelativeFilePath().toLowerCase(),
+    );
+
     this.logger.debug(`Successfully loaded ${rulesyncChecks.length} rulesync checks`);
+
     return rulesyncChecks;
   }
 

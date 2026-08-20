@@ -58,22 +58,37 @@ describe("checkRulesyncDirExists", () => {
     vi.clearAllMocks();
   });
 
-  it("should return true when .rulesync directory exists", async () => {
+  it("should return true when a source-tree root contains recognizable rulesync content", async () => {
     vi.mocked(fileExists).mockResolvedValue(true);
 
-    const result = await checkRulesyncDirExists({ inputRoot: "/project" });
+    const result = await checkRulesyncDirExists({ inputRoots: ["/project/.rulesync"] });
 
     expect(result).toBe(true);
-    expect(fileExists).toHaveBeenCalledWith("/project/.rulesync");
+    // The check looks for a feature file/subdirectory INSIDE the source tree
+    // itself (e.g. `.rulesync/rules/`), not for a nested `.rulesync/` folder.
+    expect(fileExists).toHaveBeenCalledWith("/project/.rulesync/rules");
   });
 
-  it("should return false when .rulesync directory does not exist", async () => {
+  it("should return false when no root contains any rulesync source content", async () => {
     vi.mocked(fileExists).mockResolvedValue(false);
 
-    const result = await checkRulesyncDirExists({ inputRoot: "/project" });
+    const result = await checkRulesyncDirExists({ inputRoots: ["/project/.rulesync"] });
 
     expect(result).toBe(false);
-    expect(fileExists).toHaveBeenCalledWith("/project/.rulesync");
+    // At minimum, the `rules/` probe should have run.
+    expect(fileExists).toHaveBeenCalledWith("/project/.rulesync/rules");
+  });
+
+  it("should return true when only an overlay root contains rulesync source content", async () => {
+    vi.mocked(fileExists).mockImplementation(
+      async (path: string) => path === "/overlay/.rulesync/rules",
+    );
+
+    const result = await checkRulesyncDirExists({
+      inputRoots: ["/base/.rulesync", "/overlay/.rulesync"],
+    });
+
+    expect(result).toBe(true);
   });
 });
 
@@ -134,7 +149,7 @@ describe("generate", () => {
     getSimulateSubagents: ReturnType<typeof vi.fn>;
     getSimulateSkills: ReturnType<typeof vi.fn>;
     isPreviewMode: ReturnType<typeof vi.fn>;
-    getInputRoot: ReturnType<typeof vi.fn>;
+    getInputRoots: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -154,7 +169,7 @@ describe("generate", () => {
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
-      getInputRoot: vi.fn().mockReturnValue(process.cwd()),
+      getInputRoots: vi.fn().mockReturnValue([process.cwd()]),
     };
 
     vi.mocked(intersection).mockImplementation((a, b) => a.filter((item) => b.includes(item)));

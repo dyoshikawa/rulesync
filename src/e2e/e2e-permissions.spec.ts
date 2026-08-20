@@ -1896,7 +1896,7 @@ describe("E2E: permissions (global mode)", () => {
       target: "kimi-code",
       features: "permissions",
       global: true,
-      inputRoot: homeDir,
+      inputRoots: [homeDir],
       env: { HOME_DIR: homeDir },
     });
     const regenerated = smolToml.parse(
@@ -1953,7 +1953,7 @@ describe("E2E: permissions (global mode)", () => {
       target: "kimi-code",
       features: "permissions",
       global: true,
-      inputRoot: homeDir,
+      inputRoots: [homeDir],
       env: { HOME_DIR: homeDir },
     });
 

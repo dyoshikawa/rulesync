@@ -219,6 +219,10 @@ export class ReasonixSkill extends ToolSkill {
     outputRoot: string;
     relativeDirPath: string;
     dirName: string;
+    // Accepted for interface parity with tools whose ownership hook consults
+    // `.rulesync/` sources; Reasonix decides ownership purely from the
+    // generated SKILL.md, so the value is unused.
+    inputRoots: readonly string[];
   }): Promise<boolean> {
     const skillFilePath = join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME);
     try {

@@ -3,7 +3,7 @@ import { basename, dirname, join } from "node:path";
 import { z } from "zod/mini";
 
 import { GROKCLI_COMMANDS_DIR_PATH } from "../../constants/grokcli-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { SKILLS_FEATURE_SUBDIR } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { findFilesByGlobs, readFileContent } from "../../utils/file.js";
@@ -179,11 +179,11 @@ export class GrokcliCommand extends ToolCommand {
    * Hermes check does, where the two surfaces really do write the same path.
    */
   static async validateRulesyncCommands({
-    inputRoot,
+    inputRoots,
     rulesyncCommands,
     logger,
   }: {
-    inputRoot: string;
+    inputRoots: readonly string[];
     rulesyncCommands: RulesyncCommand[];
     logger: Logger;
   }): Promise<void> {
@@ -195,8 +195,14 @@ export class GrokcliCommand extends ToolCommand {
     );
     if (commandNames.size === 0) return;
 
-    const skillsRoot = join(inputRoot, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
-    const skillFiles = await findFilesByGlobs(join(skillsRoot, "**", "SKILL.md"));
+    // Skills from any input root can shadow the command, so scan them all;
+    // duplicates by directory name are naturally deduped via the Set below.
+    const perRootSkillFiles = await Promise.all(
+      inputRoots.map((root) =>
+        findFilesByGlobs(join(root, SKILLS_FEATURE_SUBDIR, "**", "SKILL.md")),
+      ),
+    );
+    const skillFiles = perRootSkillFiles.flat();
     const shadowed = skillFiles
       .map((filePath) => basename(dirname(filePath)))
       .filter((skillName) => commandNames.has(skillName));

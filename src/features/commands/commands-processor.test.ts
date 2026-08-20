@@ -837,10 +837,12 @@ describe("CommandsProcessor", () => {
       expect(RulesyncCommand.fromFile).toHaveBeenCalledTimes(2);
       expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({
         outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test1.md",
       });
       expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({
         outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test2.md",
       });
       expect(logger.debug).toHaveBeenCalledWith("Successfully loaded 2 rulesync commands");
@@ -920,10 +922,12 @@ describe("CommandsProcessor", () => {
 
       expect(RulesyncCommand.fromFile).toHaveBeenNthCalledWith(1, {
         outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("pj", "foo.md"),
       });
       expect(RulesyncCommand.fromFile).toHaveBeenNthCalledWith(2, {
         outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "bar.md",
       });
       expect(result).toEqual(mockRulesyncCommands);

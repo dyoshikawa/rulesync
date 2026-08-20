@@ -1,6 +1,11 @@
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import type { Config } from "../../config/config.js";
-import { checkRulesyncDirExists, generate, type GenerateResult } from "../../lib/generate.js";
+import {
+  assertInputRootsResolvable,
+  checkRulesyncDirExists,
+  generate,
+  type GenerateResult,
+} from "../../lib/generate.js";
 import {
   buildConfigFilePaths,
   buildWatchTargets,
@@ -130,9 +135,24 @@ async function generateOnce(
 
   logger.debug("Generating files...");
 
-  if (!(await checkRulesyncDirExists({ inputRoot: config.getInputRoot() }))) {
+  const inputRoots = config.getInputRoots();
+
+  try {
+    await assertInputRootsResolvable(inputRoots);
+  } catch (error) {
     throw new CLIError(
-      ".rulesync directory not found. Run 'rulesync init' first.",
+      error instanceof Error ? error.message : String(error),
+      ErrorCodes.RULESYNC_DIR_NOT_FOUND,
+    );
+  }
+
+  if (!(await checkRulesyncDirExists({ inputRoots }))) {
+    throw new CLIError(
+      inputRoots.length === 1
+        ? ".rulesync directory not found. Run 'rulesync init' first."
+        : `.rulesync directory not found in any of the configured input roots (${inputRoots
+            .map((root) => `'${root}'`)
+            .join(", ")}). Run 'rulesync init' first.`,
       ErrorCodes.RULESYNC_DIR_NOT_FOUND,
     );
   }
@@ -260,9 +280,9 @@ async function generateWatchCommand(logger: Logger, options: GenerateOptions): P
     isJsonMode: logger.jsonMode,
   });
 
-  const inputRoot = config.getInputRoot();
+  const inputRoots = config.getInputRoots();
   // Take the path the resolver actually loaded rather than re-deriving it:
-  // the two differ when `inputRoot` comes from the configuration file itself.
+  // the two differ when input roots come from the configuration file itself.
   const configFilePath = config.getConfigFilePath();
   const configFilePaths = buildConfigFilePaths({ configFilePath });
 
@@ -270,16 +290,18 @@ async function generateWatchCommand(logger: Logger, options: GenerateOptions): P
   // configuration error) fails fast instead of starting an idle watcher.
   await generateOnce(logger, options, { resolvedConfig: config });
 
-  const targets = buildWatchTargets({ inputRoot, configFilePath });
+  const targets = buildWatchTargets({ inputRoots, configFilePath });
 
   const scheduler = new WatchScheduler({
     run: async ({ triggers }) => {
-      logger.info(`\nChange detected: ${formatTriggerPaths({ triggers, baseDir: inputRoot })}`);
+      logger.info(`\nChange detected: ${formatTriggerPaths({ triggers, inputRoots })}`);
+
       if (triggers.some((trigger) => configFilePaths.has(trigger))) {
         logger.warn(
-          "Configuration file changed. The set of watched paths is fixed at startup — restart 'rulesync generate --watch' if you changed 'inputRoot' or the configuration file location.",
+          "Configuration file changed. The set of watched paths is fixed at startup — restart 'rulesync generate --watch' if you changed 'inputRoot'/'inputRoots' or the configuration file location.",
         );
       }
+
       await generateOnce(logger, options);
     },
     onError: ({ error }) => {

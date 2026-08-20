@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
@@ -202,7 +205,7 @@ It can be multiline.`;
           outputRoot: testDir,
           relativeDirPath: join(".warp", "skills"),
           dirName: "review-pr",
-          inputRoot: testDir,
+          inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
         }),
       ).resolves.toBe(false);
       await expect(
@@ -210,7 +213,7 @@ It can be multiline.`;
           outputRoot: testDir,
           relativeDirPath: join(".warp", "skills"),
           dirName: "a-real-skill",
-          inputRoot: testDir,
+          inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
         }),
       ).resolves.toBe(true);
     });

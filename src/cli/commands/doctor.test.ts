@@ -463,6 +463,62 @@ describe("doctorCommand", () => {
     expect(mockLogger.error).not.toHaveBeenCalled();
   });
 
+  it("errors when any inputRoots entry does not exist", async () => {
+    await ensureDir(join(testDir, "base"));
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [join(testDir, "base"), join(testDir, "missing")],
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("config/input-root-not-found"),
+    );
+  });
+
+  it("warns on duplicate inputRoots entries", async () => {
+    const shared = join(testDir, "shared");
+    await ensureDir(shared);
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [shared, shared],
+      }),
+    );
+
+    await doctorCommand(mockLogger, {});
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("config/input-roots-duplicate"),
+    );
+  });
+
+  it("accepts an inputRoots array of existing directories", async () => {
+    const base = join(testDir, "base");
+    const overlay = join(testDir, "overlay");
+    await ensureDir(base);
+    await ensureDir(overlay);
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [base, overlay],
+      }),
+    );
+
+    await doctorCommand(mockLogger, {});
+    expect(mockLogger.error).not.toHaveBeenCalled();
+    expect(mockLogger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("config/input-roots-duplicate"),
+    );
+  });
+
   it("honors the --config option", async () => {
     await ensureDir(join(testDir, "nested"));
     await writeFileContent(

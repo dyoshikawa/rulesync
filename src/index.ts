@@ -1,6 +1,7 @@
 import { ConfigResolver } from "./config/config-resolver.js";
 import { convertFromTool as coreConvertFromTool, type ConvertResult } from "./lib/convert.js";
 import {
+  assertInputRootsResolvable,
   checkRulesyncDirExists,
   generate as coreGenerate,
   type GenerateResult,
@@ -30,10 +31,23 @@ export type GenerateOptions = BaseOptions & {
   features?: Feature[];
   outputRoots?: string[];
   /**
-   * Directory containing the `.rulesync/` source files. Defaults to the
-   * current working directory at config-construction time. When set, output
-   * is still written to each `outputRoots` entry; only the input source root
-   * is redirected. Mirrors the CLI's `--input-root` option.
+   * Ordered list of rulesync source-tree directories (e.g. `.rulesync`,
+   * `.rulesync.local`). Each entry is a source tree itself — the directory
+   * that directly contains `rules/`, `skills/`, `mcp.jsonc`, etc. No
+   * implicit `.rulesync/` join is applied. Defaults to
+   * `[join(process.cwd(), ".rulesync")]`. Later entries override earlier
+   * ones when the same relative source path appears in more than one root.
+   * Mirrors the CLI's `--input-roots` option.
+   *
+   * Cannot be combined with `inputRoot`; use one or the other.
+   */
+  inputRoots?: string[];
+  /**
+   * @deprecated Use `inputRoots` instead. Kept as a backward-compatibility
+   * alias: the value is the PARENT directory of the default `.rulesync/`
+   * source tree, and internally expands to
+   * `inputRoots: [join(inputRoot, ".rulesync")]`. Mirrors the CLI's
+   * `--input-root` option. Cannot be combined with `inputRoots`.
    */
   inputRoot?: string;
   delete?: boolean;
@@ -66,12 +80,22 @@ export async function generate(options: GenerateOptions = {}): Promise<GenerateR
     silent,
   });
 
-  // The pre-flight check probes the input source root rather than each
-  // output root. This matches the CLI's behavior and the way features
-  // load `.rulesync/**` content (always relative to `config.getInputRoot()`).
-  const inputRoot = config.getInputRoot();
-  if (!(await checkRulesyncDirExists({ inputRoot }))) {
-    throw new Error(`.rulesync directory not found in '${inputRoot}'. Run 'rulesync init' first.`);
+  // The pre-flight check probes the input source roots rather than each
+  // output root. This matches the CLI's behavior and the way features load
+  // `.rulesync/**` content (always relative to `config.getInputRoots()`).
+  // Every configured root must exist as a directory (typo protection), and
+  // at least one of them must contain `.rulesync/` — an overlay-only root
+  // is allowed to lack the directory when a base root already has it.
+  const inputRoots = config.getInputRoots();
+
+  await assertInputRootsResolvable(inputRoots);
+
+  if (!(await checkRulesyncDirExists({ inputRoots }))) {
+    throw new Error(
+      `.rulesync directory not found in any of the configured input roots (${inputRoots
+        .map((root) => `'${root}'`)
+        .join(", ")}). Run 'rulesync init' first.`,
+    );
   }
 
   return coreGenerate({ config, logger });

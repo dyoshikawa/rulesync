@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
@@ -2985,7 +2986,7 @@ targets: ["opencode", "agentsmd"]
       );
       const processor = new RulesProcessor({
         logger,
-        inputRoot: testDir,
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
         outputRoot: testDir,
         toolTarget: "claudecode",
       });
@@ -3013,7 +3014,7 @@ targets: ["opencode", "agentsmd"]
       );
       const processor = new RulesProcessor({
         logger,
-        inputRoot: testDir,
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
         outputRoot: testDir,
         toolTarget: "copilot",
       });
@@ -3681,17 +3682,17 @@ targets: ["claudecode"]
     });
   });
 
-  describe("loadRulesyncFiles with inputRoot", () => {
-    // Mirror the per-feature inputRoot threading assertion used in
-    // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
-    // reads from `<inputRoot>/.rulesync/rules` instead of
+  describe("loadRulesyncFiles with inputRoots", () => {
+    // Mirror the per-feature inputRoots threading assertion used in
+    // commands-processor.test.ts: when inputRoots is set, loadRulesyncFiles
+    // reads from `<inputRoots[0]>/rules` (source tree itself) instead of
     // `<process.cwd()>/.rulesync/rules`.
-    it("should read rulesync rule files from inputRoot instead of process.cwd()", async () => {
-      // Source rules live in a custom directory — NOT under cwd's `.rulesync/`.
-      const customInputRoot = join(testDir, "custom-rulesync-dir");
-      await ensureDir(join(customInputRoot, RULESYNC_RULES_RELATIVE_DIR_PATH));
+    it("should read rulesync rule files from inputRoots[0] instead of process.cwd()", async () => {
+      // Source rules live in a custom source tree — NOT under cwd's `.rulesync/`.
+      const customInputRoot = join(testDir, "custom-rulesync-dir", RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(join(customInputRoot, "rules"));
       await writeFileContent(
-        join(customInputRoot, RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md"),
+        join(customInputRoot, "rules", "overview.md"),
         `---
 root: true
 targets: ["*"]
@@ -3700,12 +3701,12 @@ targets: ["*"]
       );
 
       // outputRoot is process.cwd() (testDir) where the rulesync directory
-      // does NOT exist. If inputRoot threading is broken, this test fails
+      // does NOT exist. If inputRoots threading is broken, this test fails
       // because no rules would be found under testDir/.rulesync/rules/.
       const processor = new RulesProcessor({
         logger,
         outputRoot: testDir,
-        inputRoot: customInputRoot,
+        inputRoots: [customInputRoot],
         toolTarget: "claudecode",
       });
 
@@ -3713,7 +3714,7 @@ targets: ["*"]
       expect(rulesyncFiles).toHaveLength(1);
       // Assert directly on the loaded rule, not by re-reading the file we
       // just wrote: the meaningful check is that the rule's parsed body and
-      // frontmatter come from the inputRoot file, not from anywhere under
+      // frontmatter come from the inputRoots[0] file, not from anywhere under
       // outputRoot/process.cwd().
       const loadedRule = rulesyncFiles[0] as RulesyncRule;
       expect(loadedRule.getFrontmatter().root).toBe(true);

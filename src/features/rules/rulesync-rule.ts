@@ -217,14 +217,16 @@ export class RulesyncRule extends RulesyncFile {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
     validate = true,
   }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
-    const filePath = join(
-      outputRoot,
-      this.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath,
-    );
+    // `relativeDirPath` overrides the class-level default when the caller
+    // (a processor loading from a non-default source tree such as
+    // `.rulesync.local/rules`) needs to point at a tree whose basename
+    // differs from `.rulesync`. See the `inputRoots` design note.
+    const dirPath = relativeDirPath ?? this.getSettablePaths().recommended.relativeDirPath;
+    const filePath = join(outputRoot, dirPath, relativeFilePath);
 
     // Read file content
     const fileContent = await readFileContent(filePath);
@@ -255,7 +257,7 @@ export class RulesyncRule extends RulesyncFile {
 
     return new RulesyncRule({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().recommended.relativeDirPath,
+      relativeDirPath: dirPath,
       relativeFilePath,
       frontmatter: validatedFrontmatter,
       body: content.trim(),

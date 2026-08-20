@@ -9,7 +9,10 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { RulesyncFile, RulesyncFileFromFileParams } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 
-export type RulesyncIgnoreFromFileParams = Pick<RulesyncFileFromFileParams, "outputRoot">;
+export type RulesyncIgnoreFromFileParams = Pick<
+  RulesyncFileFromFileParams,
+  "outputRoot" | "relativeDirPath"
+>;
 
 export type RulesyncIgnoreSettablePaths = {
   recommended: {
@@ -42,11 +45,19 @@ export class RulesyncIgnore extends RulesyncFile {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
   }: RulesyncIgnoreFromFileParams = {}): Promise<RulesyncIgnore> {
     const paths = this.getSettablePaths();
+    // `relativeDirPath` overrides the class-level default when the caller
+    // (a processor loading from a non-default source tree such as
+    // `.rulesync.local`) needs to point at a tree whose basename differs
+    // from `.rulesync`. The legacy `.rulesyncignore` path stays anchored
+    // at `outputRoot` because it's a project-level file, not a per-tree
+    // one. See the `inputRoots` design note.
+    const recommendedDirPath = relativeDirPath ?? paths.recommended.relativeDirPath;
     const recommendedPath = join(
       outputRoot,
-      paths.recommended.relativeDirPath,
+      recommendedDirPath,
       paths.recommended.relativeFilePath,
     );
     const legacyPath = join(
@@ -59,7 +70,7 @@ export class RulesyncIgnore extends RulesyncFile {
       const fileContent = await readFileContent(recommendedPath);
       return new RulesyncIgnore({
         outputRoot,
-        relativeDirPath: paths.recommended.relativeDirPath,
+        relativeDirPath: recommendedDirPath,
         relativeFilePath: paths.recommended.relativeFilePath,
         fileContent,
       });
@@ -79,7 +90,7 @@ export class RulesyncIgnore extends RulesyncFile {
     const fileContent = await readFileContent(recommendedPath);
     return new RulesyncIgnore({
       outputRoot,
-      relativeDirPath: paths.recommended.relativeDirPath,
+      relativeDirPath: recommendedDirPath,
       relativeFilePath: paths.recommended.relativeFilePath,
       fileContent,
     });

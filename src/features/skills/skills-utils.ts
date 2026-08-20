@@ -1,16 +1,18 @@
 import { basename, join } from "node:path";
 
 import {
-  RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
-  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+  CURATED_SKILLS_FEATURE_SUBDIR,
+  SKILLS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
 import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
 
 /**
- * Returns the set of local skill directory names (excluding `.curated`).
+ * Returns the set of local skill directory names (excluding `.curated`)
+ * from a rulesync source tree (e.g. `/repo/.rulesync` or
+ * `/repo/.rulesync.local`).
  */
-export async function getLocalSkillDirNames(outputRoot: string): Promise<Set<string>> {
-  const skillsDir = join(outputRoot, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+export async function getLocalSkillDirNames(sourceTree: string): Promise<Set<string>> {
+  const skillsDir = join(sourceTree, SKILLS_FEATURE_SUBDIR);
   const names = new Set<string>();
 
   if (!(await directoryExists(skillsDir))) {
@@ -21,7 +23,7 @@ export async function getLocalSkillDirNames(outputRoot: string): Promise<Set<str
   for (const dirPath of dirPaths) {
     const name = basename(dirPath);
     // Skip the .curated directory itself
-    if (name === basename(RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH)) continue;
+    if (name === basename(CURATED_SKILLS_FEATURE_SUBDIR)) continue;
     names.add(name);
   }
 

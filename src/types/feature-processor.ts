@@ -1,7 +1,11 @@
+import { join } from "node:path";
+
+import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
 import {
   addTrailingNewline,
   applyFileMode,
+  fileExists,
   restoreMissingExecutableBit,
   readFileContentOrNull,
   removeFile,
@@ -16,23 +20,41 @@ import { ToolTarget } from "./tool-targets.js";
 
 export abstract class FeatureProcessor {
   protected readonly outputRoot: string;
-  protected readonly inputRoot: string;
+  /**
+   * Ordered, non-empty list of rulesync source-tree directories. Each entry
+   * is a source tree itself — the directory that directly contains feature
+   * subdirectories (`rules/`, `commands/`, …) and single-file features
+   * (`mcp.jsonc`, `hooks.jsonc`, …). Later entries take precedence in
+   * per-feature merges. Defaults to `[join(process.cwd(), ".rulesync")]`.
+   *
+   * The singular user-facing alias (`inputRoot` in `rulesync.jsonc` / the
+   * `--input-root` CLI flag / `GenerateOptions.inputRoot`) is deprecated
+   * and collapsed into `[join(inputRoot, ".rulesync")]` before it ever
+   * reaches a processor — every internal consumer only ever sees the
+   * plural form, with the source tree already resolved.
+   */
+  protected readonly inputRoots: readonly [string, ...string[]];
   protected readonly dryRun: boolean;
   protected readonly logger: Logger;
 
   constructor({
     outputRoot = process.cwd(),
-    inputRoot = process.cwd(),
+    inputRoots,
     dryRun = false,
     logger,
   }: {
     outputRoot?: string;
-    inputRoot?: string;
+    inputRoots?: readonly [string, ...string[]] | readonly string[];
     dryRun?: boolean;
     logger: Logger;
   }) {
     this.outputRoot = outputRoot;
-    this.inputRoot = inputRoot;
+
+    this.inputRoots =
+      inputRoots !== undefined && inputRoots.length > 0
+        ? [inputRoots[0]!, ...inputRoots.slice(1)]
+        : [join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH)];
+
     this.dryRun = dryRun;
     this.logger = logger;
   }
@@ -144,4 +166,68 @@ export abstract class FeatureProcessor {
 
     return orphanFiles.length;
   }
+}
+
+/**
+ * Return the last input root that contains any of the given `relativePaths`,
+ * or `undefined` when none of the roots has any of them. Used by single-file
+ * features (hooks, permissions, ignore) to implement the "later root wins
+ * the whole file" merge policy without materializing the file contents.
+ *
+ * `relativePaths` accepts a small list so features that historically read
+ * either a recommended path or a legacy alias (e.g. `.rulesync/mcp.jsonc`
+ * plus `.rulesync/mcp.json`) can preserve that resolution order per root.
+ * A root counts as "having" the file as long as at least one candidate path
+ * is present.
+ */
+export async function pickLastRootWithFile({
+  inputRoots,
+  relativePaths,
+}: {
+  inputRoots: readonly string[];
+  relativePaths: readonly string[];
+}): Promise<string | undefined> {
+  let winner: string | undefined;
+
+  for (const root of inputRoots) {
+    for (const relativePath of relativePaths) {
+      if (await fileExists(join(root, relativePath))) {
+        winner = root;
+        break;
+      }
+    }
+  }
+
+  return winner;
+}
+
+/**
+ * Merge per-root result lists into a single ordered list, keeping the
+ * later root's entry when two roots produced an item with the same
+ * identity. Identity is intentionally provided by the caller so
+ * per-feature nuances (case-insensitive filesystems, directory names for
+ * skills, server names for MCP) live next to the feature that owns them.
+ *
+ * The returned list preserves the FIRST appearance order of each identity —
+ * items in the earliest root keep their position, but their content is
+ * replaced by the last root that provided the same identity. This matches
+ * the "overlay" mental model: an overlay changes content, not order.
+ */
+export function mergeByIdentity<T>(perRoot: readonly T[][], identity: (item: T) => string): T[] {
+  const order: string[] = [];
+  const winnerByKey = new Map<string, T>();
+
+  for (const rootItems of perRoot) {
+    for (const item of rootItems) {
+      const key = identity(item);
+
+      if (!winnerByKey.has(key)) {
+        order.push(key);
+      }
+
+      winnerByKey.set(key, item);
+    }
+  }
+
+  return order.map((key) => winnerByKey.get(key)!);
 }

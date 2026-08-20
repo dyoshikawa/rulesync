@@ -806,7 +806,7 @@ targets: ["*"]
 
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(false);
-      expect(parsed.error).toContain(".rulesync directory does not exist");
+      expect(parsed.error).toContain("Configured input root does not exist");
     });
 
     it("should reject unsupported operations for generate feature", async () => {

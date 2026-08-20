@@ -19,18 +19,24 @@ import { runGenerate } from "./e2e-helper.js";
 
 const originalCwd = process.cwd();
 
-// This suite verifies that `--input-root` correctly redirects the source
-// root for each feature end-to-end. The Tool × Feature matrix itself is
+// This suite verifies that `--input-roots` correctly redirects the source
+// root(s) for each feature end-to-end. The Tool × Feature matrix itself is
 // preserved by the project-wide e2e suites (e.g. `e2e-rules.spec.ts` and
 // the per-tool feature suites) and by the unit-level coverage in each
 // processor's tests (e.g. `src/features/<feature>/<feature>-processor.test.ts`,
-// which exercise `inputRoot` threading per tool). The per-feature blocks
+// which exercise `inputRoots` threading per tool). The per-feature blocks
 // below intentionally use a single representative tool per feature: the
-// goal here is to confirm the `--input-root` plumbing reaches each
+// goal here is to confirm the `--input-roots` plumbing reaches each
 // feature's processor — not to re-walk the matrix. The rules block above
 // does iterate across multiple tools because rule output paths vary most
 // across tools.
-describe("E2E: --input-root (read from A, write to B)", () => {
+//
+// `--input-root` (singular) is a shallow, parse-time alias for a one-element
+// `--input-roots` list; the alias behavior is covered by unit tests in
+// `src/config/config.test.ts`, `src/config/config-resolver.test.ts`, and
+// `src/cli/commands/generate.test.ts`. This end-to-end suite exercises the
+// canonical plural form only, so tests do not have to branch on the alias.
+describe("E2E: --input-roots (read from A, write to B)", () => {
   let sourceDir = "";
   let outputDir = "";
   // oxlint-disable-next-line unicorn/consistent-function-scoping -- default avoids undefined if beforeEach fails
@@ -55,7 +61,7 @@ describe("E2E: --input-root (read from A, write to B)", () => {
     { target: "cursor", outputPath: join(".cursor", "rules", "overview.mdc") },
     { target: "codexcli", outputPath: "AGENTS.md" },
   ])(
-    "should read rules from --input-root and write $target output to cwd",
+    "should read rules from --input-roots and write $target output to cwd",
     async ({ target, outputPath }) => {
       const ruleContent = `---
 root: true
@@ -73,7 +79,7 @@ Rules live in sourceDir; output must land in outputDir.
         ruleContent,
       );
 
-      await runGenerate({ target, features: "rules", inputRoot: sourceDir });
+      await runGenerate({ target, features: "rules", inputRoots: [sourceDir] });
 
       const generatedContent = await readFileContent(join(outputDir, outputPath));
       expect(generatedContent).toContain("Input Root Test Rule");
@@ -85,7 +91,7 @@ Rules live in sourceDir; output must land in outputDir.
   // Per-feature smoke tests below: each one picks a single representative
   // tool. See suite-level comment — matrix-wide coverage lives elsewhere.
 
-  it("should read commands from --input-root and write claudecode output to cwd", async () => {
+  it("should read commands from --input-roots and write claudecode output to cwd", async () => {
     const commandContent = `---
 description: "Review a pull request"
 targets: ["*"]
@@ -97,7 +103,7 @@ Check the PR diff and provide feedback.
       commandContent,
     );
 
-    await runGenerate({ target: "claudecode", features: "commands", inputRoot: sourceDir });
+    await runGenerate({ target: "claudecode", features: "commands", inputRoots: [sourceDir] });
 
     const outputPath = join(".claude", "commands", "review-pr.md");
     const generatedContent = await readFileContent(join(outputDir, outputPath));
@@ -105,7 +111,7 @@ Check the PR diff and provide feedback.
     expect(await fileExists(join(sourceDir, outputPath))).toBe(false);
   });
 
-  it("should read mcp from --input-root and write claudecode output to cwd", async () => {
+  it("should read mcp from --input-roots and write claudecode output to cwd", async () => {
     const mcpContent = JSON.stringify(
       {
         mcpServers: {
@@ -121,7 +127,7 @@ Check the PR diff and provide feedback.
     );
     await writeFileContent(join(sourceDir, RULESYNC_MCP_RELATIVE_FILE_PATH), mcpContent);
 
-    await runGenerate({ target: "claudecode", features: "mcp", inputRoot: sourceDir });
+    await runGenerate({ target: "claudecode", features: "mcp", inputRoots: [sourceDir] });
 
     const outputPath = ".mcp.json";
     const generatedContent = await readFileContent(join(outputDir, outputPath));
@@ -129,14 +135,14 @@ Check the PR diff and provide feedback.
     expect(await fileExists(join(sourceDir, outputPath))).toBe(false);
   });
 
-  it("should read ignore from --input-root and write cursor output to cwd", async () => {
+  it("should read ignore from --input-roots and write cursor output to cwd", async () => {
     const ignoreContent = `tmp/
 secrets/
 *.env
 `;
     await writeFileContent(join(sourceDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH), ignoreContent);
 
-    await runGenerate({ target: "cursor", features: "ignore", inputRoot: sourceDir });
+    await runGenerate({ target: "cursor", features: "ignore", inputRoots: [sourceDir] });
 
     const outputPath = ".cursorignore";
     const generatedContent = await readFileContent(join(outputDir, outputPath));
@@ -145,7 +151,7 @@ secrets/
     expect(await fileExists(join(sourceDir, outputPath))).toBe(false);
   });
 
-  it("should read hooks from --input-root and write claudecode output to cwd", async () => {
+  it("should read hooks from --input-roots and write claudecode output to cwd", async () => {
     const hooksContent = JSON.stringify(
       {
         version: 1,
@@ -158,7 +164,7 @@ secrets/
     );
     await writeFileContent(join(sourceDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
 
-    await runGenerate({ target: "claudecode", features: "hooks", inputRoot: sourceDir });
+    await runGenerate({ target: "claudecode", features: "hooks", inputRoots: [sourceDir] });
 
     const outputPath = join(".claude", "settings.json");
     const generatedContent = await readFileContent(join(outputDir, outputPath));
@@ -168,7 +174,7 @@ secrets/
     expect(await fileExists(join(sourceDir, outputPath))).toBe(false);
   });
 
-  it("should read permissions from --input-root and write opencode output to cwd", async () => {
+  it("should read permissions from --input-roots and write opencode output to cwd", async () => {
     const permissionsContent = JSON.stringify(
       {
         permission: {
@@ -183,7 +189,7 @@ secrets/
       permissionsContent,
     );
 
-    await runGenerate({ target: "opencode", features: "permissions", inputRoot: sourceDir });
+    await runGenerate({ target: "opencode", features: "permissions", inputRoots: [sourceDir] });
 
     const outputPath = "opencode.jsonc";
     const generatedContent = await readFileContent(join(outputDir, outputPath));
@@ -193,7 +199,7 @@ secrets/
     expect(await fileExists(join(sourceDir, outputPath))).toBe(false);
   });
 
-  it("should read subagents from --input-root and write claudecode output to cwd", async () => {
+  it("should read subagents from --input-roots and write claudecode output to cwd", async () => {
     const subagentContent = `---
 name: planner
 targets: ["*"]
@@ -206,7 +212,7 @@ You are the planner. Analyze files and create a plan.
       subagentContent,
     );
 
-    await runGenerate({ target: "claudecode", features: "subagents", inputRoot: sourceDir });
+    await runGenerate({ target: "claudecode", features: "subagents", inputRoots: [sourceDir] });
 
     const outputPath = join(".claude", "agents", "planner.md");
     const generatedContent = await readFileContent(join(outputDir, outputPath));
@@ -214,7 +220,7 @@ You are the planner. Analyze files and create a plan.
     expect(await fileExists(join(sourceDir, outputPath))).toBe(false);
   });
 
-  it("should read skills from --input-root and write claudecode output to cwd", async () => {
+  it("should read skills from --input-roots and write claudecode output to cwd", async () => {
     const skillContent = `---
 name: test-skill
 description: "An input-root test skill"
@@ -227,11 +233,390 @@ Body content for the input-root skill.
       skillContent,
     );
 
-    await runGenerate({ target: "claudecode", features: "skills", inputRoot: sourceDir });
+    await runGenerate({ target: "claudecode", features: "skills", inputRoots: [sourceDir] });
 
     const outputPath = join(".claude", "skills", "test-skill", "SKILL.md");
     const generatedContent = await readFileContent(join(outputDir, outputPath));
     expect(generatedContent).toContain("Body content for the input-root skill.");
     expect(await fileExists(join(sourceDir, outputPath))).toBe(false);
+  });
+});
+
+// Two-root overlay coverage — verifies the plumbed merge policies per feature:
+//   - Glob-based features (rules, commands, subagents, checks, skills):
+//     last-wins-by-relative-path — an overlay root replaces a base file with
+//     the same relative path, and unique entries from either root survive.
+//   - Single-file features (hooks, permissions, ignore): the last root that
+//     contains the file wins entirely — no per-key merging.
+//   - MCP: one-level deep merge under `mcpServers` — later servers win, base
+//     servers not present in the overlay survive.
+describe("E2E: --input-roots (two-root overlay)", () => {
+  let baseDir = "";
+  let overlayDir = "";
+  let outputDir = "";
+  // oxlint-disable-next-line unicorn/consistent-function-scoping -- default avoids undefined if beforeEach fails
+  let cleanupBase: () => Promise<void> = async () => {};
+  // oxlint-disable-next-line unicorn/consistent-function-scoping -- default avoids undefined if beforeEach fails
+  let cleanupOverlay: () => Promise<void> = async () => {};
+  // oxlint-disable-next-line unicorn/consistent-function-scoping -- default avoids undefined if beforeEach fails
+  let cleanupOutput: () => Promise<void> = async () => {};
+
+  beforeEach(async () => {
+    ({ testDir: baseDir, cleanup: cleanupBase } = await setupTestDirectory());
+    ({ testDir: overlayDir, cleanup: cleanupOverlay } = await setupTestDirectory());
+    ({ testDir: outputDir, cleanup: cleanupOutput } = await setupTestDirectory());
+    process.chdir(outputDir);
+  });
+
+  afterEach(async () => {
+    process.chdir(originalCwd);
+    await cleanupBase();
+    await cleanupOverlay();
+    await cleanupOutput();
+  });
+
+  it("rules: last root wins for same relative path, unique files from each root survive", async () => {
+    const baseOverview = `---
+root: true
+targets: ["*"]
+description: "Base overview"
+globs: ["**/*"]
+---
+
+# Base Overview
+Base rule body.
+`;
+    const overlayOverview = `---
+root: true
+targets: ["*"]
+description: "Overlay overview"
+globs: ["**/*"]
+---
+
+# Overlay Overview
+Overlay rule body.
+`;
+    const overlayOnlyRule = `---
+root: false
+targets: ["*"]
+description: "Overlay-only rule"
+globs: ["**/*"]
+---
+
+# Overlay Only
+Overlay-only rule body.
+`;
+
+    await writeFileContent(
+      join(baseDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      baseOverview,
+    );
+    await writeFileContent(
+      join(overlayDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      overlayOverview,
+    );
+    await writeFileContent(
+      join(overlayDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "overlay-only.md"),
+      overlayOnlyRule,
+    );
+
+    await runGenerate({
+      target: "cursor",
+      features: "rules",
+      inputRoots: [baseDir, overlayDir],
+    });
+
+    const overview = await readFileContent(join(outputDir, ".cursor", "rules", "overview.mdc"));
+    expect(overview).toContain("Overlay Overview");
+    expect(overview).not.toContain("Base Overview");
+
+    const overlayOnly = await readFileContent(
+      join(outputDir, ".cursor", "rules", "overlay-only.mdc"),
+    );
+    expect(overlayOnly).toContain("Overlay Only");
+  });
+
+  it("commands: last root wins for same relative path, unique commands from each root survive", async () => {
+    const baseReview = `---
+description: "base review"
+targets: ["*"]
+---
+BASE review body.
+`;
+    const overlayReview = `---
+description: "overlay review"
+targets: ["*"]
+---
+OVERLAY review body.
+`;
+    const baseOnly = `---
+description: "base only"
+targets: ["*"]
+---
+BASE-ONLY body.
+`;
+
+    await writeFileContent(
+      join(baseDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review.md"),
+      baseReview,
+    );
+    await writeFileContent(
+      join(baseDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "base-only.md"),
+      baseOnly,
+    );
+    await writeFileContent(
+      join(overlayDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review.md"),
+      overlayReview,
+    );
+
+    await runGenerate({
+      target: "claudecode",
+      features: "commands",
+      inputRoots: [baseDir, overlayDir],
+    });
+
+    const review = await readFileContent(join(outputDir, ".claude", "commands", "review.md"));
+    expect(review).toContain("OVERLAY review body.");
+    expect(review).not.toContain("BASE review body.");
+
+    const baseOnlyOut = await readFileContent(
+      join(outputDir, ".claude", "commands", "base-only.md"),
+    );
+    expect(baseOnlyOut).toContain("BASE-ONLY body.");
+  });
+
+  it("subagents: last root wins for same relative path, unique subagents from each root survive", async () => {
+    const basePlanner = `---
+name: planner
+targets: ["*"]
+description: "base planner"
+---
+BASE planner body.
+`;
+    const overlayPlanner = `---
+name: planner
+targets: ["*"]
+description: "overlay planner"
+---
+OVERLAY planner body.
+`;
+    const overlayReviewer = `---
+name: reviewer
+targets: ["*"]
+description: "overlay reviewer"
+---
+OVERLAY reviewer body.
+`;
+
+    await writeFileContent(
+      join(baseDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      basePlanner,
+    );
+    await writeFileContent(
+      join(overlayDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      overlayPlanner,
+    );
+    await writeFileContent(
+      join(overlayDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md"),
+      overlayReviewer,
+    );
+
+    await runGenerate({
+      target: "claudecode",
+      features: "subagents",
+      inputRoots: [baseDir, overlayDir],
+    });
+
+    const planner = await readFileContent(join(outputDir, ".claude", "agents", "planner.md"));
+    expect(planner).toContain("OVERLAY planner body.");
+    expect(planner).not.toContain("BASE planner body.");
+
+    const reviewer = await readFileContent(join(outputDir, ".claude", "agents", "reviewer.md"));
+    expect(reviewer).toContain("OVERLAY reviewer body.");
+  });
+
+  it("skills: last root wins for same relative path, unique skills from each root survive", async () => {
+    const baseSkill = `---
+name: shared-skill
+description: "base skill"
+targets: ["*"]
+---
+BASE skill body.
+`;
+    const overlaySkill = `---
+name: shared-skill
+description: "overlay skill"
+targets: ["*"]
+---
+OVERLAY skill body.
+`;
+    const overlayOnly = `---
+name: overlay-only-skill
+description: "overlay-only skill"
+targets: ["*"]
+---
+OVERLAY-ONLY skill body.
+`;
+
+    await writeFileContent(
+      join(baseDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "shared-skill", "SKILL.md"),
+      baseSkill,
+    );
+    await writeFileContent(
+      join(overlayDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "shared-skill", "SKILL.md"),
+      overlaySkill,
+    );
+    await writeFileContent(
+      join(overlayDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "overlay-only-skill", "SKILL.md"),
+      overlayOnly,
+    );
+
+    await runGenerate({
+      target: "claudecode",
+      features: "skills",
+      inputRoots: [baseDir, overlayDir],
+    });
+
+    const shared = await readFileContent(
+      join(outputDir, ".claude", "skills", "shared-skill", "SKILL.md"),
+    );
+    expect(shared).toContain("OVERLAY skill body.");
+    expect(shared).not.toContain("BASE skill body.");
+
+    const overlayOnlyOut = await readFileContent(
+      join(outputDir, ".claude", "skills", "overlay-only-skill", "SKILL.md"),
+    );
+    expect(overlayOnlyOut).toContain("OVERLAY-ONLY skill body.");
+  });
+
+  it("ignore: later root fully replaces earlier root's file", async () => {
+    await writeFileContent(
+      join(baseDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
+      "base-only-dir/\nshared/\n",
+    );
+    await writeFileContent(
+      join(overlayDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
+      "overlay-only-dir/\nshared/\n",
+    );
+
+    await runGenerate({
+      target: "cursor",
+      features: "ignore",
+      inputRoots: [baseDir, overlayDir],
+    });
+
+    const out = await readFileContent(join(outputDir, ".cursorignore"));
+    expect(out).toContain("overlay-only-dir/");
+    expect(out).toContain("shared/");
+    expect(out).not.toContain("base-only-dir/");
+  });
+
+  it("hooks: later root fully replaces earlier root's file", async () => {
+    const baseHooks = JSON.stringify(
+      {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: ".rulesync/hooks/base.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    const overlayHooks = JSON.stringify(
+      {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: ".rulesync/hooks/overlay.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(baseDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), baseHooks);
+    await writeFileContent(join(overlayDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), overlayHooks);
+
+    await runGenerate({
+      target: "claudecode",
+      features: "hooks",
+      inputRoots: [baseDir, overlayDir],
+    });
+
+    const parsed = JSON.parse(await readFileContent(join(outputDir, ".claude", "settings.json")));
+    const serialized = JSON.stringify(parsed);
+    expect(serialized).toContain("overlay.sh");
+    expect(serialized).not.toContain("base.sh");
+  });
+
+  it("permissions: later root fully replaces earlier root's file", async () => {
+    const basePermissions = JSON.stringify(
+      {
+        permission: {
+          bash: { "git *": "allow", "base-only": "deny" },
+        },
+      },
+      null,
+      2,
+    );
+    const overlayPermissions = JSON.stringify(
+      {
+        permission: {
+          bash: { "git *": "deny", "overlay-only": "allow" },
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(baseDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH), basePermissions);
+    await writeFileContent(
+      join(overlayDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      overlayPermissions,
+    );
+
+    await runGenerate({
+      target: "opencode",
+      features: "permissions",
+      inputRoots: [baseDir, overlayDir],
+    });
+
+    const parsed = JSON.parse(await readFileContent(join(outputDir, "opencode.jsonc")));
+    expect(parsed.permission.bash["git *"]).toBe("deny");
+    expect(parsed.permission.bash["overlay-only"]).toBe("allow");
+    expect(parsed.permission.bash["base-only"]).toBeUndefined();
+  });
+
+  it("mcp: deep-merges `mcpServers` — later servers win, base-only servers survive", async () => {
+    const baseMcp = JSON.stringify(
+      {
+        mcpServers: {
+          shared: { type: "stdio", command: "base-cmd" },
+          "base-only": { type: "stdio", command: "base-only-cmd" },
+        },
+      },
+      null,
+      2,
+    );
+    const overlayMcp = JSON.stringify(
+      {
+        mcpServers: {
+          shared: { type: "stdio", command: "overlay-cmd" },
+          "overlay-only": { type: "stdio", command: "overlay-only-cmd" },
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(baseDir, RULESYNC_MCP_RELATIVE_FILE_PATH), baseMcp);
+    await writeFileContent(join(overlayDir, RULESYNC_MCP_RELATIVE_FILE_PATH), overlayMcp);
+
+    await runGenerate({
+      target: "claudecode",
+      features: "mcp",
+      inputRoots: [baseDir, overlayDir],
+    });
+
+    const parsed = JSON.parse(await readFileContent(join(outputDir, ".mcp.json")));
+    expect(parsed.mcpServers.shared.command).toBe("overlay-cmd");
+    expect(parsed.mcpServers["base-only"].command).toBe("base-only-cmd");
+    expect(parsed.mcpServers["overlay-only"].command).toBe("overlay-only-cmd");
   });
 });

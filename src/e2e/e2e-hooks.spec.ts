@@ -991,7 +991,7 @@ describe("E2E: hooks (global mode)", () => {
       target: "kimi-code",
       features: "hooks",
       global: true,
-      inputRoot: homeDir,
+      inputRoots: [homeDir],
       env: { HOME_DIR: homeDir },
     });
     const regenerated = smolToml.parse(

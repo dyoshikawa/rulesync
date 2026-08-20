@@ -247,20 +247,21 @@ describe("WatchScheduler", () => {
 
 describe("buildWatchTargets", () => {
   it("watches the .rulesync tree recursively and the config files only", () => {
-    const inputRoot = join("/", "repo");
+    const root = join("/", "repo");
+    const sourceTree = join(root, RULESYNC_RELATIVE_DIR_PATH);
     const targets = buildWatchTargets({
-      inputRoot,
-      configFilePath: join(inputRoot, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      inputRoots: [sourceTree],
+      configFilePath: join(root, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
     });
 
     expect(targets).toHaveLength(2);
     expect(targets[0]).toEqual({
-      directory: join(inputRoot, RULESYNC_RELATIVE_DIR_PATH),
+      directory: sourceTree,
       recursive: true,
     });
 
     const configTarget = targets[1];
-    expect(configTarget?.directory).toBe(inputRoot);
+    expect(configTarget?.directory).toBe(root);
     expect(configTarget?.recursive).toBe(false);
     expect(configTarget?.include?.(RULESYNC_CONFIG_RELATIVE_FILE_PATH)).toBe(true);
     expect(configTarget?.include?.(RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH)).toBe(true);
@@ -270,16 +271,43 @@ describe("buildWatchTargets", () => {
   });
 
   it("watches the directory holding a config file outside the input root", () => {
-    const inputRoot = join("/", "repo");
+    const root = join("/", "repo");
     const targets = buildWatchTargets({
-      inputRoot,
-      configFilePath: join(inputRoot, "config", "custom.jsonc"),
+      inputRoots: [join(root, RULESYNC_RELATIVE_DIR_PATH)],
+      configFilePath: join(root, "config", "custom.jsonc"),
     });
 
     const configTarget = targets[1];
-    expect(configTarget?.directory).toBe(join(inputRoot, "config"));
+    expect(configTarget?.directory).toBe(join(root, "config"));
     expect(configTarget?.include?.("custom.jsonc")).toBe(true);
     expect(configTarget?.include?.(RULESYNC_CONFIG_RELATIVE_FILE_PATH)).toBe(false);
+  });
+
+  it("emits one recursive watcher per input root", () => {
+    const base = join("/", "team-config", RULESYNC_RELATIVE_DIR_PATH);
+    const overlay = join("/", "repo", RULESYNC_RELATIVE_DIR_PATH);
+    const targets = buildWatchTargets({
+      inputRoots: [base, overlay],
+      configFilePath: join("/", "repo", RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+    });
+
+    expect(targets).toHaveLength(3);
+    expect(targets[0]?.directory).toBe(base);
+    expect(targets[1]?.directory).toBe(overlay);
+    // The last entry is the config-file watcher.
+    expect(targets[2]?.recursive).toBe(false);
+  });
+
+  it("dedupes duplicate roots", () => {
+    const root = join("/", "repo");
+    const sourceTree = join(root, RULESYNC_RELATIVE_DIR_PATH);
+    const targets = buildWatchTargets({
+      inputRoots: [sourceTree, sourceTree],
+      configFilePath: join(root, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+    });
+
+    expect(targets).toHaveLength(2);
+    expect(targets[0]?.directory).toBe(sourceTree);
   });
 });
 
@@ -296,11 +324,11 @@ describe("buildConfigFilePaths", () => {
 describe("formatTriggerPaths", () => {
   const baseDir = join("/", "repo");
 
-  it("renders paths relative to the base directory", () => {
+  it("renders paths relative to the containing input root", () => {
     expect(
       formatTriggerPaths({
         triggers: [join(baseDir, ".rulesync", "rules", "a.md")],
-        baseDir,
+        inputRoots: [baseDir],
       }),
     ).toBe(join(".rulesync", "rules", "a.md"));
   });
@@ -310,24 +338,38 @@ describe("formatTriggerPaths", () => {
       join(baseDir, ".rulesync", "rules", `rule-${index}.md`),
     );
 
-    const formatted = formatTriggerPaths({ triggers, baseDir, max: 2 });
+    const formatted = formatTriggerPaths({ triggers, inputRoots: [baseDir], max: 2 });
 
     expect(formatted).toBe(
       `${join(".rulesync", "rules", "rule-0.md")}, ${join(".rulesync", "rules", "rule-1.md")} (+5 more)`,
     );
   });
 
-  it("falls back to the absolute path when it equals the base directory", () => {
-    expect(formatTriggerPaths({ triggers: [baseDir], baseDir })).toBe(baseDir);
+  it("falls back to the absolute path for triggers outside every root", () => {
+    expect(formatTriggerPaths({ triggers: [baseDir], inputRoots: [baseDir] })).toBe(baseDir);
+  });
+
+  it("picks the containing root when several are configured", () => {
+    const base = join("/", "team-config");
+    const overlay = join("/", "repo");
+    expect(
+      formatTriggerPaths({
+        triggers: [
+          join(base, ".rulesync", "rules", "a.md"),
+          join(overlay, ".rulesync", "rules", "b.md"),
+        ],
+        inputRoots: [base, overlay],
+      }),
+    ).toBe(`${join(".rulesync", "rules", "a.md")}, ${join(".rulesync", "rules", "b.md")}`);
   });
 });
 
 describe("watchTargets", () => {
   // The fs.watch integration tests depend on OS event delivery, which can
   // stall for seconds on loaded CI runners; the default 5s per-test timeout
-  // has produced repeated flakes there (each `waitFor` already polls with its
-  // own 10s budget).
-  const FS_EVENT_TEST_TIMEOUT_MS = 20000;
+  // has produced repeated flakes there.
+  const FS_EVENT_WAIT_TIMEOUT_MS = 20000;
+  const FS_EVENT_TEST_TIMEOUT_MS = 30000;
 
   it(
     "forwards changes under a recursively watched directory",
@@ -349,7 +391,10 @@ describe("watchTargets", () => {
 
         try {
           await writeFile(join(rulesDir, "watched.md"), "# watched\n", "utf8");
-          await waitFor(() => changed.some((path) => path.includes("watched.md")));
+          await waitFor(
+            () => changed.some((path) => path.includes("watched.md")),
+            FS_EVENT_WAIT_TIMEOUT_MS,
+          );
         } finally {
           handle.close();
         }
@@ -382,11 +427,11 @@ describe("watchTargets", () => {
           // A branch switch that drops `.rulesync/` kills the underlying inode
           // watch; without re-arming, nothing below would ever be reported.
           await rm(watchedDir, { recursive: true, force: true });
-          await waitFor(() => changed.length > 0);
+          await waitFor(() => changed.length > 0, FS_EVENT_WAIT_TIMEOUT_MS);
 
           changed.length = 0;
           await mkdir(join(watchedDir, "rules"), { recursive: true });
-          await waitFor(() => changed.length > 0);
+          await waitFor(() => changed.length > 0, FS_EVENT_WAIT_TIMEOUT_MS);
 
           changed.length = 0;
           // Probe at the watched root, not inside `rules/`: the re-attached
@@ -400,6 +445,7 @@ describe("watchTargets", () => {
           await waitForWithProbe({
             probe: () => writeFile(join(watchedDir, "after-rearm.md"), "# after\n", "utf8"),
             until: () => changed.some((path) => path.includes("after-rearm.md")),
+            timeoutMs: FS_EVENT_WAIT_TIMEOUT_MS,
           });
         } finally {
           handle.close();
@@ -454,6 +500,7 @@ describe("watchTargets", () => {
           await waitForWithProbe({
             probe: () => writeFile(configFilePath, "{}\n", "utf8"),
             until: () => changed.some((path) => path.endsWith(RULESYNC_CONFIG_RELATIVE_FILE_PATH)),
+            timeoutMs: FS_EVENT_WAIT_TIMEOUT_MS,
           });
         } finally {
           handle.close();

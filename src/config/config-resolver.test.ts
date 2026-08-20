@@ -854,7 +854,7 @@ describe("config-resolver", () => {
   });
 
   describe("inputRoot — config-file sourcing", () => {
-    it("should honor inputRoot set in rulesync.jsonc and propagate it through mergeConfigs", async () => {
+    it("should honor inputRoot set in rulesync.jsonc and expand it to `[join(inputRoot, '.rulesync')]`", async () => {
       const configuredRoot = join(testDir, "from-config");
       await writeFileContent(
         join(testDir, "rulesync.jsonc"),
@@ -865,7 +865,9 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.getInputRoot()).toBe(configuredRoot);
+      // Singular `inputRoot` is a deprecated alias for the parent of the
+      // default `.rulesync/` source tree and expands accordingly.
+      expect(config.getInputRoots()).toEqual([join(configuredRoot, ".rulesync")]);
     });
 
     it("should let rulesync.local.jsonc override inputRoot from rulesync.jsonc", async () => {
@@ -884,7 +886,100 @@ describe("config-resolver", () => {
         configPath: join(testDir, "rulesync.jsonc"),
       });
 
-      expect(config.getInputRoot()).toBe(localRoot);
+      expect(config.getInputRoots()).toEqual([join(localRoot, ".rulesync")]);
+    });
+
+    it("should accept an inputRoots array in rulesync.jsonc and normalize entries to absolute paths", async () => {
+      const rootA = join(testDir, "root-a");
+      const rootB = join(testDir, "root-b");
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ inputRoots: [rootA, rootB] }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getInputRoots()).toEqual([rootA, rootB]);
+    });
+
+    it("should reject a single file that declares both inputRoot and inputRoots", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ inputRoot: "./a", inputRoots: ["./a", "./b"] }),
+      );
+
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+        }),
+      ).rejects.toThrow(/'inputRoot' and 'inputRoots' cannot be combined/);
+    });
+
+    it("should let inputRoots in rulesync.local.jsonc win over inputRoot in rulesync.jsonc", async () => {
+      const baseRoot = join(testDir, "base");
+      const localA = join(testDir, "local-a");
+      const localB = join(testDir, "local-b");
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ inputRoot: baseRoot }),
+      );
+      await writeFileContent(
+        join(testDir, "rulesync.local.jsonc"),
+        JSON.stringify({ inputRoots: [localA, localB] }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getInputRoots()).toEqual([localA, localB]);
+    });
+
+    it("should let CLI inputRoots override any file-configured input roots", async () => {
+      // With CLI-supplied inputRoots the resolver uses `inputRoots[0]` to
+      // anchor `configPath` resolution. Writing the config file into `cli-a`
+      // keeps the anchor consistent with the file location, matching how a
+      // real user would layout their tree.
+      const cliA = join(testDir, "cli-a");
+      const cliB = join(testDir, "cli-b");
+      const configuredRoot = join(cliA, "from-config");
+      await writeFileContent(
+        join(cliA, "rulesync.jsonc"),
+        JSON.stringify({ inputRoot: configuredRoot }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: "rulesync.jsonc",
+        inputRoots: [cliA, cliB],
+      });
+
+      expect(config.getInputRoots()).toEqual([cliA, cliB]);
+    });
+
+    it("should reject a CLI invocation that combines --input-root and --input-roots", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+          inputRoot: "./a",
+          inputRoots: ["./a", "./b"],
+        }),
+      ).rejects.toThrow(/'inputRoot' and 'inputRoots' cannot be combined/);
+    });
+
+    it("should dedupe duplicate entries after normalization", async () => {
+      const rootA = join(testDir, "root-a");
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ inputRoots: [rootA, rootA] }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getInputRoots()).toEqual([rootA]);
     });
 
     it("should reject a config-file inputRoot that fails validateOutputRoot", async () => {

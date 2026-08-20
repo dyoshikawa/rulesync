@@ -3,6 +3,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import {
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { CommandsProcessor } from "./commands-processor.js";
@@ -102,7 +106,7 @@ describe("HermesagentCommand", () => {
   });
 
   it("fails when a Hermes command and skill expose the same slash name", async () => {
-    const skillDir = join(testDir, ".rulesync", "skills", "review");
+    const skillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review");
     await mkdir(skillDir, { recursive: true });
     await writeFile(
       join(skillDir, "SKILL.md"),
@@ -110,7 +114,7 @@ describe("HermesagentCommand", () => {
       "utf8",
     );
     const processor = new CommandsProcessor({
-      inputRoot: testDir,
+      inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
       toolTarget: "hermesagent",
       global: true,
       logger: createMockLogger(),
@@ -137,7 +141,7 @@ describe("HermesagentCommand", () => {
   });
 
   it("uses Hermes slash normalization for commands and skill frontmatter names", async () => {
-    const skillDir = join(testDir, ".rulesync", "skills", "different-directory");
+    const skillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "different-directory");
     await mkdir(skillDir, { recursive: true });
     await writeFile(
       join(skillDir, "SKILL.md"),
@@ -145,7 +149,7 @@ describe("HermesagentCommand", () => {
       "utf8",
     );
     const processor = new CommandsProcessor({
-      inputRoot: testDir,
+      inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
       toolTarget: "hermesagent",
       global: true,
       logger: createMockLogger(),
@@ -159,7 +163,7 @@ describe("HermesagentCommand", () => {
   });
 
   it("ignores slash-name collisions with skills that do not target Hermes", async () => {
-    const skillDir = join(testDir, ".rulesync", "skills", "review");
+    const skillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review");
     await mkdir(skillDir, { recursive: true });
     await writeFile(
       join(skillDir, "SKILL.md"),
@@ -167,7 +171,7 @@ describe("HermesagentCommand", () => {
       "utf8",
     );
     const processor = new CommandsProcessor({
-      inputRoot: testDir,
+      inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
       toolTarget: "hermesagent",
       global: true,
       logger: createMockLogger(),
@@ -180,7 +184,7 @@ describe("HermesagentCommand", () => {
 
   it("rejects command names that collide after case normalization", async () => {
     const processor = new CommandsProcessor({
-      inputRoot: testDir,
+      inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
       toolTarget: "hermesagent",
       global: true,
       logger: createMockLogger(),
