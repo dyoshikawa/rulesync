@@ -359,6 +359,17 @@ export const assertInputRootFieldsExclusive = ({
 };
 
 /**
+ * Rejects an explicitly supplied empty `inputRoots` list. Omitting the field
+ * selects the conventional default, while an empty list has no meaningful
+ * source-tree semantics and must not be treated as an absent override.
+ */
+export const assertInputRootsNonEmpty = ({ inputRoots }: { inputRoots?: string[] }): void => {
+  if (inputRoots !== undefined && inputRoots.length === 0) {
+    throw new Error("Invalid config: 'inputRoots' must be non-empty.");
+  }
+};
+
+/**
  * Normalizes a post-resolution `ConfigParams` input by rejecting the case
  * where both `targets` and `features` are undefined — a degenerate state
  * that would silently produce a no-op config (no targets, no features).
@@ -451,6 +462,7 @@ export class Config {
     // is safe to run twice on file-loader inputs — the check is idempotent.
     assertTargetsFeaturesExclusive({ targets, features });
     assertInputRootFieldsExclusive({ inputRoot, inputRoots });
+    assertInputRootsNonEmpty({ inputRoots });
     // Reject the degenerate "both undefined" state so `new Config(...)` callers
     // can't accidentally produce a no-op config. Defaults in `ConfigResolver`
     // always populate at least one side, so this only fires for programmatic

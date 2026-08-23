@@ -654,7 +654,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       ),
     );
 
-    const localSkillNames = new Set(localDirNames);
+    const localSkillNames = new Set(localDirNames.map((name) => name.toLowerCase()));
 
     const curatedDirPath = join(sourceTree, CURATED_SKILLS_FEATURE_SUBDIR);
     let curatedSkills: RulesyncSkill[] = [];
@@ -664,7 +664,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const curatedDirNames = curatedDirPaths.map((path) => basename(path));
 
       const nonConflicting = curatedDirNames.filter((name) => {
-        if (localSkillNames.has(name)) {
+        if (localSkillNames.has(name.toLowerCase())) {
           this.logger.debug(`Skipping curated skill "${name}": local skill takes precedence.`);
           return false;
         }

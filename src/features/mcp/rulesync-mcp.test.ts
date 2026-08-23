@@ -1646,7 +1646,7 @@ describe("mergeMcpJsonOverlays", () => {
       },
     };
 
-    expect(mergeMcpJsonOverlays(base, overlay)).toEqual({
+    expect(mergeMcpJsonOverlays({ base, overlay })).toEqual({
       mcpServers: {
         // `alpha` is replaced atomically — the overlay's args map replaces
         // the base's args map, no key-level union.
@@ -1666,7 +1666,7 @@ describe("mergeMcpJsonOverlays", () => {
     };
     const overlay = { mcpServers: { alpha: null } };
 
-    expect(mergeMcpJsonOverlays(base, overlay)).toEqual({
+    expect(mergeMcpJsonOverlays({ base, overlay })).toEqual({
       mcpServers: {
         alpha: null,
         beta: { command: "beta" },
@@ -1685,7 +1685,7 @@ describe("mergeMcpJsonOverlays", () => {
       },
     };
 
-    expect(mergeMcpJsonOverlays(base, overlay)).toEqual({
+    expect(mergeMcpJsonOverlays({ base, overlay })).toEqual({
       claudecode: {
         mcpServers: {
           shared: null,
@@ -1699,7 +1699,7 @@ describe("mergeMcpJsonOverlays", () => {
     const base = { $schema: "https://example.com/base.json", other: { keep: true } };
     const overlay = { $schema: "https://example.com/overlay.json", other: { keep: false } };
 
-    expect(mergeMcpJsonOverlays(base, overlay)).toEqual({
+    expect(mergeMcpJsonOverlays({ base, overlay })).toEqual({
       $schema: "https://example.com/overlay.json",
       other: { keep: false },
     });
@@ -1707,16 +1707,18 @@ describe("mergeMcpJsonOverlays", () => {
 
   it("drops prototype-pollution keys silently", () => {
     const overlay = JSON.parse('{"__proto__": {"polluted": true}}');
-    expect(mergeMcpJsonOverlays({ mcpServers: {} }, overlay)).toEqual({ mcpServers: {} });
+    expect(mergeMcpJsonOverlays({ base: { mcpServers: {} }, overlay })).toEqual({
+      mcpServers: {},
+    });
   });
 
   it("rejects non-object mcpServers overlays instead of treating them as empty", () => {
-    expect(() => mergeMcpJsonOverlays({ mcpServers: {} }, { mcpServers: [] })).toThrow(
-      /mcpServers/,
-    );
+    expect(() =>
+      mergeMcpJsonOverlays({ base: { mcpServers: {} }, overlay: { mcpServers: [] } }),
+    ).toThrow(/mcpServers/);
   });
 
   it("rejects non-object tool-scoped blocks instead of treating them as empty", () => {
-    expect(() => mergeMcpJsonOverlays({}, { cursor: null })).toThrow(/cursor/);
+    expect(() => mergeMcpJsonOverlays({ base: {}, overlay: { cursor: null } })).toThrow(/cursor/);
   });
 });

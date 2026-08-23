@@ -1637,13 +1637,13 @@ As this project's AI coding tool, you must follow the additional conventions bel
       (file) => !relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`),
     );
     const localRelativePaths = new Set(
-      localFiles.map((file) => relative(rulesyncOutputRoot, file)),
+      localFiles.map((file) => relative(rulesyncOutputRoot, file).toLowerCase()),
     );
 
     const curatedFiles = files
       .filter((file) => relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`))
       .map((file) => ({ file, relativeFilePath: relative(curatedOutputRoot, file) }))
-      .filter(({ relativeFilePath }) => !localRelativePaths.has(relativeFilePath));
+      .filter(({ relativeFilePath }) => !localRelativePaths.has(relativeFilePath.toLowerCase()));
 
     const selectedFiles = [
       ...localFiles.map((file) => ({

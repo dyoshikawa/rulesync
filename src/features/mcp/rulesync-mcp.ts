@@ -221,10 +221,13 @@ function mergeTopLevelMcpServers({
   return merged;
 }
 
-export function mergeMcpJsonOverlays(
-  base: Record<string, unknown>,
-  overlay: Record<string, unknown>,
-): Record<string, unknown> {
+export function mergeMcpJsonOverlays({
+  base,
+  overlay,
+}: {
+  base: Record<string, unknown>;
+  overlay: Record<string, unknown>;
+}): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...base };
 
   for (const [key, overlayValue] of Object.entries(overlay)) {
@@ -419,7 +422,7 @@ export class RulesyncMcp extends RulesyncFile {
     }
 
     const merged = rootRecords.reduce<Record<string, unknown>>(
-      (acc, next) => mergeMcpJsonOverlays(acc, next),
+      (acc, next) => mergeMcpJsonOverlays({ base: acc, overlay: next }),
       {},
     );
 

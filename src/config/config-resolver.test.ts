@@ -986,6 +986,20 @@ describe("config-resolver", () => {
       ).rejects.toThrow(/'inputRoot' and 'inputRoots' cannot be combined/);
     });
 
+    it("should reject an empty programmatic inputRoots override", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ inputRoots: ["/"] }),
+      );
+
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+          inputRoots: [],
+        }),
+      ).rejects.toThrow(/'inputRoots' must be non-empty/);
+    });
+
     it("should dedupe duplicate entries after normalization", async () => {
       const rootA = join(testDir, "root-a");
       await writeFileContent(

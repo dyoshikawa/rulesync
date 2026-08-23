@@ -213,7 +213,13 @@ export async function pickLastRootWithFile({
  * replaced by the last root that provided the same identity. This matches
  * the "overlay" mental model: an overlay changes content, not order.
  */
-export function mergeByIdentity<T>(perRoot: readonly T[][], identity: (item: T) => string): T[] {
+export function mergeByIdentity<T>({
+  perRoot,
+  identity,
+}: {
+  perRoot: readonly T[][];
+  identity: (item: T) => string;
+}): T[] {
   const order: string[] = [];
   const winnerByKey = new Map<string, T>();
 
@@ -251,22 +257,25 @@ export function mergeByCaseInsensitiveIdentity<T>({
   const spellingByKey = new Map<string, string>();
   const warnedKeys = new Set<string>();
 
-  return mergeByIdentity(perRoot, (item) => {
-    const spelling = identity(item);
-    const key = spelling.toLowerCase();
-    const previousSpelling = spellingByKey.get(key);
+  return mergeByIdentity({
+    perRoot,
+    identity: (item) => {
+      const spelling = identity(item);
+      const key = spelling.toLowerCase();
+      const previousSpelling = spellingByKey.get(key);
 
-    if (previousSpelling !== undefined && previousSpelling !== spelling && !warnedKeys.has(key)) {
-      logger.warn(
-        `Case-insensitive ${artifactName} collision: '${previousSpelling}' and '${spelling}' resolve to the same identity. The later entry wins.`,
-      );
-      warnedKeys.add(key);
-    }
+      if (previousSpelling !== undefined && previousSpelling !== spelling && !warnedKeys.has(key)) {
+        logger.warn(
+          `Case-insensitive ${artifactName} collision: '${previousSpelling}' and '${spelling}' resolve to the same identity. The later entry wins.`,
+        );
+        warnedKeys.add(key);
+      }
 
-    if (previousSpelling === undefined) {
-      spellingByKey.set(key, spelling);
-    }
+      if (previousSpelling === undefined) {
+        spellingByKey.set(key, spelling);
+      }
 
-    return key;
+      return key;
+    },
   });
 }

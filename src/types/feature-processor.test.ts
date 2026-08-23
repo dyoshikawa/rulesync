@@ -355,7 +355,7 @@ describe("mergeByIdentity", () => {
       ],
     ];
 
-    expect(mergeByIdentity(perRoot, (item) => item.id)).toEqual([
+    expect(mergeByIdentity({ perRoot, identity: (item) => item.id })).toEqual([
       { id: "a", value: "base-a" },
       { id: "b", value: "overlay-b" },
       { id: "c", value: "overlay-c" },
@@ -363,7 +363,12 @@ describe("mergeByIdentity", () => {
   });
 
   it("returns an empty list when every root is empty", () => {
-    expect(mergeByIdentity<{ id: string }>([[], []], (item) => item.id)).toEqual([]);
+    expect(
+      mergeByIdentity<{ id: string }>({
+        perRoot: [[], []],
+        identity: (item) => item.id,
+      }),
+    ).toEqual([]);
   });
 });
 

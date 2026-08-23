@@ -3027,6 +3027,30 @@ targets: ["opencode", "agentsmd"]
       expect(byPath.get("remote-only.md")?.getBody()).toBe("Remote-only content");
       expect([...byPath.keys()]).not.toContain(".curated/remote-only.md");
     });
+
+    it("should prefer a local rule over a case-variant curated rule", async () => {
+      const frontmatter = "---\ntargets:\n  - '*'\n---\n";
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "Shared.md"),
+        `${frontmatter}Local content`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "shared.md"),
+        `${frontmatter}Remote content`,
+      );
+      const processor = new RulesProcessor({
+        logger,
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        outputRoot: testDir,
+        toolTarget: "copilot",
+      });
+
+      const result = (await processor.loadRulesyncFiles()) as RulesyncRule[];
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.getRelativeFilePath()).toBe("Shared.md");
+      expect(result[0]?.getBody()).toBe("Local content");
+    });
   });
 
   describe("loadRulesyncFiles warning for missing root rule", () => {

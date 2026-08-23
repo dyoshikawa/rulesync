@@ -460,6 +460,10 @@ describe("Config", () => {
       expect(config.getInputRoots()).toEqual([absolute, resolve(originalCwd, "overlay")]);
     });
 
+    it("rejects an explicitly empty inputRoots list", () => {
+      expect(() => createConfig({ inputRoots: [] })).toThrow(/'inputRoots' must be non-empty/);
+    });
+
     it("prefers `inputRoots` over `inputRoot` when both are supplied to the constructor", () => {
       expect(() => createConfig({ inputRoot: "/base", inputRoots: ["/base", "/overlay"] })).toThrow(
         /cannot be combined/,

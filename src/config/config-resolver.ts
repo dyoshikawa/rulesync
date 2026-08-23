@@ -23,6 +23,7 @@ import {
 import { fallbackLogger, type Logger, warnWithFallback } from "../utils/logger.js";
 import {
   assertInputRootFieldsExclusive,
+  assertInputRootsNonEmpty,
   assertTargetsFeaturesExclusive,
   Config,
   ConfigFile,
@@ -374,6 +375,7 @@ export class ConfigResolver {
     // case where base has one and local has the other resolves cleanly with
     // `inputRoots` winning (see `resolveEffectiveInputRoots`).
     assertInputRootFieldsExclusive({ inputRoot, inputRoots });
+    assertInputRootsNonEmpty({ inputRoots });
 
     // Validate configPath to prevent path traversal attacks.
     //

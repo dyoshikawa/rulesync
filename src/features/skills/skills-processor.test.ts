@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
@@ -438,6 +439,39 @@ Content 2`;
         .map((dir) => (dir as RulesyncSkill).getFrontmatter().name)
         .toSorted();
       expect(names).toEqual(["skill-1", "skill-2"]);
+    });
+
+    it("should prefer a local skill over a case-variant curated skill", async () => {
+      const localSkillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "Shared-Skill");
+      const curatedSkillDir = join(
+        testDir,
+        RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+        "shared-skill",
+      );
+      await ensureDir(localSkillDir);
+      await ensureDir(curatedSkillDir);
+      await writeFileContent(
+        join(localSkillDir, "SKILL.md"),
+        `---
+name: Shared-Skill
+description: Local skill
+---
+Local content`,
+      );
+      await writeFileContent(
+        join(curatedSkillDir, "SKILL.md"),
+        `---
+name: shared-skill
+description: Curated skill
+---
+Curated content`,
+      );
+
+      const rulesyncDirs = await processor.loadRulesyncDirs();
+
+      expect(rulesyncDirs).toHaveLength(1);
+      expect((rulesyncDirs[0] as RulesyncSkill).getDirName()).toBe("Shared-Skill");
+      expect((rulesyncDirs[0] as RulesyncSkill).getBody()).toBe("Local content");
     });
 
     it("should throw error when invalid skill directory is found", async () => {
