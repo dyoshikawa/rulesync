@@ -143,6 +143,22 @@ const CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS: readonly (readonly string[])[] = [
  * behind. Shared by the two `sandbox` filters below so a nested path added to
  * either table is actually traversed rather than silently skipped.
  */
+function resolveSandboxParent({
+  root,
+  segments,
+}: {
+  root: Record<string, unknown>;
+  segments: readonly string[];
+}): Record<string, unknown> | undefined {
+  let parent: Record<string, unknown> = root;
+  for (const segment of segments) {
+    const next = parent[segment];
+    if (!isPlainRecord(next)) return undefined;
+    parent = next;
+  }
+  return parent;
+}
+
 function deleteSandboxPath({
   target,
   path,
@@ -153,27 +169,38 @@ function deleteSandboxPath({
   const leaf = path.at(-1);
   if (leaf === undefined) return false;
   const parentPath = path.slice(0, -1);
-  let parent: Record<string, unknown> = target;
-  for (const segment of parentPath) {
-    const next = parent[segment];
-    if (!isPlainRecord(next)) return false;
-    parent = next;
-  }
-  if (parent[leaf] === undefined) return false;
+  const parent = resolveSandboxParent({ root: target, segments: parentPath });
+  if (parent === undefined || parent[leaf] === undefined) return false;
   delete parent[leaf];
-  const [container] = parentPath;
-  if (container !== undefined && isPlainRecord(target[container])) {
-    if (Object.keys(target[container]).length === 0) delete target[container];
+  // Walk back out, dropping every container the removal emptied, so no
+  // `"network": {}` — or `{"credentials":{"nested":{}}}` — is left behind.
+  for (let depth = parentPath.length; depth > 0; depth--) {
+    const container = resolveSandboxParent({ root: target, segments: parentPath.slice(0, depth) });
+    if (container === undefined || Object.keys(container).length > 0) break;
+    const holder = resolveSandboxParent({ root: target, segments: parentPath.slice(0, depth - 1) });
+    const name = parentPath[depth - 1];
+    if (holder === undefined || name === undefined) break;
+    delete holder[name];
   }
   return true;
 }
 
 /**
- * The `permissions` fields that widen rather than restrict: `bypassPermissions`
- * starts every session with no permission prompt at all, and
- * `additionalDirectories` moves the working-directory boundary. Warned for the
- * same reason `disableAllHooks` is: a shareable permissions file should not
- * loosen the permission system quietly.
+ * The `permissions.defaultMode` values that start a session with fewer prompts
+ * than the default. `plan` and `default` are absent because they do not widen
+ * anything.
+ */
+const CLAUDECODE_WIDENING_DEFAULT_MODES: Readonly<Record<string, string>> = {
+  acceptEdits: "every file edit is then applied without a prompt",
+  auto: "shell commands are then auto-approved by a classifier rather than by you",
+  bypassPermissions: "every session then starts with no permission prompts at all",
+};
+
+/**
+ * The `permissions` fields that widen rather than restrict: a `defaultMode` that
+ * removes prompts, and `additionalDirectories`, which moves the
+ * working-directory boundary. Warned for the same reason `disableAllHooks` is: a
+ * shareable permissions file should not loosen the permission system quietly.
  */
 function warnOnWideningPermissionFields({
   fields,
@@ -184,12 +211,20 @@ function warnOnWideningPermissionFields({
   relativeFilePath: string;
   logger?: Logger;
 }): void {
-  if (fields.defaultMode === "bypassPermissions") {
+  const defaultMode = fields.defaultMode;
+  if (
+    typeof defaultMode === "string" &&
+    Object.hasOwn(CLAUDECODE_WIDENING_DEFAULT_MODES, defaultMode)
+  ) {
     logger?.warn(
-      `Claude Code permissions: writing 'permissions.defaultMode: "bypassPermissions"' to ${relativeFilePath}; every session then starts with no permission prompts. Review it as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
+      `Claude Code permissions: writing 'permissions.defaultMode: "${defaultMode}"' to ${relativeFilePath}; ${CLAUDECODE_WIDENING_DEFAULT_MODES[defaultMode]}. Review it as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
     );
   }
-  if (Array.isArray(fields.additionalDirectories) && fields.additionalDirectories.length > 0) {
+  const additionalDirectories = fields.additionalDirectories;
+  if (
+    additionalDirectories !== undefined &&
+    !(Array.isArray(additionalDirectories) && additionalDirectories.length === 0)
+  ) {
     logger?.warn(
       `Claude Code permissions: writing 'permissions.additionalDirectories' to ${relativeFilePath}; it moves the boundary of what Claude Code may read and edit outside the project. Review the paths, especially if this permissions file came from 'rulesync fetch'.`,
     );
@@ -212,19 +247,97 @@ const CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS: readonly (readonly string[])[]
 ];
 
 /**
- * `sandbox` paths that redirect where the sandboxed traffic goes. They do not
- * run anything themselves, so they are written like `env` is — but warned
- * about, because a fetched override should not reroute a project's traffic
- * silently.
+ * `sandbox` paths that loosen the sandbox rather than naming something to run:
+ * they let commands out of it, weaken the isolation it provides, or redirect
+ * where its traffic goes. They are written like `env` is — the ordinary uses are
+ * too common to refuse — but never silently, because a fetched override should
+ * not be able to open the sandbox without saying so. `widens` keeps the warning
+ * to the value that actually loosens the policy, so authoring the restrictive
+ * value (`allowUnsandboxedCommands: false`, an empty `excludedCommands`) stays
+ * quiet. The lists that make up an ordinary policy body — `filesystem.allowRead`
+ * / `allowWrite`, `network.allowedDomains` — are deliberately absent: they only
+ * matter once `enabled` is on, which is warned about here.
+ *
+ * @see https://code.claude.com/docs/en/sandboxing
  */
-const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: Readonly<Record<string, string>> = {
-  "network.httpProxyPort": "routes the sandbox's HTTP traffic through the port it names",
-  "network.socksProxyPort": "routes the sandbox's SOCKS traffic through the port it names",
-};
+const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
+  readonly path: readonly string[];
+  readonly reason: string;
+  readonly widens: (value: unknown) => boolean;
+}[] = [
+  {
+    path: ["allowAppleEvents"],
+    reason: "lets sandboxed commands send Apple Events, which removes code-execution isolation",
+    widens: (value) => value === true,
+  },
+  {
+    path: ["allowUnsandboxedCommands"],
+    reason: "controls whether Claude may retry a blocked command outside the sandbox",
+    widens: (value) => value !== false,
+  },
+  {
+    path: ["autoAllowBashIfSandboxed"],
+    reason: "controls whether every Bash command the sandbox accepts runs without a prompt",
+    widens: (value) => value !== false,
+  },
+  {
+    path: ["enableWeakerNestedSandbox"],
+    reason: "runs the Linux sandbox inside an unprivileged container, which weakens it",
+    widens: (value) => value === true,
+  },
+  {
+    path: ["enableWeakerNetworkIsolation"],
+    reason: "weakens the sandbox's network isolation on macOS",
+    widens: (value) => value === true,
+  },
+  {
+    path: ["enabled"],
+    reason:
+      "turns the sandbox on, and sandboxed Bash commands then run without a permission prompt unless `autoAllowBashIfSandboxed` is false",
+    widens: (value) => value === true,
+  },
+  {
+    path: ["excludedCommands"],
+    reason: "names commands that always run outside the sandbox, with no sandbox policy applied",
+    widens: (value) => !Array.isArray(value) || value.length > 0,
+  },
+  {
+    path: ["ignoreViolations"],
+    reason: "stops sandbox violations from being reported",
+    widens: (value) => value === true,
+  },
+  {
+    path: ["network", "allowAllUnixSockets"],
+    reason: "lets sandboxed commands connect to every Unix socket",
+    widens: (value) => value === true,
+  },
+  {
+    path: ["network", "allowLocalBinding"],
+    reason: "lets sandboxed commands bind local ports",
+    widens: (value) => value === true,
+  },
+  {
+    path: ["network", "allowUnixSockets"],
+    reason:
+      "names Unix sockets sandboxed commands may reach, and one such as `/var/run/docker.sock` is host access",
+    widens: (value) => !Array.isArray(value) || value.length > 0,
+  },
+  {
+    path: ["network", "httpProxyPort"],
+    reason: "routes the sandbox's HTTP traffic through the port it names",
+    widens: () => true,
+  },
+  {
+    path: ["network", "socksProxyPort"],
+    reason: "routes the sandbox's SOCKS traffic through the port it names",
+    widens: () => true,
+  },
+];
 
 /**
- * Warns once per authored `sandbox` path that widens where sandboxed traffic
- * goes. Nothing is removed — the value is written, just not silently.
+ * Warns once per authored `sandbox` path that loosens the sandbox. Nothing is
+ * removed — the value is written, just not silently. Called on the filtered
+ * `sandbox` so it never claims to be writing a path the scope filters dropped.
  */
 function warnOnTrustAffectingSandboxPaths({
   sandbox,
@@ -235,23 +348,15 @@ function warnOnTrustAffectingSandboxPaths({
   relativeFilePath: string;
   logger?: Logger;
 }): void {
-  for (const [path, reason] of Object.entries(CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS)) {
-    const segments = path.split(".");
-    const leaf = segments.at(-1);
+  for (const { path, reason, widens } of CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS) {
+    const leaf = path.at(-1);
     if (leaf === undefined) continue;
-    let parent: Record<string, unknown> = sandbox;
-    let reachable = true;
-    for (const segment of segments.slice(0, -1)) {
-      const next = parent[segment];
-      if (!isPlainRecord(next)) {
-        reachable = false;
-        break;
-      }
-      parent = next;
-    }
-    if (!reachable || parent[leaf] === undefined) continue;
+    const parent = resolveSandboxParent({ root: sandbox, segments: path.slice(0, -1) });
+    if (parent === undefined) continue;
+    const value = parent[leaf];
+    if (value === undefined || !widens(value)) continue;
     logger?.warn(
-      `Claude Code permissions: writing 'sandbox.${path}' to ${relativeFilePath}; it ${reason}. Review the value as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
+      `Claude Code permissions: writing 'sandbox.${path.join(".")}' to ${relativeFilePath}; it ${reason}. Review the value as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
     );
   }
 }
@@ -516,15 +621,18 @@ const CLAUDECODE_COMMAND_EXECUTING_KEYS: Readonly<Record<string, string>> = {
  * The value is the reason, spliced into the warning.
  */
 const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
+  agent: "starts every session as the named subagent, with that subagent's prompt, tools and model",
+  allowedHttpHookUrls:
+    "limits which URLs an HTTP hook may target, and an empty list means every URL",
   disableAllHooks: "controls whether hooks run at all",
   enableAllProjectMcpServers: "auto-approves every server in the project `.mcp.json`",
+  enabledMcpjsonServers: "auto-approves the named servers in the project `.mcp.json`",
   enabledPlugins: "enables plugins, which can ship their own hooks",
   env: "sets environment variables for every process Claude Code spawns, so a value such as `NODE_OPTIONS` or `PATH` runs code and `ANTHROPIC_BASE_URL` redirects every prompt",
   extraKnownMarketplaces: "registers plugin marketplace sources",
-  allowedHttpHookUrls:
-    "limits which URLs an HTTP hook may target, and an empty list means every URL",
   httpHookAllowedEnvVars:
     "controls which environment variables an HTTP hook may put in a request header, credentials included",
+  outputStyle: "replaces the system prompt every session runs with",
 };
 
 /**
@@ -701,7 +809,10 @@ export class ClaudecodePermissions extends ToolPermissions {
     // — rulesync owns them and `applyPermissions` sets them below.
     const overridePermissions = config.claudecode?.permissions;
     if (overridePermissions && typeof overridePermissions === "object") {
-      const { allow: _a, ask: _k, deny: _d, ...nonListFields } = overridePermissions;
+      const { allow: _a, ask: _k, deny: _d, ...rest } = overridePermissions;
+      const nonListFields = Object.fromEntries(
+        Object.entries(rest).filter(([key]) => !PROTOTYPE_POLLUTION_KEYS.has(key)),
+      );
       warnOnWideningPermissionFields({
         fields: nonListFields,
         relativeFilePath: paths.relativeFilePath,
@@ -716,19 +827,14 @@ export class ClaudecodePermissions extends ToolPermissions {
     // wholesale to set one flag would drop the restrictions beside it.
     const overrideSandbox = config.claudecode?.sandbox;
     if (isPlainRecord(overrideSandbox)) {
-      // A subset of `sandbox.*` is ignored in a repository's settings.json, so
-      // at project scope those paths are dropped rather than committed as a
-      // policy that never applies.
-      warnOnTrustAffectingSandboxPaths({
-        sandbox: overrideSandbox,
-        relativeFilePath: paths.relativeFilePath,
-        logger,
-      });
       const executableFreeSandbox = stripCommandExecutingSandboxPaths({
         sandbox: overrideSandbox,
         relativeFilePath: paths.relativeFilePath,
         logger,
       });
+      // A subset of `sandbox.*` is ignored in a repository's settings.json, so
+      // at project scope those paths are dropped rather than committed as a
+      // policy that never applies.
       const scopedSandbox = global
         ? executableFreeSandbox
         : stripProjectIgnoredMaskEntries({
@@ -740,6 +846,13 @@ export class ClaudecodePermissions extends ToolPermissions {
             relativeFilePath: paths.relativeFilePath,
             logger,
           });
+      // Warned on the filtered result so the message never names a path the
+      // scope filters just dropped.
+      warnOnTrustAffectingSandboxPaths({
+        sandbox: scopedSandbox,
+        relativeFilePath: paths.relativeFilePath,
+        logger,
+      });
       if (Object.keys(scopedSandbox).length > 0) {
         settings.sandbox = deepMergeRecords(
           isPlainRecord(settings.sandbox) ? settings.sandbox : {},

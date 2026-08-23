@@ -19,7 +19,7 @@ describe("stripControlCharacters", () => {
     expect(stripControlCharacters("a\u202eb\u2028c")).toBe("abc");
   });
 
-  it("should keep the plain right-to-left marks, which carry meaning in a name", () => {
-    expect(stripControlCharacters("a\u200fb")).toBe("a\u200fb");
+  it("should strip the plain right-to-left marks, which reorder the neutrals beside them", () => {
+    expect(stripControlCharacters("a\u200fb\u200ec")).toBe("abc");
   });
 });

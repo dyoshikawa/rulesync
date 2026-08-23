@@ -1277,6 +1277,175 @@ describe("ClaudecodePermissions", () => {
       },
     );
 
+    it.each([
+      ["acceptEdits", "every file edit is then applied without a prompt"],
+      ["auto", "shell commands are then auto-approved"],
+    ])("warns when the override starts every session in %s", async (mode, expected) => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { permissions: { defaultMode: mode } },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).permissions.defaultMode).toBe(mode);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(expected));
+    });
+
+    it("stays quiet about a defaultMode that widens nothing", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { permissions: { defaultMode: "plan", additionalDirectories: [] } },
+        }),
+      });
+
+      await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("permissions.defaultMode"));
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("permissions.additionalDirectories"),
+      );
+    });
+
+    it.each(["agent", "enabledMcpjsonServers", "outputStyle"])(
+      "warns when the override redirects what a session trusts through '%s'",
+      async (key) => {
+        const mockLogger = createMockLogger();
+        const warnSpy = vi.spyOn(mockLogger, "warn");
+        const rulesyncPermissions = new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            claudecode: { [key]: key === "enabledMcpjsonServers" ? ["evil"] : "evil" },
+          }),
+        });
+
+        const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          logger: mockLogger,
+        });
+
+        expect(JSON.parse(instance.getFileContent())[key]).toBeDefined();
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`writing '${key}'`));
+      },
+    );
+
+    it.each([
+      [{ enabled: true }, "sandbox.enabled"],
+      [{ excludedCommands: ["curl *"] }, "sandbox.excludedCommands"],
+      [{ allowUnsandboxedCommands: true }, "sandbox.allowUnsandboxedCommands"],
+      [{ autoAllowBashIfSandboxed: true }, "sandbox.autoAllowBashIfSandboxed"],
+      [{ enableWeakerNestedSandbox: true }, "sandbox.enableWeakerNestedSandbox"],
+      [{ enableWeakerNetworkIsolation: true }, "sandbox.enableWeakerNetworkIsolation"],
+      [{ ignoreViolations: true }, "sandbox.ignoreViolations"],
+      [
+        { network: { allowUnixSockets: ["/var/run/docker.sock"] } },
+        "sandbox.network.allowUnixSockets",
+      ],
+      [{ network: { allowAllUnixSockets: true } }, "sandbox.network.allowAllUnixSockets"],
+      [{ network: { allowLocalBinding: true } }, "sandbox.network.allowLocalBinding"],
+    ])("warns when the override loosens the sandbox through %o", async (sandbox, expectedPath) => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { sandbox },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox).toBeDefined();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`writing '${expectedPath}'`));
+    });
+
+    it("stays quiet about the sandbox values that restrict rather than loosen", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: {
+            sandbox: {
+              enabled: false,
+              allowUnsandboxedCommands: false,
+              autoAllowBashIfSandboxed: false,
+              excludedCommands: [],
+              network: { deniedDomains: ["evil.example.com"] },
+            },
+          },
+        }),
+      });
+
+      await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("writing 'sandbox."));
+    });
+
+    it("does not claim to write a sandbox path the project scope drops", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          // `allowAppleEvents` loosens the sandbox, but a repository's
+          // settings.json does not honor it, so it is dropped before the
+          // trust warning could name it.
+          claudecode: { sandbox: { allowAppleEvents: true } },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox).toBeUndefined();
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("writing 'sandbox.allowAppleEvents'"),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'sandbox.allowAppleEvents' is only honored"),
+      );
+    });
+
     it.each(["httpProxyPort", "socksProxyPort"])(
       "warns when the override reroutes sandboxed traffic through 'sandbox.network.%s'",
       async (key) => {
