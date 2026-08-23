@@ -32,7 +32,9 @@ Third-party GitHub Actions are pinned to a full 40-character commit SHA with a t
 - The wrapper resolves the `opencode` CLI release to `latest` at run time and installs it with `curl -fsSL https://opencode.ai/install | bash`, so the binary that actually receives the workflow secrets is not pinned by the SHA.
 - The wrapper also uses `actions/cache@v4` internally, by mutable tag.
 
-The accepted stance is to treat `https://opencode.ai/install` as a trusted install path rather than vendoring a pinned installer, because `draft-release.yml` is `workflow_dispatch`-only and gated on `github.actor`, so an outside contributor cannot trigger it. Bumping the pin is still worthwhile for the wrapper itself, but do not read it as a guarantee about the CLI version. Revisit this if the workflow ever becomes externally triggerable, or if upstream adds a `version` input that lets the CLI itself be pinned.
+The accepted stance is to treat `https://opencode.ai/install` as a trusted install path rather than vendoring a pinned installer, because `draft-release.yml` is `workflow_dispatch`-only and gated on `github.actor`, so an outside contributor cannot trigger it. Bumping the pin is still worthwhile for the wrapper itself, but do not read it as a guarantee about the CLI version.
+
+The residual risk this stance accepts is that a compromise of the distribution endpoint would expose whatever the workflow hands the CLI — the model API keys and a `GITHUB_TOKEN` with `contents: write`, `pull-requests: write`, and `issues: write`. The `github.actor` gate limits _who can trigger_ the workflow; it does not reduce that exposure on a maintainer-triggered run. Revisit this if the workflow ever becomes externally triggerable, if the token or secret scope it receives grows, or if upstream adds a `version` input that lets the CLI itself be pinned.
 
 ## OIDC Permissions
 
