@@ -138,10 +138,10 @@ const CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS: readonly (readonly string[])[] = [
 ];
 
 /**
- * Deletes `path` from `target` in place and reports whether anything was there,
- * dropping a container the removal emptied so no `"network": {}` noise is left
- * behind. Shared by the two `sandbox` filters below so a nested path added to
- * either table is actually traversed rather than silently skipped.
+ * Walks `segments` from `root`, returning the record they name or `undefined` if
+ * any step is missing or not a record. Shared by everything below that addresses
+ * a `sandbox` path, so a nested path added to one of the tables is actually
+ * traversed rather than silently skipped.
  */
 function resolveSandboxParent({
   root,
@@ -159,6 +159,11 @@ function resolveSandboxParent({
   return parent;
 }
 
+/**
+ * Deletes `path` from `target` in place and reports whether anything was there,
+ * dropping a container the removal emptied so no `"network": {}` noise is left
+ * behind.
+ */
 function deleteSandboxPath({
   target,
   path,
@@ -314,8 +319,11 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
   },
   {
     path: ["ignoreViolations"],
-    reason: "stops sandbox violations from being reported",
-    widens: (value) => value === true,
+    // An object mapping a command substring to the violations to hide. The
+    // sandbox still blocks the access, so what widens here is what you get to
+    // see, not what runs.
+    reason: "hides the sandbox violations it names, so a blocked access stops being reported",
+    widens: (value) => (isPlainRecord(value) ? Object.keys(value).length > 0 : value !== false),
   },
   {
     path: ["network", "allowAllUnixSockets"],
@@ -331,6 +339,11 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
     path: ["network", "allowLocalBinding"],
     reason: "lets sandboxed commands bind local ports",
     widens: (value) => value === true,
+  },
+  {
+    path: ["network", "allowMachLookup"],
+    reason: "names the macOS services sandboxed commands may reach, and `*` means every service",
+    widens: (value) => !Array.isArray(value) || value.length > 0,
   },
   {
     path: ["network", "allowUnixSockets"],
@@ -637,7 +650,13 @@ const CLAUDECODE_COMMAND_EXECUTING_KEYS: Readonly<Record<string, string>> = {
  * The value is the reason, spliced into the warning.
  */
 const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
+  // No `widens` predicate here, unlike the `sandbox` table: these keys are
+  // written only when the file being generated honors them, and every one of
+  // them is worth a line in the log whatever its value.
   agent: "starts every session as the named subagent, with that subagent's prompt, tools and model",
+  allowedMcpServers:
+    "allowlists the MCP servers that may be used, and entries from every settings file merge into one list, so an entry here widens an allowlist deployed elsewhere",
+  autoMode: "auto-approves shell commands with a classifier rather than with a prompt",
   allowedHttpHookUrls:
     "limits which URLs an HTTP hook may target, and an empty list means every URL",
   disableAllHooks: "controls whether hooks run at all",
@@ -651,6 +670,9 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
   httpHookAllowedEnvVars:
     "controls which environment variables an HTTP hook may put in a request header, credentials included",
   outputStyle: "replaces the system prompt every session runs with",
+  skipAutoPermissionPrompt: "removes the confirmation shown before auto-approval mode starts",
+  skipDangerousModePermissionPrompt:
+    "removes the confirmation shown before the mode that skips every permission check starts",
 };
 
 /**

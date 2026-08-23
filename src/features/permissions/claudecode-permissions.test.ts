@@ -1326,7 +1326,7 @@ describe("ClaudecodePermissions", () => {
       );
     });
 
-    it.each(["agent", "enabledMcpjsonServers", "outputStyle"])(
+    it.each(["agent", "allowedMcpServers", "enabledMcpjsonServers", "outputStyle"])(
       "warns when the override redirects what a session trusts through '%s'",
       async (key) => {
         const mockLogger = createMockLogger();
@@ -1336,7 +1336,14 @@ describe("ClaudecodePermissions", () => {
           relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
           fileContent: JSON.stringify({
             permission: { bash: { "git *": "allow" } },
-            claudecode: { [key]: key === "enabledMcpjsonServers" ? ["evil"] : "evil" },
+            claudecode: {
+              [key]:
+                key === "enabledMcpjsonServers"
+                  ? ["evil"]
+                  : key === "allowedMcpServers"
+                    ? [{ serverUrl: "*" }]
+                    : "evil",
+            },
           }),
         });
 
@@ -1358,7 +1365,8 @@ describe("ClaudecodePermissions", () => {
       [{ autoAllowBashIfSandboxed: true }, "sandbox.autoAllowBashIfSandboxed"],
       [{ enableWeakerNestedSandbox: true }, "sandbox.enableWeakerNestedSandbox"],
       [{ enableWeakerNetworkIsolation: true }, "sandbox.enableWeakerNetworkIsolation"],
-      [{ ignoreViolations: true }, "sandbox.ignoreViolations"],
+      [{ ignoreViolations: { "*": ["/etc/hosts"] } }, "sandbox.ignoreViolations"],
+      [{ network: { allowMachLookup: ["*"] } }, "sandbox.network.allowMachLookup"],
       [
         { network: { allowUnixSockets: ["/var/run/docker.sock"] } },
         "sandbox.network.allowUnixSockets",
@@ -1405,6 +1413,7 @@ describe("ClaudecodePermissions", () => {
               autoAllowBashIfSandboxed: false,
               excludedCommands: [],
               filesystem: { denyWrite: ["~/.ssh"] },
+              ignoreViolations: {},
               network: { deniedDomains: ["evil.example.com"], allowedDomains: [] },
             },
           },
@@ -1449,6 +1458,73 @@ describe("ClaudecodePermissions", () => {
         expect.stringContaining("'sandbox.allowAppleEvents' is only honored"),
       );
     });
+
+    it("warns about a sandbox path it does write under --global", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { sandbox: { allowAppleEvents: true } },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        global: true,
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox.allowAppleEvents).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("writing 'sandbox.allowAppleEvents'"),
+      );
+    });
+
+    it.each(["autoMode", "skipAutoPermissionPrompt", "skipDangerousModePermissionPrompt"])(
+      "warns about '%s' only in the scope that honors it",
+      async (key) => {
+        const projectLogger = createMockLogger();
+        const projectWarnSpy = vi.spyOn(projectLogger, "warn");
+        const globalLogger = createMockLogger();
+        const globalWarnSpy = vi.spyOn(globalLogger, "warn");
+        const fileContent = JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { [key]: true },
+        });
+
+        await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent,
+          }),
+          logger: projectLogger,
+        });
+        const globalInstance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent,
+          }),
+          global: true,
+          logger: globalLogger,
+        });
+
+        // Project scope drops the key before the trust warning could name it,
+        // so it is reported as skipped rather than as written.
+        expect(projectWarnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining(`writing '${key}'`),
+        );
+        expect(JSON.parse(globalInstance.getFileContent())[key]).toBe(true);
+        expect(globalWarnSpy).toHaveBeenCalledWith(expect.stringContaining(`writing '${key}'`));
+      },
+    );
 
     it.each(["httpProxyPort", "socksProxyPort"])(
       "warns when the override reroutes sandboxed traffic through 'sandbox.network.%s'",
