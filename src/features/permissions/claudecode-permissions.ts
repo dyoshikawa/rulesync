@@ -261,8 +261,9 @@ const CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS: readonly (readonly string[])[]
  * value (`allowUnsandboxedCommands: false`, an empty `excludedCommands`) stays
  * quiet. The `allow*` lists are here for a structural reason: Claude Code merges
  * a list across every settings scope rather than replacing it, so a project file
- * can only ever add to them. Their restricting counterparts — `denyRead`,
- * `denyWrite`, `deniedDomains` — are absent for the same reason.
+ * can only ever add to them. Their counterparts — `denyRead`, `denyWrite`,
+ * `deniedDomains` — merge the same way, but adding to a deny list only ever
+ * narrows the policy, so they are absent.
  *
  * @see https://code.claude.com/docs/en/sandboxing
  */
@@ -650,18 +651,19 @@ const CLAUDECODE_COMMAND_EXECUTING_KEYS: Readonly<Record<string, string>> = {
  * The value is the reason, spliced into the warning.
  */
 const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
-  // No `widens` predicate here, unlike the `sandbox` table: these keys are
-  // written only when the file being generated honors them, and every one of
-  // them is worth a line in the log whatever its value.
+  // Every value of these keys is worth a line in the log, so unlike the
+  // `sandbox` table they carry no predicate — except for the handful in
+  // `CLAUDECODE_TRUST_KEY_WIDENING_VALUES` below, whose loosening value is the
+  // absence of a restriction rather than the presence of a permission.
   agent: "starts every session as the named subagent, with that subagent's prompt, tools and model",
+  allowedHttpHookUrls:
+    "limits which URLs an HTTP hook may target, and an empty list means every URL",
   allowedMcpServers:
     "allowlists the MCP servers that may be used, and entries from every settings file merge into one list, so an entry here widens an allowlist deployed elsewhere",
   autoMode: "auto-approves shell commands with a classifier rather than with a prompt",
-  allowedHttpHookUrls:
-    "limits which URLs an HTTP hook may target, and an empty list means every URL",
   disableAllHooks: "controls whether hooks run at all",
   disableSkillShellExecution:
-    "controls whether a skill or command may run the shell commands embedded in it",
+    "re-opens the inline shell commands in a skill or custom command that a user setting had turned off",
   enableAllProjectMcpServers: "auto-approves every server in the project `.mcp.json`",
   enabledMcpjsonServers: "auto-approves the named servers in the project `.mcp.json`",
   enabledPlugins: "enables plugins, which can ship their own hooks",
@@ -674,6 +676,17 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
   skipDangerousModePermissionPrompt:
     "removes the confirmation shown before the mode that skips every permission check starts",
 };
+
+/**
+ * The keys from the table above that only widen at one particular value.
+ * `disableSkillShellExecution: true` turns inline shell execution off, which
+ * restricts; the `false` that turns it back on is what a fetched override could
+ * use to undo a user setting, so only that value is warned about.
+ */
+const CLAUDECODE_TRUST_KEY_WIDENING_VALUES: Readonly<Record<string, (value: unknown) => boolean>> =
+  {
+    disableSkillShellExecution: (value) => value === false,
+  };
 
 /**
  * A key name is authored data that ends up in a log line, so strip the control
@@ -745,7 +758,11 @@ function stripUnhonoredTopLevelKeys({
       );
       continue;
     }
-    if (Object.hasOwn(CLAUDECODE_TRUST_AFFECTING_KEYS, canonicalKey)) {
+    const widensAtValue = CLAUDECODE_TRUST_KEY_WIDENING_VALUES[canonicalKey];
+    if (
+      Object.hasOwn(CLAUDECODE_TRUST_AFFECTING_KEYS, canonicalKey) &&
+      (widensAtValue === undefined || widensAtValue(value))
+    ) {
       logger?.warn(
         `Claude Code permissions: writing '${shown}' to ${relativeFilePath}; it ${CLAUDECODE_TRUST_AFFECTING_KEYS[canonicalKey]}. Review the value as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
       );

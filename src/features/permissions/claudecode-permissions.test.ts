@@ -1225,6 +1225,41 @@ describe("ClaudecodePermissions", () => {
       );
     });
 
+    it.each([
+      [false, true],
+      [true, false],
+    ])(
+      "warns about 'disableSkillShellExecution: %s' only when it re-opens inline shell execution",
+      async (value, expectWarning) => {
+        const mockLogger = createMockLogger();
+        const warnSpy = vi.spyOn(mockLogger, "warn");
+        const rulesyncPermissions = new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            claudecode: { disableSkillShellExecution: value },
+          }),
+        });
+
+        const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          logger: mockLogger,
+        });
+
+        // Written either way — the warning marks the loosening value, it does
+        // not veto it.
+        expect(JSON.parse(instance.getFileContent()).disableSkillShellExecution).toBe(value);
+        const matcher = expect.stringContaining("writing 'disableSkillShellExecution'");
+        if (expectWarning) {
+          expect(warnSpy).toHaveBeenCalledWith(matcher);
+        } else {
+          expect(warnSpy).not.toHaveBeenCalledWith(matcher);
+        }
+      },
+    );
+
     it("warns when the override widens the working directory boundary", async () => {
       const mockLogger = createMockLogger();
       const warnSpy = vi.spyOn(mockLogger, "warn");
