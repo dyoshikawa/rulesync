@@ -1364,6 +1364,9 @@ describe("ClaudecodePermissions", () => {
         "sandbox.network.allowUnixSockets",
       ],
       [{ network: { allowAllUnixSockets: true } }, "sandbox.network.allowAllUnixSockets"],
+      [{ filesystem: { allowWrite: ["~"] } }, "sandbox.filesystem.allowWrite"],
+      [{ filesystem: { allowRead: ["~/.ssh"] } }, "sandbox.filesystem.allowRead"],
+      [{ network: { allowedDomains: ["*"] } }, "sandbox.network.allowedDomains"],
       [{ network: { allowLocalBinding: true } }, "sandbox.network.allowLocalBinding"],
     ])("warns when the override loosens the sandbox through %o", async (sandbox, expectedPath) => {
       const mockLogger = createMockLogger();
@@ -1401,7 +1404,8 @@ describe("ClaudecodePermissions", () => {
               allowUnsandboxedCommands: false,
               autoAllowBashIfSandboxed: false,
               excludedCommands: [],
-              network: { deniedDomains: ["evil.example.com"] },
+              filesystem: { denyWrite: ["~/.ssh"] },
+              network: { deniedDomains: ["evil.example.com"], allowedDomains: [] },
             },
           },
         }),

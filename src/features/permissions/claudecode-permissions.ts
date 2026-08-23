@@ -254,9 +254,10 @@ const CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS: readonly (readonly string[])[]
  * not be able to open the sandbox without saying so. `widens` keeps the warning
  * to the value that actually loosens the policy, so authoring the restrictive
  * value (`allowUnsandboxedCommands: false`, an empty `excludedCommands`) stays
- * quiet. The lists that make up an ordinary policy body — `filesystem.allowRead`
- * / `allowWrite`, `network.allowedDomains` — are deliberately absent: they only
- * matter once `enabled` is on, which is warned about here.
+ * quiet. The `allow*` lists are here for a structural reason: Claude Code merges
+ * a list across every settings scope rather than replacing it, so a project file
+ * can only ever add to them. Their restricting counterparts — `denyRead`,
+ * `denyWrite`, `deniedDomains` — are absent for the same reason.
  *
  * @see https://code.claude.com/docs/en/sandboxing
  */
@@ -302,6 +303,16 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
     widens: (value) => !Array.isArray(value) || value.length > 0,
   },
   {
+    path: ["filesystem", "allowRead"],
+    reason: "re-opens reading inside a region the sandbox's `denyRead` blocks",
+    widens: (value) => !Array.isArray(value) || value.length > 0,
+  },
+  {
+    path: ["filesystem", "allowWrite"],
+    reason: "adds paths sandboxed commands may write to, outside the working directory",
+    widens: (value) => !Array.isArray(value) || value.length > 0,
+  },
+  {
     path: ["ignoreViolations"],
     reason: "stops sandbox violations from being reported",
     widens: (value) => value === true,
@@ -310,6 +321,11 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
     path: ["network", "allowAllUnixSockets"],
     reason: "lets sandboxed commands connect to every Unix socket",
     widens: (value) => value === true,
+  },
+  {
+    path: ["network", "allowedDomains"],
+    reason: "pre-allows domains sandboxed commands may reach without a prompt",
+    widens: (value) => !Array.isArray(value) || value.length > 0,
   },
   {
     path: ["network", "allowLocalBinding"],
@@ -625,6 +641,8 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
   allowedHttpHookUrls:
     "limits which URLs an HTTP hook may target, and an empty list means every URL",
   disableAllHooks: "controls whether hooks run at all",
+  disableSkillShellExecution:
+    "controls whether a skill or command may run the shell commands embedded in it",
   enableAllProjectMcpServers: "auto-approves every server in the project `.mcp.json`",
   enabledMcpjsonServers: "auto-approves the named servers in the project `.mcp.json`",
   enabledPlugins: "enables plugins, which can ship their own hooks",
@@ -934,7 +952,10 @@ export class ClaudecodePermissions extends ToolPermissions {
     // Route the non-list `permissions` fields (defaultMode, additionalDirectories,
     // org locks, ...) into the claudecode override so they round-trip without
     // leaking into other tools' configs.
-    const { allow: _a, ask: _k, deny: _d, ...nonListFields } = permissions;
+    const { allow: _a, ask: _k, deny: _d, ...permissionsRest } = permissions;
+    const nonListFields = Object.fromEntries(
+      Object.entries(permissionsRest).filter(([key]) => !PROTOTYPE_POLLUTION_KEYS.has(key)),
+    );
     if (Object.keys(nonListFields).length > 0) {
       config.claudecode = { permissions: nonListFields };
     }
