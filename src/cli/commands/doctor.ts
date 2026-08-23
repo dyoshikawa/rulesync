@@ -640,10 +640,9 @@ function parseConfigObjectForMerge(
  * Path sanity for the input-root configuration.
  *
  * Errors:
- * - Any entry in the effective `inputRoots`/`inputRoot` list that is not an
- *   existing directory. A missing root usually means a typo or a stale path
- *   in a checked-in config; every command would silently read nothing (or
- *   fail on write) if the doctor did not surface it up front.
+ * - The primary (first) entry in the effective `inputRoots`/`inputRoot` list
+ *   is not an existing directory. Later entries are optional overlays and may
+ *   be absent until a developer creates them locally.
  *
  * Warnings:
  * - Duplicate entries in the effective list (after normalization). Duplicates
@@ -717,17 +716,20 @@ async function checkInputRootExists({
   const seen = new Set<string>();
   const duplicates = new Set<string>();
 
-  for (const entry of resolved.candidates) {
+  for (const [index, entry] of resolved.candidates.entries()) {
     if (seen.has(entry)) duplicates.add(entry);
 
     seen.add(entry);
 
-    if (!(await directoryExists(entry))) {
+    const isDirectory = await directoryExists(entry);
+    const isInvalid = !isDirectory && (index === 0 || (await fileExists(entry)));
+
+    if (isInvalid) {
       diagnostics.push({
         severity: "error",
         code: "config/input-root-not-found",
         file,
-        message: `'${field}' entry '${entry}' is not an existing directory.`,
+        message: `${index === 0 ? "Primary " : ""}'${field}' entry '${entry}' is not an existing directory.`,
         hint: `Create the directory or fix the '${field}' path.`,
       });
     }

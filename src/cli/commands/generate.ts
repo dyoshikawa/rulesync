@@ -267,8 +267,9 @@ async function generateWatchCommand(logger: Logger, options: GenerateOptions): P
   const configFilePath = config.getConfigFilePath();
   const configFilePaths = buildConfigFilePaths({ configFilePath });
 
-  // Run once before watching so a missing `.rulesync` directory (or any other
-  // configuration error) fails fast instead of starting an idle watcher.
+  // Run once before watching so a missing primary source tree (or any other
+  // configuration error) fails fast. Missing optional overlays remain watch
+  // targets and attach if they are created later.
   await generateOnce(logger, options, { resolvedConfig: config });
 
   const targets = buildWatchTargets({ inputRoots, configFilePath });

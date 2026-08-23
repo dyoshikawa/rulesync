@@ -135,8 +135,10 @@ export const ConfigParamsSchema = z.object({
   // Ordered list of rulesync source-tree directories (e.g. `.rulesync`,
   // `.rulesync.local`). Each entry is a source tree itself — the directory
   // that directly contains `rules/`, `skills/`, `mcp.jsonc`, etc. No
-  // implicit `.rulesync/` join is applied. Later entries override earlier
-  // ones when the same relative source path appears in more than one root.
+  // implicit `.rulesync/` join is applied. The first root is required; later
+  // roots are optional overlays and may be absent. Later entries override
+  // earlier ones when the same relative source path appears in more than one
+  // root.
   //
   // The two fields are rejected together inside a single file via
   // `assertInputRootFieldsExclusive` (called from `loadConfigFromFile`). A
@@ -833,10 +835,11 @@ export class Config {
    *
    * The returned tuple is always non-empty: when no `inputRoot`/`inputRoots`
    * was supplied, `[join(process.cwd(), ".rulesync")]` is snapshotted once
-   * during construction.
-   * Later entries in the list take precedence when the same relative source
-   * path exists in more than one root (see per-feature merge policies in
-   * the processor `loadRulesync*` methods).
+   * during construction. The first entry is the required base source tree.
+   * Later entries are optional overlays and may be absent; when present, they
+   * take precedence when the same relative source path exists in more than
+   * one root (see per-feature merge policies in the processor
+   * `loadRulesync*` methods).
    */
   public getInputRoots(): readonly [string, ...string[]] {
     return this.inputRoots;

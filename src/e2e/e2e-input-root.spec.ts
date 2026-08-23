@@ -292,6 +292,27 @@ describe("E2E: --input-roots (two-root overlay)", () => {
     await cleanupOutput();
   });
 
+  it("allows the optional overlay root to be absent", async () => {
+    await writeFileContent(
+      join(baseDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+---
+# Base Without Local Overlay`,
+    );
+
+    await runGenerate({
+      target: "codexcli",
+      features: "rules",
+      inputRoots: [baseRoot, overlayRoot],
+    });
+
+    const generatedContent = await readFileContent(join(outputDir, "AGENTS.md"));
+    expect(generatedContent).toContain("Base Without Local Overlay");
+    expect(await fileExists(overlayRoot)).toBe(false);
+  });
+
   it("rules: last root wins for same relative path, unique files from each root survive", async () => {
     const baseOverview = `---
 root: true

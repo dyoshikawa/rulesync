@@ -64,7 +64,7 @@ The general rule is: later entries win. Each feature refines that rule slightly:
 
 Root order is the primary precedence rule. Within a single source tree, a rule or skill outside `.curated/` takes precedence over a same-named curated artifact. After that per-tree choice is made, a later input root replaces an earlier root's effective artifact even when the later artifact is curated.
 
-Every configured source tree must exist, but it may be empty. Empty trees are useful with `--delete` and `--check`, which still need to inspect generated outputs even when no source files remain. An overlay-only tree may also supply just one feature — for example, a `.rulesync.local/` that only contains `mcp.jsonc`.
+The first source tree is the required base and must exist, though it may be empty. Later source trees are optional overlays: a missing overlay contributes nothing, and `--watch` starts reading it if the directory is created while Rulesync is running. This lets teams commit `inputRoots: ["./.rulesync", "./.rulesync.local"]` without requiring every developer to create `.rulesync.local/`. An existing overlay may also supply just one feature — for example, only `mcp.jsonc`.
 
 ## Setting input roots in `rulesync.jsonc`
 

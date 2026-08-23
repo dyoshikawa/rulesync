@@ -34,9 +34,10 @@ export type GenerateOptions = BaseOptions & {
    * `.rulesync.local`). Each entry is a source tree itself — the directory
    * that directly contains `rules/`, `skills/`, `mcp.jsonc`, etc. No
    * implicit `.rulesync/` join is applied. Defaults to
-   * `[join(process.cwd(), ".rulesync")]`. Later entries override earlier
-   * ones when the same relative source path appears in more than one root.
-   * Mirrors the CLI's `--input-roots` option.
+   * `[join(process.cwd(), ".rulesync")]`. The first root is required; later
+   * roots are optional overlays and may be absent. Later entries override
+   * earlier ones when the same relative source path appears in more than one
+   * root. Mirrors the CLI's `--input-roots` option.
    *
    * Cannot be combined with `inputRoot`; use one or the other.
    */

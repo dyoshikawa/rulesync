@@ -520,7 +520,7 @@ describe("doctorCommand", () => {
     );
   });
 
-  it("errors when any inputRoots entry does not exist", async () => {
+  it("accepts a missing optional overlay input root", async () => {
     await ensureDir(join(testDir, "base"));
     await writeFileContent(
       join(testDir, "rulesync.jsonc"),
@@ -528,6 +528,44 @@ describe("doctorCommand", () => {
         $schema: RULESYNC_CONFIG_SCHEMA_URL,
         targets: ["claudecode"],
         inputRoots: [join(testDir, "base"), join(testDir, "missing")],
+      }),
+    );
+
+    await doctorCommand(mockLogger, {});
+    expect(mockLogger.error).not.toHaveBeenCalledWith(
+      expect.stringContaining("config/input-root-not-found"),
+    );
+  });
+
+  it("errors when the primary inputRoots entry does not exist", async () => {
+    const overlay = join(testDir, "overlay");
+    await ensureDir(overlay);
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [join(testDir, "missing"), overlay],
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("config/input-root-not-found"),
+    );
+  });
+
+  it("errors when an optional overlay exists but is not a directory", async () => {
+    const base = join(testDir, "base");
+    const overlayFile = join(testDir, "overlay-file");
+    await ensureDir(base);
+    await writeFileContent(overlayFile, "not a directory");
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [base, overlayFile],
       }),
     );
 

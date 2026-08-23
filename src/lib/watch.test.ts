@@ -372,6 +372,42 @@ describe("watchTargets", () => {
   const FS_EVENT_TEST_TIMEOUT_MS = 20000;
 
   it(
+    "attaches when an optional target is created after watch startup",
+    { timeout: FS_EVENT_TEST_TIMEOUT_MS },
+    async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+
+      try {
+        const watchedDir = join(testDir, ".rulesync.local");
+        const changed: string[] = [];
+        const handle = watchTargets({
+          targets: [{ directory: watchedDir, recursive: true }],
+          onChange: ({ path }) => {
+            changed.push(path);
+          },
+          onError: () => {},
+          rearmIntervalMs: 25,
+        });
+
+        try {
+          await mkdir(watchedDir, { recursive: true });
+          await waitFor(() => changed.includes(watchedDir));
+
+          changed.length = 0;
+          await waitForWithProbe({
+            probe: () => writeFile(join(watchedDir, "local.md"), "# local\n", "utf8"),
+            until: () => changed.some((path) => path.includes("local.md")),
+          });
+        } finally {
+          handle.close();
+        }
+      } finally {
+        await cleanup();
+      }
+    },
+  );
+
+  it(
     "forwards changes under a recursively watched directory",
     { timeout: FS_EVENT_TEST_TIMEOUT_MS },
     async () => {
@@ -634,31 +670,43 @@ describe("watchTargets", () => {
     }
   });
 
-  it("closes already-started watchers when a later target cannot be watched", async () => {
+  it("closes already-started watchers when a later existing target cannot be watched", async () => {
+    const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
     const { testDir, cleanup } = await setupTestDirectory();
+
     try {
       const watchedDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      const failingDir = join(testDir, "failing-directory");
       await mkdir(watchedDir, { recursive: true });
+      await mkdir(failingDir, { recursive: true });
 
-      const changed: string[] = [];
+      const close = vi.fn();
+      fsWatchMock
+        .mockImplementationOnce(
+          () =>
+            ({
+              close,
+              on: () => {},
+            }) as unknown as ReturnType<typeof actual.watch>,
+        )
+        .mockImplementationOnce(() => {
+          throw new Error("Cannot attach watcher");
+        });
+
       expect(() =>
         watchTargets({
           targets: [
             { directory: watchedDir, recursive: true },
-            { directory: join(testDir, "missing-directory"), recursive: false },
+            { directory: failingDir, recursive: false },
           ],
-          onChange: ({ path }) => {
-            changed.push(path);
-          },
+          onChange: () => {},
           onError: () => {},
         }),
       ).toThrow();
 
-      // The first watcher must have been closed, so later writes are silent.
-      await writeFile(join(watchedDir, "orphan.md"), "# orphan\n", "utf8");
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      expect(changed).toEqual([]);
+      expect(close).toHaveBeenCalledTimes(1);
     } finally {
+      fsWatchMock.mockImplementation(actual.watch);
       await cleanup();
     }
   });

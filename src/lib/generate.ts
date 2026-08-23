@@ -211,10 +211,12 @@ function warnUnsupportedTargets(params: {
 }
 
 /**
- * Inspect every configured input-root path. Each entry is a rulesync source
- * tree itself (the directory that directly holds `rules/`, `skills/`,
- * `mcp.jsonc`, etc.). Existing empty directories are valid because delete and
- * check workflows still need to inspect generated outputs.
+ * Inspect every configured input-root path. The first entry is the required
+ * base source tree; later entries are optional overlays and may be absent.
+ * Each existing entry is a rulesync source tree itself (the directory that
+ * directly holds `rules/`, `skills/`, `mcp.jsonc`, etc.). Existing empty
+ * directories are valid because delete and check workflows still need to
+ * inspect generated outputs.
  */
 export async function inspectInputRoots(inputRoots: readonly string[]): Promise<{
   existing: string[];
@@ -223,22 +225,38 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
 }> {
   const existing: string[] = [];
   const missing: string[] = [];
+  const invalidOverlays: string[] = [];
 
-  for (const root of inputRoots) {
+  for (const [index, root] of inputRoots.entries()) {
     if (await directoryExists(root)) {
       existing.push(root);
     } else {
       missing.push(root);
+
+      if (index > 0 && (await fileExists(root))) {
+        invalidOverlays.push(root);
+      }
     }
   }
 
-  if (missing.length === 0) {
-    return { existing, missing, message: undefined };
+  const primaryRoot = inputRoots[0];
+
+  if (primaryRoot === undefined || existing.includes(primaryRoot)) {
+    const invalidOverlay = invalidOverlays[0];
+
+    return {
+      existing,
+      missing,
+      message:
+        invalidOverlay === undefined
+          ? undefined
+          : `Configured optional input root '${invalidOverlay}' exists but is not a directory.`,
+    };
   }
 
   const defaultRoot = join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH);
 
-  if (inputRoots.length === 1 && inputRoots[0] === defaultRoot) {
+  if (primaryRoot === defaultRoot) {
     return {
       existing,
       missing,
@@ -246,20 +264,10 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
     };
   }
 
-  if (missing.length === 1) {
-    return {
-      existing,
-      missing,
-      message: `Configured input root '${missing[0]}' does not exist. Create the directory or update your inputRoots setting.`,
-    };
-  }
-
   return {
     existing,
     missing,
-    message: `Configured input roots do not exist: ${missing
-      .map((root) => `'${root}'`)
-      .join(", ")}. Create the directories or update your inputRoots setting.`,
+    message: `Configured primary input root '${primaryRoot}' does not exist. Create the directory or update your inputRoots setting.`,
   };
 }
 

@@ -14,7 +14,7 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
-import { directoryExists, readFileContentOrNull } from "../utils/file.js";
+import { directoryExists, fileExists, readFileContentOrNull } from "../utils/file.js";
 import {
   generate,
   GENERATION_STEP_GRAPH,
@@ -92,11 +92,11 @@ describe("inspectInputRoots", () => {
     const result = await inspectInputRoots(["/shared/.rulesync"]);
 
     expect(result.message).toBe(
-      "Configured input root '/shared/.rulesync' does not exist. Create the directory or update your inputRoots setting.",
+      "Configured primary input root '/shared/.rulesync' does not exist. Create the directory or update your inputRoots setting.",
     );
   });
 
-  it("should report every missing root while retaining existing roots", async () => {
+  it("should allow missing optional overlays while retaining their classification", async () => {
     vi.mocked(directoryExists).mockImplementation(async (path) => path === "/project/.rulesync");
 
     const result = await inspectInputRoots([
@@ -108,19 +108,32 @@ describe("inspectInputRoots", () => {
     expect(result).toEqual({
       existing: ["/project/.rulesync"],
       missing: ["/team/.rulesync", "/personal/.rulesync"],
-      message:
-        "Configured input roots do not exist: '/team/.rulesync', '/personal/.rulesync'. Create the directories or update your inputRoots setting.",
+      message: undefined,
     });
   });
 
-  it("should use a singular message when only one root in a multi-root config is missing", async () => {
+  it("should reject an optional overlay path that exists but is not a directory", async () => {
     vi.mocked(directoryExists).mockImplementation(async (path) => path === "/project/.rulesync");
+    vi.mocked(fileExists).mockImplementation(async (path) => path === "/project/.rulesync.local");
 
-    const result = await inspectInputRoots(["/project/.rulesync", "/team/.rulesync"]);
+    const result = await inspectInputRoots(["/project/.rulesync", "/project/.rulesync.local"]);
 
     expect(result.message).toBe(
-      "Configured input root '/team/.rulesync' does not exist. Create the directory or update your inputRoots setting.",
+      "Configured optional input root '/project/.rulesync.local' exists but is not a directory.",
     );
+  });
+
+  it("should require the default primary root even when a later overlay exists", async () => {
+    vi.mocked(directoryExists).mockImplementation(async (path) => path === "/personal/.rulesync");
+
+    const result = await inspectInputRoots(["/project/.rulesync", "/personal/.rulesync"]);
+
+    expect(result).toEqual({
+      existing: ["/personal/.rulesync"],
+      missing: ["/project/.rulesync"],
+      message:
+        "Rulesync source directory '/project/.rulesync' does not exist. Run 'rulesync init' first.",
+    });
   });
 });
 

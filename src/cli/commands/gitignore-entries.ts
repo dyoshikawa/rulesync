@@ -9,6 +9,7 @@ import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwe
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+  RULESYNC_LOCAL_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import {
   ALL_FEATURES_WITH_WILDCARD,
@@ -34,9 +35,9 @@ const normalizeGitignoreEntryTargets = (
 
 // Hand-maintained entries that are NOT derivable from any tool's
 // getSettablePaths, because they are not rulesync-owned generated outputs:
-//   - rulesync's own meta files (`.rulesync/**`, `rulesync.local.jsonc`, the
-//     `AGENTS.local.md` / `CLAUDE.local.md` local-root files, the `.aiignore`
-//     un-ignore exception)
+//   - rulesync's own meta files (`.rulesync/**`, `.rulesync.local/**`,
+//     `rulesync.local.jsonc`, the `AGENTS.local.md` / `CLAUDE.local.md`
+//     local-root files, the `.aiignore` un-ignore exception)
 //   - third-party tool by-products rulesync never writes but gitignores as a
 //     convenience (`.claude/*.lock`, `.takt/runs/`, lock files, …)
 //   - the `.codexignore` ghost (codexcli has no ignore processor)
@@ -54,6 +55,7 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     entry: `${RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH}/`,
   },
   { target: "common", feature: "general", entry: ".rulesync/rules/*.local.md" },
+  { target: "common", feature: "general", entry: `${RULESYNC_LOCAL_RELATIVE_DIR_PATH}/` },
   { target: "common", feature: "general", entry: "rulesync.local.jsonc" },
   // AGENTS.local.md is placed in common scope (not rovodev-only) so that
   // local rule files are always gitignored regardless of which targets are enabled.

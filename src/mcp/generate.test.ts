@@ -69,6 +69,23 @@ targets: ["*"]
       expect(result.config?.features).toContain("rules");
     });
 
+    it("should allow a configured optional overlay that does not exist", async () => {
+      const sourceTree = join(testDir, "central", RULESYNC_RELATIVE_DIR_PATH);
+      await ensureDir(sourceTree);
+      await writeFileContent(
+        join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+        JSON.stringify({
+          inputRoots: [sourceTree, join(testDir, ".rulesync.local")],
+          targets: ["agentsmd"],
+          features: ["rules"],
+        }),
+      );
+
+      const result = await executeGenerate();
+
+      expect(result.success).toBe(true);
+    });
+
     it("should execute generate with default config", async () => {
       // Create .rulesync directory and a sample rule
       const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);

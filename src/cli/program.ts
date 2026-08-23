@@ -305,7 +305,7 @@ export function createProgram(): Command {
     )
     .option(
       "--input-roots <paths...>",
-      "Ordered list of rulesync source-tree directories (e.g. .rulesync, .rulesync.local). Each entry is a source tree itself — the directory that directly contains rules/, skills/, mcp.jsonc, etc. Later entries override earlier ones when the same relative source path is present in more than one root. Cannot be combined with --input-root.",
+      "Ordered list of rulesync source-tree directories (e.g. .rulesync, .rulesync.local). Each entry is a source tree itself — the directory that directly contains rules/, skills/, mcp.jsonc, etc. The first root is required; later roots are optional overlays and may be absent. Later entries override earlier ones when the same relative source path is present in more than one root. Cannot be combined with --input-root.",
     )
     .option(
       "--input-root <path>",

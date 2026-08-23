@@ -167,8 +167,9 @@ function statIdentity(path: string): string | undefined {
  * kill the watcher: the deleted inode emits no further events and no error,
  * so watch mode would keep running while never regenerating again.
  *
- * The first attach is not guarded — a missing directory at startup is a real
- * configuration error and must surface to the caller.
+ * Missing targets start in re-arm mode. The shared input-root preflight has
+ * already required the primary root, while optional overlay roots may be
+ * created after watch mode starts.
  */
 function watchTargetWithRearm({
   target,
@@ -279,7 +280,23 @@ function watchTargetWithRearm({
     scheduleRearm();
   };
 
-  attach();
+  if (existsSync(target.directory)) {
+    try {
+      attach();
+    } catch (error) {
+      // If the directory disappeared between the existence check and
+      // `fs.watch`, treat it like any other temporarily absent overlay.
+      // Permission and platform errors for a still-existing directory remain
+      // real attachment failures and must propagate.
+      if (existsSync(target.directory)) {
+        throw error;
+      }
+
+      scheduleRearm();
+    }
+  } else {
+    scheduleRearm();
+  }
 
   // Event-driven liveness checks alone are not enough: OS event delivery for
   // a deleted watched directory can be arbitrarily late or dropped entirely
@@ -309,8 +326,9 @@ function watchTargetWithRearm({
 
 /**
  * Starts one watcher per target and forwards matching events to `onChange` as
- * absolute paths. If any target fails to attach, the watchers started so far
- * are closed before the error propagates, so no descriptor is leaked.
+ * absolute paths. Missing targets are polled until they appear. If any
+ * existing target fails to attach, the watchers started so far are closed
+ * before the error propagates, so no descriptor is leaked.
  */
 export function watchTargets({
   targets,

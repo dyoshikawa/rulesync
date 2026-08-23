@@ -182,20 +182,20 @@ describe("generate", () => {
     );
   });
 
-  it("should mention every configured input root in the not-found error", async () => {
+  it("should generate when inspection reports only a missing optional overlay", async () => {
     const inputRootsMock = ["/some/input-root", "/another/root"] as const;
     vi.mocked(ConfigResolver.resolve).mockResolvedValue({
       getOutputRoots: () => ["/project"],
       getInputRoots: () => inputRootsMock,
     } as unknown as Config as never);
     vi.mocked(inspectInputRoots).mockResolvedValue({
-      existing: [],
-      missing: [...inputRootsMock],
-      message:
-        "Configured input roots do not exist: '/some/input-root', '/another/root'. Create the directories or update your inputRoots setting.",
+      existing: [inputRootsMock[0]],
+      missing: [inputRootsMock[1]],
+      message: undefined,
     });
 
-    await expect(generate()).rejects.toThrow(/'\/some\/input-root', '\/another\/root'/);
+    await expect(generate()).resolves.toEqual(mockGenerateResult);
+    expect(coreGenerate).toHaveBeenCalledTimes(1);
   });
 });
 
