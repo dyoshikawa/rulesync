@@ -1,11 +1,6 @@
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import type { Config } from "../../config/config.js";
-import {
-  assertInputRootsResolvable,
-  checkRulesyncDirExists,
-  generate,
-  type GenerateResult,
-} from "../../lib/generate.js";
+import { generate, inspectInputRoots, type GenerateResult } from "../../lib/generate.js";
 import {
   buildConfigFilePaths,
   buildWatchTargets,
@@ -137,24 +132,10 @@ async function generateOnce(
 
   const inputRoots = config.getInputRoots();
 
-  try {
-    await assertInputRootsResolvable(inputRoots);
-  } catch (error) {
-    throw new CLIError(
-      error instanceof Error ? error.message : String(error),
-      ErrorCodes.RULESYNC_DIR_NOT_FOUND,
-    );
-  }
+  const inputRootInspection = await inspectInputRoots(inputRoots);
 
-  if (!(await checkRulesyncDirExists({ inputRoots }))) {
-    throw new CLIError(
-      inputRoots.length === 1
-        ? `Your configured input root '${inputRoots[0]}' does not exist. Run 'rulesync init' first or update inputRoots.`
-        : `None of your configured input roots exist: ${inputRoots
-            .map((root) => `'${root}'`)
-            .join(", ")}. Run 'rulesync init' first or update inputRoots.`,
-      ErrorCodes.RULESYNC_DIR_NOT_FOUND,
-    );
+  if (inputRootInspection.message !== undefined) {
+    throw new CLIError(inputRootInspection.message, ErrorCodes.RULESYNC_DIR_NOT_FOUND);
   }
 
   logger.debug(`Output roots: ${config.getOutputRoots().join(", ")}`);

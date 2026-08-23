@@ -1,9 +1,8 @@
 import { ConfigResolver } from "./config/config-resolver.js";
 import { convertFromTool as coreConvertFromTool, type ConvertResult } from "./lib/convert.js";
 import {
-  assertInputRootsResolvable,
-  checkRulesyncDirExists,
   generate as coreGenerate,
+  inspectInputRoots,
   type GenerateResult,
 } from "./lib/generate.js";
 import { importFromTool as coreImportFromTool, type ImportResult } from "./lib/import.js";
@@ -86,16 +85,10 @@ export async function generate(options: GenerateOptions = {}): Promise<GenerateR
   // `generate --delete --check` can still detect orphaned outputs.
   const inputRoots = config.getInputRoots();
 
-  await assertInputRootsResolvable(inputRoots);
+  const inputRootInspection = await inspectInputRoots(inputRoots);
 
-  if (!(await checkRulesyncDirExists({ inputRoots }))) {
-    throw new Error(
-      inputRoots.length === 1
-        ? `Your configured input root '${inputRoots[0]}' does not exist. Run 'rulesync init' first or update inputRoots.`
-        : `None of your configured input roots exist: ${inputRoots
-            .map((root) => `'${root}'`)
-            .join(", ")}. Run 'rulesync init' first or update inputRoots.`,
-    );
+  if (inputRootInspection.message !== undefined) {
+    throw new Error(inputRootInspection.message);
   }
 
   return coreGenerate({ config, logger });

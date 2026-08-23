@@ -2,10 +2,7 @@ import { basename, dirname } from "node:path";
 
 import { z } from "zod/mini";
 
-import {
-  RULESYNC_AIIGNORE_FILE_NAME,
-  RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
-} from "../../constants/rulesync-paths.js";
+import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor, pickLastRootWithFile } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -14,6 +11,7 @@ import { ignoreProcessorToolTargetTuple } from "../../types/tool-target-tuples.j
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
 import { AiassistantIgnore } from "./aiassistant-ignore.js";
 import { AntigravityCliIgnore } from "./antigravity-cli-ignore.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
@@ -167,9 +165,13 @@ export class IgnoreProcessor extends FeatureProcessor {
    * surfaces the same missing-file error it would in the single-root case.
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    const paths = RulesyncIgnore.getSettablePaths();
+    const relativePaths = getRulesyncSourceCandidates({ paths })
+      .filter((candidate) => candidate.relativeDirPath === paths.recommended.relativeDirPath)
+      .map((candidate) => candidate.relativeFilePath);
     const winningRoot = await pickLastRootWithFile({
       inputRoots: this.inputRoots,
-      relativePaths: [RULESYNC_AIIGNORE_FILE_NAME],
+      relativePaths,
     });
     const sourceTree = winningRoot ?? this.inputRoots[0];
 

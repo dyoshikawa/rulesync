@@ -7,7 +7,7 @@ import { CURSOR_BUGBOT_FILE_NAME } from "../../constants/cursor-paths.js";
 import { ROVODEV_REVIEW_AGENT_FILE_NAME } from "../../constants/rovodev-paths.js";
 import { CHECKS_FEATURE_SUBDIR } from "../../constants/rulesync-paths.js";
 import { TAKT_CONFIG_FILE_NAME } from "../../constants/takt-paths.js";
-import { FeatureProcessor, mergeByIdentity } from "../../types/feature-processor.js";
+import { FeatureProcessor, mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { checksProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
@@ -318,9 +318,12 @@ export class ChecksProcessor extends FeatureProcessor {
       this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
     );
 
-    const rulesyncChecks = mergeByIdentity(perRoot, (check) =>
-      check.getRelativeFilePath().toLowerCase(),
-    );
+    const rulesyncChecks = mergeByCaseInsensitiveIdentity({
+      perRoot,
+      identity: (check) => check.getRelativeFilePath(),
+      artifactName: "check",
+      logger: this.logger,
+    });
 
     this.logger.debug(`Successfully loaded ${rulesyncChecks.length} rulesync checks`);
 

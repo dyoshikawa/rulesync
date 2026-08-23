@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   RULESYNC_MCP_FILE_NAME,
+  RULESYNC_MCP_LEGACY_FILE_NAME,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
@@ -1541,7 +1542,24 @@ describe("RulesyncMcp.fromRoots", () => {
     vi.restoreAllMocks();
   });
 
-  it("should remove top-level MCP servers when an overlay sets the server to null", async () => {
+  it("should preserve a single root's JSONC content and actual source path", async () => {
+    const inputRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+    const fileContent = `{
+  // Keep this comment when no merge is necessary.
+  "mcpServers": {
+    "alpha": { "command": "alpha" },
+  },
+}`;
+
+    await writeFileContent(join(inputRoot, RULESYNC_MCP_LEGACY_FILE_NAME), fileContent);
+
+    const rulesyncMcp = await RulesyncMcp.fromRoots({ inputRoots: [inputRoot] });
+
+    expect(rulesyncMcp.getRelativeFilePath()).toBe(RULESYNC_MCP_LEGACY_FILE_NAME);
+    expect(rulesyncMcp.getFileContent()).toBe(fileContent);
+  });
+
+  it("should reject top-level null MCP servers instead of treating them as deletions", async () => {
     const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
     const overlayRoot = join(testDir, ".rulesync.local");
     await writeFileContent(
@@ -1562,11 +1580,40 @@ describe("RulesyncMcp.fromRoots", () => {
       }),
     );
 
-    const rulesyncMcp = await RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] });
+    await expect(RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] })).rejects.toThrow(
+      join(overlayRoot, RULESYNC_MCP_FILE_NAME),
+    );
+  });
 
-    expect(rulesyncMcp.getMcpServers()).toEqual({
-      beta: { command: "beta" },
-    });
+  it("should validate a base file even when an overlay would replace its invalid server", async () => {
+    const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+    const overlayRoot = join(testDir, ".rulesync.local");
+    await writeFileContent(
+      join(baseRoot, RULESYNC_MCP_FILE_NAME),
+      JSON.stringify({ mcpServers: { shared: { command: 123 } } }),
+    );
+    await writeFileContent(
+      join(overlayRoot, RULESYNC_MCP_FILE_NAME),
+      JSON.stringify({ mcpServers: { shared: { command: "valid-overlay" } } }),
+    );
+
+    await expect(RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] })).rejects.toThrow(
+      join(baseRoot, RULESYNC_MCP_FILE_NAME),
+    );
+  });
+
+  it("should attribute JSONC syntax errors to the overlay file", async () => {
+    const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+    const overlayRoot = join(testDir, ".rulesync.local");
+    await writeFileContent(
+      join(baseRoot, RULESYNC_MCP_FILE_NAME),
+      JSON.stringify({ mcpServers: { base: { command: "base" } } }),
+    );
+    await writeFileContent(join(overlayRoot, RULESYNC_MCP_FILE_NAME), "{ invalid");
+
+    await expect(RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] })).rejects.toThrow(
+      join(overlayRoot, RULESYNC_MCP_FILE_NAME),
+    );
   });
 
   it("should reject an overlay MCP file whose JSON is not an object", async () => {
@@ -1579,7 +1626,7 @@ describe("RulesyncMcp.fromRoots", () => {
     await writeFileContent(join(overlayRoot, RULESYNC_MCP_FILE_NAME), JSON.stringify([]));
 
     await expect(RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] })).rejects.toThrow(
-      /expected a JSON object/,
+      `Invalid MCP source file '${join(overlayRoot, RULESYNC_MCP_FILE_NAME)}': Error: Expected a JSON object.`,
     );
   });
 });
@@ -1610,7 +1657,7 @@ describe("mergeMcpJsonOverlays", () => {
     });
   });
 
-  it("removes top-level mcpServers entries when the overlay value is null", () => {
+  it("does not interpret top-level null mcpServers entries as deletions", () => {
     const base = {
       mcpServers: {
         alpha: { command: "alpha" },
@@ -1621,6 +1668,7 @@ describe("mergeMcpJsonOverlays", () => {
 
     expect(mergeMcpJsonOverlays(base, overlay)).toEqual({
       mcpServers: {
+        alpha: null,
         beta: { command: "beta" },
       },
     });

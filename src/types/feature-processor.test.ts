@@ -7,7 +7,12 @@ import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { readFileContentOrNull, removeFile, writeFileContent } from "../utils/file.js";
 import { AiFile } from "./ai-file.js";
-import { FeatureProcessor, mergeByIdentity, pickLastRootWithFile } from "./feature-processor.js";
+import {
+  FeatureProcessor,
+  mergeByCaseInsensitiveIdentity,
+  mergeByIdentity,
+  pickLastRootWithFile,
+} from "./feature-processor.js";
 import { RulesyncFile } from "./rulesync-file.js";
 import { ToolFile } from "./tool-file.js";
 
@@ -359,6 +364,36 @@ describe("mergeByIdentity", () => {
 
   it("returns an empty list when every root is empty", () => {
     expect(mergeByIdentity<{ id: string }>([[], []], (item) => item.id)).toEqual([]);
+  });
+});
+
+describe("mergeByCaseInsensitiveIdentity", () => {
+  it("warns when distinct casing collapses to one identity", () => {
+    const logger = createMockLogger();
+    const result = mergeByCaseInsensitiveIdentity({
+      perRoot: [[{ id: "Review.md", value: "base" }], [{ id: "review.md", value: "overlay" }]],
+      identity: (item) => item.id,
+      artifactName: "rule",
+      logger,
+    });
+
+    expect(result).toEqual([{ id: "review.md", value: "overlay" }]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Case-insensitive rule collision: 'Review.md' and 'review.md' resolve to the same identity. The later entry wins.",
+    );
+  });
+
+  it("does not warn for exact-name overlays", () => {
+    const logger = createMockLogger();
+
+    mergeByCaseInsensitiveIdentity({
+      perRoot: [[{ id: "review.md" }], [{ id: "review.md" }]],
+      identity: (item) => item.id,
+      artifactName: "rule",
+      logger,
+    });
+
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 });
 

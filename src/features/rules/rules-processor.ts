@@ -10,7 +10,7 @@ import {
   RULES_FEATURE_SUBDIR,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import { FeatureProcessor, mergeByIdentity } from "../../types/feature-processor.js";
+import { FeatureProcessor, mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -1700,9 +1700,12 @@ As this project's AI coding tool, you must follow the additional conventions bel
       this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
     );
 
-    const rulesyncRules = mergeByIdentity(perRoot, (rule) =>
-      rule.getRelativeFilePath().toLowerCase(),
-    );
+    const rulesyncRules = mergeByCaseInsensitiveIdentity({
+      perRoot,
+      identity: (rule) => rule.getRelativeFilePath(),
+      artifactName: "rule",
+      logger: this.logger,
+    });
 
     const factory = this.getFactory(this.toolTarget);
 

@@ -6,7 +6,7 @@ import {
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
   SUBAGENTS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
-import { FeatureProcessor, mergeByIdentity } from "../../types/feature-processor.js";
+import { FeatureProcessor, mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
@@ -655,9 +655,12 @@ export class SubagentsProcessor extends FeatureProcessor {
       this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
     );
 
-    const rulesyncSubagents = mergeByIdentity(perRoot, (subagent) =>
-      subagent.getRelativeFilePath().toLowerCase(),
-    );
+    const rulesyncSubagents = mergeByCaseInsensitiveIdentity({
+      perRoot,
+      identity: (subagent) => subagent.getRelativeFilePath(),
+      artifactName: "subagent",
+      logger: this.logger,
+    });
 
     if (rulesyncSubagents.length === 0) {
       this.logger.debug(`No valid subagents found`);

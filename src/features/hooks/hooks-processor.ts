@@ -2,11 +2,7 @@ import { basename, dirname } from "node:path";
 
 import { z } from "zod/mini";
 
-import {
-  RULESYNC_HOOKS_FILE_NAME,
-  RULESYNC_HOOKS_LEGACY_FILE_NAME,
-  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
-} from "../../constants/rulesync-paths.js";
+import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { pickLastRootWithFile } from "../../types/feature-processor.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
@@ -44,6 +40,7 @@ import { hooksProcessorToolTargetTuple } from "../../types/tool-target-tuples.js
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
 import { AmpHooks } from "./amp-hooks.js";
 import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
 import { AntigravityPluginHooks } from "./antigravity-plugin-hooks.js";
@@ -787,9 +784,13 @@ export class HooksProcessor extends FeatureProcessor {
     // Multi-root policy: the last root that provides a hooks file wins the
     // whole file (see the inputRoots plan). Recommended and legacy paths are
     // treated equally per-root — either one qualifies as "root has hooks".
+    const paths = RulesyncHooks.getSettablePaths();
+    const relativePaths = getRulesyncSourceCandidates({ paths }).map(
+      (candidate) => candidate.relativeFilePath,
+    );
     const winningRoot = await pickLastRootWithFile({
       inputRoots: this.inputRoots,
-      relativePaths: [RULESYNC_HOOKS_FILE_NAME, RULESYNC_HOOKS_LEGACY_FILE_NAME],
+      relativePaths,
     });
     const sourceTree = winningRoot ?? this.inputRoots[0];
 

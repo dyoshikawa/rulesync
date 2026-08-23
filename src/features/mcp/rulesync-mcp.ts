@@ -17,6 +17,7 @@ import {
 } from "../../types/rulesync-file.js";
 import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
+import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
@@ -183,12 +184,10 @@ async function findFirstExistingCandidate({
  * Merge two parsed MCP JSON objects with the one-level policy from the
  * inputRoots plan: the top-level `mcpServers` map and each
  * `<toolname>.mcpServers` sub-map are merged by server name (later wins per
- * key); top-level `mcpServers.<name>: null` removes an earlier shared
- * server before final validation. Every other value — individual server
- * configs, other top-level keys — is replaced atomically. This keeps the
- * merge predictable: an overlay can add, replace, or remove whole shared
- * servers, but a partial patch of one server's `args`/`env` is deliberately
- * not supported.
+ * key). Every other value — individual server configs, other top-level keys
+ * — is replaced atomically. This keeps the merge predictable: an overlay can
+ * add or replace whole shared servers, but a partial patch of one server's
+ * `args`/`env` is deliberately not supported.
  */
 function getRecordField({
   value,
@@ -215,11 +214,6 @@ function mergeTopLevelMcpServers({
 
   for (const [serverName, serverConfig] of Object.entries(overlayServers)) {
     if (isPrototypePollutionKey(serverName)) continue;
-
-    if (serverConfig === null) {
-      delete merged[serverName];
-      continue;
-    }
 
     merged[serverName] = serverConfig;
   }
@@ -330,10 +324,11 @@ export class RulesyncMcp extends RulesyncFile {
    * Cross-root behavior: the parsed JSON objects are folded left-to-right
    * with `mergeMcpJsonOverlays`, so later roots overlay earlier ones by
    * server name (one level deep) and replace every other value atomically.
-   * The resulting `RulesyncMcp` is anchored to the FIRST root's recommended
-   * path — error messages therefore point at the primary root even when an
-   * offending server originated in an overlay. This is an accepted
-   * limitation of the first slice; see the plan's out-of-scope section.
+   * With one root, this delegates to `fromFile` so JSONC formatting and the
+   * actual candidate path are preserved. With multiple roots, each source is
+   * parsed and schema-validated before merging so failures name the originating
+   * file. The merged object is necessarily synthetic, serialized JSON anchored
+   * to the first root's recommended path.
    *
    * When no root supplies any candidate, this falls back to reading the
    * primary root's recommended path so the underlying file-not-found error
@@ -348,6 +343,17 @@ export class RulesyncMcp extends RulesyncFile {
     validate?: boolean;
     logger?: Logger;
   }): Promise<RulesyncMcp> {
+    if (inputRoots.length === 1) {
+      const [primary] = inputRoots;
+
+      return this.fromFile({
+        outputRoot: dirname(primary),
+        relativeDirPath: basename(primary),
+        validate,
+        logger,
+      });
+    }
+
     const paths = this.getSettablePaths();
     const rootRecords: Record<string, unknown>[] = [];
 
@@ -376,10 +382,26 @@ export class RulesyncMcp extends RulesyncFile {
       }
 
       const fileContent = await readFileContent(filePath);
-      const parsed = parseJsonc(fileContent);
+      let parsed: unknown;
 
-      if (!isRecord(parsed)) {
-        throw new Error(`Invalid MCP source file '${filePath}': expected a JSON object.`);
+      try {
+        parsed = parseJsonc(fileContent);
+
+        if (!isRecord(parsed)) {
+          throw new Error("Expected a JSON object.");
+        }
+
+        if (validate) {
+          const result = RulesyncMcpFileSchema.safeParse(parsed);
+
+          if (!result.success) {
+            throw result.error;
+          }
+        }
+      } catch (error) {
+        throw new Error(`Invalid MCP source file '${filePath}': ${formatError(error)}`, {
+          cause: error,
+        });
       }
 
       rootRecords.push(parsed);

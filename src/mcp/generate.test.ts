@@ -31,11 +31,19 @@ describe("MCP Generate Tools", () => {
       const result = await executeGenerate();
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("Your configured input root");
+      expect(result.error).toContain("Rulesync source directory");
       expect(result.error).toContain("does not exist");
     });
 
-    it("should resolve configured inputRoots before checking for source content", async () => {
+    it("should allow an existing input root with no source content", async () => {
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+
+      const result = await executeGenerate();
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should resolve configured inputRoots before generation", async () => {
       const sourceTree = join(testDir, "central", RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(join(sourceTree, RULES_FEATURE_SUBDIR));
       await writeFileContent(

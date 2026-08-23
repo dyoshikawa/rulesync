@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
@@ -36,6 +38,18 @@ vi.mock("./rulesync-ignore.js", () => ({
 // Add a static fromFile method to the mock
 const RulesyncIgnoreMock = vi.mocked(RulesyncIgnore);
 (RulesyncIgnoreMock as any).fromFile = vi.fn();
+(RulesyncIgnoreMock as any).getSettablePaths = vi.fn(() => ({
+  recommended: {
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
+  },
+  legacy: [
+    {
+      relativeDirPath: ".",
+      relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+    },
+  ],
+}));
 
 describe("IgnoreProcessor", () => {
   let testDir: string;

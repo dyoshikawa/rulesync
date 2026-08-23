@@ -9,7 +9,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { AiDir } from "../../types/ai-dir.js";
 import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
-import { mergeByIdentity } from "../../types/feature-processor.js";
+import { mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
 import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
@@ -702,7 +702,12 @@ export class SkillsProcessor extends DirFeatureProcessor {
       this.inputRoots.map((root) => this.loadRulesyncDirsForRoot(root)),
     );
 
-    const allSkills = mergeByIdentity(perRoot, (skill) => skill.getDirName().toLowerCase());
+    const allSkills = mergeByCaseInsensitiveIdentity({
+      perRoot,
+      identity: (skill) => skill.getDirName(),
+      artifactName: "skill",
+      logger: this.logger,
+    });
 
     this.logger.debug(`Successfully loaded ${allSkills.length} rulesync skills`);
 

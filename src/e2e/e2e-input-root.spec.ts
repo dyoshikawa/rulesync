@@ -31,12 +31,6 @@ const originalCwd = process.cwd();
 // feature's processor — not to re-walk the matrix. The rules block above
 // does iterate across multiple tools because rule output paths vary most
 // across tools.
-//
-// `--input-root` (singular) is a shallow, parse-time alias for a one-element
-// `--input-roots` list; the alias behavior is covered by unit tests in
-// `src/config/config.test.ts`, `src/config/config-resolver.test.ts`, and
-// `src/cli/commands/generate.test.ts`. This end-to-end suite exercises the
-// canonical plural form only, so tests do not have to branch on the alias.
 describe("E2E: --input-roots (read from A, write to B)", () => {
   let sourceDir = "";
   let sourceRoot = "";
@@ -90,6 +84,22 @@ Rules live in sourceDir; output must land in outputDir.
       expect(await fileExists(join(sourceDir, outputPath))).toBe(false);
     },
   );
+
+  it("should preserve --input-root parent-directory compatibility", async () => {
+    await writeFileContent(
+      join(sourceDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+---
+# Singular Input Root`,
+    );
+
+    await runGenerate({ target: "codexcli", features: "rules", inputRoot: sourceDir });
+
+    const generatedContent = await readFileContent(join(outputDir, "AGENTS.md"));
+    expect(generatedContent).toContain("Singular Input Root");
+  });
 
   // Per-feature smoke tests below: each one picks a single representative
   // tool. See suite-level comment — matrix-wide coverage lives elsewhere.

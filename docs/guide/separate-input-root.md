@@ -58,11 +58,13 @@ rulesync generate --input-roots ~/.aiglobal/.rulesync ./.rulesync --targets "*" 
 
 The general rule is: later entries win. Each feature refines that rule slightly:
 
-- **Rules, commands, subagents, checks, skills** — merged file-by-file (case-insensitive). Files present only in an earlier tree are kept; a file that also exists in a later tree replaces the earlier version. A skill directory is replaced as a single unit (all of its companion files together).
+- **Rules, commands, subagents, checks, skills** — merged file-by-file (case-insensitive). Files present only in an earlier tree are kept; a file that also exists in a later tree replaces the earlier version. A skill directory is replaced as a single unit (all of its companion files together). Differently cased names that collapse to the same identity produce a warning instead of being dropped silently.
 - **MCP** — merged one level into the JSON: the top-level `mcpServers` map and each `<toolname>.mcpServers` map are merged by server name (later wins per key). An individual server config is replaced as a whole; patching just its `args` or `env` is not supported.
 - **Hooks, permissions, ignore** — the last tree that provides the file wins the whole file. There is no line-level merge.
 
-At least one of the configured source trees must contain recognizable rulesync source content (`rules/`, `skills/`, `mcp.jsonc`, etc.). An overlay-only tree may legitimately supply just one feature — for example, a `.rulesync.local/` that only contains `mcp.jsonc`.
+Root order is the primary precedence rule. Within a single source tree, a rule or skill outside `.curated/` takes precedence over a same-named curated artifact. After that per-tree choice is made, a later input root replaces an earlier root's effective artifact even when the later artifact is curated.
+
+Every configured source tree must exist, but it may be empty. Empty trees are useful with `--delete` and `--check`, which still need to inspect generated outputs even when no source files remain. An overlay-only tree may also supply just one feature — for example, a `.rulesync.local/` that only contains `mcp.jsonc`.
 
 ## Setting input roots in `rulesync.jsonc`
 
@@ -70,7 +72,7 @@ You can set the same value in `rulesync.jsonc` (or `rulesync.local.jsonc`) inste
 
 ```jsonc
 {
-  "inputRoots": ["~/.aiglobal/.rulesync", "./.rulesync"],
+  "inputRoots": ["./.rulesync", "./.rulesync.local"],
 }
 ```
 

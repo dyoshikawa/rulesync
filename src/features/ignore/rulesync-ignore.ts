@@ -8,21 +8,18 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { RulesyncFile, RulesyncFileFromFileParams } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
+import type {
+  RulesyncSourcePath,
+  RulesyncSourceSettablePaths,
+} from "../../utils/rulesync-source-path.js";
 
 export type RulesyncIgnoreFromFileParams = Pick<
   RulesyncFileFromFileParams,
   "outputRoot" | "relativeDirPath"
 >;
 
-export type RulesyncIgnoreSettablePaths = {
-  recommended: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  legacy: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
+export type RulesyncIgnoreSettablePaths = Omit<RulesyncSourceSettablePaths, "legacy"> & {
+  legacy: readonly [RulesyncSourcePath];
 };
 
 export class RulesyncIgnore extends RulesyncFile {
@@ -36,10 +33,12 @@ export class RulesyncIgnore extends RulesyncFile {
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
       },
-      legacy: {
-        relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
-      },
+      legacy: [
+        {
+          relativeDirPath: ".",
+          relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        },
+      ],
     };
   }
 
@@ -60,11 +59,8 @@ export class RulesyncIgnore extends RulesyncFile {
       recommendedDirPath,
       paths.recommended.relativeFilePath,
     );
-    const legacyPath = join(
-      outputRoot,
-      paths.legacy.relativeDirPath,
-      paths.legacy.relativeFilePath,
-    );
+    const [legacy] = paths.legacy;
+    const legacyPath = join(outputRoot, legacy.relativeDirPath, legacy.relativeFilePath);
 
     if (await fileExists(recommendedPath)) {
       const fileContent = await readFileContent(recommendedPath);
@@ -80,8 +76,8 @@ export class RulesyncIgnore extends RulesyncFile {
       const fileContent = await readFileContent(legacyPath);
       return new RulesyncIgnore({
         outputRoot,
-        relativeDirPath: paths.legacy.relativeDirPath,
-        relativeFilePath: paths.legacy.relativeFilePath,
+        relativeDirPath: legacy.relativeDirPath,
+        relativeFilePath: legacy.relativeFilePath,
         fileContent,
       });
     }

@@ -4,15 +4,16 @@ import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import type { Logger } from "../../utils/logger.js";
 import { calculateTotalCount } from "../../utils/result.js";
 
-// `inputRoot` is intentionally excluded: it only affects where source rules
-// are *read from* during `generate`, and `import` does not consume them. Keeping
-// it in the option type would be misleading. Note that this avoids surfacing
-// the "Ignoring `global: true`" warning on direct programmatic / CLI callers;
-// users with an `inputRoot` set in their config file (e.g. `rulesync.jsonc`) may
-// still see the warning because `ConfigResolver.resolve` reads `configByFile`
-// regardless of this `Omit`. That residual warning is actionable — it tells
-// the user their config-file `inputRoot` is being ignored during `import`.
-export type ImportOptions = Omit<ConfigResolverResolveParams, "delete" | "inputRoot">;
+// `inputRoot` and `inputRoots` are intentionally excluded: they only affect
+// where source files are *read from* during `generate`, and `import` does not
+// consume them. Keeping either in the option type would be misleading. This
+// avoids surfacing the "Ignoring `global: true`" warning on direct callers;
+// config-file root settings can still produce that actionable warning because
+// `ConfigResolver.resolve` reads them independently of this type.
+export type ImportOptions = Omit<
+  ConfigResolverResolveParams,
+  "delete" | "inputRoot" | "inputRoots"
+>;
 
 export async function importCommand(logger: Logger, options: ImportOptions): Promise<void> {
   if (!options.targets) {

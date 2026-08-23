@@ -2,11 +2,7 @@ import { basename, dirname } from "node:path";
 
 import { z } from "zod/mini";
 
-import {
-  RULESYNC_PERMISSIONS_FILE_NAME,
-  RULESYNC_PERMISSIONS_LEGACY_FILE_NAME,
-  RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
-} from "../../constants/rulesync-paths.js";
+import { RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { pickLastRootWithFile } from "../../types/feature-processor.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import type { RulesyncFile } from "../../types/rulesync-file.js";
@@ -15,6 +11,7 @@ import { permissionsProcessorToolTargetTuple } from "../../types/tool-target-tup
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
 import { AmpPermissions } from "./amp-permissions.js";
 import { AntigravityCliPermissions } from "./antigravity-cli-permissions.js";
 import { AntigravityIdePermissions } from "./antigravity-ide-permissions.js";
@@ -524,9 +521,13 @@ export class PermissionsProcessor extends FeatureProcessor {
     //
     // Multi-root policy: the last root that provides a permissions file
     // wins the whole file (see the inputRoots plan).
+    const paths = RulesyncPermissions.getSettablePaths();
+    const relativePaths = getRulesyncSourceCandidates({ paths }).map(
+      (candidate) => candidate.relativeFilePath,
+    );
     const winningRoot = await pickLastRootWithFile({
       inputRoots: this.inputRoots,
-      relativePaths: [RULESYNC_PERMISSIONS_FILE_NAME, RULESYNC_PERMISSIONS_LEGACY_FILE_NAME],
+      relativePaths,
     });
     const sourceTree = winningRoot ?? this.inputRoots[0];
 

@@ -109,6 +109,21 @@ const loadConfigFromFile = async (filePath: string): Promise<PartialConfigParams
   return configParams;
 };
 
+export type InputRootConfig = Pick<PartialConfigParams, "inputRoot" | "inputRoots">;
+
+export function mergeInputRootConfigs({
+  baseConfig,
+  localConfig,
+}: {
+  baseConfig: InputRootConfig;
+  localConfig: InputRootConfig;
+}): InputRootConfig {
+  return {
+    inputRoot: localConfig.inputRoot ?? baseConfig.inputRoot,
+    inputRoots: localConfig.inputRoots ?? baseConfig.inputRoots,
+  };
+}
+
 const mergeConfigs = (
   baseConfig: PartialConfigParams,
   localConfig: PartialConfigParams,
@@ -131,8 +146,7 @@ const mergeConfigs = (
     gitignoreDestination: localConfig.gitignoreDestination ?? baseConfig.gitignoreDestination,
     dryRun: localConfig.dryRun ?? baseConfig.dryRun,
     check: localConfig.check ?? baseConfig.check,
-    inputRoot: localConfig.inputRoot ?? baseConfig.inputRoot,
-    inputRoots: localConfig.inputRoots ?? baseConfig.inputRoots,
+    ...mergeInputRootConfigs({ baseConfig, localConfig }),
     sources: localConfig.sources ?? baseConfig.sources,
   };
 };
@@ -266,7 +280,7 @@ function resolveFeaturesAndTargets({
  * other field is resolved. When only the file config supplies both, the
  * plural wins over the singular and the drop is logged at debug level.
  */
-function resolveEffectiveInputRoots({
+export function resolveEffectiveInputRoots({
   cliInputRoot,
   cliInputRoots,
   configByFile,
@@ -278,15 +292,23 @@ function resolveEffectiveInputRoots({
   configByFile: PartialConfigParams;
   cwd: string;
   logger: Logger | undefined;
-}): [string, ...string[]] {
+}): {
+  inputRoots: [string, ...string[]];
+  candidates: string[];
+  field: "inputRoot" | "inputRoots" | undefined;
+} {
   let source: readonly string[] | undefined;
+  let field: "inputRoot" | "inputRoots" | undefined;
 
   if (cliInputRoots !== undefined && cliInputRoots.length > 0) {
     source = cliInputRoots;
+    field = "inputRoots";
   } else if (cliInputRoot !== undefined) {
     source = [join(cliInputRoot, RULESYNC_RELATIVE_DIR_PATH)];
+    field = "inputRoot";
   } else if (configByFile.inputRoots !== undefined && configByFile.inputRoots.length > 0) {
     source = configByFile.inputRoots;
+    field = "inputRoots";
 
     if (configByFile.inputRoot !== undefined) {
       logger?.debug(
@@ -295,23 +317,27 @@ function resolveEffectiveInputRoots({
     }
   } else if (configByFile.inputRoot !== undefined) {
     source = [join(configByFile.inputRoot, RULESYNC_RELATIVE_DIR_PATH)];
+    field = "inputRoot";
   } else {
     source = [join(cwd, RULESYNC_RELATIVE_DIR_PATH)];
   }
 
+  const candidates = source.map((entry) => resolve(entry));
   const seen = new Set<string>();
   const resolved: string[] = [];
 
-  for (const entry of source) {
-    const absolute = resolve(entry);
-
+  for (const absolute of candidates) {
     if (seen.has(absolute)) continue;
 
     seen.add(absolute);
     resolved.push(absolute);
   }
 
-  return [resolved[0]!, ...resolved.slice(1)];
+  return {
+    inputRoots: [resolved[0]!, ...resolved.slice(1)],
+    candidates,
+    field,
+  };
 }
 
 // oxlint-disable-next-line no-extraneous-class
@@ -353,11 +379,11 @@ export class ConfigResolver {
     //
     // Anchor precedence for the config file:
     // - CLI `inputRoot` (legacy singular alias): its value is a parent-of
-    //   the source tree, so it IS the config-file anchor.
-    // - CLI `inputRoots` (plural, new semantic): each entry is a source
-    //   tree; the config file conventionally lives next to it, so the
-    //   anchor is `dirname(inputRoots[0])`.
-    // - Nothing: fall back to cwd.
+    //   the source tree, so it remains the config-file anchor for backward
+    //   compatibility.
+    // - CLI `inputRoots` (plural) does not affect config discovery. Its
+    //   entries are source trees, not config locations.
+    // - Otherwise, including plural input roots, resolve from cwd.
     //
     // Validate the *raw* CLI-supplied input root(s) first so traversal
     // patterns like `/foo/../bar` cannot slip through `resolve()`'s
@@ -373,12 +399,8 @@ export class ConfigResolver {
       }
     }
 
-    const cliConfigAnchor =
-      inputRoot !== undefined
-        ? inputRoot
-        : inputRoots !== undefined
-          ? dirname(inputRoots[0]!)
-          : undefined;
+    const cliConfigAnchor = inputRoot;
+    const hasCliInputRootOverride = inputRoot !== undefined || inputRoots !== undefined;
     const configOutputRoot = resolve(cliConfigAnchor ?? cwd);
     const validatedConfigPath = resolvePath(configPath, configOutputRoot);
 
@@ -399,7 +421,7 @@ export class ConfigResolver {
     // values above. We only validate the file values when the CLI/programmatic
     // caller did not supply their own (otherwise the CLI values already
     // covered that case above).
-    if (cliConfigAnchor === undefined) {
+    if (!hasCliInputRootOverride) {
       if (configByFile.inputRoot !== undefined) {
         validateOutputRoot(configByFile.inputRoot);
       }
@@ -448,13 +470,14 @@ export class ConfigResolver {
     // `inputRoots` over `inputRoot` when both survive the merge (this supports
     // the intended overlay flow: team `inputRoot` in `rulesync.jsonc`,
     // developer `inputRoots` in `rulesync.local.jsonc`).
-    const resolvedInputRoots = resolveEffectiveInputRoots({
+    const resolvedInputRootConfig = resolveEffectiveInputRoots({
       cliInputRoot: inputRoot,
       cliInputRoots: inputRoots,
       configByFile,
       cwd,
       logger,
     });
+    const resolvedInputRoots = resolvedInputRootConfig.inputRoots;
     // When any explicit input root(s) is in play (from CLI, programmatic args,
     // or a config file) the user is decoupling source from output, so
     // "global: true" from the config file must not apply unless the caller

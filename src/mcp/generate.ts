@@ -2,12 +2,7 @@ import { z } from "zod/mini";
 
 import { ConfigResolver } from "../config/config-resolver.js";
 import { Config } from "../config/config.js";
-import {
-  assertInputRootsResolvable,
-  generate,
-  hasRulesyncSourceContent,
-  type GenerateResult,
-} from "../lib/generate.js";
+import { generate, inspectInputRoots, type GenerateResult } from "../lib/generate.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
@@ -80,15 +75,10 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
     });
 
     const inputRoots = config.getInputRoots();
-    await assertInputRootsResolvable(inputRoots);
+    const inputRootInspection = await inspectInputRoots(inputRoots);
 
-    if (!(await hasRulesyncSourceContent({ inputRoots }))) {
-      return {
-        success: false,
-        error: `No rulesync source content found in the configured input roots (${inputRoots
-          .map((root) => `'${root}'`)
-          .join(", ")}). Run 'rulesync init' first or add rulesync source files.`,
-      };
+    if (inputRootInspection.message !== undefined) {
+      throw new Error(inputRootInspection.message);
     }
 
     const logger = new ConsoleLogger({ verbose: false, silent: true });

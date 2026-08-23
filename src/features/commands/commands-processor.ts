@@ -12,7 +12,7 @@ import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { AiFile } from "../../types/ai-file.js";
-import { FeatureProcessor, mergeByIdentity } from "../../types/feature-processor.js";
+import { FeatureProcessor, mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
 import type { FlattenedCommandNaming } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -803,9 +803,12 @@ export class CommandsProcessor extends FeatureProcessor {
       this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
     );
 
-    const rulesyncCommands = mergeByIdentity(perRoot, (command) =>
-      command.getRelativeFilePath().toLowerCase(),
-    );
+    const rulesyncCommands = mergeByCaseInsensitiveIdentity({
+      perRoot,
+      identity: (command) => command.getRelativeFilePath(),
+      artifactName: "command",
+      logger: this.logger,
+    });
 
     this.logger.debug(`Successfully loaded ${rulesyncCommands.length} rulesync commands`);
 

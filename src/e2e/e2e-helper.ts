@@ -50,6 +50,7 @@ export async function runGenerate({
   simulateCommands = false,
   simulateSubagents = false,
   simulateSkills = false,
+  inputRoot,
   inputRoots,
   outputRoots,
   env,
@@ -62,15 +63,13 @@ export async function runGenerate({
   simulateCommands?: boolean;
   simulateSubagents?: boolean;
   simulateSkills?: boolean;
+  inputRoot?: string;
   inputRoots?: string[];
   outputRoots?: string;
   env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
-  // The CLI exposes `--input-root` as a user-facing alias for a
-  // one-element `--input-roots` list, but this helper (test infrastructure)
-  // only speaks the plural form to keep test code from ever branching on
-  // the singular alias. A single-element list emits `--input-roots X`,
-  // which the CLI treats identically to `--input-root X`.
+  // The deprecated singular form takes a parent directory and appends
+  // `.rulesync`; the plural form takes source-tree paths exactly as supplied.
   const args = [
     ...rulesyncArgs,
     "generate",
@@ -84,6 +83,7 @@ export async function runGenerate({
     ...(simulateCommands ? ["--simulate-commands"] : []),
     ...(simulateSubagents ? ["--simulate-subagents"] : []),
     ...(simulateSkills ? ["--simulate-skills"] : []),
+    ...(inputRoot ? ["--input-root", inputRoot] : []),
     ...(inputRoots && inputRoots.length > 0 ? ["--input-roots", ...inputRoots] : []),
     ...(outputRoots ? ["--output-roots", outputRoots] : []),
   ];

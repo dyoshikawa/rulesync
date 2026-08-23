@@ -164,7 +164,7 @@ describe("generateCommand", () => {
       const options: GenerateOptions = {};
 
       await expect(generateCommand(mockLogger, options)).rejects.toThrow(
-        "Your configured input root '/test/project/.rulesync' does not exist.",
+        "Rulesync source directory '/test/project/.rulesync' does not exist. Run 'rulesync init' first.",
       );
 
       expect(directoryExists).toHaveBeenCalledWith("/test/project/.rulesync");

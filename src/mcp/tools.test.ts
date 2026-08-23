@@ -806,7 +806,7 @@ targets: ["*"]
 
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(false);
-      expect(parsed.error).toContain("Your configured input root");
+      expect(parsed.error).toContain("Rulesync source directory");
       expect(parsed.error).toContain("does not exist");
     });
 

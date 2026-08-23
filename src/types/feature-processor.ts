@@ -231,3 +231,42 @@ export function mergeByIdentity<T>(perRoot: readonly T[][], identity: (item: T) 
 
   return order.map((key) => winnerByKey.get(key)!);
 }
+
+/**
+ * Merge artifacts whose filenames are case-insensitive identities, warning
+ * when distinct spellings collapse to the same key. Exact-name overlays are
+ * intentional and remain quiet; only case-only ambiguity is diagnosed.
+ */
+export function mergeByCaseInsensitiveIdentity<T>({
+  perRoot,
+  identity,
+  artifactName,
+  logger,
+}: {
+  perRoot: readonly T[][];
+  identity: (item: T) => string;
+  artifactName: string;
+  logger: Logger;
+}): T[] {
+  const spellingByKey = new Map<string, string>();
+  const warnedKeys = new Set<string>();
+
+  return mergeByIdentity(perRoot, (item) => {
+    const spelling = identity(item);
+    const key = spelling.toLowerCase();
+    const previousSpelling = spellingByKey.get(key);
+
+    if (previousSpelling !== undefined && previousSpelling !== spelling && !warnedKeys.has(key)) {
+      logger.warn(
+        `Case-insensitive ${artifactName} collision: '${previousSpelling}' and '${spelling}' resolve to the same identity. The later entry wins.`,
+      );
+      warnedKeys.add(key);
+    }
+
+    if (previousSpelling === undefined) {
+      spellingByKey.set(key, spelling);
+    }
+
+    return key;
+  });
+}

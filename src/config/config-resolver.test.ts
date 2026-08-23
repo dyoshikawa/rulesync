@@ -938,16 +938,12 @@ describe("config-resolver", () => {
     });
 
     it("should let CLI inputRoots override any file-configured input roots", async () => {
-      // With CLI-supplied inputRoots the resolver uses `inputRoots[0]` to
-      // anchor `configPath` resolution. Writing the config file into `cli-a`
-      // keeps the anchor consistent with the file location, matching how a
-      // real user would layout their tree.
       const cliA = join(testDir, "cli-a");
       const cliB = join(testDir, "cli-b");
-      const configuredRoot = join(cliA, "from-config");
+      const configuredRoot = join(testDir, "from-config");
       await writeFileContent(
-        join(cliA, "rulesync.jsonc"),
-        JSON.stringify({ inputRoot: configuredRoot }),
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ inputRoot: configuredRoot, targets: ["cursor"] }),
       );
 
       const config = await ConfigResolver.resolve({
@@ -955,6 +951,28 @@ describe("config-resolver", () => {
         inputRoots: [cliA, cliB],
       });
 
+      expect(config.getInputRoots()).toEqual([cliA, cliB]);
+      expect(config.getTargets()).toEqual(["cursor"]);
+    });
+
+    it("should ignore a config file beside the first CLI input root", async () => {
+      const cliA = join(testDir, "cli-a");
+      const cliB = join(testDir, "cli-b");
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ targets: ["cursor"] }),
+      );
+      await writeFileContent(
+        join(cliA, "rulesync.jsonc"),
+        JSON.stringify({ targets: ["claudecode"] }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: "rulesync.jsonc",
+        inputRoots: [cliA, cliB],
+      });
+
+      expect(config.getTargets()).toEqual(["cursor"]);
       expect(config.getInputRoots()).toEqual([cliA, cliB]);
     });
 

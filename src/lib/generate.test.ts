@@ -14,13 +14,11 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
-import { directoryExists, fileExists, readFileContentOrNull } from "../utils/file.js";
+import { directoryExists, readFileContentOrNull } from "../utils/file.js";
 import {
-  assertInputRootsResolvable,
-  checkRulesyncDirExists,
   generate,
   GENERATION_STEP_GRAPH,
-  hasRulesyncSourceContent,
+  inspectInputRoots,
   resolveExecutionOrder,
 } from "./generate.js";
 
@@ -56,89 +54,73 @@ vi.mock("es-toolkit", () => ({
   intersection: vi.fn(),
 }));
 
-describe("checkRulesyncDirExists", () => {
+describe("inspectInputRoots", () => {
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it("should return true when a source-tree root exists even without source content", async () => {
+  it("should classify existing roots without requiring source content", async () => {
     vi.mocked(directoryExists).mockResolvedValue(true);
 
-    const result = await checkRulesyncDirExists({ inputRoots: ["/project/.rulesync"] });
+    const result = await inspectInputRoots(["/project/.rulesync"]);
 
-    expect(result).toBe(true);
+    expect(result).toEqual({
+      existing: ["/project/.rulesync"],
+      missing: [],
+      message: undefined,
+    });
     expect(directoryExists).toHaveBeenCalledWith("/project/.rulesync");
   });
 
-  it("should return false when no source-tree root exists", async () => {
+  it("should suggest init when the default source directory is missing", async () => {
+    vi.spyOn(process, "cwd").mockReturnValue("/project");
     vi.mocked(directoryExists).mockResolvedValue(false);
 
-    const result = await checkRulesyncDirExists({ inputRoots: ["/project/.rulesync"] });
+    const result = await inspectInputRoots(["/project/.rulesync"]);
 
-    expect(result).toBe(false);
-  });
-});
-
-describe("assertInputRootsResolvable", () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("should name the missing configured input root", async () => {
-    vi.mocked(directoryExists).mockResolvedValue(false);
-
-    await expect(assertInputRootsResolvable(["/project/.rulesync"])).rejects.toThrow(
-      "Your configured input root '/project/.rulesync' does not exist.",
-    );
-  });
-
-  it("should list all missing configured input roots", async () => {
-    vi.mocked(directoryExists).mockResolvedValue(false);
-
-    await expect(
-      assertInputRootsResolvable(["/project/.rulesync", "/team/.rulesync"]),
-    ).rejects.toThrow(
-      "Your configured input roots do not exist: '/project/.rulesync', '/team/.rulesync'.",
-    );
-  });
-});
-
-describe("hasRulesyncSourceContent", () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("should return true when a source-tree root contains recognizable rulesync content", async () => {
-    vi.mocked(fileExists).mockResolvedValue(true);
-
-    const result = await hasRulesyncSourceContent({ inputRoots: ["/project/.rulesync"] });
-
-    expect(result).toBe(true);
-    // The check looks for a feature file/subdirectory INSIDE the source tree
-    // itself (e.g. `.rulesync/rules/`), not for a nested `.rulesync/` folder.
-    expect(fileExists).toHaveBeenCalledWith("/project/.rulesync/rules");
-  });
-
-  it("should return false when no root contains any rulesync source content", async () => {
-    vi.mocked(fileExists).mockResolvedValue(false);
-
-    const result = await hasRulesyncSourceContent({ inputRoots: ["/project/.rulesync"] });
-
-    expect(result).toBe(false);
-    // At minimum, the `rules/` probe should have run.
-    expect(fileExists).toHaveBeenCalledWith("/project/.rulesync/rules");
-  });
-
-  it("should return true when only an overlay root contains rulesync source content", async () => {
-    vi.mocked(fileExists).mockImplementation(
-      async (path: string) => path === "/overlay/.rulesync/rules",
-    );
-
-    const result = await hasRulesyncSourceContent({
-      inputRoots: ["/base/.rulesync", "/overlay/.rulesync"],
+    expect(result).toEqual({
+      existing: [],
+      missing: ["/project/.rulesync"],
+      message:
+        "Rulesync source directory '/project/.rulesync' does not exist. Run 'rulesync init' first.",
     });
+  });
 
-    expect(result).toBe(true);
+  it("should explain how to fix a missing explicit input root", async () => {
+    vi.mocked(directoryExists).mockResolvedValue(false);
+
+    const result = await inspectInputRoots(["/shared/.rulesync"]);
+
+    expect(result.message).toBe(
+      "Configured input root '/shared/.rulesync' does not exist. Create the directory or update your inputRoots setting.",
+    );
+  });
+
+  it("should report every missing root while retaining existing roots", async () => {
+    vi.mocked(directoryExists).mockImplementation(async (path) => path === "/project/.rulesync");
+
+    const result = await inspectInputRoots([
+      "/project/.rulesync",
+      "/team/.rulesync",
+      "/personal/.rulesync",
+    ]);
+
+    expect(result).toEqual({
+      existing: ["/project/.rulesync"],
+      missing: ["/team/.rulesync", "/personal/.rulesync"],
+      message:
+        "Configured input roots do not exist: '/team/.rulesync', '/personal/.rulesync'. Create the directories or update your inputRoots setting.",
+    });
+  });
+
+  it("should use a singular message when only one root in a multi-root config is missing", async () => {
+    vi.mocked(directoryExists).mockImplementation(async (path) => path === "/project/.rulesync");
+
+    const result = await inspectInputRoots(["/project/.rulesync", "/team/.rulesync"]);
+
+    expect(result.message).toBe(
+      "Configured input root '/team/.rulesync' does not exist. Create the directory or update your inputRoots setting.",
+    );
   });
 });
 

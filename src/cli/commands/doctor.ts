@@ -1,7 +1,12 @@
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 import { type ParseError, parse as parseJsonc, printParseErrorCode } from "jsonc-parser";
 
+import {
+  type InputRootConfig,
+  mergeInputRootConfigs,
+  resolveEffectiveInputRoots,
+} from "../../config/config-resolver.js";
 import {
   CONFLICTING_TARGET_PAIRS,
   ConfigFileSchema,
@@ -654,11 +659,8 @@ function parseConfigObjectForMerge(
  *   are silently deduped at generate time, but they are almost always an
  *   authoring accident worth mentioning.
  *
- * Precedence for the reported source file: `inputRoots`/`inputRoot` from
- * `rulesync.local.jsonc` wins over the same field in `rulesync.jsonc`, and
- * a `local` value of one arity does NOT fall back to the base file's other
- * arity — the two survive independently and `ConfigResolver` picks
- * `inputRoots` when both are present (see the inputRoots plan).
+ * The merge, singular expansion, normalization, and plural-over-singular
+ * precedence are delegated to the same pure helpers as `ConfigResolver`.
  */
 async function checkInputRootExists({
   baseConfig,
@@ -671,31 +673,71 @@ async function checkInputRootExists({
   baseFile: string;
   localFile: string;
 }): Promise<DoctorDiagnostic[]> {
-  const resolved = resolveDoctorInputRoots({ baseConfig, localConfig });
-
-  if (resolved === undefined) return [];
-
-  const { effective, sourceFile } = resolved;
-  const file = sourceFile === "local" ? localFile : baseFile;
+  const baseInputConfig = readDoctorInputRootConfig(baseConfig);
+  const localInputConfig = readDoctorInputRootConfig(localConfig);
   const diagnostics: DoctorDiagnostic[] = [];
+
+  for (const [config, file] of [
+    [baseInputConfig, baseFile],
+    [localInputConfig, localFile],
+  ] as const) {
+    if (config.inputRoot !== undefined && config.inputRoots !== undefined) {
+      diagnostics.push({
+        severity: "error",
+        code: "config/input-roots-conflict",
+        file,
+        message: "'inputRoot' and 'inputRoots' cannot be combined in the same config file.",
+        hint: "Remove 'inputRoot' and keep 'inputRoots', or keep only the singular field.",
+      });
+    }
+  }
+
+  if (diagnostics.length > 0) {
+    return diagnostics;
+  }
+
+  const configByFile = mergeInputRootConfigs({
+    baseConfig: baseInputConfig,
+    localConfig: localInputConfig,
+  });
+  const resolved = resolveEffectiveInputRoots({
+    cliInputRoot: undefined,
+    cliInputRoots: undefined,
+    configByFile,
+    cwd: process.cwd(),
+    logger: undefined,
+  });
+
+  if (resolved.field === undefined) {
+    return diagnostics;
+  }
+
+  const field = resolved.field;
+  const sourceConfig =
+    field === "inputRoots"
+      ? localInputConfig.inputRoots !== undefined
+        ? "local"
+        : "base"
+      : localInputConfig.inputRoot !== undefined
+        ? "local"
+        : "base";
+  const file = sourceConfig === "local" ? localFile : baseFile;
 
   const seen = new Set<string>();
   const duplicates = new Set<string>();
 
-  for (const entry of effective) {
-    const key = resolve(entry);
+  for (const entry of resolved.candidates) {
+    if (seen.has(entry)) duplicates.add(entry);
 
-    if (seen.has(key)) duplicates.add(entry);
+    seen.add(entry);
 
-    seen.add(key);
-
-    if (!(await directoryExists(key))) {
+    if (!(await directoryExists(entry))) {
       diagnostics.push({
         severity: "error",
         code: "config/input-root-not-found",
         file,
-        message: `'${effective.length > 1 ? "inputRoots" : "inputRoot"}' entry '${entry}' is not an existing directory.`,
-        hint: `Create the directory or fix the '${effective.length > 1 ? "inputRoots" : "inputRoot"}' path.`,
+        message: `'${field}' entry '${entry}' is not an existing directory.`,
+        hint: `Create the directory or fix the '${field}' path.`,
       });
     }
   }
@@ -713,54 +755,24 @@ async function checkInputRootExists({
   return diagnostics;
 }
 
-/**
- * Collect the effective input-root list from a base+local config pair,
- * following the same precedence the resolver uses:
- * 1. If any local field is set, local wins for that field (both fields
- *    survive independently; `inputRoots` wins over `inputRoot` when both are
- *    present).
- * 2. Otherwise the base file's values are used.
- * 3. `undefined` means "not configured anywhere", which is a valid state
- *    (defaults to `cwd`).
- */
-function resolveDoctorInputRoots({
-  baseConfig,
-  localConfig,
-}: {
-  baseConfig: Record<string, unknown> | undefined;
-  localConfig: Record<string, unknown> | undefined;
-}): { effective: string[]; sourceFile: "base" | "local" } | undefined {
-  const localRoots = readInputRootsField(localConfig);
-  const localRoot = readInputRootField(localConfig);
+function readDoctorInputRootConfig(config: Record<string, unknown> | undefined): InputRootConfig {
+  const inputRootValue = config?.inputRoot;
+  const inputRootsValue = config?.inputRoots;
+  const inputRoot =
+    typeof inputRootValue === "string" && inputRootValue.length > 0 ? inputRootValue : undefined;
 
-  if (localRoots !== undefined) return { effective: localRoots, sourceFile: "local" };
-  if (localRoot !== undefined) return { effective: [localRoot], sourceFile: "local" };
+  if (!Array.isArray(inputRootsValue) || inputRootsValue.length === 0) {
+    return { inputRoot, inputRoots: undefined };
+  }
 
-  const baseRoots = readInputRootsField(baseConfig);
-  const baseRoot = readInputRootField(baseConfig);
-
-  if (baseRoots !== undefined) return { effective: baseRoots, sourceFile: "base" };
-  if (baseRoot !== undefined) return { effective: [baseRoot], sourceFile: "base" };
-
-  return undefined;
-}
-
-function readInputRootField(config: Record<string, unknown> | undefined): string | undefined {
-  const value = config?.inputRoot;
-
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function readInputRootsField(config: Record<string, unknown> | undefined): string[] | undefined {
-  const value = config?.inputRoots;
-
-  if (!Array.isArray(value) || value.length === 0) return undefined;
-
-  const entries = value.filter(
+  const inputRoots = inputRootsValue.filter(
     (entry): entry is string => typeof entry === "string" && entry.length > 0,
   );
 
-  return entries.length === 0 ? undefined : entries;
+  return {
+    inputRoot,
+    inputRoots: inputRoots.length === 0 ? undefined : inputRoots,
+  };
 }
 
 function reportDiagnostics({
