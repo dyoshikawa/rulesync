@@ -4,6 +4,7 @@ import { CLAUDECODE_DIR, CLAUDECODE_SETTINGS_FILE_NAME } from "../../constants/c
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -115,8 +116,9 @@ function deepMergeRecords(
  * emits them only under `--global`.
  *
  * Deliberately NOT listed:
- * - `bwrapPath` / `socatPath`: v2.1.232 added them to the managed-settings
- *   approval dialog, which is a consent prompt, not a project-scope rejection.
+ * - `ripgrep` / `bwrapPath` / `socatPath`: each names an executable, so
+ *   `stripCommandExecutingSandboxPaths` refuses them in both scopes rather than
+ *   emitting them under `--global`.
  * - `credentials.envVars` / `credentials.files`: the ignored-at-project-scope
  *   unit is the individual entry's mode, not the settings key, and the same
  *   lists carry `deny` entries that project settings *do* honor — dropping a
@@ -124,7 +126,6 @@ function deepMergeRecords(
  *   filters those lists per entry instead.
  *
  * @see https://code.claude.com/docs/en/sandboxing
- * @see https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md — v2.1.232 scoped `sandbox.ripgrep`
  */
 const CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS: readonly (readonly string[])[] = [
   ["filesystem", "disabled"],
@@ -134,8 +135,68 @@ const CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS: readonly (readonly string[])[] = [
   ["credentials", "awsPairs"],
   ["credentials", "sigv4"],
   ["allowAppleEvents"],
-  ["ripgrep"],
 ];
+
+/**
+ * `bypassPermissions` starts every session with no permission prompt at all,
+ * which is the widest thing this file can say. Warned for the same reason
+ * `disableAllHooks` is: a shareable permissions file should not turn the
+ * permission system off quietly.
+ */
+function warnOnBypassPermissions({
+  defaultMode,
+  relativeFilePath,
+  logger,
+}: {
+  defaultMode: unknown;
+  relativeFilePath: string;
+  logger?: Logger;
+}): void {
+  if (defaultMode !== "bypassPermissions") return;
+  logger?.warn(
+    `Claude Code permissions: writing 'permissions.defaultMode: "bypassPermissions"' to ${relativeFilePath}; every session then starts with no permission prompts. Review it as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
+  );
+}
+
+/**
+ * `sandbox` paths whose value names a binary Claude Code runs. `sandbox` has its
+ * own merge branch, so the top-level refusal in `stripUnhonoredTopLevelKeys`
+ * never sees them — they are refused here on the same grounds, in both scopes:
+ * a fetched `.rulesync/permissions.jsonc` must not be able to point Claude Code
+ * at an executable of its choosing.
+ *
+ * @see https://code.claude.com/docs/en/sandboxing
+ */
+const CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS: readonly (readonly string[])[] = [
+  ["ripgrep"],
+  ["bwrapPath"],
+  ["socatPath"],
+];
+
+/**
+ * Copy of the authored `sandbox` override with the paths that name an
+ * executable removed, warning once per dropped path.
+ */
+function stripCommandExecutingSandboxPaths({
+  sandbox,
+  relativeFilePath,
+  logger,
+}: {
+  sandbox: Record<string, unknown>;
+  relativeFilePath: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const filtered = structuredClone(sandbox);
+  for (const path of CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS) {
+    const leaf = path.at(-1);
+    if (leaf === undefined || filtered[leaf] === undefined) continue;
+    delete filtered[leaf];
+    logger?.warn(
+      `Claude Code permissions: 'sandbox.${path.join(".")}' names an executable Claude Code runs, so rulesync does not write it to ${relativeFilePath}. A permissions file is shareable — 'rulesync fetch' copies one into a project — and is not where a reviewer looks for a command to run; set this path in ${relativeFilePath} by hand.`,
+    );
+  }
+  return filtered;
+}
 
 /**
  * Copy of the authored `sandbox` override with the user/managed-only paths
@@ -302,7 +363,6 @@ const CLAUDECODE_USER_SCOPE_ONLY_KEYS: ReadonlySet<string> = new Set([
   "enableArtifact",
   "footerLinksRegexes",
   "pluginConfigs",
-  "processWrapper",
   "skipAutoPermissionPrompt",
   "skipDangerousModePermissionPrompt",
   "spellcheck",
@@ -375,9 +435,13 @@ const CLAUDECODE_COMMAND_EXECUTING_KEYS: Readonly<Record<string, string>> = {
   apiKeyHelper: "runs the script it names to mint an API key",
   awsAuthRefresh: "runs the command it names to refresh AWS credentials",
   awsCredentialExport: "runs the command it names to export AWS credentials",
+  fileSuggestion: "runs its `command` on every `@` file completion",
+  gcpAuthRefresh: "runs the command it names to refresh Google Cloud credentials",
   otelHeadersHelper: "runs the script it names to build OpenTelemetry headers",
+  policyHelper: "runs the executable it names to compute the managed settings",
   processWrapper: "wraps every process Claude Code spawns",
   statusLine: "runs its `command` on every status-line render",
+  subagentStatusLine: "runs its `command` on every subagent status row",
 };
 
 /**
@@ -393,7 +457,7 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
   disableAllHooks: "controls whether hooks run at all",
   enableAllProjectMcpServers: "auto-approves every server in the project `.mcp.json`",
   enabledPlugins: "enables plugins, which can ship their own hooks",
-  env: "sets environment variables for every session, including credential and endpoint variables such as `ANTHROPIC_BASE_URL` and `PATH`",
+  env: "sets environment variables for every process Claude Code spawns, so a value such as `NODE_OPTIONS` or `PATH` runs code and `ANTHROPIC_BASE_URL` redirects every prompt",
   extraKnownMarketplaces: "registers plugin marketplace sources",
 };
 
@@ -403,12 +467,7 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
  * cap the length.
  */
 function displayKey(key: string): string {
-  const stripped = Array.from(key)
-    .filter((char) => {
-      const code = char.codePointAt(0) ?? 0;
-      return code >= 0x20 && code !== 0x7f;
-    })
-    .join("");
+  const stripped = stripControlCharacters(key);
   return stripped.length > 80 ? `${stripped.slice(0, 80)}…` : stripped;
 }
 
@@ -577,6 +636,11 @@ export class ClaudecodePermissions extends ToolPermissions {
     const overridePermissions = config.claudecode?.permissions;
     if (overridePermissions && typeof overridePermissions === "object") {
       const { allow: _a, ask: _k, deny: _d, ...nonListFields } = overridePermissions;
+      warnOnBypassPermissions({
+        defaultMode: nonListFields.defaultMode,
+        relativeFilePath: paths.relativeFilePath,
+        logger,
+      });
       settings.permissions = { ...settings.permissions, ...nonListFields };
     }
 
@@ -589,11 +653,16 @@ export class ClaudecodePermissions extends ToolPermissions {
       // A subset of `sandbox.*` is ignored in a repository's settings.json, so
       // at project scope those paths are dropped rather than committed as a
       // policy that never applies.
+      const executableFreeSandbox = stripCommandExecutingSandboxPaths({
+        sandbox: overrideSandbox,
+        relativeFilePath: paths.relativeFilePath,
+        logger,
+      });
       const scopedSandbox = global
-        ? overrideSandbox
+        ? executableFreeSandbox
         : stripProjectIgnoredMaskEntries({
             sandbox: stripGlobalOnlySandboxPaths({
-              sandbox: overrideSandbox,
+              sandbox: executableFreeSandbox,
               relativeFilePath: paths.relativeFilePath,
               logger,
             }),
@@ -703,7 +772,10 @@ export class ClaudecodePermissions extends ToolPermissions {
       // Symmetric with generate: a key generate refuses to write must not be
       // imported either, or the override would carry a value that only ever
       // produces a warning.
-      if (Object.hasOwn(CLAUDECODE_COMMAND_EXECUTING_KEYS, key)) continue;
+      const canonicalKey = Object.hasOwn(CLAUDECODE_SETTINGS_KEY_ALIASES, key)
+        ? (CLAUDECODE_SETTINGS_KEY_ALIASES[key] as string)
+        : key;
+      if (Object.hasOwn(CLAUDECODE_COMMAND_EXECUTING_KEYS, canonicalKey)) continue;
       // `JSON.parse` makes `__proto__` an own property, so a settings file can
       // carry one into the override block; drop it here as well as on generate.
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
