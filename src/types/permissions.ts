@@ -190,11 +190,26 @@ export type KiloPermissionsOverride = z.infer<typeof KiloPermissionsOverrideSche
  * rather than which commands are permitted — so it is a loose passthrough on
  * the same terms, merged into the top level of `.claude/settings.json`.
  *
+ * Any other key is a plain top-level `settings.json` key (`editorMode`, `env`,
+ * `model`, ...), deep-merged into the generated file verbatim so settings
+ * Claude Code adds faster than an allowlist can track stay authorable.
+ * The exceptions are the keys another feature owns (`hooks`) and `$schema`.
+ * Keys the target file cannot honor — `Managed`-only and `~/.claude.json`-only
+ * keys in either scope, plus user-scope keys at project scope — are dropped
+ * with a warning rather than written where they would never apply. So are the
+ * keys whose value is a command Claude Code executes (`apiKeyHelper`,
+ * `statusLine`, ...): this file is shareable via `rulesync fetch`, and a file
+ * named for restricting things is not where a command belongs — author those
+ * in `.rulesync/hooks.jsonc` instead.
+ *
  * @example
  * { "permissions": { "defaultMode": "acceptEdits", "additionalDirectories": ["../shared"] } }
  * @example
  * { "sandbox": { "network": { "allowedDomains": ["example.com"], "strictAllowlist": true } } }
+ * @example
+ * { "editorMode": "vim", "env": { "MY_VAR": "1" } }
  * @see https://code.claude.com/docs/en/sandboxing
+ * @see https://code.claude.com/docs/en/settings-reference
  */
 const ClaudecodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
@@ -909,6 +924,15 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
   sandbox_workspace_write: z.optional(z.looseObject({})),
   apps: z.optional(z.looseObject({})),
   approvals_reviewer: z.optional(z.union([CodexApprovalsReviewerSchema, z.looseObject({})])),
+  /**
+   * The `[tui]` table of `config.toml` (e.g. `vim_mode_default`, `keymap.*`).
+   * Not a permission surface, but like `apps` it is a top-level table with no
+   * canonical category, and Codex adds keys to it faster than an explicit model
+   * could track — so it is a loose passthrough written verbatim.
+   *
+   * @see https://developers.openai.com/codex/config-reference
+   */
+  tui: z.optional(z.looseObject({})),
   git_write_rules: z.optional(z.boolean()),
 });
 export type CodexcliPermissionsOverride = z.infer<typeof CodexcliPermissionsOverrideSchema>;

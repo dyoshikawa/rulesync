@@ -34,6 +34,7 @@ import type {
   ParsedSource,
 } from "../types/fetch.js";
 import type { ToolTarget } from "../types/tool-targets.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 import {
   checkPathTraversal,
   createTempDirectory,
@@ -242,13 +243,6 @@ function resolveFeatures(features?: string[]): Feature[] {
 }
 
 /**
- * Matches C0/C1 control characters (including ANSI escape introducers) that
- * must never reach the terminal from remote-controlled names.
- */
-// eslint-disable-next-line no-control-regex
-const CONTROL_CHARS_PATTERN = /[\u0000-\u001f\u007f-\u009f]/g;
-
-/**
  * A file entry collected from feature directories
  */
 type CollectedFile = {
@@ -273,7 +267,7 @@ function getSkillName(relativePath: string): string | undefined {
   if (segments.length < 3) {
     return undefined;
   }
-  const name = segments[1]?.replace(CONTROL_CHARS_PATTERN, "");
+  const name = segments[1] === undefined ? undefined : stripControlCharacters(segments[1]);
   return name === undefined || name === "" ? undefined : name;
 }
 
