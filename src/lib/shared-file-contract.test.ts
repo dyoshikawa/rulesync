@@ -180,6 +180,10 @@ describe("shared-file cross-feature write contract", () => {
         // Kimi's `[tools]` sits in the same shared config as its hooks and
         // permission rules, so the contract exercises all three writers.
         "kimi-code": { tools: { enabled: ["Bash", "Read"] } },
+        // The Claude Code override writes plain top-level `settings.json` keys
+        // into the same file the hooks and ignore features write, so the
+        // contract covers the passthrough against a live `hooks` writer too.
+        claudecode: { editorMode: "vim", env: { CONTRACT_VAR: "1" } },
       }),
     );
     await writeFileContent(

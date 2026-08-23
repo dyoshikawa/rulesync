@@ -1,6 +1,6 @@
 {
   "name": "rulesync",
-  "version": "16.14.0",
+  "version": "16.15.0",
   "description": "Unified AI rules management CLI tool that generates configuration files for various AI development tools",
   "keywords": [
     "ai",
@@ -85,7 +85,7 @@
     "pre-commit": "pnpm exec lint-staged"
   },
   "dependencies": {
-    "@inquirer/checkbox": "5.2.1",
+    "@inquirer/checkbox": "5.2.2",
     "@modelcontextprotocol/sdk": "1.30.0",
     "@octokit/request-error": "7.1.1",
     "@octokit/rest": "22.0.1",
@@ -93,11 +93,11 @@
     "@valibot/to-json-schema": "1.7.1",
     "commander": "15.0.0",
     "effect": "3.22.1",
-    "es-toolkit": "1.50.0",
-    "fastmcp": "4.15.1",
-    "globby": "16.2.3",
+    "es-toolkit": "1.51.0",
+    "fastmcp": "4.16.5",
+    "globby": "16.2.4",
     "gray-matter": "4.0.3",
-    "js-yaml": "5.2.3",
+    "js-yaml": "5.3.0",
     "jsonc-parser": "3.3.1",
     "minisearch": "7.2.0",
     "smol-toml": "1.8.0",
@@ -105,20 +105,20 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.229",
-    "@openrouter/sdk": "1.2.32",
+    "@anthropic-ai/claude-agent-sdk": "0.3.237",
+    "@openrouter/sdk": "1.2.47",
     "@secretlint/secretlint-rule-preset-recommend": "13.0.4",
-    "@tsconfig/node24": "24.0.4",
+    "@tsconfig/node24": "24.0.5",
     "@types/node": "26.2.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.11",
     "cspell": "10.0.1",
     "knip": "6.32.2",
     "lint-staged": "17.3.0",
-    "oxfmt": "0.63.0",
-    "oxlint": "1.78.0",
+    "oxfmt": "0.64.0",
+    "oxlint": "1.79.0",
     "repomix": "1.18.0",
-    "resend": "6.19.0",
+    "resend": "6.20.0",
     "secretlint": "13.0.4",
     "simple-git": "3.36.0",
     "simple-git-hooks": "2.13.1",
@@ -126,9 +126,9 @@
     "tsdown": "0.22.14",
     "tsx": "4.23.12",
     "typescript": "7.0.2",
-    "vite": "8.2.1",
+    "vite": "8.2.2",
     "vitepress": "1.6.4",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   },
   "engines": {
     "node": ">=22.0.0",

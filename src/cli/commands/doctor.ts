@@ -20,6 +20,7 @@ import {
 import { ALL_FEATURES, DEPRECATED_FEATURE_REPLACEMENTS } from "../../types/features.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { directoryExists, fileExists, readFileContent, resolvePath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 
@@ -606,16 +607,6 @@ export function collectMergedConfigDiagnostics({
 
 function severityRank(severity: DoctorSeverity): number {
   return severity === "error" ? 0 : severity === "warning" ? 1 : 2;
-}
-
-/**
- * Strips control characters (including ANSI escape sequences) so key names and
- * values copied out of an untrusted config file cannot inject terminal escape
- * codes into the diagnostic output.
- */
-function stripControlCharacters(text: string): string {
-  // oxlint-disable-next-line no-control-regex
-  return text.replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, "");
 }
 
 function formatDiagnostic(diagnostic: DoctorDiagnostic): string {

@@ -1534,6 +1534,41 @@ command = "node"
       });
     });
 
+    it("authors and round-trips the [tui] table (vim_mode_default)", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: { tui: { vim_mode_default: true } },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.tui).toEqual({ vim_mode_default: true });
+      expect(logger.warn.mock.calls.map((call) => String(call[0])).join("\n")).not.toContain(
+        '"tui" is not managed',
+      );
+
+      const reimported = new CodexcliPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: codexPermissions.getFileContent(),
+      });
+      expect(reimported.toRulesyncPermissions().getJson().codexcli?.tui).toEqual({
+        vim_mode_default: true,
+      });
+    });
+
     it("refuses non-whitelisted override keys (mcp_servers / permissions) with a warning", async () => {
       const logger = createMockLogger();
       const rulesyncPermissions = new RulesyncPermissions({
