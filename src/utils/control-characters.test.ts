@@ -18,4 +18,8 @@ describe("stripControlCharacters", () => {
   it("should remove bidirectional overrides and line separators", () => {
     expect(stripControlCharacters("a\u202eb\u2028c")).toBe("abc");
   });
+
+  it("should keep the plain right-to-left marks, which carry meaning in a name", () => {
+    expect(stripControlCharacters("a\u200fb")).toBe("a\u200fb");
+  });
 });

@@ -138,24 +138,62 @@ const CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS: readonly (readonly string[])[] = [
 ];
 
 /**
- * `bypassPermissions` starts every session with no permission prompt at all,
- * which is the widest thing this file can say. Warned for the same reason
- * `disableAllHooks` is: a shareable permissions file should not turn the
- * permission system off quietly.
+ * Deletes `path` from `target` in place and reports whether anything was there,
+ * dropping a container the removal emptied so no `"network": {}` noise is left
+ * behind. Shared by the two `sandbox` filters below so a nested path added to
+ * either table is actually traversed rather than silently skipped.
  */
-function warnOnBypassPermissions({
-  defaultMode,
+function deleteSandboxPath({
+  target,
+  path,
+}: {
+  target: Record<string, unknown>;
+  path: readonly string[];
+}): boolean {
+  const leaf = path.at(-1);
+  if (leaf === undefined) return false;
+  const parentPath = path.slice(0, -1);
+  let parent: Record<string, unknown> = target;
+  for (const segment of parentPath) {
+    const next = parent[segment];
+    if (!isPlainRecord(next)) return false;
+    parent = next;
+  }
+  if (parent[leaf] === undefined) return false;
+  delete parent[leaf];
+  const [container] = parentPath;
+  if (container !== undefined && isPlainRecord(target[container])) {
+    if (Object.keys(target[container]).length === 0) delete target[container];
+  }
+  return true;
+}
+
+/**
+ * The `permissions` fields that widen rather than restrict: `bypassPermissions`
+ * starts every session with no permission prompt at all, and
+ * `additionalDirectories` moves the working-directory boundary. Warned for the
+ * same reason `disableAllHooks` is: a shareable permissions file should not
+ * loosen the permission system quietly.
+ */
+function warnOnWideningPermissionFields({
+  fields,
   relativeFilePath,
   logger,
 }: {
-  defaultMode: unknown;
+  fields: Record<string, unknown>;
   relativeFilePath: string;
   logger?: Logger;
 }): void {
-  if (defaultMode !== "bypassPermissions") return;
-  logger?.warn(
-    `Claude Code permissions: writing 'permissions.defaultMode: "bypassPermissions"' to ${relativeFilePath}; every session then starts with no permission prompts. Review it as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
-  );
+  if (fields.defaultMode === "bypassPermissions") {
+    logger?.warn(
+      `Claude Code permissions: writing 'permissions.defaultMode: "bypassPermissions"' to ${relativeFilePath}; every session then starts with no permission prompts. Review it as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
+    );
+  }
+  if (Array.isArray(fields.additionalDirectories) && fields.additionalDirectories.length > 0) {
+    logger?.warn(
+      `Claude Code permissions: writing 'permissions.additionalDirectories' to ${relativeFilePath}; it moves the boundary of what Claude Code may read and edit outside the project. Review the paths, especially if this permissions file came from 'rulesync fetch'.`,
+    );
+  }
 }
 
 /**
@@ -174,6 +212,51 @@ const CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS: readonly (readonly string[])[]
 ];
 
 /**
+ * `sandbox` paths that redirect where the sandboxed traffic goes. They do not
+ * run anything themselves, so they are written like `env` is — but warned
+ * about, because a fetched override should not reroute a project's traffic
+ * silently.
+ */
+const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: Readonly<Record<string, string>> = {
+  "network.httpProxyPort": "routes the sandbox's HTTP traffic through the port it names",
+  "network.socksProxyPort": "routes the sandbox's SOCKS traffic through the port it names",
+};
+
+/**
+ * Warns once per authored `sandbox` path that widens where sandboxed traffic
+ * goes. Nothing is removed — the value is written, just not silently.
+ */
+function warnOnTrustAffectingSandboxPaths({
+  sandbox,
+  relativeFilePath,
+  logger,
+}: {
+  sandbox: Record<string, unknown>;
+  relativeFilePath: string;
+  logger?: Logger;
+}): void {
+  for (const [path, reason] of Object.entries(CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS)) {
+    const segments = path.split(".");
+    const leaf = segments.at(-1);
+    if (leaf === undefined) continue;
+    let parent: Record<string, unknown> = sandbox;
+    let reachable = true;
+    for (const segment of segments.slice(0, -1)) {
+      const next = parent[segment];
+      if (!isPlainRecord(next)) {
+        reachable = false;
+        break;
+      }
+      parent = next;
+    }
+    if (!reachable || parent[leaf] === undefined) continue;
+    logger?.warn(
+      `Claude Code permissions: writing 'sandbox.${path}' to ${relativeFilePath}; it ${reason}. Review the value as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
+    );
+  }
+}
+
+/**
  * Copy of the authored `sandbox` override with the paths that name an
  * executable removed, warning once per dropped path.
  */
@@ -188,9 +271,7 @@ function stripCommandExecutingSandboxPaths({
 }): Record<string, unknown> {
   const filtered = structuredClone(sandbox);
   for (const path of CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS) {
-    const leaf = path.at(-1);
-    if (leaf === undefined || filtered[leaf] === undefined) continue;
-    delete filtered[leaf];
+    if (!deleteSandboxPath({ target: filtered, path })) continue;
     logger?.warn(
       `Claude Code permissions: 'sandbox.${path.join(".")}' names an executable Claude Code runs, so rulesync does not write it to ${relativeFilePath}. A permissions file is shareable — 'rulesync fetch' copies one into a project — and is not where a reviewer looks for a command to run; set this path in ${relativeFilePath} by hand.`,
     );
@@ -215,25 +296,7 @@ function stripGlobalOnlySandboxPaths({
 }): Record<string, unknown> {
   const filtered = structuredClone(sandbox);
   for (const path of CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS) {
-    const leaf = path.at(-1);
-    if (leaf === undefined) continue;
-    const parentPath = path.slice(0, -1);
-    let parent: Record<string, unknown> = filtered;
-    for (const segment of parentPath) {
-      const next = parent[segment];
-      if (!isPlainRecord(next)) {
-        parent = {};
-        break;
-      }
-      parent = next;
-    }
-    if (parent[leaf] === undefined) continue;
-    delete parent[leaf];
-    // Drop a container the removal emptied so no `"network": {}` noise is written.
-    const [container] = parentPath;
-    if (container !== undefined && isPlainRecord(filtered[container])) {
-      if (Object.keys(filtered[container]).length === 0) delete filtered[container];
-    }
+    if (!deleteSandboxPath({ target: filtered, path })) continue;
     logger?.warn(
       `Claude Code permissions: 'sandbox.${path.join(".")}' is only honored in user/managed/--settings settings, so it is not written to the project-scoped ${relativeFilePath}. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
     );
@@ -407,7 +470,6 @@ const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
   permissionExplainerEnabled: "~/.claude.json",
   pluginSuggestionMarketplaces: "managed settings",
   pluginTrustMessage: "managed settings",
-  policyHelper: "managed settings",
   requiredMaximumVersion: "managed settings",
   requiredMinimumVersion: "managed settings",
   sshHostAllowlist: "managed settings",
@@ -459,6 +521,10 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
   enabledPlugins: "enables plugins, which can ship their own hooks",
   env: "sets environment variables for every process Claude Code spawns, so a value such as `NODE_OPTIONS` or `PATH` runs code and `ANTHROPIC_BASE_URL` redirects every prompt",
   extraKnownMarketplaces: "registers plugin marketplace sources",
+  allowedHttpHookUrls:
+    "limits which URLs an HTTP hook may target, and an empty list means every URL",
+  httpHookAllowedEnvVars:
+    "controls which environment variables an HTTP hook may put in a request header, credentials included",
 };
 
 /**
@@ -636,8 +702,8 @@ export class ClaudecodePermissions extends ToolPermissions {
     const overridePermissions = config.claudecode?.permissions;
     if (overridePermissions && typeof overridePermissions === "object") {
       const { allow: _a, ask: _k, deny: _d, ...nonListFields } = overridePermissions;
-      warnOnBypassPermissions({
-        defaultMode: nonListFields.defaultMode,
+      warnOnWideningPermissionFields({
+        fields: nonListFields,
         relativeFilePath: paths.relativeFilePath,
         logger,
       });
@@ -653,6 +719,11 @@ export class ClaudecodePermissions extends ToolPermissions {
       // A subset of `sandbox.*` is ignored in a repository's settings.json, so
       // at project scope those paths are dropped rather than committed as a
       // policy that never applies.
+      warnOnTrustAffectingSandboxPaths({
+        sandbox: overrideSandbox,
+        relativeFilePath: paths.relativeFilePath,
+        logger,
+      });
       const executableFreeSandbox = stripCommandExecutingSandboxPaths({
         sandbox: overrideSandbox,
         relativeFilePath: paths.relativeFilePath,
@@ -755,10 +826,19 @@ export class ClaudecodePermissions extends ToolPermissions {
       config.claudecode = { permissions: nonListFields };
     }
 
-    // The sibling `sandbox` subtree round-trips through the same override block.
+    // The sibling `sandbox` subtree round-trips through the same override block,
+    // minus the paths that name an executable: symmetric with generate, which
+    // refuses to write them, so the override never carries a value that only
+    // ever produces a warning.
     const { sandbox } = settings;
-    if (isPlainRecord(sandbox) && Object.keys(sandbox).length > 0) {
-      config.claudecode = { ...config.claudecode, sandbox };
+    if (isPlainRecord(sandbox)) {
+      const importedSandbox = structuredClone(sandbox);
+      for (const path of CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS) {
+        deleteSandboxPath({ target: importedSandbox, path });
+      }
+      if (Object.keys(importedSandbox).length > 0) {
+        config.claudecode = { ...config.claudecode, sandbox: importedSandbox };
+      }
     }
 
     // Every remaining top-level key round-trips through the same block, so an

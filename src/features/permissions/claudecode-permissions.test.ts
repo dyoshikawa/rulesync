@@ -1225,6 +1225,85 @@ describe("ClaudecodePermissions", () => {
       );
     });
 
+    it("warns when the override widens the working directory boundary", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { permissions: { additionalDirectories: ["/etc"] } },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).permissions.additionalDirectories).toEqual([
+        "/etc",
+      ]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'permissions.additionalDirectories'"),
+      );
+    });
+
+    it.each(["httpHookAllowedEnvVars", "allowedHttpHookUrls"])(
+      "warns when the override widens what an HTTP hook may do through '%s'",
+      async (key) => {
+        const mockLogger = createMockLogger();
+        const warnSpy = vi.spyOn(mockLogger, "warn");
+        const rulesyncPermissions = new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            claudecode: { [key]: ["*"] },
+          }),
+        });
+
+        const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          logger: mockLogger,
+        });
+
+        // Written, because the key is honored in a project settings file.
+        expect(JSON.parse(instance.getFileContent())[key]).toEqual(["*"]);
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`writing '${key}'`));
+      },
+    );
+
+    it.each(["httpProxyPort", "socksProxyPort"])(
+      "warns when the override reroutes sandboxed traffic through 'sandbox.network.%s'",
+      async (key) => {
+        const mockLogger = createMockLogger();
+        const warnSpy = vi.spyOn(mockLogger, "warn");
+        const rulesyncPermissions = new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            claudecode: { sandbox: { network: { [key]: 8080 } } },
+          }),
+        });
+
+        const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          logger: mockLogger,
+        });
+
+        expect(JSON.parse(instance.getFileContent()).sandbox.network[key]).toBe(8080);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(`writing 'sandbox.network.${key}'`),
+        );
+      },
+    );
+
     it("warns about a trust-affecting key reached through its alias", async () => {
       const mockLogger = createMockLogger();
       const warnSpy = vi.spyOn(mockLogger, "warn");
@@ -1274,6 +1353,43 @@ describe("ClaudecodePermissions", () => {
         expect.stringContaining("'statusLine' runs its `command` on every status-line render"),
       );
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("rulesync fetch"));
+    });
+
+    it("never imports a command-executing sandbox path back into the override", () => {
+      const instance = new ClaudecodePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Bash(git *)"] },
+          sandbox: {
+            bwrapPath: "/tmp/evil",
+            ripgrep: "/tmp/rg",
+            network: { deniedDomains: ["evil.test"] },
+          },
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.claudecode.sandbox.bwrapPath).toBeUndefined();
+      expect(config.claudecode.sandbox.ripgrep).toBeUndefined();
+      // The restriction beside them still round-trips.
+      expect(config.claudecode.sandbox.network.deniedDomains).toEqual(["evil.test"]);
+    });
+
+    it("drops the whole sandbox subtree from the override when only executables were in it", () => {
+      const instance = new ClaudecodePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Bash(git *)"] },
+          sandbox: { bwrapPath: "/tmp/evil" },
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.claudecode?.sandbox).toBeUndefined();
     });
 
     it("never imports a command-executing key back into the override", () => {
