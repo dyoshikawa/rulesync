@@ -879,6 +879,189 @@ describe("ClaudecodePermissions", () => {
     });
   });
 
+  describe("claudecode override (top-level settings passthrough)", () => {
+    it("writes an unmodeled top-level settings key through to settings.json", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: {
+            editorMode: "vim",
+            emojiCompletionEnabled: false,
+            workflowSizeGuideline: "medium",
+            keybindingFlavor: "readline",
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.editorMode).toBe("vim");
+      expect(content.emojiCompletionEnabled).toBe(false);
+      expect(content.workflowSizeGuideline).toBe("medium");
+      expect(content.keybindingFlavor).toBe("readline");
+      // The managed arrays are unaffected.
+      expect(content.permissions.allow).toContain("Bash(git *)");
+    });
+
+    it("deep-merges a passthrough key so existing siblings in settings.json survive", async () => {
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({ env: { KEEP: "1" }, hooks: { PreToolUse: [] } }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { env: { ADDED: "2" } },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.env).toEqual({ KEEP: "1", ADDED: "2" });
+      // `hooks` belongs to the hooks feature and is left exactly as found.
+      expect(content.hooks).toEqual({ PreToolUse: [] });
+    });
+
+    it("never lets the passthrough write a key another feature owns", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: {
+            hooks: { PreToolUse: [{ hooks: [{ type: "command", command: "leaked" }] }] },
+            $schema: "https://example.test/schema.json",
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.hooks).toBeUndefined();
+      expect(content.$schema).toBeUndefined();
+    });
+
+    it("drops a user/managed-only key at project scope and warns", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { spellcheck: true, editorMode: "vim" },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.spellcheck).toBeUndefined();
+      // An "Any file" key beside it is still written.
+      expect(content.editorMode).toBe("vim");
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'spellcheck' is only honored"));
+    });
+
+    it("writes a user-scope key in global mode", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { spellcheck: true },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        global: true,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).spellcheck).toBe(true);
+    });
+
+    it("drops a managed-only or ~/.claude.json key in both scopes and warns", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { allowManagedHooksOnly: true, diffTool: "meld" },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        global: true,
+        logger: mockLogger,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.allowManagedHooksOnly).toBeUndefined();
+      expect(content.diffTool).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'allowManagedHooksOnly' is only honored in managed settings"),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'diffTool' is only honored in ~/.claude.json"),
+      );
+    });
+
+    it("round-trips an unmodeled top-level key through import and generate", async () => {
+      const imported = new ClaudecodePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Bash(git *)"] },
+          editorMode: "vim",
+          hooks: { PreToolUse: [] },
+        }),
+      });
+
+      const config = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+      expect(config.claudecode.editorMode).toBe("vim");
+      // The hooks feature imports its own key; the permissions override must not.
+      expect(config.claudecode.hooks).toBeUndefined();
+
+      const regenerated = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify(config),
+        }),
+      });
+
+      expect(JSON.parse(regenerated.getFileContent()).editorMode).toBe("vim");
+    });
+  });
+
   describe("toRulesyncPermissions", () => {
     it("should route the sandbox subtree back into the claudecode override", () => {
       const instance = new ClaudecodePermissions({
@@ -896,8 +1079,9 @@ describe("ClaudecodePermissions", () => {
       expect(config.claudecode.sandbox).toEqual({ network: { strictAllowlist: true } });
       // The sibling override field still round-trips alongside it.
       expect(config.claudecode.permissions).toEqual({ defaultMode: "acceptEdits" });
-      // A settings key this feature does not own is not swept into the override.
-      expect(config.claudecode.model).toBeUndefined();
+      // A top-level settings key no other feature owns round-trips through the
+      // same override block, so the next generate writes it back.
+      expect(config.claudecode.model).toBe("opus");
     });
 
     it("routes non-list permissions fields into the claudecode override on import", () => {

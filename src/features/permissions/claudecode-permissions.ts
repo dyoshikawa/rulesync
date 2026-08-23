@@ -247,6 +247,135 @@ function stripProjectIgnoredMaskEntries({
   return filtered;
 }
 
+/**
+ * Top-level `.claude/settings.json` keys the generic `claudecode` override
+ * passthrough must not carry. `permissions` and `sandbox` have their own merge
+ * branches (the managed `allow`/`ask`/`deny` arrays and the scope filtering
+ * respectively), `hooks` belongs to the hooks feature, `permission` is
+ * rulesync's own canonical tool-scoped block rather than a settings key, and
+ * `$schema` is an editor pointer rather than a Claude Code setting.
+ */
+const CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS: ReadonlySet<string> = new Set([
+  "permission",
+  "permissions",
+  "sandbox",
+  "hooks",
+  "$schema",
+]);
+
+/**
+ * Top-level settings keys Claude Code reads only from user settings, managed
+ * settings and the `--settings` CLI flag — the same restriction
+ * `CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS` records for the `sandbox` subtree, and
+ * the reason the passthrough drops them at project scope instead of committing
+ * a setting that never applies. `rulesync generate --global` writes the user
+ * settings file, so they are emitted there.
+ *
+ * Derived from the per-key **Scope** column of the settings reference: every
+ * top-level key documented as `User or managed` or `User, local, or managed`.
+ *
+ * @see https://code.claude.com/docs/en/settings-reference
+ */
+const CLAUDECODE_USER_SCOPE_ONLY_KEYS: readonly string[] = [
+  "askUserQuestionTimeout",
+  "autoMode",
+  "dialogExpiry",
+  "enableArtifact",
+  "footerLinksRegexes",
+  "pluginConfigs",
+  "processWrapper",
+  "skipAutoPermissionPrompt",
+  "skipDangerousModePermissionPrompt",
+  "spellcheck",
+  "sshConfigs",
+  "syncClaudeAiSkills",
+  "useAutoModeDuringPlan",
+  "vimInsertModeRemaps",
+];
+
+/**
+ * Top-level settings keys neither file rulesync writes can honor, with the file
+ * that does. `Managed` keys are read only from the settings file an organization
+ * deploys, and `Global config` keys only from `~/.claude.json` — rulesync writes
+ * `.claude/settings.json` and `~/.claude/settings.json`, so authoring either
+ * kind through the override would produce a policy that silently never applies.
+ *
+ * Derived from the per-key **Scope** column of the settings reference.
+ *
+ * @see https://code.claude.com/docs/en/settings-reference
+ */
+const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
+  allowAllClaudeAiMcps: "managed settings",
+  allowedChannelPlugins: "managed settings",
+  allowManagedHooksOnly: "managed settings",
+  allowManagedMcpServersOnly: "managed settings",
+  allowManagedPermissionRulesOnly: "managed settings",
+  autoConnectIde: "~/.claude.json",
+  autoInstallIdeExtension: "~/.claude.json",
+  blockedMarketplaces: "managed settings",
+  browserExternalPageTools: "managed settings",
+  channelsEnabled: "managed settings",
+  claudeMd: "managed settings",
+  diffTool: "~/.claude.json",
+  disableBrowserExternalNavigation: "managed settings",
+  disableCommandPluginSources: "managed settings",
+  disableMobileSimulatorTools: "managed settings",
+  disableSideloadFlags: "managed settings",
+  externalEditorContext: "~/.claude.json",
+  forceLoginGatewayUrl: "managed settings",
+  forceRemoteSettingsRefresh: "managed settings",
+  parentSettingsBehavior: "managed settings",
+  permissionExplainerEnabled: "~/.claude.json",
+  pluginSuggestionMarketplaces: "managed settings",
+  pluginTrustMessage: "managed settings",
+  policyHelper: "managed settings",
+  requiredMaximumVersion: "managed settings",
+  requiredMinimumVersion: "managed settings",
+  sshHostAllowlist: "managed settings",
+  strictKnownMarketplaces: "managed settings",
+  strictPluginOnlyCustomization: "managed settings",
+  teammateDefaultModel: "~/.claude.json",
+  wslInheritsWindowsSettings: "managed settings",
+};
+
+/**
+ * Copy of the authored top-level passthrough with the keys the target file
+ * cannot honor removed, warning once per dropped key. Like
+ * `stripGlobalOnlySandboxPaths`, only the override copy is filtered — a value
+ * already hand-written in the target file is left untouched, which is why the
+ * warning points at it.
+ */
+function stripUnhonoredTopLevelKeys({
+  overrides,
+  global,
+  relativeFilePath,
+  logger,
+}: {
+  overrides: Record<string, unknown>;
+  global: boolean;
+  relativeFilePath: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const filtered: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(overrides)) {
+    const unhonoredSource = CLAUDECODE_UNHONORED_KEY_SOURCES[key];
+    if (unhonoredSource !== undefined) {
+      logger?.warn(
+        `Claude Code permissions: '${key}' is only honored in ${unhonoredSource}, which rulesync does not generate, so it is not written to ${relativeFilePath}. Set it in that file by hand, and check ${relativeFilePath} for a stale value an earlier generate may have left there.`,
+      );
+      continue;
+    }
+    if (!global && CLAUDECODE_USER_SCOPE_ONLY_KEYS.includes(key)) {
+      logger?.warn(
+        `Claude Code permissions: '${key}' is only honored in user/managed/--settings settings, so it is not written to the project-scoped ${relativeFilePath}. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+      );
+      continue;
+    }
+    filtered[key] = value;
+  }
+  return filtered;
+}
+
 const CLAUDE_PATH_RULE_ALIASES: Record<string, string> = {
   Write: "Edit",
   NotebookEdit: "Edit",
@@ -373,6 +502,34 @@ export class ClaudecodePermissions extends ToolPermissions {
       }
     }
 
+    // Everything else in the override is a plain top-level settings key, written
+    // through generically rather than key by key. Claude Code adds these faster
+    // than an allowlist can track (2.1.217-2.1.239 alone added
+    // `emojiCompletionEnabled`, `workflowSizeGuideline`, `spellcheck`,
+    // `keybindingFlavor` and the `additionalMarketplaces`/`allowedMarketplaces`
+    // aliases), and an unmodeled key used to validate and then vanish with no
+    // warning. Deep-merged for the same reason `sandbox` is: a nested key the
+    // author sets must not replace the siblings already in the file.
+    const overrideTopLevel: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(config.claudecode ?? {})) {
+      if (CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS.has(key)) continue;
+      if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+      if (value === undefined) continue;
+      overrideTopLevel[key] = value;
+    }
+    const scopedTopLevel = stripUnhonoredTopLevelKeys({
+      overrides: overrideTopLevel,
+      global,
+      relativeFilePath: paths.relativeFilePath,
+      logger,
+    });
+    if (Object.keys(scopedTopLevel).length > 0) {
+      settings = deepMergeRecords(
+        settings as Record<string, unknown>,
+        scopedTopLevel,
+      ) as ClaudeSettingsJson;
+    }
+
     const managedToolNames = managedClaudeToolNames(config);
 
     // The gateway owns the shared `permissions` merge and the cross-feature
@@ -427,6 +584,21 @@ export class ClaudecodePermissions extends ToolPermissions {
     const { sandbox } = settings;
     if (isPlainRecord(sandbox) && Object.keys(sandbox).length > 0) {
       config.claudecode = { ...config.claudecode, sandbox };
+    }
+
+    // Every remaining top-level key round-trips through the same block, so an
+    // imported `.claude/settings.json` survives the next generate instead of
+    // being narrowed to the keys this feature happens to model. The keys other
+    // features own are left to them: `hooks` is the hooks feature's, and
+    // `permissions` is handled above.
+    const topLevelPassthrough: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(settings as Record<string, unknown>)) {
+      if (CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS.has(key)) continue;
+      if (value === undefined) continue;
+      topLevelPassthrough[key] = value;
+    }
+    if (Object.keys(topLevelPassthrough).length > 0) {
+      config.claudecode = { ...config.claudecode, ...topLevelPassthrough };
     }
 
     return this.toRulesyncPermissionsDefault({

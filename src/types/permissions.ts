@@ -909,6 +909,15 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
   sandbox_workspace_write: z.optional(z.looseObject({})),
   apps: z.optional(z.looseObject({})),
   approvals_reviewer: z.optional(z.union([CodexApprovalsReviewerSchema, z.looseObject({})])),
+  /**
+   * The `[tui]` table of `config.toml` (e.g. `vim_mode_default`, `keymap.*`).
+   * Not a permission surface, but like `apps` it is a top-level table with no
+   * canonical category, and Codex adds keys to it faster than an explicit model
+   * could track — so it is a loose passthrough written verbatim.
+   *
+   * @see https://developers.openai.com/codex/config-reference
+   */
+  tui: z.optional(z.looseObject({})),
   git_write_rules: z.optional(z.boolean()),
 });
 export type CodexcliPermissionsOverride = z.infer<typeof CodexcliPermissionsOverrideSchema>;
