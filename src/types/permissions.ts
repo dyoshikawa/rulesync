@@ -190,11 +190,26 @@ export type KiloPermissionsOverride = z.infer<typeof KiloPermissionsOverrideSche
  * rather than which commands are permitted — so it is a loose passthrough on
  * the same terms, merged into the top level of `.claude/settings.json`.
  *
+ * Any other key is a plain top-level `settings.json` key (`editorMode`, `env`,
+ * `model`, ...), deep-merged into the generated file verbatim so settings
+ * Claude Code adds faster than an allowlist can track stay authorable.
+ * The exceptions are the keys another feature owns (`hooks`) and `$schema`.
+ * Keys the target file cannot honor — `Managed`-only and `~/.claude.json`-only
+ * keys in either scope, plus user-scope keys at project scope — are dropped
+ * with a warning rather than written where they would never apply. So are the
+ * keys whose value is a command Claude Code executes (`apiKeyHelper`,
+ * `statusLine`, ...): this file is shareable via `rulesync fetch`, and a file
+ * named for restricting things is not where a command belongs — author those
+ * in `.rulesync/hooks.jsonc` instead.
+ *
  * @example
  * { "permissions": { "defaultMode": "acceptEdits", "additionalDirectories": ["../shared"] } }
  * @example
  * { "sandbox": { "network": { "allowedDomains": ["example.com"], "strictAllowlist": true } } }
+ * @example
+ * { "editorMode": "vim", "env": { "MY_VAR": "1" } }
  * @see https://code.claude.com/docs/en/sandboxing
+ * @see https://code.claude.com/docs/en/settings-reference
  */
 const ClaudecodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),

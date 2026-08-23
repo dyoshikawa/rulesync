@@ -8,7 +8,11 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
-import { applyPermissions } from "../shared/shared-config-gateway.js";
+import {
+  applyPermissions,
+  CLAUDE_SETTINGS_SHARED_FILE_KEY,
+  SHARED_CONFIG_OWNERSHIP,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -248,19 +252,34 @@ function stripProjectIgnoredMaskEntries({
 }
 
 /**
+ * Top-level `.claude/settings.json` keys another feature owns, derived from
+ * {@link SHARED_CONFIG_OWNERSHIP} rather than restated here so a feature that
+ * starts owning a new key is excluded from the passthrough automatically
+ * (today: `hooks`, from the hooks feature). Only `replace-owned-keys` entries
+ * name keys; the `custom` policies on this file (`ignore`, `permissions`) own
+ * entries *inside* `permissions`, which the passthrough excludes wholesale.
+ */
+const CLAUDECODE_FEATURE_OWNED_SETTINGS_KEYS: readonly string[] = Object.entries(
+  SHARED_CONFIG_OWNERSHIP[CLAUDE_SETTINGS_SHARED_FILE_KEY]?.features ?? {},
+).flatMap(([feature, policy]) =>
+  feature !== "permissions" && policy.kind === "replace-owned-keys" ? policy.ownedKeys : [],
+);
+
+/**
  * Top-level `.claude/settings.json` keys the generic `claudecode` override
  * passthrough must not carry. `permissions` and `sandbox` have their own merge
  * branches (the managed `allow`/`ask`/`deny` arrays and the scope filtering
- * respectively), `hooks` belongs to the hooks feature, `permission` is
- * rulesync's own canonical tool-scoped block rather than a settings key, and
- * `$schema` is an editor pointer rather than a Claude Code setting.
+ * respectively), `permission` is rulesync's own canonical tool-scoped block
+ * rather than a settings key, `$schema` is an editor pointer rather than a
+ * Claude Code setting, and the rest belong to the other features writing this
+ * shared file.
  */
 const CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS: ReadonlySet<string> = new Set([
   "permission",
   "permissions",
   "sandbox",
-  "hooks",
   "$schema",
+  ...CLAUDECODE_FEATURE_OWNED_SETTINGS_KEYS,
 ]);
 
 /**
@@ -276,7 +295,7 @@ const CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS: ReadonlySet<string> = new Set([
  *
  * @see https://code.claude.com/docs/en/settings-reference
  */
-const CLAUDECODE_USER_SCOPE_ONLY_KEYS: readonly string[] = [
+const CLAUDECODE_USER_SCOPE_ONLY_KEYS: ReadonlySet<string> = new Set([
   "askUserQuestionTimeout",
   "autoMode",
   "dialogExpiry",
@@ -291,7 +310,7 @@ const CLAUDECODE_USER_SCOPE_ONLY_KEYS: readonly string[] = [
   "syncClaudeAiSkills",
   "useAutoModeDuringPlan",
   "vimInsertModeRemaps",
-];
+]);
 
 /**
  * Top-level settings keys neither file rulesync writes can honor, with the file
@@ -339,6 +358,77 @@ const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Top-level settings keys whose value Claude Code **executes**. The generic
+ * passthrough refuses them outright rather than warning: `.rulesync/*` files
+ * are shareable — `rulesync fetch` copies a third party's `permissions.jsonc`
+ * straight into a project — and a file named for *restricting* what an agent
+ * may do is not somewhere a reviewer looks for a command to run. Commands
+ * belong in `.rulesync/hooks.jsonc` and `.rulesync/.mcp.json`, which are read
+ * as executable by anyone reviewing them. Set these by hand in the settings
+ * file if you need them.
+ *
+ * The value is the reason, spliced into the warning.
+ *
+ * @see https://code.claude.com/docs/en/settings-reference
+ */
+const CLAUDECODE_COMMAND_EXECUTING_KEYS: Readonly<Record<string, string>> = {
+  apiKeyHelper: "runs the script it names to mint an API key",
+  awsAuthRefresh: "runs the command it names to refresh AWS credentials",
+  awsCredentialExport: "runs the command it names to export AWS credentials",
+  otelHeadersHelper: "runs the script it names to build OpenTelemetry headers",
+  processWrapper: "wraps every process Claude Code spawns",
+  statusLine: "runs its `command` on every status-line render",
+};
+
+/**
+ * Top-level settings keys the passthrough does write, but never silently: each
+ * one widens what Claude Code trusts or where it sends data, so a value that
+ * arrived with a fetched `.rulesync/permissions.jsonc` should be looked at
+ * deliberately. Warning on write follows the precedent set for Warp's
+ * `command_denylist`, which also replaces a protection when rulesync writes it.
+ *
+ * The value is the reason, spliced into the warning.
+ */
+const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
+  disableAllHooks: "controls whether hooks run at all",
+  enableAllProjectMcpServers: "auto-approves every server in the project `.mcp.json`",
+  enabledPlugins: "enables plugins, which can ship their own hooks",
+  env: "sets environment variables for every session, including credential and endpoint variables such as `ANTHROPIC_BASE_URL` and `PATH`",
+  extraKnownMarketplaces: "registers plugin marketplace sources",
+};
+
+/**
+ * A key name is authored data that ends up in a log line, so strip the control
+ * characters that would let it forge a line or hide the warnings beside it, and
+ * cap the length.
+ */
+function displayKey(key: string): string {
+  const stripped = Array.from(key)
+    .filter((char) => {
+      const code = char.codePointAt(0) ?? 0;
+      return code >= 0x20 && code !== 0x7f;
+    })
+    .join("");
+  return stripped.length > 80 ? `${stripped.slice(0, 80)}…` : stripped;
+}
+
+/**
+ * Alternate spellings Claude Code accepts for a top-level settings key, mapped
+ * to the canonical key whose **Scope** the alias inherits: "In any settings
+ * file that accepts the canonical key, Claude Code reads the alias exactly as
+ * it reads the canonical key." Resolving through this map before the scope
+ * check keeps an alias from slipping past a restriction its canonical spelling
+ * is caught by — `allowedMarketplaces` is `Managed`, like
+ * `strictKnownMarketplaces`. Both aliases require Claude Code v2.1.232+.
+ *
+ * @see https://code.claude.com/docs/en/settings-reference#marketplace-key-aliases
+ */
+const CLAUDECODE_SETTINGS_KEY_ALIASES: Readonly<Record<string, string>> = {
+  additionalMarketplaces: "extraKnownMarketplaces",
+  allowedMarketplaces: "strictKnownMarketplaces",
+};
+
+/**
  * Copy of the authored top-level passthrough with the keys the target file
  * cannot honor removed, warning once per dropped key. Like
  * `stripGlobalOnlySandboxPaths`, only the override copy is filtered — a value
@@ -358,18 +448,34 @@ function stripUnhonoredTopLevelKeys({
 }): Record<string, unknown> {
   const filtered: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(overrides)) {
-    const unhonoredSource = CLAUDECODE_UNHONORED_KEY_SOURCES[key];
-    if (unhonoredSource !== undefined) {
+    const shown = displayKey(key);
+    // An alias is honored wherever its canonical spelling is, so the scope
+    // check runs against the canonical key rather than the authored one.
+    const canonicalKey = Object.hasOwn(CLAUDECODE_SETTINGS_KEY_ALIASES, key)
+      ? (CLAUDECODE_SETTINGS_KEY_ALIASES[key] as string)
+      : key;
+    if (Object.hasOwn(CLAUDECODE_COMMAND_EXECUTING_KEYS, canonicalKey)) {
       logger?.warn(
-        `Claude Code permissions: '${key}' is only honored in ${unhonoredSource}, which rulesync does not generate, so it is not written to ${relativeFilePath}. Set it in that file by hand, and check ${relativeFilePath} for a stale value an earlier generate may have left there.`,
+        `Claude Code permissions: '${shown}' ${CLAUDECODE_COMMAND_EXECUTING_KEYS[canonicalKey]}, so rulesync does not write it to ${relativeFilePath}. A permissions file is shareable — 'rulesync fetch' copies one into a project — and is not where a reviewer looks for a command to run; author commands in .rulesync/hooks.jsonc, or set this key in ${relativeFilePath} by hand.`,
       );
       continue;
     }
-    if (!global && CLAUDECODE_USER_SCOPE_ONLY_KEYS.includes(key)) {
+    if (Object.hasOwn(CLAUDECODE_UNHONORED_KEY_SOURCES, canonicalKey)) {
       logger?.warn(
-        `Claude Code permissions: '${key}' is only honored in user/managed/--settings settings, so it is not written to the project-scoped ${relativeFilePath}. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+        `Claude Code permissions: '${shown}' is only honored in ${CLAUDECODE_UNHONORED_KEY_SOURCES[canonicalKey]}, which rulesync does not generate, so it is not written to ${relativeFilePath}. Set it in that file by hand, and check ${relativeFilePath} for a stale value an earlier generate may have left there.`,
       );
       continue;
+    }
+    if (!global && CLAUDECODE_USER_SCOPE_ONLY_KEYS.has(canonicalKey)) {
+      logger?.warn(
+        `Claude Code permissions: '${shown}' is not honored in the project-scoped ${relativeFilePath}, so it is not written there — Claude Code reads it from user, local or managed settings. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+      );
+      continue;
+    }
+    if (Object.hasOwn(CLAUDECODE_TRUST_AFFECTING_KEYS, canonicalKey)) {
+      logger?.warn(
+        `Claude Code permissions: writing '${shown}' to ${relativeFilePath}; it ${CLAUDECODE_TRUST_AFFECTING_KEYS[canonicalKey]}. Review the value as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
+      );
     }
     filtered[key] = value;
   }
@@ -594,6 +700,13 @@ export class ClaudecodePermissions extends ToolPermissions {
     const topLevelPassthrough: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(settings as Record<string, unknown>)) {
       if (CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS.has(key)) continue;
+      // Symmetric with generate: a key generate refuses to write must not be
+      // imported either, or the override would carry a value that only ever
+      // produces a warning.
+      if (Object.hasOwn(CLAUDECODE_COMMAND_EXECUTING_KEYS, key)) continue;
+      // `JSON.parse` makes `__proto__` an own property, so a settings file can
+      // carry one into the override block; drop it here as well as on generate.
+      if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
       if (value === undefined) continue;
       topLevelPassthrough[key] = value;
     }
