@@ -5,7 +5,6 @@ const { join } = posix;
 export const RULESYNC_CONFIG_RELATIVE_FILE_PATH = "rulesync.jsonc";
 export const RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH = "rulesync.local.jsonc";
 export const RULESYNC_RELATIVE_DIR_PATH = ".rulesync";
-export const RULESYNC_LOCAL_RELATIVE_DIR_PATH = ".rulesync.local";
 
 // Feature subdirectory names WITHIN a rulesync source tree. Processors use
 // these when they have a source-tree path (`inputRoots[i]`) directly and

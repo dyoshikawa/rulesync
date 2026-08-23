@@ -223,7 +223,6 @@ docs/.vitepress/cache
 .rulesync/skills/.curated/
 .rulesync/rules/.curated/
 .rulesync/rules/*.local.md
-.rulesync.local/
 rulesync.local.jsonc
 **/AGENTS.local.md
 **/CLAUDE.local.md

@@ -224,10 +224,6 @@ describe("registry derivation", () => {
 });
 
 describe("ALL_GITIGNORE_ENTRIES", () => {
-  it("ignores the optional local source-tree overlay", () => {
-    expect(ALL_GITIGNORE_ENTRIES).toContain(".rulesync.local/");
-  });
-
   it("should contain every distinct non-packaging entry from the registry", () => {
     // The registry can register the same entry under multiple feature tags;
     // `ALL_GITIGNORE_ENTRIES` is the default, deduplicated view and excludes
