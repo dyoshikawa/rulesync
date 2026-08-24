@@ -267,6 +267,9 @@ Body.`;
       );
       await writeFileContent(join(skillDir, ".DS_Store"), "index\n");
       await writeFileContent(join(skillDir, ".turbo", "cache.json"), "{}\n");
+      await writeFileContent(join(skillDir, ".hg", "store", "data.i"), "history\n");
+      await writeFileContent(join(skillDir, ".svn", "wc.db"), "history\n");
+      await writeFileContent(join(skillDir, ".cache", "build.json"), "{}\n");
       const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
 
       try {
@@ -497,6 +500,35 @@ Body.`;
         const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
         expect(carriedPaths).toEqual([join("docs", "guide.md")]);
       },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should stay bounded when two symbolic links point back at an ancestor",
+      async () => {
+        // Two links per directory double the paths globby walks per level, and
+        // it follows them to the kernel's ELOOP limit, so an unbounded walk of
+        // a cloned tree exhausts the heap before anything filters the result.
+        const skillDir = join(testDir, ".agents", "skills", "cycle-skill");
+        const nestedDir = join(skillDir, "sub");
+        await ensureDir(nestedDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: cycle-skill", "description: Loops", "---", "", "Body."].join("\n"),
+        );
+        await writeFileContent(join(nestedDir, "note.md"), "note\n");
+        await symlink(skillDir, join(nestedDir, "up"));
+        await symlink(skillDir, join(nestedDir, ".up-hidden"));
+
+        const skill = await AgentsSkillsSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "cycle-skill",
+        });
+
+        // Every path reaches the one real file, so deduplication leaves it once.
+        const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
+        expect(carriedPaths).toEqual([join("sub", "note.md")]);
+      },
+      30_000,
     );
 
     it.skipIf(process.platform === "win32")(

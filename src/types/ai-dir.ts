@@ -11,7 +11,7 @@ import {
   splitPathSegments,
   toPosixPath,
 } from "../utils/file.js";
-import { warnWithFallback } from "../utils/logger.js";
+import { warnOnceWithFallback } from "../utils/logger.js";
 
 export type ValidationResult =
   | {
@@ -52,6 +52,9 @@ const NEVER_CARRIED_CREDENTIAL_DIR_NAMES = new Set([".ssh", ".aws", ".gnupg"]);
  */
 const NEVER_CARRIED_NOISE_DIR_NAMES = new Set([
   ".git",
+  ".hg",
+  ".svn",
+  ".cache",
   ".venv",
   ".tox",
   ".mypy_cache",
@@ -195,6 +198,18 @@ function isSystemPseudoPath(absolutePath: string): boolean {
   );
 }
 
+/**
+ * Bounds on what one directory may carry. Two symbolic links in a directory
+ * that both point back at an ancestor double the paths globby walks per level,
+ * and a single link to a home directory reaches a tree of any size, so a tree
+ * somebody else wrote could otherwise exhaust the heap before anything filters
+ * it. The depth is far past any real skill layout; the count and the total size
+ * mirror what `git-client.ts` allows a fetched repository.
+ */
+const MAX_CARRIED_DEPTH = 12;
+const MAX_CARRIED_FILES = 10_000;
+const MAX_CARRIED_BYTES = 100 * 1024 * 1024;
+
 /** How many paths a single warning names before it counts the rest. */
 export const MAX_REPORTED_PATHS = 10;
 
@@ -213,22 +228,6 @@ function formatReportedPaths(paths: Iterable<string>): { count: number; list: st
     count: sorted.length,
     list: `${named}${remaining > 0 ? `, and ${remaining} more` : ""}`,
   };
-}
-
-/**
- * A single `generate` reads one skill directory once per tool target, and these warnings
- * describe the directory rather than the target, so the identical line would otherwise be
- * printed a dozen times over. Shared skills always carry entries in from outside (that is
- * the point of issue #1707), so this is the ordinary case, not the exception.
- */
-const reportedWarnings = new Set<string>();
-
-function warnOncePerRun(message: string): void {
-  if (reportedWarnings.has(message)) {
-    return;
-  }
-  reportedWarnings.add(message);
-  warnWithFallback(undefined, message);
 }
 
 /** "entry" or "entries", so the warnings below read as sentences. */
@@ -393,7 +392,7 @@ export abstract class AiDir {
   private static async warnOnNestedGitDirectory(dirPath: string): Promise<void> {
     const gitEntryPath = join(dirPath, ".git");
     if (await fileExists(gitEntryPath)) {
-      warnWithFallback(
+      warnOnceWithFallback(
         undefined,
         `Not carrying ${stripControlCharacters(toPosixPath(gitEntryPath))} with its directory: a nested repository is excluded, so the files it tracks are copied but its history is not.`,
       );
@@ -502,25 +501,29 @@ export abstract class AiDir {
 
     if (refusedCredentials.size > 0) {
       const { count, list } = formatReportedPaths(refusedCredentials);
-      warnOncePerRun(
+      warnOnceWithFallback(
+        undefined,
         `Not carrying ${count} ${entryWord(count)} named as a credential store: ${list}. A skill must not ship secrets; read them from the environment instead.`,
       );
     }
     if (refusedPseudoPaths.size > 0) {
       const { count, list } = formatReportedPaths(refusedPseudoPaths);
-      warnOncePerRun(
+      warnOnceWithFallback(
+        undefined,
         `Not carrying ${count} ${entryWord(count)} that ${resolveWord(count)} into a system pseudo-filesystem: ${list}. Those read back process state, not skill content.`,
       );
     }
     if (refusedEscapedHidden.size > 0) {
       const { count, list } = formatReportedPaths(refusedEscapedHidden);
-      warnOncePerRun(
+      warnOnceWithFallback(
+        undefined,
         `Not carrying ${count} hidden ${entryWord(count)} that ${resolveWord(count)} outside ${stripControlCharacters(toPosixPath(dirPath))}: ${list}. Copy them into the directory if the skill really needs them.`,
       );
     }
     if (carriedFromOutside.size > 0) {
       const { count, list } = formatReportedPaths(carriedFromOutside);
-      warnOncePerRun(
+      warnOnceWithFallback(
+        undefined,
         `Carrying ${count} ${entryWord(count)} that ${resolveWord(count)} outside ${stripControlCharacters(toPosixPath(dirPath))}: ${list}. Their content is copied into every generated tool directory.`,
       );
     }
@@ -561,21 +564,32 @@ export abstract class AiDir {
     const discoveredPaths = await findFilesByGlobs(glob, {
       type: "file",
       dot: true,
+      deep: MAX_CARRIED_DEPTH,
       ignore: EXCLUDED_DIR_PATTERNS,
     });
     await AiDir.warnOnNestedGitDirectory(dirPath);
     const filePaths = await AiDir.filterCarriedFiles(dirPath, discoveredPaths);
     const filteredPaths = filePaths.filter((filePath) => basename(filePath) !== excludeFileName);
 
-    const files: AiDirFile[] = await Promise.all(
-      filteredPaths.map(async (filePath) => {
-        const fileBuffer = await readFileBuffer(filePath);
-        return {
-          relativeFilePathToDirPath: relative(dirPath, filePath),
-          fileBuffer,
-        };
-      }),
-    );
+    // Read one at a time so the running total can stop the read, rather than
+    // holding every buffer in memory before anything is measured.
+    const files: AiDirFile[] = [];
+    let carriedBytes = 0;
+    for (const filePath of filteredPaths) {
+      if (files.length >= MAX_CARRIED_FILES || carriedBytes >= MAX_CARRIED_BYTES) {
+        warnOnceWithFallback(
+          undefined,
+          `Not carrying ${filteredPaths.length - files.length} of the ${filteredPaths.length} entries under ${stripControlCharacters(toPosixPath(dirPath))}: a directory may carry at most ${MAX_CARRIED_FILES} files and ${MAX_CARRIED_BYTES / 1024 / 1024}MB. A symbolic link that reaches a large tree is the usual cause.`,
+        );
+        break;
+      }
+      const fileBuffer = await readFileBuffer(filePath);
+      carriedBytes += fileBuffer.byteLength;
+      files.push({
+        relativeFilePathToDirPath: relative(dirPath, filePath),
+        fileBuffer,
+      });
+    }
 
     return files;
   }

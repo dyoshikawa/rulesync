@@ -15,6 +15,7 @@ import {
   ToolSkillFromDirParams,
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
+  warnOnEmptyLoadedDescription,
 } from "./tool-skill.js";
 
 export const SimulatedSkillFrontmatterSchema = z.looseObject({
@@ -162,6 +163,8 @@ export abstract class SimulatedSkill extends ToolSkill {
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
     }
+
+    warnOnEmptyLoadedDescription({ skillFilePath, description: frontmatter.description });
 
     const otherFiles = await this.collectOtherFiles(
       outputRoot,

@@ -6,7 +6,9 @@ import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
+import { toPosixPath } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import {
   RulesyncSkill,
@@ -15,6 +17,7 @@ import {
   SkillFile,
 } from "./rulesync-skill.js";
 import {
+  EMPTY_SKILL_DESCRIPTION_VIOLATION,
   ToolSkill,
   ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
@@ -186,15 +189,6 @@ export function toSpecConformantAgentSkillFields(
   };
 }
 
-/**
- * The one spec violation both sides of the conversion report. Generation warns
- * about it before writing the file; import warns about it because a conformant
- * client would skip the skill entirely, and a user who never sees that has no
- * reason to fix it.
- */
-const EMPTY_DESCRIPTION_VIOLATION =
-  "`description` is required and must not be empty; conformant clients skip a skill without one";
-
 /** The `SKILL.md` a diagnostic should point at, in the scope it is written to. */
 function agentSkillFilePath({
   outputRoot,
@@ -258,7 +252,7 @@ function collectAgentSkillViolations({
   }
 
   if (description.length === 0) {
-    violations.push(EMPTY_DESCRIPTION_VIOLATION);
+    violations.push(EMPTY_SKILL_DESCRIPTION_VIOLATION);
   } else if (description.length > DESCRIPTION_MAX_LENGTH) {
     violations.push(
       `\`description\` is ${description.length} characters; the Agent Skills spec allows at most ${DESCRIPTION_MAX_LENGTH}`,
@@ -485,42 +479,8 @@ export class AgentsSkillsSkill extends ToolSkill {
       dirName,
       sourceAllowedTools,
     })) {
-      warnWithFallback(logger, `${skillPath}: ${violation}`);
+      warnWithFallback(logger, `${stripControlCharacters(toPosixPath(skillPath))}: ${violation}`);
     }
-  }
-
-  /**
-   * Warn about an imported skill whose `description` is empty.
-   *
-   * Rulesync converts rather than loads, so dropping the directory would lose
-   * content the user can still fix — the skill is imported and the problem is
-   * reported instead, which is the "log the error" half of what the client
-   * guide asks of a lenient reader. Shared with `HermesagentSkill` for the same
-   * reason `reportSpecViolations` is: both read the `agentsskills` shape, so a
-   * diagnostic that fires for one has to fire for the other.
-   *
-   * @see https://agentskills.io/client-implementation/adding-skills-support
-   */
-  static warnOnEmptyImportedDescription({
-    outputRoot,
-    relativeDirPath,
-    dirName,
-    description,
-  }: {
-    outputRoot: string;
-    relativeDirPath: string;
-    dirName: string;
-    description: string;
-  }): void {
-    if (description.length > 0) {
-      return;
-    }
-    // No logger parameter: importing a directory carries no logger down to
-    // here, so one would only ever be the fallback.
-    warnWithFallback(
-      undefined,
-      `${agentSkillFilePath({ outputRoot, relativeDirPath, dirName })}: ${EMPTY_DESCRIPTION_VIOLATION}. Rulesync imports it anyway so the content is not lost; fill it in before relying on this skill.`,
-    );
   }
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
@@ -541,13 +501,6 @@ export class AgentsSkillsSkill extends ToolSkill {
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
     }
-
-    AgentsSkillsSkill.warnOnEmptyImportedDescription({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      description: result.data.description,
-    });
 
     return new this({
       outputRoot: loaded.outputRoot,

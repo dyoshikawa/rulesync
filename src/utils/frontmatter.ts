@@ -1,8 +1,10 @@
 import matter from "gray-matter";
 import { dump } from "js-yaml";
 
+import { stripControlCharacters } from "./control-characters.js";
 import { formatError } from "./error.js";
-import { warnWithFallback } from "./logger.js";
+import { toPosixPath } from "./file.js";
+import { warnOnceWithFallback } from "./logger.js";
 import { isPlainObject } from "./type-guards.js";
 import { loadYaml } from "./yaml.js";
 
@@ -341,9 +343,9 @@ export function parseFrontmatterWithYamlRepair(
     const commentNote = repaired.droppedComment
       ? " Text following a space and `#` was read as a YAML comment and left out of the value."
       : "";
-    warnWithFallback(
+    warnOnceWithFallback(
       undefined,
-      `Recovered malformed YAML frontmatter in ${filePath ?? "the input"} by quoting values that contain a colon.${commentNote} Quote them in the file itself so other tools can read it too.`,
+      `Recovered malformed YAML frontmatter in ${filePath === undefined ? "the input" : stripControlCharacters(toPosixPath(filePath))} by quoting values that contain a colon.${commentNote} Quote them in the file itself so other tools can read it too.`,
     );
     return result;
   }

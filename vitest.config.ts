@@ -6,6 +6,7 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     exclude: ["src/**/*.spec.ts"], // Exclude E2E tests
+    setupFiles: ["src/test-utils/vitest-setup.ts"],
     // Neutralize the tool home overrides before any test module loads. They
     // change the paths `getSettablePaths` returns (and therefore the shared-file
     // keys derived at module load), so a developer who exports them — which the

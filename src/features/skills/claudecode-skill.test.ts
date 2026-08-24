@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileBuffer, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import {
   ClaudecodeSkill,
   type ClaudecodeSkillFrontmatter,
@@ -1182,6 +1183,28 @@ This is the skill body.`;
 
       expect(skill.getFrontmatter()).toEqual(frontmatter);
       expect(skill.getBody()).toBe("This is the skill body.");
+    });
+
+    it("should warn about an empty description", async () => {
+      // The diagnostic lives in the shared loader, so every target that reads a
+      // skill directory reports it — not only the Agent Skills targets.
+      const skillDir = join(testDir, ".claude", "skills", "empty-description-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: empty-description-skill", 'description: ""', "---", "", "Body."].join("\n"),
+      );
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const skill = await ClaudecodeSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "empty-description-skill",
+      });
+
+      expect(skill.getBody()).toBe("Body.");
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("`description` is required and must not be empty"),
+      );
     });
 
     it("should load skill with allowed-tools", async () => {

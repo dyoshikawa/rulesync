@@ -499,9 +499,18 @@ export async function findFilesByGlobs(
      * @see https://agentskills.io/specification
      */
     dot?: boolean;
+    /**
+     * Maximum directory depth to walk, passed to globby's `deep`. Two symbolic
+     * links in one directory that both point back at an ancestor double the
+     * number of paths globby walks per level, and it follows them until the
+     * kernel's ELOOP limit (~40), so an unbounded walk of a tree somebody else
+     * wrote can exhaust the heap before deduplication ever sees the result.
+     * Callers that walk a tree of unknown provenance should bound it.
+     */
+    deep?: number;
   } = {},
 ): Promise<string[]> {
-  const { type = "all", followSymbolicLinks = true, ignore, dot = false } = options;
+  const { type = "all", followSymbolicLinks = true, ignore, dot = false, deep } = options;
   const globbyOptions =
     type === "file"
       ? { onlyFiles: true, onlyDirectories: false }
@@ -520,6 +529,7 @@ export async function findFilesByGlobs(
     absolute: true,
     followSymbolicLinks,
     dot,
+    ...(deep === undefined ? {} : { deep }),
     ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
     ...globbyOptions,
   });
