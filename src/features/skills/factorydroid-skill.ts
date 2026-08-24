@@ -28,7 +28,13 @@ import {
 //   - `allowed-tools`: declares the tools the skill is designed to use. (The
 //     older `tools` spelling is deprecated upstream.)
 //   - `license`, `compatibility`, `metadata`, `version`: packaging metadata for
-//     skills shared through catalogs, plugins, or team tooling.
+//     skills shared through catalogs, plugins, or team tooling. Droid documents
+//     them without a type and never validates them, so they are declared for
+//     discoverability and carried through as-is (up to YAML's own scalar
+//     normalization) rather than type-constrained:
+//     rejecting a value Droid accepts (a YAML list `compatibility`, an unquoted
+//     `version: 2026-01-01` that js-yaml parses as a Date) would break the
+//     import of a working SKILL.md.
 export const FactorydroidSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
@@ -36,12 +42,10 @@ export const FactorydroidSkillFrontmatterSchema = z.looseObject({
   "disable-model-invocation": z.optional(z.boolean()),
   enabled: z.optional(z.boolean()),
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
-  license: z.optional(z.string()),
-  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
-  metadata: z.optional(z.looseObject({})),
-  // An unquoted YAML `version: 1.0` parses as a number, so a numeric version is
-  // accepted rather than failing the import of a skill Droid itself accepts.
-  version: z.optional(z.union([z.string(), z.number()])),
+  license: z.optional(z.unknown()),
+  compatibility: z.optional(z.unknown()),
+  metadata: z.optional(z.unknown()),
+  version: z.optional(z.unknown()),
 });
 
 export type FactorydroidSkillFrontmatter = z.infer<typeof FactorydroidSkillFrontmatterSchema>;
@@ -184,14 +188,20 @@ export class FactorydroidSkill extends ToolSkill {
       section: factorydroidSection,
     });
 
+    // A `name`/`description` that somehow rode along in the section is dropped
+    // so the canonical values keep owning those keys, which also lets them stay
+    // first in the emitted frontmatter instead of trailing the section.
+    const {
+      name: _sectionName,
+      description: _sectionDescription,
+      ...section
+    } = factorydroidSection ?? {};
     const factorydroidFrontmatter: FactorydroidSkillFrontmatter = {
-      // The section is written first so the canonical `name`/`description` and
-      // the resolved invocation flags still own their keys. Both resolvers
-      // already prefer the section value over the root default, so overriding
-      // the spread with them never discards a section value.
-      ...factorydroidSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...section,
+      // Both resolvers already prefer a defined section value over the root
+      // default, so overriding the spread with them never discards one.
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),

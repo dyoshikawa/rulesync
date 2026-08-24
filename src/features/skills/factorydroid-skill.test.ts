@@ -266,8 +266,11 @@ This is a test factorydroid skill content.`;
           description: "Root flags with a packaged section",
           targets: ["*"],
           "disable-model-invocation": true,
-          "user-invocable": false,
+          "user-invocable": true,
           factorydroid: {
+            // A defined section value wins over the root default, so the
+            // section spread must not be undone by the resolved override.
+            "user-invocable": false,
             version: "2.1.0",
           },
         },
@@ -441,7 +444,22 @@ This is a test factorydroid skill content.`;
         validate: true,
       });
 
-      expect(skill.toRulesyncSkill().getFrontmatter().factorydroid).toEqual({
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().factorydroid).toEqual({
+        "some-future-field": "kept",
+      });
+
+      // The emit direction has to write the key back out, otherwise the round
+      // trip still loses it on the next generate.
+      expect(
+        FactorydroidSkill.fromRulesyncSkill({
+          outputRoot: testDir,
+          rulesyncSkill,
+          validate: true,
+        }).getFrontmatter(),
+      ).toEqual({
+        name: "Hand Written",
+        description: "Carries a key rulesync does not model",
         "some-future-field": "kept",
       });
     });
@@ -468,6 +486,40 @@ This is a test factorydroid skill content.`;
         description: "Test skill description",
         "user-invocable": true,
         "disable-model-invocation": false,
+      });
+    });
+
+    it("should import the packaging metadata in the shapes YAML actually produces", async () => {
+      const skillDir = join(testDir, ".factory", "skills", "packaged-skill");
+      // `version: 2026-01-01` parses as a Date, `compatibility` as an array and
+      // `metadata` as a scalar. Droid never validates these fields, so none of
+      // them may fail the import of a SKILL.md it happily loads.
+      const skillContent = `---
+name: packaged-skill
+description: A skill shared through a catalog
+license: MIT
+compatibility:
+  - droid
+  - claude-code
+metadata: platform-team
+version: 2026-01-01
+---
+
+Packaged body`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await FactorydroidSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "packaged-skill",
+        global: false,
+      });
+
+      const section = skill.toRulesyncSkill().getFrontmatter().factorydroid;
+      expect(section).toEqual({
+        license: "MIT",
+        compatibility: ["droid", "claude-code"],
+        metadata: "platform-team",
+        version: new Date("2026-01-01T00:00:00.000Z"),
       });
     });
 
@@ -569,11 +621,14 @@ Global body content`;
       expect(result.success).toBe(true);
     });
 
-    it("should accept an unquoted numeric version, as YAML parses it", () => {
+    it("should accept the packaging metadata in every shape YAML can produce", () => {
       const result = FactorydroidSkillFrontmatterSchema.safeParse({
         name: "skill-name",
         description: "Skill description",
-        version: 1.0,
+        license: 2024,
+        compatibility: ["droid", "claude-code"],
+        metadata: "platform-team",
+        version: new Date("2026-01-01T00:00:00.000Z"),
       });
 
       expect(result.success).toBe(true);

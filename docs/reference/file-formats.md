@@ -840,8 +840,10 @@ factorydroid: # for Factory Droid-specific parameters (optional)
   user-invocable: false # (optional) hide from the slash-command menu, keep model access
   enabled: false # (optional, default true) keep the skill on disk but stop Droid loading it
   allowed-tools: "Read Execute" # (optional) tools the skill is designed to use (string or list)
+  # Droid documents the four packaging fields below without a type and never validates
+  # them, so rulesync carries whatever value they hold through in both directions.
   license: MIT # (optional) license metadata for shared skills
-  compatibility: droid # (optional) free-form compatibility metadata (object form also accepted)
+  compatibility: droid # (optional) compatibility metadata for catalogs, plugins, or team tooling
   metadata: # (optional) structured metadata for your own tooling
     owner: platform-team
   version: "1.0.0" # (optional) version string for shared or packaged skills
