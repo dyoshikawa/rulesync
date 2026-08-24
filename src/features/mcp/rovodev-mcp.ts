@@ -166,6 +166,13 @@ function disabledNamesOf(config: Record<string, unknown> | null): string[] {
  */
 const ROVODEV_PROJECT_MCP_CONFIG_POINTER = posix.join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME);
 
+/**
+ * The keys that make an entry in `mcp.json` something Rovo Dev can start:
+ * a local process, or a remote endpoint under either spelling the canonical
+ * config accepts.
+ */
+const MCP_SERVER_ENDPOINT_KEYS = ["command", "url", "httpUrl"] as const;
+
 function normalizeMcpConfigPathValue(value: string): string {
   return toPosixPath(value).replace(/^\.\//, "");
 }
@@ -271,11 +278,11 @@ function applyProjectMcpConfigPointer({
  * Auxiliary writer for the `mcp:` block of `.rovodev/config.yml` (project) /
  * `~/.rovodev/config.yml` (global). Carries `disabledMcpServers` — the key
  * Rovo Dev actually consults to switch a server off — plus `mcpConfigPath`,
- * which rulesync authors in project scope only when the file it points at is
- * absent (see `applyProjectMcpConfigPointer`). The block is recomputed from
- * the existing one, so user keys (`allowedMcpServers`, ...), a `mcpConfigPath`
- * the user aimed elsewhere, and disabled names for servers rulesync does not
- * manage all survive.
+ * which rulesync authors in project scope when the key is absent and this
+ * project has a server to run (see `applyProjectMcpConfigPointer`). The block
+ * is recomputed from the existing one, so user keys (`allowedMcpServers`,
+ * ...), a `mcpConfigPath` the user aimed elsewhere, and disabled names for
+ * servers rulesync does not manage all survive.
  */
 export class RovodevMcpConfigYaml extends ToolFile {
   override isDeletable(): boolean {
@@ -502,13 +509,27 @@ export class RovodevMcp extends ToolMcp {
       delete existingMcp.disabledMcpServers;
     }
 
+    // What the pointer has to be worth: a server Rovo Dev can actually start.
+    // A name rulesync just switched off through `disabledMcpServers` does not
+    // count, and neither does an entry with no endpoint at all — the canonical
+    // schema does not require `command`/`url`, so an entry naming only its
+    // targets reaches this far and would otherwise be enough to take the
+    // project off the global MCP config in exchange for nothing.
+    const liveNames = managedNames.filter((name) => {
+      if (disabledNames.includes(name)) {
+        return false;
+      }
+      const server = servers[name];
+      return (
+        isRecord(server) &&
+        MCP_SERVER_ENDPOINT_KEYS.some((endpointKey) => server[endpointKey] !== undefined)
+      );
+    });
+
     const wrotePointer = applyProjectMcpConfigPointer({
       existingMcp,
       global,
-      // A server rulesync just switched off through `disabledMcpServers` is
-      // not one Rovo Dev can run, so it must not be what justifies taking the
-      // project off the global MCP config.
-      hasLiveServers: managedNames.length > disabledNames.length,
+      hasLiveServers: liveNames.length > 0,
       logger,
     });
 

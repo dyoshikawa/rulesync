@@ -468,6 +468,50 @@ describe("RovodevMcp", () => {
       expect(auxiliary[0]!.getFileContent()).not.toContain("mcpConfigPath");
     });
 
+    it("does not write the pointer for a server entry with no endpoint", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        // The canonical schema does not require `command`/`url`, so an entry
+        // naming only its targets is valid and reaches `mcp.json` -- but there
+        // is nothing there for Rovo Dev to start.
+        fileContent: JSON.stringify({ mcpServers: { hollow: { targets: ["rovodev"] } } }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({ outputRoot: testDir, rulesyncMcp });
+      expect(auxiliary).toEqual([]);
+    });
+
+    it("warns about a standing pointer when the only rovodev server is switched off", async () => {
+      // The other route to a server-less `mcp.json`: the server is still
+      // targeted, but disabled, so `hasLiveServers` goes false through
+      // `disabledNames` rather than through an empty target list.
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        ["mcp:", "  mcpConfigPath: .rovodev/mcp.json"].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { only: { command: "node", disabled: true } },
+        }),
+      });
+
+      await RovodevMcp.getAuxiliaryFiles({ outputRoot: testDir, rulesyncMcp, logger });
+
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("which now has no enabled"),
+        ),
+      ).toBe(true);
+    });
+
     it("warns when a pointer written earlier now names an mcp.json with no enabled server", async () => {
       const logger = createMockLogger();
       await ensureDir(join(testDir, ".rovodev"));

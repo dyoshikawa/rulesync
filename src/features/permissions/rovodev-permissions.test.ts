@@ -690,6 +690,32 @@ describe("RovodevPermissions", () => {
       ).toBe(true);
     });
 
+    it("warns about a preserved runInSandbox: false even when nothing maps to Rovo Dev", async () => {
+      // The branch that keeps the whole block as it stands. It is also the one
+      // where the user has just edited `.rulesync/permissions.*` and is most
+      // likely to read the regenerate as a reset.
+      const logger = createMockLogger();
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { bash: { default: "deny", runInSandbox: false } } }),
+      );
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ webfetch: { "*": "deny" } }),
+        logger,
+      });
+
+      expect(bashOf(perms.getFileContent()).runInSandbox).toBe(false);
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("keeping toolPermissions.bash.runInSandbox: false"),
+        ),
+      ).toBe(true);
+    });
+
     it("names the dropped bash leaves, and only those, in the warning", async () => {
       const dirPath = join(testDir, ".rovodev");
       await ensureDir(dirPath);
