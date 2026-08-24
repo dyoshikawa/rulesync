@@ -594,7 +594,10 @@ export class SubagentsProcessor extends FeatureProcessor {
     // above only reaches: two spellings of a name inside a single aggregate
     // file (`.roomodes`) never pass through the per-root de-duplication. Case
     // is folded here for the same reason it is folded there — the two paths
-    // are one file on macOS and Windows.
+    // are one file on macOS and Windows. Roo lowercases its slugs, so a
+    // fan-out collides exactly rather than only in case today; the
+    // case-folded half of the guard is what keeps that an implementation
+    // detail of the adapter rather than a correctness requirement.
     const claimedOutputPaths = new ClaimedIdentities();
     for (const rulesyncSubagent of rulesyncSubagents) {
       const outputPath = join(

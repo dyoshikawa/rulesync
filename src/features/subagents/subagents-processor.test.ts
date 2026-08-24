@@ -14,6 +14,7 @@ import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
+import { RooSubagent } from "./roo-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   SubagentsProcessor,
@@ -327,6 +328,78 @@ describe("SubagentsProcessor", () => {
         outputRoot: testDir,
         toolTarget: "claudecode",
       });
+    });
+
+    it("should drop a fanned-out subagent whose slug collapses onto an earlier one", async () => {
+      // `.roomodes` fans one tool file out into N rulesync subagents, bypassing
+      // the per-root de-duplication entirely, so the output-path guard is the
+      // only thing standing between two spellings of a slug and a single
+      // `.rulesync/subagents/` file.
+      const logger = createMockLogger();
+      const rooProcessor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "roo",
+      });
+      await writeFileContent(
+        join(testDir, ".roomodes"),
+        `customModes:
+  - slug: planner
+    name: Planner
+    roleDefinition: You are the planner.
+  - slug: Planner
+    name: Planner Uppercase
+    roleDefinition: You are the other planner.
+`,
+      );
+      const roo = await RooSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: ".roomodes",
+      });
+
+      const rulesyncFiles = await rooProcessor.convertToolFilesToRulesyncFiles([roo]);
+
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]?.getRelativeFilePath()).toBe("planner.md");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Multiple roo subagents resolve to"),
+      );
+    });
+
+    it("should drop a converted subagent whose output path differs only in case", async () => {
+      // The guard folds case because the two paths are one file on macOS and
+      // Windows. No adapter derives an output path that differs only in case
+      // today (Roo lowercases its slugs), so this exercises the guard's own
+      // contract with hand-built tool files.
+      const logger = createMockLogger();
+      const caseProcessor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const buildSubagent = (fileName: string, name: string) =>
+        new ClaudecodeSubagent({
+          outputRoot: testDir,
+          relativeDirPath: ".claude/agents",
+          relativeFilePath: fileName,
+          fileContent: `---
+name: ${name}
+description: ${name} description
+---
+${name} content`,
+          frontmatter: { name, description: `${name} description` },
+          body: `${name} content`,
+          validate: false,
+        });
+
+      const rulesyncFiles = await caseProcessor.convertToolFilesToRulesyncFiles([
+        buildSubagent("planner.md", "planner"),
+        buildSubagent("Planner.md", "Planner"),
+      ]);
+
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]?.getRelativeFilePath()).toBe("planner.md");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("differs only in case"));
     });
 
     it("should filter and convert ToolSubagent instances", async () => {
