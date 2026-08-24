@@ -34,16 +34,32 @@ export type JunieRuleSettablePaths = {
  * Rule generator for JetBrains Junie AI coding agent
  *
  * Generates `.junie/AGENTS.md` files based on rulesync rule content. Junie CLI
- * resolves project guidelines **first-match-wins**: `.junie/AGENTS.md` → root
- * `AGENTS.md` → legacy `.junie/guidelines.md` / `.junie/guidelines/`. Only the
- * first match is loaded, it documents no `@`-reference or file-inclusion
- * mechanism, and no `.junie/memories/` read path exists — so non-root rules
- * are folded into the single root `.junie/AGENTS.md` by the RulesProcessor
- * (`nonRoot` is `undefined`, mirroring the warp / deepagents
- * targets; decision recorded in issue #2211). The legacy
+ * resolves project guidelines in this order: `.junie/AGENTS.md` → root
+ * `AGENTS.md` **combined with `.junie/playbook.md` and every
+ * `.junie/rules/*.md`** → legacy `.junie/guidelines.md` / `.junie/guidelines/`.
+ * The multi-file branch exists, but it is unreachable while `.junie/AGENTS.md`
+ * is present: that file "is used exclusively and no other guidelines files are
+ * combined with it". So emitting `.junie/rules/*.md` next to the root file
+ * rulesync writes would produce files Junie never reads, and moving the root
+ * output to project-root `AGENTS.md` would both change every existing output
+ * path and collide with the `agentsmd` target. Non-root rules therefore stay
+ * folded into the single root `.junie/AGENTS.md` by the RulesProcessor
+ * (`nonRoot` is `undefined`, mirroring the warp / deepagents targets) — the
+ * fold is lossless, since Junie loads that one file in full. The original
+ * rationale for this shape was recorded in issue #2211 and re-confirmed
+ * against the 2026-08-21 docs revision in issue #2728. The legacy
  * `.junie/guidelines.md` is still accepted as an import fallback, but
  * generation always targets `.junie/AGENTS.md`. Junie uses plain markdown
  * without frontmatter requirements.
+ *
+ * Note that the multi-file branch is unread on **import** as well: a repo that
+ * authors `.junie/rules/*.md` or `.junie/playbook.md` by hand (a live layout
+ * whenever `.junie/AGENTS.md` is absent) is not picked up. There is no
+ * import-only rule root to declare them on — `nonRoot` is a managed directory
+ * that generation writes and deletion prunes, and `alternativeRoots` (set
+ * below at project scope only) addresses single fallback files — so this needs
+ * the rules-side analogue of the skills-side `importOnlySkillRoots` rather
+ * than a new entry in an existing list. Tracked in issue #2732.
  *
  * Global (user) scope writes a single `~/.junie/AGENTS.md` file. Junie merges
  * these user-scope guidelines with the project guidelines (both are included

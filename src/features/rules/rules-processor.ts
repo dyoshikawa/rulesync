@@ -592,11 +592,15 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
   [
     "junie",
     {
-      // Junie CLI resolves project guidelines first-match-wins
-      // (`.junie/AGENTS.md` → root `AGENTS.md` → legacy guidelines), reads no
-      // `.junie/memories/` directory, and documents no `@`-reference
+      // Junie CLI resolves project guidelines first-match-wins:
+      // `.junie/AGENTS.md` → root `AGENTS.md` combined with `.junie/playbook.md`
+      // and every `.junie/rules/*.md` → legacy guidelines. The multi-file
+      // branch is unreachable while `.junie/AGENTS.md` exists, because that
+      // file is used exclusively and nothing is combined with it. Junie also
+      // reads no `.junie/memories/` directory and documents no `@`-reference
       // mechanism, so non-root rules are folded into the single root
-      // `.junie/AGENTS.md` (same handling as warp / deepagents).
+      // `.junie/AGENTS.md` (same handling as warp / deepagents). See the
+      // JunieRule class doc for the full rationale.
       class: JunieRule,
       meta: {
         extension: "md",

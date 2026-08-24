@@ -32,8 +32,13 @@ export const JunieSubagentFrontmatterSchema = z.looseObject({
   disallowedTools: z.optional(z.union([z.string(), z.array(z.string())])),
   // MCP servers the subagent may use.
   mcpServers: z.optional(z.union([z.string(), z.array(z.string())])),
-  // Model and reasoning controls (`reasoningLevel`: low | medium | high).
+  // Run controls, in upstream's documented order. The enum-shaped fields are
+  // kept as plain strings so an upstream addition round-trips instead of
+  // failing: `permissionMode` is `default` | `acceptEdits` | `dontAsk` |
+  // `bypassPermissions` | `plan` (defaulting to `default`), and
+  // `reasoningLevel` is low | medium | high.
   model: z.optional(z.string()),
+  permissionMode: z.optional(z.string()),
   reasoningLevel: z.optional(z.string()),
   maxTurns: z.optional(z.number()),
   // Agent Skills the subagent should utilize.

@@ -56,6 +56,7 @@ describe("JunieSubagentFrontmatterSchema", () => {
       maxTurns: 20,
       skills: ["kotlin", "writerside"],
       allowPromptArgument: true,
+      permissionMode: "acceptEdits",
     };
 
     expect(() => JunieSubagentFrontmatterSchema.parse(frontmatter)).not.toThrow();
@@ -64,6 +65,7 @@ describe("JunieSubagentFrontmatterSchema", () => {
     expect(result.maxTurns).toBe(20);
     expect(result.allowPromptArgument).toBe(true);
     expect(result.reasoningLevel).toBe("high");
+    expect(result.permissionMode).toBe("acceptEdits");
   });
 
   it("should reject a non-numeric maxTurns and non-boolean allowPromptArgument", () => {

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { JUNIE_SKILLS_DIR_PATH } from "../../constants/junie-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -121,8 +122,18 @@ export class JunieSkill extends ToolSkill {
     // The actual location differs based on outputRoot:
     // - Project mode: {process.cwd()}/.junie/skills/
     // - Global mode: {getHomeDirectory()}/.junie/skills/
+    //
+    // Junie CLI additionally loads skills from the cross-tool Agent Skills root
+    // at `<projectRoot>/.agents/skills/` and `~/.agents/skills/`. That root is
+    // import-only: rulesync never writes there for this target, so a skill
+    // another tool put in the shared tree must not become an orphan deletion
+    // candidate — least of all under the user's home directory. When the same
+    // skill name exists in both roots, the Junie-specific root wins.
+    // This mirrors how `.agents/` is already wired for Junie subagents.
+    // @see https://junie.jetbrains.com/docs/agent-skills.html
     return {
       relativeDirPath: JUNIE_SKILLS_DIR_PATH,
+      importOnlySkillRoots: [AGENTSMD_SKILLS_DIR_PATH],
     };
   }
 
