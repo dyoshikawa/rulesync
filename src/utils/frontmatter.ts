@@ -331,13 +331,13 @@ export function parseFrontmatterWithYamlRepair(
       throw error;
     }
 
-    // A repaired value stops at an inline comment, which is what YAML says it
-    // does but not what the client that wrote the file may have shown. Say so,
-    // because a silently shortened `description` is hard to notice.
     if (options.quiet === true) {
       return result;
     }
 
+    // A repaired value stops at an inline comment, which is what YAML says it
+    // does but not what the client that wrote the file may have shown. Say so,
+    // because a silently shortened `description` is hard to notice.
     const commentNote = repaired.droppedComment
       ? " Text following a space and `#` was read as a YAML comment and left out of the value."
       : "";

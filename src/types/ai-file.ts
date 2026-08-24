@@ -1,7 +1,7 @@
 import path, { relative, resolve } from "node:path";
 
 import { isSharedUserManagedConfigPath } from "../constants/shared-config-paths.js";
-import { toPosixPath } from "../utils/file.js";
+import { pathEscapesRoot, toPosixPath } from "../utils/file.js";
 
 export type ValidationResult =
   | {
@@ -93,7 +93,7 @@ export abstract class AiFile {
     const rel = relative(resolvedBase, resolvedFull);
 
     // Check if the resolved path is outside outputRoot
-    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    if (pathEscapesRoot(rel)) {
       throw new Error(
         `Path traversal detected: Final path escapes outputRoot. ` +
           `outputRoot="${this.outputRoot}", relativeDirPath="${this.relativeDirPath}", ` +

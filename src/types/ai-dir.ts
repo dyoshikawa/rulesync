@@ -1,6 +1,7 @@
 import { realpath } from "node:fs/promises";
 import path, { basename, join, relative, resolve } from "node:path";
 
+import { stripControlCharacters } from "../utils/control-characters.js";
 import {
   fileExists,
   findFilesByGlobs,
@@ -168,14 +169,20 @@ function classifyNeverCarried(relativePath: string): NeverCarriedReason | undefi
   ) {
     return "credential";
   }
-  if (fileName === ".env") {
-    return "credential";
-  }
-  if (fileName.startsWith(".env.")) {
-    // What decides is the last piece of the name, not the whole suffix chain:
-    // `.env.local.example` is as much a template as `.env.example` is.
-    const lastPiece = fileName.split(".").at(-1) ?? "";
-    return ENV_TEMPLATE_SUFFIXES.has(lastPiece) ? undefined : "credential";
+  // `.envrc` alongside `.env`: direnv keeps real values in `.envrc.local` and
+  // `.envrc.private` as routinely as a project keeps them in `.env.local`.
+  for (const base of [".env", ".envrc"]) {
+    if (fileName === base) {
+      return "credential";
+    }
+    if (fileName.startsWith(`${base}.`)) {
+      // What decides is the last piece of the name, not the whole suffix chain:
+      // `.env.local.example` is as much a template as `.env.example` is, and a
+      // `.dist` or `.example` marker means template whichever environment name
+      // precedes it.
+      const lastPiece = fileName.split(".").at(-1) ?? "";
+      return ENV_TEMPLATE_SUFFIXES.has(lastPiece) ? undefined : "credential";
+    }
   }
   return undefined;
 }
@@ -189,22 +196,49 @@ function isSystemPseudoPath(absolutePath: string): boolean {
 }
 
 /** How many paths a single warning names before it counts the rest. */
-export const MAX_REPORTED_ESCAPED_PATHS = 10;
+export const MAX_REPORTED_PATHS = 10;
 
 /** Render a set of refused or noteworthy paths for one warning line. */
 function formatReportedPaths(paths: Iterable<string>): { count: number; list: string } {
   const sorted = [...paths].toSorted();
-  const named = sorted.slice(0, MAX_REPORTED_ESCAPED_PATHS).map(toPosixPath).join(", ");
-  const remaining = sorted.length - MAX_REPORTED_ESCAPED_PATHS;
+  // The names come from a tree that may have been cloned from anywhere, and two
+  // of these warnings report paths whose names an attacker picks; a file called
+  // `a\r[2K` must not be able to rewrite the line it is printed on.
+  const named = sorted
+    .slice(0, MAX_REPORTED_PATHS)
+    .map((filePath) => stripControlCharacters(toPosixPath(filePath)))
+    .join(", ");
+  const remaining = sorted.length - MAX_REPORTED_PATHS;
   return {
     count: sorted.length,
     list: `${named}${remaining > 0 ? `, and ${remaining} more` : ""}`,
   };
 }
 
+/**
+ * A single `generate` reads one skill directory once per tool target, and these warnings
+ * describe the directory rather than the target, so the identical line would otherwise be
+ * printed a dozen times over. Shared skills always carry entries in from outside (that is
+ * the point of issue #1707), so this is the ordinary case, not the exception.
+ */
+const reportedWarnings = new Set<string>();
+
+function warnOncePerRun(message: string): void {
+  if (reportedWarnings.has(message)) {
+    return;
+  }
+  reportedWarnings.add(message);
+  warnWithFallback(undefined, message);
+}
+
 /** "entry" or "entries", so the warnings below read as sentences. */
 function entryWord(count: number): string {
   return count === 1 ? "entry" : "entries";
+}
+
+/** "resolves" or "resolve", to agree with the entry count it follows. */
+function resolveWord(count: number): string {
+  return count === 1 ? "resolves" : "resolve";
 }
 
 export type AiDirParams = {
@@ -307,7 +341,7 @@ export abstract class AiDir {
     const rel = relative(resolvedBase, resolvedFull);
 
     // Check if the resolved path is outside outputRoot
-    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    if (pathEscapesRoot(rel)) {
       throw new Error(
         `Path traversal detected: Final path escapes outputRoot. ` +
           `outputRoot="${this.outputRoot}", relativeDirPath="${this.relativeDirPath}", ` +
@@ -361,7 +395,7 @@ export abstract class AiDir {
     if (await fileExists(gitEntryPath)) {
       warnWithFallback(
         undefined,
-        `Not carrying ${toPosixPath(gitEntryPath)} with its directory: a nested repository is excluded, so the files it tracks are copied but its history is not.`,
+        `Not carrying ${stripControlCharacters(toPosixPath(gitEntryPath))} with its directory: a nested repository is excluded, so the files it tracks are copied but its history is not.`,
       );
     }
   }
@@ -369,6 +403,15 @@ export abstract class AiDir {
   /** Whether any segment of a relative path is dot-prefixed. */
   private static hasHiddenSegment(relativePath: string): boolean {
     return splitPathSegments(relativePath).some(isHiddenPathSegment);
+  }
+
+  /**
+   * Whether the entry a path ends at is itself hidden, its ancestors aside.
+   * A shared skill tree usually lives under a dot-directory, so an ancestor
+   * says nothing about the file; its own name is what was chosen for it.
+   */
+  private static hasHiddenName(relativePath: string): boolean {
+    return isHiddenPathSegment(splitPathSegments(relativePath).at(-1) ?? "");
   }
 
   /**
@@ -391,7 +434,10 @@ export abstract class AiDir {
    * decides is the name in the skill directory, not what the link resolves
    * through: a named file keeps its documented behavior even when the target
    * sits under a dot-directory such as `~/.dotfiles`, because somebody chose
-   * that name. Reaching outside is reported either way, since content from
+   * that name. What the link resolves *to* still counts at the end of the path,
+   * though — `notes.md` pointing at `~/.claude/.credentials.json` reaches a
+   * file nobody named for a skill — so a hidden final segment is refused on
+   * either side. Reaching outside is reported either way, since content from
    * outside the tree is about to be copied into every enabled tool root.
    *
    * A path that cannot be resolved is kept: `realpath` fails on a broken link
@@ -445,7 +491,7 @@ export abstract class AiDir {
         if (!pathEscapesRoot(realPath)) {
           return true;
         }
-        if (AiDir.hasHiddenSegment(literalPath)) {
+        if (AiDir.hasHiddenSegment(literalPath) || AiDir.hasHiddenName(realPath)) {
           refusedEscapedHidden.add(filePath);
           return false;
         }
@@ -456,30 +502,26 @@ export abstract class AiDir {
 
     if (refusedCredentials.size > 0) {
       const { count, list } = formatReportedPaths(refusedCredentials);
-      warnWithFallback(
-        undefined,
+      warnOncePerRun(
         `Not carrying ${count} ${entryWord(count)} named as a credential store: ${list}. A skill must not ship secrets; read them from the environment instead.`,
       );
     }
     if (refusedPseudoPaths.size > 0) {
       const { count, list } = formatReportedPaths(refusedPseudoPaths);
-      warnWithFallback(
-        undefined,
-        `Not carrying ${count} ${entryWord(count)} that a symbolic link points into a system pseudo-filesystem: ${list}. Those read back process state, not skill content.`,
+      warnOncePerRun(
+        `Not carrying ${count} ${entryWord(count)} that ${resolveWord(count)} into a system pseudo-filesystem: ${list}. Those read back process state, not skill content.`,
       );
     }
     if (refusedEscapedHidden.size > 0) {
       const { count, list } = formatReportedPaths(refusedEscapedHidden);
-      warnWithFallback(
-        undefined,
-        `Not carrying ${count} hidden ${entryWord(count)} that a symbolic link reaches outside ${toPosixPath(dirPath)}: ${list}. Copy them into the directory if the skill really needs them.`,
+      warnOncePerRun(
+        `Not carrying ${count} hidden ${entryWord(count)} that ${resolveWord(count)} outside ${stripControlCharacters(toPosixPath(dirPath))}: ${list}. Copy them into the directory if the skill really needs them.`,
       );
     }
     if (carriedFromOutside.size > 0) {
       const { count, list } = formatReportedPaths(carriedFromOutside);
-      warnWithFallback(
-        undefined,
-        `Carrying ${count} ${entryWord(count)} that a symbolic link reaches outside ${toPosixPath(dirPath)}: ${list}. Their content is copied into every generated tool directory.`,
+      warnOncePerRun(
+        `Carrying ${count} ${entryWord(count)} that ${resolveWord(count)} outside ${stripControlCharacters(toPosixPath(dirPath))}: ${list}. Their content is copied into every generated tool directory.`,
       );
     }
 

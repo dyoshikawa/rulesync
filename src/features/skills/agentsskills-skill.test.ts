@@ -7,7 +7,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { MAX_REPORTED_ESCAPED_PATHS } from "../../types/ai-dir.js";
+import { MAX_REPORTED_PATHS } from "../../types/ai-dir.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
@@ -228,8 +228,14 @@ Body.`;
       // Windows drops the trailing space when the file lands, turning this one
       // back into a plain `.env`, so it is judged as the name it becomes.
       await writeFileContent(join(skillDir, ".env "), "TOKEN=real\n");
+      // Windows drops a trailing dot the same way, so `.env.` is `.env` too.
+      await writeFileContent(join(skillDir, ".env."), "TOKEN=real\n");
       // A compound template name is a template: the last piece decides.
       await writeFileContent(join(skillDir, ".env.local.example"), "TOKEN=\n");
+      // direnv keeps real values in `.envrc.local` as routinely as a project
+      // keeps them in `.env.local`.
+      await writeFileContent(join(skillDir, ".envrc.local"), "export TOKEN=real\n");
+      await writeFileContent(join(skillDir, ".envrc.example"), "export TOKEN=\n");
       const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
 
       try {
@@ -239,7 +245,7 @@ Body.`;
         });
 
         const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
-        expect(carriedPaths).toEqual([".env.example", ".env.local.example"]);
+        expect(carriedPaths).toEqual([".env.example", ".env.local.example", ".envrc.example"]);
         // Leaving a credential out protects something, so it is reported rather
         // than done in silence.
         expect(warnSpy).toHaveBeenCalledWith(
@@ -370,7 +376,7 @@ Body.`;
           await AgentsSkillsSkill.fromDir({ outputRoot: testDir, dirName: "warned-link-skill" });
 
           expect(warnSpy).toHaveBeenCalledWith(
-            expect.stringContaining("Not carrying 1 hidden entry that a symbolic link reaches"),
+            expect.stringContaining("Not carrying 1 hidden entry that resolves outside"),
           );
         } finally {
           warnSpy.mockRestore();
@@ -382,7 +388,7 @@ Body.`;
       "should count the escaped hidden entries a warning does not name",
       async () => {
         const outsideDir = join(testDir, "outside");
-        for (let index = 0; index < MAX_REPORTED_ESCAPED_PATHS + 2; index++) {
+        for (let index = 0; index < MAX_REPORTED_PATHS + 2; index++) {
           await writeFileContent(join(outsideDir, `.file-${index}`), "secret\n");
         }
 
@@ -401,9 +407,7 @@ Body.`;
           await AgentsSkillsSkill.fromDir({ outputRoot: testDir, dirName: "many-links-skill" });
 
           expect(warnSpy).toHaveBeenCalledWith(
-            expect.stringContaining(
-              `Not carrying ${MAX_REPORTED_ESCAPED_PATHS + 2} hidden entries`,
-            ),
+            expect.stringContaining(`Not carrying ${MAX_REPORTED_PATHS + 2} hidden entries`),
           );
           expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(", and 2 more"));
         } finally {
@@ -440,6 +444,33 @@ Body.`;
     );
 
     it.skipIf(process.platform === "win32")(
+      "should strip control characters from the paths it reports",
+      async () => {
+        // The tree may have been cloned from anywhere, and these warnings name
+        // paths whose names the author of that tree chose.
+        const skillDir = join(testDir, ".agents", "skills", "control-char-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: control-char-skill", "description: Odd names", "---", "", "Body."].join(
+            "\n",
+          ),
+        );
+        await writeFileContent(join(skillDir, ".env.production\u001b[2K"), "TOKEN=real\n");
+        const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+        try {
+          await AgentsSkillsSkill.fromDir({ outputRoot: testDir, dirName: "control-char-skill" });
+
+          expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(".env.production[2K"));
+          expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("\u001b"));
+        } finally {
+          warnSpy.mockRestore();
+        }
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
       "should carry a named file whose symbolic link target sits under a hidden directory",
       async () => {
         // A shared skill tree usually lives in a dotfiles repository, so the
@@ -469,6 +500,39 @@ Body.`;
     );
 
     it.skipIf(process.platform === "win32")(
+      "should carry a named file that links directly into a hidden directory",
+      async () => {
+        // The link is a file rather than a directory this time: the same rule
+        // decides it, on the name the skill directory gives it.
+        const sharedDir = join(testDir, ".dotfiles", "shared");
+        await writeFileContent(join(sharedDir, "guide.md"), "guide\n");
+
+        const skillDir = join(testDir, ".agents", "skills", "dotfiles-file-link-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          [
+            "---",
+            "name: dotfiles-file-link-skill",
+            "description: Links out",
+            "---",
+            "",
+            "Body.",
+          ].join("\n"),
+        );
+        await symlink(join(sharedDir, "guide.md"), join(skillDir, "guide.md"));
+
+        const skill = await AgentsSkillsSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "dotfiles-file-link-skill",
+        });
+
+        const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
+        expect(carriedPaths).toEqual(["guide.md"]);
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
       "should report the entries a symbolic link carries in from outside",
       async () => {
         // Carried or not, content from outside the tree is about to be copied
@@ -491,11 +555,39 @@ Body.`;
           await AgentsSkillsSkill.fromDir({ outputRoot: testDir, dirName: "outside-link-skill" });
 
           expect(warnSpy).toHaveBeenCalledWith(
-            expect.stringContaining("Carrying 1 entry that a symbolic link reaches outside"),
+            expect.stringContaining("Carrying 1 entry that resolves outside"),
           );
         } finally {
           warnSpy.mockRestore();
         }
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should not carry a named symbolic link that resolves to a hidden file",
+      async () => {
+        // The name inside the skill directory decides for the ancestors of the
+        // target, not for the target itself: `~/.claude/.credentials.json` is a
+        // file nobody named for a skill, whatever the link is called.
+        const outsideDir = join(testDir, "outside");
+        await writeFileContent(join(outsideDir, ".credentials.json"), '{"token":"real"}\n');
+
+        const skillDir = join(testDir, ".agents", "skills", "renamed-dotfile-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: renamed-dotfile-skill", "description: Links out", "---", "", "Body."].join(
+            "\n",
+          ),
+        );
+        await symlink(join(outsideDir, ".credentials.json"), join(skillDir, "notes.json"));
+
+        const skill = await AgentsSkillsSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "renamed-dotfile-skill",
+        });
+
+        expect(skill.getOtherFiles()).toEqual([]);
       },
     );
 
@@ -522,9 +614,7 @@ Body.`;
           });
 
           expect(skill.getOtherFiles()).toEqual([]);
-          expect(warnSpy).toHaveBeenCalledWith(
-            expect.stringContaining("system pseudo-filesystem"),
-          );
+          expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("system pseudo-filesystem"));
         } finally {
           warnSpy.mockRestore();
         }

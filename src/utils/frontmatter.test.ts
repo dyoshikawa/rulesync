@@ -693,11 +693,16 @@ Body.`;
       const content = ["---", `description: ${padded}`, "unclosed: [", "---", "Body"].join("\n");
 
       try {
+        const startedAt = performance.now();
         expect(() => parseFrontmatterWithYamlRepair(content, "SKILL.md")).toThrow();
+        // The linear scan takes single-digit milliseconds here; the quadratic one
+        // took over 20 seconds. The bound is loose enough for a busy CI runner
+        // and still fails long before the suite timeout would.
+        expect(performance.now() - startedAt).toBeLessThan(2_000);
       } finally {
         warnSpy.mockRestore();
       }
-    }, 5_000);
+    }, 30_000);
 
     it("should stay quiet when the content parses without help", () => {
       const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});

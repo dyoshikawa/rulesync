@@ -12,7 +12,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { kebabCase } from "es-toolkit";
 import { globbySync, isGitIgnoredSync } from "globby";
@@ -433,17 +433,42 @@ function countHiddenSegments(filePath: string): number {
 }
 
 /**
- * Whether `candidate` should represent `realPath` instead of `current`.
- * @see findFilesByGlobs for the ordering this encodes.
+ * The directory entry a path denotes: the real directory that holds it, plus the name it
+ * carries there. Two paths share an identity only when they reach the very same entry by
+ * different routes -- through a link to a directory, or through a cycle that walks back
+ * into an ancestor. Resolving the *parent* rather than the file itself is what keeps two
+ * genuinely different entries that happen to hold one file (`reference.md` and a
+ * `docs/reference.md` link pointing at it) apart, so neither of them is dropped.
  */
-function prefersAsRepresentative(candidate: string, current: string, realPath: string): boolean {
-  if (candidate === realPath) {
-    return current !== realPath;
+async function directoryEntryIdentity(
+  filePath: string,
+  realDirPaths: Map<string, string>,
+): Promise<string> {
+  const dirPath = dirname(filePath);
+  const cached = realDirPaths.get(dirPath);
+  if (cached !== undefined) {
+    return join(cached, basename(filePath));
   }
-  if (current === realPath) {
-    return false;
+  let realDirPath: string;
+  try {
+    realDirPath = await realpath(dirPath);
+  } catch {
+    // realpath can fail on a broken link or a race; fall back to the literal directory so
+    // the entry still counts (and is still deduplicated against identical literals).
+    realDirPath = dirPath;
   }
-  return countHiddenSegments(candidate) < countHiddenSegments(current);
+  realDirPaths.set(dirPath, realDirPath);
+  return join(realDirPath, basename(filePath));
+}
+
+/**
+ * Pick the one path that represents a directory entry among the routes that reach it.
+ * `candidates` arrives in sorted order, so ties keep the first one deterministically.
+ */
+function chooseRepresentative(candidates: string[]): string {
+  return candidates.reduce((best, candidate) =>
+    countHiddenSegments(candidate) < countHiddenSegments(best) ? candidate : best,
+  );
 }
 
 export async function findFilesByGlobs(
@@ -498,30 +523,27 @@ export async function findFilesByGlobs(
     ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
     ...globbyOptions,
   });
-  // Deduplicate by real path so that directory symlink cycles (which globby follows up to
-  // the kernel ELOOP limit, ~40 levels) do not yield ~40x duplicated entries that would be
-  // read and re-emitted. One path per real file, preferring, in order: the file's own
-  // path over any symbolic link aliasing it, then the fewest dot-prefixed segments, then
-  // sorted order for determinism. The first rule keeps a real `.env.example` from being
-  // replaced by a link that happens to point at it; the second means that when only links
-  // are on offer, the named one represents the file rather than a hidden alias that a
-  // hidden-entry rule may then drop, taking the named path's content with it.
-  const representatives = new Map<string, string>();
+  // Deduplicate by directory entry so that directory symlink cycles (which globby follows
+  // up to the kernel ELOOP limit, ~40 levels) do not yield ~40x duplicated entries that
+  // would be read and re-emitted. One path per entry, preferring the fewest dot-prefixed
+  // segments and then sorted order for determinism: when only links are on offer, the
+  // named one represents the entry rather than a hidden alias that a hidden-entry rule may
+  // then drop, taking the named path's content with it.
+  const realDirPaths = new Map<string, string>();
+  const candidatesByEntry = new Map<string, string[]>();
   for (const result of results.toSorted()) {
-    let realResult: string;
-    try {
-      realResult = await realpath(result);
-    } catch {
-      // realpath can fail on a broken link or race; fall back to the literal path so the
-      // entry is still considered (and still deduplicated against identical literals).
-      realResult = result;
-    }
-    const current = representatives.get(realResult);
-    if (current === undefined || prefersAsRepresentative(result, current, realResult)) {
-      representatives.set(realResult, result);
+    const identity = await directoryEntryIdentity(result, realDirPaths);
+    const candidates = candidatesByEntry.get(identity);
+    if (candidates === undefined) {
+      candidatesByEntry.set(identity, [result]);
+    } else {
+      candidates.push(result);
     }
   }
-  return [...representatives.values()].toSorted();
+  const representatives = [...candidatesByEntry.values()].map((candidates) =>
+    chooseRepresentative(candidates),
+  );
+  return representatives.toSorted();
 }
 
 export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {

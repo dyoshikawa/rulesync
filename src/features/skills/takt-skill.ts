@@ -1,8 +1,8 @@
-import path, { join, relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 import { TAKT_SKILLS_DIR_PATH } from "../../constants/takt-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { toPosixPath } from "../../utils/file.js";
+import { pathEscapesRoot, toPosixPath } from "../../utils/file.js";
 import { assertSafeTaktName, prependTaktExtends } from "../takt-shared.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 import {
@@ -105,7 +105,7 @@ export class TaktSkill extends ToolSkill {
     const resolvedBase = resolve(this.outputRoot);
     const rel = relative(resolvedBase, resolvedFull);
 
-    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    if (pathEscapesRoot(rel)) {
       throw new Error(
         `Path traversal detected: Final path escapes outputRoot. ` +
           `outputRoot="${this.outputRoot}", relativeDirPath="${this.relativeDirPath}"`,

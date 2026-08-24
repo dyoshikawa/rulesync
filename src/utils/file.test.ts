@@ -774,27 +774,36 @@ describe("file utilities", () => {
           expect(fileResults.length).toBeLessThan(5);
         });
 
-        it("should keep only one path per real file when a link and its target both match", async () => {
-          const realFile = join(testDir, "real.md");
-          const linkedFile = join(testDir, "linked.md");
+        it("should keep both names when a link and the file it points at sit side by side", async () => {
+          const sideBySideDir = join(testDir, "side-by-side");
+          const realFile = join(sideBySideDir, "real.md");
+          const linkedFile = join(sideBySideDir, "linked.md");
           await writeFileContent(realFile, "content");
           await symlink(realFile, linkedFile);
 
-          const results = await findFilesByGlobs(join(testDir, "*.md"), { type: "file" });
+          const results = await findFilesByGlobs(join(sideBySideDir, "*.md"), { type: "file" });
 
-          const realPaths = await Promise.all(results.map((p) => realpath(p)));
-          expect(new Set(realPaths).size).toBe(results.length);
-          // The file's own path represents it even though the link sorts first
-          // (linked.md < real.md): a caller that asked about a real file must
-          // not be handed a link that merely points at it.
-          expect(results).toContain(realFile);
-          expect(results).not.toContain(linkedFile);
+          // Two names in one directory are two entries, even though they hold the
+          // same content: dropping either would lose a path the caller listed.
+          expect(results).toEqual([linkedFile, realFile]);
         });
 
-        it("should let a real file represent itself rather than a non-hidden link to it", async () => {
-          // The reverse of the hidden-alias case below: preferring the fewest
-          // hidden segments must not push a real `.env.example` out of the
-          // results just because something links to it under a plain name.
+        it("should keep an aliased path in a subdirectory alongside the file it points at", async () => {
+          const skillDir = join(testDir, "alias-skill");
+          const realFile = join(skillDir, "reference.md");
+          const docsDir = join(skillDir, "docs");
+          await writeFileContent(realFile, "reference");
+          await ensureDir(docsDir);
+          await symlink(realFile, join(docsDir, "reference.md"));
+
+          const results = await findFilesByGlobs(join(skillDir, "**/*.md"), { type: "file" });
+
+          // A skill that ships `docs/reference.md` as a link to its own top-level
+          // `reference.md` must still emit both paths.
+          expect(results).toEqual([join(docsDir, "reference.md"), realFile]);
+        });
+
+        it("should keep a plainly named link and the hidden file it points at", async () => {
           const realFile = join(testDir, ".env.example");
           const aliasFile = join(testDir, "zz-alias.example");
           await writeFileContent(realFile, "TOKEN=");
@@ -805,7 +814,7 @@ describe("file utilities", () => {
             dot: true,
           });
 
-          expect(results).toEqual([realFile]);
+          expect(results).toEqual([realFile, aliasFile]);
         });
       });
     });
