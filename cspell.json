@@ -424,6 +424,7 @@
     "symref",
     "TOCTOU",
     "worktree",
+    "worktrees",
     "Worktree",
     "zedignore",
     "minisearch"

@@ -35,6 +35,31 @@ export const MUSECODE_GLOBAL_SKILLS_DIR_PATH = join(MUSECODE_GLOBAL_CONFIG_DIR_P
 // reaches the model context before any trust decision.
 // https://dev.meta.ai/docs/muse-code/configuration.md
 
+// `<repo>/.muse/` holds Muse Code's own harness state, none of which rulesync
+// writes today:
+//   - `worktrees/` — the per-child git worktrees `--subagent-worktree-isolation`
+//     creates. Gitignored as a third-party by-product (see
+//     `HAND_MAINTAINED_GITIGNORE_ENTRIES`), because the documented
+//     `cleanup_policy: remove_if_clean` leaves a dirty worktree in the checkout.
+//   - `approval-policy.json` — persisted argv-prefix allow rules keyed to the
+//     workspace canonical root, with a documented three-effect precedence
+//     (a deny overrides a prompt, a prompt overrides an allow, regardless of
+//     specificity) and interpreter/wrapper prefixes barred from persistent
+//     grants. This is why the `permissions` feature stays `unsupported` on a
+//     *narrower* basis than earlier passes recorded: an allow/deny file does
+//     exist, but its exact path and entry schema are unpublished, and it is
+//     unclear whether it is committable project config or machine-local user
+//     state. Pin both from a real file before authoring an adapter — do not
+//     re-derive "Muse Code has no allow/deny file" from `permissions.md`, which
+//     documents only CLI flags.
+//   - `trust.json` — the per-workspace-root record of your own trust decision,
+//     i.e. machine-local user state that rulesync should never author.
+//   - `hooks.json` — committed project config, and the reason `.muse/` as a
+//     whole is not gitignored. Blocked on the unpublished per-hook entry schema.
+// https://dev.meta.ai/docs/cookbook/subagent-fanout
+// https://dev.meta.ai/docs/cookbook/staged-approvals
+// https://dev.meta.ai/docs/cookbook/immutable-guardrails
+
 // User settings file. Holds the `mcp_servers` block (Muse Code documents no
 // project-scoped MCP location) and MUST carry `"schema_version": 1` — a
 // settings.json without that key fails every command at startup with
