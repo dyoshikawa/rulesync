@@ -931,6 +931,29 @@ describe("RulesProcessor", () => {
       );
     });
 
+    it("should cap the skipped read-only roots it names and count the rest", async () => {
+      // A large `.junie/rules/` directory must not turn one warning into a wall
+      // of text, so the list stops at ten names and folds the remainder into a
+      // count. Twelve files exercise the branch the docs describe.
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), "# Root");
+      for (let index = 0; index < 12; index++) {
+        await writeFileContent(join(testDir, ".junie", "rules", `rule-${index}.md`), `# ${index}`);
+      }
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+      await processor.loadToolFiles();
+
+      const warning = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("and the tool reads that file exclusively"));
+      expect(warning).toBeDefined();
+      expect(warning).toContain("and 2 more");
+      // Sorted discovery order puts `rule-10.md` and `rule-11.md` right after
+      // `rule-1.md`, so the two names that drop off the end are the last ones.
+      expect(warning).toContain(join(".junie", "rules", "rule-1.md"));
+      expect(warning).not.toContain(join(".junie", "rules", "rule-8.md"));
+    });
+
     it("should keep importing Junie's read-only roots when only the legacy guidelines file exists", async () => {
       // `.junie/guidelines.md` is the *lowest* branch of Junie's resolution
       // order, so with `.junie/rules/*.md` present Junie is reading the
