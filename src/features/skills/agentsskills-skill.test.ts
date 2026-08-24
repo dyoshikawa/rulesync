@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
@@ -196,6 +198,117 @@ Body.`;
       expect(carriedPaths).toContain(join("scripts", "run.sh"));
       expect(carriedPaths).not.toContain(".DS_Store");
       expect(carriedPaths).not.toContain(join(".git", "HEAD"));
+    });
+
+    it("should not carry credential-shaped hidden entries", async () => {
+      // Carrying hidden files copies them into every enabled tool root, so a
+      // secret dropped into a skill directory would be multiplied across the
+      // repository. None of these names is ever skill content.
+      const skillDir = join(testDir, ".agents", "skills", "secrets-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: secrets-skill", "description: Holds secrets", "---", "", "Body."].join("\n"),
+      );
+      await writeFileContent(join(skillDir, ".env"), "TOKEN=real\n");
+      await writeFileContent(join(skillDir, ".env.local"), "TOKEN=real\n");
+      await writeFileContent(join(skillDir, ".env.example"), "TOKEN=\n");
+      await writeFileContent(join(skillDir, ".npmrc"), "//registry:_authToken=real\n");
+      await writeFileContent(join(skillDir, ".ssh", "id_rsa"), "key\n");
+      await writeFileContent(join(skillDir, ".aws", "credentials"), "aws-secret\n");
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "secrets-skill",
+      });
+
+      const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
+      expect(carriedPaths).toEqual([".env.example"]);
+    });
+
+    // fs.symlink with the default/file type needs admin or Developer Mode on Windows.
+    it.skipIf(process.platform === "win32")(
+      "should not carry hidden entries a symbolic link reaches outside the skill directory",
+      async () => {
+        // Following a link out of the tree is deliberate for named files, but a
+        // single link to a home directory would otherwise pull in every dotfile
+        // under it.
+        const outsideDir = join(testDir, "outside");
+        await writeFileContent(join(outsideDir, ".secret-config"), "secret\n");
+        await writeFileContent(join(outsideDir, "shared.md"), "shared\n");
+
+        const skillDir = join(testDir, ".agents", "skills", "linked-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: linked-skill", "description: Links out", "---", "", "Body."].join("\n"),
+        );
+        await symlink(outsideDir, join(skillDir, "docs"));
+
+        const skill = await AgentsSkillsSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "linked-skill",
+        });
+
+        const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
+        // The named file keeps its documented behavior; the dotfile does not.
+        expect(carriedPaths).toContain(join("docs", "shared.md"));
+        expect(carriedPaths).not.toContain(join("docs", ".secret-config"));
+      },
+    );
+
+    it("should warn about an empty description instead of dropping the skill", async () => {
+      // A conformant client skips such a skill, so the user has to be told.
+      // Rulesync converts rather than loads, so it imports it all the same.
+      const skillDir = join(testDir, ".agents", "skills", "empty-description-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: empty-description-skill", 'description: ""', "---", "", "Body."].join("\n"),
+      );
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        const skill = await AgentsSkillsSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "empty-description-skill",
+        });
+
+        expect(skill.getBody()).toBe("Body.");
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("`description` is required and must not be empty"),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should warn that a nested repository is not carried with the skill", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "nested-repo-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        [
+          "---",
+          "name: nested-repo-skill",
+          "description: Has a nested repo",
+          "---",
+          "",
+          "Body.",
+        ].join("\n"),
+      );
+      await writeFileContent(join(skillDir, ".git", "HEAD"), "ref: refs/heads/main\n");
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        await AgentsSkillsSkill.fromDir({ outputRoot: testDir, dirName: "nested-repo-skill" });
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("a nested repository is excluded"),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it("should recover a SKILL.md whose description contains an unquoted colon", async () => {

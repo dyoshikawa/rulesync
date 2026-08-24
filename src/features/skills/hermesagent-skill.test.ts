@@ -2,10 +2,13 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { HERMESAGENT_SKILLS_DIR_PATH } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
@@ -256,6 +259,34 @@ describe("HermesagentSkill", () => {
         },
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
+    });
+  });
+
+  describe("fromDir", () => {
+    it("should warn about an empty description, matching the agentsskills import", async () => {
+      // Hermes reads the same `agentsskills` shape, so a diagnostic that fires
+      // for one has to fire for the other.
+      const skillDir = join(testDir, HERMESAGENT_SKILLS_DIR_PATH, "empty-description-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: empty-description-skill", 'description: ""', "---", "", "Body."].join("\n"),
+      );
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        const skill = await HermesagentSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "empty-description-skill",
+        });
+
+        expect(skill.getBody()).toBe("Body.");
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("`description` is required and must not be empty"),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
   });
 });

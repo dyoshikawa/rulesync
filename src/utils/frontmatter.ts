@@ -197,7 +197,15 @@ function repairFrontmatterLine(line: string): string {
   }
 
   const [, key = "", rawValue = ""] = match;
-  const value = rawValue.trimEnd();
+  // A plain scalar ends at an inline comment — whitespace followed by `#`. It
+  // has to come off before anything else looks at the value, or a line such as
+  // `allowed-tools: Read # TODO: add Bash later` reads as needing repair and
+  // comes back quoted with the comment inside it, which for a list of tool
+  // permissions would grant what the comment had disabled.
+  const value = rawValue.replace(/\s+#.*$/, "").trimEnd();
+  if (value === "") {
+    return line;
+  }
   // A colon only ends a plain scalar when a space or the line end follows it,
   // so `homepage: https://example.com` parses fine and must not be touched.
   if (!/:(?:\s|$)/.test(value)) {
@@ -224,7 +232,11 @@ function repairMalformedFrontmatterYaml(content: string): string | undefined {
   }
 
   const blockStart = opening[0].length;
-  const closing = /\r?\n---[^\S\r\n]*(?:\r?\n|$)/.exec(content.slice(blockStart));
+  // gray-matter ends the block at the first `\n---`, with no requirement that
+  // the delimiter be alone on its line. Matching that exactly matters: a
+  // stricter pattern here would run past gray-matter's delimiter and rewrite
+  // lines that are really body text.
+  const closing = /\r?\n---/.exec(content.slice(blockStart));
   if (!closing) {
     return undefined;
   }

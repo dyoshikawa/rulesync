@@ -187,6 +187,28 @@ export function toSpecConformantAgentSkillFields(
 }
 
 /**
+ * The one spec violation both sides of the conversion report. Generation warns
+ * about it before writing the file; import warns about it because a conformant
+ * client would skip the skill entirely, and a user who never sees that has no
+ * reason to fix it.
+ */
+const EMPTY_DESCRIPTION_VIOLATION =
+  "`description` is required and must not be empty; conformant clients skip a skill without one";
+
+/** The `SKILL.md` a diagnostic should point at, in the scope it is written to. */
+function agentSkillFilePath({
+  outputRoot,
+  relativeDirPath,
+  dirName,
+}: {
+  outputRoot: string;
+  relativeDirPath: string;
+  dirName: string;
+}): string {
+  return join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME);
+}
+
+/**
  * Collect the normative violations the Agent Skills spec defines for a skill
  * about to be written. These are reported as warnings rather than errors:
  * import stays lenient per the spec's client-implementation guide, and failing
@@ -236,9 +258,7 @@ function collectAgentSkillViolations({
   }
 
   if (description.length === 0) {
-    violations.push(
-      "`description` is required and must not be empty; conformant clients skip a skill without one",
-    );
+    violations.push(EMPTY_DESCRIPTION_VIOLATION);
   } else if (description.length > DESCRIPTION_MAX_LENGTH) {
     violations.push(
       `\`description\` is ${description.length} characters; the Agent Skills spec allows at most ${DESCRIPTION_MAX_LENGTH}`,
@@ -459,7 +479,7 @@ export class AgentsSkillsSkill extends ToolSkill {
     sourceAllowedTools?: string | string[];
     logger?: Logger;
   }): void {
-    const skillPath = join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME);
+    const skillPath = agentSkillFilePath({ outputRoot, relativeDirPath, dirName });
     for (const violation of collectAgentSkillViolations({
       frontmatter,
       dirName,
@@ -467,6 +487,40 @@ export class AgentsSkillsSkill extends ToolSkill {
     })) {
       warnWithFallback(logger, `${skillPath}: ${violation}`);
     }
+  }
+
+  /**
+   * Warn about an imported skill whose `description` is empty.
+   *
+   * Rulesync converts rather than loads, so dropping the directory would lose
+   * content the user can still fix — the skill is imported and the problem is
+   * reported instead, which is the "log the error" half of what the client
+   * guide asks of a lenient reader. Shared with `HermesagentSkill` for the same
+   * reason `reportSpecViolations` is: both read the `agentsskills` shape, so a
+   * diagnostic that fires for one has to fire for the other.
+   *
+   * @see https://agentskills.io/client-implementation/adding-skills-support
+   */
+  static warnOnEmptyImportedDescription({
+    outputRoot,
+    relativeDirPath,
+    dirName,
+    description,
+    logger,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+    description: string;
+    logger?: Logger;
+  }): void {
+    if (description.length > 0) {
+      return;
+    }
+    warnWithFallback(
+      logger,
+      `${agentSkillFilePath({ outputRoot, relativeDirPath, dirName })}: ${EMPTY_DESCRIPTION_VIOLATION}. Rulesync imports it anyway so the content is not lost; fill it in before relying on this skill.`,
+    );
   }
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
@@ -488,17 +542,12 @@ export class AgentsSkillsSkill extends ToolSkill {
       );
     }
 
-    // The spec requires a non-empty `description`, and the client guide has
-    // conformant clients skip a skill without one. Rulesync converts rather
-    // than loads, so dropping the directory here would lose content the user
-    // can still fix; the skill is imported and the problem is reported instead,
-    // which is also what the generate side does with the same violation.
-    if (result.data.description.length === 0) {
-      warnWithFallback(
-        undefined,
-        `${join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName, SKILL_FILE_NAME)}: \`description\` is empty; conformant Agent Skills clients skip a skill without one, so fill it in before relying on this skill.`,
-      );
-    }
+    AgentsSkillsSkill.warnOnEmptyImportedDescription({
+      outputRoot: loaded.outputRoot,
+      relativeDirPath: loaded.relativeDirPath,
+      dirName: loaded.dirName,
+      description: result.data.description,
+    });
 
     return new this({
       outputRoot: loaded.outputRoot,

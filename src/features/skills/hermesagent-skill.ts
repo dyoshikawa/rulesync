@@ -143,6 +143,14 @@ export class HermesagentSkill extends AgentsSkillsSkill {
       ...params,
       getSettablePaths: HermesagentSkill.getSettablePaths,
     });
+    // Hermes reads the `agentsskills` shape, so it gets the same import-side
+    // diagnostic; `reportSpecViolations` is shared for the same reason.
+    AgentsSkillsSkill.warnOnEmptyImportedDescription({
+      outputRoot: loaded.outputRoot,
+      relativeDirPath: loaded.relativeDirPath,
+      dirName: loaded.dirName,
+      description: String(loaded.frontmatter.description ?? ""),
+    });
     return new this({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,

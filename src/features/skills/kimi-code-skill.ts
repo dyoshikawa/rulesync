@@ -12,7 +12,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import type { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { getHomeDirectory, readFileContent } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
+import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 import {
   getKimiCodeHome,
   getKimiCodeRelativeDirPath,
@@ -248,7 +248,7 @@ export class KimiCodeSkill extends ToolSkill {
   }: ToolSkillFromFlatFileParams): Promise<KimiCodeSkill> {
     const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
+    const { frontmatter, body } = parseFrontmatterWithYamlRepair(fileContent, filePath);
     const result = KimiCodeFlatSkillFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);

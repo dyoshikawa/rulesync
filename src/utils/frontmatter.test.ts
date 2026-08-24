@@ -5,6 +5,7 @@ import {
   parseFrontmatterWithYamlRepair,
   stringifyFrontmatter,
 } from "./frontmatter.js";
+import { fallbackLogger } from "./logger.js";
 
 // Hoisted mock for gray-matter - used by specific tests
 const mockMatter = vi.hoisted(() => ({
@@ -650,6 +651,77 @@ Body.`;
       ].join("\n");
 
       expect(() => parseFrontmatterWithYamlRepair(content, "SKILL.md")).toThrow();
+    });
+
+    it("should report the recovery so the file still gets fixed at the source", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const content = ["---", "description: Use when: a colon appears", "---", "Body"].join("\n");
+
+      try {
+        parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Recovered malformed YAML frontmatter in SKILL.md"),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should stay quiet when the content parses without help", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const content = ["---", "description: A plain value", "---", "Body"].join("\n");
+
+      try {
+        parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should not rewrite body text when the closing delimiter shares its line", () => {
+      // gray-matter ends the block at the first `\n---`, whatever follows it on
+      // that line, so everything after is body and must be passed through.
+      const content = "---\nname: a: b\n---more\ndescription: c: d\n---\nbody\n";
+
+      const result = parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+      expect(result.frontmatter.name).toBe("a: b");
+      expect(result.body).toContain("description: c: d");
+      expect(result.body).not.toContain('description: "c: d"');
+    });
+
+    it("should not fold an inline comment into a repaired value", () => {
+      // A plain scalar ends at ` #`. Quoting the comment along with the value
+      // would turn a disabled tool in `allowed-tools` into an enabled one,
+      // because that field is read back as a space-separated list.
+      const content = [
+        "---",
+        "name: commented # note: keep lowercase",
+        "description: Use this skill when: the user asks about PDFs",
+        "allowed-tools: Read # TODO: add Bash later",
+        "---",
+        "Body",
+      ].join("\n");
+
+      const result = parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+      expect(result.frontmatter.name).toBe("commented");
+      expect(result.frontmatter.description).toBe("Use this skill when: the user asks about PDFs");
+      expect(result.frontmatter["allowed-tools"]).toBe("Read");
+    });
+
+    it("should cut a repaired value at an inline comment even when that loses text", () => {
+      // ` #` starts a comment in a plain scalar, so this is what YAML itself
+      // reads. Keeping the tail instead would let a comment on `allowed-tools`
+      // grant a permission it had disabled, which is the worse failure.
+      const content = ["---", "description: Use when: issue #42 is open", "---", "Body"].join("\n");
+
+      const result = parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+      expect(result.frontmatter.description).toBe("Use when: issue");
     });
 
     it("should keep reporting the same malformed content on a second parse", () => {
