@@ -556,6 +556,53 @@ Body.`;
       },
     );
 
+    it("should carry a nested alias's target by its real path", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "nested-alias-skill");
+      const realSubDir = join(skillDir, "zzz-docs");
+      await ensureDir(join(skillDir, "assets"));
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: nested-alias-skill", "description: Nests", "---", "", "Body."].join("\n"),
+      );
+      await writeFileContent(join(realSubDir, "guide.md"), "guide\n");
+      // The alias sits one directory deeper than its target, so only a walk that
+      // orders routes by the links they cross reaches the target first.
+      await symlink(realSubDir, join(skillDir, "assets", "link"));
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "nested-alias-skill",
+      });
+
+      expect(skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath)).toEqual([
+        join("zzz-docs", "guide.md"),
+      ]);
+    });
+
+    it("should carry a shared tree through its named alias rather than a hidden one", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "hidden-alias-skill");
+      const sharedDir = join(testDir, "shared-docs");
+      await ensureDir(join(skillDir, ".internal"));
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: hidden-alias-skill", "description: Shares", "---", "", "Body."].join("\n"),
+      );
+      await writeFileContent(join(sharedDir, "guide.md"), "guide\n");
+      // Both links reach the same tree. The hidden one is refused for escaping
+      // through a hidden entry, so it must not be the route that claims it.
+      await symlink(sharedDir, join(skillDir, ".internal", "link"));
+      await symlink(sharedDir, join(skillDir, "docs"));
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "hidden-alias-skill",
+      });
+
+      expect(skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath)).toEqual([
+        join("docs", "guide.md"),
+      ]);
+    });
+
     it("should report the supporting files it drops for being too deeply nested", async () => {
       const skillDir = join(testDir, ".agents", "skills", "deep-skill");
       await ensureDir(skillDir);

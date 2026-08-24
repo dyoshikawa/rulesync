@@ -447,7 +447,7 @@ async function directoryEntryIdentity(
   const dirPath = dirname(filePath);
   const cached = realDirPaths.get(dirPath);
   if (cached !== undefined) {
-    return join(cached, basename(filePath));
+    return toPosixPath(join(cached, basename(filePath)));
   }
   let realDirPath: string;
   try {
@@ -458,7 +458,9 @@ async function directoryEntryIdentity(
     realDirPath = dirPath;
   }
   realDirPaths.set(dirPath, realDirPath);
-  return join(realDirPath, basename(filePath));
+  // Posix-separated, because the candidates it is compared against come from
+  // globby, which returns forward slashes on every platform.
+  return toPosixPath(join(realDirPath, basename(filePath)));
 }
 
 /**
@@ -476,10 +478,10 @@ async function directoryEntryIdentity(
  */
 function chooseRepresentative(candidates: string[], identity: string): string {
   return candidates.reduce((best, candidate) => {
-    if (best === identity) {
+    if (toPosixPath(best) === identity) {
       return best;
     }
-    if (candidate === identity) {
+    if (toPosixPath(candidate) === identity) {
       return candidate;
     }
     return countHiddenSegments(candidate) < countHiddenSegments(best) ? candidate : best;

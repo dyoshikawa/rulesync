@@ -39,6 +39,28 @@ describe("KimiCodeSkill", () => {
       expect(skill.getBody()).toBe("Body.");
     });
 
+    it("should warn about an empty description", async () => {
+      // A flat file carries the same diagnostic as a skill directory: an empty
+      // description makes the skill invisible to the agent that loads it.
+      const relativeDirPath = join(".kimi", "skills");
+      await writeFileContent(
+        join(testDir, relativeDirPath, "empty.md"),
+        ["---", "name: empty", 'description: ""', "---", "", "Body."].join("\n"),
+      );
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const skill = await KimiCodeSkill.fromFlatFile({
+        outputRoot: testDir,
+        relativeDirPath,
+        relativeFilePath: "empty.md",
+      });
+
+      expect(skill.getBody()).toBe("Body.");
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("`description` is required and must not be empty"),
+      );
+    });
+
     it("should recover a flat skill file whose description contains an unquoted colon", async () => {
       // Kimi's own parser accepts it, so a strict read would drop a file that
       // its authoring tool considers valid.

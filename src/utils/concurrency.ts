@@ -5,6 +5,12 @@
  * for a handful of paths and not fine for a directory tree of unknown size: a
  * few thousand concurrent `realpath` calls queue on the libuv thread pool and
  * hold their closures alive while they wait. Results keep the input order.
+ *
+ * `withSemaphore` in `src/lib/github-utils.ts` bounds concurrency too, but it
+ * wraps one call at a time: the caller still writes `Promise.all(items.map(…))`
+ * around it, so every item's promise chain is allocated up front. This walks a
+ * shared cursor with `limit` workers instead, so a list of unknown size costs
+ * `limit` pending operations rather than one per item.
  */
 export async function mapWithConcurrency<TItem, TResult>({
   items,

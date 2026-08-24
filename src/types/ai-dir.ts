@@ -4,6 +4,7 @@ import path, { basename, join, relative, resolve } from "node:path";
 
 import { mapWithConcurrency } from "../utils/concurrency.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
+import { formatError } from "../utils/error.js";
 import {
   fileExists,
   isHiddenPathSegment,
@@ -212,6 +213,7 @@ function isSystemPseudoPath(absolutePath: string): boolean {
  */
 export const MAX_CARRIED_DEPTH = 12;
 export const MAX_CARRIED_FILES = 10_000;
+export const MAX_CARRIED_DIRECTORIES = 10_000;
 export const MAX_CARRIED_BYTES = 100 * 1024 * 1024;
 
 /** How many `realpath` calls the carried-file filter keeps in flight. */
@@ -226,16 +228,41 @@ function compareByName(left: Dirent, right: Dirent): number {
 }
 
 /** Why a walk stopped early, so the shortfall can be reported rather than silent. */
-type CarriedWalkTruncation = "depth" | "count";
+type CarriedWalkTruncation = "depth" | "count" | "directories";
+
+/** A directory the walk has yet to enter, and what reaching it cost. */
+type PendingCarriedDir = {
+  dirPath: string;
+  depth: number;
+  /** Dot-prefixed segments below the carried directory, ties broken by path. */
+  hiddenSegments: number;
+};
+
+/**
+ * Order the routes that cross the same number of symbolic links: the one with
+ * the fewest hidden segments first, so a named alias represents a shared tree
+ * rather than a hidden one that a hidden-entry rule then refuses, taking the
+ * named route's content with it.
+ */
+function comparePendingCarriedDirs(left: PendingCarriedDir, right: PendingCarriedDir): number {
+  if (left.hiddenSegments !== right.hiddenSegments) {
+    return left.hiddenSegments - right.hiddenSegments;
+  }
+  if (left.dirPath === right.dirPath) {
+    return 0;
+  }
+  return left.dirPath < right.dirPath ? -1 : 1;
+}
 
 type CarriedWalkResult = {
   filePaths: string[];
-  truncatedBy: CarriedWalkTruncation | undefined;
+  truncations: Set<CarriedWalkTruncation>;
+  unreadablePaths: string[];
 };
 
 /**
  * Collect the files under a carried directory, following symbolic links but
- * visiting each real directory exactly once.
+ * visiting each real directory exactly once, by its cheapest route.
  *
  * A glob walk cannot do this safely. Two links in one directory that both point
  * back at an ancestor double the paths walked per level, and the walker follows
@@ -246,59 +273,87 @@ type CarriedWalkResult = {
  * itself: a cycle, and an alias for a directory already walked, both stop at the
  * entry that closes them.
  *
- * Real directories are walked before linked ones for the same reason
- * `chooseRepresentative` prefers an unlinked path: a link named `aaa` pointing
- * at a sibling `zzz` must not claim `zzz`'s files under its own name and leave
- * `zzz/...` unreachable.
+ * Which route represents a directory then matters, because the others are
+ * dropped. The walk proceeds in rounds by the number of symbolic links crossed:
+ * everything reachable without crossing one, then everything one link away, and
+ * so on. A real location therefore always wins over an alias for it — at any
+ * nesting depth, not just among siblings, which a depth-first walk could not
+ * promise — and among aliases the named one wins over a hidden one.
  *
  * A broken link is skipped: it resolves to nothing to read.
  */
 async function walkCarriedFiles(dirPath: string): Promise<CarriedWalkResult> {
   const filePaths: string[] = [];
   const visitedRealDirPaths = new Set<string>();
-  let truncatedBy: CarriedWalkTruncation | undefined;
+  const truncations = new Set<CarriedWalkTruncation>();
+  const unreadablePaths = new Set<string>();
+  let deferredLinkedDirs: PendingCarriedDir[] = [];
+
+  /** Whether the walk has hit a bound that ends it rather than one branch of it. */
+  const isFull = (): boolean => truncations.has("count") || truncations.has("directories");
 
   const addFile = (filePath: string): void => {
     if (filePaths.length >= MAX_CARRIED_FILES) {
-      truncatedBy ??= "count";
+      truncations.add("count");
       return;
     }
     filePaths.push(filePath);
   };
 
-  const walk = async (currentPath: string, depth: number): Promise<void> => {
-    let realCurrentPath: string;
-    try {
-      realCurrentPath = await realpath(currentPath);
-    } catch {
+  /** Walk one directory and everything below it that no symbolic link leads to. */
+  const walkWithoutCrossingLinks = async (pending: PendingCarriedDir): Promise<void> => {
+    if (isFull()) {
       return;
     }
+    let realCurrentPath: string;
+    try {
+      realCurrentPath = await realpath(pending.dirPath);
+    } catch {
+      unreadablePaths.add(pending.dirPath);
+      return;
+    }
+    // A route to a directory already covered loses nothing, so it is not a
+    // truncation even when it is the depth bound that stops it -- which is
+    // exactly what a cycle produces.
     if (visitedRealDirPaths.has(realCurrentPath)) {
+      return;
+    }
+    if (pending.depth > MAX_CARRIED_DEPTH) {
+      truncations.add("depth");
+      return;
+    }
+    if (visitedRealDirPaths.size >= MAX_CARRIED_DIRECTORIES) {
+      truncations.add("directories");
       return;
     }
     visitedRealDirPaths.add(realCurrentPath);
 
     let entries: Dirent[];
     try {
-      entries = await readdir(currentPath, { withFileTypes: true });
+      entries = await readdir(pending.dirPath, { withFileTypes: true });
     } catch {
+      unreadablePaths.add(pending.dirPath);
       return;
     }
 
-    const realSubDirPaths: string[] = [];
-    const linkedSubDirPaths: string[] = [];
+    const realSubDirs: PendingCarriedDir[] = [];
     for (const entry of entries.toSorted(compareByName)) {
-      if (truncatedBy === "count") {
+      if (isFull()) {
         return;
       }
-      const entryPath = join(currentPath, entry.name);
+      const entryPath = join(pending.dirPath, entry.name);
+      const child: PendingCarriedDir = {
+        dirPath: entryPath,
+        depth: pending.depth + 1,
+        hiddenSegments: pending.hiddenSegments + (isHiddenPathSegment(entry.name) ? 1 : 0),
+      };
       if (entry.isFile()) {
         addFile(entryPath);
         continue;
       }
       if (entry.isDirectory()) {
         if (!isNeverCarriedDirName(entry.name)) {
-          realSubDirPaths.push(entryPath);
+          realSubDirs.push(child);
         }
         continue;
       }
@@ -316,25 +371,35 @@ async function walkCarriedFiles(dirPath: string): Promise<CarriedWalkResult> {
       if (targetStats.isFile()) {
         addFile(entryPath);
       } else if (targetStats.isDirectory() && !isNeverCarriedDirName(entry.name)) {
-        linkedSubDirPaths.push(entryPath);
+        deferredLinkedDirs.push(child);
       }
     }
 
-    for (const subDirPath of [...realSubDirPaths, ...linkedSubDirPaths]) {
-      if (truncatedBy === "count") {
+    for (const realSubDir of realSubDirs) {
+      if (isFull()) {
         return;
       }
-      if (depth + 1 > MAX_CARRIED_DEPTH) {
-        truncatedBy ??= "depth";
-        return;
-      }
-      await walk(subDirPath, depth + 1);
+      await walkWithoutCrossingLinks(realSubDir);
     }
   };
 
-  await walk(dirPath, 0);
+  let round: PendingCarriedDir[] = [{ dirPath, depth: 0, hiddenSegments: 0 }];
+  while (round.length > 0 && !isFull()) {
+    deferredLinkedDirs = [];
+    for (const pending of round.toSorted(comparePendingCarriedDirs)) {
+      if (isFull()) {
+        break;
+      }
+      await walkWithoutCrossingLinks(pending);
+    }
+    round = deferredLinkedDirs;
+  }
 
-  return { filePaths: filePaths.toSorted(), truncatedBy };
+  return {
+    filePaths: filePaths.toSorted(),
+    truncations,
+    unreadablePaths: [...unreadablePaths],
+  };
 }
 
 /** How many paths a single warning names before it counts the rest. */
@@ -695,18 +760,35 @@ export abstract class AiDir {
     excludeFileName: string,
   ): Promise<AiDirFile[]> {
     const dirPath = join(outputRoot, relativeDirPath, dirName);
-    const { filePaths: discoveredPaths, truncatedBy } = await walkCarriedFiles(dirPath);
+    const {
+      filePaths: discoveredPaths,
+      truncations,
+      unreadablePaths,
+    } = await walkCarriedFiles(dirPath);
     const reportedDirPath = stripControlCharacters(toPosixPath(dirPath));
-    if (truncatedBy === "depth") {
+    if (truncations.has("depth")) {
       warnOnceWithFallback(
         undefined,
         `Not carrying the entries more than ${MAX_CARRIED_DEPTH} directories below ${reportedDirPath}: a skill directory is walked to that depth only. A symbolic link that reaches a large tree is the usual cause.`,
       );
     }
-    if (truncatedBy === "count") {
+    if (truncations.has("count")) {
       warnOnceWithFallback(
         undefined,
         `Not carrying the entries under ${reportedDirPath} beyond the first ${MAX_CARRIED_FILES}: a directory may carry at most that many files. A symbolic link that reaches a large tree is the usual cause.`,
+      );
+    }
+    if (truncations.has("directories")) {
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying the entries under ${reportedDirPath} below the first ${MAX_CARRIED_DIRECTORIES} directories: a directory may carry files from at most that many directories. A symbolic link that reaches a large tree is the usual cause.`,
+      );
+    }
+    if (unreadablePaths.length > 0) {
+      const { count, list } = formatReportedPaths(unreadablePaths);
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying ${count} ${entryWord(count)} that could not be read: ${list}. A permission the current user does not hold is the usual cause.`,
       );
     }
     await AiDir.warnOnNestedGitDirectory(dirPath);
@@ -732,7 +814,19 @@ export abstract class AiDir {
         );
         break;
       }
-      const fileBuffer = await readFileBuffer(filePath);
+      let fileBuffer: Buffer;
+      try {
+        fileBuffer = await readFileBuffer(filePath);
+      } catch (error) {
+        // A file the walk could stat but not read -- a permission dropped
+        // between the two calls, or a device that refuses a plain read -- is
+        // skipped rather than allowed to abort the whole directory.
+        warnOnceWithFallback(
+          undefined,
+          `Not carrying ${stripControlCharacters(toPosixPath(filePath))}: ${formatError(error)}.`,
+        );
+        continue;
+      }
       carriedBytes += fileBuffer.byteLength;
       files.push({
         relativeFilePathToDirPath: relative(dirPath, filePath),
