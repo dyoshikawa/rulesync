@@ -783,8 +783,13 @@ Skill body`,
       const skill = toolDirs[0] as RovodevSkill;
       expect(skill.getBody()).toBe("from-rovo");
       expect(skill.getRelativeDirPath()).toBe(join(".rovodev", "skills"));
+      // The warning has to name the ignored copy and the root that kept the
+      // skill, since that is the only way the user learns which of the two
+      // spellings survived the import.
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`Case-insensitive rovodev skill collision`),
+        expect.stringContaining(
+          `Case-insensitive rovodev skill collision: "dup-skill" and "Dup-Skill" resolve to the same skill directory. Keeping "dup-skill" from the higher-precedence ${join(".rovodev", "skills")} and ignoring ${join(".agents", "skills", "Dup-Skill")}`,
+        ),
       );
     });
 

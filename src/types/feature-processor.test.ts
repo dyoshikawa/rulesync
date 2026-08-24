@@ -454,8 +454,12 @@ describe("ClaimedIdentities", () => {
   it("folds the composed and decomposed spellings of an accented name", () => {
     // macOS filesystems are normalization-insensitive as well as case-insensitive,
     // so these two are one directory there.
-    const composed = "café-skill";
-    const decomposed = "café-skill";
+    // Written as escapes because the two literals are indistinguishable on
+    // screen, and a tool that normalized one of them would leave the test
+    // green while checking nothing.
+    const composed = "caf\u00e9-skill";
+    const decomposed = "cafe\u0301-skill";
+    expect(composed).not.toBe(decomposed);
     const claimed = new ClaimedIdentities();
 
     expect(claimed.claim({ identity: composed, source: ".junie/skills" })).toBeNull();

@@ -245,6 +245,14 @@ export function mergeByIdentity<T>({
  * locale), and the NFC pass folds the composed and decomposed spellings of an
  * accented name — which macOS also resolves to a single directory —
  * onto each other.
+ *
+ * This is simple lowercasing rather than full Unicode case folding, so it is
+ * deliberately narrower than what a filesystem considers one file: a Greek
+ * final sigma, a Turkish `ı` under NTFS's upcasing, and a Win32 name whose
+ * trailing dot is stripped all still produce distinct keys. Those pairs keep
+ * the pre-existing behavior (both are imported, and the later one wins on the
+ * filesystem); folding them here would instead drop names that a
+ * case-sensitive filesystem keeps genuinely apart.
  */
 function caseFoldIdentity(identity: string): string {
   return identity.normalize("NFC").toLowerCase();
