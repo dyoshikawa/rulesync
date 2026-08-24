@@ -2093,24 +2093,53 @@ As this project's AI coding tool, you must follow the additional conventions bel
       // (Junie's `.junie/rules/*.md` and `.junie/playbook.md`). Import only:
       // since generation never produces them, treating them as deletion
       // candidates would delete hand-authored files rulesync does not own.
+      //
+      // These are fixed, tool-owned directories, so this scan mirrors the
+      // `nonRoot` one below rather than the nested one above: symlinks are
+      // followed (a shared rules tree linked into `.junie/rules` is a supported
+      // layout — see `docs/guide/separate-input-root.md` on symlinks and trust)
+      // and the scan is not skipped in global mode, because the glob is bounded
+      // by the tool's own directory instead of walking the whole output root.
       const importOnlyToolRules = await (async () => {
         const importOnlyRoots = settablePaths.importOnlyRoots;
         if (forDeletion || !importOnlyRoots || importOnlyRoots.length === 0) {
           return [];
         }
 
-        const filePaths = await findFilesByGlobs(
-          importOnlyRoots.map((importOnlyRoot) =>
+        // A root file that exists has already absorbed these rules on a previous
+        // generate (Junie folds non-root rules into `.junie/AGENTS.md`), so
+        // re-importing them beside it would duplicate the same content once per
+        // import/generate cycle. See `onlyWhenRootAbsent`.
+        const rootFileFound = rootToolRules.length > 0;
+
+        const scannedPaths: string[] = [];
+        const skippedPaths: string[] = [];
+        for (const importOnlyRoot of importOnlyRoots) {
+          const matchedPaths = await findFilesByGlobs(
             join(
               this.outputRoot,
               importOnlyRoot.relativeDirPath,
               importOnlyRoot.relativeFilePath ?? `*.${factory.meta.extension}`,
             ),
-          ),
-        );
+            { type: "file" },
+          );
+          if (importOnlyRoot.onlyWhenRootAbsent === true && rootFileFound) {
+            skippedPaths.push(...matchedPaths);
+            continue;
+          }
+          scannedPaths.push(...matchedPaths);
+        }
+
+        // Left unreported these look imported but silently are not, and the
+        // tool no longer reads them either — a state worth acting on.
+        if (skippedPaths.length > 0) {
+          this.logger.warn(
+            `Not importing ${skippedPaths.map((filePath) => relative(this.outputRoot, filePath)).join(", ")} for ${this.toolTarget}: ${join(settablePaths.root?.relativeDirPath ?? ".", settablePaths.root?.relativeFilePath ?? "")} exists, and the tool reads that file exclusively. Delete them once their content is in the root file.`,
+          );
+        }
 
         return await Promise.all(
-          filePaths.map((filePath) => {
+          scannedPaths.map((filePath) => {
             const relativeDirPath = resolveRelativeDirPath(filePath);
             checkPathTraversal({
               relativePath: relativeDirPath,
@@ -2194,12 +2223,18 @@ As this project's AI coding tool, you must follow the additional conventions bel
       this.logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
 
       return [
+        // Ahead of the root rules on purpose: an import that maps two tool files
+        // onto one `.rulesync/rules/` name keeps the last of them, so a root file
+        // always outranks a read-only root that happens to hold, say, an
+        // `overview.md`. `onlyWhenRootAbsent` already keeps the two apart for
+        // every root declared today; this is what makes that a precedence rule
+        // rather than a property of the current declarations.
+        ...importOnlyToolRules,
         ...rootToolRules,
         ...localRootToolRules,
         ...rootMirrorDeletionRules,
         ...extraFixedToolRules,
         ...nestedToolRules,
-        ...importOnlyToolRules,
         ...nonRootToolRules,
       ];
     } catch (error) {

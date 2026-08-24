@@ -107,13 +107,18 @@ export class JunieRule extends ToolRule {
       // folds everything into `.junie/AGENTS.md`, which switches Junie off
       // this branch entirely — but a repo that has not adopted rulesync yet
       // is usually authoring exactly these files, so import reads them.
+      // Junie reads these only while `.junie/AGENTS.md` is absent, and so does
+      // Rulesync: once the root file exists it already contains them, folded in
+      // by a previous generate.
       importOnlyRoots: [
         {
           relativeDirPath: buildToolPath(JUNIE_DIR, JUNIE_RULES_DIR_NAME, excludeToolDir),
+          onlyWhenRootAbsent: true,
         },
         {
           relativeDirPath: buildToolPath(JUNIE_DIR, ".", excludeToolDir),
           relativeFilePath: JUNIE_PLAYBOOK_FILE_NAME,
+          onlyWhenRootAbsent: true,
         },
       ],
     };

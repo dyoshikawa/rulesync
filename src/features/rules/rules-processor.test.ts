@@ -884,10 +884,10 @@ describe("RulesProcessor", () => {
       // `.junie/AGENTS.md`. Those are import-only read roots: rulesync folds
       // their content into the generated root file and must not treat the
       // hand-authored originals as orphans.
-      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), "# Root");
       await writeFileContent(join(testDir, ".junie", "playbook.md"), "# Playbook");
       await writeFileContent(join(testDir, ".junie", "rules", "style.md"), "# Style");
       await writeFileContent(join(testDir, ".junie", "rules", "testing.md"), "# Testing");
+      await writeFileContent(join(testDir, ".junie", "rules", "sub", "deep.md"), "# Deep");
 
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
 
@@ -898,15 +898,56 @@ describe("RulesProcessor", () => {
       expect(importedPaths).toContain(join(".junie", "playbook.md"));
       expect(importedPaths).toContain(join(".junie", "rules", "style.md"));
       expect(importedPaths).toContain(join(".junie", "rules", "testing.md"));
-      expect(importedPaths).toContain(join(".junie", "AGENTS.md"));
+      // Junie documents `.junie/rules/*.md`, not a tree below it.
+      expect(importedPaths).not.toContain(join(".junie", "rules", "sub", "deep.md"));
 
-      // Only the root file rulesync generates is a deletion candidate.
+      // Only files rulesync generates are deletion candidates.
       const forDeletion = await processor.loadToolFiles({ forDeletion: true });
       const deletionPaths = forDeletion.map((file) =>
         join(file.getRelativeDirPath(), file.getRelativeFilePath()),
       );
       expect(deletionPaths).not.toContain(join(".junie", "playbook.md"));
       expect(deletionPaths).not.toContain(join(".junie", "rules", "style.md"));
+    });
+
+    it("should stop importing Junie's read-only roots once .junie/AGENTS.md exists", async () => {
+      // The previous generate folded these into `.junie/AGENTS.md`, which Junie
+      // then reads exclusively. Importing them again would hand the same content
+      // back as separate rules, and the next generate would fold it in a second
+      // time — once more per import/generate cycle.
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), "# Root\n\n# Style");
+      await writeFileContent(join(testDir, ".junie", "playbook.md"), "# Playbook");
+      await writeFileContent(join(testDir, ".junie", "rules", "style.md"), "# Style");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+      const importedPaths = (await processor.loadToolFiles()).map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+
+      expect(importedPaths).toEqual([join(".junie", "AGENTS.md")]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("and the tool reads that file exclusively"),
+      );
+    });
+
+    it("should keep .junie/rules/overview.md from taking the root rule's rulesync path", async () => {
+      // `overview.md` is the rulesync root rule's own file name, so a Junie repo
+      // that happens to name a rule that way must not end up with the root rule
+      // replaced by a non-root one — which would leave the project with no root
+      // rule at all. The read-only roots stand down while the root file exists.
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), "# Root content");
+      await writeFileContent(join(testDir, ".junie", "rules", "overview.md"), "# From rules dir");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      expect(rulesyncFiles).toHaveLength(1);
+      const overview = rulesyncFiles[0]!;
+      expect(overview.getRelativeFilePath()).toBe("overview.md");
+      expect(overview.getFileContent()).toContain("# Root content");
+      expect(overview.getFileContent()).toContain("root: true");
     });
 
     it("should skip nested AGENTS.md files the project gitignores", async () => {

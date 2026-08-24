@@ -82,6 +82,18 @@ export type ToolRuleImportOnlyRoot = {
   relativeDirPath: string;
   /** Omitted to import every rule file directly inside `relativeDirPath`. */
   relativeFilePath?: string;
+  /**
+   * Scan this root only while the tool's own root file is missing, mirroring a
+   * tool whose multi-file layout is a fallback rather than an addition (Junie
+   * reads `.junie/AGENTS.md` "exclusively" once it exists).
+   *
+   * Without the gate, a root file that already folds these rules in would be
+   * re-imported alongside them, and the next generate would fold the same
+   * content in a second time — once per import/generate cycle. It also keeps a
+   * file such as `.junie/rules/overview.md` from claiming the rulesync root
+   * rule's own output path.
+   */
+  onlyWhenRootAbsent?: boolean;
 };
 
 export type ToolRuleSettablePaths = {
