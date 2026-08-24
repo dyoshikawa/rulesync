@@ -1616,10 +1616,11 @@ As this project's AI coding tool, you must follow the additional conventions bel
         claimedBy.set(target.toLowerCase(), source);
         continue;
       }
-      // The two source names come off the filesystem, so they are stripped
-      // before reaching a terminal that would act on an embedded escape.
+      // All three names come off the filesystem — a non-root rule's rulesync
+      // name is the tool file's basename — so each is stripped before reaching
+      // a terminal that would act on an embedded escape.
       this.logger.warn(
-        `Both ${stripControlCharacters(previous)} and ${stripControlCharacters(source)} import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, target)} (compared case-insensitively, as on macOS and Windows); the last one wins wherever they collide.`,
+        `Both ${stripControlCharacters(previous)} and ${stripControlCharacters(source)} import to ${stripControlCharacters(join(RULESYNC_RULES_RELATIVE_DIR_PATH, target))} (compared case-insensitively, as on macOS and Windows); the last one wins wherever they collide.`,
       );
     }
 
