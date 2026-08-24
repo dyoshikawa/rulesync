@@ -71,7 +71,10 @@ export const EMPTY_SKILL_DESCRIPTION_VIOLATION =
  * Report a skill read from disk whose `description` is empty. This lives on the
  * read rather than on any one tool class because several targets share one
  * `.agents/skills` tree: which of them reports the skill must not depend on
- * which target the user happened to enable.
+ * which target the user happened to enable. Every loader calls it — the two
+ * directory loaders (`loadSkillDirContent`, `SimulatedSkill.fromDirDefault`)
+ * and the flat-file one — so the form a tool stores its skills in does not
+ * decide whether the problem is reported either.
  */
 export function warnOnEmptyLoadedDescription({
   skillFilePath,

@@ -7,7 +7,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { MAX_REPORTED_PATHS } from "../../types/ai-dir.js";
+import { MAX_CARRIED_DEPTH, MAX_REPORTED_PATHS } from "../../types/ai-dir.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
@@ -501,6 +501,87 @@ Body.`;
         expect(carriedPaths).toEqual([join("docs", "guide.md")]);
       },
     );
+
+    it.skipIf(process.platform === "win32")(
+      "should stay bounded when many symbolic links point at their own directory",
+      async () => {
+        // Five self-links is enough to make a depth-bounded glob walk produce
+        // 5^12 paths; visiting each real directory once makes it four entries.
+        const skillDir = join(testDir, ".agents", "skills", "many-links-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: many-links-skill", "description: Fans out", "---", "", "Body."].join("\n"),
+        );
+        await writeFileContent(join(skillDir, "note.md"), "note\n");
+        for (const linkName of ["l1", "l2", "l3", "l4", "l5"]) {
+          await symlink(skillDir, join(skillDir, linkName));
+        }
+
+        const skill = await AgentsSkillsSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "many-links-skill",
+        });
+
+        expect(skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath)).toEqual([
+          "note.md",
+        ]);
+      },
+      30_000,
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should carry a supporting file by its real path rather than by a directory alias",
+      async () => {
+        const skillDir = join(testDir, ".agents", "skills", "alias-dir-skill");
+        const realSubDir = join(skillDir, "zzz");
+        await ensureDir(realSubDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: alias-dir-skill", "description: Aliases", "---", "", "Body."].join("\n"),
+        );
+        await writeFileContent(join(realSubDir, "x.md"), "content\n");
+        await symlink(realSubDir, join(skillDir, "aaa"));
+
+        const skill = await AgentsSkillsSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "alias-dir-skill",
+        });
+
+        // The alias sorts first, but the file has to keep the path the SKILL.md
+        // refers to.
+        expect(skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath)).toEqual([
+          join("zzz", "x.md"),
+        ]);
+      },
+    );
+
+    it("should report the supporting files it drops for being too deeply nested", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "deep-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: deep-skill", "description: Nests", "---", "", "Body."].join("\n"),
+      );
+      const carriedDir = join(skillDir, ...Array.from({ length: MAX_CARRIED_DEPTH }, () => "d"));
+      await writeFileContent(join(carriedDir, "carried.md"), "carried\n");
+      await writeFileContent(join(carriedDir, "d", "dropped.md"), "dropped\n");
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "deep-skill",
+      });
+
+      // A bound that drops files silently is the defect this walk exists to
+      // avoid, so the shortfall is reported.
+      expect(skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath)).toEqual([
+        join(...Array.from({ length: MAX_CARRIED_DEPTH }, () => "d"), "carried.md"),
+      ]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`more than ${MAX_CARRIED_DEPTH} directories below`),
+      );
+    });
 
     it.skipIf(process.platform === "win32")(
       "should stay bounded when two symbolic links point back at an ancestor",

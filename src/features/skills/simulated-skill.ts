@@ -164,7 +164,7 @@ export abstract class SimulatedSkill extends ToolSkill {
       throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
     }
 
-    warnOnEmptyLoadedDescription({ skillFilePath, description: frontmatter.description });
+    warnOnEmptyLoadedDescription({ skillFilePath, description: result.data.description });
 
     const otherFiles = await this.collectOtherFiles(
       outputRoot,

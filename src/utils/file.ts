@@ -463,12 +463,27 @@ async function directoryEntryIdentity(
 
 /**
  * Pick the one path that represents a directory entry among the routes that reach it.
- * `candidates` arrives in sorted order, so ties keep the first one deterministically.
+ *
+ * The path that walked through no link at all wins outright: its containing directory is
+ * already the real one, so it equals the entry's identity. That keeps the real location of
+ * a file as the path callers see, rather than an alias that happens to sort first -- a
+ * directory link named `aaa` pointing at `zzz` must not make `zzz/x.md` disappear, and a
+ * cycle must not replace `sub/note.md` with the same file reached back through the cycle.
+ * Failing that, the fewest dot-prefixed segments wins: when only links are on offer, the
+ * named one represents the entry rather than a hidden alias that a hidden-entry rule may
+ * then drop, taking the named path's content with it. `candidates` arrives in sorted
+ * order, so ties keep the first one deterministically.
  */
-function chooseRepresentative(candidates: string[]): string {
-  return candidates.reduce((best, candidate) =>
-    countHiddenSegments(candidate) < countHiddenSegments(best) ? candidate : best,
-  );
+function chooseRepresentative(candidates: string[], identity: string): string {
+  return candidates.reduce((best, candidate) => {
+    if (best === identity) {
+      return best;
+    }
+    if (candidate === identity) {
+      return candidate;
+    }
+    return countHiddenSegments(candidate) < countHiddenSegments(best) ? candidate : best;
+  });
 }
 
 export async function findFilesByGlobs(
@@ -499,18 +514,9 @@ export async function findFilesByGlobs(
      * @see https://agentskills.io/specification
      */
     dot?: boolean;
-    /**
-     * Maximum directory depth to walk, passed to globby's `deep`. Two symbolic
-     * links in one directory that both point back at an ancestor double the
-     * number of paths globby walks per level, and it follows them until the
-     * kernel's ELOOP limit (~40), so an unbounded walk of a tree somebody else
-     * wrote can exhaust the heap before deduplication ever sees the result.
-     * Callers that walk a tree of unknown provenance should bound it.
-     */
-    deep?: number;
   } = {},
 ): Promise<string[]> {
-  const { type = "all", followSymbolicLinks = true, ignore, dot = false, deep } = options;
+  const { type = "all", followSymbolicLinks = true, ignore, dot = false } = options;
   const globbyOptions =
     type === "file"
       ? { onlyFiles: true, onlyDirectories: false }
@@ -529,16 +535,12 @@ export async function findFilesByGlobs(
     absolute: true,
     followSymbolicLinks,
     dot,
-    ...(deep === undefined ? {} : { deep }),
     ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
     ...globbyOptions,
   });
   // Deduplicate by directory entry so that directory symlink cycles (which globby follows
   // up to the kernel ELOOP limit, ~40 levels) do not yield ~40x duplicated entries that
-  // would be read and re-emitted. One path per entry, preferring the fewest dot-prefixed
-  // segments and then sorted order for determinism: when only links are on offer, the
-  // named one represents the entry rather than a hidden alias that a hidden-entry rule may
-  // then drop, taking the named path's content with it.
+  // would be read and re-emitted. One path per entry, chosen by `chooseRepresentative`.
   const realDirPaths = new Map<string, string>();
   const candidatesByEntry = new Map<string, string[]>();
   for (const result of results.toSorted()) {
@@ -550,8 +552,8 @@ export async function findFilesByGlobs(
       candidates.push(result);
     }
   }
-  const representatives = [...candidatesByEntry.values()].map((candidates) =>
-    chooseRepresentative(candidates),
+  const representatives = [...candidatesByEntry.entries()].map(([identity, candidates]) =>
+    chooseRepresentative(candidates, identity),
   );
   return representatives.toSorted();
 }

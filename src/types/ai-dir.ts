@@ -1,10 +1,11 @@
-import { realpath } from "node:fs/promises";
+import type { Dirent, Stats } from "node:fs";
+import { readdir, realpath, stat } from "node:fs/promises";
 import path, { basename, join, relative, resolve } from "node:path";
 
+import { mapWithConcurrency } from "../utils/concurrency.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
 import {
   fileExists,
-  findFilesByGlobs,
   isHiddenPathSegment,
   pathEscapesRoot,
   readFileBuffer,
@@ -109,15 +110,17 @@ const ENV_TEMPLATE_SUFFIXES = new Set(["example", "sample", "template", "dist", 
 const NEVER_CARRIED_REAL_PATH_ROOTS = ["/proc", "/sys", "/dev"];
 
 /**
- * Directory trees pruned during the walk. Derived from the directory names
- * above so the pruning and the path check below cannot drift apart. Anchored
- * with `**\/` because the include patterns are absolute, and a relative ignore
- * would silently exclude nothing.
+ * Whether a directory of this name is pruned during the walk, so it is never
+ * descended into at all. Derived from the directory names above so the pruning
+ * and the path check below cannot drift apart.
  */
-const EXCLUDED_DIR_PATTERNS = [
-  ...NEVER_CARRIED_CREDENTIAL_DIR_NAMES,
-  ...NEVER_CARRIED_NOISE_DIR_NAMES,
-].flatMap((dirName) => [`**/${dirName}`, `**/${dirName}/**`]);
+function isNeverCarriedDirName(dirName: string): boolean {
+  const normalized = normalizePathSegment(dirName.toLowerCase());
+  return (
+    NEVER_CARRIED_CREDENTIAL_DIR_NAMES.has(normalized) ||
+    NEVER_CARRIED_NOISE_DIR_NAMES.has(normalized)
+  );
+}
 
 /**
  * Windows drops trailing dots and spaces from a name, so a file called `.env `
@@ -199,16 +202,140 @@ function isSystemPseudoPath(absolutePath: string): boolean {
 }
 
 /**
- * Bounds on what one directory may carry. Two symbolic links in a directory
- * that both point back at an ancestor double the paths globby walks per level,
- * and a single link to a home directory reaches a tree of any size, so a tree
- * somebody else wrote could otherwise exhaust the heap before anything filters
- * it. The depth is far past any real skill layout; the count and the total size
- * mirror what `git-client.ts` allows a fetched repository.
+ * Bounds on what one directory may carry. A single link to a home directory
+ * reaches a tree of any size, so a tree somebody else wrote could otherwise
+ * exhaust the heap. The depth is far past any real skill layout; the count and
+ * the total size mirror what `git-client.ts` allows a fetched repository.
+ *
+ * These are enforced *while walking*, not after: a bound applied to the result
+ * of the walk is a bound applied to an array that already grew without one.
  */
-const MAX_CARRIED_DEPTH = 12;
-const MAX_CARRIED_FILES = 10_000;
-const MAX_CARRIED_BYTES = 100 * 1024 * 1024;
+export const MAX_CARRIED_DEPTH = 12;
+export const MAX_CARRIED_FILES = 10_000;
+export const MAX_CARRIED_BYTES = 100 * 1024 * 1024;
+
+/** How many `realpath` calls the carried-file filter keeps in flight. */
+const CARRIED_REALPATH_CONCURRENCY = 32;
+
+/** Sort directory entries by name so a walk of the same tree is reproducible. */
+function compareByName(left: Dirent, right: Dirent): number {
+  if (left.name === right.name) {
+    return 0;
+  }
+  return left.name < right.name ? -1 : 1;
+}
+
+/** Why a walk stopped early, so the shortfall can be reported rather than silent. */
+type CarriedWalkTruncation = "depth" | "count";
+
+type CarriedWalkResult = {
+  filePaths: string[];
+  truncatedBy: CarriedWalkTruncation | undefined;
+};
+
+/**
+ * Collect the files under a carried directory, following symbolic links but
+ * visiting each real directory exactly once.
+ *
+ * A glob walk cannot do this safely. Two links in one directory that both point
+ * back at an ancestor double the paths walked per level, and the walker follows
+ * them until the kernel's ELOOP limit (~40), so the path array alone exhausts
+ * the heap long before anything reads a file — a depth bound only lowers the
+ * exponent, while the base is whatever number of links the tree's author chose.
+ * Remembering the real directories already visited removes the multiplication
+ * itself: a cycle, and an alias for a directory already walked, both stop at the
+ * entry that closes them.
+ *
+ * Real directories are walked before linked ones for the same reason
+ * `chooseRepresentative` prefers an unlinked path: a link named `aaa` pointing
+ * at a sibling `zzz` must not claim `zzz`'s files under its own name and leave
+ * `zzz/...` unreachable.
+ *
+ * A broken link is skipped: it resolves to nothing to read.
+ */
+async function walkCarriedFiles(dirPath: string): Promise<CarriedWalkResult> {
+  const filePaths: string[] = [];
+  const visitedRealDirPaths = new Set<string>();
+  let truncatedBy: CarriedWalkTruncation | undefined;
+
+  const addFile = (filePath: string): void => {
+    if (filePaths.length >= MAX_CARRIED_FILES) {
+      truncatedBy ??= "count";
+      return;
+    }
+    filePaths.push(filePath);
+  };
+
+  const walk = async (currentPath: string, depth: number): Promise<void> => {
+    let realCurrentPath: string;
+    try {
+      realCurrentPath = await realpath(currentPath);
+    } catch {
+      return;
+    }
+    if (visitedRealDirPaths.has(realCurrentPath)) {
+      return;
+    }
+    visitedRealDirPaths.add(realCurrentPath);
+
+    let entries: Dirent[];
+    try {
+      entries = await readdir(currentPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    const realSubDirPaths: string[] = [];
+    const linkedSubDirPaths: string[] = [];
+    for (const entry of entries.toSorted(compareByName)) {
+      if (truncatedBy === "count") {
+        return;
+      }
+      const entryPath = join(currentPath, entry.name);
+      if (entry.isFile()) {
+        addFile(entryPath);
+        continue;
+      }
+      if (entry.isDirectory()) {
+        if (!isNeverCarriedDirName(entry.name)) {
+          realSubDirPaths.push(entryPath);
+        }
+        continue;
+      }
+      if (!entry.isSymbolicLink()) {
+        // A socket, a FIFO, or a device is never skill content.
+        continue;
+      }
+      let targetStats: Stats;
+      try {
+        targetStats = await stat(entryPath);
+      } catch {
+        // A broken link resolves to nothing to read.
+        continue;
+      }
+      if (targetStats.isFile()) {
+        addFile(entryPath);
+      } else if (targetStats.isDirectory() && !isNeverCarriedDirName(entry.name)) {
+        linkedSubDirPaths.push(entryPath);
+      }
+    }
+
+    for (const subDirPath of [...realSubDirPaths, ...linkedSubDirPaths]) {
+      if (truncatedBy === "count") {
+        return;
+      }
+      if (depth + 1 > MAX_CARRIED_DEPTH) {
+        truncatedBy ??= "depth";
+        return;
+      }
+      await walk(subDirPath, depth + 1);
+    }
+  };
+
+  await walk(dirPath, 0);
+
+  return { filePaths: filePaths.toSorted(), truncatedBy };
+}
 
 /** How many paths a single warning names before it counts the rest. */
 export const MAX_REPORTED_PATHS = 10;
@@ -455,8 +582,13 @@ export abstract class AiDir {
     const refusedEscapedHidden = new Set<string>();
     const carriedFromOutside = new Set<string>();
 
-    const verdicts = await Promise.all(
-      filePaths.map(async (filePath) => {
+    // Bounded rather than `Promise.all`: a carried directory can hold thousands
+    // of entries, and one `realpath` per entry all at once queues that many
+    // closures on the thread pool before the first of them answers.
+    const verdicts = await mapWithConcurrency({
+      items: filePaths,
+      limit: CARRIED_REALPATH_CONCURRENCY,
+      mapper: async (filePath: string) => {
         const literalPath = relative(dirPath, filePath);
         const literalReason = classifyNeverCarried(literalPath);
         if (literalReason !== undefined) {
@@ -496,8 +628,8 @@ export abstract class AiDir {
         }
         carriedFromOutside.add(filePath);
         return true;
-      }),
-    );
+      },
+    });
 
     if (refusedCredentials.size > 0) {
       const { count, list } = formatReportedPaths(refusedCredentials);
@@ -545,6 +677,9 @@ export abstract class AiDir {
    * as decided by `classifyNeverCarried`. Whole directories from that set are
    * pruned during the walk too, so it never descends into them at all.
    *
+   * The walk is bounded and cycle-aware — see `walkCarriedFiles` — because the
+   * tree may contain symbolic links that somebody else chose.
+   *
    * @see https://agentskills.io/specification
    *
    * @param outputRoot - The base directory path
@@ -560,26 +695,40 @@ export abstract class AiDir {
     excludeFileName: string,
   ): Promise<AiDirFile[]> {
     const dirPath = join(outputRoot, relativeDirPath, dirName);
-    const glob = join(dirPath, "**", "*");
-    const discoveredPaths = await findFilesByGlobs(glob, {
-      type: "file",
-      dot: true,
-      deep: MAX_CARRIED_DEPTH,
-      ignore: EXCLUDED_DIR_PATTERNS,
-    });
+    const { filePaths: discoveredPaths, truncatedBy } = await walkCarriedFiles(dirPath);
+    const reportedDirPath = stripControlCharacters(toPosixPath(dirPath));
+    if (truncatedBy === "depth") {
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying the entries more than ${MAX_CARRIED_DEPTH} directories below ${reportedDirPath}: a skill directory is walked to that depth only. A symbolic link that reaches a large tree is the usual cause.`,
+      );
+    }
+    if (truncatedBy === "count") {
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying the entries under ${reportedDirPath} beyond the first ${MAX_CARRIED_FILES}: a directory may carry at most that many files. A symbolic link that reaches a large tree is the usual cause.`,
+      );
+    }
     await AiDir.warnOnNestedGitDirectory(dirPath);
     const filePaths = await AiDir.filterCarriedFiles(dirPath, discoveredPaths);
     const filteredPaths = filePaths.filter((filePath) => basename(filePath) !== excludeFileName);
 
-    // Read one at a time so the running total can stop the read, rather than
-    // holding every buffer in memory before anything is measured.
+    // Read one at a time, and measure each file before reading it: a running
+    // total checked after the fact is a total that has already been read into
+    // memory, and one link to a multi-gigabyte file is enough.
     const files: AiDirFile[] = [];
     let carriedBytes = 0;
-    for (const filePath of filteredPaths) {
-      if (files.length >= MAX_CARRIED_FILES || carriedBytes >= MAX_CARRIED_BYTES) {
+    for (const [index, filePath] of filteredPaths.entries()) {
+      let fileSize: number;
+      try {
+        fileSize = (await stat(filePath)).size;
+      } catch {
+        continue;
+      }
+      if (carriedBytes + fileSize > MAX_CARRIED_BYTES) {
         warnOnceWithFallback(
           undefined,
-          `Not carrying ${filteredPaths.length - files.length} of the ${filteredPaths.length} entries under ${stripControlCharacters(toPosixPath(dirPath))}: a directory may carry at most ${MAX_CARRIED_FILES} files and ${MAX_CARRIED_BYTES / 1024 / 1024}MB. A symbolic link that reaches a large tree is the usual cause.`,
+          `Not carrying ${filteredPaths.length - index} of the ${filteredPaths.length} entries under ${reportedDirPath}: a directory may carry at most ${MAX_CARRIED_BYTES / 1024 / 1024}MB. A symbolic link that reaches a large tree is the usual cause.`,
         );
         break;
       }

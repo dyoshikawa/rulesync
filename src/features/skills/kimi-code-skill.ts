@@ -30,6 +30,7 @@ import {
   type ToolSkillFromFlatFileParams,
   type ToolSkillFromRulesyncSkillParams,
   type ToolSkillSettablePaths,
+  warnOnEmptyLoadedDescription,
 } from "./tool-skill.js";
 
 const KimiCodeSkillFrontmatterSchema = z.looseObject({
@@ -264,6 +265,11 @@ export class KimiCodeSkill extends ToolSkill {
       description:
         result.data.description ?? firstBodyLine?.slice(0, 240) ?? "No description provided.",
     };
+    warnOnEmptyLoadedDescription({
+      skillFilePath: filePath,
+      description: normalizedFrontmatter.description,
+    });
+
     return new KimiCodeSkill({
       outputRoot,
       relativeDirPath,

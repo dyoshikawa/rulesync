@@ -774,6 +774,40 @@ describe("file utilities", () => {
           expect(fileResults.length).toBeLessThan(5);
         });
 
+        it("should represent a file by its real path rather than by a directory alias", async () => {
+          // The alias sorts before the real directory, so a representative
+          // chosen by sort order alone would hide `zzz` entirely and leave the
+          // generated tree without the path the SKILL.md refers to.
+          const aliasDir = join(testDir, "real-over-alias");
+          const realSubDir = join(aliasDir, "zzz");
+          await writeFileContent(join(realSubDir, "x.md"), "content");
+          await symlink(realSubDir, join(aliasDir, "aaa"));
+
+          const results = await findFilesByGlobs(join(aliasDir, "**", "*"), {
+            type: "file",
+            dot: true,
+          });
+
+          expect(results).toEqual([join(realSubDir, "x.md")]);
+        });
+
+        it("should represent a file by its flat real path rather than through a cycle", async () => {
+          // The link name sorts before the file name, so the deepest path the
+          // cycle produces would otherwise win and be written out as a real
+          // directory chain on generate.
+          const cycleDir = join(testDir, "real-over-cycle");
+          const nestedDir = join(cycleDir, "sub");
+          await writeFileContent(join(nestedDir, "note.md"), "note");
+          await symlink(cycleDir, join(nestedDir, "aaa"));
+
+          const results = await findFilesByGlobs(join(cycleDir, "**", "*"), {
+            type: "file",
+            dot: true,
+          });
+
+          expect(results).toEqual([join(nestedDir, "note.md")]);
+        });
+
         it("should keep both names when a link and the file it points at sit side by side", async () => {
           const sideBySideDir = join(testDir, "side-by-side");
           const realFile = join(sideBySideDir, "real.md");

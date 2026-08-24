@@ -21,6 +21,7 @@ import {
   type RulesyncSourceSettablePaths,
 } from "../utils/rulesync-source-path.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
+import { resetWarnedOnceMessages } from "../utils/warned-once.js";
 
 async function applyRulesyncSourcePath<T extends RulesyncFile>({
   files,
@@ -84,6 +85,11 @@ export async function importFromTool(params: {
   logger: Logger;
 }): Promise<ImportResult> {
   const { config, tool, logger } = params;
+
+  // "Once per run" means once per import, not once per process: the MCP server
+  // and `--watch` keep one process alive across many runs, and a warning that
+  // still applies has to be said again.
+  resetWarnedOnceMessages();
 
   await assertPluginRootSafe({
     toolTarget: tool,
