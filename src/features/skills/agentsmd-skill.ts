@@ -36,7 +36,6 @@ export class AgentsmdSkill extends SimulatedSkill {
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AgentsmdSkill> {
     const baseParams = await this.fromDirDefault(params);
-
     return new AgentsmdSkill(baseParams);
   }
 

@@ -1,6 +1,7 @@
-import type { Dirent, Stats } from "node:fs";
-import { readdir, realpath, stat } from "node:fs/promises";
-import path, { basename, join, relative, resolve } from "node:path";
+import { constants, type Dirent, type Stats } from "node:fs";
+import type { FileHandle } from "node:fs/promises";
+import { lstat, open, readdir, readlink, realpath, stat } from "node:fs/promises";
+import path, { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { mapWithConcurrency } from "../utils/concurrency.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
@@ -9,7 +10,6 @@ import {
   fileExists,
   isHiddenPathSegment,
   pathEscapesRoot,
-  readFileBuffer,
   splitPathSegments,
   toPosixPath,
 } from "../utils/file.js";
@@ -46,6 +46,23 @@ type NeverCarriedReason = "credential" | "noise";
  * their exclusion is reported rather than silent.
  */
 const NEVER_CARRIED_CREDENTIAL_DIR_NAMES = new Set([".ssh", ".aws", ".gnupg"]);
+
+/**
+ * Directories that are refused only when the path leaves the skill directory to
+ * reach them. These are the per-application trees of a home directory, where
+ * naming every credential file is a list always one release behind -- `gcloud`
+ * alone writes `credentials.db` and `application_default_credentials.json`, and
+ * `.config/anthropic/` holds an API key. A skill that ships a `.config/` of its
+ * own still carries it: what is refused is a link that reaches the *user's*.
+ */
+const NEVER_CARRIED_ESCAPING_DIR_NAMES = new Set([".config", ".local", ".azure"]);
+
+/** Whether an escaping real path passes through a directory only reachable by escaping. */
+function escapesIntoCredentialDir(realFilePath: string): boolean {
+  return splitPathSegments(realFilePath).some((segment) =>
+    NEVER_CARRIED_ESCAPING_DIR_NAMES.has(normalizePathSegment(segment.toLowerCase())),
+  );
+}
 
 /**
  * Directories that are never part of a skill for the ordinary reasons: a
@@ -93,6 +110,7 @@ const NEVER_CARRIED_PATH_SUFFIXES = [
   ".config/gh/hosts.yml",
   ".config/gcloud/credentials.db",
   ".gem/credentials",
+  "gcloud/application_default_credentials.json",
 ];
 
 /**
@@ -202,6 +220,50 @@ function isSystemPseudoPath(absolutePath: string): boolean {
   );
 }
 
+/** How many links a chain may be followed before it is treated as a loop. */
+const MAX_LINK_CHAIN_HOPS = 40;
+
+/**
+ * Whether reaching a path goes through a kernel pseudo-filesystem, even when it
+ * does not end in one.
+ *
+ * Asking `realpath` alone is not enough, and the entries it is not enough for
+ * are the dangerous ones: `/proc/<pid>/fd/N`, `exe`, `cwd` and `root` are magic
+ * links, so resolving them lands *outside* `/proc`, on whatever file the
+ * process happens to hold open — a private key another program is reading right
+ * now would come back as an ordinary path and be carried. Following the chain a
+ * hop at a time, and checking each hop, is what sees the `/proc` in the middle.
+ */
+async function resolvesThroughSystemPseudoPath(filePath: string): Promise<boolean> {
+  let currentPath = resolve(filePath);
+  for (let hop = 0; hop < MAX_LINK_CHAIN_HOPS; hop++) {
+    if (isSystemPseudoPath(currentPath)) {
+      return true;
+    }
+    let linkStats: Stats;
+    try {
+      linkStats = await lstat(currentPath);
+    } catch {
+      return false;
+    }
+    if (!linkStats.isSymbolicLink()) {
+      break;
+    }
+    let target: string;
+    try {
+      target = await readlink(currentPath);
+    } catch {
+      return false;
+    }
+    currentPath = isAbsolute(target) ? target : resolve(dirname(currentPath), target);
+  }
+  try {
+    return isSystemPseudoPath(await realpath(dirname(filePath)));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Bounds on what one directory may carry. A single link to a home directory
  * reaches a tree of any size, so a tree somebody else wrote could otherwise
@@ -214,6 +276,12 @@ function isSystemPseudoPath(absolutePath: string): boolean {
 export const MAX_CARRIED_DEPTH = 12;
 export const MAX_CARRIED_FILES = 10_000;
 export const MAX_CARRIED_DIRECTORIES = 10_000;
+/**
+ * The bounds above limit what is *carried*; this one limits what is *looked at*.
+ * A directory holding nothing but a few hundred thousand links to itself carries
+ * no files and occupies no depth, and would still cost a `stat` apiece.
+ */
+export const MAX_CARRIED_ENTRIES_EXAMINED = 200_000;
 export const MAX_CARRIED_BYTES = 100 * 1024 * 1024;
 
 /** How many `realpath` calls the carried-file filter keeps in flight. */
@@ -228,7 +296,7 @@ function compareByName(left: Dirent, right: Dirent): number {
 }
 
 /** Why a walk stopped early, so the shortfall can be reported rather than silent. */
-type CarriedWalkTruncation = "depth" | "count" | "directories";
+type CarriedWalkTruncation = "depth" | "count" | "directories" | "entries";
 
 /** A directory the walk has yet to enter, and what reaching it cost. */
 type PendingCarriedDir = {
@@ -248,16 +316,39 @@ function comparePendingCarriedDirs(left: PendingCarriedDir, right: PendingCarrie
   if (left.hiddenSegments !== right.hiddenSegments) {
     return left.hiddenSegments - right.hiddenSegments;
   }
+  // The shallower route next: it leaves more of the depth bound for whatever the
+  // directory itself contains, so a tree claimed through a deep route does not
+  // lose its own lower levels.
+  if (left.depth !== right.depth) {
+    return left.depth - right.depth;
+  }
   if (left.dirPath === right.dirPath) {
     return 0;
   }
   return left.dirPath < right.dirPath ? -1 : 1;
 }
 
+/**
+ * What a filtering pass decided about one walk's paths. The refusals travel back
+ * to the caller rather than being reported here, because a second pass may still
+ * carry the same file through a route this one had to refuse.
+ */
+type CarriedFilterResult = {
+  filePaths: string[];
+  realFilePathByPath: Map<string, string>;
+  refusedCredentials: Set<string>;
+  refusedPseudoPaths: Set<string>;
+  refusedEscapedHidden: Set<string>;
+  refusedNoiseAliases: Set<string>;
+  carriedFromOutside: Set<string>;
+};
+
 type CarriedWalkResult = {
   filePaths: string[];
   truncations: Set<CarriedWalkTruncation>;
   unreadablePaths: string[];
+  /** Linked directories the walk refused to descend into, reported by the caller. */
+  pseudoPaths: string[];
 };
 
 /**
@@ -282,15 +373,24 @@ type CarriedWalkResult = {
  *
  * A broken link is skipped: it resolves to nothing to read.
  */
-async function walkCarriedFiles(dirPath: string): Promise<CarriedWalkResult> {
+async function walkCarriedFiles(
+  dirPath: string,
+  { skipHiddenRoutes = false }: { skipHiddenRoutes?: boolean } = {},
+): Promise<CarriedWalkResult> {
   const filePaths: string[] = [];
   const visitedRealDirPaths = new Set<string>();
   const truncations = new Set<CarriedWalkTruncation>();
   const unreadablePaths = new Set<string>();
+  const pseudoPaths = new Set<string>();
+  // A route the depth bound stopped costs nothing if another route reaches the
+  // same directory within the bound, which is why the verdict waits for the end.
+  const depthStoppedRealDirPaths = new Set<string>();
   let deferredLinkedDirs: PendingCarriedDir[] = [];
 
   /** Whether the walk has hit a bound that ends it rather than one branch of it. */
-  const isFull = (): boolean => truncations.has("count") || truncations.has("directories");
+  let examinedEntries = 0;
+  const isFull = (): boolean =>
+    truncations.has("count") || truncations.has("directories") || truncations.has("entries");
 
   const addFile = (filePath: string): void => {
     if (filePaths.length >= MAX_CARRIED_FILES) {
@@ -298,6 +398,32 @@ async function walkCarriedFiles(dirPath: string): Promise<CarriedWalkResult> {
       return;
     }
     filePaths.push(filePath);
+  };
+
+  /** Carry what a symbolic link names, or hold its directory for the next round. */
+  const routeLinkedEntry = async (child: PendingCarriedDir, entryName: string): Promise<void> => {
+    let targetStats: Stats;
+    try {
+      targetStats = await stat(child.dirPath);
+    } catch {
+      // A broken link resolves to nothing to read.
+      return;
+    }
+    if (targetStats.isFile()) {
+      addFile(child.dirPath);
+      return;
+    }
+    if (!targetStats.isDirectory() || isNeverCarriedDirName(entryName)) {
+      return;
+    }
+    if (await resolvesThroughSystemPseudoPath(child.dirPath)) {
+      // Walking `/proc` would read back process state, and its `<pid>/fd`
+      // entries would hand out whatever every process on the machine has open.
+      // It is also a tree of tens of thousands of entries.
+      pseudoPaths.add(child.dirPath);
+      return;
+    }
+    deferredLinkedDirs.push(child);
   };
 
   /** Walk one directory and everything below it that no symbolic link leads to. */
@@ -319,7 +445,7 @@ async function walkCarriedFiles(dirPath: string): Promise<CarriedWalkResult> {
       return;
     }
     if (pending.depth > MAX_CARRIED_DEPTH) {
-      truncations.add("depth");
+      depthStoppedRealDirPaths.add(realCurrentPath);
       return;
     }
     if (visitedRealDirPaths.size >= MAX_CARRIED_DIRECTORIES) {
@@ -341,6 +467,14 @@ async function walkCarriedFiles(dirPath: string): Promise<CarriedWalkResult> {
       if (isFull()) {
         return;
       }
+      examinedEntries += 1;
+      if (examinedEntries > MAX_CARRIED_ENTRIES_EXAMINED) {
+        truncations.add("entries");
+        return;
+      }
+      if (skipHiddenRoutes && isHiddenPathSegment(entry.name)) {
+        continue;
+      }
       const entryPath = join(pending.dirPath, entry.name);
       const child: PendingCarriedDir = {
         dirPath: entryPath,
@@ -361,18 +495,7 @@ async function walkCarriedFiles(dirPath: string): Promise<CarriedWalkResult> {
         // A socket, a FIFO, or a device is never skill content.
         continue;
       }
-      let targetStats: Stats;
-      try {
-        targetStats = await stat(entryPath);
-      } catch {
-        // A broken link resolves to nothing to read.
-        continue;
-      }
-      if (targetStats.isFile()) {
-        addFile(entryPath);
-      } else if (targetStats.isDirectory() && !isNeverCarriedDirName(entry.name)) {
-        deferredLinkedDirs.push(child);
-      }
+      await routeLinkedEntry(child, entry.name);
     }
 
     for (const realSubDir of realSubDirs) {
@@ -395,10 +518,18 @@ async function walkCarriedFiles(dirPath: string): Promise<CarriedWalkResult> {
     round = deferredLinkedDirs;
   }
 
+  for (const realDirPath of depthStoppedRealDirPaths) {
+    if (!visitedRealDirPaths.has(realDirPath)) {
+      truncations.add("depth");
+      break;
+    }
+  }
+
   return {
     filePaths: filePaths.toSorted(),
     truncations,
     unreadablePaths: [...unreadablePaths],
+    pseudoPaths: [...pseudoPaths],
   };
 }
 
@@ -634,7 +765,57 @@ export abstract class AiDir {
    * A path that cannot be resolved is kept: `realpath` fails on a broken link
    * or a race, and neither is a reason to silently drop a file.
    */
-  private static async filterCarriedFiles(dirPath: string, filePaths: string[]): Promise<string[]> {
+  /** Report what a carried directory left out, once both walks have had their say. */
+  private static warnOnRefusedCarriedFiles(dirPath: string, carried: CarriedFilterResult): void {
+    const reportedDirPath = stripControlCharacters(toPosixPath(dirPath));
+    if (carried.refusedCredentials.size > 0) {
+      const { count, list } = formatReportedPaths(carried.refusedCredentials);
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying ${count} ${entryWord(count)} named as a credential store: ${list}. A skill must not ship secrets; read them from the environment instead.`,
+      );
+    }
+    if (carried.refusedPseudoPaths.size > 0) {
+      const { count, list } = formatReportedPaths(carried.refusedPseudoPaths);
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying ${count} ${entryWord(count)} that ${resolveWord(count)} into a system pseudo-filesystem: ${list}. Those read back process state, not skill content.`,
+      );
+    }
+    if (carried.refusedNoiseAliases.size > 0) {
+      const { count, list } = formatReportedPaths(carried.refusedNoiseAliases);
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying ${count} ${entryWord(count)} that ${resolveWord(count)} into a directory a skill never carries: ${list}. A nested repository, or a build or cache tree, is the usual target.`,
+      );
+    }
+    if (carried.refusedEscapedHidden.size > 0) {
+      const { count, list } = formatReportedPaths(carried.refusedEscapedHidden);
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying ${count} hidden ${entryWord(count)} that ${resolveWord(count)} outside ${reportedDirPath}: ${list}. Copy them into the directory if the skill really needs them.`,
+      );
+    }
+    if (carried.carriedFromOutside.size > 0) {
+      // Named with what they resolve to: `vendor/3` says nothing about whether
+      // the file it reaches is a shared reference or a private key.
+      const { count, list } = formatReportedPaths(
+        [...carried.carriedFromOutside].map((filePath) => {
+          const realFilePath = carried.realFilePathByPath.get(filePath);
+          return realFilePath === undefined ? filePath : `${filePath} -> ${realFilePath}`;
+        }),
+      );
+      warnOnceWithFallback(
+        undefined,
+        `Carrying ${count} ${entryWord(count)} that ${resolveWord(count)} outside ${reportedDirPath}: ${list}. Their content is copied into every generated tool directory.`,
+      );
+    }
+  }
+
+  private static async filterCarriedFiles(
+    dirPath: string,
+    filePaths: string[],
+  ): Promise<CarriedFilterResult> {
     let realDirPath: string;
     try {
       realDirPath = await realpath(dirPath);
@@ -645,7 +826,9 @@ export abstract class AiDir {
     const refusedCredentials = new Set<string>();
     const refusedPseudoPaths = new Set<string>();
     const refusedEscapedHidden = new Set<string>();
+    const refusedNoiseAliases = new Set<string>();
     const carriedFromOutside = new Set<string>();
+    const realFilePathByPath = new Map<string, string>();
 
     // Bounded rather than `Promise.all`: a carried directory can hold thousands
     // of entries, and one `realpath` per entry all at once queues that many
@@ -669,6 +852,7 @@ export abstract class AiDir {
         } catch {
           return true;
         }
+        realFilePathByPath.set(filePath, realFilePath);
 
         if (isSystemPseudoPath(realFilePath)) {
           refusedPseudoPaths.add(filePath);
@@ -680,12 +864,27 @@ export abstract class AiDir {
         if (realReason !== undefined) {
           if (realReason === "credential") {
             refusedCredentials.add(filePath);
+          } else {
+            // The literal path said nothing about it -- a link renamed the tree,
+            // or its target simply lives under one -- so leaving it out silently
+            // would give the author no hint at all.
+            refusedNoiseAliases.add(filePath);
           }
           return false;
         }
 
         if (!pathEscapesRoot(realPath)) {
           return true;
+        }
+        // Only a path that resolves outside the directory can have gone through
+        // `/proc`, so the extra walk of the link chain is paid for by those.
+        if (await resolvesThroughSystemPseudoPath(filePath)) {
+          refusedPseudoPaths.add(filePath);
+          return false;
+        }
+        if (escapesIntoCredentialDir(realFilePath)) {
+          refusedCredentials.add(filePath);
+          return false;
         }
         if (AiDir.hasHiddenSegment(literalPath) || AiDir.hasHiddenName(realPath)) {
           refusedEscapedHidden.add(filePath);
@@ -696,36 +895,109 @@ export abstract class AiDir {
       },
     });
 
-    if (refusedCredentials.size > 0) {
-      const { count, list } = formatReportedPaths(refusedCredentials);
-      warnOnceWithFallback(
-        undefined,
-        `Not carrying ${count} ${entryWord(count)} named as a credential store: ${list}. A skill must not ship secrets; read them from the environment instead.`,
-      );
-    }
-    if (refusedPseudoPaths.size > 0) {
-      const { count, list } = formatReportedPaths(refusedPseudoPaths);
-      warnOnceWithFallback(
-        undefined,
-        `Not carrying ${count} ${entryWord(count)} that ${resolveWord(count)} into a system pseudo-filesystem: ${list}. Those read back process state, not skill content.`,
-      );
-    }
-    if (refusedEscapedHidden.size > 0) {
-      const { count, list } = formatReportedPaths(refusedEscapedHidden);
-      warnOnceWithFallback(
-        undefined,
-        `Not carrying ${count} hidden ${entryWord(count)} that ${resolveWord(count)} outside ${stripControlCharacters(toPosixPath(dirPath))}: ${list}. Copy them into the directory if the skill really needs them.`,
-      );
-    }
-    if (carriedFromOutside.size > 0) {
-      const { count, list } = formatReportedPaths(carriedFromOutside);
-      warnOnceWithFallback(
-        undefined,
-        `Carrying ${count} ${entryWord(count)} that ${resolveWord(count)} outside ${stripControlCharacters(toPosixPath(dirPath))}: ${list}. Their content is copied into every generated tool directory.`,
-      );
-    }
+    // The warnings are the caller's to emit: a path refused here may still be
+    // carried through another route, and a shortfall reported before that is
+    // settled would send the author to fix something that is not broken.
+    return {
+      filePaths: filePaths.filter((_filePath, index) => verdicts[index]),
+      realFilePathByPath,
+      refusedCredentials,
+      refusedPseudoPaths,
+      refusedEscapedHidden,
+      refusedNoiseAliases,
+      carriedFromOutside,
+    };
+  }
 
-    return filePaths.filter((_filePath, index) => verdicts[index]);
+  /**
+   * Report what the walk had to leave behind, so a skill that silently lost
+   * files says so rather than generating a directory that is quietly short.
+   */
+  private static warnOnCarriedWalkLimits({
+    reportedDirPath,
+    truncations,
+    unreadablePaths,
+  }: {
+    reportedDirPath: string;
+    truncations: Set<CarriedWalkTruncation>;
+    unreadablePaths: string[];
+  }): void {
+    if (truncations.has("depth")) {
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying the entries more than ${MAX_CARRIED_DEPTH} directories below ${reportedDirPath}: a skill directory is walked to that depth only. A symbolic link that reaches a large tree is the usual cause.`,
+      );
+    }
+    if (truncations.has("count")) {
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying the entries under ${reportedDirPath} beyond the first ${MAX_CARRIED_FILES}: a directory may carry at most that many files. A symbolic link that reaches a large tree is the usual cause.`,
+      );
+    }
+    if (truncations.has("directories")) {
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying the entries under ${reportedDirPath} below the first ${MAX_CARRIED_DIRECTORIES} directories: a directory may carry files from at most that many directories. A symbolic link that reaches a large tree is the usual cause.`,
+      );
+    }
+    if (truncations.has("entries")) {
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying the entries under ${reportedDirPath} that come after the first ${MAX_CARRIED_ENTRIES_EXAMINED} looked at: a directory is walked over at most that many entries. A tree of symbolic links that lead back into it is the usual cause.`,
+      );
+    }
+    if (unreadablePaths.length > 0) {
+      const { count, list } = formatReportedPaths(unreadablePaths);
+      warnOnceWithFallback(
+        undefined,
+        `Not carrying ${count} ${entryWord(count)} that could not be read: ${list}. A permission the current user does not hold is the usual cause.`,
+      );
+    }
+  }
+
+  /**
+   * Walk the directory once more with the hidden routes pruned, and take the
+   * files the first walk had to leave behind because the route that reached
+   * them ran through a hidden directory. This can only add files, and only ones
+   * a fully named route reaches.
+   */
+  private static async recoverCarriedFilesFromNamedRoutes({
+    dirPath,
+    carried,
+    carriedPaths,
+    carriedRealPaths,
+    truncations,
+  }: {
+    dirPath: string;
+    carried: CarriedFilterResult;
+    carriedPaths: string[];
+    carriedRealPaths: Set<string>;
+    truncations: Set<CarriedWalkTruncation>;
+  }): Promise<void> {
+    const named = await walkCarriedFiles(dirPath, { skipHiddenRoutes: true });
+    const recovered = await AiDir.filterCarriedFiles(dirPath, named.filePaths);
+    for (const filePath of recovered.filePaths) {
+      const realFilePath = recovered.realFilePathByPath.get(filePath) ?? filePath;
+      if (carriedRealPaths.has(realFilePath)) {
+        continue;
+      }
+      if (carriedPaths.length >= MAX_CARRIED_FILES) {
+        truncations.add("count");
+        break;
+      }
+      carriedRealPaths.add(realFilePath);
+      carriedPaths.push(filePath);
+      if (recovered.carriedFromOutside.has(filePath)) {
+        carried.carriedFromOutside.add(filePath);
+      }
+    }
+    // A file the named route carried is not a file the skill is missing.
+    for (const filePath of carried.refusedEscapedHidden) {
+      const realFilePath = carried.realFilePathByPath.get(filePath) ?? filePath;
+      if (carriedRealPaths.has(realFilePath)) {
+        carried.refusedEscapedHidden.delete(filePath);
+      }
+    }
   }
 
   /**
@@ -764,36 +1036,41 @@ export abstract class AiDir {
       filePaths: discoveredPaths,
       truncations,
       unreadablePaths,
+      pseudoPaths,
     } = await walkCarriedFiles(dirPath);
     const reportedDirPath = stripControlCharacters(toPosixPath(dirPath));
-    if (truncations.has("depth")) {
-      warnOnceWithFallback(
-        undefined,
-        `Not carrying the entries more than ${MAX_CARRIED_DEPTH} directories below ${reportedDirPath}: a skill directory is walked to that depth only. A symbolic link that reaches a large tree is the usual cause.`,
-      );
-    }
-    if (truncations.has("count")) {
-      warnOnceWithFallback(
-        undefined,
-        `Not carrying the entries under ${reportedDirPath} beyond the first ${MAX_CARRIED_FILES}: a directory may carry at most that many files. A symbolic link that reaches a large tree is the usual cause.`,
-      );
-    }
-    if (truncations.has("directories")) {
-      warnOnceWithFallback(
-        undefined,
-        `Not carrying the entries under ${reportedDirPath} below the first ${MAX_CARRIED_DIRECTORIES} directories: a directory may carry files from at most that many directories. A symbolic link that reaches a large tree is the usual cause.`,
-      );
-    }
-    if (unreadablePaths.length > 0) {
-      const { count, list } = formatReportedPaths(unreadablePaths);
-      warnOnceWithFallback(
-        undefined,
-        `Not carrying ${count} ${entryWord(count)} that could not be read: ${list}. A permission the current user does not hold is the usual cause.`,
-      );
-    }
+    AiDir.warnOnCarriedWalkLimits({ reportedDirPath, truncations, unreadablePaths });
     await AiDir.warnOnNestedGitDirectory(dirPath);
-    const filePaths = await AiDir.filterCarriedFiles(dirPath, discoveredPaths);
-    const filteredPaths = filePaths.filter((filePath) => basename(filePath) !== excludeFileName);
+    const carried = await AiDir.filterCarriedFiles(dirPath, discoveredPaths);
+    const carriedPaths = [...carried.filePaths];
+    const carriedRealPaths = new Set(
+      carriedPaths.map((filePath) => carried.realFilePathByPath.get(filePath) ?? filePath),
+    );
+
+    // A directory is walked by one route only, and the route that claimed it may
+    // be one the hidden-entry rule then refuses -- a link inside a hidden
+    // directory, say -- while a fully named route to the same tree exists a
+    // little further out. Rather than let the walk order decide a rule it cannot
+    // see, walk once more with the hidden routes pruned and take what the first
+    // pass had to leave behind. This can only add files, and only ones a named
+    // route reaches.
+    if (carried.refusedEscapedHidden.size > 0) {
+      await AiDir.recoverCarriedFilesFromNamedRoutes({
+        dirPath,
+        carried,
+        carriedPaths,
+        carriedRealPaths,
+        truncations,
+      });
+    }
+
+    for (const pseudoPath of pseudoPaths) {
+      carried.refusedPseudoPaths.add(pseudoPath);
+    }
+    AiDir.warnOnRefusedCarriedFiles(dirPath, carried);
+    const filteredPaths = carriedPaths
+      .toSorted()
+      .filter((filePath) => basename(filePath) !== excludeFileName);
 
     // Read one at a time, and measure each file before reading it: a running
     // total checked after the fact is a total that has already been read into
@@ -801,37 +1078,50 @@ export abstract class AiDir {
     const files: AiDirFile[] = [];
     let carriedBytes = 0;
     for (const [index, filePath] of filteredPaths.entries()) {
-      let fileSize: number;
+      // Read the path the filter resolved and judged, not the one it started
+      // from, and hold it open across the measurement and the read. Measuring a
+      // name, then opening that name again, decides on one file and reads
+      // another if the link moved in between -- long enough for `--watch` or a
+      // script the skill itself runs to swap a benign target for a private key.
+      const classifiedPath = carried.realFilePathByPath.get(filePath) ?? filePath;
+      let fileHandle: FileHandle;
       try {
-        fileSize = (await stat(filePath)).size;
-      } catch {
-        continue;
-      }
-      if (carriedBytes + fileSize > MAX_CARRIED_BYTES) {
-        warnOnceWithFallback(
-          undefined,
-          `Not carrying ${filteredPaths.length - index} of the ${filteredPaths.length} entries under ${reportedDirPath}: a directory may carry at most ${MAX_CARRIED_BYTES / 1024 / 1024}MB. A symbolic link that reaches a large tree is the usual cause.`,
-        );
-        break;
-      }
-      let fileBuffer: Buffer;
-      try {
-        fileBuffer = await readFileBuffer(filePath);
+        // `O_NOFOLLOW`: the classified path is already fully resolved, so it is
+        // a link only if one was put there since.
+        fileHandle = await open(classifiedPath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
       } catch (error) {
-        // A file the walk could stat but not read -- a permission dropped
-        // between the two calls, or a device that refuses a plain read -- is
-        // skipped rather than allowed to abort the whole directory.
         warnOnceWithFallback(
           undefined,
-          `Not carrying ${stripControlCharacters(toPosixPath(filePath))}: ${formatError(error)}.`,
+          `Not carrying ${stripControlCharacters(toPosixPath(filePath))}: ${stripControlCharacters(formatError(error))}.`,
         );
         continue;
       }
-      carriedBytes += fileBuffer.byteLength;
-      files.push({
-        relativeFilePathToDirPath: relative(dirPath, filePath),
-        fileBuffer,
-      });
+      try {
+        const fileSize = (await fileHandle.stat()).size;
+        if (carriedBytes + fileSize > MAX_CARRIED_BYTES) {
+          warnOnceWithFallback(
+            undefined,
+            `Not carrying ${filteredPaths.length - index} of the ${filteredPaths.length} entries under ${reportedDirPath}: a directory may carry at most ${MAX_CARRIED_BYTES / 1024 / 1024}MB. A symbolic link that reaches a large tree is the usual cause.`,
+          );
+          break;
+        }
+        const fileBuffer = await fileHandle.readFile();
+        carriedBytes += fileBuffer.byteLength;
+        files.push({
+          relativeFilePathToDirPath: relative(dirPath, filePath),
+          fileBuffer,
+        });
+      } catch (error) {
+        // A file that opened but would not read -- a permission dropped in
+        // between, or a device that refuses a plain read -- is skipped rather
+        // than allowed to abort the whole directory.
+        warnOnceWithFallback(
+          undefined,
+          `Not carrying ${stripControlCharacters(toPosixPath(filePath))}: ${stripControlCharacters(formatError(error))}.`,
+        );
+      } finally {
+        await fileHandle.close();
+      }
     }
 
     return files;

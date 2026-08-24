@@ -12,7 +12,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { kebabCase } from "es-toolkit";
 import { globbySync, isGitIgnoredSync } from "globby";
@@ -433,44 +433,29 @@ function countHiddenSegments(filePath: string): number {
 }
 
 /**
- * The directory entry a path denotes: the real directory that holds it, plus the name it
- * carries there. Two paths share an identity only when they reach the very same entry by
- * different routes -- through a link to a directory, or through a cycle that walks back
- * into an ancestor. Resolving the *parent* rather than the file itself is what keeps two
- * genuinely different entries that happen to hold one file (`reference.md` and a
- * `docs/reference.md` link pointing at it) apart, so neither of them is dropped.
+ * The real file a path denotes, posix-separated so it compares against the globby results
+ * that produce it. Two paths share an identity when they resolve to the very same file --
+ * a link beside its target, a link into a shared tree, or a cycle that walks back into an
+ * ancestor and yields the same file forty levels down.
  */
-async function directoryEntryIdentity(
-  filePath: string,
-  realDirPaths: Map<string, string>,
-): Promise<string> {
-  const dirPath = dirname(filePath);
-  const cached = realDirPaths.get(dirPath);
-  if (cached !== undefined) {
-    return toPosixPath(join(cached, basename(filePath)));
-  }
-  let realDirPath: string;
+async function realFileIdentity(filePath: string): Promise<string> {
   try {
-    realDirPath = await realpath(dirPath);
+    return toPosixPath(await realpath(filePath));
   } catch {
-    // realpath can fail on a broken link or a race; fall back to the literal directory so
-    // the entry still counts (and is still deduplicated against identical literals).
-    realDirPath = dirPath;
+    // realpath can fail on a broken link or a race; fall back to the literal path so the
+    // entry still counts (and is still deduplicated against identical literals).
+    return toPosixPath(filePath);
   }
-  realDirPaths.set(dirPath, realDirPath);
-  // Posix-separated, because the candidates it is compared against come from
-  // globby, which returns forward slashes on every platform.
-  return toPosixPath(join(realDirPath, basename(filePath)));
 }
 
 /**
- * Pick the one path that represents a directory entry among the routes that reach it.
+ * Pick the one path that represents a file among the paths that resolve to it.
  *
- * The path that walked through no link at all wins outright: its containing directory is
- * already the real one, so it equals the entry's identity. That keeps the real location of
- * a file as the path callers see, rather than an alias that happens to sort first -- a
- * directory link named `aaa` pointing at `zzz` must not make `zzz/x.md` disappear, and a
- * cycle must not replace `sub/note.md` with the same file reached back through the cycle.
+ * The path that walked through no link at all wins outright: it is already the real one,
+ * so it equals the file's identity. That keeps the real location of a file as the path
+ * callers see, rather than an alias that happens to sort first -- a directory link named
+ * `aaa` pointing at `zzz` must not make `zzz/x.md` disappear, and a cycle must not replace
+ * `sub/note.md` with the same file reached back through the cycle.
  * Failing that, the fewest dot-prefixed segments wins: when only links are on offer, the
  * named one represents the entry rather than a hidden alias that a hidden-entry rule may
  * then drop, taking the named path's content with it. `candidates` arrives in sorted
@@ -509,9 +494,14 @@ export async function findFilesByGlobs(
      * Off by default because discovery globs look for named config files, and a
      * hidden entry is far more likely to be editor or VCS noise than something
      * a tool reads. Turn it on where the contract is "carry this tree as it is"
-     * rather than "find these files" — a skill directory, whose specification
-     * says it "may contain any files and directories beyond the required
-     * `SKILL.md`", is the case that needs it.
+     * rather than "find these files".
+     *
+     * No caller does today: the one that did — a skill directory, whose
+     * specification says it "may contain any files and directories beyond the
+     * required `SKILL.md`" — now walks its own tree, because a glob walk cannot
+     * bound what a symbolic link in somebody else's tree reaches. The option and
+     * the entry de-duplication below stay for the next caller with that
+     * contract; both are covered by tests.
      *
      * @see https://agentskills.io/specification
      */
@@ -540,21 +530,21 @@ export async function findFilesByGlobs(
     ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
     ...globbyOptions,
   });
-  // Deduplicate by directory entry so that directory symlink cycles (which globby follows
-  // up to the kernel ELOOP limit, ~40 levels) do not yield ~40x duplicated entries that
-  // would be read and re-emitted. One path per entry, chosen by `chooseRepresentative`.
-  const realDirPaths = new Map<string, string>();
-  const candidatesByEntry = new Map<string, string[]>();
+  // Deduplicate by real file so that directory symlink cycles (which globby follows up to
+  // the kernel ELOOP limit, ~40 levels) do not yield ~40x duplicated entries that would be
+  // read and re-emitted -- and so that a thousand links to one file cost one read of it,
+  // not a thousand. One path per file, chosen by `chooseRepresentative`.
+  const candidatesByFile = new Map<string, string[]>();
   for (const result of results.toSorted()) {
-    const identity = await directoryEntryIdentity(result, realDirPaths);
-    const candidates = candidatesByEntry.get(identity);
+    const identity = await realFileIdentity(result);
+    const candidates = candidatesByFile.get(identity);
     if (candidates === undefined) {
-      candidatesByEntry.set(identity, [result]);
+      candidatesByFile.set(identity, [result]);
     } else {
       candidates.push(result);
     }
   }
-  const representatives = [...candidatesByEntry.entries()].map(([identity, candidates]) =>
+  const representatives = [...candidatesByFile.entries()].map(([identity, candidates]) =>
     chooseRepresentative(candidates, identity),
   );
   return representatives.toSorted();

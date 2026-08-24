@@ -1,4 +1,4 @@
-import { symlink } from "node:fs/promises";
+import { open, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -601,6 +601,175 @@ Body.`;
       expect(skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath)).toEqual([
         join("docs", "guide.md"),
       ]);
+    });
+
+    it("should carry a tree a hidden route reached first through its named route", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "named-route-skill");
+      const outsideDir = join(testDir, "outside");
+      await ensureDir(join(skillDir, ".hidden"));
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: named-route-skill", "description: Routes", "---", "", "Body."].join("\n"),
+      );
+      await writeFileContent(join(outsideDir, "shared", "guide.md"), "guide\n");
+      await ensureDir(join(outsideDir, "named"));
+      // The hidden link crosses one link, the named route crosses two, so the
+      // hidden one reaches the tree first -- and is then refused for escaping
+      // through a hidden entry, which must not take the named route with it.
+      await symlink(join(outsideDir, "shared"), join(skillDir, ".hidden", "link"));
+      await symlink(join(outsideDir, "named"), join(skillDir, "assets"));
+      await symlink(join(outsideDir, "shared"), join(outsideDir, "named", "docs"));
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "named-route-skill",
+      });
+
+      expect(skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath)).toEqual([
+        join("assets", "docs", "guide.md"),
+      ]);
+      // The file is carried, so nothing is reported as missing.
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("Copy them into"));
+    });
+
+    it("should carry a hidden directory's escaping link through a named alias of it", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "aliased-hidden-skill");
+      const outsideDir = join(testDir, "outside-tree");
+      await ensureDir(join(skillDir, ".shared"));
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: aliased-hidden-skill", "description: Aliases", "---", "", "Body."].join(
+          "\n",
+        ),
+      );
+      await writeFileContent(join(outsideDir, "x.md"), "outside\n");
+      // The real hidden directory is walked first, but the named alias of it
+      // reaches the same escaping link by a path with no hidden segment.
+      await symlink(outsideDir, join(skillDir, ".shared", "link"));
+      await symlink(join(skillDir, ".shared"), join(skillDir, "shared"));
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "aliased-hidden-skill",
+      });
+
+      expect(skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath)).toEqual([
+        join("shared", "link", "x.md"),
+      ]);
+    });
+
+    it("should report a supporting file that resolves into a build tree under another name", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "renamed-cache-skill");
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: renamed-cache-skill", "description: Renames", "---", "", "Body."].join("\n"),
+      );
+      await writeFileContent(join(skillDir, ".cache", "x.md"), "cached\n");
+      await symlink(join(skillDir, ".cache"), join(skillDir, "assets"));
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "renamed-cache-skill",
+      });
+
+      expect(skill.getOtherFiles()).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("into a directory a skill never carries"),
+      );
+    });
+
+    // /proc is Linux-only; the magic links this guards against exist nowhere else.
+    it.skipIf(process.platform !== "linux")(
+      "should not carry a file reached through a process file descriptor",
+      async () => {
+        const skillDir = join(testDir, ".agents", "skills", "procfs-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: procfs-skill", "description: Reads", "---", "", "Body."].join("\n"),
+        );
+        const secretPath = join(testDir, "secret.txt");
+        await writeFileContent(secretPath, "TOP-SECRET\n");
+        const secretHandle = await open(secretPath, "r");
+        try {
+          // `/proc/self/fd/N` resolves to the file the descriptor holds, which
+          // is outside /proc -- so a check of the resolved path alone sees an
+          // ordinary file and carries somebody's open private key.
+          await symlink(join("/proc", "self", "fd"), join(skillDir, "vendor"));
+          await symlink(
+            join("/proc", "self", "fd", String(secretHandle.fd)),
+            join(skillDir, "notes.md"),
+          );
+          const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+          const skill = await AgentsSkillsSkill.fromDir({
+            outputRoot: testDir,
+            dirName: "procfs-skill",
+          });
+
+          expect(skill.getOtherFiles()).toEqual([]);
+          expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("system pseudo-filesystem"));
+        } finally {
+          await secretHandle.close();
+        }
+      },
+    );
+
+    it("should not carry a file a link reaches in the user's own configuration tree", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "user-config-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: user-config-skill", "description: Configures", "---", "", "Body."].join(
+          "\n",
+        ),
+      );
+      // Standing in for `~/.config`: the per-application trees hold credentials
+      // under names no list keeps up with.
+      const userConfigDir = join(testDir, "home", ".config");
+      await writeFileContent(
+        join(userConfigDir, "gcloud", "application_default_credentials.json"),
+        '{"refresh_token":"secret"}\n',
+      );
+      await writeFileContent(join(userConfigDir, "anthropic", "api_key.json"), '{"key":"sk"}\n');
+      await symlink(userConfigDir, join(skillDir, "conf"));
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "user-config-skill",
+      });
+
+      expect(skill.getOtherFiles()).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("named as a credential store"));
+    });
+
+    it("should name what a carried supporting file outside the directory resolves to", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "outside-report-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: outside-report-skill", "description: Reports", "---", "", "Body."].join(
+          "\n",
+        ),
+      );
+      const sharedPath = join(testDir, "shared", "token.json");
+      await writeFileContent(sharedPath, '{"token":"t"}\n');
+      await symlink(sharedPath, join(skillDir, "vendor.json"));
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "outside-report-skill",
+      });
+
+      expect(skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath)).toEqual([
+        "vendor.json",
+      ]);
+      // The link name alone would not tell the author what was copied.
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("token.json"));
     });
 
     it("should report the supporting files it drops for being too deeply nested", async () => {

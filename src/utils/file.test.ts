@@ -808,7 +808,7 @@ describe("file utilities", () => {
           expect(results).toEqual([join(nestedDir, "note.md")]);
         });
 
-        it("should keep both names when a link and the file it points at sit side by side", async () => {
+        it("should return one path when a link and the file it points at sit side by side", async () => {
           const sideBySideDir = join(testDir, "side-by-side");
           const realFile = join(sideBySideDir, "real.md");
           const linkedFile = join(sideBySideDir, "linked.md");
@@ -817,12 +817,14 @@ describe("file utilities", () => {
 
           const results = await findFilesByGlobs(join(sideBySideDir, "*.md"), { type: "file" });
 
-          // Two names in one directory are two entries, even though they hold the
-          // same content: dropping either would lose a path the caller listed.
-          expect(results).toEqual([linkedFile, realFile]);
+          // One file is one result, however many names reach it: a discovery glob
+          // asks what exists, and reading the same bytes once per link is what a
+          // tree of links to one file would otherwise cost. A skill directory,
+          // which does carry every name it ships, walks its own tree instead.
+          expect(results).toEqual([realFile]);
         });
 
-        it("should keep an aliased path in a subdirectory alongside the file it points at", async () => {
+        it("should represent an aliased path in a subdirectory by the file it points at", async () => {
           const skillDir = join(testDir, "alias-skill");
           const realFile = join(skillDir, "reference.md");
           const docsDir = join(skillDir, "docs");
@@ -832,12 +834,13 @@ describe("file utilities", () => {
 
           const results = await findFilesByGlobs(join(skillDir, "**/*.md"), { type: "file" });
 
-          // A skill that ships `docs/reference.md` as a link to its own top-level
-          // `reference.md` must still emit both paths.
-          expect(results).toEqual([join(docsDir, "reference.md"), realFile]);
+          // The alias resolves to the file above it, so the real path represents
+          // it. (A skill that ships both names keeps both: its supporting files
+          // come from its own walk, not from here.)
+          expect(results).toEqual([realFile]);
         });
 
-        it("should keep a plainly named link and the hidden file it points at", async () => {
+        it("should represent a plainly named link by the hidden file it points at", async () => {
           const realFile = join(testDir, ".env.example");
           const aliasFile = join(testDir, "zz-alias.example");
           await writeFileContent(realFile, "TOKEN=");
@@ -848,7 +851,8 @@ describe("file utilities", () => {
             dot: true,
           });
 
-          expect(results).toEqual([realFile, aliasFile]);
+          // Both names reach one file, and the real one represents it.
+          expect(results).toEqual([realFile]);
         });
       });
     });
