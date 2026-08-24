@@ -726,8 +726,9 @@ describe("JunieRule", () => {
       // Memory files stay project-scoped, so global mode exposes no nonRoot path.
       expect("nonRoot" in paths && paths.nonRoot).toBeFalsy();
       // Junie documents `rules/` and `playbook.md` per project, so `~/.junie`
-      // is never scanned for them.
-      expect(paths.importOnlyRoots).toBeUndefined();
+      // is never scanned for them — the global paths type has no place to
+      // declare them at all.
+      expect("importOnlyRoots" in paths).toBe(false);
     });
 
     it("should create a global root rule from a root RulesyncRule", () => {

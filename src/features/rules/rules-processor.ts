@@ -946,31 +946,25 @@ const defaultGetFactory: GetFactory = (target) => {
 const MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS = 10;
 
 /**
- * Resolve a tool's root file, falling back to its legacy roots when the
- * primary one is absent.
+ * Fall back to a tool's legacy roots when its primary root file is absent.
  *
- * `primaryFilePaths` is reported separately from the resolved `filePaths`
- * because the two are not interchangeable: a legacy root is a file Rulesync
- * reads but never writes, so callers that need "the root file Rulesync
- * generates" — rather than "whatever root the tool will read" — must not
- * accept a fallback hit as one.
+ * The primary hits are passed in rather than globbed here, so that callers
+ * which need "the root file Rulesync generates" — rather than "whatever root
+ * the tool will read" — can keep the two apart. A legacy root is a file
+ * Rulesync reads but never writes, and the difference matters to them.
  */
 const findFilesWithFallback = async (
-  primaryGlob: string,
+  primaryFilePaths: string[],
   alternativeRoots: Array<{ relativeDirPath: string; relativeFilePath: string }> | undefined,
   buildAltGlob: (alt: { relativeDirPath: string; relativeFilePath: string }) => string,
-): Promise<{ filePaths: string[]; primaryFilePaths: string[] }> => {
-  const primaryFilePaths = await findFilesByGlobs(primaryGlob);
+): Promise<string[]> => {
   if (primaryFilePaths.length > 0) {
-    return { filePaths: primaryFilePaths, primaryFilePaths };
+    return primaryFilePaths;
   }
   if (alternativeRoots) {
-    return {
-      filePaths: await findFilesByGlobs(alternativeRoots.map(buildAltGlob)),
-      primaryFilePaths,
-    };
+    return await findFilesByGlobs(alternativeRoots.map(buildAltGlob));
   }
-  return { filePaths: [], primaryFilePaths };
+  return [];
 };
 
 export class RulesProcessor extends FeatureProcessor {
@@ -1622,8 +1616,10 @@ As this project's AI coding tool, you must follow the additional conventions bel
         claimedBy.set(target.toLowerCase(), source);
         continue;
       }
+      // The two source names come off the filesystem, so they are stripped
+      // before reaching a terminal that would act on an embedded escape.
       this.logger.warn(
-        `Both ${previous} and ${source} import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, target)} (compared case-insensitively, as on macOS and Windows); the last one wins wherever they collide.`,
+        `Both ${stripControlCharacters(previous)} and ${stripControlCharacters(source)} import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, target)} (compared case-insensitively, as on macOS and Windows); the last one wins wherever they collide.`,
       );
     }
 
@@ -1937,30 +1933,36 @@ As this project's AI coding tool, you must follow the additional conventions bel
 
       /**
        * The tool's own root file, as opposed to whichever root
-       * `rootToolRules` ended up resolving. A legacy root reached through
-       * `alternativeRoots` is deliberately not recorded here: it is a
+       * `rootToolRules` ends up resolving. A legacy root reached through
+       * `alternativeRoots` is deliberately not counted here: it is a
        * hand-authored file Rulesync never writes, so it has folded nothing in,
        * and in Junie's resolution order it ranks *below* the multi-file layout
        * that `importOnlyRoots` describes. Gating those roots on it would drop
        * exactly the files the tool is really reading.
+       *
+       * Resolved once, up front, so the two blocks that need it do not depend
+       * on each other's evaluation order.
        */
-      let primaryRootFilePaths: string[] = [];
+      const primaryRootFilePaths = settablePaths.root
+        ? await findFilesByGlobs(
+            join(
+              this.outputRoot,
+              settablePaths.root.relativeDirPath ?? ".",
+              settablePaths.root.relativeFilePath,
+            ),
+          )
+        : [];
 
       const rootToolRules = await (async () => {
         if (!settablePaths.root) {
           return [];
         }
 
-        const { filePaths: uniqueRootFilePaths, primaryFilePaths } = await findFilesWithFallback(
-          join(
-            this.outputRoot,
-            settablePaths.root.relativeDirPath ?? ".",
-            settablePaths.root.relativeFilePath,
-          ),
+        const uniqueRootFilePaths = await findFilesWithFallback(
+          primaryRootFilePaths,
           settablePaths.alternativeRoots,
           (alt) => join(this.outputRoot, alt.relativeDirPath, alt.relativeFilePath),
         );
-        primaryRootFilePaths = primaryFilePaths;
 
         if (forDeletion) {
           return buildDeletionRulesFromPaths(uniqueRootFilePaths);
@@ -1992,13 +1994,13 @@ As this project's AI coding tool, you must follow the additional conventions bel
           if (!settablePaths.root) {
             return [];
           }
-          return (
-            await findFilesWithFallback(
+          return await findFilesWithFallback(
+            await findFilesByGlobs(
               join(this.outputRoot, settablePaths.root.relativeDirPath ?? ".", fileName),
-              settablePaths.alternativeRoots,
-              (alt) => join(this.outputRoot, alt.relativeDirPath, fileName),
-            )
-          ).filePaths;
+            ),
+            settablePaths.alternativeRoots,
+            (alt) => join(this.outputRoot, alt.relativeDirPath, fileName),
+          );
         })();
 
         if (forDeletion) {
@@ -2139,12 +2141,15 @@ As this project's AI coding tool, you must follow the additional conventions bel
       //
       // These are fixed, tool-owned directories, so this scan mirrors the
       // `nonRoot` one below rather than the nested one above: symlinks are
-      // followed (a shared rules tree linked into `.junie/rules` is a supported
-      // layout — see `docs/guide/separate-input-root.md` on symlinks and trust)
-      // and the scan is not skipped in global mode, because the glob is bounded
-      // by the tool's own directory instead of walking the whole output root.
+      // followed, because a shared rules tree linked into `.junie/rules` is a
+      // supported layout (see `docs/guide/separate-input-root.md` on symlinks
+      // and trust). It runs in project scope only — see `importOnlyRoots`.
       const importOnlyToolRules = await (async () => {
-        const importOnlyRoots = settablePaths.importOnlyRoots;
+        // Project scope only — `ToolRuleSettablePathsGlobal` has no
+        // `importOnlyRoots`, so in global mode this narrows away rather than
+        // globbing relative directories under the user's home.
+        const importOnlyRoots =
+          "importOnlyRoots" in settablePaths ? settablePaths.importOnlyRoots : undefined;
         if (forDeletion || !importOnlyRoots || importOnlyRoots.length === 0) {
           return [];
         }
@@ -2186,7 +2191,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
           const listedNames = skippedNames.slice(0, MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS);
           const remainingCount = skippedNames.length - listedNames.length;
           this.logger.warn(
-            `Not importing ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} for ${this.toolTarget}: ${stripControlCharacters(relative(this.outputRoot, rootFilePath))} exists, and the tool reads that file exclusively. Delete them once their content is in the root file.`,
+            `Not importing ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} for ${this.toolTarget}: ${stripControlCharacters(relative(this.outputRoot, rootFilePath))} exists, and the tool reads that file exclusively. Delete them once you have checked that content is in the root file, or move it into .rulesync/rules/ if it is not.`,
           );
         }
 
@@ -2262,11 +2267,14 @@ As this project's AI coding tool, you must follow the additional conventions bel
 
       return [
         // Ahead of the root rules on purpose: an import that maps two tool files
-        // onto one `.rulesync/rules/` name keeps the last of them, so a root file
-        // always outranks a read-only root that happens to hold, say, an
-        // `overview.md`. `onlyWhenRootAbsent` already keeps the two apart for
-        // every root declared today; this is what makes that a precedence rule
-        // rather than a property of the current declarations.
+        // onto one `.rulesync/rules/` name keeps the last of them, so a root
+        // file outranks a read-only root that happens to hold, say, an
+        // `overview.md`. `onlyWhenRootAbsent` already keeps the two apart
+        // whenever the tool's own root file exists; this is what settles the
+        // remaining case, a legacy root beside a read-only one. Either way the
+        // loser is named in a collision warning rather than dropped silently.
+        // (A statement about these two blocks only: `nonRoot` rules come last
+        // and have always outranked the root file.)
         ...importOnlyToolRules,
         ...rootToolRules,
         ...localRootToolRules,

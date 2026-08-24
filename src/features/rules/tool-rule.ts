@@ -108,7 +108,16 @@ export type ToolRuleSettablePaths = {
     relativeDirPath: string;
     relativeFilePath: string;
   }>;
-  /** Read-only roots scanned on import only. See {@link ToolRuleImportOnlyRoot}. */
+  /**
+   * Read-only roots scanned on import only. See {@link ToolRuleImportOnlyRoot}.
+   *
+   * Project scope only, and deliberately absent from
+   * {@link ToolRuleSettablePathsGlobal}: these are relative directories globbed
+   * under the output root, and in global mode that root is the user's home
+   * directory. A root of `"."` there would sweep every stray markdown file in
+   * `~` into `.rulesync/rules/` and from there into every tool's rule file. The
+   * type is what keeps that unreachable rather than a convention.
+   */
   importOnlyRoots?: ToolRuleImportOnlyRoot[];
   nonRoot: {
     relativeDirPath: string;
@@ -134,8 +143,6 @@ export type ToolRuleSettablePathsGlobal = {
   nonRoot?: {
     relativeDirPath: string;
   };
-  /** Read-only roots scanned on import only. See {@link ToolRuleImportOnlyRoot}. */
-  importOnlyRoots?: ToolRuleImportOnlyRoot[];
 };
 
 type BuildToolRuleParamsParams = ToolRuleFromRulesyncRuleParams & {

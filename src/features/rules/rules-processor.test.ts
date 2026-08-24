@@ -999,6 +999,10 @@ describe("RulesProcessor", () => {
       const winner = overviews.at(-1)!;
       expect(winner.getFileContent()).toContain("# Root content");
       expect(winner.getFileContent()).toContain("root: true");
+      // The losing file is named in a warning rather than dropped silently.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`Both ${join(".junie", "rules", "overview.md")}`),
+      );
     });
 
     it("should keep .junie/rules/overview.md from taking the root rule's rulesync path", async () => {
@@ -1019,6 +1023,27 @@ describe("RulesProcessor", () => {
       expect(overview.getRelativeFilePath()).toBe("overview.md");
       expect(overview.getFileContent()).toContain("# Root content");
       expect(overview.getFileContent()).toContain("root: true");
+    });
+
+    it("should report, not silently drop, a read-only root that collides with the legacy root", async () => {
+      // With only the legacy `.junie/guidelines.md` present the gate stays open,
+      // so `.junie/rules/overview.md` and the legacy root both resolve to
+      // `.rulesync/rules/overview.md`. The root file wins, and the file that
+      // loses is named in a warning so its content is not lost unnoticed.
+      await writeFileContent(join(testDir, ".junie", "guidelines.md"), "# Legacy root");
+      await writeFileContent(join(testDir, ".junie", "rules", "overview.md"), "# From rules dir");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      expect(rulesyncFiles.at(-1)!.getFileContent()).toContain("# Legacy root");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Both ${join(".junie", "rules", "overview.md")} and ${join(".junie", "guidelines.md")} import to`,
+        ),
+      );
     });
 
     it("should skip nested AGENTS.md files the project gitignores", async () => {

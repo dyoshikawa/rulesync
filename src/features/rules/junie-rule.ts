@@ -239,6 +239,10 @@ export class JunieRule extends ToolRule {
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): JunieRule {
+    // Deletion candidates are only ever the root file and its legacy alias —
+    // Junie declares no `nonRoot` directory and its read-only roots are never
+    // enumerated for deletion — so the name alone identifies the root here.
+    // `fromFile` needs the directory too, because it also sees `.junie/rules/`.
     const isRoot = JunieRule.isRootRelativeFilePath(relativeFilePath);
 
     return new JunieRule({
