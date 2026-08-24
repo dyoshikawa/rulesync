@@ -396,6 +396,10 @@ function resolveToolPermissionsBlock({
     ? { ...(existingToolPermissions.tools as Record<string, unknown>) }
     : {};
   const hasExistingBashRecord = isRecord(existingToolPermissions.bash);
+  // A `bash` of some other shape (a bare `bash: allow`, say) is not a map of
+  // leaves to reason about, so it is left alone exactly as a non-record `tools`
+  // is — this run overwrites it only when it has bash levels of its own to
+  // write there.
   const existingBash = hasExistingBashRecord
     ? { ...(existingToolPermissions.bash as Record<string, unknown>) }
     : {};

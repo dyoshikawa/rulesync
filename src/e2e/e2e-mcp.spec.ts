@@ -101,6 +101,21 @@ describe("E2E: mcp", () => {
     expect(generatedContent).toContain("test-server");
   });
 
+  it("should point rovodev config.yml at the generated project mcp.json", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({ mcpServers: { "test-server": { command: "echo", args: ["hello"] } } }),
+    );
+
+    await runGenerate({ target: "rovodev", features: "mcp" });
+
+    // `.rovodev/mcp.json` alone is inert: Rovo Dev's `mcpConfigPath` defaults
+    // to the global MCP file, so the sibling `config.yml` has to name it.
+    const configContent = await readFileContent(join(testDir, ".rovodev", "config.yml"));
+    expect(configContent).toContain("mcpConfigPath: .rovodev/mcp.json");
+  });
+
   it.each(["kiro", "kiro-cli", "kiro-ide"] as const)(
     "should preserve disabledTools for $target mcp",
     async (target) => {

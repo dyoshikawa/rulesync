@@ -379,6 +379,7 @@ describe("RovodevMcp", () => {
     });
 
     it("points mcp.mcpConfigPath at the project mcp.json it writes", async () => {
+      const logger = createMockLogger();
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",
@@ -388,9 +389,36 @@ describe("RovodevMcp", () => {
 
       // No config.yml and nothing disabled: without the pointer Rovo Dev keeps
       // reading the global MCP file and the generated project one is inert.
-      const auxiliary = await RovodevMcp.getAuxiliaryFiles({ outputRoot: testDir, rulesyncMcp });
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger,
+      });
       expect(auxiliary).toHaveLength(1);
       expect(auxiliary[0]!.getFileContent()).toContain("mcpConfigPath: .rovodev/mcp.json");
+      // Writing the pointer is what makes Rovo Dev start the generated servers and
+      // takes this project off the global MCP config, so it is announced.
+      expect(
+        logger.info.mock.calls.some(([message]) =>
+          String(message).includes("setting mcp.mcpConfigPath"),
+        ),
+      ).toBe(true);
+    });
+
+    it("does not write the pointer when no server targets rovodev", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { elsewhere: { command: "node", targets: ["cursor"] } },
+        }),
+      });
+
+      // `mcp.json` is still written, but empty. Pointing at it would replace
+      // the user's global MCP config with nothing for this repository.
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({ outputRoot: testDir, rulesyncMcp });
+      expect(auxiliary).toEqual([]);
     });
 
     it("leaves a user-chosen mcpConfigPath in place and warns that mcp.json is unread", async () => {

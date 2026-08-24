@@ -774,11 +774,12 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     format: "yaml",
     features: {
       // The `mcp` block is recomputed from the existing file before being
-      // applied (only `disabledMcpServers` is rulesync-managed; user keys like
-      // `mcpConfigPath`/`allowedMcpServers` are carried over), so the whole
-      // key is owned here — same shape as the Hermes plugins writer. The
-      // servers themselves live in `mcp.json`; this feature reaches the file
-      // as an auxiliary writer.
+      // applied (`disabledMcpServers` is rulesync-managed, and `mcpConfigPath`
+      // is authored in project scope when it is absent; user keys like
+      // `allowedMcpServers` — and a `mcpConfigPath` the user set — are carried
+      // over), so the whole key is owned here — same shape as the Hermes
+      // plugins writer. The servers themselves live in `mcp.json`; this
+      // feature reaches the file as an auxiliary writer.
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
       // Likewise recomputed: the generated levels are merged over the existing
       // `toolPermissions` block before the patch is applied.

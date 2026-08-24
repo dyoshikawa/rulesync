@@ -181,10 +181,21 @@ function normalizeMcpConfigPathValue(value: string): string {
  * scope is left alone: there the default already resolves to the file rulesync
  * writes.
  *
+ * The pointer names one config rather than merging with the default, so it is
+ * written only when rulesync actually manages a server for this target. A
+ * project whose canonical servers all exclude `rovodev` generates an empty
+ * `mcp.json`, and pointing at that would take away the user's global servers
+ * for this repository in exchange for nothing.
+ *
  * A pointer the user aimed somewhere else is theirs, not ours: overwriting it
  * would silently redirect Rovo Dev away from a file they chose. It is named in
  * a warning instead, because the generated `mcp.json` is unread while it
  * stands.
+ *
+ * Either way the outcome is logged: writing the pointer turns servers that
+ * were generated-but-never-read into servers Rovo Dev actually spawns, and
+ * points it away from the global MCP config, so it is not something to do
+ * quietly.
  *
  * @see https://support.atlassian.com/bitbucket-cloud/docs/rovo-dev-advanced-agentic-configuration/
  * @see https://support.atlassian.com/rovo/docs/manage-rovo-dev-cli-settings/
@@ -192,19 +203,32 @@ function normalizeMcpConfigPathValue(value: string): string {
 function applyProjectMcpConfigPointer({
   existingMcp,
   global,
+  hasManagedServers,
   logger,
 }: {
   existingMcp: Record<string, unknown>;
   global: boolean;
+  hasManagedServers: boolean;
   logger?: Logger;
 }): boolean {
-  if (global) {
+  if (global || !hasManagedServers) {
     return false;
   }
 
   const existing = existingMcp.mcpConfigPath;
   if (existing === undefined) {
     existingMcp.mcpConfigPath = ROVODEV_PROJECT_MCP_CONFIG_POINTER;
+    // Writing the pointer is the moment Rovo Dev starts running the generated
+    // servers: until now it read the user's global MCP file and the project
+    // `mcp.json` was inert. It also *replaces* that global file rather
+    // than merging with it, since `mcpConfigPath` names a single config. Both
+    // are consequences worth stating out loud rather than applying silently.
+    logger?.info(
+      `Rovo Dev MCP: setting mcp.mcpConfigPath to "${ROVODEV_PROJECT_MCP_CONFIG_POINTER}" in ` +
+        `${join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME)}. Rovo Dev will now launch the servers in ` +
+        `${join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME)} for this project instead of the ones in the ` +
+        `default global MCP config.`,
+    );
     return true;
   }
   if (
@@ -226,9 +250,12 @@ function applyProjectMcpConfigPointer({
 /**
  * Auxiliary writer for the `mcp:` block of `.rovodev/config.yml` (project) /
  * `~/.rovodev/config.yml` (global). Carries `disabledMcpServers` — the key
- * Rovo Dev actually consults to switch a server off — recomputed from the
- * existing block so user keys (`mcpConfigPath`, `allowedMcpServers`, ...) and
- * disabled names for servers rulesync does not manage survive.
+ * Rovo Dev actually consults to switch a server off — plus `mcpConfigPath`,
+ * which rulesync authors in project scope only when the file it points at is
+ * absent (see `applyProjectMcpConfigPointer`). The block is recomputed from
+ * the existing one, so user keys (`allowedMcpServers`, ...), a `mcpConfigPath`
+ * the user aimed elsewhere, and disabled names for servers rulesync does not
+ * manage all survive.
  */
 export class RovodevMcpConfigYaml extends ToolFile {
   override isDeletable(): boolean {
@@ -455,7 +482,12 @@ export class RovodevMcp extends ToolMcp {
       delete existingMcp.disabledMcpServers;
     }
 
-    const wrotePointer = applyProjectMcpConfigPointer({ existingMcp, global, logger });
+    const wrotePointer = applyProjectMcpConfigPointer({
+      existingMcp,
+      global,
+      hasManagedServers: managedNames.length > 0,
+      logger,
+    });
 
     // Nothing to write and nothing to clean up: do not create or touch the
     // shared config just to hold an empty block.
