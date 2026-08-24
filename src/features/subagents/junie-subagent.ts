@@ -34,14 +34,17 @@ export const JunieSubagentFrontmatterSchema = z.looseObject({
   mcpServers: z.optional(z.union([z.string(), z.array(z.string())])),
   // Model and reasoning controls (`reasoningLevel`: low | medium | high).
   model: z.optional(z.string()),
+  // Permission handling strategy for the subagent run
+  // (`default` | `acceptEdits` | `dontAsk` | `bypassPermissions` | `plan`;
+  // defaults to `default`). Kept as a plain string, like the neighboring
+  // enum-shaped fields, so an upstream addition round-trips instead of failing.
+  permissionMode: z.optional(z.string()),
   reasoningLevel: z.optional(z.string()),
   maxTurns: z.optional(z.number()),
   // Agent Skills the subagent should utilize.
   skills: z.optional(z.union([z.string(), z.array(z.string())])),
   // Whether the subagent accepts a prompt argument.
   allowPromptArgument: z.optional(z.boolean()),
-  // Permission handling strategy for the subagent.
-  permissionMode: z.optional(z.string()),
 });
 
 export type JunieSubagentFrontmatter = z.infer<typeof JunieSubagentFrontmatterSchema>;

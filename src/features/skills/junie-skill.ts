@@ -125,8 +125,10 @@ export class JunieSkill extends ToolSkill {
     //
     // Junie CLI additionally loads skills from the cross-tool Agent Skills root
     // at `<projectRoot>/.agents/skills/` and `~/.agents/skills/`. That root is
-    // import-only here — the `agentsmd` target owns writing it, so a skill
-    // another tool put there must never become an orphan deletion candidate.
+    // import-only: rulesync never writes there for this target, so a skill
+    // another tool put in the shared tree must not become an orphan deletion
+    // candidate — least of all under the user's home directory. When the same
+    // skill name exists in both roots, the Junie-specific root wins.
     // This mirrors how `.agents/` is already wired for Junie subagents.
     // @see https://junie.jetbrains.com/docs/agent-skills.html
     return {

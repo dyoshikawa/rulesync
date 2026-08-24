@@ -26,20 +26,9 @@ describe("JunieSkill", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return .junie/skills as relativeDirPath", () => {
-      const paths = JunieSkill.getSettablePaths();
-      expect(paths.relativeDirPath).toBe(join(".junie", "skills"));
-    });
-
-    it("should return the same .junie/skills path for global mode", () => {
-      // Junie skills support global mode (~/.junie/skills/); the relative path is
-      // identical to project mode, only the resolved outputRoot differs.
-      expect(JunieSkill.getSettablePaths({ global: true }).relativeDirPath).toBe(
-        join(".junie", "skills"),
-      );
-    });
-
-    it("should expose the shared .agents/skills root as an import-only fallback at both scopes", () => {
+    it("should expose .junie/skills plus the shared .agents/skills import-only fallback at both scopes", () => {
+      // Junie skills support global mode (~/.junie/skills/); the relative path
+      // is identical to project mode, only the resolved outputRoot differs.
       // Junie CLI also loads skills from `<projectRoot>/.agents/skills/` and
       // `~/.agents/skills/`; rulesync reads but never writes or prunes them.
       expect(JunieSkill.getSettablePaths()).toEqual({
@@ -222,6 +211,31 @@ This is the body of the junie skill.`;
           dirName: "empty-skill",
         }),
       ).rejects.toThrow(/SKILL\.md not found/);
+    });
+
+    it("should load from the shared .agents/skills import fallback, including the description fallback", async () => {
+      // The shared root is where foreign-authored skills live, so it is also
+      // the most likely place for a `SKILL.md` that omits `description` —
+      // Junie's own optional-description rule has to keep working there.
+      const skillDir = join(testDir, ".agents", "skills", "fallback");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---\nname: fallback\n---\n\nA shared skill body.`,
+      );
+
+      const skill = await JunieSkill.fromDir({
+        outputRoot: testDir,
+        relativeDirPath: join(".agents", "skills"),
+        dirName: "fallback",
+      });
+
+      expect(skill.getRelativeDirPath()).toBe(join(".agents", "skills"));
+      expect(skill.getFrontmatter()).toEqual({
+        name: "fallback",
+        description: "A shared skill body.",
+      });
+      expect(skill.getBody()).toBe("A shared skill body.");
     });
   });
 

@@ -1206,6 +1206,33 @@ Content that would fail parsing`;
       const roots = dirsToDelete.map((d) => (d as RovodevSkill).getRelativeDirPath()).toSorted();
       expect(roots).toEqual([join(".agents", "skills"), join(".rovodev", "skills")]);
     });
+
+    it("should never list an importOnlySkillRoots skill for deletion", async () => {
+      // The shared `.agents/skills/` tree is read-only for every target that
+      // declares it under `importOnlySkillRoots` (junie, vibe, kimi-code):
+      // another tool owns those directories, so orphan deletion must skip
+      // them. Deletion reads `toolSkillSearchRoots` (primary +
+      // `alternativeSkillRoots`) rather than `toolSkillImportRoots`, and this
+      // pins that difference — swapping the two would silently start pruning
+      // foreign skills, including under the user's home directory in global
+      // mode.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const junieDir = join(testDir, ".junie", "skills", "own-skill");
+      const sharedDir = join(testDir, ".agents", "skills", "foreign-skill");
+      await ensureDir(junieDir);
+      await ensureDir(sharedDir);
+      await writeFileContent(join(junieDir, "SKILL.md"), "x");
+      await writeFileContent(join(sharedDir, "SKILL.md"), "y");
+
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete.map((d) => d.getRelativeDirPath())).toEqual([join(".junie", "skills")]);
+      expect(dirsToDelete.map((d) => d.getDirName())).toEqual(["own-skill"]);
+    });
   });
 
   describe("getToolTargets", () => {
