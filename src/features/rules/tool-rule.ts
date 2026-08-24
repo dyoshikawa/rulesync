@@ -85,7 +85,9 @@ export type ToolRuleImportOnlyRoot = {
   /**
    * Scan this root only while the tool's own root file is missing, mirroring a
    * tool whose multi-file layout is a fallback rather than an addition (Junie
-   * reads `.junie/AGENTS.md` "exclusively" once it exists).
+   * reads `.junie/AGENTS.md` "exclusively" once it exists). Only the root in
+   * `root` counts; a legacy root reached through `alternativeRoots` does not,
+   * because Rulesync never writes it and the tool ranks it below this layout.
    *
    * Without the gate, a root file that already folds these rules in would be
    * re-imported alongside them, and the next generate would fold the same

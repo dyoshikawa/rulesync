@@ -16,6 +16,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { rulesProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
   checkPathTraversal,
@@ -937,19 +938,39 @@ const defaultGetFactory: GetFactory = (target) => {
   return factory;
 };
 
+/**
+ * How many skipped import-only paths a single warning names before it
+ * summarizes the rest. Keeps one line readable when a rules directory holds
+ * dozens of files.
+ */
+const MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS = 10;
+
+/**
+ * Resolve a tool's root file, falling back to its legacy roots when the
+ * primary one is absent.
+ *
+ * `primaryFilePaths` is reported separately from the resolved `filePaths`
+ * because the two are not interchangeable: a legacy root is a file Rulesync
+ * reads but never writes, so callers that need "the root file Rulesync
+ * generates" — rather than "whatever root the tool will read" — must not
+ * accept a fallback hit as one.
+ */
 const findFilesWithFallback = async (
   primaryGlob: string,
   alternativeRoots: Array<{ relativeDirPath: string; relativeFilePath: string }> | undefined,
   buildAltGlob: (alt: { relativeDirPath: string; relativeFilePath: string }) => string,
-): Promise<string[]> => {
+): Promise<{ filePaths: string[]; primaryFilePaths: string[] }> => {
   const primaryFilePaths = await findFilesByGlobs(primaryGlob);
   if (primaryFilePaths.length > 0) {
-    return primaryFilePaths;
+    return { filePaths: primaryFilePaths, primaryFilePaths };
   }
   if (alternativeRoots) {
-    return findFilesByGlobs(alternativeRoots.map(buildAltGlob));
+    return {
+      filePaths: await findFilesByGlobs(alternativeRoots.map(buildAltGlob)),
+      primaryFilePaths,
+    };
   }
-  return [];
+  return { filePaths: [], primaryFilePaths };
 };
 
 export class RulesProcessor extends FeatureProcessor {
@@ -1892,12 +1913,45 @@ As this project's AI coding tool, you must follow the additional conventions bel
           .filter((rule) => rule.isDeletable());
       };
 
+      /**
+       * Import counterpart of {@link buildDeletionRulesFromPaths} for the
+       * root-shaped scans (root, legacy roots, and read-only roots), whose
+       * paths all sit at a directory Rulesync resolves from the file itself.
+       */
+      const buildImportRulesFromPaths = (filePaths: string[]): Promise<ToolRule[]> =>
+        Promise.all(
+          filePaths.map((filePath) => {
+            const relativeDirPath = resolveRelativeDirPath(filePath);
+            checkPathTraversal({
+              relativePath: relativeDirPath,
+              intendedRootDir: this.outputRoot,
+            });
+            return factory.class.fromFile({
+              outputRoot: this.outputRoot,
+              relativeDirPath,
+              relativeFilePath: basename(filePath),
+              global: this.global,
+            });
+          }),
+        );
+
+      /**
+       * The tool's own root file, as opposed to whichever root
+       * `rootToolRules` ended up resolving. A legacy root reached through
+       * `alternativeRoots` is deliberately not recorded here: it is a
+       * hand-authored file Rulesync never writes, so it has folded nothing in,
+       * and in Junie's resolution order it ranks *below* the multi-file layout
+       * that `importOnlyRoots` describes. Gating those roots on it would drop
+       * exactly the files the tool is really reading.
+       */
+      let primaryRootFilePaths: string[] = [];
+
       const rootToolRules = await (async () => {
         if (!settablePaths.root) {
           return [];
         }
 
-        const uniqueRootFilePaths = await findFilesWithFallback(
+        const { filePaths: uniqueRootFilePaths, primaryFilePaths } = await findFilesWithFallback(
           join(
             this.outputRoot,
             settablePaths.root.relativeDirPath ?? ".",
@@ -1906,26 +1960,13 @@ As this project's AI coding tool, you must follow the additional conventions bel
           settablePaths.alternativeRoots,
           (alt) => join(this.outputRoot, alt.relativeDirPath, alt.relativeFilePath),
         );
+        primaryRootFilePaths = primaryFilePaths;
 
         if (forDeletion) {
           return buildDeletionRulesFromPaths(uniqueRootFilePaths);
         }
 
-        return await Promise.all(
-          uniqueRootFilePaths.map((filePath) => {
-            const relativeDirPath = resolveRelativeDirPath(filePath);
-            checkPathTraversal({
-              relativePath: relativeDirPath,
-              intendedRootDir: this.outputRoot,
-            });
-            return factory.class.fromFile({
-              outputRoot: this.outputRoot,
-              relativeFilePath: basename(filePath),
-              relativeDirPath,
-              global: this.global,
-            });
-          }),
-        );
+        return await buildImportRulesFromPaths(uniqueRootFilePaths);
       })();
       this.logger.debug(`Found ${rootToolRules.length} root tool rule files`);
 
@@ -1951,11 +1992,13 @@ As this project's AI coding tool, you must follow the additional conventions bel
           if (!settablePaths.root) {
             return [];
           }
-          return await findFilesWithFallback(
-            join(this.outputRoot, settablePaths.root.relativeDirPath ?? ".", fileName),
-            settablePaths.alternativeRoots,
-            (alt) => join(this.outputRoot, alt.relativeDirPath, fileName),
-          );
+          return (
+            await findFilesWithFallback(
+              join(this.outputRoot, settablePaths.root.relativeDirPath ?? ".", fileName),
+              settablePaths.alternativeRoots,
+              (alt) => join(this.outputRoot, alt.relativeDirPath, fileName),
+            )
+          ).filePaths;
         })();
 
         if (forDeletion) {
@@ -2109,8 +2152,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
         // A root file that exists has already absorbed these rules on a previous
         // generate (Junie folds non-root rules into `.junie/AGENTS.md`), so
         // re-importing them beside it would duplicate the same content once per
-        // import/generate cycle. See `onlyWhenRootAbsent`.
-        const rootFileFound = rootToolRules.length > 0;
+        // import/generate cycle. See `onlyWhenRootAbsent`. Only the tool's own
+        // root counts — see `primaryRootFilePaths`.
+        const rootFilePath = primaryRootFilePaths[0];
 
         const scannedPaths: string[] = [];
         const skippedPaths: string[] = [];
@@ -2123,7 +2167,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
             ),
             { type: "file" },
           );
-          if (importOnlyRoot.onlyWhenRootAbsent === true && rootFileFound) {
+          if (importOnlyRoot.onlyWhenRootAbsent === true && rootFilePath !== undefined) {
             skippedPaths.push(...matchedPaths);
             continue;
           }
@@ -2131,28 +2175,22 @@ As this project's AI coding tool, you must follow the additional conventions bel
         }
 
         // Left unreported these look imported but silently are not, and the
-        // tool no longer reads them either — a state worth acting on.
-        if (skippedPaths.length > 0) {
+        // tool no longer reads them either — a state worth acting on. The
+        // names come off the filesystem, so they are stripped of control
+        // characters before reaching a terminal, and the list is capped so a
+        // large rules directory cannot turn one warning into a wall of text.
+        if (skippedPaths.length > 0 && rootFilePath !== undefined) {
+          const skippedNames = skippedPaths.map((filePath) =>
+            stripControlCharacters(relative(this.outputRoot, filePath)),
+          );
+          const listedNames = skippedNames.slice(0, MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS);
+          const remainingCount = skippedNames.length - listedNames.length;
           this.logger.warn(
-            `Not importing ${skippedPaths.map((filePath) => relative(this.outputRoot, filePath)).join(", ")} for ${this.toolTarget}: ${join(settablePaths.root?.relativeDirPath ?? ".", settablePaths.root?.relativeFilePath ?? "")} exists, and the tool reads that file exclusively. Delete them once their content is in the root file.`,
+            `Not importing ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} for ${this.toolTarget}: ${stripControlCharacters(relative(this.outputRoot, rootFilePath))} exists, and the tool reads that file exclusively. Delete them once their content is in the root file.`,
           );
         }
 
-        return await Promise.all(
-          scannedPaths.map((filePath) => {
-            const relativeDirPath = resolveRelativeDirPath(filePath);
-            checkPathTraversal({
-              relativePath: relativeDirPath,
-              intendedRootDir: this.outputRoot,
-            });
-            return factory.class.fromFile({
-              outputRoot: this.outputRoot,
-              relativeDirPath,
-              relativeFilePath: basename(filePath),
-              global: this.global,
-            });
-          }),
-        );
+        return await buildImportRulesFromPaths(scannedPaths);
       })();
       this.logger.debug(`Found ${importOnlyToolRules.length} import-only tool rule files`);
 

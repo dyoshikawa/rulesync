@@ -177,7 +177,10 @@ export class JunieRule extends ToolRule {
       fileContent,
       validate,
       // A `.junie/rules/AGENTS.md` is one of the combined files, not the root
-      // guideline, so the name alone does not decide this.
+      // guideline, so the name alone does not decide this. The comparison uses
+      // the default (`.junie`-prefixed) paths because `fromFile` has no
+      // `excludeToolDir` input; a future caller that flattens the tool
+      // directory would have to thread that flag through here too.
       root:
         relativeDirPath === settablePaths.root.relativeDirPath &&
         JunieRule.isRootRelativeFilePath(relativeFilePath),
