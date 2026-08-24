@@ -6,7 +6,7 @@ import { convertFromTool, generate, importFromTool } from "./index.js";
 import type { ConvertResult } from "./lib/convert.js";
 import { convertFromTool as coreConvertFromTool } from "./lib/convert.js";
 import type { GenerateResult } from "./lib/generate.js";
-import { checkRulesyncDirExists, generate as coreGenerate } from "./lib/generate.js";
+import { generate as coreGenerate, inspectInputRoots } from "./lib/generate.js";
 import type { ImportResult } from "./lib/import.js";
 import { importFromTool as coreImportFromTool } from "./lib/import.js";
 import { ConsoleLogger } from "./utils/logger.js";
@@ -35,7 +35,7 @@ vi.mock("./utils/logger.js", async (importOriginal) => {
 
 const mockConfig = {
   getOutputRoots: () => ["/project"],
-  getInputRoot: () => process.cwd(),
+  getInputRoots: () => [process.cwd()],
 } as unknown as Config;
 
 const mockGenerateResult: GenerateResult = {
@@ -89,7 +89,11 @@ const mockConvertResult: ConvertResult = {
 
 beforeEach(() => {
   vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig as never);
-  vi.mocked(checkRulesyncDirExists).mockResolvedValue(true);
+  vi.mocked(inspectInputRoots).mockResolvedValue({
+    existing: [process.cwd()],
+    missing: [],
+    message: undefined,
+  });
   vi.mocked(coreGenerate).mockResolvedValue(mockGenerateResult);
   vi.mocked(coreImportFromTool).mockResolvedValue(mockImportResult);
   vi.mocked(coreConvertFromTool).mockResolvedValue(mockConvertResult);
@@ -131,9 +135,14 @@ describe("generate", () => {
   });
 
   it("should throw if .rulesync directory does not exist", async () => {
-    vi.mocked(checkRulesyncDirExists).mockResolvedValue(false);
+    vi.mocked(inspectInputRoots).mockResolvedValue({
+      existing: [],
+      missing: ["/project/.rulesync"],
+      message:
+        "Rulesync source directory '/project/.rulesync' does not exist. Run 'rulesync init' first.",
+    });
 
-    await expect(generate()).rejects.toThrow(".rulesync directory not found");
+    await expect(generate()).rejects.toThrow("Run 'rulesync init' first");
   });
 
   it("should call core generate and return result", async () => {
@@ -143,18 +152,18 @@ describe("generate", () => {
     expect(result).toEqual(mockGenerateResult);
   });
 
-  it("should probe checkRulesyncDirExists against config.getInputRoot() rather than each outputRoot", async () => {
-    const inputRootMock = "/some/input-root";
+  it("should inspect config.getInputRoots() rather than each outputRoot", async () => {
+    const inputRootsMock = ["/some/input-root"] as const;
     vi.mocked(ConfigResolver.resolve).mockResolvedValue({
       getOutputRoots: () => ["/project-a", "/project-b"],
-      getInputRoot: () => inputRootMock,
+      getInputRoots: () => inputRootsMock,
     } as unknown as Config as never);
 
     await generate();
 
-    // Single check, scoped to the input root, not per outputRoot.
-    expect(checkRulesyncDirExists).toHaveBeenCalledTimes(1);
-    expect(checkRulesyncDirExists).toHaveBeenCalledWith({ inputRoot: inputRootMock });
+    // Single check, scoped to the input roots, not per outputRoot.
+    expect(inspectInputRoots).toHaveBeenCalledTimes(1);
+    expect(inspectInputRoots).toHaveBeenCalledWith(inputRootsMock);
   });
 
   it("should forward inputRoot to ConfigResolver.resolve", async () => {
@@ -165,17 +174,28 @@ describe("generate", () => {
     );
   });
 
-  it("should mention the input root path in the not-found error", async () => {
-    const inputRootMock = "/some/input-root";
+  it("should forward inputRoots to ConfigResolver.resolve", async () => {
+    await generate({ inputRoots: ["./base", "./overlay"] });
+
+    expect(ConfigResolver.resolve).toHaveBeenCalledWith(
+      expect.objectContaining({ inputRoots: ["./base", "./overlay"] }),
+    );
+  });
+
+  it("should generate when inspection reports only a missing optional overlay", async () => {
+    const inputRootsMock = ["/some/input-root", "/another/root"] as const;
     vi.mocked(ConfigResolver.resolve).mockResolvedValue({
       getOutputRoots: () => ["/project"],
-      getInputRoot: () => inputRootMock,
+      getInputRoots: () => inputRootsMock,
     } as unknown as Config as never);
-    vi.mocked(checkRulesyncDirExists).mockResolvedValue(false);
+    vi.mocked(inspectInputRoots).mockResolvedValue({
+      existing: [inputRootsMock[0]],
+      missing: [inputRootsMock[1]],
+      message: undefined,
+    });
 
-    await expect(generate()).rejects.toThrow(
-      `.rulesync directory not found in '${inputRootMock}'.`,
-    );
+    await expect(generate()).resolves.toEqual(mockGenerateResult);
+    expect(coreGenerate).toHaveBeenCalledTimes(1);
   });
 });
 

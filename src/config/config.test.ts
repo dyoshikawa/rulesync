@@ -412,33 +412,70 @@ describe("Config", () => {
       process.chdir(originalCwd);
     });
 
-    it("snapshots process.cwd() at construction time when no inputRoot is supplied", () => {
+    it("snapshots join(process.cwd(), '.rulesync') at construction time when no inputRoot/inputRoots is supplied", () => {
       const config = createConfig({});
-      const snapshot = config.getInputRoot();
+      const [snapshot, ...rest] = config.getInputRoots();
+      expect(rest).toHaveLength(0);
       expect(isAbsolute(snapshot)).toBe(true);
-      expect(snapshot).toBe(originalCwd);
+      expect(snapshot).toBe(resolve(originalCwd, ".rulesync"));
       // Subsequent chdir calls must not affect the captured value.
       // process.chdir to the parent directory which should always exist.
       const parent = resolve(originalCwd, "..");
       process.chdir(parent);
-      expect(config.getInputRoot()).toBe(snapshot);
+      expect(config.getInputRoots()[0]).toBe(snapshot);
     });
 
-    it("preserves an absolute inputRoot exactly as supplied", () => {
+    it("expands an absolute inputRoot to `[join(inputRoot, '.rulesync')]`", () => {
       const absolute = resolve(originalCwd, "some-absolute-path");
       const config = createConfig({ inputRoot: absolute });
-      expect(config.getInputRoot()).toBe(absolute);
+      expect(config.getInputRoots()).toEqual([resolve(absolute, ".rulesync")]);
     });
 
-    it("resolves a relative inputRoot to absolute against the construction-time cwd", () => {
+    it("resolves a relative inputRoot to absolute against the construction-time cwd and appends '.rulesync'", () => {
       const config = createConfig({ inputRoot: "./central-rules" });
-      const expected = resolve(originalCwd, "central-rules");
-      expect(config.getInputRoot()).toBe(expected);
-      expect(isAbsolute(config.getInputRoot())).toBe(true);
+      const expected = resolve(originalCwd, "central-rules", ".rulesync");
+      expect(config.getInputRoots()).toEqual([expected]);
+      expect(isAbsolute(config.getInputRoots()[0])).toBe(true);
       // Later chdir must not change the captured value.
       const parent = resolve(originalCwd, "..");
       process.chdir(parent);
-      expect(config.getInputRoot()).toBe(expected);
+      expect(config.getInputRoots()[0]).toBe(expected);
+    });
+  });
+
+  describe("getInputRoots (multi-root)", () => {
+    let originalCwd: string;
+
+    beforeEach(() => {
+      originalCwd = process.cwd();
+    });
+
+    afterEach(() => {
+      process.chdir(originalCwd);
+    });
+
+    it("normalizes every entry of `inputRoots` to absolute at construction time", () => {
+      const absolute = resolve(originalCwd, "central");
+      const config = createConfig({ inputRoots: [absolute, "./overlay"] });
+      expect(config.getInputRoots()).toEqual([absolute, resolve(originalCwd, "overlay")]);
+    });
+
+    it("rejects an explicitly empty inputRoots list", () => {
+      expect(() => createConfig({ inputRoots: [] })).toThrow(/'inputRoots' must be non-empty/);
+    });
+
+    it("prefers `inputRoots` over `inputRoot` when both are supplied to the constructor", () => {
+      expect(() => createConfig({ inputRoot: "/base", inputRoots: ["/base", "/overlay"] })).toThrow(
+        /cannot be combined/,
+      );
+    });
+
+    it("returns the same absolute list even after chdir'ing away from the construction cwd", () => {
+      const config = createConfig({ inputRoots: ["./central", "./overlay"] });
+      const snapshot = [...config.getInputRoots()];
+      const parent = resolve(originalCwd, "..");
+      process.chdir(parent);
+      expect([...config.getInputRoots()]).toEqual(snapshot);
     });
   });
 

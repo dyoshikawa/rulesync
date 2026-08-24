@@ -447,12 +447,9 @@ export function createFeatureScaffold({
       return {
         feature,
         relativeFilePath,
-        candidateRelativeFilePaths: [
-          relativeFilePath,
-          ...(paths.legacy
-            ? [join(paths.legacy.relativeDirPath, paths.legacy.relativeFilePath)]
-            : []),
-        ],
+        candidateRelativeFilePaths: getRulesyncSourceCandidates({ paths }).map((candidate) =>
+          join(candidate.relativeDirPath, candidate.relativeFilePath),
+        ),
         content: singletonTemplate(feature),
       };
     }

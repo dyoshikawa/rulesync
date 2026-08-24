@@ -8,18 +8,18 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { RulesyncFile, RulesyncFileFromFileParams } from "../../types/rulesync-file.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
+import type {
+  RulesyncSourcePath,
+  RulesyncSourceSettablePaths,
+} from "../../utils/rulesync-source-path.js";
 
-export type RulesyncIgnoreFromFileParams = Pick<RulesyncFileFromFileParams, "outputRoot">;
+export type RulesyncIgnoreFromFileParams = Pick<
+  RulesyncFileFromFileParams,
+  "outputRoot" | "relativeDirPath"
+>;
 
-export type RulesyncIgnoreSettablePaths = {
-  recommended: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  legacy: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
+export type RulesyncIgnoreSettablePaths = Omit<RulesyncSourceSettablePaths, "legacy"> & {
+  legacy: readonly [RulesyncSourcePath];
 };
 
 export class RulesyncIgnore extends RulesyncFile {
@@ -33,33 +33,40 @@ export class RulesyncIgnore extends RulesyncFile {
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
       },
-      legacy: {
-        relativeDirPath: ".",
-        relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
-      },
+      legacy: [
+        {
+          relativeDirPath: ".",
+          relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+        },
+      ],
     };
   }
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
   }: RulesyncIgnoreFromFileParams = {}): Promise<RulesyncIgnore> {
     const paths = this.getSettablePaths();
+    // `relativeDirPath` overrides the class-level default when the caller
+    // (a processor loading from a non-default source tree such as
+    // `.rulesync.local`) needs to point at a tree whose basename differs
+    // from `.rulesync`. The legacy `.rulesyncignore` path stays anchored
+    // at `outputRoot` because it's a project-level file, not a per-tree
+    // one. See the `inputRoots` design note.
+    const recommendedDirPath = relativeDirPath ?? paths.recommended.relativeDirPath;
     const recommendedPath = join(
       outputRoot,
-      paths.recommended.relativeDirPath,
+      recommendedDirPath,
       paths.recommended.relativeFilePath,
     );
-    const legacyPath = join(
-      outputRoot,
-      paths.legacy.relativeDirPath,
-      paths.legacy.relativeFilePath,
-    );
+    const [legacy] = paths.legacy;
+    const legacyPath = join(outputRoot, legacy.relativeDirPath, legacy.relativeFilePath);
 
     if (await fileExists(recommendedPath)) {
       const fileContent = await readFileContent(recommendedPath);
       return new RulesyncIgnore({
         outputRoot,
-        relativeDirPath: paths.recommended.relativeDirPath,
+        relativeDirPath: recommendedDirPath,
         relativeFilePath: paths.recommended.relativeFilePath,
         fileContent,
       });
@@ -69,8 +76,8 @@ export class RulesyncIgnore extends RulesyncFile {
       const fileContent = await readFileContent(legacyPath);
       return new RulesyncIgnore({
         outputRoot,
-        relativeDirPath: paths.legacy.relativeDirPath,
-        relativeFilePath: paths.legacy.relativeFilePath,
+        relativeDirPath: legacy.relativeDirPath,
+        relativeFilePath: legacy.relativeFilePath,
         fileContent,
       });
     }
@@ -79,7 +86,7 @@ export class RulesyncIgnore extends RulesyncFile {
     const fileContent = await readFileContent(recommendedPath);
     return new RulesyncIgnore({
       outputRoot,
-      relativeDirPath: paths.recommended.relativeDirPath,
+      relativeDirPath: recommendedDirPath,
       relativeFilePath: paths.recommended.relativeFilePath,
       fileContent,
     });

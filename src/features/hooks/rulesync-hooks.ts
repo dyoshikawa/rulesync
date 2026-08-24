@@ -22,7 +22,7 @@ export type RulesyncHooksParams = RulesyncFileParams;
 
 export type RulesyncHooksFromFileParams = Pick<
   RulesyncFileFromFileParams,
-  "outputRoot" | "validate"
+  "outputRoot" | "validate" | "relativeDirPath"
 >;
 
 export type RulesyncHooksSettablePaths = RulesyncSourceSettablePaths;
@@ -69,19 +69,30 @@ export class RulesyncHooks extends RulesyncFile {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     validate = true,
   }: RulesyncHooksFromFileParams): Promise<RulesyncHooks> {
     const paths = RulesyncHooks.getSettablePaths();
+    // `relativeDirPath` overrides the class-level default (`.rulesync/`) for
+    // both recommended and legacy candidates so a caller loading from
+    // e.g. `.rulesync.local/` finds files in that tree instead. See the
+    // `inputRoots` design note.
+    const overrideDirPath = relativeDirPath;
+
     // The .jsonc variant takes precedence when both files exist.
     for (const candidate of getRulesyncSourceCandidates({ paths })) {
-      const filePath = join(outputRoot, candidate.relativeDirPath, candidate.relativeFilePath);
+      const candidateDirPath = overrideDirPath ?? candidate.relativeDirPath;
+      const filePath = join(outputRoot, candidateDirPath, candidate.relativeFilePath);
+
       if (!(await fileExists(filePath))) {
         continue;
       }
+
       const fileContent = await readFileContent(filePath);
+
       return new RulesyncHooks({
         outputRoot,
-        relativeDirPath: candidate.relativeDirPath,
+        relativeDirPath: candidateDirPath,
         relativeFilePath: candidate.relativeFilePath,
         fileContent,
         validate,

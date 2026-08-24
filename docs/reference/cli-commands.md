@@ -43,8 +43,8 @@ rulesync generate --dry-run --targets claudecode --features rules
 # Check if files are up to date (for CI/CD pipelines)
 rulesync generate --check --targets "*" --features "*"
 
-# Generate from a shared rules directory (without cd-ing into it)
-rulesync generate --input-root ~/.aiglobal --targets "*" --features rules
+# Generate from a shared source tree (without cd-ing into it)
+rulesync generate --input-roots ~/.aiglobal/.rulesync --targets "*" --features rules
 
 # Install rules and skills from declarative sources in rulesync.jsonc
 rulesync install
@@ -99,23 +99,24 @@ rulesync update --force
 
 ## Generate Command
 
-The `generate` command reads source files from `.rulesync/` and writes AI tool configuration files to the output directories.
+The `generate` command reads source files from one or more rulesync source trees (default: `<cwd>/.rulesync`; configurable via `--input-roots`) and writes AI tool configuration files to the output directories.
 
 ### Options
 
-| Option                      | Description                                                                                                                | Default               |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `--targets, -t <tools>`     | Comma-separated list of tools (e.g. `claudecode,copilot` or `*`)                                                           | From `rulesync.jsonc` |
-| `--features, -f <features>` | Comma-separated list of features (rules, commands, subagents, skills, mcp, hooks, permissions, checks; deprecated: ignore) | From `rulesync.jsonc` |
-| `--input-root <path>`       | Path to the directory containing `.rulesync/` source files (currently `generate` only)                                     | CWD                   |
-| `--dry-run`                 | Show what would change without writing files                                                                               | `false`               |
-| `--check`                   | Like `--dry-run` but exits with code 1 if files are not up to date                                                         | `false`               |
-| `--global`                  | Generate for global (user-scope) configuration files                                                                       | `false`               |
-| `--simulate-commands`       | Generate simulated commands for tools that do not support them natively                                                    | `false`               |
-| `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                                                   | `false`               |
-| `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                                                      | `false`               |
-| `--delete`                  | Delete existing generated files before writing                                                                             | From `rulesync.jsonc` |
-| `--watch, -w`               | Keep running and regenerate whenever rulesync source files change                                                          | `false`               |
+| Option                      | Description                                                                                                                                                                                                                                                                                                                                                                               | Default               |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `--targets, -t <tools>`     | Comma-separated list of tools (e.g. `claudecode,copilot` or `*`)                                                                                                                                                                                                                                                                                                                          | From `rulesync.jsonc` |
+| `--features, -f <features>` | Comma-separated list of features (rules, commands, subagents, skills, mcp, hooks, permissions, checks; deprecated: ignore)                                                                                                                                                                                                                                                                | From `rulesync.jsonc` |
+| `--input-roots <paths...>`  | Ordered list of rulesync source-tree directories (e.g. `.rulesync`, `.rulesync.local`). Each entry is a source tree itself — no `.rulesync/` join is applied. The first root is required; later roots are optional overlays and may be absent. Later entries override earlier ones for the same relative source path (currently `generate` only). Cannot be combined with `--input-root`. | `<cwd>/.rulesync`     |
+| `--input-root <path>`       | **Deprecated.** Path to the PARENT directory of a `.rulesync/` source tree; kept for backward compatibility and expands internally to `--input-roots <path>/.rulesync`. Prefer `--input-roots`. Cannot be combined with it.                                                                                                                                                               | CWD                   |
+| `--dry-run`                 | Show what would change without writing files                                                                                                                                                                                                                                                                                                                                              | `false`               |
+| `--check`                   | Like `--dry-run` but exits with code 1 if files are not up to date                                                                                                                                                                                                                                                                                                                        | `false`               |
+| `--global`                  | Generate for global (user-scope) configuration files                                                                                                                                                                                                                                                                                                                                      | `false`               |
+| `--simulate-commands`       | Generate simulated commands for tools that do not support them natively                                                                                                                                                                                                                                                                                                                   | `false`               |
+| `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                                                                                                                                                                                                                                                                                                                  | `false`               |
+| `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                                                                                                                                                                                                                                                                                                                     | `false`               |
+| `--delete`                  | Delete existing generated files before writing                                                                                                                                                                                                                                                                                                                                            | From `rulesync.jsonc` |
+| `--watch, -w`               | Keep running and regenerate whenever rulesync source files change                                                                                                                                                                                                                                                                                                                         | `false`               |
 
 ### Examples
 
@@ -126,8 +127,8 @@ rulesync generate
 # Generate rules for all tools
 rulesync generate --targets "*" --features rules
 
-# Generate from a shared directory without cd-ing into it
-rulesync generate --input-root ~/.aiglobal --targets "*" --features rules
+# Generate from a shared source tree without cd-ing into it
+rulesync generate --input-roots ~/.aiglobal/.rulesync --targets "*" --features rules
 
 # Dry run: preview changes without writing
 rulesync generate --dry-run --targets claudecode --features rules
@@ -146,7 +147,7 @@ rulesync generate --watch
 - **What is watched**: the `.rulesync/` source tree (recursively) plus the configuration files next to it (`rulesync.jsonc` and `rulesync.local.jsonc`, or the file passed to `--config`). Generated output is never watched, so a regeneration cannot re-trigger the watcher.
 - **Debouncing**: bursts of file-system events (editor save storms, `git checkout` switching many files) are coalesced into a single regeneration after a short quiet period. Changes that arrive while a generation is running trigger exactly one follow-up run.
 - **Errors keep the watcher alive**: a failing generation (e.g. invalid frontmatter saved mid-edit) is reported and watching continues; the process does not exit.
-- **Configuration changes**: editing the configuration file triggers a regeneration, and the new values apply to it because the configuration is re-resolved on every run. The **set of watched paths is fixed at startup**, so changing `inputRoot` (or the location of the configuration file itself) requires restarting the command. A warning is printed whenever the configuration file changes as a reminder.
+- **Configuration changes**: editing the configuration file triggers a regeneration, and the new values apply to it because the configuration is re-resolved on every run. The **set of watched paths is fixed at startup**, so changing `inputRoot`/`inputRoots` (or the location of the configuration file itself) requires restarting the command. A warning is printed whenever the configuration file changes as a reminder.
 - **Incompatible flags**: `--watch` cannot be combined with `--check`, `--dry-run` or `--json`. The first two are one-shot verification modes and `--json` emits a single result document when the command exits, which never happens while watching.
 - **Stopping**: `Ctrl+C` (`SIGINT`) or `SIGTERM` closes the watchers and exits normally.
 
@@ -412,7 +413,8 @@ It is especially useful for catching **silently ignored configuration**: the con
 - `$schema` presence and whether it points at the current config schema URL.
 - Structural schema violations on any other key (wrong types, malformed `sources` entries).
 - `sources[].tokenEnv` naming an environment variable that is not set.
-- `inputRoot` pointing at a directory that does not exist.
+- `inputRoot` or the first `inputRoots` entry pointing at a directory that does not exist. Later `inputRoots` entries are optional overlays and may be absent.
+- Duplicate entries in `inputRoots` (warning; duplicates are ignored at generate time).
 
 ### Options
 

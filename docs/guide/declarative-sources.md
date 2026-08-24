@@ -123,7 +123,7 @@ When `rulesync install` runs and `sources` is configured:
 2. **Remote artifact listing** — The configured skills and rules directories are listed from the remote source.
 3. **Filtering** — Only the names selected by `skills` and `rules` are fetched. Omitting both fields retains the historical behavior of fetching all skills.
 4. **Precedence rules**:
-   - **Local inputs always win** — Rules and skills outside `.curated/` take precedence over a remote artifact with the same name.
+   - **Local inputs win within one source tree** — Rules and skills outside `.curated/` take precedence over a same-named curated artifact in that input root. Across multiple `inputRoots`, root order remains primary: a later root replaces an earlier root's effective artifact even when the later artifact is curated.
    - **First-declared source wins** — If two sources provide an artifact with the same name, the one declared first in the `sources` array is used.
 5. **Output** — Fetched rules are written to `.rulesync/rules/.curated/<rule-name>.md`; fetched skills are written to `.rulesync/skills/.curated/<skill-name>/`. Both directories are automatically added to `.gitignore` by `rulesync gitignore`.
 
@@ -303,11 +303,11 @@ GITHUB_TOKEN=$(gh auth token) npx rulesync install
 
 ## Curated vs Local Inputs
 
-| Location                             | Type    | Precedence | Committed to Git |
-| ------------------------------------ | ------- | ---------- | ---------------- |
-| `.rulesync/skills/<name>/`           | Local   | Highest    | Yes              |
-| `.rulesync/skills/.curated/<name>/`  | Curated | Lower      | No (gitignored)  |
-| `.rulesync/rules/<name>.md`          | Local   | Highest    | Yes              |
-| `.rulesync/rules/.curated/<name>.md` | Curated | Lower      | No (gitignored)  |
+| Location                             | Type    | Precedence within one root | Committed to Git |
+| ------------------------------------ | ------- | -------------------------- | ---------------- |
+| `.rulesync/skills/<name>/`           | Local   | Higher                     | Yes              |
+| `.rulesync/skills/.curated/<name>/`  | Curated | Lower                      | No (gitignored)  |
+| `.rulesync/rules/<name>.md`          | Local   | Higher                     | Yes              |
+| `.rulesync/rules/.curated/<name>.md` | Curated | Lower                      | No (gitignored)  |
 
-When a local and curated artifact share the same name, the local artifact is used and the remote one is not fetched.
+When a local and curated artifact in the same source tree share a name, the local artifact is used and the remote one is not fetched. With multiple input roots, this per-root selection happens before the roots are merged in order; see [Separate Input Root](./separate-input-root.md#merge-rules-per-feature).

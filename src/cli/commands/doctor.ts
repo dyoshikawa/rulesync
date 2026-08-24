@@ -1,7 +1,12 @@
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 import { type ParseError, parse as parseJsonc, printParseErrorCode } from "jsonc-parser";
 
+import {
+  type InputRootConfig,
+  mergeInputRootConfigs,
+  resolveEffectiveInputRoots,
+} from "../../config/config-resolver.js";
 import {
   CONFLICTING_TARGET_PAIRS,
   ConfigFileSchema,
@@ -632,9 +637,20 @@ function parseConfigObjectForMerge(
 }
 
 /**
- * Path sanity: an `inputRoot` that does not exist means every command will
- * fail (or silently read nothing); local config wins, mirroring the merge
- * order in `ConfigResolver`.
+ * Path sanity for the input-root configuration.
+ *
+ * Errors:
+ * - The primary (first) entry in the effective `inputRoots`/`inputRoot` list
+ *   is not an existing directory. Later entries are optional overlays and may
+ *   be absent until a developer creates them locally.
+ *
+ * Warnings:
+ * - Duplicate entries in the effective list (after normalization). Duplicates
+ *   are silently deduped at generate time, but they are almost always an
+ *   authoring accident worth mentioning.
+ *
+ * The merge, singular expansion, normalization, and plural-over-singular
+ * precedence are delegated to the same pure helpers as `ConfigResolver`.
  */
 async function checkInputRootExists({
   baseConfig,
@@ -647,18 +663,109 @@ async function checkInputRootExists({
   baseFile: string;
   localFile: string;
 }): Promise<DoctorDiagnostic[]> {
-  const mergedInputRoot = localConfig?.inputRoot ?? baseConfig?.inputRoot;
-  if (typeof mergedInputRoot !== "string" || mergedInputRoot.length === 0) return [];
-  if (await directoryExists(resolve(mergedInputRoot))) return [];
-  return [
-    {
-      severity: "error",
-      code: "config/input-root-not-found",
-      file: localConfig?.inputRoot !== undefined ? localFile : baseFile,
-      message: `'inputRoot' points at '${mergedInputRoot}', which is not an existing directory.`,
-      hint: "Create the directory or fix the 'inputRoot' path.",
-    },
-  ];
+  const baseInputConfig = readDoctorInputRootConfig(baseConfig);
+  const localInputConfig = readDoctorInputRootConfig(localConfig);
+  const diagnostics: DoctorDiagnostic[] = [];
+
+  for (const [config, file] of [
+    [baseInputConfig, baseFile],
+    [localInputConfig, localFile],
+  ] as const) {
+    if (config.inputRoot !== undefined && config.inputRoots !== undefined) {
+      diagnostics.push({
+        severity: "error",
+        code: "config/input-roots-conflict",
+        file,
+        message: "'inputRoot' and 'inputRoots' cannot be combined in the same config file.",
+        hint: "Remove 'inputRoot' and keep 'inputRoots', or keep only the singular field.",
+      });
+    }
+  }
+
+  if (diagnostics.length > 0) {
+    return diagnostics;
+  }
+
+  const configByFile = mergeInputRootConfigs({
+    baseConfig: baseInputConfig,
+    localConfig: localInputConfig,
+  });
+  const resolved = resolveEffectiveInputRoots({
+    cliInputRoot: undefined,
+    cliInputRoots: undefined,
+    configByFile,
+    cwd: process.cwd(),
+    logger: undefined,
+  });
+
+  if (resolved.field === undefined) {
+    return diagnostics;
+  }
+
+  const field = resolved.field;
+  const sourceConfig =
+    field === "inputRoots"
+      ? localInputConfig.inputRoots !== undefined
+        ? "local"
+        : "base"
+      : localInputConfig.inputRoot !== undefined
+        ? "local"
+        : "base";
+  const file = sourceConfig === "local" ? localFile : baseFile;
+
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+
+  for (const [index, entry] of resolved.candidates.entries()) {
+    if (seen.has(entry)) duplicates.add(entry);
+
+    seen.add(entry);
+
+    const isDirectory = await directoryExists(entry);
+    const isInvalid = !isDirectory && (index === 0 || (await fileExists(entry)));
+
+    if (isInvalid) {
+      diagnostics.push({
+        severity: "error",
+        code: "config/input-root-not-found",
+        file,
+        message: `${index === 0 ? "Primary " : ""}'${field}' entry '${entry}' is not an existing directory.`,
+        hint: `Create the directory or fix the '${field}' path.`,
+      });
+    }
+  }
+
+  for (const duplicate of duplicates) {
+    diagnostics.push({
+      severity: "warning",
+      code: "config/input-roots-duplicate",
+      file,
+      message: `'inputRoots' contains the same directory more than once ('${duplicate}'); duplicates are ignored at generate time.`,
+      hint: "Remove the duplicate entry to make the intent explicit.",
+    });
+  }
+
+  return diagnostics;
+}
+
+function readDoctorInputRootConfig(config: Record<string, unknown> | undefined): InputRootConfig {
+  const inputRootValue = config?.inputRoot;
+  const inputRootsValue = config?.inputRoots;
+  const inputRoot =
+    typeof inputRootValue === "string" && inputRootValue.length > 0 ? inputRootValue : undefined;
+
+  if (!Array.isArray(inputRootsValue) || inputRootsValue.length === 0) {
+    return { inputRoot, inputRoots: undefined };
+  }
+
+  const inputRoots = inputRootsValue.filter(
+    (entry): entry is string => typeof entry === "string" && entry.length > 0,
+  );
+
+  return {
+    inputRoot,
+    inputRoots: inputRoots.length === 0 ? undefined : inputRoots,
+  };
 }
 
 function reportDiagnostics({

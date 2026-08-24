@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {
   companionFileContentsEquivalent,
   fileContentsEquivalent,
@@ -21,26 +22,44 @@ import { ToolTarget } from "./tool-targets.js";
 
 export abstract class DirFeatureProcessor {
   protected readonly outputRoot: string;
-  protected readonly inputRoot: string;
+  /**
+   * Ordered, non-empty list of rulesync source-tree directories. Each entry
+   * is a source tree itself — the directory that directly contains
+   * feature subdirectories (`rules/`, `skills/`, …) and single-file
+   * features (`mcp.jsonc`, `hooks.jsonc`, …). Later entries take precedence
+   * when two trees supply the same relative path. Defaults to
+   * `[join(process.cwd(), ".rulesync")]`.
+   *
+   * The singular user-facing alias (`inputRoot` in `rulesync.jsonc` / the
+   * `--input-root` CLI flag / `GenerateOptions.inputRoot`) is deprecated
+   * and collapsed into `[join(inputRoot, ".rulesync")]` before it ever
+   * reaches a processor.
+   */
+  protected readonly inputRoots: readonly [string, ...string[]];
   protected readonly dryRun: boolean;
   protected readonly avoidBlockScalars: boolean;
   protected readonly logger: Logger;
 
   constructor({
     outputRoot = process.cwd(),
-    inputRoot = process.cwd(),
+    inputRoots,
     dryRun = false,
     avoidBlockScalars = false,
     logger,
   }: {
     outputRoot?: string;
-    inputRoot?: string;
+    inputRoots?: readonly [string, ...string[]] | readonly string[];
     dryRun?: boolean;
     avoidBlockScalars?: boolean;
     logger: Logger;
   }) {
     this.outputRoot = outputRoot;
-    this.inputRoot = inputRoot;
+
+    this.inputRoots =
+      inputRoots !== undefined && inputRoots.length > 0
+        ? [inputRoots[0]!, ...inputRoots.slice(1)]
+        : [join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH)];
+
     this.dryRun = dryRun;
     this.avoidBlockScalars = avoidBlockScalars;
     this.logger = logger;

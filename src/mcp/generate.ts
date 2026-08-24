@@ -2,7 +2,7 @@ import { z } from "zod/mini";
 
 import { ConfigResolver } from "../config/config-resolver.js";
 import { Config } from "../config/config.js";
-import { checkRulesyncDirExists, generate, type GenerateResult } from "../lib/generate.js";
+import { generate, inspectInputRoots, type GenerateResult } from "../lib/generate.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
@@ -57,16 +57,6 @@ export type McpGenerateResult = {
  */
 export async function executeGenerate(options: GenerateOptions = {}): Promise<McpGenerateResult> {
   try {
-    // Check if .rulesync directory exists
-    const exists = await checkRulesyncDirExists({ inputRoot: process.cwd() });
-    if (!exists) {
-      return {
-        success: false,
-        error:
-          ".rulesync directory does not exist. Please run 'rulesync init' first or create the directory manually.",
-      };
-    }
-
     // Resolve config with MCP parameters taking precedence
     // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
     // In MCP context, options act as CLI options (highest priority)
@@ -83,6 +73,13 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
       verbose: false,
       silent: true,
     });
+
+    const inputRoots = config.getInputRoots();
+    const inputRootInspection = await inspectInputRoots(inputRoots);
+
+    if (inputRootInspection.message !== undefined) {
+      throw new Error(inputRootInspection.message);
+    }
 
     const logger = new ConsoleLogger({ verbose: false, silent: true });
     const generateResult = await generate({ config, logger });

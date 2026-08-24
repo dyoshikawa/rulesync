@@ -1,7 +1,9 @@
+import { basename, dirname } from "node:path";
+
 import { z } from "zod/mini";
 
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
-import { FeatureProcessor } from "../../types/feature-processor.js";
+import { FeatureProcessor, pickLastRootWithFile } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -9,6 +11,7 @@ import { ignoreProcessorToolTargetTuple } from "../../types/tool-target-tuples.j
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
+import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
 import { AiassistantIgnore } from "./aiassistant-ignore.js";
 import { AntigravityCliIgnore } from "./antigravity-cli-ignore.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
@@ -109,7 +112,7 @@ export class IgnoreProcessor extends FeatureProcessor {
 
   constructor({
     outputRoot = process.cwd(),
-    inputRoot = process.cwd(),
+    inputRoots,
     toolTarget,
     getFactory = defaultGetFactory,
     global = false,
@@ -118,7 +121,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     featureOptions,
   }: {
     outputRoot?: string;
-    inputRoot?: string;
+    inputRoots?: readonly [string, ...string[]] | readonly string[];
     toolTarget: ToolTarget;
     getFactory?: GetFactory;
     global?: boolean;
@@ -126,7 +129,7 @@ export class IgnoreProcessor extends FeatureProcessor {
     logger: Logger;
     featureOptions?: FeatureOptions;
   }) {
-    super({ outputRoot, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoots, dryRun, logger });
     const result = IgnoreProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -146,11 +149,39 @@ export class IgnoreProcessor extends FeatureProcessor {
 
   /**
    * Implementation of abstract method from FeatureProcessor
-   * Load and parse rulesync ignore files from .rulesync/ignore/ directory
+   *
+   * Load and parse the rulesync ignore file. `inputRoots[i]` is a source
+   * tree itself (e.g. `/repo/.rulesync.local`); the recommended `.aiignore`
+   * lives directly inside it. The legacy `.rulesyncignore` is shared at the
+   * project root, so it is intentionally not considered when choosing which
+   * source tree wins; `RulesyncIgnore.fromFile` still uses it as a fallback
+   * for the chosen tree.
+   *
+   * When multiple input roots are configured, the last root that provides
+   * an ignore file wins entirely (whole-file replacement — no line-level
+   * merge in this slice; see the "Deliberately out of scope" section of
+   * the inputRoots plan for context). If no root has the file, fall back
+   * to the primary root's path so the underlying `RulesyncIgnore.fromFile`
+   * surfaces the same missing-file error it would in the single-root case.
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    const paths = RulesyncIgnore.getSettablePaths();
+    const relativePaths = getRulesyncSourceCandidates({ paths })
+      .filter((candidate) => candidate.relativeDirPath === paths.recommended.relativeDirPath)
+      .map((candidate) => candidate.relativeFilePath);
+    const winningRoot = await pickLastRootWithFile({
+      inputRoots: this.inputRoots,
+      relativePaths,
+    });
+    const sourceTree = winningRoot ?? this.inputRoots[0];
+
     try {
-      return [await RulesyncIgnore.fromFile({ outputRoot: this.inputRoot })];
+      return [
+        await RulesyncIgnore.fromFile({
+          outputRoot: dirname(sourceTree),
+          relativeDirPath: basename(sourceTree),
+        }),
+      ];
     } catch (error) {
       this.logger.error(
         `Failed to load rulesync ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,

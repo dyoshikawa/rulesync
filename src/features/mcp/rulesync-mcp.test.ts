@@ -3,6 +3,8 @@ import { basename, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  RULESYNC_MCP_FILE_NAME,
+  RULESYNC_MCP_LEGACY_FILE_NAME,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
@@ -11,6 +13,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import {
+  mergeMcpJsonOverlays,
   RulesyncMcp,
   type RulesyncMcpFromFileParams,
   type RulesyncMcpParams,
@@ -1522,5 +1525,200 @@ describe("RulesyncMcp", () => {
 
       expect(rulesyncMcp.getJson()).toEqual(deeplyNestedData);
     });
+  });
+});
+
+describe("RulesyncMcp.fromRoots", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("should preserve a single root's JSONC content and actual source path", async () => {
+    const inputRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+    const fileContent = `{
+  // Keep this comment when no merge is necessary.
+  "mcpServers": {
+    "alpha": { "command": "alpha" },
+  },
+}`;
+
+    await writeFileContent(join(inputRoot, RULESYNC_MCP_LEGACY_FILE_NAME), fileContent);
+
+    const rulesyncMcp = await RulesyncMcp.fromRoots({ inputRoots: [inputRoot] });
+
+    expect(rulesyncMcp.getRelativeFilePath()).toBe(RULESYNC_MCP_LEGACY_FILE_NAME);
+    expect(rulesyncMcp.getFileContent()).toBe(fileContent);
+  });
+
+  it("should reject top-level null MCP servers instead of treating them as deletions", async () => {
+    const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+    const overlayRoot = join(testDir, ".rulesync.local");
+    await writeFileContent(
+      join(baseRoot, RULESYNC_MCP_FILE_NAME),
+      JSON.stringify({
+        mcpServers: {
+          alpha: { command: "alpha" },
+          beta: { command: "beta" },
+        },
+      }),
+    );
+    await writeFileContent(
+      join(overlayRoot, RULESYNC_MCP_FILE_NAME),
+      JSON.stringify({
+        mcpServers: {
+          alpha: null,
+        },
+      }),
+    );
+
+    await expect(RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] })).rejects.toThrow(
+      join(overlayRoot, RULESYNC_MCP_FILE_NAME),
+    );
+  });
+
+  it("should validate a base file even when an overlay would replace its invalid server", async () => {
+    const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+    const overlayRoot = join(testDir, ".rulesync.local");
+    await writeFileContent(
+      join(baseRoot, RULESYNC_MCP_FILE_NAME),
+      JSON.stringify({ mcpServers: { shared: { command: 123 } } }),
+    );
+    await writeFileContent(
+      join(overlayRoot, RULESYNC_MCP_FILE_NAME),
+      JSON.stringify({ mcpServers: { shared: { command: "valid-overlay" } } }),
+    );
+
+    await expect(RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] })).rejects.toThrow(
+      join(baseRoot, RULESYNC_MCP_FILE_NAME),
+    );
+  });
+
+  it("should attribute JSONC syntax errors to the overlay file", async () => {
+    const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+    const overlayRoot = join(testDir, ".rulesync.local");
+    await writeFileContent(
+      join(baseRoot, RULESYNC_MCP_FILE_NAME),
+      JSON.stringify({ mcpServers: { base: { command: "base" } } }),
+    );
+    await writeFileContent(join(overlayRoot, RULESYNC_MCP_FILE_NAME), "{ invalid");
+
+    await expect(RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] })).rejects.toThrow(
+      join(overlayRoot, RULESYNC_MCP_FILE_NAME),
+    );
+  });
+
+  it("should reject an overlay MCP file whose JSON is not an object", async () => {
+    const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+    const overlayRoot = join(testDir, ".rulesync.local");
+    await writeFileContent(
+      join(baseRoot, RULESYNC_MCP_FILE_NAME),
+      JSON.stringify({ mcpServers: { base: { command: "base" } } }),
+    );
+    await writeFileContent(join(overlayRoot, RULESYNC_MCP_FILE_NAME), JSON.stringify([]));
+
+    await expect(RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] })).rejects.toThrow(
+      `Invalid MCP source file '${join(overlayRoot, RULESYNC_MCP_FILE_NAME)}': Error: Expected a JSON object.`,
+    );
+  });
+});
+
+describe("mergeMcpJsonOverlays", () => {
+  it("merges the top-level mcpServers map by server name (later wins per key)", () => {
+    const base = {
+      mcpServers: {
+        alpha: { command: "alpha-v1", args: ["--old"] },
+        beta: { command: "beta-v1" },
+      },
+    };
+    const overlay = {
+      mcpServers: {
+        alpha: { command: "alpha-v2", args: ["--new"] },
+        gamma: { command: "gamma-v1" },
+      },
+    };
+
+    expect(mergeMcpJsonOverlays({ base, overlay })).toEqual({
+      mcpServers: {
+        // `alpha` is replaced atomically — the overlay's args map replaces
+        // the base's args map, no key-level union.
+        alpha: { command: "alpha-v2", args: ["--new"] },
+        beta: { command: "beta-v1" },
+        gamma: { command: "gamma-v1" },
+      },
+    });
+  });
+
+  it("does not interpret top-level null mcpServers entries as deletions", () => {
+    const base = {
+      mcpServers: {
+        alpha: { command: "alpha" },
+        beta: { command: "beta" },
+      },
+    };
+    const overlay = { mcpServers: { alpha: null } };
+
+    expect(mergeMcpJsonOverlays({ base, overlay })).toEqual({
+      mcpServers: {
+        alpha: null,
+        beta: { command: "beta" },
+      },
+    });
+  });
+
+  it("merges tool-scoped mcpServers maps in exactly the same way", () => {
+    const base = { claudecode: { mcpServers: { shared: { command: "shared" } } } };
+    const overlay = {
+      claudecode: {
+        mcpServers: {
+          shared: null,
+          local: { command: "local-only" },
+        },
+      },
+    };
+
+    expect(mergeMcpJsonOverlays({ base, overlay })).toEqual({
+      claudecode: {
+        mcpServers: {
+          shared: null,
+          local: { command: "local-only" },
+        },
+      },
+    });
+  });
+
+  it("replaces non-server keys atomically", () => {
+    const base = { $schema: "https://example.com/base.json", other: { keep: true } };
+    const overlay = { $schema: "https://example.com/overlay.json", other: { keep: false } };
+
+    expect(mergeMcpJsonOverlays({ base, overlay })).toEqual({
+      $schema: "https://example.com/overlay.json",
+      other: { keep: false },
+    });
+  });
+
+  it("drops prototype-pollution keys silently", () => {
+    const overlay = JSON.parse('{"__proto__": {"polluted": true}}');
+    expect(mergeMcpJsonOverlays({ base: { mcpServers: {} }, overlay })).toEqual({
+      mcpServers: {},
+    });
+  });
+
+  it("rejects non-object mcpServers overlays instead of treating them as empty", () => {
+    expect(() =>
+      mergeMcpJsonOverlays({ base: { mcpServers: {} }, overlay: { mcpServers: [] } }),
+    ).toThrow(/mcpServers/);
+  });
+
+  it("rejects non-object tool-scoped blocks instead of treating them as empty", () => {
+    expect(() => mergeMcpJsonOverlays({ base: {}, overlay: { cursor: null } })).toThrow(/cursor/);
   });
 });

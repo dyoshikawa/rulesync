@@ -11,6 +11,7 @@ import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
@@ -262,7 +263,7 @@ describe("shared-file cross-feature write contract", () => {
         outputRoots: [fileRoot],
         targets,
         features: [feature],
-        inputRoot: projectDir,
+        inputRoots: [join(projectDir, RULESYNC_RELATIVE_DIR_PATH)],
         global,
         verbose: false,
         delete: false,

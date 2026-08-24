@@ -3,7 +3,11 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileBuffer, writeFileContent } from "../../utils/file.js";
@@ -437,6 +441,39 @@ Content 2`;
       expect(names).toEqual(["skill-1", "skill-2"]);
     });
 
+    it("should prefer a local skill over a case-variant curated skill", async () => {
+      const localSkillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "Shared-Skill");
+      const curatedSkillDir = join(
+        testDir,
+        RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+        "shared-skill",
+      );
+      await ensureDir(localSkillDir);
+      await ensureDir(curatedSkillDir);
+      await writeFileContent(
+        join(localSkillDir, "SKILL.md"),
+        `---
+name: Shared-Skill
+description: Local skill
+---
+Local content`,
+      );
+      await writeFileContent(
+        join(curatedSkillDir, "SKILL.md"),
+        `---
+name: shared-skill
+description: Curated skill
+---
+Curated content`,
+      );
+
+      const rulesyncDirs = await processor.loadRulesyncDirs();
+
+      expect(rulesyncDirs).toHaveLength(1);
+      expect((rulesyncDirs[0] as RulesyncSkill).getDirName()).toBe("Shared-Skill");
+      expect((rulesyncDirs[0] as RulesyncSkill).getBody()).toBe("Local content");
+    });
+
     it("should throw error when invalid skill directory is found", async () => {
       const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
       await ensureDir(skillsDir);
@@ -530,13 +567,13 @@ This is skill content`;
       expect(rulesyncSkill.getFrontmatter().name).toBe("skill-1");
     });
 
-    // Mirror the per-feature inputRoot threading assertion used in
-    // commands-processor.test.ts: when inputRoot is set, loadRulesyncDirs
-    // reads from `<inputRoot>/.rulesync/skills` instead of
+    // Mirror the per-feature inputRoots threading assertion used in
+    // commands-processor.test.ts: when inputRoots is set, loadRulesyncDirs
+    // reads from `<inputRoots[0]>/skills` (source tree itself) instead of
     // `<process.cwd()>/.rulesync/skills`.
-    it("should read rulesync skill dirs from inputRoot instead of process.cwd()", async () => {
-      const customInputRoot = join(testDir, "custom-rulesync-dir");
-      const customSkillsDir = join(customInputRoot, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+    it("should read rulesync skill dirs from inputRoots[0] instead of process.cwd()", async () => {
+      const customInputRoot = join(testDir, "custom-rulesync-dir", RULESYNC_RELATIVE_DIR_PATH);
+      const customSkillsDir = join(customInputRoot, "skills");
       await ensureDir(customSkillsDir);
 
       const skillDir = join(customSkillsDir, "input-root-skill");
@@ -544,18 +581,18 @@ This is skill content`;
 
       const skillContent = `---
 name: input-root-skill
-description: Skill loaded from inputRoot
+description: Skill loaded from inputRoots[0]
 ---
-Body from inputRoot`;
+Body from inputRoots[0]`;
 
       await writeFileContent(join(skillDir, "SKILL.md"), skillContent);
 
       // outputRoot is testDir (process.cwd()); no skills exist there, so
-      // a successful load proves the inputRoot-aware processor read from inputRoot.
+      // a successful load proves the processor read from inputRoots[0].
       const inputRootProcessor = new SkillsProcessor({
         logger: createMockLogger(),
         outputRoot: testDir,
-        inputRoot: customInputRoot,
+        inputRoots: [customInputRoot],
         toolTarget: "claudecode",
       });
 

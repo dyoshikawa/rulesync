@@ -34,7 +34,7 @@ import { getProcessorRegistryEntry } from "../types/processor-registry.js";
 import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
-import { fileExists, toPosixPath } from "../utils/file.js";
+import { directoryExists, fileExists, toPosixPath } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
@@ -211,14 +211,64 @@ function warnUnsupportedTargets(params: {
 }
 
 /**
- * Check if .rulesync directory exists.
- *
- * The `.rulesync/` directory lives under the *input* root (where source rules
- * are read from), not under any individual output root, so callers always pass
- * `config.getInputRoot()` here.
+ * Inspect every configured input-root path. The first entry is the required
+ * base source tree; later entries are optional overlays and may be absent.
+ * Each existing entry is a rulesync source tree itself (the directory that
+ * directly holds `rules/`, `skills/`, `mcp.jsonc`, etc.). Existing empty
+ * directories are valid because delete and check workflows still need to
+ * inspect generated outputs.
  */
-export async function checkRulesyncDirExists(params: { inputRoot: string }): Promise<boolean> {
-  return fileExists(join(params.inputRoot, RULESYNC_RELATIVE_DIR_PATH));
+export async function inspectInputRoots(inputRoots: readonly string[]): Promise<{
+  existing: string[];
+  missing: string[];
+  message: string | undefined;
+}> {
+  const existing: string[] = [];
+  const missing: string[] = [];
+  const invalidOverlays: string[] = [];
+
+  for (const [index, root] of inputRoots.entries()) {
+    if (await directoryExists(root)) {
+      existing.push(root);
+    } else {
+      missing.push(root);
+
+      if (index > 0 && (await fileExists(root))) {
+        invalidOverlays.push(root);
+      }
+    }
+  }
+
+  const primaryRoot = inputRoots[0];
+
+  if (primaryRoot === undefined || existing.includes(primaryRoot)) {
+    const invalidOverlay = invalidOverlays[0];
+
+    return {
+      existing,
+      missing,
+      message:
+        invalidOverlay === undefined
+          ? undefined
+          : `Configured optional input root '${invalidOverlay}' exists but is not a directory.`,
+    };
+  }
+
+  const defaultRoot = join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH);
+
+  if (primaryRoot === defaultRoot) {
+    return {
+      existing,
+      missing,
+      message: `Rulesync source directory '${defaultRoot}' does not exist. Run 'rulesync init' first.`,
+    };
+  }
+
+  return {
+    existing,
+    missing,
+    message: `Configured primary input root '${primaryRoot}' does not exist. Create the directory or update your inputRoots setting.`,
+  };
 }
 
 type GenerationStepId =
@@ -418,7 +468,7 @@ async function warnSkillSubagentNameCollisions(params: {
     }
 
     const subagentsProcessor = new SubagentsProcessor({
-      inputRoot: config.getInputRoot(),
+      inputRoots: config.getInputRoots(),
       toolTarget,
       global,
       logger,
@@ -434,7 +484,7 @@ async function warnSkillSubagentNameCollisions(params: {
     }
 
     const skillsProcessor = new SkillsProcessor({
-      inputRoot: config.getInputRoot(),
+      inputRoots: config.getInputRoots(),
       toolTarget,
       global,
       logger,
@@ -698,7 +748,7 @@ async function generateRulesCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         simulateCommands: config.getSimulateCommands(),
@@ -774,7 +824,7 @@ async function generateIgnoreCore(params: {
           // (hermesagent, kimi-code) are not global ignore targets, so there is
           // nothing to redirect. Route through it if that ever changes.
           outputRoot,
-          inputRoot: config.getInputRoot(),
+          inputRoots: config.getInputRoots(),
           toolTarget,
           global,
           dryRun: config.isPreviewMode(),
@@ -835,7 +885,7 @@ async function generateMcpCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -890,7 +940,7 @@ async function generateCommandsCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -951,7 +1001,7 @@ async function generateSubagentsCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -1007,7 +1057,7 @@ async function generateSkillsCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -1071,7 +1121,7 @@ async function generateHooksCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
@@ -1123,7 +1173,7 @@ async function generatePermissionsCore(params: {
             toolTarget,
             global: config.getGlobal(),
           }),
-          inputRoot: config.getInputRoot(),
+          inputRoots: config.getInputRoots(),
           toolTarget,
           global: config.getGlobal(),
           dryRun: config.isPreviewMode(),
@@ -1184,7 +1234,7 @@ async function generateChecksCore(params: {
           toolTarget,
           global: config.getGlobal(),
         }),
-        inputRoot: config.getInputRoot(),
+        inputRoots: config.getInputRoots(),
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),

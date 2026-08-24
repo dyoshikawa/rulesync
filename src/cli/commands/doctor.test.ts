@@ -3,7 +3,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_CONFIG_SCHEMA_URL } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_CONFIG_SCHEMA_URL,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { CLIError } from "../../types/json-output.js";
@@ -449,7 +452,7 @@ describe("doctorCommand", () => {
   });
 
   it("accepts an existing inputRoot", async () => {
-    await ensureDir(join(testDir, "central"));
+    await ensureDir(join(testDir, "central", RULESYNC_RELATIVE_DIR_PATH));
     await writeFileContent(
       join(testDir, "rulesync.jsonc"),
       JSON.stringify({
@@ -461,6 +464,154 @@ describe("doctorCommand", () => {
 
     await doctorCommand(mockLogger, {});
     expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it("preserves the inputRoots field name for a one-element array", async () => {
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [join(testDir, "missing")],
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("'inputRoots' entry"));
+  });
+
+  it("uses merged-field precedence when base inputRoots and local inputRoot coexist", async () => {
+    const baseRoot = join(testDir, "base");
+    await ensureDir(baseRoot);
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [baseRoot],
+      }),
+    );
+    await writeFileContent(
+      join(testDir, "rulesync.local.jsonc"),
+      JSON.stringify({ inputRoot: join(testDir, "missing-local-parent") }),
+    );
+
+    await doctorCommand(mockLogger, {});
+
+    expect(mockLogger.error).not.toHaveBeenCalledWith(
+      expect.stringContaining("config/input-root-not-found"),
+    );
+  });
+
+  it("diagnoses inputRoot and inputRoots in the same config file", async () => {
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoot: join(testDir, "parent"),
+        inputRoots: [join(testDir, "source")],
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("config/input-roots-conflict"),
+    );
+  });
+
+  it("accepts a missing optional overlay input root", async () => {
+    await ensureDir(join(testDir, "base"));
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [join(testDir, "base"), join(testDir, "missing")],
+      }),
+    );
+
+    await doctorCommand(mockLogger, {});
+    expect(mockLogger.error).not.toHaveBeenCalledWith(
+      expect.stringContaining("config/input-root-not-found"),
+    );
+  });
+
+  it("errors when the primary inputRoots entry does not exist", async () => {
+    const overlay = join(testDir, "overlay");
+    await ensureDir(overlay);
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [join(testDir, "missing"), overlay],
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("config/input-root-not-found"),
+    );
+  });
+
+  it("errors when an optional overlay exists but is not a directory", async () => {
+    const base = join(testDir, "base");
+    const overlayFile = join(testDir, "overlay-file");
+    await ensureDir(base);
+    await writeFileContent(overlayFile, "not a directory");
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [base, overlayFile],
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("config/input-root-not-found"),
+    );
+  });
+
+  it("warns on duplicate inputRoots entries", async () => {
+    const shared = join(testDir, "shared");
+    await ensureDir(shared);
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [shared, shared],
+      }),
+    );
+
+    await doctorCommand(mockLogger, {});
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("config/input-roots-duplicate"),
+    );
+  });
+
+  it("accepts an inputRoots array of existing directories", async () => {
+    const base = join(testDir, "base");
+    const overlay = join(testDir, "overlay");
+    await ensureDir(base);
+    await ensureDir(overlay);
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [base, overlay],
+      }),
+    );
+
+    await doctorCommand(mockLogger, {});
+    expect(mockLogger.error).not.toHaveBeenCalled();
+    expect(mockLogger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("config/input-roots-duplicate"),
+    );
   });
 
   it("honors the --config option", async () => {

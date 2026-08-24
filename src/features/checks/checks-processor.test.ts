@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AMP_CHECKS_PROJECT_DIR } from "../../constants/amp-paths.js";
-import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  RULESYNC_CHECKS_RELATIVE_DIR_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
+} from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { ConsoleLogger } from "../../utils/logger.js";
@@ -77,7 +80,7 @@ Look for issues.
 
     const processor = new ChecksProcessor({
       outputRoot: testDir,
-      inputRoot: testDir,
+      inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
       toolTarget: "amp",
       logger,
     });
@@ -104,7 +107,7 @@ Look for issues.
 
     const processor = new ChecksProcessor({
       outputRoot: testDir,
-      inputRoot: testDir,
+      inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
       toolTarget: "amp",
       logger,
     });
@@ -121,7 +124,7 @@ Look for issues.
   it("should return an empty array when the rulesync checks directory is missing", async () => {
     const processor = new ChecksProcessor({
       outputRoot: testDir,
-      inputRoot: testDir,
+      inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
       toolTarget: "amp",
       logger,
     });

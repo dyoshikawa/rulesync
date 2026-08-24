@@ -1,11 +1,15 @@
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
-import { RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import {
+  CURATED_SKILLS_FEATURE_SUBDIR,
+  SKILLS_FEATURE_SUBDIR,
+} from "../../constants/rulesync-paths.js";
 import { AiDir } from "../../types/ai-dir.js";
 import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
+import { mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
 import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
@@ -109,10 +113,12 @@ type ToolSkillFactory = {
       relativeDirPath: string;
       dirName: string;
       /**
-       * The rulesync input root, for hooks that decide ownership by
-       * cross-referencing `.rulesync/` sources (e.g. Devin command slugs).
+       * The rulesync input roots (in overlay order), for hooks that decide
+       * ownership by cross-referencing `.rulesync/` sources (e.g. Devin
+       * command slugs). Ownership is decided across every root so an
+       * overlay-only command still shadows the same-named skill.
        */
-      inputRoot: string;
+      inputRoots: readonly string[];
     }): Promise<boolean>;
   };
   meta: {
@@ -541,7 +547,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
 
   constructor({
     outputRoot = process.cwd(),
-    inputRoot = process.cwd(),
+    inputRoots,
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
@@ -549,14 +555,20 @@ export class SkillsProcessor extends DirFeatureProcessor {
     logger,
   }: {
     outputRoot?: string;
-    inputRoot?: string;
+    inputRoots?: readonly [string, ...string[]] | readonly string[];
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ outputRoot, inputRoot, dryRun, avoidBlockScalars: toolTarget === "cursor", logger });
+    super({
+      outputRoot,
+      inputRoots,
+      dryRun,
+      avoidBlockScalars: toolTarget === "cursor",
+      logger,
+    });
     const result = SkillsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -619,46 +631,52 @@ export class SkillsProcessor extends DirFeatureProcessor {
   }
 
   /**
-   * Implementation of abstract method from DirFeatureProcessor
-   * Load and parse rulesync skill directories from .rulesync/skills/ directory
-   * and also from .rulesync/skills/.curated/ for remote skills.
-   * Local skills take precedence over curated skills with the same name.
+   * Load rulesync skill directories from a single source-tree's `skills/`
+   * (and `skills/.curated/`) subtree. `sourceTree` is the source tree
+   * itself (e.g. `/repo/.rulesync` or `/repo/.rulesync.local`). Intra-tree:
+   * local skills take precedence over curated skills with the same name.
    */
-  async loadRulesyncDirs(): Promise<AiDir[]> {
-    // Load local skills (directly under .rulesync/skills/)
-    const localDirNames = [...(await getLocalSkillDirNames(this.inputRoot))];
+  private async loadRulesyncDirsForRoot(sourceTree: string): Promise<RulesyncSkill[]> {
+    const treeParent = dirname(sourceTree);
+    const treeName = basename(sourceTree);
+    const treeSkillsDirPath = join(treeName, SKILLS_FEATURE_SUBDIR);
+    const treeCuratedSkillsDirPath = join(treeName, CURATED_SKILLS_FEATURE_SUBDIR);
+    const localDirNames = [...(await getLocalSkillDirNames(sourceTree))];
 
     const localSkills = await Promise.all(
       localDirNames.map((dirName) =>
-        RulesyncSkill.fromDir({ outputRoot: this.inputRoot, dirName, global: this.global }),
+        RulesyncSkill.fromDir({
+          outputRoot: treeParent,
+          relativeDirPath: treeSkillsDirPath,
+          dirName,
+          global: this.global,
+        }),
       ),
     );
 
-    const localSkillNames = new Set(localDirNames);
+    const localSkillNames = new Set(localDirNames.map((name) => name.toLowerCase()));
 
-    // Load curated (remote) skills from .curated/ subdirectory
-    const curatedDirPath = join(this.inputRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    const curatedDirPath = join(sourceTree, CURATED_SKILLS_FEATURE_SUBDIR);
     let curatedSkills: RulesyncSkill[] = [];
 
     if (await directoryExists(curatedDirPath)) {
       const curatedDirPaths = await findFilesByGlobs(join(curatedDirPath, "*"), { type: "dir" });
       const curatedDirNames = curatedDirPaths.map((path) => basename(path));
 
-      // Filter out curated skills that conflict with local skills (local wins)
       const nonConflicting = curatedDirNames.filter((name) => {
-        if (localSkillNames.has(name)) {
+        if (localSkillNames.has(name.toLowerCase())) {
           this.logger.debug(`Skipping curated skill "${name}": local skill takes precedence.`);
           return false;
         }
+
         return true;
       });
 
-      const curatedRelativeDirPath = RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH;
       curatedSkills = await Promise.all(
         nonConflicting.map((dirName) =>
           RulesyncSkill.fromDir({
-            outputRoot: this.inputRoot,
-            relativeDirPath: curatedRelativeDirPath,
+            outputRoot: treeParent,
+            relativeDirPath: treeCuratedSkillsDirPath,
             dirName,
             global: this.global,
           }),
@@ -666,10 +684,33 @@ export class SkillsProcessor extends DirFeatureProcessor {
       );
     }
 
-    const allSkills = [...localSkills, ...curatedSkills];
-    this.logger.debug(
-      `Successfully loaded ${allSkills.length} rulesync skills (${localSkills.length} local, ${curatedSkills.length} curated)`,
+    return [...localSkills, ...curatedSkills];
+  }
+
+  /**
+   * Implementation of abstract method from DirFeatureProcessor.
+   *
+   * Load and parse rulesync skill directories from every configured input
+   * root's `.rulesync/skills/` tree (each root also honours its own
+   * `.curated/` subdirectory). When two roots supply a skill with the same
+   * directory name, the later root's skill replaces the earlier root's copy
+   * atomically (companion files included) — an overlay always ships a whole
+   * skill directory, never a partial patch.
+   */
+  async loadRulesyncDirs(): Promise<AiDir[]> {
+    const perRoot = await Promise.all(
+      this.inputRoots.map((root) => this.loadRulesyncDirsForRoot(root)),
     );
+
+    const allSkills = mergeByCaseInsensitiveIdentity({
+      perRoot,
+      identity: (skill) => skill.getDirName(),
+      artifactName: "skill",
+      logger: this.logger,
+    });
+
+    this.logger.debug(`Successfully loaded ${allSkills.length} rulesync skills`);
+
     return allSkills;
   }
 
@@ -722,7 +763,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
             outputRoot: rootOutputRoot,
             relativeDirPath,
             dirName,
-            inputRoot: this.inputRoot,
+            inputRoots: this.inputRoots,
           }))
         ) {
           continue;
@@ -843,7 +884,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
             outputRoot: this.outputRoot,
             relativeDirPath: root,
             dirName,
-            inputRoot: this.inputRoot,
+            inputRoots: this.inputRoots,
           }))
         ) {
           continue;

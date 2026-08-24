@@ -166,23 +166,26 @@ describe("McpProcessor", () => {
         fileContent: JSON.stringify({ servers: {} }),
       });
 
-      vi.mocked(RulesyncMcp.fromFile).mockResolvedValue(mockRulesyncMcp);
+      vi.mocked(RulesyncMcp.fromRoots).mockResolvedValue(mockRulesyncMcp);
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
         outputRoot: testDir,
         toolTarget: "copilot",
+        inputRoots: [testDir],
       });
 
       const files = await processor.loadRulesyncFiles();
 
       expect(files).toHaveLength(1);
       expect(files[0]).toBe(mockRulesyncMcp);
-      expect(RulesyncMcp.fromFile).toHaveBeenCalledWith({ outputRoot: testDir });
+      expect(RulesyncMcp.fromRoots).toHaveBeenCalledWith(
+        expect.objectContaining({ inputRoots: [testDir] }),
+      );
     });
 
     it("should return empty array when no MCP files found", async () => {
-      vi.mocked(RulesyncMcp.fromFile).mockRejectedValue(new Error("File not found"));
+      vi.mocked(RulesyncMcp.fromRoots).mockRejectedValue(new Error("File not found"));
 
       const processor = new McpProcessor({
         logger: createMockLogger(),

@@ -1,9 +1,12 @@
-import { join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
-import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { FeatureProcessor } from "../../types/feature-processor.js";
+import {
+  RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+  SUBAGENTS_FEATURE_SUBDIR,
+} from "../../constants/rulesync-paths.js";
+import { FeatureProcessor, mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
@@ -478,7 +481,7 @@ export class SubagentsProcessor extends FeatureProcessor {
 
   constructor({
     outputRoot = process.cwd(),
-    inputRoot = process.cwd(),
+    inputRoots,
     toolTarget,
     global = false,
     getFactory = defaultGetFactory,
@@ -486,14 +489,14 @@ export class SubagentsProcessor extends FeatureProcessor {
     logger,
   }: {
     outputRoot?: string;
-    inputRoot?: string;
+    inputRoots?: readonly [string, ...string[]] | readonly string[];
     toolTarget: ToolTarget;
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
     logger: Logger;
   }) {
-    super({ outputRoot, inputRoot, dryRun, logger });
+    super({ outputRoot, inputRoots, dryRun, logger });
     const result = SubagentsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -590,20 +593,22 @@ export class SubagentsProcessor extends FeatureProcessor {
   }
 
   /**
-   * Implementation of abstract method from Processor
-   * Load and parse rulesync subagent files from .rulesync/subagents/ directory
+   * Load subagent files from a single source-tree's `subagents/` subtree.
+   * `sourceTree` is the source tree itself (e.g. `/repo/.rulesync` or
+   * `/repo/.rulesync.local`).
    */
-  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const subagentsDir = join(this.inputRoot, RulesyncSubagent.getSettablePaths().relativeDirPath);
+  private async loadRulesyncFilesForRoot(sourceTree: string): Promise<RulesyncSubagent[]> {
+    const treeParent = dirname(sourceTree);
+    const treeName = basename(sourceTree);
+    const treeSubagentsDirPath = join(treeName, SUBAGENTS_FEATURE_SUBDIR);
+    const subagentsDir = join(sourceTree, SUBAGENTS_FEATURE_SUBDIR);
 
-    // Check if directory exists
     const dirExists = await directoryExists(subagentsDir);
     if (!dirExists) {
       this.logger.debug(`Rulesync subagents directory not found: ${subagentsDir}`);
       return [];
     }
 
-    // Read all markdown files from the directory
     const entries = await listDirectoryFiles(subagentsDir);
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
@@ -614,7 +619,6 @@ export class SubagentsProcessor extends FeatureProcessor {
 
     this.logger.debug(`Found ${mdFiles.length} subagent files in ${subagentsDir}`);
 
-    // Parse all files and create RulesyncSubagent instances using fromFilePath
     const rulesyncSubagents: RulesyncSubagent[] = [];
 
     for (const mdFile of mdFiles) {
@@ -622,7 +626,8 @@ export class SubagentsProcessor extends FeatureProcessor {
 
       try {
         const rulesyncSubagent = await RulesyncSubagent.fromFile({
-          outputRoot: this.inputRoot,
+          outputRoot: treeParent,
+          relativeDirPath: treeSubagentsDirPath,
           relativeFilePath: mdFile,
           validate: true,
         });
@@ -635,12 +640,35 @@ export class SubagentsProcessor extends FeatureProcessor {
       }
     }
 
+    return rulesyncSubagents;
+  }
+
+  /**
+   * Implementation of abstract method from Processor
+   * Load and parse rulesync subagent files from every configured input root's
+   * `.rulesync/subagents/` directory, merging by relative file path so a
+   * subagent with the same target path from a later root replaces the
+   * earlier root's copy.
+   */
+  async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    const perRoot = await Promise.all(
+      this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
+    );
+
+    const rulesyncSubagents = mergeByCaseInsensitiveIdentity({
+      perRoot,
+      identity: (subagent) => subagent.getRelativeFilePath(),
+      artifactName: "subagent",
+      logger: this.logger,
+    });
+
     if (rulesyncSubagents.length === 0) {
-      this.logger.debug(`No valid subagents found in ${subagentsDir}`);
+      this.logger.debug(`No valid subagents found`);
       return [];
     }
 
     this.logger.debug(`Successfully loaded ${rulesyncSubagents.length} rulesync subagents`);
+
     return rulesyncSubagents;
   }
 

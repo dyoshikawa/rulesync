@@ -9,7 +9,7 @@ import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
-import { fileExists } from "../../utils/file.js";
+import { directoryExists, fileExists } from "../../utils/file.js";
 import type { GenerateOptions } from "./generate.js";
 import { assertWatchModeCompatible, generateCommand } from "./generate.js";
 
@@ -58,11 +58,12 @@ describe("generateCommand", () => {
       getDryRun: vi.fn().mockReturnValue(false),
       getCheck: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
-      getInputRoot: vi.fn().mockReturnValue(process.cwd()),
+      getInputRoots: vi.fn().mockReturnValue([`${process.cwd()}/.rulesync`]),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
     vi.mocked(fileExists).mockResolvedValue(true);
+    vi.mocked(directoryExists).mockResolvedValue(true);
 
     mockLogger = createMockLogger();
 
@@ -159,23 +160,23 @@ describe("generateCommand", () => {
 
   describe("rulesync directory check", () => {
     it("should throw error when .rulesync directory does not exist", async () => {
-      vi.mocked(fileExists).mockResolvedValue(false);
+      vi.mocked(directoryExists).mockResolvedValue(false);
       const options: GenerateOptions = {};
 
       await expect(generateCommand(mockLogger, options)).rejects.toThrow(
-        ".rulesync directory not found",
+        "Rulesync source directory '/test/project/.rulesync' does not exist. Run 'rulesync init' first.",
       );
 
-      expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync");
+      expect(directoryExists).toHaveBeenCalledWith("/test/project/.rulesync");
     });
 
     it("should continue when .rulesync directory exists", async () => {
-      vi.mocked(fileExists).mockResolvedValue(true);
+      vi.mocked(directoryExists).mockResolvedValue(true);
       const options: GenerateOptions = {};
 
       await generateCommand(mockLogger, options);
 
-      expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync");
+      expect(directoryExists).toHaveBeenCalledWith("/test/project/.rulesync");
       expect(mockExit).not.toHaveBeenCalled();
     });
   });
@@ -772,8 +773,8 @@ describe("generateCommand", () => {
       await expect(generateCommand(mockLogger, options)).rejects.toThrow("Config error");
     });
 
-    it("should handle file existence check errors", async () => {
-      vi.mocked(fileExists).mockRejectedValue(new Error("File system error"));
+    it("should handle input root directory check errors", async () => {
+      vi.mocked(directoryExists).mockRejectedValue(new Error("File system error"));
       const options: GenerateOptions = {};
 
       await expect(generateCommand(mockLogger, options)).rejects.toThrow("File system error");
@@ -805,8 +806,9 @@ describe("generateCommand", () => {
 
       await generateCommand(mockLogger, options);
 
-      // Should check .rulesync in process.cwd(), not in outputRoots[0] (which is /home/user in global mode)
-      expect(fileExists).toHaveBeenCalledWith("/test/project/.rulesync");
+      // Should check the source tree at cwd, not outputRoots[0] (`/home/user`
+      // in global mode).
+      expect(directoryExists).toHaveBeenCalledWith("/test/project/.rulesync");
     });
 
     it("should use getToolTargets with global: true when global mode is enabled", async () => {
@@ -1082,27 +1084,28 @@ describe("generateCommand", () => {
     });
   });
 
-  describe("inputRoot decoupling", () => {
-    // Rules source dir (where .rulesync/ lives) is independent of output outputRoots.
-    const inputRoot = "/central/rulesync-source";
+  describe("inputRoots decoupling", () => {
+    // Each inputRoots entry is a rulesync source tree itself — independent of
+    // the output outputRoots.
+    const inputRoots = ["/central/rulesync-source/.rulesync"];
     const outputRoots = ["/project/app-one", "/project/app-two"];
 
     beforeEach(() => {
-      mockConfig.getInputRoot.mockReturnValue(inputRoot);
+      mockConfig.getInputRoots.mockReturnValue(inputRoots);
       mockConfig.getOutputRoots.mockReturnValue(outputRoots);
     });
 
-    it("should check for .rulesync under inputRoot, not under outputRoots", async () => {
+    it("should check configured inputRoots, not outputRoots", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
       await generateCommand(mockLogger, {});
 
-      expect(fileExists).toHaveBeenCalledWith("/central/rulesync-source/.rulesync");
-      expect(fileExists).not.toHaveBeenCalledWith("/project/app-one/.rulesync");
-      expect(fileExists).not.toHaveBeenCalledWith("/project/app-two/.rulesync");
+      expect(directoryExists).toHaveBeenCalledWith("/central/rulesync-source/.rulesync");
+      expect(directoryExists).not.toHaveBeenCalledWith("/project/app-one/.rulesync");
+      expect(directoryExists).not.toHaveBeenCalledWith("/project/app-two/.rulesync");
     });
 
-    it("should construct RulesProcessor with inputRoot distinct from outputRoot for each output dir", async () => {
+    it("should construct RulesProcessor with inputRoots distinct from outputRoot for each output dir", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
       await generateCommand(mockLogger, {});
@@ -1111,20 +1114,20 @@ describe("generateCommand", () => {
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
           outputRoot: "/project/app-one",
-          inputRoot,
+          inputRoots,
           toolTarget: "claudecode",
         }),
       );
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
           outputRoot: "/project/app-two",
-          inputRoot,
+          inputRoots,
           toolTarget: "claudecode",
         }),
       );
     });
 
-    it("should pass inputRoot to IgnoreProcessor independently of outputRoot", async () => {
+    it("should pass inputRoots to IgnoreProcessor independently of outputRoot", async () => {
       mockConfig.getFeatures.mockReturnValue(["ignore"]);
 
       await generateCommand(mockLogger, {});
@@ -1132,20 +1135,20 @@ describe("generateCommand", () => {
       expect(IgnoreProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
           outputRoot: "/project/app-one",
-          inputRoot,
+          inputRoots,
           toolTarget: "claudecode",
         }),
       );
       expect(IgnoreProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
           outputRoot: "/project/app-two",
-          inputRoot,
+          inputRoots,
           toolTarget: "claudecode",
         }),
       );
     });
 
-    it("should pass inputRoot to McpProcessor independently of outputRoot", async () => {
+    it("should pass inputRoots to McpProcessor independently of outputRoot", async () => {
       mockConfig.getFeatures.mockReturnValue(["mcp"]);
 
       await generateCommand(mockLogger, {});
@@ -1153,20 +1156,20 @@ describe("generateCommand", () => {
       expect(McpProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
           outputRoot: "/project/app-one",
-          inputRoot,
+          inputRoots,
           toolTarget: "claudecode",
         }),
       );
       expect(McpProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
           outputRoot: "/project/app-two",
-          inputRoot,
+          inputRoots,
           toolTarget: "claudecode",
         }),
       );
     });
 
-    it("should pass inputRoot to CommandsProcessor independently of outputRoot", async () => {
+    it("should pass inputRoots to CommandsProcessor independently of outputRoot", async () => {
       mockConfig.getFeatures.mockReturnValue(["commands"]);
 
       await generateCommand(mockLogger, {});
@@ -1174,20 +1177,20 @@ describe("generateCommand", () => {
       expect(CommandsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
           outputRoot: "/project/app-one",
-          inputRoot,
+          inputRoots,
           toolTarget: "claudecode",
         }),
       );
       expect(CommandsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
           outputRoot: "/project/app-two",
-          inputRoot,
+          inputRoots,
           toolTarget: "claudecode",
         }),
       );
     });
 
-    it("should pass inputRoot to SubagentsProcessor independently of outputRoot", async () => {
+    it("should pass inputRoots to SubagentsProcessor independently of outputRoot", async () => {
       mockConfig.getFeatures.mockReturnValue(["subagents"]);
 
       await generateCommand(mockLogger, {});
@@ -1195,14 +1198,14 @@ describe("generateCommand", () => {
       expect(SubagentsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
           outputRoot: "/project/app-one",
-          inputRoot,
+          inputRoots,
           toolTarget: "claudecode",
         }),
       );
       expect(SubagentsProcessor).toHaveBeenCalledWith(
         expect.objectContaining({
           outputRoot: "/project/app-two",
-          inputRoot,
+          inputRoots,
           toolTarget: "claudecode",
         }),
       );

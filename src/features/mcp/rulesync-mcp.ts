@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { omit } from "es-toolkit/object";
 import { z } from "zod/mini";
@@ -17,6 +17,7 @@ import {
 } from "../../types/rulesync-file.js";
 import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
+import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
@@ -116,9 +117,157 @@ export const RulesyncMcpFileSchema = z.looseObject({
 
 export type RulesyncMcpParams = RulesyncFileParams;
 
-export type RulesyncMcpFromFileParams = Pick<RulesyncFileFromFileParams, "outputRoot" | "validate">;
+export type RulesyncMcpFromFileParams = Pick<
+  RulesyncFileFromFileParams,
+  "outputRoot" | "validate" | "relativeDirPath"
+>;
 
 export type RulesyncMcpSettablePaths = RulesyncSourceSettablePaths;
+
+/**
+ * The tool-scoped block keys that carry a `{toolname}.mcpServers` sub-map.
+ * Derived from `RulesyncMcpFileSchema`'s own shape so this set can never drift
+ * from the schema — every tool-scoped block declared above is treated as a
+ * "merge servers by name" site by `mergeMcpJsonOverlays`, and everything else
+ * (including `$schema` and top-level Kimi Code timeout fields) is replaced
+ * atomically.
+ */
+const TOOL_SCOPED_MCP_KEYS = new Set<string>(
+  Object.keys(RulesyncMcpFileSchema.def.shape).filter(
+    (key) => key !== "$schema" && key !== "mcpServers",
+  ),
+);
+
+/**
+ * Return the first candidate path (recommended, then legacy variants) that
+ * exists under `outputRoot`, or `undefined` when none is present. Shared
+ * between `fromFile` (single-root) and `fromRoots` (multi-root) so both
+ * paths honour the same intra-root resolution order.
+ *
+ * When `overrideDirPath` is provided it replaces the candidates'
+ * class-level `relativeDirPath` (which defaults to `.rulesync/`) so the
+ * caller can point at a non-default source tree (e.g. `.rulesync.local/`).
+ * Also returned is the effective `relativeDirPath` for the winning
+ * candidate so the caller can reconstruct a `RulesyncMcp` with matching
+ * anchor fields.
+ */
+async function findFirstExistingCandidate({
+  paths,
+  outputRoot,
+  overrideDirPath,
+}: {
+  paths: RulesyncMcpSettablePaths;
+  outputRoot: string;
+  overrideDirPath?: string;
+}): Promise<
+  { filePath: string; candidate: { relativeDirPath: string; relativeFilePath: string } } | undefined
+> {
+  for (const candidate of getRulesyncSourceCandidates({ paths })) {
+    const candidateDirPath = overrideDirPath ?? candidate.relativeDirPath;
+    const filePath = join(outputRoot, candidateDirPath, candidate.relativeFilePath);
+
+    if (await fileExists(filePath)) {
+      return {
+        filePath,
+        candidate: {
+          relativeDirPath: candidateDirPath,
+          relativeFilePath: candidate.relativeFilePath,
+        },
+      };
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Merge two parsed MCP JSON objects with the one-level policy from the
+ * inputRoots plan: the top-level `mcpServers` map and each
+ * `<toolname>.mcpServers` sub-map are merged by server name (later wins per
+ * key). Every other value — individual server configs, other top-level keys
+ * — is replaced atomically. This keeps the merge predictable: an overlay can
+ * add or replace whole shared servers, but a partial patch of one server's
+ * `args`/`env` is deliberately not supported.
+ */
+function getRecordField({
+  value,
+  path,
+}: {
+  value: unknown;
+  path: string;
+}): Record<string, unknown> {
+  if (value === undefined) return {};
+  if (!isRecord(value)) {
+    throw new Error(`Invalid MCP overlay: '${path}' must be an object.`);
+  }
+  return value;
+}
+
+function mergeTopLevelMcpServers({
+  baseServers,
+  overlayServers,
+}: {
+  baseServers: Record<string, unknown>;
+  overlayServers: Record<string, unknown>;
+}): Record<string, unknown> {
+  const merged = { ...baseServers };
+
+  for (const [serverName, serverConfig] of Object.entries(overlayServers)) {
+    if (isPrototypePollutionKey(serverName)) continue;
+
+    merged[serverName] = serverConfig;
+  }
+
+  return merged;
+}
+
+export function mergeMcpJsonOverlays({
+  base,
+  overlay,
+}: {
+  base: Record<string, unknown>;
+  overlay: Record<string, unknown>;
+}): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base };
+
+  for (const [key, overlayValue] of Object.entries(overlay)) {
+    if (isPrototypePollutionKey(key)) continue;
+
+    if (key === "mcpServers") {
+      const baseServers = getRecordField({ value: base.mcpServers, path: "mcpServers" });
+      const overlayServers = getRecordField({ value: overlayValue, path: "mcpServers" });
+
+      merged.mcpServers = mergeTopLevelMcpServers({ baseServers, overlayServers });
+      continue;
+    }
+
+    if (TOOL_SCOPED_MCP_KEYS.has(key)) {
+      const baseBlock = getRecordField({ value: base[key], path: key });
+      const overlayBlock = getRecordField({ value: overlayValue, path: key });
+      const mergedBlock: Record<string, unknown> = { ...baseBlock, ...overlayBlock };
+
+      const baseServers = getRecordField({
+        value: baseBlock.mcpServers,
+        path: `${key}.mcpServers`,
+      });
+      const overlayServers = getRecordField({
+        value: overlayBlock.mcpServers,
+        path: `${key}.mcpServers`,
+      });
+
+      if (Object.keys(baseServers).length > 0 || Object.keys(overlayServers).length > 0) {
+        mergedBlock.mcpServers = { ...baseServers, ...overlayServers };
+      }
+
+      merged[key] = mergedBlock;
+      continue;
+    }
+
+    merged[key] = overlayValue;
+  }
+
+  return merged;
+}
 
 export class RulesyncMcp extends RulesyncFile {
   private readonly json: RulesyncMcpConfig;
@@ -165,46 +314,176 @@ export class RulesyncMcp extends RulesyncFile {
     return { success: true, error: null };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
+  /**
+   * Load and merge MCP source files across the configured input roots.
+   *
+   * `inputRoots` entries are the source trees themselves (e.g.
+   * `/repo/.rulesync`, `/repo/.rulesync.local`). Per-root behavior mirrors
+   * `fromFile`: each root's own candidate paths (recommended `mcp.jsonc`,
+   * legacy `mcp.json`, deprecated `.mcp.json`) are checked INSIDE that
+   * source tree and the first hit is loaded. Roots that have no candidate
+   * contribute nothing.
+   *
+   * Cross-root behavior: the parsed JSON objects are folded left-to-right
+   * with `mergeMcpJsonOverlays`, so later roots overlay earlier ones by
+   * server name (one level deep) and replace every other value atomically.
+   * With one root, this delegates to `fromFile` so JSONC formatting and the
+   * actual candidate path are preserved. With multiple roots, each source is
+   * parsed and schema-validated before merging so failures name the originating
+   * file. The merged object is necessarily synthetic, serialized JSON anchored
+   * to the first root's recommended path.
+   *
+   * When no root supplies any candidate, this falls back to reading the
+   * primary root's recommended path so the underlying file-not-found error
+   * matches the single-root behavior of `fromFile`.
+   */
+  static async fromRoots({
+    inputRoots,
     validate = true,
     logger,
-  }: RulesyncMcpFromFileParams & { logger?: Logger }): Promise<RulesyncMcp> {
+  }: {
+    inputRoots: readonly [string, ...string[]];
+    validate?: boolean;
+    logger?: Logger;
+  }): Promise<RulesyncMcp> {
+    if (inputRoots.length === 1) {
+      const [primary] = inputRoots;
+
+      return this.fromFile({
+        outputRoot: dirname(primary),
+        relativeDirPath: basename(primary),
+        validate,
+        logger,
+      });
+    }
+
     const paths = this.getSettablePaths();
-    for (const candidate of getRulesyncSourceCandidates({ paths })) {
-      const filePath = join(outputRoot, candidate.relativeDirPath, candidate.relativeFilePath);
-      if (!(await fileExists(filePath))) {
-        continue;
-      }
-      if (candidate.relativeFilePath === ".mcp.json") {
-        const recommendedPath = join(
-          outputRoot,
-          paths.recommended.relativeDirPath,
-          paths.recommended.relativeFilePath,
-        );
+    const rootRecords: Record<string, unknown>[] = [];
+
+    for (const root of inputRoots) {
+      // Each `root` is a source tree itself (e.g. `/repo/.rulesync.local`);
+      // its parent is the anchor and its basename replaces the default
+      // `.rulesync/` prefix in the candidate lookup.
+      const parent = dirname(root);
+      const treeName = basename(root);
+      const found = await findFirstExistingCandidate({
+        paths,
+        outputRoot: parent,
+        overrideDirPath: treeName,
+      });
+
+      if (found === undefined) continue;
+
+      const { filePath } = found;
+
+      if (filePath.endsWith(".mcp.json")) {
+        const recommendedPath = join(parent, treeName, paths.recommended.relativeFilePath);
+
         logger?.warn(
           `⚠️  Using deprecated path "${filePath}". Please migrate to "${recommendedPath}"`,
         );
       }
+
       const fileContent = await readFileContent(filePath);
+      let parsed: unknown;
+
+      try {
+        parsed = parseJsonc(fileContent);
+
+        if (!isRecord(parsed)) {
+          throw new Error("Expected a JSON object.");
+        }
+
+        if (validate) {
+          const result = RulesyncMcpFileSchema.safeParse(parsed);
+
+          if (!result.success) {
+            throw result.error;
+          }
+        }
+      } catch (error) {
+        throw new Error(`Invalid MCP source file '${filePath}': ${formatError(error)}`, {
+          cause: error,
+        });
+      }
+
+      rootRecords.push(parsed);
+    }
+
+    if (rootRecords.length === 0) {
+      const primary = inputRoots[0];
+
+      return this.fromFile({
+        outputRoot: dirname(primary),
+        relativeDirPath: basename(primary),
+        validate,
+        logger,
+      });
+    }
+
+    const merged = rootRecords.reduce<Record<string, unknown>>(
+      (acc, next) => mergeMcpJsonOverlays({ base: acc, overlay: next }),
+      {},
+    );
+
+    const primary = inputRoots[0];
+
+    return new RulesyncMcp({
+      outputRoot: dirname(primary),
+      relativeDirPath: basename(primary),
+      relativeFilePath: paths.recommended.relativeFilePath,
+      fileContent: JSON.stringify(merged, null, 2),
+      validate,
+    });
+  }
+
+  static async fromFile({
+    outputRoot = process.cwd(),
+    relativeDirPath,
+    validate = true,
+    logger,
+  }: RulesyncMcpFromFileParams & { logger?: Logger }): Promise<RulesyncMcp> {
+    const paths = this.getSettablePaths();
+    const overrideDirPath = relativeDirPath;
+
+    for (const candidate of getRulesyncSourceCandidates({ paths })) {
+      const candidateDirPath = overrideDirPath ?? candidate.relativeDirPath;
+      const filePath = join(outputRoot, candidateDirPath, candidate.relativeFilePath);
+
+      if (!(await fileExists(filePath))) {
+        continue;
+      }
+
+      if (candidate.relativeFilePath === ".mcp.json") {
+        const recommendedPath = join(
+          outputRoot,
+          candidateDirPath,
+          paths.recommended.relativeFilePath,
+        );
+
+        logger?.warn(
+          `⚠️  Using deprecated path "${filePath}". Please migrate to "${recommendedPath}"`,
+        );
+      }
+
+      const fileContent = await readFileContent(filePath);
+
       return new RulesyncMcp({
         outputRoot,
-        relativeDirPath: candidate.relativeDirPath,
+        relativeDirPath: candidateDirPath,
         relativeFilePath: candidate.relativeFilePath,
         fileContent,
         validate,
       });
     }
 
-    const recommendedPath = join(
-      outputRoot,
-      paths.recommended.relativeDirPath,
-      paths.recommended.relativeFilePath,
-    );
+    const fallbackDirPath = overrideDirPath ?? paths.recommended.relativeDirPath;
+    const recommendedPath = join(outputRoot, fallbackDirPath, paths.recommended.relativeFilePath);
     const fileContent = await readFileContent(recommendedPath);
+
     return new RulesyncMcp({
       outputRoot,
-      relativeDirPath: paths.recommended.relativeDirPath,
+      relativeDirPath: fallbackDirPath,
       relativeFilePath: paths.recommended.relativeFilePath,
       fileContent,
       validate,

@@ -806,7 +806,8 @@ targets: ["*"]
 
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(false);
-      expect(parsed.error).toContain(".rulesync directory does not exist");
+      expect(parsed.error).toContain("Rulesync source directory");
+      expect(parsed.error).toContain("does not exist");
     });
 
     it("should reject unsupported operations for generate feature", async () => {

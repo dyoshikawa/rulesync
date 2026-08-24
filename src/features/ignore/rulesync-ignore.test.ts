@@ -514,8 +514,8 @@ build/`;
 
       expect(paths.recommended.relativeDirPath).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(paths.recommended.relativeFilePath).toBe(RULESYNC_AIIGNORE_FILE_NAME);
-      expect(paths.legacy.relativeDirPath).toBe(".");
-      expect(paths.legacy.relativeFilePath).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
+      expect(paths.legacy[0]?.relativeDirPath).toBe(".");
+      expect(paths.legacy[0]?.relativeFilePath).toBe(RULESYNC_IGNORE_RELATIVE_FILE_PATH);
     });
   });
 

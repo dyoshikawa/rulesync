@@ -51,6 +51,7 @@ export async function runGenerate({
   simulateSubagents = false,
   simulateSkills = false,
   inputRoot,
+  inputRoots,
   outputRoots,
   env,
 }: {
@@ -63,9 +64,12 @@ export async function runGenerate({
   simulateSubagents?: boolean;
   simulateSkills?: boolean;
   inputRoot?: string;
+  inputRoots?: string[];
   outputRoots?: string;
   env?: Record<string, string>;
 }): Promise<{ stdout: string; stderr: string }> {
+  // The deprecated singular form takes a parent directory and appends
+  // `.rulesync`; the plural form takes source-tree paths exactly as supplied.
   const args = [
     ...rulesyncArgs,
     "generate",
@@ -80,6 +84,7 @@ export async function runGenerate({
     ...(simulateSubagents ? ["--simulate-subagents"] : []),
     ...(simulateSkills ? ["--simulate-skills"] : []),
     ...(inputRoot ? ["--input-root", inputRoot] : []),
+    ...(inputRoots && inputRoots.length > 0 ? ["--input-roots", ...inputRoots] : []),
     ...(outputRoots ? ["--output-roots", outputRoots] : []),
   ];
   return execFileAsync(rulesyncCmd, args, env ? { env: { ...process.env, ...env } } : {});

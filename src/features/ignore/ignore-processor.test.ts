@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_IGNORE_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
@@ -36,6 +38,18 @@ vi.mock("./rulesync-ignore.js", () => ({
 // Add a static fromFile method to the mock
 const RulesyncIgnoreMock = vi.mocked(RulesyncIgnore);
 (RulesyncIgnoreMock as any).fromFile = vi.fn();
+(RulesyncIgnoreMock as any).getSettablePaths = vi.fn(() => ({
+  recommended: {
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
+  },
+  legacy: [
+    {
+      relativeDirPath: ".",
+      relativeFilePath: RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+    },
+  ],
+}));
 
 describe("IgnoreProcessor", () => {
   let testDir: string;
@@ -132,12 +146,14 @@ describe("IgnoreProcessor", () => {
       );
     });
 
-    // Mirror the per-feature inputRoot threading assertion used in
-    // commands-processor.test.ts: when inputRoot is set, loadRulesyncFiles
-    // calls RulesyncIgnore.fromFile with `outputRoot === inputRoot` so the
-    // ignore file is read from the custom rulesync dir instead of process.cwd().
-    it("should pass inputRoot to RulesyncIgnore.fromFile when inputRoot is set", async () => {
+    // Mirror the per-feature inputRoots threading assertion used in
+    // commands-processor.test.ts: when inputRoots is set, loadRulesyncFiles
+    // calls RulesyncIgnore.fromFile with `outputRoot === dirname(inputRoots[0])`
+    // and `relativeDirPath === basename(inputRoots[0])` so the ignore file is
+    // read from the custom source tree instead of process.cwd()'s `.rulesync`.
+    it("should pass inputRoots[0] to RulesyncIgnore.fromFile", async () => {
       const customInputRoot = join(testDir, "custom-rulesync-dir");
+      const sourceTree = join(customInputRoot, RULESYNC_RELATIVE_DIR_PATH);
       const mockRulesyncIgnore = new MockRulesyncIgnore({
         outputRoot: customInputRoot,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -149,7 +165,7 @@ describe("IgnoreProcessor", () => {
       const processor = new IgnoreProcessor({
         logger,
         outputRoot: testDir,
-        inputRoot: customInputRoot,
+        inputRoots: [sourceTree],
         toolTarget: "cursor",
       });
 
@@ -157,6 +173,37 @@ describe("IgnoreProcessor", () => {
       expect(files).toHaveLength(1);
       expect((RulesyncIgnoreMock as any).fromFile).toHaveBeenCalledWith({
         outputRoot: customInputRoot,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      });
+    });
+
+    it("should not let a shared legacy .rulesyncignore make an empty overlay root win", async () => {
+      const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      const overlayRoot = join(testDir, ".rulesync.local");
+      await writeFileContent(join(baseRoot, ".aiignore"), "base-only\n");
+      await ensureDir(overlayRoot);
+      await writeFileContent(join(testDir, ".rulesyncignore"), "legacy\n");
+      const mockRulesyncIgnore = new MockRulesyncIgnore({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "base-only\n",
+      });
+      (RulesyncIgnoreMock as any).fromFile.mockResolvedValue(mockRulesyncIgnore as any);
+
+      const processor = new IgnoreProcessor({
+        logger,
+        outputRoot: testDir,
+        inputRoots: [baseRoot, overlayRoot],
+        toolTarget: "cursor",
+      });
+
+      const files = await processor.loadRulesyncFiles();
+
+      expect(files).toHaveLength(1);
+      expect((RulesyncIgnoreMock as any).fromFile).toHaveBeenCalledWith({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       });
     });
   });

@@ -1,6 +1,6 @@
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import type { Config } from "../../config/config.js";
-import { checkRulesyncDirExists, generate, type GenerateResult } from "../../lib/generate.js";
+import { generate, inspectInputRoots, type GenerateResult } from "../../lib/generate.js";
 import {
   buildConfigFilePaths,
   buildWatchTargets,
@@ -130,11 +130,12 @@ async function generateOnce(
 
   logger.debug("Generating files...");
 
-  if (!(await checkRulesyncDirExists({ inputRoot: config.getInputRoot() }))) {
-    throw new CLIError(
-      ".rulesync directory not found. Run 'rulesync init' first.",
-      ErrorCodes.RULESYNC_DIR_NOT_FOUND,
-    );
+  const inputRoots = config.getInputRoots();
+
+  const inputRootInspection = await inspectInputRoots(inputRoots);
+
+  if (inputRootInspection.message !== undefined) {
+    throw new CLIError(inputRootInspection.message, ErrorCodes.RULESYNC_DIR_NOT_FOUND);
   }
 
   logger.debug(`Output roots: ${config.getOutputRoots().join(", ")}`);
@@ -260,26 +261,29 @@ async function generateWatchCommand(logger: Logger, options: GenerateOptions): P
     isJsonMode: logger.jsonMode,
   });
 
-  const inputRoot = config.getInputRoot();
+  const inputRoots = config.getInputRoots();
   // Take the path the resolver actually loaded rather than re-deriving it:
-  // the two differ when `inputRoot` comes from the configuration file itself.
+  // the two differ when input roots come from the configuration file itself.
   const configFilePath = config.getConfigFilePath();
   const configFilePaths = buildConfigFilePaths({ configFilePath });
 
-  // Run once before watching so a missing `.rulesync` directory (or any other
-  // configuration error) fails fast instead of starting an idle watcher.
+  // Run once before watching so a missing primary source tree (or any other
+  // configuration error) fails fast. Missing optional overlays remain watch
+  // targets and attach if they are created later.
   await generateOnce(logger, options, { resolvedConfig: config });
 
-  const targets = buildWatchTargets({ inputRoot, configFilePath });
+  const targets = buildWatchTargets({ inputRoots, configFilePath });
 
   const scheduler = new WatchScheduler({
     run: async ({ triggers }) => {
-      logger.info(`\nChange detected: ${formatTriggerPaths({ triggers, baseDir: inputRoot })}`);
+      logger.info(`\nChange detected: ${formatTriggerPaths({ triggers, inputRoots })}`);
+
       if (triggers.some((trigger) => configFilePaths.has(trigger))) {
         logger.warn(
-          "Configuration file changed. The set of watched paths is fixed at startup — restart 'rulesync generate --watch' if you changed 'inputRoot' or the configuration file location.",
+          "Configuration file changed. The set of watched paths is fixed at startup — restart 'rulesync generate --watch' if you changed 'inputRoot'/'inputRoots' or the configuration file location.",
         );
       }
+
       await generateOnce(logger, options);
     },
     onError: ({ error }) => {

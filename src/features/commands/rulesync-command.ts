@@ -119,14 +119,16 @@ export class RulesyncCommand extends RulesyncFile {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
   }: RulesyncFileFromFileParams): Promise<RulesyncCommand> {
-    // Read file content
-    const filePath = join(
-      outputRoot,
-      RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath,
-    );
+    // `relativeDirPath` overrides the class-level default when the caller
+    // (a processor loading from a non-default source tree such as
+    // `.rulesync.local/commands`) needs to point at a tree whose basename
+    // differs from `.rulesync`. See the `inputRoots` design note.
+    const dirPath = relativeDirPath ?? RulesyncCommand.getSettablePaths().relativeDirPath;
+    const filePath = join(outputRoot, dirPath, relativeFilePath);
+
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content, hasFrontmatter } = parseFrontmatter(fileContent, filePath);
 
@@ -144,7 +146,7 @@ export class RulesyncCommand extends RulesyncFile {
 
     return new RulesyncCommand({
       outputRoot,
-      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
+      relativeDirPath: dirPath,
       relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
