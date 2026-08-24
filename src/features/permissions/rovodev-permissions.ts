@@ -350,12 +350,6 @@ export class RovodevPermissions extends ToolPermissions {
 }
 
 /**
- * Resolve the `toolPermissions` block to write, merging the generated levels
- * over the existing file. Every other top-level key of `config.yml` is the
- * caller's to preserve; inside this block, keys rulesync manages are owned and
- * keys it does not are kept as-is.
- */
-/**
  * Report a `toolPermissions.bash.runInSandbox: false` that this generate is
  * about to carry through.
  *
@@ -385,6 +379,12 @@ function warnAboutPreservedSandboxOptOut({
   );
 }
 
+/**
+ * Resolve the `toolPermissions` block to write, merging the generated levels
+ * over the existing file. Every other top-level key of `config.yml` is the
+ * caller's to preserve; inside this block, keys rulesync manages are owned and
+ * keys it does not are kept as-is.
+ */
 function resolveToolPermissionsBlock({
   existing,
   generated,
