@@ -478,6 +478,19 @@ const subagentsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filt
   return factory?.meta.supportsGlobal ?? false;
 });
 
+/**
+ * Stands in for a discovery root when a subagent came from a tool's own config
+ * file rather than a directory (see `loadAdditionalImportFiles`). The angle
+ * brackets keep it from ever matching a real relative directory path.
+ */
+const INLINE_SOURCE = "<inline>";
+
+/**
+ * The single "root" of the post-conversion output guard, which de-duplicates
+ * `.rulesync/subagents/` paths rather than discovery roots.
+ */
+const OUTPUT_SOURCE = "<output>";
+
 export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
   private readonly global: boolean;
@@ -577,19 +590,26 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
 
     const uniqueRulesyncSubagents: RulesyncSubagent[] = [];
-    const seenOutputPaths = new Set<string>();
+    // The last guard before `.rulesync/subagents/`, and the one the fan-out
+    // above only reaches: two spellings of a name inside a single aggregate
+    // file (`.roomodes`) never pass through the per-root de-duplication. Case
+    // is folded here for the same reason it is folded there — the two paths
+    // are one file on macOS and Windows.
+    const claimedOutputPaths = new ClaimedIdentities();
     for (const rulesyncSubagent of rulesyncSubagents) {
       const outputPath = join(
         rulesyncSubagent.getRelativeDirPath(),
         rulesyncSubagent.getRelativeFilePath(),
       );
-      if (seenOutputPaths.has(outputPath)) {
+      const claimed = claimedOutputPaths.claim({ identity: outputPath, source: OUTPUT_SOURCE });
+      if (claimed !== null) {
         this.logger.warn(
-          `Multiple ${this.toolTarget} subagents resolve to "${outputPath}"; keeping the first and ignoring this copy.`,
+          claimed.spelling === outputPath
+            ? `Multiple ${this.toolTarget} subagents resolve to "${outputPath}"; keeping the first and ignoring this copy.`
+            : `${this.toolTarget} subagent "${outputPath}" differs only in case from "${claimed.spelling}", which is the same file on a case-insensitive filesystem; keeping the first and ignoring this copy.`,
         );
         continue;
       }
-      seenOutputPaths.add(outputPath);
       uniqueRulesyncSubagents.push(rulesyncSubagent);
     }
 
@@ -777,29 +797,9 @@ export class SubagentsProcessor extends FeatureProcessor {
         ),
       );
 
-      // When more than one discovery root is scanned (e.g. Junie's
-      // `.junie/agents/` plus `.agents/`), two roots can hold a subagent with
-      // the same relative path. Downstream conversion keys by that path, so a
-      // later one would silently overwrite an earlier one. Warn instead of
-      // failing, keeping the earlier (higher-precedence) root's file.
-      const deduped: ToolFile[] = [];
-      for (const subagent of loaded) {
-        const key = subagent.getImportIdentity();
-        const claimed = claimedRelativeFilePaths.claim(key);
-        if (claimed !== null) {
-          this.logger.warn(
-            claimed === key
-              ? `Duplicate ${this.toolTarget} subagent "${key}" found in ${dirPath}; ` +
-                  `keeping the one from a higher-precedence directory and ignoring this copy.`
-              : `Duplicate ${this.toolTarget} subagent "${key}" found in ${dirPath} differs only ` +
-                  `in case from "${claimed}"; keeping the one from a higher-precedence directory ` +
-                  `and ignoring this copy.`,
-          );
-          continue;
-        }
-        deduped.push(subagent);
-      }
-      toolSubagents.push(...deduped);
+      toolSubagents.push(
+        ...this.claimStandaloneSubagents({ loaded, dirPath, claimedRelativeFilePaths }),
+      );
     }
 
     // Import-only: merge in subagents defined outside the standalone-file layout
@@ -810,28 +810,107 @@ export class SubagentsProcessor extends FeatureProcessor {
         outputRoot: this.outputRoot,
         global: this.global,
       });
-      for (const subagent of additionalSubagents) {
-        const key = subagent.getImportIdentity();
-        const claimed = claimedRelativeFilePaths.claim(key);
-        if (claimed !== null) {
-          this.logger.warn(
-            claimed === key
-              ? `Duplicate ${this.toolTarget} subagent "${key}" defined inline; ` +
-                  `keeping the standalone file and ignoring the inline copy.`
-              : `Inline ${this.toolTarget} subagent "${key}" differs only in case from the ` +
-                  `standalone file "${claimed}"; keeping the standalone file and ignoring the ` +
-                  `inline copy.`,
-          );
-          continue;
-        }
-        toolSubagents.push(subagent);
-      }
+      toolSubagents.push(
+        ...this.claimInlineSubagents({ additionalSubagents, claimedRelativeFilePaths }),
+      );
     }
 
     this.logger.debug(
       `Successfully loaded ${toolSubagents.length} ${this.toolTarget} subagents from ${roots.length} root(s)`,
     );
     return toolSubagents;
+  }
+
+  /**
+   * Keeps the subagents from one discovery root whose import identity is still
+   * unclaimed, warning about each copy that loses. Split out of
+   * `loadToolFiles` so the two de-duplication passes stay readable side by
+   * side (and so that method stays within the linter's complexity budget).
+   *
+   * When more than one discovery root is scanned (e.g. Junie's `.junie/agents/`
+   * plus `.agents/`), two roots can hold a subagent with the same relative
+   * path. Downstream conversion keys by that path, so a later one would
+   * silently overwrite an earlier one. Warn instead of failing, keeping the
+   * earlier (higher-precedence) root's file.
+   */
+  private claimStandaloneSubagents({
+    loaded,
+    dirPath,
+    claimedRelativeFilePaths,
+  }: {
+    loaded: readonly ToolSubagent[];
+    dirPath: string;
+    claimedRelativeFilePaths: ClaimedIdentities;
+  }): ToolFile[] {
+    const deduped: ToolFile[] = [];
+
+    for (const subagent of loaded) {
+      const key = subagent.getImportIdentity();
+      const claimed = claimedRelativeFilePaths.claim({ identity: key, source: dirPath });
+      if (claimed === null) {
+        deduped.push(subagent);
+        continue;
+      }
+
+      // The winner is only in a "higher-precedence directory" when it came
+      // from an earlier root; two spellings inside one directory collide just
+      // as well, and saying otherwise sends the user looking for a root that
+      // is not involved.
+      const keptFrom =
+        claimed.source === dirPath
+          ? `the earlier one in ${dirPath}`
+          : `the one from the higher-precedence ${claimed.source}`;
+      this.logger.warn(
+        claimed.spelling === key
+          ? `Duplicate ${this.toolTarget} subagent "${key}" found in ${dirPath}; ` +
+              `keeping ${keptFrom} and ignoring this copy.`
+          : `Duplicate ${this.toolTarget} subagent "${key}" found in ${dirPath} differs only ` +
+              `in case from "${claimed.spelling}"; keeping ${keptFrom} and ignoring this copy.`,
+      );
+    }
+
+    return deduped;
+  }
+
+  /**
+   * The same claim-or-warn pass for subagents defined inline in a tool's own
+   * config file (see `loadAdditionalImportFiles`), which are scanned after
+   * every standalone file so a Markdown file of the same name wins.
+   */
+  private claimInlineSubagents({
+    additionalSubagents,
+    claimedRelativeFilePaths,
+  }: {
+    additionalSubagents: readonly ToolSubagent[];
+    claimedRelativeFilePaths: ClaimedIdentities;
+  }): ToolFile[] {
+    const deduped: ToolFile[] = [];
+
+    for (const subagent of additionalSubagents) {
+      const key = subagent.getImportIdentity();
+      const claimed = claimedRelativeFilePaths.claim({ identity: key, source: INLINE_SOURCE });
+      if (claimed === null) {
+        deduped.push(subagent);
+        continue;
+      }
+
+      // Two inline entries can collide with each other, with no standalone
+      // file anywhere — so the winner is only "the standalone file" when the
+      // claim did not come from this same inline pass.
+      const kept =
+        claimed.source === INLINE_SOURCE
+          ? "the earlier inline definition"
+          : `the standalone file in ${claimed.source}`;
+      this.logger.warn(
+        claimed.spelling === key
+          ? `Duplicate ${this.toolTarget} subagent "${key}" defined inline; ` +
+              `keeping ${kept} and ignoring the inline copy.`
+          : `Inline ${this.toolTarget} subagent "${key}" differs only in case from ` +
+              `"${claimed.spelling}"; keeping ${kept} and ignoring the inline copy.`,
+      );
+    }
+
+    return deduped;
   }
 
   /**

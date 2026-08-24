@@ -740,24 +740,29 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const claimedSkillNames = new ClaimedIdentities();
     // An exact repeat is an ordinary overlay and stays quiet, as it always
     // has. A collision that differs only in case is reported, because the
-    // ignored copy is not the one whose name the user would search for.
+    // ignored copy is not the one whose name the user would search for — and
+    // because on a case-sensitive filesystem, where the two really are
+    // separate skills, this is the only sign that one of them was dropped.
     const claimSkillName = ({
       skill,
       relativeDirPath,
+      sourcePath,
     }: {
       skill: ToolSkill;
       relativeDirPath: string;
+      sourcePath: string;
     }): boolean => {
       const skillName = skill.getImportIdentity();
-      const claimed = claimedSkillNames.claim(skillName);
+      const claimed = claimedSkillNames.claim({ identity: skillName, source: relativeDirPath });
       if (claimed === null) {
         return true;
       }
-      if (claimed !== skillName) {
+      if (claimed.spelling !== skillName) {
         this.logger.warn(
-          `Case-insensitive ${this.toolTarget} skill collision: "${claimed}" and "${skillName}" ` +
-            `resolve to the same skill directory. Keeping "${claimed}" from a higher-precedence ` +
-            `root and ignoring ${join(relativeDirPath, skillName)}.`,
+          `Case-insensitive ${this.toolTarget} skill collision: "${claimed.spelling}" and ` +
+            `"${skillName}" resolve to the same skill directory. Keeping "${claimed.spelling}" ` +
+            `from ${claimed.source === relativeDirPath ? "earlier in the same root" : `the higher-precedence ${claimed.source}`} ` +
+            `and ignoring ${sourcePath}, which is not imported.`,
         );
       }
       return false;
@@ -805,25 +810,32 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const directorySkills = (
         await Promise.all(
           ownedDirNames.map(async (dirName) => {
+            // The source path travels with the skill because a warning has to
+            // name the file on disk, and `getImportIdentity()` is not always
+            // the directory name (Kimi Code derives it from frontmatter).
+            const sourcePath = join(relativeDirPath, dirName);
             try {
-              return await factory.class.fromDir({
-                outputRoot: rootOutputRoot,
-                relativeDirPath,
-                dirName,
-                global: this.global,
-              });
+              return {
+                skill: await factory.class.fromDir({
+                  outputRoot: rootOutputRoot,
+                  relativeDirPath,
+                  dirName,
+                  global: this.global,
+                }),
+                sourcePath,
+              };
             } catch (error) {
               if (!isLenientRoot) {
                 throw error;
               }
-              this.logger.warn(`Skipping ${join(relativeDirPath, dirName)}: ${formatError(error)}`);
+              this.logger.warn(`Skipping ${sourcePath}: ${formatError(error)}`);
               return null;
             }
           }),
         )
-      ).filter((skill) => skill !== null);
-      for (const skill of directorySkills) {
-        if (claimSkillName({ skill, relativeDirPath })) {
+      ).filter((loaded) => loaded !== null);
+      for (const { skill, sourcePath } of directorySkills) {
+        if (claimSkillName({ skill, relativeDirPath, sourcePath })) {
           toolSkills.push(skill);
         }
       }
@@ -841,28 +853,30 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const flatSkills = (
         await Promise.all(
           flatFilePaths.map(async (filePath) => {
+            const sourcePath = join(relativeDirPath, basename(filePath));
             try {
-              return await fromFlatFile({
-                outputRoot: rootOutputRoot,
-                relativeDirPath,
-                relativeFilePath: basename(filePath),
-                global: this.global,
-              });
+              return {
+                skill: await fromFlatFile({
+                  outputRoot: rootOutputRoot,
+                  relativeDirPath,
+                  relativeFilePath: basename(filePath),
+                  global: this.global,
+                }),
+                sourcePath,
+              };
             } catch (error) {
               // Same tolerance as the directory-form loads above.
               if (!isLenientRoot) {
                 throw error;
               }
-              this.logger.warn(
-                `Skipping ${join(relativeDirPath, basename(filePath))}: ${formatError(error)}`,
-              );
+              this.logger.warn(`Skipping ${sourcePath}: ${formatError(error)}`);
               return null;
             }
           }),
         )
-      ).filter((skill) => skill !== null);
-      for (const skill of flatSkills) {
-        if (claimSkillName({ skill, relativeDirPath })) {
+      ).filter((loaded) => loaded !== null);
+      for (const { skill, sourcePath } of flatSkills) {
+        if (claimSkillName({ skill, relativeDirPath, sourcePath })) {
           toolSkills.push(skill);
         }
       }

@@ -38,6 +38,13 @@ description: ${name} description
 ---
 ${name} content`;
 
+/** Builds a minimal OpenCode subagent Markdown file with valid frontmatter. */
+const opencodeSubagentMd = (name: string): string => `---
+description: ${name} description
+mode: subagent
+---
+${name} content`;
+
 describe("SubagentsProcessor", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -788,6 +795,64 @@ Body from inputRoots[0]`;
 
       expect(filesToDelete).toHaveLength(1);
       expect(filesToDelete[0]?.getRelativeDirPath()).toBe(join(".junie", "agents"));
+    });
+  });
+
+  describe("loadOpenCodeSubagents", () => {
+    it("should keep the standalone file when an inline agent differs only in case", async () => {
+      const logger = createMockLogger();
+      const processor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "opencode",
+      });
+      const agentsDir = join(testDir, ".opencode", "agents");
+      await ensureDir(agentsDir);
+      await writeFileContent(join(agentsDir, "planner.md"), opencodeSubagentMd("planner"));
+      // The inline block is scanned after the standalone files, so `Planner`
+      // loses to `planner.md` even though the two only differ in case.
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          agent: { Planner: { description: "inline planner", prompt: "inline body" } },
+        }),
+      );
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("planner.md");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`keeping the standalone file in ${join(".opencode", "agents")}`),
+      );
+    });
+
+    it("should keep the earlier inline definition when two inline agents differ only in case", async () => {
+      const logger = createMockLogger();
+      const processor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "opencode",
+      });
+      // Both copies come from the inline block, with no standalone file
+      // anywhere, so the warning must not blame a discovery root.
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          agent: {
+            planner: { description: "first inline planner", prompt: "first body" },
+            Planner: { description: "second inline planner", prompt: "second body" },
+          },
+        }),
+      );
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("planner.md");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("keeping the earlier inline definition"),
+      );
     });
   });
 

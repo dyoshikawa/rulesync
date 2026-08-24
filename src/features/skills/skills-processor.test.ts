@@ -23,6 +23,33 @@ import {
   skillsProcessorToolTargetsGlobal,
 } from "./skills-processor.js";
 
+/**
+ * Write a directory-form skill whose frontmatter `name` matches its directory
+ * name, which is what every multi-root precedence test here needs.
+ */
+async function writeSkill({
+  testDir,
+  base,
+  dirName,
+  body,
+}: {
+  testDir: string;
+  base: string;
+  dirName: string;
+  body: string;
+}): Promise<void> {
+  const dir = join(testDir, base, dirName);
+  await ensureDir(dir);
+  await writeFileContent(
+    join(dir, "SKILL.md"),
+    `---
+name: ${dirName}
+description: d
+---
+${body}`,
+  );
+}
+
 describe("SkillsProcessor", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -663,20 +690,18 @@ Skill body`,
         outputRoot: testDir,
         toolTarget: "rovodev",
       });
-      const writeSkill = async (base: string, body: string) => {
-        const dir = join(testDir, base, "dup-skill");
-        await ensureDir(dir);
-        await writeFileContent(
-          join(dir, "SKILL.md"),
-          `---
-name: dup-skill
-description: d
----
-${body}`,
-        );
-      };
-      await writeSkill(join(".rovodev", "skills"), "from-rovo");
-      await writeSkill(join(".agents", "skills"), "from-agents");
+      await writeSkill({
+        testDir,
+        base: join(".rovodev", "skills"),
+        dirName: "dup-skill",
+        body: "from-rovo",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "dup-skill",
+        body: "from-agents",
+      });
 
       const toolDirs = await processor.loadToolDirs();
 
@@ -696,21 +721,24 @@ ${body}`,
         outputRoot: testDir,
         toolTarget: "junie",
       });
-      const writeSkill = async (base: string, dirName: string, body: string) => {
-        const dir = join(testDir, base, dirName);
-        await ensureDir(dir);
-        await writeFileContent(
-          join(dir, "SKILL.md"),
-          `---
-name: ${dirName}
-description: d
----
-${body}`,
-        );
-      };
-      await writeSkill(join(".junie", "skills"), "dup-skill", "from-junie");
-      await writeSkill(join(".agents", "skills"), "dup-skill", "from-agents");
-      await writeSkill(join(".agents", "skills"), "shared-only", "from-agents");
+      await writeSkill({
+        testDir,
+        base: join(".junie", "skills"),
+        dirName: "dup-skill",
+        body: "from-junie",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "dup-skill",
+        body: "from-agents",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "shared-only",
+        body: "from-agents",
+      });
 
       const toolDirs = await processor.loadToolDirs();
 
@@ -736,20 +764,18 @@ ${body}`,
         outputRoot: testDir,
         toolTarget: "rovodev",
       });
-      const writeSkill = async (base: string, dirName: string, body: string) => {
-        const dir = join(testDir, base, dirName);
-        await ensureDir(dir);
-        await writeFileContent(
-          join(dir, "SKILL.md"),
-          `---
-name: ${dirName}
-description: d
----
-${body}`,
-        );
-      };
-      await writeSkill(join(".rovodev", "skills"), "dup-skill", "from-rovo");
-      await writeSkill(join(".agents", "skills"), "Dup-Skill", "from-agents");
+      await writeSkill({
+        testDir,
+        base: join(".rovodev", "skills"),
+        dirName: "dup-skill",
+        body: "from-rovo",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "Dup-Skill",
+        body: "from-agents",
+      });
 
       const toolDirs = await processor.loadToolDirs();
 
@@ -769,20 +795,18 @@ ${body}`,
         outputRoot: testDir,
         toolTarget: "junie",
       });
-      const writeSkill = async (base: string, dirName: string, body: string) => {
-        const dir = join(testDir, base, dirName);
-        await ensureDir(dir);
-        await writeFileContent(
-          join(dir, "SKILL.md"),
-          `---
-name: ${dirName}
-description: d
----
-${body}`,
-        );
-      };
-      await writeSkill(join(".junie", "skills"), "dup-skill", "from-junie");
-      await writeSkill(join(".agents", "skills"), "Dup-Skill", "from-agents");
+      await writeSkill({
+        testDir,
+        base: join(".junie", "skills"),
+        dirName: "dup-skill",
+        body: "from-junie",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "Dup-Skill",
+        body: "from-agents",
+      });
 
       const toolDirs = await processor.loadToolDirs();
 
@@ -802,20 +826,18 @@ ${body}`,
         outputRoot: testDir,
         toolTarget: "vibe",
       });
-      const writeSkill = async (base: string, dirName: string, body: string) => {
-        const dir = join(testDir, base, dirName);
-        await ensureDir(dir);
-        await writeFileContent(
-          join(dir, "SKILL.md"),
-          `---
-name: ${dirName}
-description: d
----
-${body}`,
-        );
-      };
-      await writeSkill(join(".vibe", "skills"), "dup-skill", "from-vibe");
-      await writeSkill(join(".agents", "skills"), "DUP-SKILL", "from-agents");
+      await writeSkill({
+        testDir,
+        base: join(".vibe", "skills"),
+        dirName: "dup-skill",
+        body: "from-vibe",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "DUP-SKILL",
+        body: "from-agents",
+      });
 
       const toolDirs = await processor.loadToolDirs();
 
@@ -835,20 +857,18 @@ ${body}`,
         outputRoot: testDir,
         toolTarget: "rovodev",
       });
-      const writeSkill = async (base: string, body: string) => {
-        const dir = join(testDir, base, "dup-skill");
-        await ensureDir(dir);
-        await writeFileContent(
-          join(dir, "SKILL.md"),
-          `---
-name: dup-skill
-description: d
----
-${body}`,
-        );
-      };
-      await writeSkill(join(".rovodev", "skills"), "from-rovo");
-      await writeSkill(join(".agents", "skills"), "from-agents");
+      await writeSkill({
+        testDir,
+        base: join(".rovodev", "skills"),
+        dirName: "dup-skill",
+        body: "from-rovo",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "dup-skill",
+        body: "from-agents",
+      });
 
       await processor.loadToolDirs();
 
