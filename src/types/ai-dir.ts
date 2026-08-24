@@ -97,9 +97,15 @@ function escapesIntoCredentialDir({
   ) {
     shared += 1;
   }
-  return fileSegments
-    .slice(shared)
-    .some((segment) => NEVER_CARRIED_ESCAPING_DIR_NAMES.has(segment));
+  // The exemption is for a sibling: a path that leaves the skill directory and
+  // goes no higher than its parent. Anything that branches further up has left
+  // the skills tree as well, and `~/.config/agents/skills/<name>` reaching
+  // `~/.config/gcloud/` is the case the whole rule is about -- exempting the
+  // shared `.config` there would exempt every application tree in the home
+  // directory.
+  const branchedAbove = dirSegments.length - shared;
+  const judged = branchedAbove > 1 ? fileSegments : fileSegments.slice(shared);
+  return judged.some((segment) => NEVER_CARRIED_ESCAPING_DIR_NAMES.has(segment));
 }
 
 /**
@@ -149,7 +155,17 @@ const NEVER_CARRIED_PATH_SUFFIXES = [
   ".config/gcloud/credentials.db",
   ".gem/credentials",
   "gcloud/application_default_credentials.json",
+  ".codex/auth.json",
+  ".gemini/oauth_creds.json",
 ];
+
+/** Whether a path ends in one of the credential files named above. */
+function endsWithNeverCarriedSuffix(filePath: string): boolean {
+  const posixPath = toPosixPath(filePath).toLowerCase();
+  return NEVER_CARRIED_PATH_SUFFIXES.some(
+    (suffix) => posixPath === suffix || posixPath.endsWith(`/${suffix}`),
+  );
+}
 
 /**
  * `.env.<suffix>` spellings that are templates rather than real values.
@@ -175,7 +191,8 @@ function isNeverCarriedDirName(dirName: string): boolean {
   const normalized = normalizePathSegment(dirName.toLowerCase());
   return (
     NEVER_CARRIED_CREDENTIAL_DIR_NAMES.has(normalized) ||
-    NEVER_CARRIED_NOISE_DIR_NAMES.has(normalized)
+    NEVER_CARRIED_NOISE_DIR_NAMES.has(normalized) ||
+    isCredentialFileName(normalized)
   );
 }
 
@@ -212,6 +229,13 @@ function classifyNeverCarried(relativePath: string): NeverCarriedReason | undefi
     .map(normalizePathSegment);
   const fileName = segments.at(-1) ?? "";
   const posixPath = segments.join("/");
+  // A credential name is a credential name wherever it sits in the path. A
+  // directory called `.env` is a real layout -- one file per environment, or a
+  // virtual environment -- and reading only the last segment would carry every secret
+  // under it, `.netrc/machine` and `.npmrc/token` along with them.
+  if (segments.slice(0, -1).some((segment) => isCredentialFileName(segment))) {
+    return "credential";
+  }
 
   if (segments.some((segment) => NEVER_CARRIED_CREDENTIAL_DIR_NAMES.has(segment))) {
     return "credential";
@@ -219,7 +243,7 @@ function classifyNeverCarried(relativePath: string): NeverCarriedReason | undefi
   if (segments.some((segment) => NEVER_CARRIED_NOISE_DIR_NAMES.has(segment))) {
     return "noise";
   }
-  if (NEVER_CARRIED_CREDENTIAL_FILE_NAMES.has(fileName)) {
+  if (isCredentialFileName(fileName)) {
     return "credential";
   }
   if (NEVER_CARRIED_NOISE_FILE_NAMES.has(fileName)) {
@@ -232,22 +256,34 @@ function classifyNeverCarried(relativePath: string): NeverCarriedReason | undefi
   ) {
     return "credential";
   }
+  return undefined;
+}
+
+/**
+ * Whether a single path segment names a credential file, whether it is the file
+ * itself or a directory somebody gave that name to.
+ */
+function isCredentialFileName(segment: string): boolean {
+  const name = normalizePathSegment(segment.toLowerCase());
+  if (NEVER_CARRIED_CREDENTIAL_FILE_NAMES.has(name)) {
+    return true;
+  }
   // `.envrc` alongside `.env`: direnv keeps real values in `.envrc.local` and
   // `.envrc.private` as routinely as a project keeps them in `.env.local`.
   for (const base of [".env", ".envrc"]) {
-    if (fileName === base) {
-      return "credential";
+    if (name === base) {
+      return true;
     }
-    if (fileName.startsWith(`${base}.`)) {
+    if (name.startsWith(`${base}.`)) {
       // What decides is the last piece of the name, not the whole suffix chain:
       // `.env.local.example` is as much a template as `.env.example` is, and a
       // `.dist` or `.example` marker means template whichever environment name
       // precedes it.
-      const lastPiece = fileName.split(".").at(-1) ?? "";
-      return ENV_TEMPLATE_SUFFIXES.has(lastPiece) ? undefined : "credential";
+      const lastPiece = name.split(".").at(-1) ?? "";
+      return !ENV_TEMPLATE_SUFFIXES.has(lastPiece);
     }
   }
-  return undefined;
+  return false;
 }
 
 /** Whether a resolved real path points into a kernel pseudo-filesystem. */
@@ -945,6 +981,14 @@ export abstract class AiDir {
           refusedPseudoPaths.add(filePath);
           return false;
         }
+        // `classifyNeverCarried` above sees the path *relative* to the skill
+        // directory, so a shared ancestor eats the very segments these suffixes
+        // name: `~/.config/gh/hosts.yml` reached from `~/.config/agents/skills/`
+        // arrives as `../../../gh/hosts.yml`. Match the absolute path too.
+        if (endsWithNeverCarriedSuffix(realFilePath)) {
+          refusedCredentials.add(filePath);
+          return false;
+        }
         if (escapesIntoCredentialDir({ realDirPath, realFilePath })) {
           refusedCredentials.add(filePath);
           return false;
@@ -1061,6 +1105,9 @@ export abstract class AiDir {
     }
     for (const refused of recovered.refusedNoiseAliases) {
       carried.refusedNoiseAliases.add(refused);
+    }
+    for (const refused of recovered.refusedEscapedHidden) {
+      carried.refusedEscapedHidden.add(refused);
     }
     for (const filePath of recovered.filePaths) {
       const realFilePath = recovered.realFilePathByPath.get(filePath) ?? filePath;

@@ -751,6 +751,69 @@ Body.`;
       },
     );
 
+    it("should not carry a configuration tree a global skill reaches past its own skills root", async () => {
+      // The skill lives under `.config` itself, so the segment it shares with
+      // `~/.config/gcloud/` says nothing about whether it stayed in its own
+      // tree. Branching above the skills root means it did not.
+      const skillDir = join(testDir, ".config", "agents", "skills", "reaching-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: reaching-skill", "description: Reaches", "---", "", "Body."].join("\n"),
+      );
+      const gcloudDir = join(testDir, ".config", "gcloud");
+      await ensureDir(gcloudDir);
+      await writeFileContent(join(gcloudDir, "credentials.db"), "SECRET-GCLOUD\n");
+      await writeFileContent(join(gcloudDir, "access_tokens.db"), "SECRET-TOKENS\n");
+      await symlink(gcloudDir, join(skillDir, "data"));
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        relativeDirPath: join(".config", "agents", "skills"),
+        dirName: "reaching-skill",
+      });
+
+      expect(skill.getOtherFiles()).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("named as a credential store"));
+    });
+
+    it("should not carry a directory that a credential file name was given to", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "env-directory-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: env-directory-skill", "description: Configures", "---", "", "Body."].join(
+          "\n",
+        ),
+      );
+      // One file per environment, or a `python -m venv .env`: a real layout,
+      // and one that holds exactly what the file of that name holds.
+      await ensureDir(join(skillDir, ".env"));
+      await writeFileContent(join(skillDir, ".env", "production"), "DB_PASSWORD=hunter2\n");
+      await ensureDir(join(skillDir, ".netrc"));
+      await writeFileContent(join(skillDir, ".netrc", "machine"), "login bob password s3cr3t\n");
+      await ensureDir(join(skillDir, ".env.example"));
+      await writeFileContent(join(skillDir, ".env.example", "production"), "DB_PASSWORD=\n");
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "env-directory-skill",
+      });
+
+      // The template spelling is not a secret, so it keeps being carried.
+      expect(skill.getOtherFiles()).toEqual([
+        {
+          relativeFilePathToDirPath: join(".env.example", "production"),
+          fileBuffer: Buffer.from("DB_PASSWORD=\n"),
+        },
+      ]);
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining(join(".env.example", "production")),
+      );
+    });
+
     it("should carry a shared tree next to a skill that lives under a configuration directory", async () => {
       // Amp, Devin and Muse all keep their global skills under `~/.config`, so a
       // skill there reaching a sibling directory has not reached the user's
