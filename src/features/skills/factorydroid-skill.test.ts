@@ -256,7 +256,7 @@ This is a test factorydroid skill content.`;
       });
     });
 
-    it("should keep the root-level invocation flags winning over the spread section", () => {
+    it("should let the section flag win while the root default fills the omitted one", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
@@ -621,7 +621,7 @@ Global body content`;
       expect(result.success).toBe(true);
     });
 
-    it("should accept the packaging metadata in every shape YAML can produce", () => {
+    it("should accept the packaging metadata shapes a typed schema would reject", () => {
       const result = FactorydroidSkillFrontmatterSchema.safeParse({
         name: "skill-name",
         description: "Skill description",

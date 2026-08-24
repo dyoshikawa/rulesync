@@ -846,7 +846,10 @@ factorydroid: # for Factory Droid-specific parameters (optional)
   compatibility: droid # (optional) compatibility metadata for catalogs, plugins, or team tooling
   metadata: # (optional) structured metadata for your own tooling
     owner: platform-team
-  version: "1.0.0" # (optional) version string for shared or packaged skills
+  version: "1.0.0" # (optional) version string for shared or packaged skills — quote it, since
+  # an unquoted 1.0 is a YAML number and is emitted back as `version: 1`
+  # `name` and `description` are the exception: the top-level values always win over a
+  # value of the same key inside this section.
   # As in the `kiro` section, any other frontmatter key found in a hand-written SKILL.md is
   # imported here and written back out.
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
