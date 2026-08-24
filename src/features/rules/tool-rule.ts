@@ -65,6 +65,25 @@ export type ToolRuleNestedFilePatterns = {
   ignore: string[];
 };
 
+/**
+ * A read-only rule root consulted on import alone: a directory whose rule files
+ * are all imported (`relativeFilePath` omitted), or a single fixed file.
+ *
+ * Unlike `nonRoot`, nothing here is ever generated, so nothing here is ever an
+ * orphan-deletion candidate or a gitignore entry either — `gitignore-derive.ts`
+ * walks `root` and `alternativeRoots` only. This is the rules-side counterpart
+ * of the skills-side `importOnlySkillRoots`, and it exists for read paths a
+ * tool documents but Rulesync deliberately does not write to, such as Junie's
+ * `.junie/rules/*.md` and `.junie/playbook.md` — files Junie combines with a
+ * project-root `AGENTS.md`, and never reads once the `.junie/AGENTS.md` that
+ * Rulesync generates is present.
+ */
+export type ToolRuleImportOnlyRoot = {
+  relativeDirPath: string;
+  /** Omitted to import every rule file directly inside `relativeDirPath`. */
+  relativeFilePath?: string;
+};
+
 export type ToolRuleSettablePaths = {
   root?: {
     relativeDirPath: string;
@@ -75,6 +94,8 @@ export type ToolRuleSettablePaths = {
     relativeDirPath: string;
     relativeFilePath: string;
   }>;
+  /** Read-only roots scanned on import only. See {@link ToolRuleImportOnlyRoot}. */
+  importOnlyRoots?: ToolRuleImportOnlyRoot[];
   nonRoot: {
     relativeDirPath: string;
   };
@@ -99,6 +120,8 @@ export type ToolRuleSettablePathsGlobal = {
   nonRoot?: {
     relativeDirPath: string;
   };
+  /** Read-only roots scanned on import only. See {@link ToolRuleImportOnlyRoot}. */
+  importOnlyRoots?: ToolRuleImportOnlyRoot[];
 };
 
 type BuildToolRuleParamsParams = ToolRuleFromRulesyncRuleParams & {

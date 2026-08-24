@@ -878,6 +878,37 @@ describe("RulesProcessor", () => {
       ).not.toContain(join("packages", "api", "AGENTS.md"));
     });
 
+    it("should import Junie's .junie/rules and playbook but never delete them", async () => {
+      // Junie combines a project-root `AGENTS.md` with `.junie/playbook.md`
+      // and `.junie/rules/*.md` — the layout a repo is in before it has a
+      // `.junie/AGENTS.md`. Those are import-only read roots: rulesync folds
+      // their content into the generated root file and must not treat the
+      // hand-authored originals as orphans.
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, ".junie", "playbook.md"), "# Playbook");
+      await writeFileContent(join(testDir, ".junie", "rules", "style.md"), "# Style");
+      await writeFileContent(join(testDir, ".junie", "rules", "testing.md"), "# Testing");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+
+      const imported = await processor.loadToolFiles();
+      const importedPaths = imported.map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+      expect(importedPaths).toContain(join(".junie", "playbook.md"));
+      expect(importedPaths).toContain(join(".junie", "rules", "style.md"));
+      expect(importedPaths).toContain(join(".junie", "rules", "testing.md"));
+      expect(importedPaths).toContain(join(".junie", "AGENTS.md"));
+
+      // Only the root file rulesync generates is a deletion candidate.
+      const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+      const deletionPaths = forDeletion.map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+      expect(deletionPaths).not.toContain(join(".junie", "playbook.md"));
+      expect(deletionPaths).not.toContain(join(".junie", "rules", "style.md"));
+    });
+
     it("should skip nested AGENTS.md files the project gitignores", async () => {
       // A vendored dependency's rule file is third-party content the user
       // deliberately kept untracked; importing it would copy it into

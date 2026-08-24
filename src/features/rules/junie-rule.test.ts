@@ -131,6 +131,56 @@ describe("JunieRule", () => {
       expect(junieRule.isRoot()).toBe(true);
     });
 
+    it("should import a .junie/rules file as a non-root rule", async () => {
+      // `.junie/rules/*.md` belongs to Junie's multi-file branch, which is
+      // read-only for rulesync: it is imported, but generation folds it into
+      // `.junie/AGENTS.md` instead of writing it back.
+      const testContent = "# Style\n\nUse tabs.";
+      await writeFileContent(join(testDir, ".junie", "rules", "style.md"), testContent);
+
+      const junieRule = await JunieRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".junie", "rules"),
+        relativeFilePath: "style.md",
+      });
+
+      expect(junieRule.getRelativeDirPath()).toBe(join(".junie", "rules"));
+      expect(junieRule.getRelativeFilePath()).toBe("style.md");
+      expect(junieRule.getFileContent()).toBe(testContent);
+      expect(junieRule.isRoot()).toBe(false);
+    });
+
+    it("should not treat a .junie/rules/AGENTS.md as the root guideline file", async () => {
+      // The root file is decided by its directory as well as its name — a
+      // combined file that happens to be called `AGENTS.md` is not the
+      // exclusive `.junie/AGENTS.md`.
+      await writeFileContent(join(testDir, ".junie", "rules", "AGENTS.md"), "# Combined");
+
+      const junieRule = await JunieRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".junie", "rules"),
+        relativeFilePath: "AGENTS.md",
+      });
+
+      expect(junieRule.isRoot()).toBe(false);
+    });
+
+    it("should import .junie/playbook.md as a non-root rule", async () => {
+      const testContent = "# Playbook";
+      await writeFileContent(join(testDir, ".junie", "playbook.md"), testContent);
+
+      const junieRule = await JunieRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: ".junie",
+        relativeFilePath: "playbook.md",
+      });
+
+      expect(junieRule.getRelativeDirPath()).toBe(".junie");
+      expect(junieRule.getRelativeFilePath()).toBe("playbook.md");
+      expect(junieRule.getFileContent()).toBe(testContent);
+      expect(junieRule.isRoot()).toBe(false);
+    });
+
     it("should read any project rule from the .junie root directory", async () => {
       // Junie has no non-root rules directory; everything reads from `.junie/`.
       const testContent = "# Root Guidelines";

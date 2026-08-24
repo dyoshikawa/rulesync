@@ -2089,6 +2089,44 @@ As this project's AI coding tool, you must follow the additional conventions bel
       })();
       this.logger.debug(`Found ${nestedToolRules.length} nested tool rule files`);
 
+      // Read-only rule roots a tool documents but Rulesync never writes to
+      // (Junie's `.junie/rules/*.md` and `.junie/playbook.md`). Import only:
+      // since generation never produces them, treating them as deletion
+      // candidates would delete hand-authored files rulesync does not own.
+      const importOnlyToolRules = await (async () => {
+        const importOnlyRoots = settablePaths.importOnlyRoots;
+        if (forDeletion || !importOnlyRoots || importOnlyRoots.length === 0) {
+          return [];
+        }
+
+        const filePaths = await findFilesByGlobs(
+          importOnlyRoots.map((importOnlyRoot) =>
+            join(
+              this.outputRoot,
+              importOnlyRoot.relativeDirPath,
+              importOnlyRoot.relativeFilePath ?? `*.${factory.meta.extension}`,
+            ),
+          ),
+        );
+
+        return await Promise.all(
+          filePaths.map((filePath) => {
+            const relativeDirPath = resolveRelativeDirPath(filePath);
+            checkPathTraversal({
+              relativePath: relativeDirPath,
+              intendedRootDir: this.outputRoot,
+            });
+            return factory.class.fromFile({
+              outputRoot: this.outputRoot,
+              relativeDirPath,
+              relativeFilePath: basename(filePath),
+              global: this.global,
+            });
+          }),
+        );
+      })();
+      this.logger.debug(`Found ${importOnlyToolRules.length} import-only tool rule files`);
+
       const nonRootToolRules = await (async () => {
         if (!settablePaths.nonRoot) {
           return [];
@@ -2161,6 +2199,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
         ...rootMirrorDeletionRules,
         ...extraFixedToolRules,
         ...nestedToolRules,
+        ...importOnlyToolRules,
         ...nonRootToolRules,
       ];
     } catch (error) {
