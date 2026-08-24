@@ -225,14 +225,51 @@ Body.`;
       // Deliberately upper-cased: macOS and Windows resolve `.GNUPG` and `.gnupg`
       // to the same directory, so a case-sensitive exclusion is a hole there.
       await writeFileContent(join(skillDir, ".GNUPG", "secring.gpg"), "key\n");
+      // Windows drops the trailing space when the file lands, turning this one
+      // back into a plain `.env`, so it is judged as the name it becomes.
+      await writeFileContent(join(skillDir, ".env "), "TOKEN=real\n");
+      // A compound template name is a template: the last piece decides.
+      await writeFileContent(join(skillDir, ".env.local.example"), "TOKEN=\n");
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
 
-      const skill = await AgentsSkillsSkill.fromDir({
-        outputRoot: testDir,
-        dirName: "secrets-skill",
-      });
+      try {
+        const skill = await AgentsSkillsSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "secrets-skill",
+        });
 
-      const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
-      expect(carriedPaths).toEqual([".env.example"]);
+        const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
+        expect(carriedPaths).toEqual([".env.example", ".env.local.example"]);
+        // Leaving a credential out protects something, so it is reported rather
+        // than done in silence.
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("named as a credential store"),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should not report the exclusions that are only noise", async () => {
+      // A `.DS_Store` or a build tree is what every user expects to be left
+      // out, and warning about it on every generate would be noise itself.
+      const skillDir = join(testDir, ".agents", "skills", "quiet-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: quiet-skill", "description: Ships scripts", "---", "", "Body."].join("\n"),
+      );
+      await writeFileContent(join(skillDir, ".DS_Store"), "index\n");
+      await writeFileContent(join(skillDir, ".turbo", "cache.json"), "{}\n");
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        await AgentsSkillsSkill.fromDir({ outputRoot: testDir, dirName: "quiet-skill" });
+
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it("should not carry build and cache directories", async () => {
@@ -399,6 +436,98 @@ Body.`;
         });
 
         expect(skill.getOtherFiles()).toEqual([]);
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should carry a named file whose symbolic link target sits under a hidden directory",
+      async () => {
+        // A shared skill tree usually lives in a dotfiles repository, so the
+        // resolved path is full of hidden ancestors. What decides is the name
+        // inside the skill directory — somebody chose `docs/guide.md`.
+        const sharedDir = join(testDir, ".dotfiles", "shared");
+        await writeFileContent(join(sharedDir, "guide.md"), "guide\n");
+
+        const skillDir = join(testDir, ".agents", "skills", "dotfiles-link-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: dotfiles-link-skill", "description: Links out", "---", "", "Body."].join(
+            "\n",
+          ),
+        );
+        await symlink(sharedDir, join(skillDir, "docs"));
+
+        const skill = await AgentsSkillsSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "dotfiles-link-skill",
+        });
+
+        const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
+        expect(carriedPaths).toEqual([join("docs", "guide.md")]);
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should report the entries a symbolic link carries in from outside",
+      async () => {
+        // Carried or not, content from outside the tree is about to be copied
+        // into every enabled tool root, which is worth saying out loud.
+        const outsideDir = join(testDir, "outside");
+        await writeFileContent(join(outsideDir, "shared.md"), "shared\n");
+
+        const skillDir = join(testDir, ".agents", "skills", "outside-link-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: outside-link-skill", "description: Links out", "---", "", "Body."].join(
+            "\n",
+          ),
+        );
+        await symlink(outsideDir, join(skillDir, "docs"));
+        const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+        try {
+          await AgentsSkillsSkill.fromDir({ outputRoot: testDir, dirName: "outside-link-skill" });
+
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining("Carrying 1 entry that a symbolic link reaches outside"),
+          );
+        } finally {
+          warnSpy.mockRestore();
+        }
+      },
+    );
+
+    it.skipIf(process.platform !== "linux")(
+      "should not carry a symbolic link that resolves into a system pseudo-filesystem",
+      async () => {
+        // `/proc/self/environ` stats as an ordinary file and reads back every
+        // environment variable of the running process, API keys included.
+        const skillDir = join(testDir, ".agents", "skills", "procfs-link-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: procfs-link-skill", "description: Links out", "---", "", "Body."].join(
+            "\n",
+          ),
+        );
+        await symlink("/proc/self/environ", join(skillDir, "env.txt"));
+        const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+        try {
+          const skill = await AgentsSkillsSkill.fromDir({
+            outputRoot: testDir,
+            dirName: "procfs-link-skill",
+          });
+
+          expect(skill.getOtherFiles()).toEqual([]);
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining("system pseudo-filesystem"),
+          );
+        } finally {
+          warnSpy.mockRestore();
+        }
       },
     );
 

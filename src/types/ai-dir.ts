@@ -1,7 +1,15 @@
 import { realpath } from "node:fs/promises";
-import path, { basename, isAbsolute, join, relative, resolve } from "node:path";
+import path, { basename, join, relative, resolve } from "node:path";
 
-import { fileExists, findFilesByGlobs, readFileBuffer, toPosixPath } from "../utils/file.js";
+import {
+  fileExists,
+  findFilesByGlobs,
+  isHiddenPathSegment,
+  pathEscapesRoot,
+  readFileBuffer,
+  splitPathSegments,
+  toPosixPath,
+} from "../utils/file.js";
 import { warnWithFallback } from "../utils/logger.js";
 
 export type ValidationResult =
@@ -27,16 +35,22 @@ export type AiDirFile = {
   composed?: boolean;
 };
 
+/** Why an entry is never carried, which decides whether its exclusion is reported. */
+type NeverCarriedReason = "credential" | "noise";
+
 /**
- * Directories that are never part of a skill: a nested repository, a credential
- * store, or a build/cache tree. Their names are also the pruning patterns
- * below, so the walk never descends into them.
+ * Directories that hold credentials. Excluding these protects something, so
+ * their exclusion is reported rather than silent.
  */
-const NEVER_CARRIED_DIR_NAMES = new Set([
+const NEVER_CARRIED_CREDENTIAL_DIR_NAMES = new Set([".ssh", ".aws", ".gnupg"]);
+
+/**
+ * Directories that are never part of a skill for the ordinary reasons: a
+ * nested repository, or a build/cache tree. Leaving these out is what a user
+ * expects, so it happens quietly.
+ */
+const NEVER_CARRIED_NOISE_DIR_NAMES = new Set([
   ".git",
-  ".ssh",
-  ".aws",
-  ".gnupg",
   ".venv",
   ".tox",
   ".mypy_cache",
@@ -51,9 +65,8 @@ const NEVER_CARRIED_DIR_NAMES = new Set([
   ".terraform",
 ]);
 
-/** Files that are local noise or hold credentials. Compared lower-cased. */
-const NEVER_CARRIED_FILE_NAMES = new Set([
-  ".ds_store",
+/** Files that hold credentials. Compared lower-cased. */
+const NEVER_CARRIED_CREDENTIAL_FILE_NAMES = new Set([
   ".npmrc",
   ".netrc",
   ".git-credentials",
@@ -63,6 +76,9 @@ const NEVER_CARRIED_FILE_NAMES = new Set([
   ".dockercfg",
   ".envrc",
 ]);
+
+/** Files that are local noise. Compared lower-cased. */
+const NEVER_CARRIED_NOISE_FILE_NAMES = new Set([".ds_store"]);
 
 /** Credential files whose parent directory is otherwise ordinary content. */
 const NEVER_CARRIED_PATH_SUFFIXES = [
@@ -81,18 +97,37 @@ const NEVER_CARRIED_PATH_SUFFIXES = [
 const ENV_TEMPLATE_SUFFIXES = new Set(["example", "sample", "template", "dist", "defaults"]);
 
 /**
+ * Kernel pseudo-filesystems, matched against the resolved real path. A link
+ * into one of these does not reach a file at all: `/proc/self/environ` reads
+ * back the entire environment of the running process, API keys included, and
+ * `stat` reports it as an ordinary file. Nothing a skill carries lives here.
+ */
+const NEVER_CARRIED_REAL_PATH_ROOTS = ["/proc", "/sys", "/dev"];
+
+/**
  * Directory trees pruned during the walk. Derived from the directory names
  * above so the pruning and the path check below cannot drift apart. Anchored
  * with `**\/` because the include patterns are absolute, and a relative ignore
  * would silently exclude nothing.
  */
-const EXCLUDED_DIR_PATTERNS = [...NEVER_CARRIED_DIR_NAMES].flatMap((dirName) => [
-  `**/${dirName}`,
-  `**/${dirName}/**`,
-]);
+const EXCLUDED_DIR_PATTERNS = [
+  ...NEVER_CARRIED_CREDENTIAL_DIR_NAMES,
+  ...NEVER_CARRIED_NOISE_DIR_NAMES,
+].flatMap((dirName) => [`**/${dirName}`, `**/${dirName}/**`]);
 
 /**
- * Whether a path reaches something that is never skill content.
+ * Windows drops trailing dots and spaces from a name, so a file called `.env `
+ * is written as `.env` once it lands in a tool directory there. Normalizing
+ * before every comparison means the name is judged as what it becomes.
+ */
+function normalizePathSegment(segment: string): string {
+  const normalized = segment.replace(/[\s.]+$/, "");
+  return normalized === "" ? segment : normalized;
+}
+
+/**
+ * Why a path reaches something that is never skill content, or `undefined`
+ * when it does not.
  *
  * Carrying hidden entries means a secret sitting in a skill directory would be
  * copied into every enabled tool root, multiplying the places it can be
@@ -105,35 +140,72 @@ const EXCLUDED_DIR_PATTERNS = [...NEVER_CARRIED_DIR_NAMES].flatMap((dirName) => 
  * `.aws`. Comparison is lower-cased because macOS and Windows resolve `.SSH`
  * and `.ssh` to the same file.
  */
-function isNeverCarriedPath(relativePath: string): boolean {
-  const posixPath = toPosixPath(relativePath).toLowerCase();
-  const segments = posixPath.split("/").filter((segment) => segment !== "" && segment !== ".");
+function classifyNeverCarried(relativePath: string): NeverCarriedReason | undefined {
+  const segments = toPosixPath(relativePath)
+    .toLowerCase()
+    .split("/")
+    .filter((segment) => segment !== "" && segment !== ".")
+    .map(normalizePathSegment);
   const fileName = segments.at(-1) ?? "";
+  const posixPath = segments.join("/");
 
-  if (segments.some((segment) => NEVER_CARRIED_DIR_NAMES.has(segment))) {
-    return true;
+  if (segments.some((segment) => NEVER_CARRIED_CREDENTIAL_DIR_NAMES.has(segment))) {
+    return "credential";
   }
-  if (NEVER_CARRIED_FILE_NAMES.has(fileName)) {
-    return true;
+  if (segments.some((segment) => NEVER_CARRIED_NOISE_DIR_NAMES.has(segment))) {
+    return "noise";
+  }
+  if (NEVER_CARRIED_CREDENTIAL_FILE_NAMES.has(fileName)) {
+    return "credential";
+  }
+  if (NEVER_CARRIED_NOISE_FILE_NAMES.has(fileName)) {
+    return "noise";
   }
   if (
     NEVER_CARRIED_PATH_SUFFIXES.some(
       (suffix) => posixPath === suffix || posixPath.endsWith(`/${suffix}`),
     )
   ) {
-    return true;
+    return "credential";
   }
   if (fileName === ".env") {
-    return true;
+    return "credential";
   }
   if (fileName.startsWith(".env.")) {
-    return !ENV_TEMPLATE_SUFFIXES.has(fileName.slice(".env.".length));
+    // What decides is the last piece of the name, not the whole suffix chain:
+    // `.env.local.example` is as much a template as `.env.example` is.
+    const lastPiece = fileName.split(".").at(-1) ?? "";
+    return ENV_TEMPLATE_SUFFIXES.has(lastPiece) ? undefined : "credential";
   }
-  return false;
+  return undefined;
 }
 
-/** How many escaped hidden paths a single warning names before counting the rest. */
+/** Whether a resolved real path points into a kernel pseudo-filesystem. */
+function isSystemPseudoPath(absolutePath: string): boolean {
+  const posixPath = toPosixPath(absolutePath);
+  return NEVER_CARRIED_REAL_PATH_ROOTS.some(
+    (root) => posixPath === root || posixPath.startsWith(`${root}/`),
+  );
+}
+
+/** How many paths a single warning names before it counts the rest. */
 export const MAX_REPORTED_ESCAPED_PATHS = 10;
+
+/** Render a set of refused or noteworthy paths for one warning line. */
+function formatReportedPaths(paths: Iterable<string>): { count: number; list: string } {
+  const sorted = [...paths].toSorted();
+  const named = sorted.slice(0, MAX_REPORTED_ESCAPED_PATHS).map(toPosixPath).join(", ");
+  const remaining = sorted.length - MAX_REPORTED_ESCAPED_PATHS;
+  return {
+    count: sorted.length,
+    list: `${named}${remaining > 0 ? `, and ${remaining} more` : ""}`,
+  };
+}
+
+/** "entry" or "entries", so the warnings below read as sentences. */
+function entryWord(count: number): string {
+  return count === 1 ? "entry" : "entries";
+}
 
 export type AiDirParams = {
   outputRoot?: string;
@@ -296,40 +368,31 @@ export abstract class AiDir {
 
   /** Whether any segment of a relative path is dot-prefixed. */
   private static hasHiddenSegment(relativePath: string): boolean {
-    return relativePath
-      .split(/[/\\]/)
-      .some((segment) => segment.startsWith(".") && segment !== "." && segment !== "..");
-  }
-
-  /**
-   * Whether a relative path leads out of the directory it is relative to.
-   * Matching whole segments matters here: a directory really named `..cache`
-   * relatively resolves to `..cache/file`, which a prefix test would report as
-   * an escape.
-   */
-  private static escapesDirectory(relativePath: string): boolean {
-    return (
-      relativePath === ".." || relativePath.startsWith(`..${path.sep}`) || isAbsolute(relativePath)
-    );
+    return splitPathSegments(relativePath).some(isHiddenPathSegment);
   }
 
   /**
    * Drop the entries a skill directory must not carry.
    *
-   * Two rules, both evaluated against the resolved real path as well as the
-   * literal one. The first is `isNeverCarriedPath`: names that are never skill
+   * Three rules. `classifyNeverCarried` comes first, evaluated against the
+   * resolved real path as well as the literal one: names that are never skill
    * content stay out however they are reached, so renaming a symbolic link
-   * does not turn `~/.aws` into content a skill carries.
+   * does not turn `~/.aws` into content a skill carries. Next, a real path
+   * inside a kernel pseudo-filesystem is refused outright — that is process
+   * state, not a file.
    *
-   * The second concerns hidden entries a symbolic link reaches outside the
+   * The third concerns hidden entries a symbolic link reaches outside the
    * directory. Following symlinks out of a source tree is deliberate and
    * documented — it is how a shared skill is referenced from several projects
    * without being duplicated (issue #1707), and the trust boundary is the tree
    * you point Rulesync at. Carrying hidden entries changes what that costs,
    * though: one ordinary-looking link to a home directory would pull in every
-   * dotfile under it, and those are the entries with credential value. Named
-   * files reached the same way keep their documented behavior, since somebody
-   * chose those names; nothing chose the dotfiles.
+   * dotfile under it, and those are the entries with credential value. What
+   * decides is the name in the skill directory, not what the link resolves
+   * through: a named file keeps its documented behavior even when the target
+   * sits under a dot-directory such as `~/.dotfiles`, because somebody chose
+   * that name. Reaching outside is reported either way, since content from
+   * outside the tree is about to be copied into every enabled tool root.
    *
    * A path that cannot be resolved is kept: `realpath` fails on a broken link
    * or a race, and neither is a reason to silently drop a file.
@@ -342,11 +405,19 @@ export abstract class AiDir {
       realDirPath = resolve(dirPath);
     }
 
-    const escaped = new Set<string>();
+    const refusedCredentials = new Set<string>();
+    const refusedPseudoPaths = new Set<string>();
+    const refusedEscapedHidden = new Set<string>();
+    const carriedFromOutside = new Set<string>();
+
     const verdicts = await Promise.all(
       filePaths.map(async (filePath) => {
         const literalPath = relative(dirPath, filePath);
-        if (isNeverCarriedPath(literalPath)) {
+        const literalReason = classifyNeverCarried(literalPath);
+        if (literalReason !== undefined) {
+          if (literalReason === "credential") {
+            refusedCredentials.add(filePath);
+          }
           return false;
         }
 
@@ -357,28 +428,58 @@ export abstract class AiDir {
           return true;
         }
 
+        if (isSystemPseudoPath(realFilePath)) {
+          refusedPseudoPaths.add(filePath);
+          return false;
+        }
+
         const realPath = relative(realDirPath, realFilePath);
-        if (isNeverCarriedPath(realPath)) {
+        const realReason = classifyNeverCarried(realPath);
+        if (realReason !== undefined) {
+          if (realReason === "credential") {
+            refusedCredentials.add(filePath);
+          }
           return false;
         }
-        if (
-          AiDir.escapesDirectory(realPath) &&
-          (AiDir.hasHiddenSegment(literalPath) || AiDir.hasHiddenSegment(realPath))
-        ) {
-          escaped.add(filePath);
+
+        if (!pathEscapesRoot(realPath)) {
+          return true;
+        }
+        if (AiDir.hasHiddenSegment(literalPath)) {
+          refusedEscapedHidden.add(filePath);
           return false;
         }
+        carriedFromOutside.add(filePath);
         return true;
       }),
     );
 
-    if (escaped.size > 0) {
-      const reported = [...escaped].toSorted();
-      const named = reported.slice(0, MAX_REPORTED_ESCAPED_PATHS).map(toPosixPath).join(", ");
-      const remaining = reported.length - MAX_REPORTED_ESCAPED_PATHS;
+    if (refusedCredentials.size > 0) {
+      const { count, list } = formatReportedPaths(refusedCredentials);
       warnWithFallback(
         undefined,
-        `Not carrying ${reported.length} hidden ${reported.length === 1 ? "entry" : "entries"} that a symbolic link reaches outside ${toPosixPath(dirPath)}: ${named}${remaining > 0 ? `, and ${remaining} more` : ""}. Copy them into the directory if the skill really needs them.`,
+        `Not carrying ${count} ${entryWord(count)} named as a credential store: ${list}. A skill must not ship secrets; read them from the environment instead.`,
+      );
+    }
+    if (refusedPseudoPaths.size > 0) {
+      const { count, list } = formatReportedPaths(refusedPseudoPaths);
+      warnWithFallback(
+        undefined,
+        `Not carrying ${count} ${entryWord(count)} that a symbolic link points into a system pseudo-filesystem: ${list}. Those read back process state, not skill content.`,
+      );
+    }
+    if (refusedEscapedHidden.size > 0) {
+      const { count, list } = formatReportedPaths(refusedEscapedHidden);
+      warnWithFallback(
+        undefined,
+        `Not carrying ${count} hidden ${entryWord(count)} that a symbolic link reaches outside ${toPosixPath(dirPath)}: ${list}. Copy them into the directory if the skill really needs them.`,
+      );
+    }
+    if (carriedFromOutside.size > 0) {
+      const { count, list } = formatReportedPaths(carriedFromOutside);
+      warnWithFallback(
+        undefined,
+        `Carrying ${count} ${entryWord(count)} that a symbolic link reaches outside ${toPosixPath(dirPath)}: ${list}. Their content is copied into every generated tool directory.`,
       );
     }
 
@@ -396,7 +497,7 @@ export abstract class AiDir {
    * both import and generate loses part of the skill. What is left out is the
    * set of entries that are never skill content — a nested repository's `.git`,
    * the macOS Finder's `.DS_Store`, credential stores, build and cache trees —
-   * as decided by `isNeverCarriedPath`. Whole directories from that set are
+   * as decided by `classifyNeverCarried`. Whole directories from that set are
    * pruned during the walk too, so it never descends into them at all.
    *
    * @see https://agentskills.io/specification

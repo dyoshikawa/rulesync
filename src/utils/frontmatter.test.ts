@@ -668,6 +668,37 @@ Body.`;
       }
     });
 
+    it("should stay quiet when the caller only probes the file for ownership", () => {
+      // An ownership probe parses the same file the loader parses moments
+      // later; warning twice about one file says nothing the first did not.
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const content = ["---", "description: Use when: a colon appears", "---", "Body"].join("\n");
+
+      try {
+        const result = parseFrontmatterWithYamlRepair(content, "SKILL.md", { quiet: true });
+
+        expect(result.frontmatter.description).toBe("Use when: a colon appears");
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should repair a value padded with a long run of spaces without stalling", () => {
+      // Scanning for an inline comment with `/\s+#.*$/` backtracks from every
+      // starting position when no `#` follows, which turns a padded value into
+      // minutes of CPU time. Any file whose first parse fails reaches it.
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const padded = `Use when: a colon appears${" ".repeat(200_000)}`;
+      const content = ["---", `description: ${padded}`, "unclosed: [", "---", "Body"].join("\n");
+
+      try {
+        expect(() => parseFrontmatterWithYamlRepair(content, "SKILL.md")).toThrow();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    }, 5_000);
+
     it("should stay quiet when the content parses without help", () => {
       const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
       const content = ["---", "description: A plain value", "---", "Body"].join("\n");

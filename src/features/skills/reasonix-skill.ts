@@ -227,7 +227,9 @@ export class ReasonixSkill extends ToolSkill {
     const skillFilePath = join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME);
     try {
       const fileContent = await readFileContent(skillFilePath);
-      const { frontmatter } = parseFrontmatterWithYamlRepair(fileContent, skillFilePath);
+      const { frontmatter } = parseFrontmatterWithYamlRepair(fileContent, skillFilePath, {
+        quiet: true,
+      });
       return frontmatter["runAs"] !== REASONIX_SUBAGENT_RUN_AS;
     } catch {
       return true;

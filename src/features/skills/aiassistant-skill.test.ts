@@ -7,6 +7,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { AiassistantSkill } from "./aiassistant-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
@@ -103,6 +104,30 @@ This is the body of the AI Assistant skill.`;
         name: "test-skill",
         description: "Test skill description",
       });
+    });
+
+    it("should warn about an empty description instead of dropping the skill", async () => {
+      // AI Assistant reads the same `.agents/skills/` tree the Agent Skills
+      // target writes, so the diagnostic has to fire here too.
+      const skillDir = join(testDir, ".agents", "skills", "empty-description-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: empty-description-skill", 'description: ""', "---", "", "Body."].join("\n"),
+      );
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        const skill = await AiassistantSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "empty-description-skill",
+        });
+
+        expect(skill.getBody()).toBe("Body.");
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("description"));
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it("should throw error when SKILL.md not found", async () => {

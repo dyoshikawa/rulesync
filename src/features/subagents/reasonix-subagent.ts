@@ -285,7 +285,7 @@ export class ReasonixSubagent extends ToolSubagent {
     const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
     try {
       const fileContent = await readFileContent(filePath);
-      const { frontmatter } = parseFrontmatterWithYamlRepair(fileContent, filePath);
+      const { frontmatter } = parseFrontmatterWithYamlRepair(fileContent, filePath, { quiet: true });
       return frontmatter["runAs"] === REASONIX_SUBAGENT_RUN_AS;
     } catch {
       return false;

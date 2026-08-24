@@ -724,12 +724,14 @@ describe("file utilities", () => {
       // these tests are skipped there (CI unit tests run on ubuntu). See issue #1808 #5.
       describe.skipIf(process.platform === "win32")("symlink support", () => {
         it("should include a symlinked file in results", async () => {
-          const realFile = join(testDir, "real.md");
+          const realFile = join(testDir, "outside.md");
           const linkedFile = join(testDir, "linked.md");
           await writeFileContent(realFile, "content");
           await symlink(realFile, linkedFile);
 
-          const results = await findFilesByGlobs(join(testDir, "*.md"), { type: "file" });
+          // The link is the only path matching the glob, so nothing else can
+          // represent the file it reaches.
+          const results = await findFilesByGlobs(join(testDir, "linked*.md"), { type: "file" });
 
           expect(results).toContain(linkedFile);
         });
@@ -782,9 +784,28 @@ describe("file utilities", () => {
 
           const realPaths = await Promise.all(results.map((p) => realpath(p)));
           expect(new Set(realPaths).size).toBe(results.length);
-          // The sorted-first path (linked.md < real.md) survives; its target is dropped.
-          expect(results).toContain(linkedFile);
-          expect(results).not.toContain(realFile);
+          // The file's own path represents it even though the link sorts first
+          // (linked.md < real.md): a caller that asked about a real file must
+          // not be handed a link that merely points at it.
+          expect(results).toContain(realFile);
+          expect(results).not.toContain(linkedFile);
+        });
+
+        it("should let a real file represent itself rather than a non-hidden link to it", async () => {
+          // The reverse of the hidden-alias case below: preferring the fewest
+          // hidden segments must not push a real `.env.example` out of the
+          // results just because something links to it under a plain name.
+          const realFile = join(testDir, ".env.example");
+          const aliasFile = join(testDir, "zz-alias.example");
+          await writeFileContent(realFile, "TOKEN=");
+          await symlink(realFile, aliasFile);
+
+          const results = await findFilesByGlobs(join(testDir, "*.example"), {
+            type: "file",
+            dot: true,
+          });
+
+          expect(results).toEqual([realFile]);
         });
       });
     });

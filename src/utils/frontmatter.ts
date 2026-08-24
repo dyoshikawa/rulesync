@@ -188,6 +188,26 @@ const TOP_LEVEL_ENTRY_PATTERN = /^([A-Za-z_][\w.-]*):[^\S\r\n]+(\S.*)$/;
 /** A plain scalar that already starts as some other YAML construct. */
 const YAML_CONSTRUCT_PREFIX_PATTERN = /^["'|>&*![{#]/;
 
+/**
+ * Cut a plain scalar at its inline comment — whitespace followed by `#`.
+ *
+ * This has to happen before anything else looks at the value, or a line such as
+ * `allowed-tools: Read # TODO: add Bash later` reads as needing repair and comes
+ * back quoted with the comment inside it, which for a list of tool permissions
+ * would grant what the comment had disabled. Scanning by hand rather than with
+ * `/\s+#.*$/`: that pattern is unanchored, so a long run of spaces with no `#`
+ * after it backtracks from every starting position, and a value padded with a
+ * megabyte of spaces takes minutes to reject. This is linear in the value.
+ */
+function stripInlineComment(rawValue: string): string {
+  for (let index = 1; index < rawValue.length; index++) {
+    if (rawValue[index] === "#" && /\s/.test(rawValue[index - 1] ?? "")) {
+      return rawValue.slice(0, index).trimEnd();
+    }
+  }
+  return rawValue.trimEnd();
+}
+
 type RepairedLine = {
   line: string;
   /** Whether repairing this line dropped an inline comment from the value. */
@@ -204,12 +224,7 @@ function repairFrontmatterLine(line: string): RepairedLine {
   }
 
   const [, key = "", rawValue = ""] = match;
-  // A plain scalar ends at an inline comment — whitespace followed by `#`. It
-  // has to come off before anything else looks at the value, or a line such as
-  // `allowed-tools: Read # TODO: add Bash later` reads as needing repair and
-  // comes back quoted with the comment inside it, which for a list of tool
-  // permissions would grant what the comment had disabled.
-  const value = rawValue.replace(/\s+#.*$/, "").trimEnd();
+  const value = stripInlineComment(rawValue);
   if (value === "") {
     return unchanged;
   }
@@ -286,6 +301,15 @@ function repairMalformedFrontmatterYaml(
 export function parseFrontmatterWithYamlRepair(
   content: string,
   filePath?: string,
+  options: {
+    /**
+     * Skip the recovery warning. Set by the ownership probes that read a file
+     * only to decide whether the file belongs to a target: they parse the same
+     * file the loader parses moments later, and warning twice about one file
+     * says nothing the first warning did not.
+     */
+    quiet?: boolean;
+  } = {},
 ): {
   frontmatter: Record<string, unknown>;
   body: string;
@@ -310,6 +334,10 @@ export function parseFrontmatterWithYamlRepair(
     // A repaired value stops at an inline comment, which is what YAML says it
     // does but not what the client that wrote the file may have shown. Say so,
     // because a silently shortened `description` is hard to notice.
+    if (options.quiet === true) {
+      return result;
+    }
+
     const commentNote = repaired.droppedComment
       ? " Text following a space and `#` was read as a YAML comment and left out of the value."
       : "";

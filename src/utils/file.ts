@@ -20,8 +20,23 @@ import { globbySync, isGitIgnoredSync } from "globby";
 import { formatError } from "./error.js";
 import { isEnvTest } from "./vitest.js";
 
-function pathEscapesRoot(relativePath: string): boolean {
+/**
+ * Whether a relative path leads out of the root it is relative to. Matching
+ * whole segments matters: a directory really named `..cache` relatively
+ * resolves to `..cache/file`, which a prefix test would report as an escape.
+ */
+export function pathEscapesRoot(relativePath: string): boolean {
   return relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
+}
+
+/** Whether a single path segment is a hidden (dot-prefixed) name. */
+export function isHiddenPathSegment(segment: string): boolean {
+  return segment.startsWith(".") && segment !== "." && segment !== "..";
+}
+
+/** Split a path on both separators, so one predicate serves either platform. */
+export function splitPathSegments(filePath: string): string[] {
+  return filePath.split(/[/\\]/);
 }
 
 export async function assertWritablePathInsideRoot(params: {
@@ -414,9 +429,21 @@ export async function findFiles(dir: string, extension: string = ".md"): Promise
 
 /** How many dot-prefixed segments a path has, used to prefer a named alias over a hidden one. */
 function countHiddenSegments(filePath: string): number {
-  return filePath
-    .split(/[/\\]/)
-    .filter((segment) => segment.startsWith(".") && segment !== "." && segment !== "..").length;
+  return splitPathSegments(filePath).filter(isHiddenPathSegment).length;
+}
+
+/**
+ * Whether `candidate` should represent `realPath` instead of `current`.
+ * @see findFilesByGlobs for the ordering this encodes.
+ */
+function prefersAsRepresentative(candidate: string, current: string, realPath: string): boolean {
+  if (candidate === realPath) {
+    return current !== realPath;
+  }
+  if (current === realPath) {
+    return false;
+  }
+  return countHiddenSegments(candidate) < countHiddenSegments(current);
 }
 
 export async function findFilesByGlobs(
@@ -473,11 +500,12 @@ export async function findFilesByGlobs(
   });
   // Deduplicate by real path so that directory symlink cycles (which globby follows up to
   // the kernel ELOOP limit, ~40 levels) do not yield ~40x duplicated entries that would be
-  // read and re-emitted. One path per real file, chosen with the fewest dot-prefixed
-  // segments and then in sorted order for determinism: with `dot` on, a hidden alias sorts
-  // ahead of the named path pointing at the same file, and letting it represent that file
-  // would hand callers a path they did not ask about — one a hidden-entry rule may then
-  // drop, taking the named path's content with it.
+  // read and re-emitted. One path per real file, preferring, in order: the file's own
+  // path over any symbolic link aliasing it, then the fewest dot-prefixed segments, then
+  // sorted order for determinism. The first rule keeps a real `.env.example` from being
+  // replaced by a link that happens to point at it; the second means that when only links
+  // are on offer, the named one represents the file rather than a hidden alias that a
+  // hidden-entry rule may then drop, taking the named path's content with it.
   const representatives = new Map<string, string>();
   for (const result of results.toSorted()) {
     let realResult: string;
@@ -489,7 +517,7 @@ export async function findFilesByGlobs(
       realResult = result;
     }
     const current = representatives.get(realResult);
-    if (current === undefined || countHiddenSegments(result) < countHiddenSegments(current)) {
+    if (current === undefined || prefersAsRepresentative(result, current, realResult)) {
       representatives.set(realResult, result);
     }
   }
