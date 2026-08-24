@@ -724,6 +724,38 @@ Body.`;
       expect(result.frontmatter.description).toBe("Use when: issue");
     });
 
+    it("should say in the warning that an inline comment was left out", () => {
+      // A silently shortened description is hard to notice, so the warning has
+      // to name the reason the value got shorter.
+      const content = ["---", "description: Use when: issue #42 is open", "---", "Body"].join("\n");
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("was read as a YAML comment and left out of the value"),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should not mention comments when nothing was left out", () => {
+      const content = ["---", "description: Use when: reviewing", "---", "Body"].join("\n");
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.not.stringContaining("was read as a YAML comment"),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
     it("should keep reporting the same malformed content on a second parse", () => {
       // gray-matter caches a file before parsing it, so a throw used to leave
       // an entry whose data is empty and whose content is the unparsed file.

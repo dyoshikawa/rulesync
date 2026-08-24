@@ -134,6 +134,26 @@ describe("ReasonixSkill", () => {
       ).resolves.toBe(false);
     });
 
+    it("should not own a subagent profile whose YAML needed repairing", async () => {
+      // The loader recovers this file, so the ownership check has to read it
+      // the same way; otherwise a subagent profile is imported as a skill.
+      const agentDir = join(testDir, skillsDir, "colon-reviewer");
+      await ensureDir(agentDir);
+      await writeFileContent(
+        join(agentDir, SKILL_FILE_NAME),
+        `---\nname: colon-reviewer\ndescription: Use when: reviewing\ninvocation: manual\nrunAs: subagent\n---\n\nBody`,
+      );
+
+      await expect(
+        ReasonixSkill.isDirOwned({
+          outputRoot: testDir,
+          relativeDirPath: skillsDir,
+          dirName: "colon-reviewer",
+          inputRoots: [testDir],
+        }),
+      ).resolves.toBe(false);
+    });
+
     it("should own a directory without a readable SKILL.md", async () => {
       const emptyDir = join(testDir, skillsDir, "empty");
       await ensureDir(emptyDir);

@@ -696,6 +696,28 @@ describe("file utilities", () => {
 
           expect(results).toEqual([join(dotDir, "visible.md")]);
         });
+
+        // fs.symlink with the default/file type needs admin or Developer Mode on Windows.
+        it.skipIf(process.platform === "win32")(
+          "should represent a real file by its named alias rather than a hidden one",
+          async () => {
+            const sharedDir = join(testDir, "alias-shared");
+            await writeFileContent(join(sharedDir, "note.md"), "note");
+            const aliasDir = join(testDir, "alias-root");
+            await ensureDir(aliasDir);
+            await symlink(sharedDir, join(aliasDir, ".hidden-link"));
+            await symlink(sharedDir, join(aliasDir, "docs"));
+
+            const results = await findFilesByGlobs(join(aliasDir, "**/*"), {
+              type: "file",
+              dot: true,
+            });
+
+            // Both links reach the same file, so only one path is returned; it
+            // has to be the named one, which is what a caller asked about.
+            expect(results).toEqual([join(aliasDir, "docs", "note.md")]);
+          },
+        );
       });
 
       // fs.symlink with the default/file type needs admin or Developer Mode on Windows, so

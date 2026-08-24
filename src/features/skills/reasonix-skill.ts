@@ -11,7 +11,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
+import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -227,7 +227,7 @@ export class ReasonixSkill extends ToolSkill {
     const skillFilePath = join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME);
     try {
       const fileContent = await readFileContent(skillFilePath);
-      const { frontmatter } = parseFrontmatter(fileContent, skillFilePath);
+      const { frontmatter } = parseFrontmatterWithYamlRepair(fileContent, skillFilePath);
       return frontmatter["runAs"] !== REASONIX_SUBAGENT_RUN_AS;
     } catch {
       return true;

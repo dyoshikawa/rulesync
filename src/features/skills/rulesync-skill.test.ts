@@ -297,6 +297,29 @@ It can span multiple lines.`;
       expect(skill.getOtherFiles()).toEqual([]);
     });
 
+    it("should recover a SKILL.md whose description contains an unquoted colon", async () => {
+      // A skill vendored from a client with a lenient parser still has to load.
+      const skillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "colon-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        [
+          "---",
+          "name: colon-skill",
+          "description: Use this skill when: the user asks about PDFs",
+          "---",
+          "",
+          "Body.",
+        ].join("\n"),
+      );
+
+      const skill = await RulesyncSkill.fromDir({ dirName: "colon-skill" });
+
+      expect(skill.getFrontmatter().description).toBe(
+        "Use this skill when: the user asks about PDFs",
+      );
+    });
+
     it("should load skill with claudecode configuration", async () => {
       const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
       const skillDir = join(skillsDir, "claudecode-skill");

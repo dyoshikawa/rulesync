@@ -412,6 +412,13 @@ export async function findFiles(dir: string, extension: string = ".md"): Promise
   }
 }
 
+/** How many dot-prefixed segments a path has, used to prefer a named alias over a hidden one. */
+function countHiddenSegments(filePath: string): number {
+  return filePath
+    .split(/[/\\]/)
+    .filter((segment) => segment.startsWith(".") && segment !== "." && segment !== "..").length;
+}
+
 export async function findFilesByGlobs(
   globs: string | string[],
   options: {
@@ -466,9 +473,12 @@ export async function findFilesByGlobs(
   });
   // Deduplicate by real path so that directory symlink cycles (which globby follows up to
   // the kernel ELOOP limit, ~40 levels) do not yield ~40x duplicated entries that would be
-  // read and re-emitted. Keep the first path per real file in sorted order for determinism.
-  const seenRealPaths = new Set<string>();
-  const deduped: string[] = [];
+  // read and re-emitted. One path per real file, chosen with the fewest dot-prefixed
+  // segments and then in sorted order for determinism: with `dot` on, a hidden alias sorts
+  // ahead of the named path pointing at the same file, and letting it represent that file
+  // would hand callers a path they did not ask about — one a hidden-entry rule may then
+  // drop, taking the named path's content with it.
+  const representatives = new Map<string, string>();
   for (const result of results.toSorted()) {
     let realResult: string;
     try {
@@ -478,13 +488,12 @@ export async function findFilesByGlobs(
       // entry is still considered (and still deduplicated against identical literals).
       realResult = result;
     }
-    if (seenRealPaths.has(realResult)) {
-      continue;
+    const current = representatives.get(realResult);
+    if (current === undefined || countHiddenSegments(result) < countHiddenSegments(current)) {
+      representatives.set(realResult, result);
     }
-    seenRealPaths.add(realResult);
-    deduped.push(result);
   }
-  return deduped;
+  return [...representatives.values()].toSorted();
 }
 
 export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {

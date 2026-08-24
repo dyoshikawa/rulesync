@@ -506,19 +506,19 @@ export class AgentsSkillsSkill extends ToolSkill {
     relativeDirPath,
     dirName,
     description,
-    logger,
   }: {
     outputRoot: string;
     relativeDirPath: string;
     dirName: string;
     description: string;
-    logger?: Logger;
   }): void {
     if (description.length > 0) {
       return;
     }
+    // No logger parameter: importing a directory carries no logger down to
+    // here, so one would only ever be the fallback.
     warnWithFallback(
-      logger,
+      undefined,
       `${agentSkillFilePath({ outputRoot, relativeDirPath, dirName })}: ${EMPTY_DESCRIPTION_VIOLATION}. Rulesync imports it anyway so the content is not lost; fill it in before relying on this skill.`,
     );
   }

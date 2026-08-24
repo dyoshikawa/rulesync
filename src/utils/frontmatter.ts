@@ -188,12 +188,19 @@ const TOP_LEVEL_ENTRY_PATTERN = /^([A-Za-z_][\w.-]*):[^\S\r\n]+(\S.*)$/;
 /** A plain scalar that already starts as some other YAML construct. */
 const YAML_CONSTRUCT_PREFIX_PATTERN = /^["'|>&*![{#]/;
 
-function repairFrontmatterLine(line: string): string {
+type RepairedLine = {
+  line: string;
+  /** Whether repairing this line dropped an inline comment from the value. */
+  droppedComment: boolean;
+};
+
+function repairFrontmatterLine(line: string): RepairedLine {
+  const unchanged: RepairedLine = { line, droppedComment: false };
   const carriageReturn = line.endsWith("\r") ? "\r" : "";
   const bareLine = carriageReturn === "" ? line : line.slice(0, -1);
   const match = TOP_LEVEL_ENTRY_PATTERN.exec(bareLine);
   if (!match) {
-    return line;
+    return unchanged;
   }
 
   const [, key = "", rawValue = ""] = match;
@@ -204,20 +211,23 @@ function repairFrontmatterLine(line: string): string {
   // permissions would grant what the comment had disabled.
   const value = rawValue.replace(/\s+#.*$/, "").trimEnd();
   if (value === "") {
-    return line;
+    return unchanged;
   }
   // A colon only ends a plain scalar when a space or the line end follows it,
   // so `homepage: https://example.com` parses fine and must not be touched.
   if (!/:(?:\s|$)/.test(value)) {
-    return line;
+    return unchanged;
   }
   if (YAML_CONSTRUCT_PREFIX_PATTERN.test(value)) {
-    return line;
+    return unchanged;
   }
 
   // JSON string syntax is a subset of YAML's double-quoted scalar, so this
   // escapes quotes and backslashes exactly the way YAML reads them back.
-  return `${key}: ${JSON.stringify(value)}${carriageReturn}`;
+  return {
+    line: `${key}: ${JSON.stringify(value)}${carriageReturn}`,
+    droppedComment: value !== rawValue.trimEnd(),
+  };
 }
 
 /**
@@ -225,7 +235,9 @@ function repairFrontmatterLine(line: string): string {
  * return `undefined` when there is nothing to repair. Only the frontmatter
  * block is rewritten; the body is passed through untouched.
  */
-function repairMalformedFrontmatterYaml(content: string): string | undefined {
+function repairMalformedFrontmatterYaml(
+  content: string,
+): { content: string; droppedComment: boolean } | undefined {
   const opening = /^\uFEFF?---[^\S\r\n]*\r?\n/.exec(content);
   if (!opening) {
     return undefined;
@@ -243,12 +255,16 @@ function repairMalformedFrontmatterYaml(content: string): string | undefined {
 
   const blockEnd = blockStart + closing.index;
   const block = content.slice(blockStart, blockEnd);
-  const repairedBlock = block.split("\n").map(repairFrontmatterLine).join("\n");
+  const repairedLines = block.split("\n").map(repairFrontmatterLine);
+  const repairedBlock = repairedLines.map(({ line }) => line).join("\n");
   if (repairedBlock === block) {
     return undefined;
   }
 
-  return content.slice(0, blockStart) + repairedBlock + content.slice(blockEnd);
+  return {
+    content: content.slice(0, blockStart) + repairedBlock + content.slice(blockEnd),
+    droppedComment: repairedLines.some(({ droppedComment }) => droppedComment),
+  };
 }
 
 /**
@@ -261,7 +277,9 @@ function repairMalformedFrontmatterYaml(content: string): string | undefined {
  * catches the parse error and skips the whole skill. The retry is deliberately
  * narrow — one pass, top-level entries only, and the original error is what
  * surfaces if it does not help, so a genuinely broken file still fails with the
- * message that describes what is actually wrong with it.
+ * message that describes what is actually wrong with it. A file with no closing
+ * `---`, or one whose opening fence carries a language tag, is not repaired at
+ * all: neither is a frontmatter block gray-matter would have read.
  *
  * @see https://agentskills.io/client-implementation/adding-skills-support
  */
@@ -283,15 +301,21 @@ export function parseFrontmatterWithYamlRepair(
 
     let result: ReturnType<typeof parseFrontmatter>;
     try {
-      result = parseFrontmatter(repaired, filePath);
+      result = parseFrontmatter(repaired.content, filePath);
     } catch {
       // The repair made it no better; report the failure the file actually has.
       throw error;
     }
 
+    // A repaired value stops at an inline comment, which is what YAML says it
+    // does but not what the client that wrote the file may have shown. Say so,
+    // because a silently shortened `description` is hard to notice.
+    const commentNote = repaired.droppedComment
+      ? " Text following a space and `#` was read as a YAML comment and left out of the value."
+      : "";
     warnWithFallback(
       undefined,
-      `Recovered malformed YAML frontmatter in ${filePath ?? "the input"} by quoting values that contain a colon. Quote them in the file itself so other tools can read it too.`,
+      `Recovered malformed YAML frontmatter in ${filePath ?? "the input"} by quoting values that contain a colon.${commentNote} Quote them in the file itself so other tools can read it too.`,
     );
     return result;
   }

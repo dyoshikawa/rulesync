@@ -36,6 +36,17 @@ export class AgentsmdSkill extends SimulatedSkill {
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AgentsmdSkill> {
     const baseParams = await this.fromDirDefault(params);
+
+    // Same file, same diagnostics, in both directions: importing through this
+    // target has to report what the native target reports, exactly as
+    // `fromRulesyncSkill` below reuses the generate-side check.
+    AgentsSkillsSkill.warnOnEmptyImportedDescription({
+      outputRoot: baseParams.outputRoot ?? process.cwd(),
+      relativeDirPath: baseParams.relativeDirPath,
+      dirName: baseParams.dirName,
+      description: baseParams.frontmatter.description,
+    });
+
     return new AgentsmdSkill(baseParams);
   }
 

@@ -7,6 +7,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { MAX_REPORTED_ESCAPED_PATHS } from "../../types/ai-dir.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
@@ -214,8 +215,16 @@ Body.`;
       await writeFileContent(join(skillDir, ".env.local"), "TOKEN=real\n");
       await writeFileContent(join(skillDir, ".env.example"), "TOKEN=\n");
       await writeFileContent(join(skillDir, ".npmrc"), "//registry:_authToken=real\n");
+      await writeFileContent(join(skillDir, ".env.production"), "TOKEN=real\n");
+      await writeFileContent(join(skillDir, ".envrc"), "export TOKEN=real\n");
+      await writeFileContent(join(skillDir, ".pgpass"), "host:5432:db:user:real\n");
       await writeFileContent(join(skillDir, ".ssh", "id_rsa"), "key\n");
       await writeFileContent(join(skillDir, ".aws", "credentials"), "aws-secret\n");
+      await writeFileContent(join(skillDir, ".docker", "config.json"), "{}\n");
+      await writeFileContent(join(skillDir, ".config", "gh", "hosts.yml"), "oauth_token: real\n");
+      // Deliberately upper-cased: macOS and Windows resolve `.GNUPG` and `.gnupg`
+      // to the same directory, so a case-sensitive exclusion is a hole there.
+      await writeFileContent(join(skillDir, ".GNUPG", "secring.gpg"), "key\n");
 
       const skill = await AgentsSkillsSkill.fromDir({
         outputRoot: testDir,
@@ -224,6 +233,52 @@ Body.`;
 
       const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
       expect(carriedPaths).toEqual([".env.example"]);
+    });
+
+    it("should not carry build and cache directories", async () => {
+      // A skill that ships Python scripts routinely has a `.venv` beside them.
+      // Copying it into every enabled tool root would multiply thousands of
+      // files that are not skill content by the number of targets.
+      const skillDir = join(testDir, ".agents", "skills", "venv-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: venv-skill", "description: Ships scripts", "---", "", "Body."].join("\n"),
+      );
+      await writeFileContent(join(skillDir, "scripts", "run.py"), "print('hi')\n");
+      await writeFileContent(join(skillDir, ".venv", "lib", "site.py"), "# venv\n");
+      await writeFileContent(join(skillDir, ".mypy_cache", "cache.json"), "{}\n");
+      await writeFileContent(join(skillDir, ".ruff_cache", "cache.json"), "{}\n");
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "venv-skill",
+      });
+
+      const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
+      expect(carriedPaths).toEqual([join("scripts", "run.py")]);
+    });
+
+    it("should carry a directory whose name starts with two dots", async () => {
+      // `path.relative` reports `..cache/note.md` for a directory that really
+      // is inside the skill, which a prefix test would read as an escape.
+      const skillDir = join(testDir, ".agents", "skills", "double-dot-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: double-dot-skill", "description: Odd directory", "---", "", "Body."].join(
+          "\n",
+        ),
+      );
+      await writeFileContent(join(skillDir, "..cache", "note.md"), "note\n");
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "double-dot-skill",
+      });
+
+      const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
+      expect(carriedPaths).toEqual([join("..cache", "note.md")]);
     });
 
     // fs.symlink with the default/file type needs admin or Developer Mode on Windows.
@@ -254,6 +309,96 @@ Body.`;
         // The named file keeps its documented behavior; the dotfile does not.
         expect(carriedPaths).toContain(join("docs", "shared.md"));
         expect(carriedPaths).not.toContain(join("docs", ".secret-config"));
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should warn about the hidden entries a symbolic link reached outside the skill directory",
+      async () => {
+        const outsideDir = join(testDir, "outside");
+        await writeFileContent(join(outsideDir, ".secret-config"), "secret\n");
+
+        const skillDir = join(testDir, ".agents", "skills", "warned-link-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: warned-link-skill", "description: Links out", "---", "", "Body."].join(
+            "\n",
+          ),
+        );
+        await symlink(outsideDir, join(skillDir, "docs"));
+        const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+        try {
+          await AgentsSkillsSkill.fromDir({ outputRoot: testDir, dirName: "warned-link-skill" });
+
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining("Not carrying 1 hidden entry that a symbolic link reaches"),
+          );
+        } finally {
+          warnSpy.mockRestore();
+        }
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should count the escaped hidden entries a warning does not name",
+      async () => {
+        const outsideDir = join(testDir, "outside");
+        for (let index = 0; index < MAX_REPORTED_ESCAPED_PATHS + 2; index++) {
+          await writeFileContent(join(outsideDir, `.file-${index}`), "secret\n");
+        }
+
+        const skillDir = join(testDir, ".agents", "skills", "many-links-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: many-links-skill", "description: Links out", "---", "", "Body."].join(
+            "\n",
+          ),
+        );
+        await symlink(outsideDir, join(skillDir, "docs"));
+        const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+        try {
+          await AgentsSkillsSkill.fromDir({ outputRoot: testDir, dirName: "many-links-skill" });
+
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining(
+              `Not carrying ${MAX_REPORTED_ESCAPED_PATHS + 2} hidden entries`,
+            ),
+          );
+          expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(", and 2 more"));
+        } finally {
+          warnSpy.mockRestore();
+        }
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should not carry a credential directory that a symbolic link renames",
+      async () => {
+        // Renaming the link is all it would take to slip past a rule that only
+        // looked at the path inside the skill directory.
+        const outsideDir = join(testDir, "outside");
+        await writeFileContent(join(outsideDir, ".aws", "credentials"), "aws-secret\n");
+
+        const skillDir = join(testDir, ".agents", "skills", "renamed-link-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: renamed-link-skill", "description: Links out", "---", "", "Body."].join(
+            "\n",
+          ),
+        );
+        await symlink(join(outsideDir, ".aws"), join(skillDir, "vendor"));
+
+        const skill = await AgentsSkillsSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "renamed-link-skill",
+        });
+
+        expect(skill.getOtherFiles()).toEqual([]);
       },
     );
 

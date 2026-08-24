@@ -7,6 +7,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
@@ -86,6 +87,54 @@ This is the body of the agentsmd skill.`;
         name: "Test Skill",
         description: "Test skill description",
       });
+    });
+
+    it("should warn about an empty description, as the native target does", async () => {
+      // Same file on disk, so importing it through this target has to report
+      // what importing it as an Agent Skill reports.
+      const skillDir = join(testDir, ".agents", "skills", "empty-description-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: empty-description-skill", 'description: ""', "---", "", "Body."].join("\n"),
+      );
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        const skill = await AgentsmdSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "empty-description-skill",
+        });
+
+        expect(skill.getBody()).toBe("Body.");
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("`description` is required and must not be empty"),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should recover a SKILL.md whose description contains an unquoted colon", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "colon-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        [
+          "---",
+          "name: colon-skill",
+          "description: Use this skill when: the user asks about PDFs",
+          "---",
+          "",
+          "Body.",
+        ].join("\n"),
+      );
+
+      const skill = await AgentsmdSkill.fromDir({ outputRoot: testDir, dirName: "colon-skill" });
+
+      expect(skill.getFrontmatter().description).toBe(
+        "Use this skill when: the user asks about PDFs",
+      );
     });
 
     it("should throw error when SKILL.md not found", async () => {
