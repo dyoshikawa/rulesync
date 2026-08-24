@@ -54,14 +54,52 @@ const NEVER_CARRIED_CREDENTIAL_DIR_NAMES = new Set([".ssh", ".aws", ".gnupg"]);
  * alone writes `credentials.db` and `application_default_credentials.json`, and
  * `.config/anthropic/` holds an API key. A skill that ships a `.config/` of its
  * own still carries it: what is refused is a link that reaches the *user's*.
+ *
+ * A tool home is deliberately absent. `~/.claude/skills/` and `~/.codex/` hold
+ * the global skills this feature exists to share, so refusing a link that
+ * reaches one would refuse the ordinary case along with the bad one.
  */
-const NEVER_CARRIED_ESCAPING_DIR_NAMES = new Set([".config", ".local", ".azure"]);
+const NEVER_CARRIED_ESCAPING_DIR_NAMES = new Set([
+  ".config",
+  ".local",
+  ".azure",
+  ".m2",
+  ".terraform.d",
+  ".docker",
+  ".kube",
+  "keychains",
+]);
 
-/** Whether an escaping real path passes through a directory only reachable by escaping. */
-function escapesIntoCredentialDir(realFilePath: string): boolean {
-  return splitPathSegments(realFilePath).some((segment) =>
-    NEVER_CARRIED_ESCAPING_DIR_NAMES.has(normalizePathSegment(segment.toLowerCase())),
-  );
+/**
+ * Whether an escaping real path passes through a directory only reachable by
+ * escaping.
+ *
+ * Only the segments *past* the skill directory count. A global skill lives at
+ * `~/.config/agents/skills/<name>` for Amp, Devin and Muse alike, so judging
+ * the whole real path would refuse a link that never left the skills tree it
+ * was already in -- the shared-directory case, reported as a credential.
+ */
+function escapesIntoCredentialDir({
+  realDirPath,
+  realFilePath,
+}: {
+  realDirPath: string;
+  realFilePath: string;
+}): boolean {
+  const normalize = (segment: string): string => normalizePathSegment(segment.toLowerCase());
+  const dirSegments = splitPathSegments(realDirPath).map(normalize);
+  const fileSegments = splitPathSegments(realFilePath).map(normalize);
+  let shared = 0;
+  while (
+    shared < dirSegments.length &&
+    shared < fileSegments.length &&
+    dirSegments[shared] === fileSegments[shared]
+  ) {
+    shared += 1;
+  }
+  return fileSegments
+    .slice(shared)
+    .some((segment) => NEVER_CARRIED_ESCAPING_DIR_NAMES.has(segment));
 }
 
 /**
@@ -234,17 +272,33 @@ const MAX_LINK_CHAIN_HOPS = 40;
  * now would come back as an ordinary path and be carried. Following the chain a
  * hop at a time, and checking each hop, is what sees the `/proc` in the middle.
  */
-async function resolvesThroughSystemPseudoPath(filePath: string): Promise<boolean> {
+async function resolvesThroughSystemPseudoPath(
+  filePath: string,
+): Promise<{ throughPseudoPath: boolean; hops: number }> {
   let currentPath = resolve(filePath);
-  for (let hop = 0; hop < MAX_LINK_CHAIN_HOPS; hop++) {
+  let hops = 0;
+  for (; hops < MAX_LINK_CHAIN_HOPS; hops++) {
     if (isSystemPseudoPath(currentPath)) {
-      return true;
+      return { throughPseudoPath: true, hops };
+    }
+    // The kernel resolves the directory part of a path before it looks at the
+    // last segment, so a `/proc` one link further in never appears in the
+    // string this loop builds: with `p -> /proc/self/fd`, the path `p/3` reads
+    // a file descriptor while spelling nothing but the skill's own directory.
+    // Resolving the parent at every hop is what sees it.
+    try {
+      if (isSystemPseudoPath(await realpath(dirname(currentPath)))) {
+        return { throughPseudoPath: true, hops };
+      }
+    } catch {
+      // A parent that cannot be resolved decides nothing on its own; the hop
+      // below fails too and ends the walk.
     }
     let linkStats: Stats;
     try {
       linkStats = await lstat(currentPath);
     } catch {
-      return false;
+      return { throughPseudoPath: false, hops };
     }
     if (!linkStats.isSymbolicLink()) {
       break;
@@ -253,15 +307,11 @@ async function resolvesThroughSystemPseudoPath(filePath: string): Promise<boolea
     try {
       target = await readlink(currentPath);
     } catch {
-      return false;
+      return { throughPseudoPath: false, hops };
     }
     currentPath = isAbsolute(target) ? target : resolve(dirname(currentPath), target);
   }
-  try {
-    return isSystemPseudoPath(await realpath(dirname(filePath)));
-  } catch {
-    return false;
-  }
+  return { throughPseudoPath: false, hops };
 }
 
 /**
@@ -416,7 +466,13 @@ async function walkCarriedFiles(
     if (!targetStats.isDirectory() || isNeverCarriedDirName(entryName)) {
       return;
     }
-    if (await resolvesThroughSystemPseudoPath(child.dirPath)) {
+    const { throughPseudoPath, hops } = await resolvesThroughSystemPseudoPath(child.dirPath);
+    // Following a chain costs a `lstat`, a `readlink` and a `realpath` per hop,
+    // so a directory of long chains buys far more work per entry than a
+    // directory of files. Charge the hops to the same budget the entries are
+    // counted against, or the entry bound stops bounding the walk.
+    examinedEntries += hops;
+    if (throughPseudoPath) {
       // Walking `/proc` would read back process state, and its `<pid>/fd`
       // entries would hand out whatever every process on the machine has open.
       // It is also a tree of tens of thousands of entries.
@@ -442,6 +498,13 @@ async function walkCarriedFiles(
     // truncation even when it is the depth bound that stops it -- which is
     // exactly what a cycle produces.
     if (visitedRealDirPaths.has(realCurrentPath)) {
+      return;
+    }
+    // A link that lands on `/` -- or on anything above `/proc` -- reaches the
+    // pseudo-filesystems as ordinary directories, and every one of their tens
+    // of thousands of entries would be paid for out of this walk's budget.
+    if (isSystemPseudoPath(realCurrentPath)) {
+      pseudoPaths.add(pending.dirPath);
       return;
     }
     if (pending.depth > MAX_CARRIED_DEPTH) {
@@ -878,11 +941,11 @@ export abstract class AiDir {
         }
         // Only a path that resolves outside the directory can have gone through
         // `/proc`, so the extra walk of the link chain is paid for by those.
-        if (await resolvesThroughSystemPseudoPath(filePath)) {
+        if ((await resolvesThroughSystemPseudoPath(filePath)).throughPseudoPath) {
           refusedPseudoPaths.add(filePath);
           return false;
         }
-        if (escapesIntoCredentialDir(realFilePath)) {
+        if (escapesIntoCredentialDir({ realDirPath, realFilePath })) {
           refusedCredentials.add(filePath);
           return false;
         }
@@ -966,27 +1029,55 @@ export abstract class AiDir {
     carried,
     carriedPaths,
     carriedRealPaths,
-    truncations,
+    walk,
   }: {
     dirPath: string;
     carried: CarriedFilterResult;
     carriedPaths: string[];
     carriedRealPaths: Set<string>;
-    truncations: Set<CarriedWalkTruncation>;
+    walk: CarriedWalkResult;
   }): Promise<void> {
     const named = await walkCarriedFiles(dirPath, { skipHiddenRoutes: true });
     const recovered = await AiDir.filterCarriedFiles(dirPath, named.filePaths);
+    // What the second walk ran into is reported with what the first one did.
+    // A bound it hit, or an entry it refused, is a file the author is missing
+    // just the same, and this pass is the only route that reaches some of them.
+    for (const truncation of named.truncations) {
+      walk.truncations.add(truncation);
+    }
+    for (const unreadablePath of named.unreadablePaths) {
+      if (!walk.unreadablePaths.includes(unreadablePath)) {
+        walk.unreadablePaths.push(unreadablePath);
+      }
+    }
+    for (const pseudoPath of named.pseudoPaths) {
+      carried.refusedPseudoPaths.add(pseudoPath);
+    }
+    for (const refused of recovered.refusedCredentials) {
+      carried.refusedCredentials.add(refused);
+    }
+    for (const refused of recovered.refusedPseudoPaths) {
+      carried.refusedPseudoPaths.add(refused);
+    }
+    for (const refused of recovered.refusedNoiseAliases) {
+      carried.refusedNoiseAliases.add(refused);
+    }
     for (const filePath of recovered.filePaths) {
       const realFilePath = recovered.realFilePathByPath.get(filePath) ?? filePath;
       if (carriedRealPaths.has(realFilePath)) {
         continue;
       }
       if (carriedPaths.length >= MAX_CARRIED_FILES) {
-        truncations.add("count");
+        walk.truncations.add("count");
         break;
       }
       carriedRealPaths.add(realFilePath);
       carriedPaths.push(filePath);
+      // The path this pass resolved is the one the read must open. Without it
+      // the read falls back to the literal path, which is the very link the
+      // classification was meant to pin down -- and `O_NOFOLLOW` then refuses
+      // to open the file at all.
+      carried.realFilePathByPath.set(filePath, realFilePath);
       if (recovered.carriedFromOutside.has(filePath)) {
         carried.carriedFromOutside.add(filePath);
       }
@@ -1032,16 +1123,10 @@ export abstract class AiDir {
     excludeFileName: string,
   ): Promise<AiDirFile[]> {
     const dirPath = join(outputRoot, relativeDirPath, dirName);
-    const {
-      filePaths: discoveredPaths,
-      truncations,
-      unreadablePaths,
-      pseudoPaths,
-    } = await walkCarriedFiles(dirPath);
+    const walk = await walkCarriedFiles(dirPath);
     const reportedDirPath = stripControlCharacters(toPosixPath(dirPath));
-    AiDir.warnOnCarriedWalkLimits({ reportedDirPath, truncations, unreadablePaths });
     await AiDir.warnOnNestedGitDirectory(dirPath);
-    const carried = await AiDir.filterCarriedFiles(dirPath, discoveredPaths);
+    const carried = await AiDir.filterCarriedFiles(dirPath, walk.filePaths);
     const carriedPaths = [...carried.filePaths];
     const carriedRealPaths = new Set(
       carriedPaths.map((filePath) => carried.realFilePathByPath.get(filePath) ?? filePath),
@@ -1060,13 +1145,21 @@ export abstract class AiDir {
         carried,
         carriedPaths,
         carriedRealPaths,
-        truncations,
+        walk,
       });
     }
 
-    for (const pseudoPath of pseudoPaths) {
+    for (const pseudoPath of walk.pseudoPaths) {
       carried.refusedPseudoPaths.add(pseudoPath);
     }
+    // Reported only now: the recovery pass above may hit a bound of its own,
+    // and a shortfall announced before that pass has run is a shortfall that
+    // may not exist.
+    AiDir.warnOnCarriedWalkLimits({
+      reportedDirPath,
+      truncations: walk.truncations,
+      unreadablePaths: walk.unreadablePaths,
+    });
     AiDir.warnOnRefusedCarriedFiles(dirPath, carried);
     const filteredPaths = carriedPaths
       .toSorted()

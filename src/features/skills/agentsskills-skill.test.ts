@@ -717,6 +717,106 @@ Body.`;
       },
     );
 
+    it.skipIf(process.platform !== "linux")(
+      "should not carry a file a linked directory reaches through a process file descriptor",
+      async () => {
+        const skillDir = join(testDir, ".agents", "skills", "indirect-procfs-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: indirect-procfs-skill", "description: Reads", "---", "", "Body."].join(
+            "\n",
+          ),
+        );
+        const secretPath = join(testDir, "indirect-secret.txt");
+        await writeFileContent(secretPath, "TOP-SECRET\n");
+        const secretHandle = await open(secretPath, "r");
+        try {
+          // One link hides the `/proc` from every path the walk spells: the
+          // descriptor is reached as `fds/N`, whose own name says nothing.
+          await symlink(join("/proc", "self", "fd"), join(skillDir, "fds"));
+          await symlink(join("fds", String(secretHandle.fd)), join(skillDir, "notes.md"));
+          const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+          const skill = await AgentsSkillsSkill.fromDir({
+            outputRoot: testDir,
+            dirName: "indirect-procfs-skill",
+          });
+
+          expect(skill.getOtherFiles()).toEqual([]);
+          expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("system pseudo-filesystem"));
+        } finally {
+          await secretHandle.close();
+        }
+      },
+    );
+
+    it("should carry a shared tree next to a skill that lives under a configuration directory", async () => {
+      // Amp, Devin and Muse all keep their global skills under `~/.config`, so a
+      // skill there reaching a sibling directory has not reached the user's
+      // credentials -- it has not left its own skills tree.
+      const globalSkillsDir = join(testDir, ".config", "agents", "skills");
+      const skillDir = join(globalSkillsDir, "config-home-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: config-home-skill", "description: Shares", "---", "", "Body."].join("\n"),
+      );
+      const sharedDir = join(globalSkillsDir, "_shared");
+      await ensureDir(sharedDir);
+      await writeFileContent(join(sharedDir, "guide.md"), "Shared guide.\n");
+      await symlink(join("..", "_shared"), join(skillDir, "docs"));
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        relativeDirPath: join(".config", "agents", "skills"),
+        dirName: "config-home-skill",
+      });
+
+      expect(skill.getOtherFiles()).toEqual([
+        {
+          relativeFilePathToDirPath: join("docs", "guide.md"),
+          fileBuffer: Buffer.from("Shared guide.\n"),
+        },
+      ]);
+    });
+
+    it("should carry a recovered supporting file that is itself an alias", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "recovered-alias-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: recovered-alias-skill", "description: Recovers", "---", "", "Body."].join(
+          "\n",
+        ),
+      );
+      const sharedDir = join(testDir, "outside", "shared");
+      await ensureDir(sharedDir);
+      await writeFileContent(join(testDir, "outside", "real.md"), "Real note.\n");
+      // The file the shared tree offers is an alias of its own, so the read has
+      // to open what the filter resolved rather than the name it was found by.
+      await symlink(join("..", "real.md"), join(sharedDir, "link.md"));
+      // The hidden route reaches the shared tree in one hop and claims it; the
+      // fully named route needs two, so it only wins on the recovery walk.
+      await symlink(sharedDir, join(skillDir, ".hidden"));
+      const hopDir = join(testDir, "outside", "hop");
+      await ensureDir(hopDir);
+      await symlink(sharedDir, join(hopDir, "named"));
+      await symlink(hopDir, join(skillDir, "route"));
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "recovered-alias-skill",
+      });
+
+      expect(skill.getOtherFiles()).toEqual([
+        {
+          relativeFilePathToDirPath: join("route", "named", "link.md"),
+          fileBuffer: Buffer.from("Real note.\n"),
+        },
+      ]);
+    });
+
     it("should not carry a file a link reaches in the user's own configuration tree", async () => {
       const skillDir = join(testDir, ".agents", "skills", "user-config-skill");
       await ensureDir(skillDir);
