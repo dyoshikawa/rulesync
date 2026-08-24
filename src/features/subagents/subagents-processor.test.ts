@@ -14,6 +14,7 @@ import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
+import { RooSubagent } from "./roo-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   SubagentsProcessor,
@@ -35,6 +36,13 @@ const createMockGetFactoryThatThrowsUnsupported = () => {
 const junieSubagentMd = (name: string): string => `---
 name: ${name}
 description: ${name} description
+---
+${name} content`;
+
+/** Builds a minimal OpenCode subagent Markdown file with valid frontmatter. */
+const opencodeSubagentMd = (name: string): string => `---
+description: ${name} description
+mode: subagent
 ---
 ${name} content`;
 
@@ -320,6 +328,78 @@ describe("SubagentsProcessor", () => {
         outputRoot: testDir,
         toolTarget: "claudecode",
       });
+    });
+
+    it("should drop a fanned-out subagent whose slug collapses onto an earlier one", async () => {
+      // `.roomodes` fans one tool file out into N rulesync subagents, bypassing
+      // the per-root de-duplication entirely, so the output-path guard is the
+      // only thing standing between two spellings of a slug and a single
+      // `.rulesync/subagents/` file.
+      const logger = createMockLogger();
+      const rooProcessor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "roo",
+      });
+      await writeFileContent(
+        join(testDir, ".roomodes"),
+        `customModes:
+  - slug: planner
+    name: Planner
+    roleDefinition: You are the planner.
+  - slug: Planner
+    name: Planner Uppercase
+    roleDefinition: You are the other planner.
+`,
+      );
+      const roo = await RooSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: ".roomodes",
+      });
+
+      const rulesyncFiles = await rooProcessor.convertToolFilesToRulesyncFiles([roo]);
+
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]?.getRelativeFilePath()).toBe("planner.md");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Multiple roo subagents resolve to"),
+      );
+    });
+
+    it("should drop a converted subagent whose output path differs only in case", async () => {
+      // The guard folds case because the two paths are one file on macOS and
+      // Windows. No adapter derives an output path that differs only in case
+      // today (Roo lowercases its slugs), so this exercises the guard's own
+      // contract with hand-built tool files.
+      const logger = createMockLogger();
+      const caseProcessor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const buildSubagent = (fileName: string, name: string) =>
+        new ClaudecodeSubagent({
+          outputRoot: testDir,
+          relativeDirPath: ".claude/agents",
+          relativeFilePath: fileName,
+          fileContent: `---
+name: ${name}
+description: ${name} description
+---
+${name} content`,
+          frontmatter: { name, description: `${name} description` },
+          body: `${name} content`,
+          validate: false,
+        });
+
+      const rulesyncFiles = await caseProcessor.convertToolFilesToRulesyncFiles([
+        buildSubagent("planner.md", "planner"),
+        buildSubagent("Planner.md", "Planner"),
+      ]);
+
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]?.getRelativeFilePath()).toBe("planner.md");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("differs only in case"));
     });
 
     it("should filter and convert ToolSubagent instances", async () => {
@@ -750,6 +830,31 @@ Body from inputRoots[0]`;
       expect(toolFiles[0]?.getRelativeDirPath()).toBe(join(".junie", "agents"));
     });
 
+    it("should keep the higher-precedence copy when the two names differ only in case", async () => {
+      const logger = createMockLogger();
+      const caseProcessor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const junieDir = join(testDir, ".junie", "agents");
+      const sharedDir = join(testDir, ".agents");
+      await ensureDir(junieDir);
+      await ensureDir(sharedDir);
+
+      // `planner.md` and `Planner.md` are one file in the `.rulesync/subagents/`
+      // tree they are written back to, so the shared copy must not shadow the
+      // tool-specific one on a case-insensitive filesystem.
+      await writeFileContent(join(junieDir, "planner.md"), junieSubagentMd("planner"));
+      await writeFileContent(join(sharedDir, "Planner.md"), junieSubagentMd("Planner"));
+
+      const toolFiles = await caseProcessor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeDirPath()).toBe(join(".junie", "agents"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("differs only in case"));
+    });
+
     it("should not delete files in the .agents import root (forDeletion targets .junie/agents only)", async () => {
       const junieDir = join(testDir, ".junie", "agents");
       const sharedDir = join(testDir, ".agents");
@@ -763,6 +868,64 @@ Body from inputRoots[0]`;
 
       expect(filesToDelete).toHaveLength(1);
       expect(filesToDelete[0]?.getRelativeDirPath()).toBe(join(".junie", "agents"));
+    });
+  });
+
+  describe("loadOpenCodeSubagents", () => {
+    it("should keep the standalone file when an inline agent differs only in case", async () => {
+      const logger = createMockLogger();
+      const processor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "opencode",
+      });
+      const agentsDir = join(testDir, ".opencode", "agents");
+      await ensureDir(agentsDir);
+      await writeFileContent(join(agentsDir, "planner.md"), opencodeSubagentMd("planner"));
+      // The inline block is scanned after the standalone files, so `Planner`
+      // loses to `planner.md` even though the two only differ in case.
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          agent: { Planner: { description: "inline planner", prompt: "inline body" } },
+        }),
+      );
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("planner.md");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`keeping the standalone file in ${join(".opencode", "agents")}`),
+      );
+    });
+
+    it("should keep the earlier inline definition when two inline agents differ only in case", async () => {
+      const logger = createMockLogger();
+      const processor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "opencode",
+      });
+      // Both copies come from the inline block, with no standalone file
+      // anywhere, so the warning must not blame a discovery root.
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          agent: {
+            planner: { description: "first inline planner", prompt: "first body" },
+            Planner: { description: "second inline planner", prompt: "second body" },
+          },
+        }),
+      );
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("planner.md");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("keeping the earlier inline definition"),
+      );
     });
   });
 

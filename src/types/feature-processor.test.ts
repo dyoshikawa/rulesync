@@ -8,6 +8,7 @@ import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { readFileContentOrNull, removeFile, writeFileContent } from "../utils/file.js";
 import { AiFile } from "./ai-file.js";
 import {
+  ClaimedIdentities,
   FeatureProcessor,
   mergeByCaseInsensitiveIdentity,
   mergeByIdentity,
@@ -399,6 +400,79 @@ describe("mergeByCaseInsensitiveIdentity", () => {
     });
 
     expect(logger.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("ClaimedIdentities", () => {
+  it("returns null for an identity nothing claimed yet", () => {
+    const claimed = new ClaimedIdentities();
+
+    expect(claimed.claim({ identity: "review", source: ".junie/skills" })).toBeNull();
+    expect(claimed.claim({ identity: "plan", source: ".junie/skills" })).toBeNull();
+  });
+
+  it("returns the standing claim for an exact repeat", () => {
+    const claimed = new ClaimedIdentities();
+    claimed.claim({ identity: "review", source: ".junie/skills" });
+
+    expect(claimed.claim({ identity: "review", source: ".agents/skills" })).toEqual({
+      spelling: "review",
+      source: ".junie/skills",
+    });
+  });
+
+  it("returns the first spelling for a case-only collision", () => {
+    const claimed = new ClaimedIdentities();
+    claimed.claim({ identity: "Dup-Skill", source: ".junie/skills" });
+
+    expect(claimed.claim({ identity: "dup-skill", source: ".agents/skills" })?.spelling).toBe(
+      "Dup-Skill",
+    );
+    expect(claimed.claim({ identity: "DUP-SKILL", source: ".agents/skills" })?.spelling).toBe(
+      "Dup-Skill",
+    );
+  });
+
+  it("reports the source that claimed the identity, so a same-source collision is tellable", () => {
+    const claimed = new ClaimedIdentities();
+    claimed.claim({ identity: "planner", source: ".junie/agents" });
+
+    expect(claimed.claim({ identity: "Planner", source: ".junie/agents" })?.source).toBe(
+      ".junie/agents",
+    );
+    expect(claimed.claim({ identity: "PLANNER", source: ".agents" })?.source).toBe(".junie/agents");
+  });
+
+  it("keeps the first spelling rather than the most recent one", () => {
+    const claimed = new ClaimedIdentities();
+
+    expect(claimed.claim({ identity: "Review.md", source: "a" })).toBeNull();
+    expect(claimed.claim({ identity: "review.md", source: "b" })?.spelling).toBe("Review.md");
+    expect(claimed.claim({ identity: "REVIEW.md", source: "c" })?.spelling).toBe("Review.md");
+  });
+
+  it("folds the composed and decomposed spellings of an accented name", () => {
+    // macOS filesystems are normalization-insensitive as well as case-insensitive,
+    // so these two are one directory there.
+    // Written as escapes because the two literals are indistinguishable on
+    // screen, and a tool that normalized one of them would leave the test
+    // green while checking nothing.
+    const composed = "caf\u00e9-skill";
+    const decomposed = "cafe\u0301-skill";
+    expect(composed).not.toBe(decomposed);
+    const claimed = new ClaimedIdentities();
+
+    expect(claimed.claim({ identity: composed, source: ".junie/skills" })).toBeNull();
+    expect(claimed.claim({ identity: decomposed, source: ".agents/skills" })?.spelling).toBe(
+      composed,
+    );
+  });
+
+  it("treats identities that differ beyond case as distinct", () => {
+    const claimed = new ClaimedIdentities();
+    claimed.claim({ identity: "review", source: "a" });
+
+    expect(claimed.claim({ identity: "reviewer", source: "a" })).toBeNull();
   });
 });
 

@@ -58,7 +58,7 @@ rulesync generate --input-roots ~/.aiglobal/.rulesync ./.rulesync --targets "*" 
 
 The general rule is: later entries win. Each feature refines that rule slightly:
 
-- **Rules, commands, subagents, checks, skills** — merged file-by-file (case-insensitive). Files present only in an earlier tree are kept; a file that also exists in a later tree replaces the earlier version. A skill directory is replaced as a single unit (all of its companion files together). Differently cased names that collapse to the same identity produce a warning instead of being dropped silently.
+- **Rules, commands, subagents, checks, skills** — merged file-by-file (case-insensitive). Files present only in an earlier tree are kept; a file that also exists in a later tree replaces the earlier version. A skill directory is replaced as a single unit (all of its companion files together). Differently cased names that collapse to the same identity produce a warning instead of being dropped silently; the comparison also normalizes Unicode (NFC), so the composed and decomposed spellings of an accented name — one file on macOS — are treated as the same entry.
 - **MCP** — merged one level into the JSON: the top-level `mcpServers` map and each `<toolname>.mcpServers` map are merged by server name (later wins per key). An individual server config is replaced as a whole; patching just its `args` or `env` is not supported.
 - **Hooks, permissions, ignore** — the last tree that provides the file wins the whole file. There is no line-level merge.
 

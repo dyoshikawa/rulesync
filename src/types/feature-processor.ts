@@ -239,9 +239,33 @@ export function mergeByIdentity<T>({
 }
 
 /**
+ * The key two spellings share when a case-insensitive filesystem would give
+ * them one file. `toLowerCase()` is locale-independent (unlike
+ * `toLocaleLowerCase`, it does not turn `I` into the Turkish `ı` under a Turkish
+ * locale), and the NFC pass folds the composed and decomposed spellings of an
+ * accented name — which macOS also resolves to a single directory —
+ * onto each other.
+ *
+ * This is simple lowercasing rather than full Unicode case folding, so it is
+ * deliberately narrower than what a filesystem considers one file: a Greek
+ * final sigma, a Turkish `ı` under NTFS's upcasing, and a Win32 name whose
+ * trailing dot is stripped all still produce distinct keys. Those pairs keep
+ * the pre-existing behavior (both are imported, and the later one wins on the
+ * filesystem); folding them here would instead drop names that a
+ * case-sensitive filesystem keeps genuinely apart.
+ */
+function caseFoldIdentity(identity: string): string {
+  return identity.normalize("NFC").toLowerCase();
+}
+
+/**
  * Merge artifacts whose filenames are case-insensitive identities, warning
  * when distinct spellings collapse to the same key. Exact-name overlays are
  * intentional and remain quiet; only case-only ambiguity is diagnosed.
+ *
+ * Precedence here is the opposite of {@link ClaimedIdentities}: this merges
+ * overlay roots, where the LAST entry wins, while the tool-side loaders keep
+ * the FIRST root to claim a name.
  */
 export function mergeByCaseInsensitiveIdentity<T>({
   perRoot,
@@ -261,7 +285,7 @@ export function mergeByCaseInsensitiveIdentity<T>({
     perRoot,
     identity: (item) => {
       const spelling = identity(item);
-      const key = spelling.toLowerCase();
+      const key = caseFoldIdentity(spelling);
       const previousSpelling = spellingByKey.get(key);
 
       if (previousSpelling !== undefined && previousSpelling !== spelling && !warnedKeys.has(key)) {
@@ -278,4 +302,56 @@ export function mergeByCaseInsensitiveIdentity<T>({
       return key;
     },
   });
+}
+
+/**
+ * A claim an earlier scan already holds on an identity: the spelling it used,
+ * and the caller-supplied label for where it came from.
+ */
+export type ClaimedIdentity = {
+  /**
+   * Equal to the identity being claimed for a plain duplicate, and differing
+   * from it for a case-only collision, so callers can word the two apart.
+   */
+  spelling: string;
+  /**
+   * Whatever the first claimer passed as `source` — a discovery root for the
+   * tool-side loaders. Comparing it against the current source separates a
+   * collision across roots from one inside a single root, so the same
+   * "a higher-precedence root wins" sentence is not used for both.
+   */
+  source: string;
+};
+
+/**
+ * Tracks the import identities already claimed while scanning, folding case
+ * through {@link caseFoldIdentity}.
+ *
+ * The tool-side loaders scan several roots in precedence order and keep the
+ * first spelling of each identity. Comparing those identities exactly lets
+ * `.junie/skills/dup-skill` and `.agents/skills/Dup-Skill` both through, and
+ * since macOS and Windows resolve the two written-back directories to a
+ * single one, the shared Agent Skills copy lands last and overwrites the
+ * tool-specific one — inverting the precedence the roots were ordered by.
+ *
+ * The FIRST claimer wins, which is the opposite of the overlay precedence in
+ * {@link mergeByCaseInsensitiveIdentity}: roots are passed in precedence
+ * order, so the earliest one to name a skill is the one that should keep it.
+ */
+export class ClaimedIdentities {
+  private readonly claimByKey = new Map<string, ClaimedIdentity>();
+
+  /**
+   * Claim `identity` on behalf of `source`. Returns `null` when nothing held
+   * it yet, or the standing claim when something did.
+   */
+  claim({ identity, source }: { identity: string; source: string }): ClaimedIdentity | null {
+    const key = caseFoldIdentity(identity);
+    const claimed = this.claimByKey.get(key);
+    if (claimed !== undefined) {
+      return claimed;
+    }
+    this.claimByKey.set(key, { spelling: identity, source });
+    return null;
+  }
 }

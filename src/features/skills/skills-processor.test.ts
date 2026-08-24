@@ -23,6 +23,33 @@ import {
   skillsProcessorToolTargetsGlobal,
 } from "./skills-processor.js";
 
+/**
+ * Write a directory-form skill whose frontmatter `name` matches its directory
+ * name, which is what every multi-root precedence test here needs.
+ */
+async function writeSkill({
+  testDir,
+  base,
+  dirName,
+  body,
+}: {
+  testDir: string;
+  base: string;
+  dirName: string;
+  body: string;
+}): Promise<void> {
+  const dir = join(testDir, base, dirName);
+  await ensureDir(dir);
+  await writeFileContent(
+    join(dir, "SKILL.md"),
+    `---
+name: ${dirName}
+description: d
+---
+${body}`,
+  );
+}
+
 describe("SkillsProcessor", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -663,20 +690,18 @@ Skill body`,
         outputRoot: testDir,
         toolTarget: "rovodev",
       });
-      const writeSkill = async (base: string, body: string) => {
-        const dir = join(testDir, base, "dup-skill");
-        await ensureDir(dir);
-        await writeFileContent(
-          join(dir, "SKILL.md"),
-          `---
-name: dup-skill
-description: d
----
-${body}`,
-        );
-      };
-      await writeSkill(join(".rovodev", "skills"), "from-rovo");
-      await writeSkill(join(".agents", "skills"), "from-agents");
+      await writeSkill({
+        testDir,
+        base: join(".rovodev", "skills"),
+        dirName: "dup-skill",
+        body: "from-rovo",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "dup-skill",
+        body: "from-agents",
+      });
 
       const toolDirs = await processor.loadToolDirs();
 
@@ -696,21 +721,24 @@ ${body}`,
         outputRoot: testDir,
         toolTarget: "junie",
       });
-      const writeSkill = async (base: string, dirName: string, body: string) => {
-        const dir = join(testDir, base, dirName);
-        await ensureDir(dir);
-        await writeFileContent(
-          join(dir, "SKILL.md"),
-          `---
-name: ${dirName}
-description: d
----
-${body}`,
-        );
-      };
-      await writeSkill(join(".junie", "skills"), "dup-skill", "from-junie");
-      await writeSkill(join(".agents", "skills"), "dup-skill", "from-agents");
-      await writeSkill(join(".agents", "skills"), "shared-only", "from-agents");
+      await writeSkill({
+        testDir,
+        base: join(".junie", "skills"),
+        dirName: "dup-skill",
+        body: "from-junie",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "dup-skill",
+        body: "from-agents",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "shared-only",
+        body: "from-agents",
+      });
 
       const toolDirs = await processor.loadToolDirs();
 
@@ -723,6 +751,133 @@ ${body}`,
       );
       expect(byName.get("dup-skill")).toEqual([join(".junie", "skills"), "from-junie"]);
       expect(byName.get("shared-only")).toEqual([join(".agents", "skills"), "from-agents"]);
+    });
+
+    it("should prefer .rovodev/skills over .agents/skills for a name differing only in case", async () => {
+      // The two skills are written back as `.rulesync/skills/dup-skill` and
+      // `.rulesync/skills/Dup-Skill`, which are one directory on macOS and
+      // Windows. Letting both through would let the shared tree — written
+      // last — overwrite the tool-specific skill it is supposed to lose to.
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "rovodev",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".rovodev", "skills"),
+        dirName: "dup-skill",
+        body: "from-rovo",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "Dup-Skill",
+        body: "from-agents",
+      });
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      const skill = toolDirs[0] as RovodevSkill;
+      expect(skill.getBody()).toBe("from-rovo");
+      expect(skill.getRelativeDirPath()).toBe(join(".rovodev", "skills"));
+      // The warning has to name the ignored copy and the root that kept the
+      // skill, since that is the only way the user learns which of the two
+      // spellings survived the import.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Case-insensitive rovodev skill collision: "dup-skill" and "Dup-Skill" resolve to the same skill directory. Keeping "dup-skill" from the higher-precedence ${join(".rovodev", "skills")} and ignoring ${join(".agents", "skills", "Dup-Skill")}`,
+        ),
+      );
+    });
+
+    it("should prefer .junie/skills over .agents/skills for a name differing only in case", async () => {
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".junie", "skills"),
+        dirName: "dup-skill",
+        body: "from-junie",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "Dup-Skill",
+        body: "from-agents",
+      });
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      const skill = toolDirs[0] as JunieSkill;
+      expect(skill.getBody()).toBe("from-junie");
+      expect(skill.getRelativeDirPath()).toBe(join(".junie", "skills"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`Case-insensitive junie skill collision`),
+      );
+    });
+
+    it("should prefer .vibe/skills over .agents/skills for a name differing only in case", async () => {
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "vibe",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".vibe", "skills"),
+        dirName: "dup-skill",
+        body: "from-vibe",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "DUP-SKILL",
+        body: "from-agents",
+      });
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      expect(toolDirs[0]?.getRelativeDirPath()).toBe(join(".vibe", "skills"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`Case-insensitive vibe skill collision`),
+      );
+    });
+
+    it("should not warn when the same skill name repeats with identical spelling", async () => {
+      // An exact repeat across roots is an ordinary overlay, and has always
+      // been resolved silently. Only case-only ambiguity is diagnosed.
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "rovodev",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".rovodev", "skills"),
+        dirName: "dup-skill",
+        body: "from-rovo",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "dup-skill",
+        body: "from-agents",
+      });
+
+      await processor.loadToolDirs();
+
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should skip an agentsskills skill with invalid frontmatter and import the rest", async () => {
