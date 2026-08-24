@@ -161,6 +161,9 @@ describe("registry derivation", () => {
       "takt::general::**/.takt/tasks/",
       "takt::general::**/.takt/.cache/",
       "takt::general::**/.takt/config.yaml",
+      // Muse Code's `--subagent-worktree-isolation` worktrees, which the
+      // runtime removes only when they are clean (issue #2727).
+      "musecode::general::**/.muse/worktrees/",
       // Legacy/aggregate/ghost outputs not produced via getSettablePaths.
       "augmentcode::rules::**/.augment-guidelines",
       "devin::commands::**/.devin/workflows/",
@@ -198,9 +201,6 @@ describe("registry derivation", () => {
       // Vibe subagent system prompts live in `.vibe/prompts/`, outside the
       // `.vibe/agents/` path `getSettablePaths` names (issue #2423).
       "vibe::subagents::**/.vibe/prompts/",
-      // Muse Code's `--subagent-worktree-isolation` worktrees, which the
-      // runtime removes only when they are clean (issue #2727).
-      "musecode::general::**/.muse/worktrees/",
       "roo::subagents::**/.roomodes",
       "codexcli::ignore::**/.codexignore",
       // Codex CLI's `.codex/rules/rulesync.rules` bash-permission file is written

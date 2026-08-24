@@ -102,8 +102,9 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   { target: "takt", feature: "general", entry: "**/.takt/config.yaml" },
   // Meta Muse Code's subagent worktrees: `--subagent-worktree-isolation` checks
   // each child agent out into a repo-relative `.muse/worktrees/<child>` git
-  // worktree, and the documented `cleanup_policy: remove_if_clean` leaves a
-  // dirty one behind when a child is cancelled or crashes. Only the worktree
+  // worktree, and the documented `cleanup_policy: remove_if_clean` removes one
+  // only while it is clean, so a worktree with uncommitted work stays in the
+  // checkout. Only the worktree
   // directory is ignored, not `.muse/` as a whole: `.muse/hooks.json` is
   // committed project config.
   // https://dev.meta.ai/docs/cookbook/subagent-fanout
