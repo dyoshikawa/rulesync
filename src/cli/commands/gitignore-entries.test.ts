@@ -161,6 +161,9 @@ describe("registry derivation", () => {
       "takt::general::**/.takt/tasks/",
       "takt::general::**/.takt/.cache/",
       "takt::general::**/.takt/config.yaml",
+      // Muse Code's `--subagent-worktree-isolation` worktrees, which the
+      // runtime removes only when they are clean (issue #2727).
+      "musecode::general::**/.muse/worktrees/",
       // Legacy/aggregate/ghost outputs not produced via getSettablePaths.
       "augmentcode::rules::**/.augment-guidelines",
       "devin::commands::**/.devin/workflows/",

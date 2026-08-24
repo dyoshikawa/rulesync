@@ -35,6 +35,39 @@ export const MUSECODE_GLOBAL_SKILLS_DIR_PATH = join(MUSECODE_GLOBAL_CONFIG_DIR_P
 // reaches the model context before any trust decision.
 // https://dev.meta.ai/docs/muse-code/configuration.md
 
+// `<repo>/.muse/` is where Muse Code keeps its own harness state — the docs call
+// it "`.muse/` for harness state such as the saved approval policy" — and
+// rulesync writes none of it today:
+//   - `worktrees/` — the per-child git worktrees `--subagent-worktree-isolation`
+//     creates, repo-relative and documented by path. Gitignored as a
+//     third-party by-product (see `HAND_MAINTAINED_GITIGNORE_ENTRIES`), since
+//     the documented `cleanup_policy: remove_if_clean` removes a worktree only
+//     while it is clean.
+//   - `approval-policy.json` — persisted argv-prefix allow rules keyed to the
+//     workspace canonical root, with a documented three-effect precedence
+//     (a deny overrides a prompt, a prompt overrides an allow, regardless of
+//     specificity) and interpreter/wrapper prefixes barred from persistent
+//     grants. This is why the `permissions` feature stays `unsupported` on a
+//     *narrower* basis than earlier passes recorded: an allow/deny file does
+//     exist. Only its basename and the `.muse/` parent are published, though —
+//     not its exact path or entry schema — and it is unclear whether it is
+//     committable project config or machine-local user state. Pin both from a
+//     real file before authoring an adapter, and do not re-derive "Muse Code
+//     has no allow/deny file" from `permissions.md`, which documents only CLI
+//     flags.
+//   - `trust.json` — the per-workspace-root record of your own trust decision,
+//     i.e. machine-local user state that rulesync should never author. Not
+//     gitignored: the docs say only that the decision is "recorded per
+//     workspace root", which does not establish that the file itself lives
+//     inside the repo. Ignore it once a real path is confirmed.
+//   - `hooks.json` — "committed to the repo at `<project-root>/.muse/hooks.json`",
+//     and the reason `.muse/` as a whole is not gitignored. A rulesync adapter
+//     for it is blocked on the unpublished per-hook entry schema.
+// https://dev.meta.ai/docs/cookbook/subagent-fanout
+// https://dev.meta.ai/docs/cookbook/staged-approvals
+// https://dev.meta.ai/docs/cookbook/immutable-guardrails
+// https://dev.meta.ai/docs/muse-code/extending.md
+
 // User settings file. Holds the `mcp_servers` block (Muse Code documents no
 // project-scoped MCP location) and MUST carry `"schema_version": 1` — a
 // settings.json without that key fails every command at startup with

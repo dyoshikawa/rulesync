@@ -100,6 +100,15 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   { target: "takt", feature: "general", entry: "**/.takt/tasks/" },
   { target: "takt", feature: "general", entry: "**/.takt/.cache/" },
   { target: "takt", feature: "general", entry: "**/.takt/config.yaml" },
+  // Meta Muse Code's subagent worktrees: `--subagent-worktree-isolation` checks
+  // each child agent out into a repo-relative `.muse/worktrees/<child>` git
+  // worktree, and the documented `cleanup_policy: remove_if_clean` removes one
+  // only while it is clean, so a worktree with uncommitted work stays in the
+  // checkout. Only the worktree
+  // directory is ignored, not `.muse/` as a whole: `.muse/hooks.json` is
+  // committed project config.
+  // https://dev.meta.ai/docs/cookbook/subagent-fanout
+  { target: "musecode", feature: "general", entry: "**/.muse/worktrees/" },
 
   // Augment Code's legacy single-file rules path: accepted on import but never
   // generated (so not in getSettablePaths), gitignored as a convenience.
