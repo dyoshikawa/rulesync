@@ -40,6 +40,8 @@ export const JunieSubagentFrontmatterSchema = z.looseObject({
   skills: z.optional(z.union([z.string(), z.array(z.string())])),
   // Whether the subagent accepts a prompt argument.
   allowPromptArgument: z.optional(z.boolean()),
+  // Permission handling strategy for the subagent.
+  permissionMode: z.optional(z.string()),
 });
 
 export type JunieSubagentFrontmatter = z.infer<typeof JunieSubagentFrontmatterSchema>;

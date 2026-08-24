@@ -38,6 +38,19 @@ describe("JunieSkill", () => {
         join(".junie", "skills"),
       );
     });
+
+    it("should expose the shared .agents/skills root as an import-only fallback at both scopes", () => {
+      // Junie CLI also loads skills from `<projectRoot>/.agents/skills/` and
+      // `~/.agents/skills/`; rulesync reads but never writes or prunes them.
+      expect(JunieSkill.getSettablePaths()).toEqual({
+        relativeDirPath: join(".junie", "skills"),
+        importOnlySkillRoots: [join(".agents", "skills")],
+      });
+      expect(JunieSkill.getSettablePaths({ global: true })).toEqual({
+        relativeDirPath: join(".junie", "skills"),
+        importOnlySkillRoots: [join(".agents", "skills")],
+      });
+    });
   });
 
   describe("constructor", () => {
