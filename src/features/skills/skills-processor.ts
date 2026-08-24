@@ -9,7 +9,10 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { AiDir } from "../../types/ai-dir.js";
 import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
-import { mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
+import {
+  ClaimedIdentities,
+  mergeByCaseInsensitiveIdentity,
+} from "../../types/feature-processor.js";
 import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
@@ -730,7 +733,35 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const configuredRootPaths = new Set(configuredRoots.map((root) => root.relativeDirPath));
     const roots = [...toolSkillImportRoots(paths), ...configuredRoots];
 
-    const seenSkillNames = new Set<string>();
+    // Roots are scanned in precedence order and the first spelling of a name
+    // wins. Case is folded because the skills are written back into a single
+    // `.rulesync/skills/` tree, where two spellings of one name are one
+    // directory on macOS and Windows.
+    const claimedSkillNames = new ClaimedIdentities();
+    // An exact repeat is an ordinary overlay and stays quiet, as it always
+    // has. A collision that differs only in case is reported, because the
+    // ignored copy is not the one whose name the user would search for.
+    const claimSkillName = ({
+      skill,
+      relativeDirPath,
+    }: {
+      skill: ToolSkill;
+      relativeDirPath: string;
+    }): boolean => {
+      const skillName = skill.getImportIdentity();
+      const claimed = claimedSkillNames.claim(skillName);
+      if (claimed === null) {
+        return true;
+      }
+      if (claimed !== skillName) {
+        this.logger.warn(
+          `Case-insensitive ${this.toolTarget} skill collision: "${claimed}" and "${skillName}" ` +
+            `resolve to the same skill directory. Keeping "${claimed}" from a higher-precedence ` +
+            `root and ignoring ${join(relativeDirPath, skillName)}.`,
+        );
+      }
+      return false;
+    };
     const toolSkills: ToolSkill[] = [];
     for (const root of roots) {
       const rootOutputRoot = typeof root === "string" ? this.outputRoot : root.outputRoot;
@@ -792,12 +823,9 @@ export class SkillsProcessor extends DirFeatureProcessor {
         )
       ).filter((skill) => skill !== null);
       for (const skill of directorySkills) {
-        const skillName = skill.getImportIdentity();
-        if (seenSkillNames.has(skillName)) {
-          continue;
+        if (claimSkillName({ skill, relativeDirPath })) {
+          toolSkills.push(skill);
         }
-        seenSkillNames.add(skillName);
-        toolSkills.push(skill);
       }
 
       if (!factory.class.fromFlatFile) {
@@ -834,12 +862,9 @@ export class SkillsProcessor extends DirFeatureProcessor {
         )
       ).filter((skill) => skill !== null);
       for (const skill of flatSkills) {
-        const skillName = skill.getImportIdentity();
-        if (seenSkillNames.has(skillName)) {
-          continue;
+        if (claimSkillName({ skill, relativeDirPath })) {
+          toolSkills.push(skill);
         }
-        seenSkillNames.add(skillName);
-        toolSkills.push(skill);
       }
     }
 

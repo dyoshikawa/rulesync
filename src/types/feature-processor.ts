@@ -279,3 +279,34 @@ export function mergeByCaseInsensitiveIdentity<T>({
     },
   });
 }
+
+/**
+ * Tracks the import identities already claimed by a higher-precedence
+ * discovery root, folding case the way `mergeByCaseInsensitiveIdentity` does.
+ *
+ * The tool-side loaders scan several roots in precedence order and keep the
+ * first spelling of each identity. Comparing those identities exactly lets
+ * `.junie/skills/dup-skill` and `.agents/skills/Dup-Skill` both through, and
+ * since macOS and Windows resolve the two written-back directories to a
+ * single one, the shared Agent Skills copy lands last and overwrites the
+ * tool-specific one — inverting the precedence the roots were ordered by.
+ */
+export class ClaimedIdentities {
+  private readonly spellingByKey = new Map<string, string>();
+
+  /**
+   * Claim `identity` for the current root. Returns `null` when no earlier
+   * root held it, or the spelling that earlier root used when it did — equal
+   * to `identity` for a plain duplicate, and differing from it for a
+   * case-only collision, so callers can word the two cases apart.
+   */
+  claim(identity: string): string | null {
+    const key = identity.toLowerCase();
+    const claimed = this.spellingByKey.get(key);
+    if (claimed !== undefined) {
+      return claimed;
+    }
+    this.spellingByKey.set(key, identity);
+    return null;
+  }
+}

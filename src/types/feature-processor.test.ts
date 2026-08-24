@@ -8,6 +8,7 @@ import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { readFileContentOrNull, removeFile, writeFileContent } from "../utils/file.js";
 import { AiFile } from "./ai-file.js";
 import {
+  ClaimedIdentities,
   FeatureProcessor,
   mergeByCaseInsensitiveIdentity,
   mergeByIdentity,
@@ -399,6 +400,45 @@ describe("mergeByCaseInsensitiveIdentity", () => {
     });
 
     expect(logger.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("ClaimedIdentities", () => {
+  it("returns null for an identity no earlier root claimed", () => {
+    const claimed = new ClaimedIdentities();
+
+    expect(claimed.claim("review")).toBeNull();
+    expect(claimed.claim("plan")).toBeNull();
+  });
+
+  it("returns the same spelling for an exact repeat", () => {
+    const claimed = new ClaimedIdentities();
+    claimed.claim("review");
+
+    expect(claimed.claim("review")).toBe("review");
+  });
+
+  it("returns the first spelling for a case-only collision", () => {
+    const claimed = new ClaimedIdentities();
+    claimed.claim("Dup-Skill");
+
+    expect(claimed.claim("dup-skill")).toBe("Dup-Skill");
+    expect(claimed.claim("DUP-SKILL")).toBe("Dup-Skill");
+  });
+
+  it("keeps the first spelling rather than the most recent one", () => {
+    const claimed = new ClaimedIdentities();
+
+    expect(claimed.claim("Review.md")).toBeNull();
+    expect(claimed.claim("review.md")).toBe("Review.md");
+    expect(claimed.claim("REVIEW.md")).toBe("Review.md");
+  });
+
+  it("treats identities that differ beyond case as distinct", () => {
+    const claimed = new ClaimedIdentities();
+    claimed.claim("review");
+
+    expect(claimed.claim("reviewer")).toBeNull();
   });
 });
 

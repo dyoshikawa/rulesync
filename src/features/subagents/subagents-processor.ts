@@ -6,7 +6,11 @@ import {
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
   SUBAGENTS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
-import { FeatureProcessor, mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
+import {
+  ClaimedIdentities,
+  FeatureProcessor,
+  mergeByCaseInsensitiveIdentity,
+} from "../../types/feature-processor.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
@@ -694,7 +698,10 @@ export class SubagentsProcessor extends FeatureProcessor {
     const toolSubagents: ToolFile[] = [];
     // Tracks subagent relative paths already loaded so that a duplicate in a
     // lower-precedence import root does not silently shadow an earlier one.
-    const seenRelativeFilePaths = new Set<string>();
+    // Case is folded: the loaded subagents are written back into one
+    // `.rulesync/subagents/` tree, where two spellings of a path are a single
+    // file on macOS and Windows.
+    const claimedRelativeFilePaths = new ClaimedIdentities();
     for (const root of roots) {
       const rootOutputRoot = typeof root === "string" ? this.outputRoot : root.outputRoot;
       const dirPath = typeof root === "string" ? root : root.relativeDirPath;
@@ -778,14 +785,18 @@ export class SubagentsProcessor extends FeatureProcessor {
       const deduped: ToolFile[] = [];
       for (const subagent of loaded) {
         const key = subagent.getImportIdentity();
-        if (seenRelativeFilePaths.has(key)) {
+        const claimed = claimedRelativeFilePaths.claim(key);
+        if (claimed !== null) {
           this.logger.warn(
-            `Duplicate ${this.toolTarget} subagent "${key}" found in ${dirPath}; ` +
-              `keeping the one from a higher-precedence directory and ignoring this copy.`,
+            claimed === key
+              ? `Duplicate ${this.toolTarget} subagent "${key}" found in ${dirPath}; ` +
+                  `keeping the one from a higher-precedence directory and ignoring this copy.`
+              : `Duplicate ${this.toolTarget} subagent "${key}" found in ${dirPath} differs only ` +
+                  `in case from "${claimed}"; keeping the one from a higher-precedence directory ` +
+                  `and ignoring this copy.`,
           );
           continue;
         }
-        seenRelativeFilePaths.add(key);
         deduped.push(subagent);
       }
       toolSubagents.push(...deduped);
@@ -801,14 +812,18 @@ export class SubagentsProcessor extends FeatureProcessor {
       });
       for (const subagent of additionalSubagents) {
         const key = subagent.getImportIdentity();
-        if (seenRelativeFilePaths.has(key)) {
+        const claimed = claimedRelativeFilePaths.claim(key);
+        if (claimed !== null) {
           this.logger.warn(
-            `Duplicate ${this.toolTarget} subagent "${key}" defined inline; ` +
-              `keeping the standalone file and ignoring the inline copy.`,
+            claimed === key
+              ? `Duplicate ${this.toolTarget} subagent "${key}" defined inline; ` +
+                  `keeping the standalone file and ignoring the inline copy.`
+              : `Inline ${this.toolTarget} subagent "${key}" differs only in case from the ` +
+                  `standalone file "${claimed}"; keeping the standalone file and ignoring the ` +
+                  `inline copy.`,
           );
           continue;
         }
-        seenRelativeFilePaths.add(key);
         toolSubagents.push(subagent);
       }
     }

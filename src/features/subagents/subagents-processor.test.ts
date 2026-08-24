@@ -750,6 +750,31 @@ Body from inputRoots[0]`;
       expect(toolFiles[0]?.getRelativeDirPath()).toBe(join(".junie", "agents"));
     });
 
+    it("should keep the higher-precedence copy when the two names differ only in case", async () => {
+      const logger = createMockLogger();
+      const caseProcessor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const junieDir = join(testDir, ".junie", "agents");
+      const sharedDir = join(testDir, ".agents");
+      await ensureDir(junieDir);
+      await ensureDir(sharedDir);
+
+      // `planner.md` and `Planner.md` are one file in the `.rulesync/subagents/`
+      // tree they are written back to, so the shared copy must not shadow the
+      // tool-specific one on a case-insensitive filesystem.
+      await writeFileContent(join(junieDir, "planner.md"), junieSubagentMd("planner"));
+      await writeFileContent(join(sharedDir, "Planner.md"), junieSubagentMd("Planner"));
+
+      const toolFiles = await caseProcessor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeDirPath()).toBe(join(".junie", "agents"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("differs only in case"));
+    });
+
     it("should not delete files in the .agents import root (forDeletion targets .junie/agents only)", async () => {
       const junieDir = join(testDir, ".junie", "agents");
       const sharedDir = join(testDir, ".agents");
