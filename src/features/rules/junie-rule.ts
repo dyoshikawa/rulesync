@@ -54,10 +54,12 @@ export type JunieRuleSettablePaths = {
  *
  * Note that the multi-file branch is unread on **import** as well: a repo that
  * authors `.junie/rules/*.md` or `.junie/playbook.md` by hand (a live layout
- * whenever `.junie/AGENTS.md` is absent) is not picked up, because
- * `ToolRuleSettablePaths` has no import-only `nonRoot` counterpart to the
- * skills-side `importOnlySkillRoots` — `alternativeRoots` addresses single
- * files only. Tracked as a follow-up rather than worked around here.
+ * whenever `.junie/AGENTS.md` is absent) is not picked up. There is no
+ * import-only rule root to declare them on — `nonRoot` is a managed directory
+ * that generation writes and deletion prunes, and `alternativeRoots` (set
+ * below at project scope only) addresses single fallback files — so this needs
+ * the rules-side analogue of the skills-side `importOnlySkillRoots` rather
+ * than a new entry in an existing list. Tracked in issue #2732.
  *
  * Global (user) scope writes a single `~/.junie/AGENTS.md` file. Junie merges
  * these user-scope guidelines with the project guidelines (both are included

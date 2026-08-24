@@ -13,6 +13,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileBuffer, writeFileContent } from "../../utils/file.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
+import { JunieSkill } from "./junie-skill.js";
 import { RovodevSkill } from "./rovodev-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import {
@@ -685,6 +686,45 @@ ${body}`,
       expect(skill.getRelativeDirPath()).toBe(join(".rovodev", "skills"));
     });
 
+    it("should prefer .junie/skills over the import-only .agents/skills for the same skill name", async () => {
+      // junie declares `.agents/skills` under `importOnlySkillRoots`, which is a
+      // different list from rovodev's `alternativeSkillRoots` above. Precedence
+      // must still resolve the same way, so the tool-specific root wins and the
+      // shared tree only fills in names it does not already cover.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "junie",
+      });
+      const writeSkill = async (base: string, dirName: string, body: string) => {
+        const dir = join(testDir, base, dirName);
+        await ensureDir(dir);
+        await writeFileContent(
+          join(dir, "SKILL.md"),
+          `---
+name: ${dirName}
+description: d
+---
+${body}`,
+        );
+      };
+      await writeSkill(join(".junie", "skills"), "dup-skill", "from-junie");
+      await writeSkill(join(".agents", "skills"), "dup-skill", "from-agents");
+      await writeSkill(join(".agents", "skills"), "shared-only", "from-agents");
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(2);
+      const byName = new Map(
+        toolDirs.map((toolDir) => [
+          toolDir.getDirName(),
+          [(toolDir as JunieSkill).getRelativeDirPath(), (toolDir as JunieSkill).getBody()],
+        ]),
+      );
+      expect(byName.get("dup-skill")).toEqual([join(".junie", "skills"), "from-junie"]);
+      expect(byName.get("shared-only")).toEqual([join(".agents", "skills"), "from-agents"]);
+    });
+
     it("should skip an agentsskills skill with invalid frontmatter and import the rest", async () => {
       const logger = createMockLogger();
       const processor = new SkillsProcessor({
@@ -1214,8 +1254,9 @@ Content that would fail parsing`;
       // them. Deletion reads `toolSkillSearchRoots` (primary +
       // `alternativeSkillRoots`) rather than `toolSkillImportRoots`, and this
       // pins that difference — swapping the two would silently start pruning
-      // foreign skills, including under the user's home directory in global
-      // mode.
+      // foreign skills. The same roots resolve under the user's home directory
+      // in global mode, which is what makes the invariant worth pinning, but
+      // this case exercises project scope.
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
         outputRoot: testDir,
