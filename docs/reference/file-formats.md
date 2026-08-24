@@ -840,6 +840,13 @@ factorydroid: # for Factory Droid-specific parameters (optional)
   user-invocable: false # (optional) hide from the slash-command menu, keep model access
   enabled: false # (optional, default true) keep the skill on disk but stop Droid loading it
   allowed-tools: "Read Execute" # (optional) tools the skill is designed to use (string or list)
+  license: MIT # (optional) license metadata for shared skills
+  compatibility: droid # (optional) free-form compatibility metadata (object form also accepted)
+  metadata: # (optional) structured metadata for your own tooling
+    owner: platform-team
+  version: "1.0.0" # (optional) version string for shared or packaged skills
+  # As in the `kiro` section, any other frontmatter key found in a hand-written SKILL.md is
+  # imported here and written back out.
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)

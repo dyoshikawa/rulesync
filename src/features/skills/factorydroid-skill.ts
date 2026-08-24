@@ -27,6 +27,8 @@ import {
 //     disable it.
 //   - `allowed-tools`: declares the tools the skill is designed to use. (The
 //     older `tools` spelling is deprecated upstream.)
+//   - `license`, `compatibility`, `metadata`, `version`: packaging metadata for
+//     skills shared through catalogs, plugins, or team tooling.
 export const FactorydroidSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
@@ -34,6 +36,12 @@ export const FactorydroidSkillFrontmatterSchema = z.looseObject({
   "disable-model-invocation": z.optional(z.boolean()),
   enabled: z.optional(z.boolean()),
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+  metadata: z.optional(z.looseObject({})),
+  // An unquoted YAML `version: 1.0` parses as a number, so a numeric version is
+  // accepted rather than failing the import of a skill Droid itself accepts.
+  version: z.optional(z.union([z.string(), z.number()])),
 });
 
 export type FactorydroidSkillFrontmatter = z.infer<typeof FactorydroidSkillFrontmatterSchema>;
@@ -133,21 +141,15 @@ export class FactorydroidSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
-    const factorydroidBlock = {
-      ...(frontmatter["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": frontmatter["disable-model-invocation"],
-      }),
-      ...(frontmatter["user-invocable"] !== undefined && {
-        "user-invocable": frontmatter["user-invocable"],
-      }),
-      ...(frontmatter.enabled !== undefined && { enabled: frontmatter.enabled }),
-      ...(frontmatter["allowed-tools"] !== undefined && {
-        "allowed-tools": frontmatter["allowed-tools"],
-      }),
-    };
+    // `name` and `description` have canonical homes; every other key — the
+    // documented Droid fields including the packaging metadata, plus anything
+    // beyond the schema a hand-written SKILL.md carries — rides the tool-scoped
+    // `factorydroid` section so it survives the round trip instead of being
+    // erased by the next generate.
+    const { name, description, ...factorydroidBlock } = frontmatter;
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name: frontmatter.name,
-      description: frontmatter.description,
+      name,
+      description,
       targets: ["*"],
       ...(Object.keys(factorydroidBlock).length > 0 && { factorydroid: factorydroidBlock }),
     };
@@ -183,6 +185,11 @@ export class FactorydroidSkill extends ToolSkill {
     });
 
     const factorydroidFrontmatter: FactorydroidSkillFrontmatter = {
+      // The section is written first so the canonical `name`/`description` and
+      // the resolved invocation flags still own their keys. Both resolvers
+      // already prefer the section value over the root default, so overriding
+      // the spread with them never discards a section value.
+      ...factorydroidSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(resolvedDisableModelInvocation !== undefined && {
@@ -190,12 +197,6 @@ export class FactorydroidSkill extends ToolSkill {
       }),
       ...(resolvedUserInvocable !== undefined && {
         "user-invocable": resolvedUserInvocable,
-      }),
-      ...(factorydroidSection?.enabled !== undefined && {
-        enabled: factorydroidSection.enabled,
-      }),
-      ...(factorydroidSection?.["allowed-tools"] !== undefined && {
-        "allowed-tools": factorydroidSection["allowed-tools"],
       }),
     };
 

@@ -220,6 +220,76 @@ This is a test factorydroid skill content.`;
       expect(frontmatter["allowed-tools"]).toEqual(["Read", "Execute"]);
     });
 
+    it("should write the packaging metadata fields from the factorydroid section", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "packaged",
+        frontmatter: {
+          name: "Packaged",
+          description: "A skill shared through a catalog",
+          targets: ["*"],
+          factorydroid: {
+            license: "MIT",
+            compatibility: "droid",
+            metadata: { owner: "platform-team" },
+            version: "1.0.0",
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = FactorydroidSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill,
+        validate: true,
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "Packaged",
+        description: "A skill shared through a catalog",
+        license: "MIT",
+        compatibility: "droid",
+        metadata: { owner: "platform-team" },
+        version: "1.0.0",
+      });
+    });
+
+    it("should keep the root-level invocation flags winning over the spread section", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "packaged-flags",
+        frontmatter: {
+          name: "Packaged Flags",
+          description: "Root flags with a packaged section",
+          targets: ["*"],
+          "disable-model-invocation": true,
+          "user-invocable": false,
+          factorydroid: {
+            version: "2.1.0",
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = FactorydroidSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill,
+        validate: true,
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "Packaged Flags",
+        description: "Root flags with a packaged section",
+        "disable-model-invocation": true,
+        "user-invocable": false,
+        version: "2.1.0",
+      });
+    });
+
     it("should pick up root-level user-invocable when factorydroid section omits it", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
@@ -329,6 +399,50 @@ This is a test factorydroid skill content.`;
       expect(skill.toRulesyncSkill().getFrontmatter().factorydroid).toEqual({
         enabled: false,
         "allowed-tools": "Read Execute",
+      });
+    });
+
+    it("should round-trip the packaging metadata fields into the factorydroid section", () => {
+      const skill = new FactorydroidSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".factory", "skills"),
+        dirName: "packaged",
+        frontmatter: {
+          name: "Packaged",
+          description: "A skill shared through a catalog",
+          license: "MIT",
+          compatibility: "droid",
+          metadata: { owner: "platform-team" },
+          version: "1.0.0",
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().factorydroid).toEqual({
+        license: "MIT",
+        compatibility: "droid",
+        metadata: { owner: "platform-team" },
+        version: "1.0.0",
+      });
+    });
+
+    it("should carry a frontmatter key beyond the schema into the factorydroid section", () => {
+      const skill = new FactorydroidSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".factory", "skills"),
+        dirName: "hand-written",
+        frontmatter: {
+          name: "Hand Written",
+          description: "Carries a key rulesync does not model",
+          "some-future-field": "kept",
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().factorydroid).toEqual({
+        "some-future-field": "kept",
       });
     });
   });
@@ -450,6 +564,16 @@ Global body content`;
         description: "Skill description",
         "user-invocable": true,
         "disable-model-invocation": false,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should accept an unquoted numeric version, as YAML parses it", () => {
+      const result = FactorydroidSkillFrontmatterSchema.safeParse({
+        name: "skill-name",
+        description: "Skill description",
+        version: 1.0,
       });
 
       expect(result.success).toBe(true);
