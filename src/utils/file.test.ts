@@ -651,6 +651,51 @@ describe("file utilities", () => {
             expect(result.startsWith("/") || /^[A-Za-z]:/.test(result)).toBe(true);
           }
         });
+
+        it("should skip dot-prefixed entries by default", async () => {
+          const dotDir = join(testDir, "dot-default");
+          await writeFileContent(join(dotDir, "visible.md"), "visible");
+          await writeFileContent(join(dotDir, ".hidden.md"), "hidden");
+          await writeFileContent(join(dotDir, ".hidden-dir", "inside.md"), "inside");
+
+          const results = await findFilesByGlobs(join(dotDir, "**/*.md"), { type: "file" });
+
+          expect(results).toEqual([join(dotDir, "visible.md")]);
+        });
+
+        it("should include dot-prefixed files and directories when dot is enabled", async () => {
+          const dotDir = join(testDir, "dot-enabled");
+          await writeFileContent(join(dotDir, "visible.md"), "visible");
+          await writeFileContent(join(dotDir, ".hidden.md"), "hidden");
+          await writeFileContent(join(dotDir, ".hidden-dir", "inside.md"), "inside");
+
+          const results = await findFilesByGlobs(join(dotDir, "**/*.md"), {
+            type: "file",
+            dot: true,
+          });
+
+          expect(results.toSorted()).toEqual(
+            [
+              join(dotDir, "visible.md"),
+              join(dotDir, ".hidden.md"),
+              join(dotDir, ".hidden-dir", "inside.md"),
+            ].toSorted(),
+          );
+        });
+
+        it("should still apply ignore patterns to dot-prefixed entries", async () => {
+          const dotDir = join(testDir, "dot-ignored");
+          await writeFileContent(join(dotDir, "visible.md"), "visible");
+          await writeFileContent(join(dotDir, ".git", "HEAD"), "ref: refs/heads/main");
+
+          const results = await findFilesByGlobs(join(dotDir, "**/*"), {
+            type: "file",
+            dot: true,
+            ignore: ["**/.git/**"],
+          });
+
+          expect(results).toEqual([join(dotDir, "visible.md")]);
+        });
       });
 
       // fs.symlink with the default/file type needs admin or Developer Mode on Windows, so

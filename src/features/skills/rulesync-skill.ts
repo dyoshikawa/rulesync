@@ -8,7 +8,7 @@ import { AiDir, AiDirFile, ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
+import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 
 const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   name: z.string(),
@@ -598,7 +598,7 @@ export class RulesyncSkill extends AiDir {
       frontmatter,
       body: content,
       hasFrontmatter,
-    } = parseFrontmatter(fileContent, skillFilePath);
+    } = parseFrontmatterWithYamlRepair(fileContent, skillFilePath);
 
     if (!hasFrontmatter) {
       throw new Error(

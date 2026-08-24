@@ -428,9 +428,21 @@ export async function findFilesByGlobs(
      * absolute ignore patterns or anchor them with a leading `**\/`.
      */
     ignore?: string[];
+    /**
+     * Include dot-prefixed files and directories, passed to globby's `dot`.
+     * Off by default because discovery globs look for named config files, and a
+     * hidden entry is far more likely to be editor or VCS noise than something
+     * a tool reads. Turn it on where the contract is "carry this tree as it is"
+     * rather than "find these files" — a skill directory, whose specification
+     * says it "may contain any files and directories beyond the required
+     * `SKILL.md`", is the case that needs it.
+     *
+     * @see https://agentskills.io/specification
+     */
+    dot?: boolean;
   } = {},
 ): Promise<string[]> {
-  const { type = "all", followSymbolicLinks = true, ignore } = options;
+  const { type = "all", followSymbolicLinks = true, ignore, dot = false } = options;
   const globbyOptions =
     type === "file"
       ? { onlyFiles: true, onlyDirectories: false }
@@ -448,6 +460,7 @@ export async function findFilesByGlobs(
   const results = globbySync(normalizedGlobs, {
     absolute: true,
     followSymbolicLinks,
+    dot,
     ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
     ...globbyOptions,
   });

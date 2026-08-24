@@ -2,6 +2,7 @@ import matter from "gray-matter";
 import { dump } from "js-yaml";
 
 import { formatError } from "./error.js";
+import { warnWithFallback } from "./logger.js";
 import { isPlainObject } from "./type-guards.js";
 import { loadYaml } from "./yaml.js";
 
@@ -144,7 +145,15 @@ export function parseFrontmatter(
   let body: string;
   let hasFrontmatter: boolean;
   try {
-    const result = matter(content);
+    // The empty options object is what turns gray-matter's content cache off,
+    // and it has to stay off. The cache is written *before* the YAML is
+    // parsed, so a file that throws leaves an entry behind whose `data` is
+    // empty and whose `content` is the whole unparsed file; the next parse of
+    // identical content — the same malformed skill vendored under two
+    // directories, say — hits that entry and returns empty frontmatter with the
+    // frontmatter text spilled into the body, instead of reporting the error
+    // again. Caching a parse this cheap is not worth failing silently.
+    const result = matter(content, {});
     frontmatter = result.data;
     body = result.content;
     // gray-matter returns an empty .matter string and sets .content equal to
@@ -166,4 +175,112 @@ export function parseFrontmatter(
   const cleanFrontmatter = deepRemoveNullishObject(frontmatter);
 
   return { frontmatter: cleanFrontmatter, body, hasFrontmatter };
+}
+
+/**
+ * A top-level `key: value` entry. Nested entries are left alone deliberately:
+ * the repair below rewrites a value's meaning, and the failure it exists for —
+ * an unquoted sentence with a colon in it — is a `description`, which is always
+ * top-level.
+ */
+const TOP_LEVEL_ENTRY_PATTERN = /^([A-Za-z_][\w.-]*):[^\S\r\n]+(\S.*)$/;
+
+/** A plain scalar that already starts as some other YAML construct. */
+const YAML_CONSTRUCT_PREFIX_PATTERN = /^["'|>&*![{#]/;
+
+function repairFrontmatterLine(line: string): string {
+  const carriageReturn = line.endsWith("\r") ? "\r" : "";
+  const bareLine = carriageReturn === "" ? line : line.slice(0, -1);
+  const match = TOP_LEVEL_ENTRY_PATTERN.exec(bareLine);
+  if (!match) {
+    return line;
+  }
+
+  const [, key = "", rawValue = ""] = match;
+  const value = rawValue.trimEnd();
+  // A colon only ends a plain scalar when a space or the line end follows it,
+  // so `homepage: https://example.com` parses fine and must not be touched.
+  if (!/:(?:\s|$)/.test(value)) {
+    return line;
+  }
+  if (YAML_CONSTRUCT_PREFIX_PATTERN.test(value)) {
+    return line;
+  }
+
+  // JSON string syntax is a subset of YAML's double-quoted scalar, so this
+  // escapes quotes and backslashes exactly the way YAML reads them back.
+  return `${key}: ${JSON.stringify(value)}${carriageReturn}`;
+}
+
+/**
+ * Quote the unquoted scalars that make a frontmatter block unparseable, or
+ * return `undefined` when there is nothing to repair. Only the frontmatter
+ * block is rewritten; the body is passed through untouched.
+ */
+function repairMalformedFrontmatterYaml(content: string): string | undefined {
+  const opening = /^\uFEFF?---[^\S\r\n]*\r?\n/.exec(content);
+  if (!opening) {
+    return undefined;
+  }
+
+  const blockStart = opening[0].length;
+  const closing = /\r?\n---[^\S\r\n]*(?:\r?\n|$)/.exec(content.slice(blockStart));
+  if (!closing) {
+    return undefined;
+  }
+
+  const blockEnd = blockStart + closing.index;
+  const block = content.slice(blockStart, blockEnd);
+  const repairedBlock = block.split("\n").map(repairFrontmatterLine).join("\n");
+  if (repairedBlock === block) {
+    return undefined;
+  }
+
+  return content.slice(0, blockStart) + repairedBlock + content.slice(blockEnd);
+}
+
+/**
+ * Parse frontmatter, retrying once with unquoted colon-bearing values quoted.
+ *
+ * Files authored for another client routinely carry YAML that only that
+ * client's parser accepts — `description: Use this skill when: the user asks
+ * about PDFs` is the case the Agent Skills client guide names. Without a retry
+ * such a file is not merely reported, it is dropped: the lenient skill import
+ * catches the parse error and skips the whole skill. The retry is deliberately
+ * narrow — one pass, top-level entries only, and the original error is what
+ * surfaces if it does not help, so a genuinely broken file still fails with the
+ * message that describes what is actually wrong with it.
+ *
+ * @see https://agentskills.io/client-implementation/adding-skills-support
+ */
+export function parseFrontmatterWithYamlRepair(
+  content: string,
+  filePath?: string,
+): {
+  frontmatter: Record<string, unknown>;
+  body: string;
+  hasFrontmatter: boolean;
+} {
+  try {
+    return parseFrontmatter(content, filePath);
+  } catch (error) {
+    const repaired = repairMalformedFrontmatterYaml(content);
+    if (repaired === undefined) {
+      throw error;
+    }
+
+    let result: ReturnType<typeof parseFrontmatter>;
+    try {
+      result = parseFrontmatter(repaired, filePath);
+    } catch {
+      // The repair made it no better; report the failure the file actually has.
+      throw error;
+    }
+
+    warnWithFallback(
+      undefined,
+      `Recovered malformed YAML frontmatter in ${filePath ?? "the input"} by quoting values that contain a colon. Quote them in the file itself so other tools can read it too.`,
+    );
+    return result;
+  }
 }

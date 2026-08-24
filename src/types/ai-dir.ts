@@ -1,6 +1,13 @@
 import path, { basename, join, relative, resolve } from "node:path";
 
-import { findFilesByGlobs, readFileBuffer, toPosixPath } from "../utils/file.js";
+import {
+  directoryExists,
+  fileExists,
+  findFilesByGlobs,
+  readFileBuffer,
+  toPosixPath,
+} from "../utils/file.js";
+import { warnWithFallback } from "../utils/logger.js";
 
 export type ValidationResult =
   | {
@@ -24,6 +31,14 @@ export type AiDirFile = {
    */
   composed?: boolean;
 };
+
+/**
+ * Entries never carried with a directory's contents. `.git` is matched both as
+ * a directory prefix and as a bare entry so a submodule or worktree pointer
+ * file is caught too. Anchored with `**\/` because the include patterns are
+ * absolute, and a relative ignore would silently exclude nothing.
+ */
+const EXCLUDED_DIR_FILE_PATTERNS = ["**/.git/**", "**/.git", "**/.DS_Store"];
 
 export type AiDirParams = {
   outputRoot?: string;
@@ -169,12 +184,41 @@ export abstract class AiDir {
    * Recursively collects all files from a directory, excluding the specified main file.
    * This is a common utility for loading additional files alongside the main file.
    *
+   * Hidden entries are included. The directories this walks are skill trees,
+   * whose specification says a skill directory "may contain any files and
+   * directories beyond the required `SKILL.md`" — a `.env.example` beside the
+   * scripts that read it is content, not noise, and dropping it silently on
+   * both import and generate loses part of the skill. The two exclusions below
+   * are the entries that are never skill content: a nested repository's `.git`
+   * (a directory, or a file when the tree is a worktree or submodule) and the
+   * macOS Finder's `.DS_Store`. They are excluded rather than filtered
+   * afterwards so the walk never descends into a `.git` tree at all.
+   *
+   * @see https://agentskills.io/specification
+   *
    * @param outputRoot - The base directory path
    * @param relativeDirPath - The relative path to the directory containing the skill
    * @param dirName - The name of the directory
    * @param excludeFileName - The name of the file to exclude (typically the main file)
    * @returns Array of files with their relative paths and buffers
    */
+  /**
+   * A nested repository inside a carried directory is the one exclusion worth
+   * reporting: unlike `.DS_Store`, it is there on purpose, and the tree it
+   * points at is simply not reproduced on generate. Only the top level is
+   * checked, which is where a submodule or a stray `git init` puts it, so the
+   * check costs two stats per directory rather than a second walk.
+   */
+  private static async warnOnNestedGitDirectory(dirPath: string): Promise<void> {
+    const gitEntryPath = join(dirPath, ".git");
+    if ((await directoryExists(gitEntryPath)) || (await fileExists(gitEntryPath))) {
+      warnWithFallback(
+        undefined,
+        `Not carrying ${toPosixPath(gitEntryPath)} with its directory: a nested repository is excluded, so the files it tracks are copied but its history is not.`,
+      );
+    }
+  }
+
   protected static async collectOtherFiles(
     outputRoot: string,
     relativeDirPath: string,
@@ -183,7 +227,12 @@ export abstract class AiDir {
   ): Promise<AiDirFile[]> {
     const dirPath = join(outputRoot, relativeDirPath, dirName);
     const glob = join(dirPath, "**", "*");
-    const filePaths = await findFilesByGlobs(glob, { type: "file" });
+    const filePaths = await findFilesByGlobs(glob, {
+      type: "file",
+      dot: true,
+      ignore: EXCLUDED_DIR_FILE_PATTERNS,
+    });
+    await AiDir.warnOnNestedGitDirectory(dirPath);
     const filteredPaths = filePaths.filter((filePath) => basename(filePath) !== excludeFileName);
 
     const files: AiDirFile[] = await Promise.all(

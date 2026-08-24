@@ -1031,9 +1031,9 @@ Good body`,
         join(badDir, "SKILL.md"),
         `---
 name: bad-yaml
-description: Use this skill when: the user asks about PDFs
+  description: Indented under a scalar
 ---
-Unquoted colon`,
+Bad indentation`,
       );
 
       const toolDirs = await processor.loadToolDirs();
@@ -1044,6 +1044,36 @@ Unquoted colon`,
         expect.stringContaining(join(".agents", "skills", "bad-yaml")),
       );
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("indentation"));
+    });
+
+    it("should recover an agentsskills skill whose description contains an unquoted colon", async () => {
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "agentsskills",
+      });
+      const skillDir = join(testDir, ".agents", "skills", "colon-skill");
+      await ensureDir(skillDir);
+      // The exact shape the Agent Skills client guide tells clients to retry:
+      // the second colon ends the plain scalar, so a strict parser rejects it.
+      await writeFileContent(
+        join(skillDir, "SKILL.md"),
+        `---
+name: colon-skill
+description: Use this skill when: the user asks about PDFs
+---
+Unquoted colon`,
+      );
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      const skill = toolDirs[0] as AgentsSkillsSkill;
+      expect(skill.getBody()).toBe("Unquoted colon");
+      expect(skill.getFrontmatter().description).toBe(
+        "Use this skill when: the user asks about PDFs",
+      );
     });
 
     it("should import the .agents/skills interop root leniently for non-lenient tools", async () => {

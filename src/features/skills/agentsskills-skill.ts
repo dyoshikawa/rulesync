@@ -488,6 +488,18 @@ export class AgentsSkillsSkill extends ToolSkill {
       );
     }
 
+    // The spec requires a non-empty `description`, and the client guide has
+    // conformant clients skip a skill without one. Rulesync converts rather
+    // than loads, so dropping the directory here would lose content the user
+    // can still fix; the skill is imported and the problem is reported instead,
+    // which is also what the generate side does with the same violation.
+    if (result.data.description.length === 0) {
+      warnWithFallback(
+        undefined,
+        `${join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName, SKILL_FILE_NAME)}: \`description\` is empty; conformant Agent Skills clients skip a skill without one, so fill it in before relying on this skill.`,
+      );
+    }
+
     return new this({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,

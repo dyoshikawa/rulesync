@@ -7,7 +7,7 @@ import { ValidationResult } from "../../types/ai-dir.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
+import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -153,7 +153,10 @@ export abstract class SimulatedSkill extends ToolSkill {
     }
 
     const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, skillFilePath);
+    const { frontmatter, body: content } = parseFrontmatterWithYamlRepair(
+      fileContent,
+      skillFilePath,
+    );
 
     const result = SimulatedSkillFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

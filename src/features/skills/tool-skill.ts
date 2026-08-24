@@ -5,7 +5,7 @@ import { AMP_SKILLS_GLOBAL_DIR } from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { AiDir } from "../../types/ai-dir.js";
 import { fileExists, readFileContent, toPosixPath } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
+import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 
@@ -240,7 +240,10 @@ export abstract class ToolSkill extends AiDir {
     }
 
     const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, skillFilePath);
+    const { frontmatter, body: content } = parseFrontmatterWithYamlRepair(
+      fileContent,
+      skillFilePath,
+    );
 
     const otherFiles = await this.collectOtherFiles(
       outputRoot,

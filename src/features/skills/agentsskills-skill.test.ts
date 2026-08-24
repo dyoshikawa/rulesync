@@ -161,6 +161,71 @@ Body.`;
       expect(skill.getFrontmatter().compatibility).toBe("Requires Python 3.14+ and uv");
     });
 
+    it("should carry hidden companion files, minus the entries that are never skill content", async () => {
+      // The spec says a skill directory "may contain any files and directories
+      // beyond the required SKILL.md", so a dot-prefixed companion is content.
+      // `.git` and `.DS_Store` are the exceptions: a nested repository is not
+      // reproduced, and the Finder's index is noise.
+      const skillDir = join(testDir, ".agents", "skills", "hidden-files-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        [
+          "---",
+          "name: hidden-files-skill",
+          "description: Carries hidden files",
+          "---",
+          "",
+          "Body.",
+        ].join("\n"),
+      );
+      await writeFileContent(join(skillDir, ".env.example"), "TOKEN=\n");
+      await writeFileContent(join(skillDir, ".config", "a.json"), "{}\n");
+      await writeFileContent(join(skillDir, "scripts", "run.sh"), "#!/bin/sh\n");
+      await writeFileContent(join(skillDir, ".DS_Store"), "finder noise\n");
+      await writeFileContent(join(skillDir, ".git", "HEAD"), "ref: refs/heads/main\n");
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "hidden-files-skill",
+      });
+
+      const carriedPaths = skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath);
+      expect(carriedPaths).toContain(".env.example");
+      expect(carriedPaths).toContain(join(".config", "a.json"));
+      expect(carriedPaths).toContain(join("scripts", "run.sh"));
+      expect(carriedPaths).not.toContain(".DS_Store");
+      expect(carriedPaths).not.toContain(join(".git", "HEAD"));
+    });
+
+    it("should recover a SKILL.md whose description contains an unquoted colon", async () => {
+      // Authored for a client with a lenient parser. Without the retry the
+      // lenient skill import skips the whole directory.
+      const skillDir = join(testDir, ".agents", "skills", "colon-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        [
+          "---",
+          "name: colon-skill",
+          "description: Use this skill when: the user asks about PDFs",
+          "---",
+          "",
+          "Body.",
+        ].join("\n"),
+      );
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "colon-skill",
+      });
+
+      expect(skill.getFrontmatter().description).toBe(
+        "Use this skill when: the user asks about PDFs",
+      );
+      expect(skill.getBody()).toBe("Body.");
+    });
+
     it("should throw error when SKILL.md not found", async () => {
       const skillDir = join(testDir, ".agents", "skills", "empty-skill");
       await ensureDir(skillDir);

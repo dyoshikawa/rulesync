@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { parseFrontmatter, stringifyFrontmatter } from "./frontmatter.js";
+import {
+  parseFrontmatter,
+  parseFrontmatterWithYamlRepair,
+  stringifyFrontmatter,
+} from "./frontmatter.js";
 
 // Hoisted mock for gray-matter - used by specific tests
 const mockMatter = vi.hoisted(() => ({
@@ -553,6 +557,116 @@ Body.`;
       expect(parsed.frontmatter.description).toBe(frontmatter.description);
       expect(parsed.frontmatter.targets).toEqual(["claudecode", "cursor"]);
       expect(parsed.hasFrontmatter).toBe(true);
+    });
+  });
+  describe("parseFrontmatterWithYamlRepair", () => {
+    it("should recover a description whose unquoted value contains a colon", () => {
+      // The exact shape the Agent Skills client guide names: valid to the
+      // client that wrote it, a YAML syntax error to everyone else.
+      const content = [
+        "---",
+        "name: pdf-processing",
+        "description: Use this skill when: the user asks about PDFs",
+        "---",
+        "",
+        "Body content",
+      ].join("\n");
+
+      expect(() => parseFrontmatter(content, "SKILL.md")).toThrow();
+
+      const { frontmatter, body, hasFrontmatter } = parseFrontmatterWithYamlRepair(
+        content,
+        "SKILL.md",
+      );
+
+      expect(frontmatter.name).toBe("pdf-processing");
+      expect(frontmatter.description).toBe("Use this skill when: the user asks about PDFs");
+      expect(body.trim()).toBe("Body content");
+      expect(hasFrontmatter).toBe(true);
+    });
+
+    it("should parse valid frontmatter exactly as the plain parser does", () => {
+      const content = ["---", "name: valid", "homepage: https://example.com", "---", "Body"].join(
+        "\n",
+      );
+
+      expect(parseFrontmatterWithYamlRepair(content, "SKILL.md")).toEqual(
+        parseFrontmatter(content, "SKILL.md"),
+      );
+    });
+
+    it("should recover a CRLF file without corrupting its line endings", () => {
+      const content = [
+        "---",
+        "name: crlf",
+        "description: Use when: the file has Windows line endings",
+        "---",
+        "Body",
+      ].join("\r\n");
+
+      const { frontmatter } = parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+      expect(frontmatter.description).toBe("Use when: the file has Windows line endings");
+    });
+
+    it("should quote only the offending value and leave the rest of the block alone", () => {
+      const content = [
+        "---",
+        "name: quoting",
+        'title: "already: quoted"',
+        "description: Use when: a colon appears",
+        "list: [a, b]",
+        "---",
+        "Body",
+      ].join("\n");
+
+      const { frontmatter } = parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+      expect(frontmatter.title).toBe("already: quoted");
+      expect(frontmatter.description).toBe("Use when: a colon appears");
+      expect(frontmatter.list).toEqual(["a", "b"]);
+    });
+
+    it("should report the original error when quoting cannot fix the file", () => {
+      // Bad indentation, not an unquoted colon. Nothing is rewritten, so the
+      // message the user sees is the one that describes the real problem.
+      const content = ["---", "name: broken", "  stray: indentation", "---", "Body"].join("\n");
+
+      expect(() => parseFrontmatterWithYamlRepair(content, "SKILL.md")).toThrow(
+        /Failed to parse frontmatter in SKILL\.md/,
+      );
+    });
+
+    it("should leave nested entries alone rather than guess at their meaning", () => {
+      // A nested value is not the failure this repair exists for, and rewriting
+      // one would change a mapping the author may have meant.
+      const content = [
+        "---",
+        "name: nested",
+        "metadata:",
+        "  note: Use when: a colon appears",
+        "---",
+        "Body",
+      ].join("\n");
+
+      expect(() => parseFrontmatterWithYamlRepair(content, "SKILL.md")).toThrow();
+    });
+
+    it("should keep reporting the same malformed content on a second parse", () => {
+      // gray-matter caches a file before parsing it, so a throw used to leave
+      // an entry whose data is empty and whose content is the unparsed file.
+      // The second parse then returned that quietly instead of failing again.
+      const content = ["---", "name: broken", "  stray: indentation", "---", "Body"].join("\n");
+
+      expect(() => parseFrontmatter(content, "SKILL.md")).toThrow();
+      expect(() => parseFrontmatter(content, "SKILL.md")).toThrow();
+      expect(() => parseFrontmatterWithYamlRepair(content, "SKILL.md")).toThrow();
+    });
+
+    it("should pass a file without frontmatter straight through", () => {
+      const content = "Just a body, no frontmatter.";
+
+      expect(parseFrontmatterWithYamlRepair(content)).toEqual(parseFrontmatter(content));
     });
   });
 });
