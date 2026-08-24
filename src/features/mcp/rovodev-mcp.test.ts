@@ -421,6 +421,81 @@ describe("RovodevMcp", () => {
       expect(auxiliary).toEqual([]);
     });
 
+    it("does not add the pointer to an existing config.yml when no server targets rovodev", async () => {
+      // Separated from the case above, where `[]` also satisfies the "do not
+      // create a file just to hold an empty block" early return. Here the file
+      // exists, so the gate is the only thing keeping the pointer out.
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        ["mcp:", "  allowedMcpServers:", "    - keep-me"].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { elsewhere: { command: "node", targets: ["cursor"] } },
+        }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({ outputRoot: testDir, rulesyncMcp });
+      expect(auxiliary[0]!.getFileContent()).not.toContain("mcpConfigPath");
+      expect(auxiliary[0]!.getFileContent()).toContain("keep-me");
+    });
+
+    it("does not write the pointer when the only rovodev server is disabled", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { only: { command: "node", disabled: true } },
+        }),
+      });
+
+      // The server is written to `mcp.json` but switched off through
+      // `disabledMcpServers`, so the project would end up with no servers at
+      // all and off the global config.
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger,
+      });
+      expect(auxiliary[0]!.getFileContent()).toContain("disabledMcpServers");
+      expect(auxiliary[0]!.getFileContent()).not.toContain("mcpConfigPath");
+    });
+
+    it("warns when a pointer written earlier now names an mcp.json with no enabled server", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        ["mcp:", "  mcpConfigPath: .rovodev/mcp.json"].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { elsewhere: { command: "node", targets: ["cursor"] } },
+        }),
+      });
+
+      await RovodevMcp.getAuxiliaryFiles({ outputRoot: testDir, rulesyncMcp, logger });
+
+      // Rulesync does not take the pointer back out, so the project is left
+      // reading an empty file rather than the global config. Say so.
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("which now has no enabled"),
+        ),
+      ).toBe(true);
+    });
+
     it("leaves a user-chosen mcpConfigPath in place and warns that mcp.json is unread", async () => {
       const logger = createMockLogger();
       await ensureDir(join(testDir, ".rovodev"));

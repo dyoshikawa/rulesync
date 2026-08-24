@@ -412,6 +412,19 @@ function resolveToolPermissionsBlock({
     logger,
   });
 
+  // The unmanaged `bash` siblings are carried through untouched, which for
+  // `runInSandbox: false` means a generate is not the reset a user might read
+  // it as: every command the agent runs stays outside the sandbox. Rulesync
+  // never authors the key and will not start owning it, but a setting that
+  // survives on a committed file and loosens containment should not do so
+  // without saying anything.
+  if (existingBash.runInSandbox === false) {
+    logger?.warn(
+      `${filePath}: keeping toolPermissions.bash.runInSandbox: false — rulesync does not manage ` +
+        `that key, so regenerating does not restore Rovo Dev's sandbox for bash commands.`,
+    );
+  }
+
   // Every key rulesync manages is owned, so drop whatever a previous run left
   // behind before writing the current set. Without this, a rule the user has
   // since removed from `.rulesync/permissions.*` stays in the file: still live

@@ -665,6 +665,31 @@ describe("RovodevPermissions", () => {
       expect(bash.commands).toBeUndefined();
     });
 
+    it("warns that a preserved runInSandbox: false is not reset by regenerating", async () => {
+      const logger = createMockLogger();
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { bash: { default: "allow", runInSandbox: false } } }),
+      );
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "*": "deny" } }),
+        logger,
+      });
+
+      // Carried through, since rulesync never authors the key -- but a user
+      // regenerating to tighten permissions is not told otherwise.
+      expect(bashOf(perms.getFileContent()).runInSandbox).toBe(false);
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("keeping toolPermissions.bash.runInSandbox: false"),
+        ),
+      ).toBe(true);
+    });
+
     it("names the dropped bash leaves, and only those, in the warning", async () => {
       const dirPath = join(testDir, ".rovodev");
       await ensureDir(dirPath);

@@ -112,8 +112,11 @@ describe("E2E: mcp", () => {
 
     // `.rovodev/mcp.json` alone is inert: Rovo Dev's `mcpConfigPath` defaults
     // to the global MCP file, so the sibling `config.yml` has to name it.
-    const configContent = await readFileContent(join(testDir, ".rovodev", "config.yml"));
-    expect(configContent).toContain("mcpConfigPath: .rovodev/mcp.json");
+    const parsed = load(await readFileContent(join(testDir, ".rovodev", "config.yml"))) as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(parsed.mcp?.mcpConfigPath).toBe(".rovodev/mcp.json");
   });
 
   it.each(["kiro", "kiro-cli", "kiro-ide"] as const)(
