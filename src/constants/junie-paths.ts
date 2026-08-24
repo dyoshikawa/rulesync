@@ -17,3 +17,9 @@ export const JUNIE_PERMISSIONS_FILE_NAME = "allowlist.json";
 export const JUNIE_IGNORE_FILE_NAME = ".aiignore";
 export const JUNIE_RULE_FILE_NAME = "AGENTS.md";
 export const JUNIE_LEGACY_RULE_FILE_NAME = "guidelines.md";
+// Junie combines a project-root `AGENTS.md` with `.junie/playbook.md` and every
+// `.junie/rules/*.md`, but only while `.junie/AGENTS.md` — the file rulesync
+// generates — is absent. Both are therefore import-only read roots.
+// @see https://junie.jetbrains.com/docs/guidelines-and-memory.html
+export const JUNIE_RULES_DIR_NAME = "rules";
+export const JUNIE_PLAYBOOK_FILE_NAME = "playbook.md";

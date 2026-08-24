@@ -17,6 +17,7 @@ import { ClaudecodeRule } from "./claudecode-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CopilotcliRule } from "./copilotcli-rule.js";
 import { CursorRule } from "./cursor-rule.js";
+import { JunieRule } from "./junie-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { RovodevRule } from "./rovodev-rule.js";
@@ -876,6 +877,196 @@ describe("RulesProcessor", () => {
       expect(
         forDeletion.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
       ).not.toContain(join("packages", "api", "AGENTS.md"));
+    });
+
+    it("should import Junie's .junie/rules and playbook but never delete them", async () => {
+      // Junie combines a project-root `AGENTS.md` with `.junie/playbook.md`
+      // and `.junie/rules/*.md` — the layout a repo is in before it has a
+      // `.junie/AGENTS.md`. Those are import-only read roots: rulesync folds
+      // their content into the generated root file and must not treat the
+      // hand-authored originals as orphans.
+      await writeFileContent(join(testDir, ".junie", "playbook.md"), "# Playbook");
+      await writeFileContent(join(testDir, ".junie", "rules", "style.md"), "# Style");
+      await writeFileContent(join(testDir, ".junie", "rules", "testing.md"), "# Testing");
+      await writeFileContent(join(testDir, ".junie", "rules", "sub", "deep.md"), "# Deep");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+
+      const imported = await processor.loadToolFiles();
+      const importedPaths = imported.map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+      expect(importedPaths).toContain(join(".junie", "playbook.md"));
+      expect(importedPaths).toContain(join(".junie", "rules", "style.md"));
+      expect(importedPaths).toContain(join(".junie", "rules", "testing.md"));
+      // Junie documents `.junie/rules/*.md`, not a tree below it.
+      expect(importedPaths).not.toContain(join(".junie", "rules", "sub", "deep.md"));
+
+      // Only files rulesync generates are deletion candidates.
+      const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+      const deletionPaths = forDeletion.map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+      expect(deletionPaths).not.toContain(join(".junie", "playbook.md"));
+      expect(deletionPaths).not.toContain(join(".junie", "rules", "style.md"));
+    });
+
+    it("should stop importing Junie's read-only roots once .junie/AGENTS.md exists", async () => {
+      // The previous generate folded these into `.junie/AGENTS.md`, which Junie
+      // then reads exclusively. Importing them again would hand the same content
+      // back as separate rules, and the next generate would fold it in a second
+      // time — once more per import/generate cycle.
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), "# Root\n\n# Style");
+      await writeFileContent(join(testDir, ".junie", "playbook.md"), "# Playbook");
+      await writeFileContent(join(testDir, ".junie", "rules", "style.md"), "# Style");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+      const importedPaths = (await processor.loadToolFiles()).map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+
+      expect(importedPaths).toEqual([join(".junie", "AGENTS.md")]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("and the tool reads that file exclusively"),
+      );
+    });
+
+    it("should cap the skipped read-only roots it names and count the rest", async () => {
+      // A large `.junie/rules/` directory must not turn one warning into a wall
+      // of text, so the list stops at ten names and folds the remainder into a
+      // count. Twelve files exercise the branch the docs describe.
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), "# Root");
+      for (let index = 0; index < 12; index++) {
+        await writeFileContent(join(testDir, ".junie", "rules", `rule-${index}.md`), `# ${index}`);
+      }
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+      await processor.loadToolFiles();
+
+      const warning = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("and the tool reads that file exclusively"));
+      expect(warning).toBeDefined();
+      expect(warning).toContain("and 2 more");
+      // Sorted discovery order puts `rule-10.md` and `rule-11.md` right after
+      // `rule-1.md`, so the two names that drop off the end are the last ones.
+      expect(warning).toContain(join(".junie", "rules", "rule-1.md"));
+      expect(warning).not.toContain(join(".junie", "rules", "rule-8.md"));
+    });
+
+    it("should keep importing Junie's read-only roots when only the legacy guidelines file exists", async () => {
+      // `.junie/guidelines.md` is the *lowest* branch of Junie's resolution
+      // order, so with `.junie/rules/*.md` present Junie is reading the
+      // multi-file branch, not the legacy file. Rulesync never writes
+      // `guidelines.md` either, so nothing was ever folded into it — gating the
+      // read-only roots on it would drop exactly the files the tool reads.
+      await writeFileContent(join(testDir, ".junie", "guidelines.md"), "# Legacy");
+      await writeFileContent(join(testDir, ".junie", "playbook.md"), "# Playbook");
+      await writeFileContent(join(testDir, ".junie", "rules", "style.md"), "# Style");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+      const importedPaths = (await processor.loadToolFiles()).map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+
+      expect(importedPaths).toContain(join(".junie", "guidelines.md"));
+      expect(importedPaths).toContain(join(".junie", "playbook.md"));
+      expect(importedPaths).toContain(join(".junie", "rules", "style.md"));
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("and the tool reads that file exclusively"),
+      );
+    });
+
+    it("should let the root rule outrank a read-only root that skips the root-absent gate", async () => {
+      // Every read-only root declared today is gated on the root file being
+      // absent, so the two can never collide in practice. The ordering that
+      // makes the root file win regardless is what keeps that a precedence
+      // rule instead of an accident of the current declarations, so it is
+      // pinned here with a factory whose read-only roots skip that gate.
+      const junieFactory = RulesProcessor.getFactory("junie")!;
+      class AlwaysScannedJunieRule extends JunieRule {
+        static override getSettablePaths(options: { global?: boolean } = {}) {
+          const paths = JunieRule.getSettablePaths(options);
+          if (!("importOnlyRoots" in paths) || !paths.importOnlyRoots) {
+            return paths;
+          }
+          return {
+            ...paths,
+            importOnlyRoots: paths.importOnlyRoots.map((importOnlyRoot) => ({
+              relativeDirPath: importOnlyRoot.relativeDirPath,
+              relativeFilePath: importOnlyRoot.relativeFilePath,
+            })),
+          };
+        }
+      }
+
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), "# Root content");
+      await writeFileContent(join(testDir, ".junie", "rules", "overview.md"), "# From rules dir");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+        getFactory: () => ({ ...junieFactory, class: AlwaysScannedJunieRule }),
+      });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      // Both claim `overview.md`; the writer overwrites in array order, so the
+      // last claimant is the one that survives on disk.
+      const overviews = rulesyncFiles.filter(
+        (file) => file.getRelativeFilePath() === "overview.md",
+      );
+      expect(overviews).toHaveLength(2);
+      const winner = overviews.at(-1)!;
+      expect(winner.getFileContent()).toContain("# Root content");
+      expect(winner.getFileContent()).toContain("root: true");
+      // The losing file is named in a warning rather than dropped silently.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`Both ${join(".junie", "rules", "overview.md")}`),
+      );
+    });
+
+    it("should keep .junie/rules/overview.md from taking the root rule's rulesync path", async () => {
+      // `overview.md` is the rulesync root rule's own file name, so a Junie repo
+      // that happens to name a rule that way must not end up with the root rule
+      // replaced by a non-root one — which would leave the project with no root
+      // rule at all. The read-only roots stand down while the root file exists.
+      await writeFileContent(join(testDir, ".junie", "AGENTS.md"), "# Root content");
+      await writeFileContent(join(testDir, ".junie", "rules", "overview.md"), "# From rules dir");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      expect(rulesyncFiles).toHaveLength(1);
+      const overview = rulesyncFiles[0]!;
+      expect(overview.getRelativeFilePath()).toBe("overview.md");
+      expect(overview.getFileContent()).toContain("# Root content");
+      expect(overview.getFileContent()).toContain("root: true");
+    });
+
+    it("should report, not silently drop, a read-only root that collides with the legacy root", async () => {
+      // With only the legacy `.junie/guidelines.md` present the gate stays open,
+      // so `.junie/rules/overview.md` and the legacy root both resolve to
+      // `.rulesync/rules/overview.md`. The root file wins, and the file that
+      // loses is named in a warning so its content is not lost unnoticed.
+      await writeFileContent(join(testDir, ".junie", "guidelines.md"), "# Legacy root");
+      await writeFileContent(join(testDir, ".junie", "rules", "overview.md"), "# From rules dir");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      expect(rulesyncFiles.at(-1)!.getFileContent()).toContain("# Legacy root");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Both ${join(".junie", "rules", "overview.md")} and ${join(".junie", "guidelines.md")} import to`,
+        ),
+      );
     });
 
     it("should skip nested AGENTS.md files the project gitignores", async () => {

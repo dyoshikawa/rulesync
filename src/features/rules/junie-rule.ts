@@ -3,7 +3,9 @@ import { join } from "node:path";
 import {
   JUNIE_DIR,
   JUNIE_LEGACY_RULE_FILE_NAME,
+  JUNIE_PLAYBOOK_FILE_NAME,
   JUNIE_RULE_FILE_NAME,
+  JUNIE_RULES_DIR_NAME,
 } from "../../constants/junie-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
@@ -13,6 +15,7 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleImportOnlyRoot,
   ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
@@ -27,6 +30,8 @@ export type JunieRuleSettablePaths = {
     relativeDirPath: string;
     relativeFilePath: string;
   }>;
+  /** `.junie/rules/*.md` and `.junie/playbook.md`, read on import only. */
+  importOnlyRoots?: ToolRuleImportOnlyRoot[];
   nonRoot?: undefined;
 };
 
@@ -52,14 +57,13 @@ export type JunieRuleSettablePaths = {
  * generation always targets `.junie/AGENTS.md`. Junie uses plain markdown
  * without frontmatter requirements.
  *
- * Note that the multi-file branch is unread on **import** as well: a repo that
- * authors `.junie/rules/*.md` or `.junie/playbook.md` by hand (a live layout
- * whenever `.junie/AGENTS.md` is absent) is not picked up. There is no
- * import-only rule root to declare them on — `nonRoot` is a managed directory
- * that generation writes and deletion prunes, and `alternativeRoots` (set
- * below at project scope only) addresses single fallback files — so this needs
- * the rules-side analogue of the skills-side `importOnlySkillRoots` rather
- * than a new entry in an existing list. Tracked in issue #2732.
+ * The multi-file branch is still read on **import**, though: a repo that
+ * authors `.junie/rules/*.md` or `.junie/playbook.md` by hand — the live
+ * layout whenever `.junie/AGENTS.md` is absent, which is exactly the state a
+ * first `rulesync import` finds — declares those paths as `importOnlyRoots`
+ * and imports them as non-root rules. They are never written back there:
+ * generating `.junie/AGENTS.md` moves Junie onto the first branch, where the
+ * folded root file carries the same content.
  *
  * Global (user) scope writes a single `~/.junie/AGENTS.md` file. Junie merges
  * these user-scope guidelines with the project guidelines (both are included
@@ -99,6 +103,24 @@ export class JunieRule extends ToolRule {
           relativeFilePath: JUNIE_LEGACY_RULE_FILE_NAME,
         },
       ],
+      // Junie's multi-file branch. Rulesync never writes these — generation
+      // folds everything into `.junie/AGENTS.md`, which switches Junie off
+      // this branch entirely — but a repo that has not adopted rulesync yet
+      // is usually authoring exactly these files, so import reads them.
+      // Junie reads these only while `.junie/AGENTS.md` is absent, and so does
+      // Rulesync: once the root file exists it already contains them, folded in
+      // by a previous generate.
+      importOnlyRoots: [
+        {
+          relativeDirPath: buildToolPath(JUNIE_DIR, JUNIE_RULES_DIR_NAME, excludeToolDir),
+          onlyWhenRootAbsent: true,
+        },
+        {
+          relativeDirPath: buildToolPath(JUNIE_DIR, ".", excludeToolDir),
+          relativeFilePath: JUNIE_PLAYBOOK_FILE_NAME,
+          onlyWhenRootAbsent: true,
+        },
+      ],
     };
   }
 
@@ -114,6 +136,7 @@ export class JunieRule extends ToolRule {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath: relativeDirPathParam,
     relativeFilePath,
     validate = true,
     global = false,
@@ -138,7 +161,10 @@ export class JunieRule extends ToolRule {
     }
 
     const settablePaths = this.getSettablePaths();
-    const relativeDirPath = settablePaths.root.relativeDirPath;
+    // The caller's directory is honored so the import-only roots
+    // (`.junie/rules/`, and `.junie/playbook.md` beside the root file) load
+    // from where they actually live; only the root file defaults to `.junie`.
+    const relativeDirPath = relativeDirPathParam ?? settablePaths.root.relativeDirPath;
     // Read from the actual discovered filename so the legacy `guidelines.md` fallback
     // is loaded correctly; generation still normalizes back to `AGENTS.md`.
     const relativePath = join(relativeDirPath, relativeFilePath);
@@ -150,7 +176,14 @@ export class JunieRule extends ToolRule {
       relativeFilePath,
       fileContent,
       validate,
-      root: JunieRule.isRootRelativeFilePath(relativeFilePath),
+      // A `.junie/rules/AGENTS.md` is one of the combined files, not the root
+      // guideline, so the name alone does not decide this. The comparison uses
+      // the default (`.junie`-prefixed) paths because `fromFile` has no
+      // `excludeToolDir` input; a future caller that flattens the tool
+      // directory would have to thread that flag through here too.
+      root:
+        relativeDirPath === settablePaths.root.relativeDirPath &&
+        JunieRule.isRootRelativeFilePath(relativeFilePath),
     });
   }
 
@@ -206,6 +239,10 @@ export class JunieRule extends ToolRule {
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): JunieRule {
+    // Deletion candidates are only ever the root file and its legacy alias —
+    // Junie declares no `nonRoot` directory and its read-only roots are never
+    // enumerated for deletion — so the name alone identifies the root here.
+    // `fromFile` needs the directory too, because it also sees `.junie/rules/`.
     const isRoot = JunieRule.isRootRelativeFilePath(relativeFilePath);
 
     return new JunieRule({
