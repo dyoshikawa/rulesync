@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import {
   ROVODEV_CONFIG_FILE_NAME,
@@ -10,7 +10,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
@@ -157,6 +157,70 @@ async function readRovodevConfigYaml({
 function disabledNamesOf(config: Record<string, unknown> | null): string[] {
   const mcpBlock = config && isRecord(config.mcp) ? config.mcp : {};
   return isStringArray(mcpBlock.disabledMcpServers) ? mcpBlock.disabledMcpServers : [];
+}
+
+/**
+ * The value `mcp.mcpConfigPath` needs so Rovo Dev reads the project-scope
+ * `.rovodev/mcp.json`. A config-file value, not a filesystem path, so it is
+ * always POSIX-separated.
+ */
+const ROVODEV_PROJECT_MCP_CONFIG_POINTER = posix.join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME);
+
+function normalizeMcpConfigPathValue(value: string): string {
+  return toPosixPath(value).replace(/^\.\//, "");
+}
+
+/**
+ * Point `mcp.mcpConfigPath` at the project-scope `mcp.json` rulesync writes,
+ * and report whether the block gained a value it did not already carry.
+ *
+ * Rovo Dev's `mcpConfigPath` defaults to a file under the user's home
+ * directory, so a repo-committed `.rovodev/mcp.json` is inert until the active
+ * config points at it — the Bitbucket Agentic Pipelines guide documents
+ * registering the server and setting the pointer as two required steps. Global
+ * scope is left alone: there the default already resolves to the file rulesync
+ * writes.
+ *
+ * A pointer the user aimed somewhere else is theirs, not ours: overwriting it
+ * would silently redirect Rovo Dev away from a file they chose. It is named in
+ * a warning instead, because the generated `mcp.json` is unread while it
+ * stands.
+ *
+ * @see https://support.atlassian.com/bitbucket-cloud/docs/rovo-dev-advanced-agentic-configuration/
+ * @see https://support.atlassian.com/rovo/docs/manage-rovo-dev-cli-settings/
+ */
+function applyProjectMcpConfigPointer({
+  existingMcp,
+  global,
+  logger,
+}: {
+  existingMcp: Record<string, unknown>;
+  global: boolean;
+  logger?: Logger;
+}): boolean {
+  if (global) {
+    return false;
+  }
+
+  const existing = existingMcp.mcpConfigPath;
+  if (existing === undefined) {
+    existingMcp.mcpConfigPath = ROVODEV_PROJECT_MCP_CONFIG_POINTER;
+    return true;
+  }
+  if (
+    typeof existing === "string" &&
+    normalizeMcpConfigPathValue(existing) === ROVODEV_PROJECT_MCP_CONFIG_POINTER
+  ) {
+    return false;
+  }
+
+  logger?.warn(
+    `Rovo Dev MCP: leaving mcp.mcpConfigPath as ${JSON.stringify(existing)} in ` +
+      `${join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME)}. Rovo Dev reads MCP servers from that ` +
+      `path, so the generated ${join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME)} is unused until it ` +
+      `is set to "${ROVODEV_PROJECT_MCP_CONFIG_POINTER}".`,
+  );
+  return false;
 }
 
 /**
@@ -390,9 +454,12 @@ export class RovodevMcp extends ToolMcp {
     } else {
       delete existingMcp.disabledMcpServers;
     }
+
+    const wrotePointer = applyProjectMcpConfigPointer({ existingMcp, global, logger });
+
     // Nothing to write and nothing to clean up: do not create or touch the
     // shared config just to hold an empty block.
-    if (mergedDisabled.length === 0 && existingContent.trim() === "") {
+    if (mergedDisabled.length === 0 && !wrotePointer && existingContent.trim() === "") {
       return [];
     }
 

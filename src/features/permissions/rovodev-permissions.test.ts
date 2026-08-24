@@ -626,6 +626,96 @@ describe("RovodevPermissions", () => {
     });
   });
 
+  describe("toolPermissions.bash sub-keys", () => {
+    /** `toolPermissions.bash` of the generated config, as a plain record. */
+    function bashOf(yamlContent: string): Record<string, unknown> {
+      const toolPermissions = toolPermissionsOf(yamlContent);
+      return isRecord(toolPermissions.bash) ? toolPermissions.bash : {};
+    }
+
+    it("preserves bash sub-keys rulesync does not manage", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({
+          toolPermissions: {
+            bash: {
+              default: "allow",
+              commands: [{ command: "^rm ", permission: "deny" }],
+              // The documented secret passthrough for Bitbucket Pipelines, plus
+              // the macOS sandbox toggle. Neither has a rulesync counterpart.
+              env: { SNYK_TOKEN: "${SNYK_AUTH_TOKEN}" },
+              runInSandbox: true,
+            },
+          },
+        }),
+      );
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "*": "deny" } }),
+      });
+
+      const bash = bashOf(perms.getFileContent());
+      expect(bash.env).toEqual({ SNYK_TOKEN: "${SNYK_AUTH_TOKEN}" });
+      expect(bash.runInSandbox).toBe(true);
+      // The managed leaves are still rewritten from the canonical source.
+      expect(bash.default).toBe("deny");
+      expect(bash.commands).toBeUndefined();
+    });
+
+    it("names the dropped bash leaves, and only those, in the warning", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({
+          toolPermissions: {
+            bash: {
+              default: "allow",
+              commands: [{ command: "^ls ", permission: "allow" }],
+              env: { SNYK_TOKEN: "${SNYK_AUTH_TOKEN}" },
+            },
+          },
+        }),
+      );
+      const mockLogger = createMockLogger();
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ read: { "*": "deny" } }),
+        logger: mockLogger,
+      });
+
+      const bash = bashOf(perms.getFileContent());
+      expect(bash.default).toBeUndefined();
+      expect(bash.commands).toBeUndefined();
+      expect(bash.env).toEqual({ SNYK_TOKEN: "${SNYK_AUTH_TOKEN}" });
+      const warning = mockLogger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("bash.default"));
+      expect(warning).toContain('"bash.commands"');
+      expect(warning).not.toContain("bash.env");
+    });
+
+    it("drops an emptied bash block instead of leaving an empty map", async () => {
+      const dirPath = join(testDir, ".rovodev");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "config.yml"),
+        dump({ toolPermissions: { bash: { default: "allow" } } }),
+      );
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ read: { "*": "deny" } }),
+      });
+
+      expect(toolPermissionsOf(perms.getFileContent()).bash).toBeUndefined();
+    });
+  });
+
   describe("planning and Atlassian tool keys", () => {
     it("maps the read category onto the inspection tools of both surfaces", async () => {
       const perms = await RovodevPermissions.fromRulesyncPermissions({

@@ -378,6 +378,67 @@ describe("RovodevMcp", () => {
       expect(content).not.toContain("- managed");
     });
 
+    it("points mcp.mcpConfigPath at the project mcp.json it writes", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+      });
+
+      // No config.yml and nothing disabled: without the pointer Rovo Dev keeps
+      // reading the global MCP file and the generated project one is inert.
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({ outputRoot: testDir, rulesyncMcp });
+      expect(auxiliary).toHaveLength(1);
+      expect(auxiliary[0]!.getFileContent()).toContain("mcpConfigPath: .rovodev/mcp.json");
+    });
+
+    it("leaves a user-chosen mcpConfigPath in place and warns that mcp.json is unread", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        ["mcp:", "  mcpConfigPath: custom/mcp.json"].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger,
+      });
+      expect(auxiliary[0]!.getFileContent()).toContain("mcpConfigPath: custom/mcp.json");
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("leaving mcp.mcpConfigPath"),
+        ),
+      ).toBe(true);
+    });
+
+    it("does not write the pointer in global scope", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+      });
+
+      // Global scope already defaults to the file rulesync writes, so an
+      // untouched `~/.rovodev/config.yml` must not be created.
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp,
+      });
+      expect(auxiliary).toEqual([]);
+    });
+
     it("fails import closed when config.yml exists but cannot be parsed", async () => {
       await ensureDir(join(testDir, ".rovodev"));
       await writeFileContent(

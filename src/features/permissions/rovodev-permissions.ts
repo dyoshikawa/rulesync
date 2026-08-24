@@ -125,9 +125,19 @@ const MANAGED_TOOL_KEYS: readonly RovodevToolPermissionKey[] = [
 ];
 
 // Keys directly under `toolPermissions` that rulesync rewrites from
-// `.rulesync/permissions.*` on every generate. `tools` is handled separately
-// because only the managed tool keys inside it are owned.
-const OWNED_TOOL_PERMISSION_KEYS = ["bash", "allowedExternalPaths", "default"] as const;
+// `.rulesync/permissions.*` on every generate. `tools` and `bash` are handled
+// separately because only the managed keys *inside* them are owned.
+const OWNED_TOOL_PERMISSION_KEYS = ["allowedExternalPaths", "default"] as const;
+
+// The `toolPermissions.bash` leaves rulesync writes. The container itself is
+// not owned: Rovo Dev documents siblings this adapter never produces — `env`,
+// the `${VAR}` passthrough that is the only way to hand a CI run a secret whose
+// name matches Rovo Dev's `token|key|password|secret|auth|credential` filter,
+// and `runInSandbox` — so replacing the whole map would delete a repo-committed
+// Bitbucket Pipelines setup on the next generate.
+// https://support.atlassian.com/bitbucket-cloud/docs/rovo-dev-advanced-agentic-configuration/
+// https://support.atlassian.com/rovo/docs/manage-rovo-dev-cli-settings/
+const MANAGED_BASH_KEYS = ["default", "commands"] as const;
 
 type RovodevBashCommand = {
   command: string;
@@ -385,9 +395,14 @@ function resolveToolPermissionsBlock({
   const existingTools = hasExistingToolsRecord
     ? { ...(existingToolPermissions.tools as Record<string, unknown>) }
     : {};
+  const hasExistingBashRecord = isRecord(existingToolPermissions.bash);
+  const existingBash = hasExistingBashRecord
+    ? { ...(existingToolPermissions.bash as Record<string, unknown>) }
+    : {};
   warnAboutDroppedOwnedKeys({
     existingToolPermissions,
     existingTools,
+    existingBash,
     generated,
     filePath,
     logger,
@@ -407,17 +422,29 @@ function resolveToolPermissionsBlock({
     delete existingToolPermissions[toolKey];
     delete existingTools[toolKey];
   }
+  for (const bashKey of MANAGED_BASH_KEYS) {
+    delete existingBash[bashKey];
+  }
   const tools = { ...existingTools, ...generated.tools };
+  const bash = { ...existingBash, ...generated.bash };
   if (hasExistingToolsRecord) {
     // Re-added below only when non-empty, so an emptied block leaves no
     // `tools: {}`. A `tools` of some other shape is not ours to interpret, so it
     // is left in place unless this run has levels to write there.
     delete existingToolPermissions.tools;
   }
+  if (hasExistingBashRecord) {
+    // Same treatment as `tools`: the unmanaged siblings (`env`, `runInSandbox`)
+    // are carried through `bash` below, so the original key would only
+    // resurrect the managed leaves this run is replacing.
+    delete existingToolPermissions.bash;
+  }
   return {
     ...existingToolPermissions,
     ...generated,
     ...(Object.keys(tools).length > 0 ? { tools } : {}),
+    // After `generated`, whose `bash` holds only the managed leaves.
+    ...(Object.keys(bash).length > 0 ? { bash } : {}),
   };
 }
 
@@ -430,17 +457,20 @@ function resolveToolPermissionsBlock({
 function warnAboutDroppedOwnedKeys({
   existingToolPermissions,
   existingTools,
+  existingBash,
   generated,
   filePath,
   logger,
 }: {
   existingToolPermissions: Record<string, unknown>;
   existingTools: Record<string, unknown>;
+  existingBash: Record<string, unknown>;
   generated: RovodevToolPermissions;
   filePath: string;
   logger?: Logger;
 }): void {
   const newTools = generated.tools ?? {};
+  const newBash = generated.bash ?? {};
   const droppedKeys = [
     ...OWNED_TOOL_PERMISSION_KEYS.filter(
       (ownedKey) =>
@@ -451,6 +481,12 @@ function warnAboutDroppedOwnedKeys({
     ...MANAGED_TOOL_KEYS.filter(
       (toolKey) => existingTools[toolKey] !== undefined && newTools[toolKey] === undefined,
     ).map((toolKey) => `tools.${toolKey}`),
+    // The bash leaves, for the same reason: an "always allow" answer to a bash
+    // prompt is written into `bash.commands` from inside a session. Unmanaged
+    // siblings such as `env` survive, so they are never named here.
+    ...MANAGED_BASH_KEYS.filter(
+      (bashKey) => existingBash[bashKey] !== undefined && newBash[bashKey] === undefined,
+    ).map((bashKey) => `bash.${bashKey}`),
   ];
   if (droppedKeys.length > 0) {
     logger?.warn(
