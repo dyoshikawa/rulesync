@@ -117,8 +117,8 @@ function deepMergeRecords(
  *
  * Deliberately NOT listed:
  * - `ripgrep` / `bwrapPath` / `socatPath`: each names an executable, so
- *   `stripCommandExecutingSandboxPaths` refuses them in both scopes rather than
- *   emitting them under `--global`.
+ *   `CLAUDECODE_COMMAND_EXECUTING_SANDBOX_REFUSAL` refuses them in both scopes
+ *   rather than emitting them under `--global`.
  * - `credentials.envVars` / `credentials.files`: the ignored-at-project-scope
  *   unit is the individual entry's mode, not the settings key, and the same
  *   lists carry `deny` entries that project settings *do* honor — dropping a
@@ -135,6 +135,34 @@ const CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS: readonly (readonly string[])[] = [
   ["credentials", "awsPairs"],
   ["credentials", "sigv4"],
   ["allowAppleEvents"],
+];
+
+/**
+ * `sandbox.*` paths documented with a `Managed` scope: Claude Code reads them
+ * only from the settings file an organization deploys. Neither file rulesync
+ * writes is that file, so they are dropped in **both** scopes — the `sandbox`
+ * counterpart of {@link CLAUDECODE_UNHONORED_KEY_SOURCES}, which does the same
+ * for top-level `Managed` keys.
+ *
+ * Both only ever *narrow* the policy — they stop a lower-scoped file from
+ * re-opening what managed settings blocked — so neither is trust-widening. They
+ * are dropped rather than written for the opposite reason: written into a
+ * project or user file they do nothing at all, and a `sandbox` block that reads
+ * as though it locked the policy to managed values while Claude Code ignores it
+ * is the more dangerous of the two failure modes.
+ *
+ * Import keeps them, unlike the command-executing paths: the value in an
+ * existing `settings.json` was hand-written to be honored somewhere, and
+ * round-tripping it preserves the author's intent for the day it moves into a
+ * managed file. The cost is a warning on every generate until it is removed,
+ * which the refusal message points at.
+ *
+ * @see https://code.claude.com/docs/en/settings-reference#sandbox-filesystem-allowmanagedreadpathsonly
+ *   — "Scope: `Managed`"; the `network` entry says the same.
+ */
+const CLAUDECODE_MANAGED_ONLY_SANDBOX_PATHS: readonly (readonly string[])[] = [
+  ["filesystem", "allowManagedReadPathsOnly"],
+  ["network", "allowManagedDomainsOnly"],
 ];
 
 /**
@@ -191,6 +219,42 @@ function deleteSandboxPath({
 }
 
 /**
+ * One setting this generate is about to write that widens what Claude Code
+ * trusts. `label` names the setting as it appears in the target file (with the
+ * value spliced in where the value is what widens), and `reason` is the verb
+ * phrase that completes "it ...". They are collected rather than logged one by
+ * one so a file that sets many of them produces a single summary line instead
+ * of a run of near-identical warnings.
+ */
+type TrustAffectingEntry = {
+  readonly label: string;
+  readonly reason: string;
+};
+
+/**
+ * The one warning that names every trust-affecting setting this generate wrote
+ * to `relativeFilePath`. Emitted once per file: the individual reasons are what
+ * matter, but the "review this as you would a hook" framing only needs saying
+ * once, and repeating it per key buries the reasons in boilerplate.
+ */
+function warnOnTrustAffectingEntries({
+  entries,
+  relativeFilePath,
+  logger,
+}: {
+  entries: readonly TrustAffectingEntry[];
+  relativeFilePath: string;
+  logger?: Logger;
+}): void {
+  if (entries.length === 0) return;
+  const one = entries.length === 1;
+  const details = entries.map(({ label, reason }) => `'${label}' — ${reason}`).join("; ");
+  logger?.warn(
+    `Claude Code permissions: writing ${entries.length} trust-affecting ${one ? "setting" : "settings"} to ${relativeFilePath}; review ${one ? "it" : "them"} as you would a hook, especially if this permissions file came from 'rulesync fetch'. ${details}.`,
+  );
+}
+
+/**
  * The `permissions.defaultMode` values that start a session with fewer prompts
  * than the default. `plan` and `default` are absent because they do not widen
  * anything.
@@ -204,36 +268,36 @@ const CLAUDECODE_WIDENING_DEFAULT_MODES: Readonly<Record<string, string>> = {
 /**
  * The `permissions` fields that widen rather than restrict: a `defaultMode` that
  * removes prompts, and `additionalDirectories`, which moves the
- * working-directory boundary. Warned for the same reason `disableAllHooks` is: a
- * shareable permissions file should not loosen the permission system quietly.
+ * working-directory boundary. Reported for the same reason `disableAllHooks` is:
+ * a shareable permissions file should not loosen the permission system quietly.
  */
-function warnOnWideningPermissionFields({
+function collectWideningPermissionFields({
   fields,
-  relativeFilePath,
-  logger,
 }: {
   fields: Record<string, unknown>;
-  relativeFilePath: string;
-  logger?: Logger;
-}): void {
+}): TrustAffectingEntry[] {
+  const entries: TrustAffectingEntry[] = [];
   const defaultMode = fields.defaultMode;
   if (
     typeof defaultMode === "string" &&
     Object.hasOwn(CLAUDECODE_WIDENING_DEFAULT_MODES, defaultMode)
   ) {
-    logger?.warn(
-      `Claude Code permissions: writing 'permissions.defaultMode: "${defaultMode}"' to ${relativeFilePath}; ${CLAUDECODE_WIDENING_DEFAULT_MODES[defaultMode]}. Review it as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
-    );
+    entries.push({
+      label: `permissions.defaultMode: "${defaultMode}"`,
+      reason: CLAUDECODE_WIDENING_DEFAULT_MODES[defaultMode] as string,
+    });
   }
   const additionalDirectories = fields.additionalDirectories;
   if (
     additionalDirectories !== undefined &&
     !(Array.isArray(additionalDirectories) && additionalDirectories.length === 0)
   ) {
-    logger?.warn(
-      `Claude Code permissions: writing 'permissions.additionalDirectories' to ${relativeFilePath}; it moves the boundary of what Claude Code may read and edit outside the project. Review the paths, especially if this permissions file came from 'rulesync fetch'.`,
-    );
+    entries.push({
+      label: "permissions.additionalDirectories",
+      reason: "moves the boundary of what Claude Code may read and edit outside the project",
+    });
   }
+  return entries;
 }
 
 /**
@@ -250,6 +314,20 @@ const CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS: readonly (readonly string[])[]
   ["bwrapPath"],
   ["socatPath"],
 ];
+
+/**
+ * The predicates the "which value actually widens?" tables are built from.
+ * Each names the value that does *not* widen and reports everything else, never
+ * the reverse: the override is authored JSONC, so a key can carry any value at
+ * all, and one Claude Code coerces is still honored. Reporting an off-type value
+ * keeps the warning fail-safe — silence has to mean "this cannot loosen
+ * anything", not "this is not the type the table expected".
+ */
+const isNotFalse = (value: unknown): boolean => value !== false;
+const isNotTrue = (value: unknown): boolean => value !== true;
+const isNonEmptyList = (value: unknown): boolean => !Array.isArray(value) || value.length > 0;
+const isNonEmptyMap = (value: unknown): boolean =>
+  !isPlainRecord(value) || Object.keys(value).length > 0;
 
 /**
  * `sandbox` paths that loosen the sandbox rather than naming something to run:
@@ -275,48 +353,55 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
   {
     path: ["allowAppleEvents"],
     reason: "lets sandboxed commands send Apple Events, which removes code-execution isolation",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["allowUnsandboxedCommands"],
     reason: "controls whether Claude may retry a blocked command outside the sandbox",
-    widens: (value) => value !== false,
+    // Documented default `true`, and this predicate reports that value too. It
+    // is not redundant: a project `.claude/settings.json` outranks the user
+    // file, so an explicit `true` from a fetched override re-opens the escape
+    // hatch a user's `false` closed, and it does so without changing anything a
+    // diff of the *effective* policy would show.
+    widens: isNotFalse,
   },
   {
     path: ["autoAllowBashIfSandboxed"],
     reason: "controls whether every Bash command the sandbox accepts runs without a prompt",
-    widens: (value) => value !== false,
+    // Same reasoning as `allowUnsandboxedCommands`: default `true`, and a
+    // project-scope `true` overrides a user-scope `false`.
+    widens: isNotFalse,
   },
   {
     path: ["enableWeakerNestedSandbox"],
     reason: "runs the Linux sandbox inside an unprivileged container, which weakens it",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["enableWeakerNetworkIsolation"],
     reason: "weakens the sandbox's network isolation on macOS",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["enabled"],
     reason:
       "turns the sandbox on, and sandboxed Bash commands then run without a permission prompt unless `autoAllowBashIfSandboxed` is false",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["excludedCommands"],
     reason: "names commands that always run outside the sandbox, with no sandbox policy applied",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["filesystem", "allowRead"],
     reason: "re-opens reading inside a region the sandbox's `denyRead` blocks",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["filesystem", "allowWrite"],
     reason: "adds paths sandboxed commands may write to, outside the working directory",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["ignoreViolations"],
@@ -324,33 +409,36 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
     // sandbox still blocks the access, so what widens here is what you get to
     // see, not what runs.
     reason: "hides the sandbox violations it names, so a blocked access stops being reported",
-    widens: (value) => (isPlainRecord(value) ? Object.keys(value).length > 0 : value !== false),
+    // Composed rather than shared outright: an empty map suppresses nothing, and
+    // `isNonEmptyMap(false)` is true, so the `false` that spells the key off
+    // has to be excluded as well.
+    widens: (value) => isNonEmptyMap(value) && isNotFalse(value),
   },
   {
     path: ["network", "allowAllUnixSockets"],
     reason: "lets sandboxed commands connect to every Unix socket",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["network", "allowedDomains"],
     reason: "pre-allows domains sandboxed commands may reach without a prompt",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["network", "allowLocalBinding"],
     reason: "lets sandboxed commands bind local ports",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["network", "allowMachLookup"],
     reason: "names the macOS services sandboxed commands may reach, and `*` means every service",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["network", "allowUnixSockets"],
     reason:
       "names Unix sockets sandboxed commands may reach, and one such as `/var/run/docker.sock` is host access",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["network", "httpProxyPort"],
@@ -365,19 +453,16 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
 ];
 
 /**
- * Warns once per authored `sandbox` path that loosens the sandbox. Nothing is
- * removed — the value is written, just not silently. Called on the filtered
- * `sandbox` so it never claims to be writing a path the scope filters dropped.
+ * Every authored `sandbox` path that loosens the sandbox. Nothing is removed —
+ * the values are written, just not silently. Called on the filtered `sandbox`
+ * so it never claims to be writing a path the scope filters dropped.
  */
-function warnOnTrustAffectingSandboxPaths({
+function collectTrustAffectingSandboxPaths({
   sandbox,
-  relativeFilePath,
-  logger,
 }: {
   sandbox: Record<string, unknown>;
-  relativeFilePath: string;
-  logger?: Logger;
-}): void {
+}): TrustAffectingEntry[] {
+  const entries: TrustAffectingEntry[] = [];
   for (const { path, reason, widens } of CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS) {
     const leaf = path.at(-1);
     if (leaf === undefined) continue;
@@ -385,56 +470,70 @@ function warnOnTrustAffectingSandboxPaths({
     if (parent === undefined) continue;
     const value = parent[leaf];
     if (value === undefined || !widens(value)) continue;
-    logger?.warn(
-      `Claude Code permissions: writing 'sandbox.${path.join(".")}' to ${relativeFilePath}; it ${reason}. Review the value as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
-    );
+    entries.push({ label: `sandbox.${path.join(".")}`, reason });
   }
+  return entries;
 }
 
 /**
- * Copy of the authored `sandbox` override with the paths that name an
- * executable removed, warning once per dropped path.
+ * One class of `sandbox` paths rulesync refuses to write, paired with the
+ * warning that explains the refusal. The three classes differ only in the table
+ * they scan and the remediation they name, so they share `stripSandboxPaths`
+ * rather than each carrying a copy of the walk.
  */
-function stripCommandExecutingSandboxPaths({
+type SandboxPathRefusal = {
+  readonly paths: readonly (readonly string[])[];
+  readonly warn: (args: { readonly label: string; readonly relativeFilePath: string }) => string;
+};
+
+/** Paths that name an executable Claude Code runs. Refused in both scopes. */
+const CLAUDECODE_COMMAND_EXECUTING_SANDBOX_REFUSAL: SandboxPathRefusal = {
+  paths: CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS,
+  warn: ({ label, relativeFilePath }) =>
+    `Claude Code permissions: '${label}' names an executable Claude Code runs, so rulesync does not write it to ${relativeFilePath}. A permissions file is shareable — 'rulesync fetch' copies one into a project — and is not where a reviewer looks for a command to run; set this path in ${relativeFilePath} by hand.`,
+};
+
+/**
+ * Paths Claude Code honors only from managed settings. Refused in both scopes,
+ * like the command-executing paths, because managed settings are not a file
+ * rulesync writes in either of them.
+ */
+const CLAUDECODE_MANAGED_ONLY_SANDBOX_REFUSAL: SandboxPathRefusal = {
+  paths: CLAUDECODE_MANAGED_ONLY_SANDBOX_PATHS,
+  warn: ({ label, relativeFilePath }) =>
+    `Claude Code permissions: '${label}' is only honored in managed settings, which rulesync does not generate, so it is not written to ${relativeFilePath}. Set it in the managed settings file by hand, and check ${relativeFilePath} for a stale value an earlier generate may have left there.`,
+};
+
+/** Paths Claude Code honors only above project scope. Refused at project scope. */
+const CLAUDECODE_GLOBAL_ONLY_SANDBOX_REFUSAL: SandboxPathRefusal = {
+  paths: CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS,
+  warn: ({ label, relativeFilePath }) =>
+    `Claude Code permissions: '${label}' is only honored in user/managed/--settings settings, so it is not written to the project-scoped ${relativeFilePath}. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+};
+
+/**
+ * Copy of the authored `sandbox` override with every path of every passed
+ * refusal removed, warning once per dropped path. Only the override copy is
+ * filtered — a value already hand-written in the target file is left untouched,
+ * matching the `qwencode` `security.allowPrivateNetworkHooks` precedent.
+ */
+function stripSandboxPaths({
   sandbox,
+  refusals,
   relativeFilePath,
   logger,
 }: {
   sandbox: Record<string, unknown>;
+  refusals: readonly SandboxPathRefusal[];
   relativeFilePath: string;
   logger?: Logger;
 }): Record<string, unknown> {
   const filtered = structuredClone(sandbox);
-  for (const path of CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS) {
-    if (!deleteSandboxPath({ target: filtered, path })) continue;
-    logger?.warn(
-      `Claude Code permissions: 'sandbox.${path.join(".")}' names an executable Claude Code runs, so rulesync does not write it to ${relativeFilePath}. A permissions file is shareable — 'rulesync fetch' copies one into a project — and is not where a reviewer looks for a command to run; set this path in ${relativeFilePath} by hand.`,
-    );
-  }
-  return filtered;
-}
-
-/**
- * Copy of the authored `sandbox` override with the user/managed-only paths
- * removed, warning once per dropped path. Only the override copy is filtered —
- * a value already hand-written in the target file is left untouched, matching
- * the `qwencode` `security.allowPrivateNetworkHooks` precedent.
- */
-function stripGlobalOnlySandboxPaths({
-  sandbox,
-  relativeFilePath,
-  logger,
-}: {
-  sandbox: Record<string, unknown>;
-  relativeFilePath: string;
-  logger?: Logger;
-}): Record<string, unknown> {
-  const filtered = structuredClone(sandbox);
-  for (const path of CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS) {
-    if (!deleteSandboxPath({ target: filtered, path })) continue;
-    logger?.warn(
-      `Claude Code permissions: 'sandbox.${path.join(".")}' is only honored in user/managed/--settings settings, so it is not written to the project-scoped ${relativeFilePath}. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
-    );
+  for (const { paths, warn } of refusals) {
+    for (const path of paths) {
+      if (!deleteSandboxPath({ target: filtered, path })) continue;
+      logger?.warn(warn({ label: `sandbox.${path.join(".")}`, relativeFilePath }));
+    }
   }
   return filtered;
 }
@@ -460,7 +559,7 @@ const CLAUDECODE_MASKABLE_CREDENTIAL_LISTS = ["envVars", "files"] as const;
  * such entries to `deny`), so the "reads as masked but isn't" state this guards
  * against cannot slip through a differently-spelled value.
  *
- * Like `stripGlobalOnlySandboxPaths`, only the override copy is filtered — a
+ * Like `stripSandboxPaths`, only the override copy is filtered — a
  * value already in the target file is left untouched, which is why the warning
  * points at it.
  *
@@ -661,6 +760,12 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
   allowedMcpServers:
     "allowlists the MCP servers that may be used, and entries from every settings file merge into one list, so an entry here widens an allowlist deployed elsewhere",
   autoMode: "auto-approves shell commands with a classifier rather than with a prompt",
+  claudeMdExcludes:
+    "skips the CLAUDE.md files its patterns match, so the instructions a repository relies on can be dropped from every session",
+  companyAnnouncements:
+    "prints the strings it names at startup as your organization's announcement, so a fetched value speaks to the reader with your organization's voice",
+  crossSessionInbound:
+    "decides what a session does with messages arriving from your other Claude Code sessions, and `accept` delivers them straight to Claude",
   disableAllHooks: "controls whether hooks run at all",
   disableSkillShellExecution:
     "re-opens the inline shell commands in a skill or custom command that a user setting had turned off",
@@ -671,22 +776,77 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
   extraKnownMarketplaces: "registers plugin marketplace sources",
   httpHookAllowedEnvVars:
     "controls which environment variables an HTTP hook may put in a request header, credentials included",
+  modelOverrides:
+    "maps the model IDs it names to provider-specific model IDs, so an entry decides which inference profile or deployment every call for that model is routed to",
   outputStyle: "replaces the system prompt every session runs with",
+  prUrlTemplate:
+    "rewrites the pull-request links Claude Code renders, so they can point at a host of the template's choosing rather than at the reviewed PR",
+  remoteControlAtStartup:
+    "connects Remote Control automatically at session start, and the transcript of a connected session is stored on Anthropic servers to sync it across devices",
   skipAutoPermissionPrompt: "removes the confirmation shown before auto-approval mode starts",
   skipDangerousModePermissionPrompt:
     "removes the confirmation shown before the mode that skips every permission check starts",
+  skipWebFetchPreflight:
+    "turns off the WebFetch domain safety check, so WebFetch retrieves any URL without consulting Anthropic's blocklist",
 };
 
 /**
  * The keys from the table above that only widen at one particular value.
  * `disableSkillShellExecution: true` turns inline shell execution off, which
- * restricts; the `false` that turns it back on is what a fetched override could
- * use to undo a user setting, so only that value is warned about.
+ * restricts; anything else re-opens it, and that is what a fetched override
+ * could use to undo a user setting. The rest default to off, so only a value
+ * other than the one that leaves them off is worth a line — and for the
+ * list-valued and map-valued keys, only a non-empty one, since an empty list or
+ * map excludes, announces and overrides nothing.
  */
 const CLAUDECODE_TRUST_KEY_WIDENING_VALUES: Readonly<Record<string, (value: unknown) => boolean>> =
   {
-    disableSkillShellExecution: (value) => value === false,
+    claudeMdExcludes: isNonEmptyList,
+    companyAnnouncements: isNonEmptyList,
+    // Only `accept` delivers the message to Claude; `hold` and `refuse` are the
+    // two restrictive rungs of the documented `accept` < `hold` < `refuse`
+    // ladder, and an unset key leaves Claude Code deciding per message.
+    crossSessionInbound: (value) => value !== "hold" && value !== "refuse",
+    disableSkillShellExecution: isNotTrue,
+    modelOverrides: isNonEmptyMap,
+    remoteControlAtStartup: isNotFalse,
+    skipWebFetchPreflight: isNotFalse,
   };
+
+/**
+ * Top-level keys a project-scoped `.claude/settings.json` honors at one value
+ * but ignores at another — the value-level counterpart of
+ * {@link CLAUDECODE_USER_SCOPE_ONLY_KEYS}, which is scoped per key. The ignored
+ * value is dropped at project scope for the same reason a wholly unhonored key
+ * is: committing it would read as a policy that never applies.
+ *
+ * `remoteControlAtStartup` is the only entry whose honored value can be decided
+ * from the value alone. Claude Code honors a `false` from project or local
+ * settings — a repository may turn auto-connect off for its own checkout — but
+ * ignores a `true`, so that a checked-in file cannot turn Remote Control on for
+ * everyone who opens the repository.
+ *
+ * `crossSessionInbound` is on the same documented list but deliberately absent
+ * here: it is a ladder (`accept` < `hold` < `refuse`) whose project value is
+ * honored only when it is stricter than the one above it, which no per-value
+ * predicate can decide without reading the user's own settings. It is warned
+ * about through {@link CLAUDECODE_TRUST_AFFECTING_KEYS} instead, since under
+ * `--global` its loosening value is honored outright.
+ *
+ * @see https://code.claude.com/docs/en/settings#security-keys-where-the-stricter-value-applies
+ */
+const CLAUDECODE_PROJECT_SCOPE_IGNORED_VALUES: Readonly<
+  Record<string, { readonly ignored: (value: unknown) => boolean; readonly note: string }>
+> = {
+  remoteControlAtStartup: {
+    // The same predicate the widening table uses. "Does this widen trust?" and
+    // "does project scope ignore this?" are different questions that happen to
+    // have the same answer for this key, so the sharing is for the reader's
+    // benefit; a future key needing one but not the other gets its own.
+    ignored: isNotFalse,
+    note: "Claude Code honors only a `false` there, so that a checked-in file cannot turn Remote Control on for everyone who opens the repository",
+  },
+};
 
 /**
  * A key name is authored data that ends up in a log line, so strip the control
@@ -717,7 +877,7 @@ const CLAUDECODE_SETTINGS_KEY_ALIASES: Readonly<Record<string, string>> = {
 /**
  * Copy of the authored top-level passthrough with the keys the target file
  * cannot honor removed, warning once per dropped key. Like
- * `stripGlobalOnlySandboxPaths`, only the override copy is filtered — a value
+ * `stripSandboxPaths`, only the override copy is filtered — a value
  * already hand-written in the target file is left untouched, which is why the
  * warning points at it.
  */
@@ -731,8 +891,9 @@ function stripUnhonoredTopLevelKeys({
   global: boolean;
   relativeFilePath: string;
   logger?: Logger;
-}): Record<string, unknown> {
+}): { filtered: Record<string, unknown>; trustAffecting: TrustAffectingEntry[] } {
   const filtered: Record<string, unknown> = {};
+  const trustAffecting: TrustAffectingEntry[] = [];
   for (const [key, value] of Object.entries(overrides)) {
     const shown = displayKey(key);
     // An alias is honored wherever its canonical spelling is, so the scope
@@ -758,18 +919,33 @@ function stripUnhonoredTopLevelKeys({
       );
       continue;
     }
-    const widensAtValue = CLAUDECODE_TRUST_KEY_WIDENING_VALUES[canonicalKey];
+    const projectIgnored = Object.hasOwn(CLAUDECODE_PROJECT_SCOPE_IGNORED_VALUES, canonicalKey)
+      ? CLAUDECODE_PROJECT_SCOPE_IGNORED_VALUES[canonicalKey]
+      : undefined;
+    if (!global && projectIgnored !== undefined && projectIgnored.ignored(value)) {
+      logger?.warn(
+        `Claude Code permissions: this value of '${shown}' is not honored in the project-scoped ${relativeFilePath}, so it is not written there — ${projectIgnored.note}. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+      );
+      continue;
+    }
+    // Guarded rather than indexed directly, so the lookup is safe on its own
+    // terms instead of relying on the `CLAUDECODE_TRUST_AFFECTING_KEYS` check
+    // below happening to run first.
+    const widensAtValue = Object.hasOwn(CLAUDECODE_TRUST_KEY_WIDENING_VALUES, canonicalKey)
+      ? CLAUDECODE_TRUST_KEY_WIDENING_VALUES[canonicalKey]
+      : undefined;
     if (
       Object.hasOwn(CLAUDECODE_TRUST_AFFECTING_KEYS, canonicalKey) &&
       (widensAtValue === undefined || widensAtValue(value))
     ) {
-      logger?.warn(
-        `Claude Code permissions: writing '${shown}' to ${relativeFilePath}; it ${CLAUDECODE_TRUST_AFFECTING_KEYS[canonicalKey]}. Review the value as you would a hook, especially if this permissions file came from 'rulesync fetch'.`,
-      );
+      trustAffecting.push({
+        label: shown,
+        reason: CLAUDECODE_TRUST_AFFECTING_KEYS[canonicalKey] as string,
+      });
     }
     filtered[key] = value;
   }
-  return filtered;
+  return { filtered, trustAffecting };
 }
 
 const CLAUDE_PATH_RULE_ALIASES: Record<string, string> = {
@@ -860,6 +1036,11 @@ export class ClaudecodePermissions extends ToolPermissions {
     const config = rulesyncPermissions.getJson();
     const { allow, ask, deny } = convertRulesyncToClaudePermissions({ config, logger });
 
+    // Every setting below that widens what Claude Code trusts lands here and is
+    // reported in one line at the end, so a file that sets a dozen of them does
+    // not bury the reasons in a dozen copies of the same advice.
+    const trustAffecting: TrustAffectingEntry[] = [];
+
     // Merge the Claude Code-scoped override's non-list `permissions` fields
     // (e.g. `defaultMode`, `additionalDirectories`) into the settings
     // `permissions` object. The managed `allow`/`ask`/`deny` arrays are excluded
@@ -870,11 +1051,7 @@ export class ClaudecodePermissions extends ToolPermissions {
       const nonListFields = Object.fromEntries(
         Object.entries(rest).filter(([key]) => !PROTOTYPE_POLLUTION_KEYS.has(key)),
       );
-      warnOnWideningPermissionFields({
-        fields: nonListFields,
-        relativeFilePath: paths.relativeFilePath,
-        logger,
-      });
+      trustAffecting.push(...collectWideningPermissionFields({ fields: nonListFields }));
       settings.permissions = { ...settings.permissions, ...nonListFields };
     }
 
@@ -884,32 +1061,29 @@ export class ClaudecodePermissions extends ToolPermissions {
     // wholesale to set one flag would drop the restrictions beside it.
     const overrideSandbox = config.claudecode?.sandbox;
     if (isPlainRecord(overrideSandbox)) {
-      const executableFreeSandbox = stripCommandExecutingSandboxPaths({
-        sandbox: overrideSandbox,
-        relativeFilePath: paths.relativeFilePath,
-        logger,
-      });
       // A subset of `sandbox.*` is ignored in a repository's settings.json, so
       // at project scope those paths are dropped rather than committed as a
       // policy that never applies.
-      const scopedSandbox = global
-        ? executableFreeSandbox
-        : stripProjectIgnoredMaskEntries({
-            sandbox: stripGlobalOnlySandboxPaths({
-              sandbox: executableFreeSandbox,
-              relativeFilePath: paths.relativeFilePath,
-              logger,
-            }),
-            relativeFilePath: paths.relativeFilePath,
-            logger,
-          });
-      // Warned on the filtered result so the message never names a path the
-      // scope filters just dropped.
-      warnOnTrustAffectingSandboxPaths({
-        sandbox: scopedSandbox,
+      const honorableSandbox = stripSandboxPaths({
+        sandbox: overrideSandbox,
+        refusals: [
+          CLAUDECODE_COMMAND_EXECUTING_SANDBOX_REFUSAL,
+          CLAUDECODE_MANAGED_ONLY_SANDBOX_REFUSAL,
+          ...(global ? [] : [CLAUDECODE_GLOBAL_ONLY_SANDBOX_REFUSAL]),
+        ],
         relativeFilePath: paths.relativeFilePath,
         logger,
       });
+      const scopedSandbox = global
+        ? honorableSandbox
+        : stripProjectIgnoredMaskEntries({
+            sandbox: honorableSandbox,
+            relativeFilePath: paths.relativeFilePath,
+            logger,
+          });
+      // Collected from the filtered result so the summary never names a path
+      // the scope filters just dropped.
+      trustAffecting.push(...collectTrustAffectingSandboxPaths({ sandbox: scopedSandbox }));
       if (Object.keys(scopedSandbox).length > 0) {
         settings.sandbox = deepMergeRecords(
           isPlainRecord(settings.sandbox) ? settings.sandbox : {},
@@ -933,18 +1107,26 @@ export class ClaudecodePermissions extends ToolPermissions {
       if (value === undefined) continue;
       overrideTopLevel[key] = value;
     }
-    const scopedTopLevel = stripUnhonoredTopLevelKeys({
-      overrides: overrideTopLevel,
-      global,
-      relativeFilePath: paths.relativeFilePath,
-      logger,
-    });
+    const { filtered: scopedTopLevel, trustAffecting: trustAffectingTopLevel } =
+      stripUnhonoredTopLevelKeys({
+        overrides: overrideTopLevel,
+        global,
+        relativeFilePath: paths.relativeFilePath,
+        logger,
+      });
+    trustAffecting.push(...trustAffectingTopLevel);
     if (Object.keys(scopedTopLevel).length > 0) {
       settings = deepMergeRecords(
         settings as Record<string, unknown>,
         scopedTopLevel,
       ) as ClaudeSettingsJson;
     }
+
+    warnOnTrustAffectingEntries({
+      entries: trustAffecting,
+      relativeFilePath: paths.relativeFilePath,
+      logger,
+    });
 
     const managedToolNames = managedClaudeToolNames(config);
 
@@ -1001,8 +1183,11 @@ export class ClaudecodePermissions extends ToolPermissions {
 
     // The sibling `sandbox` subtree round-trips through the same override block,
     // minus the paths that name an executable: symmetric with generate, which
-    // refuses to write them, so the override never carries a value that only
-    // ever produces a warning.
+    // refuses to write them, so the override never carries a command a reviewer
+    // would not look for there. The managed-only paths are deliberately not
+    // stripped even though generate refuses them too — see
+    // `CLAUDECODE_MANAGED_ONLY_SANDBOX_PATHS` for why keeping the author's value
+    // is worth the warning it costs on every generate.
     const { sandbox } = settings;
     if (isPlainRecord(sandbox)) {
       const importedSandbox = structuredClone(sandbox);
