@@ -1664,30 +1664,41 @@ As this project's AI coding tool, you must follow the additional conventions bel
     );
     // Keyed by case-folded path because a curated and a local file whose names
     // differ only in case collapse onto one file on macOS/Windows, so the
-    // curated one cannot be emitted alongside the local one there. The original
-    // spelling is kept as the value so the warning below can name both.
-    const localRelativePathsByIdentity = new Map<string, string>();
+    // curated one cannot be emitted alongside the local one there. Every
+    // original spelling is kept so the warning below can name the local file
+    // that actually shadows the curated one — on a case-sensitive filesystem
+    // one identity can cover several local spellings at once.
+    const localRelativePathsByIdentity = new Map<string, string[]>();
     for (const file of localFiles) {
       const relativeFilePath = relative(rulesyncOutputRoot, file);
-      localRelativePathsByIdentity.set(caseFoldIdentity(relativeFilePath), relativeFilePath);
+      const identity = caseFoldIdentity(relativeFilePath);
+      const spellings = localRelativePathsByIdentity.get(identity);
+
+      if (spellings === undefined) {
+        localRelativePathsByIdentity.set(identity, [relativeFilePath]);
+      } else {
+        spellings.push(relativeFilePath);
+      }
     }
 
     const curatedFiles = files
       .filter((file) => relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`))
       .map((file) => ({ file, relativeFilePath: relative(curatedOutputRoot, file) }))
       .filter(({ relativeFilePath }) => {
-        const shadowedBy = localRelativePathsByIdentity.get(caseFoldIdentity(relativeFilePath));
+        const spellings = localRelativePathsByIdentity.get(caseFoldIdentity(relativeFilePath));
 
-        if (shadowedBy === undefined) {
+        if (spellings === undefined) {
           return true;
         }
 
         // An exact match is the documented local-wins-over-curated flow and
         // stays silent; a case-only match is ambiguous enough to surface,
-        // mirroring the warning the cross-root merge emits.
-        if (shadowedBy !== relativeFilePath) {
+        // mirroring the warning the cross-root merge emits. The exact spelling
+        // is preferred so an unrelated case variant sitting next to it does
+        // not turn a plain override into a spurious collision warning.
+        if (!spellings.includes(relativeFilePath)) {
           this.logger.warn(
-            `Case-insensitive rule collision under ${treeRulesDirPath}: curated '${join(".curated", relativeFilePath)}' and local '${shadowedBy}' resolve to the same identity. The local file wins and the curated file is skipped.`,
+            `Case-insensitive rule collision under ${treeRulesDirPath}: curated '${join(".curated", relativeFilePath)}' and local '${spellings[0]}' resolve to the same identity. The local file wins and the curated file is skipped.`,
           );
         }
 

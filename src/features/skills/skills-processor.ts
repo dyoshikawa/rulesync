@@ -659,11 +659,21 @@ export class SkillsProcessor extends DirFeatureProcessor {
     );
 
     // Keyed by case-folded name because two skill directories whose names
-    // differ only in case collapse onto one directory on macOS/Windows. The
-    // original spelling is kept as the value so the warning below names both.
-    const localSkillNamesByIdentity = new Map<string, string>(
-      localDirNames.map((name) => [caseFoldIdentity(name), name]),
-    );
+    // differ only in case collapse onto one directory on macOS/Windows. Every
+    // original spelling is kept so the warning below names the local skill
+    // that actually shadows the curated one — on a case-sensitive filesystem
+    // one identity can cover several local spellings at once.
+    const localSkillNamesByIdentity = new Map<string, string[]>();
+    for (const name of localDirNames) {
+      const identity = caseFoldIdentity(name);
+      const spellings = localSkillNamesByIdentity.get(identity);
+
+      if (spellings === undefined) {
+        localSkillNamesByIdentity.set(identity, [name]);
+      } else {
+        spellings.push(name);
+      }
+    }
 
     const curatedDirPath = join(sourceTree, CURATED_SKILLS_FEATURE_SUBDIR);
     let curatedSkills: RulesyncSkill[] = [];
@@ -673,20 +683,22 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const curatedDirNames = curatedDirPaths.map((path) => basename(path));
 
       const nonConflicting = curatedDirNames.filter((name) => {
-        const shadowedBy = localSkillNamesByIdentity.get(caseFoldIdentity(name));
+        const spellings = localSkillNamesByIdentity.get(caseFoldIdentity(name));
 
-        if (shadowedBy === undefined) {
+        if (spellings === undefined) {
           return true;
         }
 
         // An exact match is the documented local-wins-over-curated flow and
         // stays at debug level; a case-only match is ambiguous enough to
-        // surface, mirroring the warning the cross-root merge emits.
-        if (shadowedBy === name) {
+        // surface, mirroring the warning the cross-root merge emits. The exact
+        // spelling is preferred so an unrelated case variant sitting next to
+        // it does not turn a plain override into a spurious collision warning.
+        if (spellings.includes(name)) {
           this.logger.debug(`Skipping curated skill "${name}": local skill takes precedence.`);
         } else {
           this.logger.warn(
-            `Case-insensitive skill collision under ${treeSkillsDirPath}: curated '${name}' and local '${shadowedBy}' resolve to the same identity. The local skill wins and the curated skill is skipped.`,
+            `Case-insensitive skill collision under ${treeSkillsDirPath}: curated '${name}' and local '${spellings[0]}' resolve to the same identity. The local skill wins and the curated skill is skipped.`,
           );
         }
 

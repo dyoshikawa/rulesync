@@ -667,6 +667,8 @@ async function checkInputRootExists({
   const localInputConfig = readDoctorInputRootConfig(localConfig);
   const diagnostics: DoctorDiagnostic[] = [];
 
+  let hasConflict = false;
+
   for (const [config, file] of [
     [baseInputConfig, baseFile],
     [localInputConfig, localFile],
@@ -682,6 +684,7 @@ async function checkInputRootExists({
     }
 
     if (config.inputRoot !== undefined && config.inputRoots !== undefined) {
+      hasConflict = true;
       diagnostics.push({
         severity: "error",
         code: "config/input-roots-conflict",
@@ -692,7 +695,11 @@ async function checkInputRootExists({
     }
   }
 
-  if (diagnostics.length > 0) {
+  // Only a conflict short-circuits the checks below: `generate` throws before
+  // it resolves anything, so describing the roots it would have used is
+  // misleading. The issues above leave a resolvable configuration, and
+  // stopping on them would drop the existence checks the command used to run.
+  if (hasConflict) {
     return diagnostics;
   }
 
@@ -760,9 +767,17 @@ async function checkInputRootExists({
 
 /**
  * Reading the raw config here is deliberately tolerant so `doctor` can keep
- * inspecting a file the strict loader would reject outright. Everything it
- * drops is reported back as an `issue` instead of vanishing, which is the
- * whole point of the command.
+ * inspecting a file the strict loader would reject outright.
+ *
+ * Only values the config schema itself accepts are reported as an `issue`. A
+ * wrong type (`inputRoot: 42`, `inputRoots: "x"`, a non-string entry) and an
+ * empty `inputRoots` list are already reported as `config/invalid-value` by
+ * `checkAgainstConfigFileSchema`, so repeating them here would print two
+ * errors for one mistake. An empty string passes `z.string()`, which leaves it
+ * for this function to catch.
+ *
+ * Values that do pass the schema are handed back verbatim rather than filtered
+ * out, so the checks below analyze exactly what `generate` would resolve.
  */
 function readDoctorInputRootConfig(config: Record<string, unknown> | undefined): InputRootConfig & {
   issues: { message: string; hint: string }[];
@@ -771,50 +786,35 @@ function readDoctorInputRootConfig(config: Record<string, unknown> | undefined):
   const inputRootsValue = config?.inputRoots;
   const issues: { message: string; hint: string }[] = [];
 
-  const inputRoot =
-    typeof inputRootValue === "string" && inputRootValue.length > 0 ? inputRootValue : undefined;
+  const inputRoot = typeof inputRootValue === "string" ? inputRootValue : undefined;
 
-  if (inputRootValue !== undefined && inputRoot === undefined) {
+  if (inputRoot === "") {
     issues.push({
-      message: `'inputRoot' must be a non-empty string, but got ${JSON.stringify(inputRootValue)}; the value is ignored.`,
-      hint: "Set 'inputRoot' to the directory that contains your '.rulesync' source tree.",
+      message:
+        "'inputRoot' is an empty string, so it resolves to the current directory instead of a source tree.",
+      hint: "Set 'inputRoot' to the directory that contains your '.rulesync' source tree, or remove it.",
     });
   }
 
-  if (inputRootsValue === undefined) {
-    return { inputRoot, inputRoots: undefined, issues };
-  }
-
-  if (!Array.isArray(inputRootsValue)) {
-    issues.push({
-      message: `'inputRoots' must be an array of non-empty strings, but got ${JSON.stringify(inputRootsValue)}; the value is ignored.`,
-      hint: 'Write \'inputRoots\' as a list, e.g. [".rulesync", ".rulesync.local"].',
-    });
-
-    return { inputRoot, inputRoots: undefined, issues };
-  }
-
-  if (inputRootsValue.length === 0) {
-    issues.push({
-      message: "'inputRoots' is an empty list; the value is ignored.",
-      hint: "Remove the empty 'inputRoots' or list at least one source tree.",
-    });
-
+  if (!Array.isArray(inputRootsValue) || inputRootsValue.length === 0) {
     return { inputRoot, inputRoots: undefined, issues };
   }
 
   const inputRoots: string[] = [];
 
   for (const [index, entry] of inputRootsValue.entries()) {
-    if (typeof entry === "string" && entry.length > 0) {
-      inputRoots.push(entry);
-      continue;
+    // A non-string entry is already an error from the schema check, and it
+    // cannot be resolved, so it is dropped without a second message.
+    if (typeof entry !== "string") continue;
+
+    if (entry === "") {
+      issues.push({
+        message: `'inputRoots[${index}]' is an empty string, so it resolves to the current directory instead of a source tree.`,
+        hint: "Replace the entry with a path to a source tree, or remove it.",
+      });
     }
 
-    issues.push({
-      message: `'inputRoots[${index}]' must be a non-empty string, but got ${JSON.stringify(entry)}; the entry is ignored.`,
-      hint: "Replace the entry with a path to a source tree, or remove it.",
-    });
+    inputRoots.push(entry);
   }
 
   return {

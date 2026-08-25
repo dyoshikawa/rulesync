@@ -541,6 +541,58 @@ Curated content`,
       );
     });
 
+    // On a case-sensitive filesystem both spellings can exist side by side, so
+    // the exactly-named local skill must be the one that decides whether this
+    // is a plain override or an ambiguous collision. (On a case-insensitive
+    // filesystem the two directories are one, so this case degenerates into
+    // the plain-override case above and still holds.)
+    it("should not warn when an exactly-named local skill exists next to a case variant", async () => {
+      const exactLocalSkillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "shared-skill");
+      const variantLocalSkillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "Shared-Skill");
+      const curatedSkillDir = join(
+        testDir,
+        RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+        "shared-skill",
+      );
+      await ensureDir(exactLocalSkillDir);
+      await ensureDir(variantLocalSkillDir);
+      await ensureDir(curatedSkillDir);
+      await writeFileContent(
+        join(exactLocalSkillDir, "SKILL.md"),
+        `---
+name: shared-skill
+description: Local skill
+---
+Local content`,
+      );
+      await writeFileContent(
+        join(variantLocalSkillDir, "SKILL.md"),
+        `---
+name: Shared-Skill
+description: Local variant skill
+---
+Local variant content`,
+      );
+      await writeFileContent(
+        join(curatedSkillDir, "SKILL.md"),
+        `---
+name: shared-skill
+description: Curated skill
+---
+Curated content`,
+      );
+
+      const rulesyncDirs = await processor.loadRulesyncDirs();
+
+      // The two local spellings themselves are folded into one skill by the
+      // cross-root merge; what matters here is that the curated skill is
+      // skipped as a plain override rather than reported as a collision.
+      expect(rulesyncDirs).toHaveLength(1);
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Case-insensitive skill collision"),
+      );
+    });
+
     it("should throw error when invalid skill directory is found", async () => {
       const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
       await ensureDir(skillsDir);

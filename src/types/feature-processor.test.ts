@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -477,11 +478,11 @@ describe("ClaimedIdentities", () => {
 });
 
 describe("pickLastRootWithFile", () => {
-  // `writeFileContent` is mocked at the top of this file, so we drop down to
-  // node:fs/promises directly here — we need real files on disk for the
-  // real `fileExists` reachable via the `...actual` spread to observe them.
+  // `writeFileContent` is mocked at the top of this file, so these cases use
+  // the statically imported node:fs/promises helpers instead — we need real
+  // files on disk for the real `fileExists` reachable via the `...actual`
+  // spread to observe them.
   it("returns the last root that has any of the candidate files", async () => {
-    const { mkdir, writeFile } = await import("node:fs/promises");
     const { testDir: root, cleanup } = await setupTestDirectory();
     try {
       const rootA = `${root}/a`;
@@ -497,6 +498,8 @@ describe("pickLastRootWithFile", () => {
         await pickLastRootWithFile({
           inputRoots: [rootA, rootB, rootC],
           relativePaths: ["mcp.jsonc"],
+          logger: createMockLogger(),
+          artifactName: "The hooks file",
         }),
       ).toBe(rootB);
     } finally {
@@ -505,7 +508,6 @@ describe("pickLastRootWithFile", () => {
   });
 
   it("logs which root replaced which when several roots provide the file", async () => {
-    const { mkdir, writeFile } = await import("node:fs/promises");
     const { testDir: root, cleanup } = await setupTestDirectory();
     try {
       const rootA = `${root}/a`;
@@ -523,7 +525,7 @@ describe("pickLastRootWithFile", () => {
         artifactName: "The hooks file",
       });
 
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(logger.warn).toHaveBeenCalledWith(
         `The hooks file is provided by more than one input root; '${rootB}' replaces the whole file from '${rootA}'.`,
       );
     } finally {
@@ -532,7 +534,6 @@ describe("pickLastRootWithFile", () => {
   });
 
   it("does not log when only one root provides the file", async () => {
-    const { mkdir, writeFile } = await import("node:fs/promises");
     const { testDir: root, cleanup } = await setupTestDirectory();
     try {
       const rootA = `${root}/a`;
@@ -547,7 +548,7 @@ describe("pickLastRootWithFile", () => {
         artifactName: "The hooks file",
       });
 
-      expect(logger.info).not.toHaveBeenCalled();
+      expect(logger.warn).not.toHaveBeenCalled();
     } finally {
       await cleanup();
     }
@@ -560,6 +561,8 @@ describe("pickLastRootWithFile", () => {
         await pickLastRootWithFile({
           inputRoots: [`${root}/a`, `${root}/b`],
           relativePaths: ["mcp.jsonc"],
+          logger: createMockLogger(),
+          artifactName: "The hooks file",
         }),
       ).toBeUndefined();
     } finally {

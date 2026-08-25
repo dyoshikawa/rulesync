@@ -414,6 +414,7 @@ It is especially useful for catching **silently ignored configuration**: the con
 - Structural schema violations on any other key (wrong types, malformed `sources` entries).
 - `sources[].tokenEnv` naming an environment variable that is not set.
 - `inputRoot` or the first `inputRoots` entry pointing at a directory that does not exist. Later `inputRoots` entries are optional overlays and may be absent.
+- `inputRoot` or an `inputRoots` entry set to an empty string, which silently resolves to the current directory instead of a source tree.
 - Duplicate entries in `inputRoots` (warning; duplicates are ignored at generate time).
 
 ### Options

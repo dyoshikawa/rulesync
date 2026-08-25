@@ -188,8 +188,10 @@ export async function pickLastRootWithFile({
 }: {
   inputRoots: readonly string[];
   relativePaths: readonly string[];
-  logger?: Logger;
-  artifactName?: string;
+  logger: Logger;
+  // Named so the log line below points at the artifact the user recognizes
+  // (e.g. "The permissions file") instead of an anonymous "This file".
+  artifactName: string;
 }): Promise<string | undefined> {
   let winner: string | undefined;
   const rootsWithFile: string[] = [];
@@ -207,12 +209,14 @@ export async function pickLastRootWithFile({
   // Replacing the whole file is the documented policy for single-file
   // features, but doing it silently makes an overlay look like it merged with
   // the base file. Name the roots that lost so the dropped content is
-  // traceable.
+  // traceable. This is a warning rather than progress output because the
+  // affected files (ignore, permissions, hooks) gate what an agent may read
+  // and run, so a whole-file replacement is worth noticing.
   if (rootsWithFile.length > 1 && winner !== undefined) {
     const shadowed = rootsWithFile.slice(0, -1);
 
-    logger?.info(
-      `${artifactName ?? "This file"} is provided by more than one input root; '${winner}' replaces the whole file from ${shadowed.map((root) => `'${root}'`).join(", ")}.`,
+    logger.warn(
+      `${artifactName} is provided by more than one input root; '${winner}' replaces the whole file from ${shadowed.map((root) => `'${root}'`).join(", ")}.`,
     );
   }
 

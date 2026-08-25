@@ -42,7 +42,10 @@ Without `--input-roots`, you would have to `cd ~/.aiglobal && rulesync generate`
 
 The most common reason to pass more than one entry to `--input-roots` is **per-developer local overrides**: check a shared `.rulesync/` tree into version control and let each developer keep an optional untracked `.rulesync.local/` tree next to it for their own tweaks.
 
-`rulesync gitignore` adds `.rulesync.local/` to the generated ignore list, so the overlay tree stays untracked without any extra setup.
+`rulesync gitignore` adds `.rulesync.local/` to the generated ignore list, so an overlay tree with that
+conventional name stays untracked without any extra setup. Any other name is not recognized, so if you
+call your overlay something else (for example `.rulesync.dev/`), add it to `.gitignore` yourself — an
+overlay tree can hold personal MCP credentials and permission settings that must not be committed.
 
 ```bash
 rulesync generate --input-roots ./.rulesync ./.rulesync.local --targets "*" --features rules,mcp
@@ -62,7 +65,7 @@ The general rule is: later entries win. Each feature refines that rule slightly:
 
 - **Rules, commands, subagents, checks, skills** — merged file-by-file (case-insensitive). Files present only in an earlier tree are kept; a file that also exists in a later tree replaces the earlier version. A skill directory is replaced as a single unit (all of its companion files together). Differently cased names that collapse to the same identity produce a warning instead of being dropped silently; the comparison also normalizes Unicode (NFC), so the composed and decomposed spellings of an accented name — one file on macOS — are treated as the same entry.
 - **MCP** — merged one level into the JSON: the top-level `mcpServers` map and each `<toolname>.mcpServers` map are merged by server name (later wins per key). An individual server config is replaced as a whole; patching just its `args` or `env` is not supported.
-- **Hooks, permissions, ignore** — the last tree that provides the file wins the whole file. There is no line-level merge. When more than one tree provides the file, Rulesync logs which tree won and which ones it replaced, so the dropped content is easy to trace.
+- **Hooks, permissions, ignore** — the last tree that provides the file wins the whole file. There is no line-level merge. When more than one tree provides the file, Rulesync warns which tree won and which ones it replaced, so the dropped content is easy to trace — these files decide what an agent may read and run, so a silent whole-file replacement would be easy to miss.
 
 Root order is the primary precedence rule. Within a single source tree, a rule or skill outside `.curated/` takes precedence over a same-named curated artifact. That comparison is case-insensitive for the same reason the cross-root merge is — the two names are one file on macOS and Windows — so a curated `shared.md` is skipped even when the local file is spelled `Shared.md`. A case-only match is reported as a warning, because on a case-sensitive filesystem the two are genuinely distinct files. After that per-tree choice is made, a later input root replaces an earlier root's effective artifact even when the later artifact is curated.
 

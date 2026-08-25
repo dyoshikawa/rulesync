@@ -173,7 +173,7 @@ export class IgnoreProcessor extends FeatureProcessor {
       inputRoots: this.inputRoots,
       relativePaths,
       logger: this.logger,
-      artifactName: "The ignore file (.rulesyncignore)",
+      artifactName: "The ignore file (.aiignore)",
     });
     const sourceTree = winningRoot ?? this.inputRoots[0];
 
