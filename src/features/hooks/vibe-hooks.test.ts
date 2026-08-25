@@ -229,6 +229,58 @@ describe("VibeHooks", () => {
       });
       expect(parsed.hooks.stop?.[0]?.matcher).toBeUndefined();
     });
+
+    it("should read the pre-2.21.0 event spellings and emit the renamed ones", () => {
+      const fileContent = smolToml.stringify({
+        hooks: [
+          { name: "guard", type: "before_tool", match: "bash", command: "./guard" },
+          { name: "audit", type: "after_tool", match: "bash", command: "./audit" },
+          { name: "turn", type: "post_agent_turn", command: "echo done" },
+        ],
+      });
+
+      const vibeHooks = new VibeHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".vibe",
+          relativeFilePath: "hooks.toml",
+          fileContent,
+        }),
+      );
+
+      const parsed = vibeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preToolUse?.[0]).toMatchObject({ command: "./guard", matcher: "bash" });
+      expect(parsed.hooks.postToolUse?.[0]).toMatchObject({ command: "./audit", matcher: "bash" });
+      expect(parsed.hooks.stop?.[0]).toMatchObject({ command: "echo done" });
+      // The legacy names must not survive into a tool override block.
+      expect(parsed.hooks.vibe).toBeUndefined();
+    });
+
+    it("should drop a prototype-pollution event name instead of keying by a prototype member", () => {
+      const fileContent = smolToml.stringify({
+        hooks: [
+          { name: "crafted", type: "__proto__", command: "echo crafted" },
+          { name: "ctor", type: "constructor", command: "echo ctor" },
+          { name: "ok", type: "pre_tool", match: "bash", command: "./guard" },
+        ],
+      });
+
+      const vibeHooks = new VibeHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".vibe",
+          relativeFilePath: "hooks.toml",
+          fileContent,
+        }),
+      );
+
+      const parsed = vibeHooks.toRulesyncHooks().getJson();
+      // The legitimate entry still imports.
+      expect(parsed.hooks.preToolUse?.[0]).toMatchObject({ command: "./guard", matcher: "bash" });
+      // The crafted names are dropped rather than resolving through the lookup
+      // map's prototype and landing in the tool override block under a
+      // stringified prototype member (e.g. "[object Object]").
+      expect(Object.keys(parsed.hooks)).toEqual(["preToolUse"]);
+      expect(parsed.vibe).toBeUndefined();
+    });
   });
 
   describe("fromFile", () => {
