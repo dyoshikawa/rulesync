@@ -11,9 +11,12 @@ import { AiFile } from "./ai-file.js";
 import {
   ClaimedIdentities,
   FeatureProcessor,
+  formatCuratedCaseCollisionWarning,
+  groupSpellingsByCaseFoldedIdentity,
   mergeByCaseInsensitiveIdentity,
   mergeByIdentity,
   pickLastRootWithFile,
+  resetRootShadowingWarnings,
 } from "./feature-processor.js";
 import { RulesyncFile } from "./rulesync-file.js";
 import { ToolFile } from "./tool-file.js";
@@ -477,6 +480,82 @@ describe("ClaimedIdentities", () => {
   });
 });
 
+describe("groupSpellingsByCaseFoldedIdentity", () => {
+  it("keeps every spelling that folds onto the same identity, in order", () => {
+    const grouped = groupSpellingsByCaseFoldedIdentity([
+      "shared.md",
+      "Shared.md",
+      "other.md",
+      "SHARED.MD",
+    ]);
+
+    expect(grouped.get("shared.md")).toEqual(["shared.md", "Shared.md", "SHARED.MD"]);
+    expect(grouped.get("other.md")).toEqual(["other.md"]);
+  });
+
+  it("folds NFD spellings onto their NFC identity", () => {
+    // macOS hands back decomposed filenames, so the same name typed on Linux
+    // must land in the same group.
+    const grouped = groupSpellingsByCaseFoldedIdentity(["caf\u00e9.md", "cafe\u0301.md"]);
+
+    expect(grouped.size).toBe(1);
+    expect(grouped.get("caf\u00e9.md".normalize("NFC"))).toEqual(["caf\u00e9.md", "cafe\u0301.md"]);
+  });
+});
+
+describe("formatCuratedCaseCollisionWarning", () => {
+  it("names the last local spelling as the winner and lists the rest", () => {
+    // The last spelling wins because `mergeByCaseInsensitiveIdentity` keeps the
+    // later entry, so the message must never point at one that loses.
+    const message = formatCuratedCaseCollisionWarning({
+      artifactKind: "rule",
+      entryNoun: "file",
+      treeDirPath: ".rulesync/rules",
+      curatedSpelling: ".curated/shared.md",
+      localSpellings: ["SHARED.MD", "Shared.md", "shared.md"],
+    });
+
+    expect(message).toBe(
+      "Case-insensitive rule collision under .rulesync/rules: curated '.curated/shared.md' and " +
+        "local 'shared.md' resolve to the same identity. The local file wins and the curated file " +
+        "is skipped. Other local spellings that fold onto the same identity: 'SHARED.MD', " +
+        "'Shared.md'.",
+    );
+  });
+
+  it("omits the extra-spellings sentence when there is only one local spelling", () => {
+    const message = formatCuratedCaseCollisionWarning({
+      artifactKind: "skill",
+      entryNoun: "skill",
+      treeDirPath: ".rulesync/skills",
+      curatedSpelling: "shared-skill",
+      localSpellings: ["Shared-Skill"],
+    });
+
+    expect(message).toBe(
+      "Case-insensitive skill collision under .rulesync/skills: curated 'shared-skill' and local " +
+        "'Shared-Skill' resolve to the same identity. The local skill wins and the curated skill " +
+        "is skipped.",
+    );
+  });
+
+  it("strips control characters from every untrusted segment", () => {
+    // `.curated/` names come from an external Git repository or npm package,
+    // and the tree path comes from a config file that can be committed, so an
+    // escape sequence must not reach the terminal from any of them.
+    const eraseLine = "\u001b[2K";
+    const message = formatCuratedCaseCollisionWarning({
+      artifactKind: "rule",
+      entryNoun: "file",
+      treeDirPath: `.rulesync${eraseLine}/rules`,
+      curatedSpelling: `.curated/${eraseLine}shared.md`,
+      localSpellings: [`${eraseLine}SHARED.md`, "Shared.md"],
+    });
+
+    expect(message).not.toContain("\u001b");
+  });
+});
+
 describe("pickLastRootWithFile", () => {
   // `writeFileContent` is mocked at the top of this file, so these cases use
   // the statically imported node:fs/promises helpers instead — we need real
@@ -568,6 +647,40 @@ describe("pickLastRootWithFile", () => {
       });
 
       expect(nextLogger.warn).toHaveBeenCalledTimes(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("logs the shadowing again after the suppression is reset for the run", async () => {
+    // `--watch` reuses one logger for every regeneration, so `generate` resets
+    // the suppression per run to keep reporting the replacement.
+    const { testDir: root, cleanup } = await setupTestDirectory();
+    try {
+      const rootA = `${root}/a`;
+      const rootB = `${root}/b`;
+      await mkdir(rootA, { recursive: true });
+      await mkdir(rootB, { recursive: true });
+      await writeFile(`${rootA}/mcp.jsonc`, "{}");
+      await writeFile(`${rootB}/mcp.jsonc`, "{}");
+      const logger = createMockLogger();
+
+      const pick = () =>
+        pickLastRootWithFile({
+          inputRoots: [rootA, rootB],
+          relativePaths: ["mcp.jsonc"],
+          logger,
+          artifactName: "The hooks file",
+        });
+
+      await pick();
+      await pick();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+
+      resetRootShadowingWarnings({ logger });
+      await pick();
+
+      expect(logger.warn).toHaveBeenCalledTimes(2);
     } finally {
       await cleanup();
     }

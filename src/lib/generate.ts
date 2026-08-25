@@ -28,7 +28,7 @@ import { SubagentsProcessor } from "../features/subagents/subagents-processor.js
 import { AiDir } from "../types/ai-dir.js";
 import { AiFile } from "../types/ai-file.js";
 import { DirFeatureProcessor } from "../types/dir-feature-processor.js";
-import { FeatureProcessor } from "../types/feature-processor.js";
+import { FeatureProcessor, resetRootShadowingWarnings } from "../types/feature-processor.js";
 import type { Feature } from "../types/features.js";
 import { getProcessorRegistryEntry } from "../types/processor-registry.js";
 import type { RulesyncFile } from "../types/rulesync-file.js";
@@ -597,6 +597,11 @@ export async function generate(params: {
   logger: Logger;
 }): Promise<GenerateResult> {
   const { config, logger } = params;
+
+  // Single-file features suppress a repeated shadowing warning per logger, and
+  // `--watch` reuses one logger across every regeneration, so each run starts
+  // from a clean slate.
+  resetRootShadowingWarnings({ logger });
 
   for (const toolTarget of config.getTargets()) {
     for (const outputRoot of config.getOutputRoots(toolTarget)) {

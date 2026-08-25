@@ -170,6 +170,30 @@ export abstract class FeatureProcessor {
 }
 
 /**
+ * Messages already reported for a given logger.
+ *
+ * One `generate` run constructs a single-file processor per tool target and
+ * per output root — more than twenty times for `--targets "*"` — and each one
+ * re-resolves the same roots. Keying on the logger — created once per run, and
+ * once per test — keeps the shadowing warning to a single line instead of
+ * repeating it for every target. `--watch` reuses one logger across runs, so
+ * {@link resetRootShadowingWarnings} clears the set at the start of each one.
+ */
+const warnedRootShadowingByLogger = new WeakMap<Logger, Set<string>>();
+
+/**
+ * Forget which shadowing warnings have already been reported.
+ *
+ * `generate` calls this once per run. Without it, `--watch` reuses one logger
+ * for the whole session, so the warning would be printed on the first
+ * generation and never again — the opposite of why it is a warning, since
+ * `--watch` is exactly when an overlay is most likely to be added or edited.
+ */
+export function resetRootShadowingWarnings({ logger }: { logger: Logger }): void {
+  warnedRootShadowingByLogger.delete(logger);
+}
+
+/**
  * Return the last input root that contains any of the given `relativePaths`,
  * or `undefined` when none of the roots has any of them. Used by single-file
  * features (hooks, permissions, ignore) to implement the "later root wins
@@ -181,17 +205,6 @@ export abstract class FeatureProcessor {
  * A root counts as "having" the file as long as at least one candidate path
  * is present.
  */
-/**
- * Messages already reported for a given logger.
- *
- * One `generate` run constructs a single-file processor per tool target and
- * per output root — more than twenty times for `--targets "*"` — and each one
- * re-resolves the same roots. Keying on the logger, which is created once per
- * run (and once per test), keeps the shadowing warning to a single line per
- * run instead of repeating it for every target.
- */
-const warnedRootShadowingByLogger = new WeakMap<Logger, Set<string>>();
-
 export async function pickLastRootWithFile({
   inputRoots,
   relativePaths,
@@ -364,7 +377,7 @@ export function formatCuratedCaseCollisionWarning({
           .join(", ")}.`;
 
   return (
-    `Case-insensitive ${artifactKind} collision under ${treeDirPath}: ` +
+    `Case-insensitive ${artifactKind} collision under ${stripControlCharacters(treeDirPath)}: ` +
     `curated '${stripControlCharacters(curatedSpelling)}' and local '${stripControlCharacters(winner)}' ` +
     `resolve to the same identity. The local ${entryNoun} wins and the curated ${entryNoun} is skipped.` +
     shadowedSuffix
@@ -403,7 +416,9 @@ export function mergeByCaseInsensitiveIdentity<T>({
 
       if (previousSpelling !== undefined && previousSpelling !== spelling && !warnedKeys.has(key)) {
         logger.warn(
-          `Case-insensitive ${artifactName} collision: '${previousSpelling}' and '${spelling}' resolve to the same identity. The later entry wins.`,
+          // Both spellings can come from `.curated/`, which is expanded from an
+          // external Git repository or npm package, so they are untrusted.
+          `Case-insensitive ${artifactName} collision: '${stripControlCharacters(previousSpelling)}' and '${stripControlCharacters(spelling)}' resolve to the same identity. The later entry wins.`,
         );
         warnedKeys.add(key);
       }
