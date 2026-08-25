@@ -1644,10 +1644,19 @@ export const CANONICAL_TO_VIBE_EVENT_NAMES: Record<string, string> = {
 
 /**
  * Map Mistral Vibe snake_case event names to canonical camelCase.
+ *
+ * The pre-2.21.0 spellings are accepted alongside the current ones. Vibe's
+ * strict `HookType` enum rejects a file that still uses them, so such a file is
+ * already dead on disk; reading it here and emitting the renamed spelling is
+ * what repairs it, whereas leaving the old name unmapped would route the hook
+ * into a tool override block and lose the event.
  */
-export const VIBE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_VIBE_EVENT_NAMES).map(([k, v]) => [v, k]),
-);
+export const VIBE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(CANONICAL_TO_VIBE_EVENT_NAMES).map(([k, v]) => [v, k])),
+  before_tool: "preToolUse",
+  after_tool: "postToolUse",
+  post_agent_turn: "stop",
+};
 
 /**
  * Map canonical camelCase event names to Qwen Code PascalCase.

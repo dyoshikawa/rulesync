@@ -229,6 +229,31 @@ describe("VibeHooks", () => {
       });
       expect(parsed.hooks.stop?.[0]?.matcher).toBeUndefined();
     });
+
+    it("should read the pre-2.21.0 event spellings and emit the renamed ones", () => {
+      const fileContent = smolToml.stringify({
+        hooks: [
+          { name: "guard", type: "before_tool", match: "bash", command: "./guard" },
+          { name: "audit", type: "after_tool", match: "bash", command: "./audit" },
+          { name: "turn", type: "post_agent_turn", command: "echo done" },
+        ],
+      });
+
+      const vibeHooks = new VibeHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".vibe",
+          relativeFilePath: "hooks.toml",
+          fileContent,
+        }),
+      );
+
+      const parsed = vibeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preToolUse?.[0]).toMatchObject({ command: "./guard", matcher: "bash" });
+      expect(parsed.hooks.postToolUse?.[0]).toMatchObject({ command: "./audit", matcher: "bash" });
+      expect(parsed.hooks.stop?.[0]).toMatchObject({ command: "echo done" });
+      // The legacy names must not survive into a tool override block.
+      expect(parsed.hooks.vibe).toBeUndefined();
+    });
   });
 
   describe("fromFile", () => {
