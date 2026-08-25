@@ -161,6 +161,7 @@ describe("generateCommand", () => {
   describe("rulesync directory check", () => {
     it("should throw error when .rulesync directory does not exist", async () => {
       vi.mocked(directoryExists).mockResolvedValue(false);
+      vi.mocked(fileExists).mockResolvedValue(false);
       const options: GenerateOptions = {};
 
       await expect(generateCommand(mockLogger, options)).rejects.toThrow(
@@ -168,6 +169,16 @@ describe("generateCommand", () => {
       );
 
       expect(directoryExists).toHaveBeenCalledWith("/test/project/.rulesync");
+    });
+
+    it("should throw a distinct error when .rulesync exists but is not a directory", async () => {
+      vi.mocked(directoryExists).mockResolvedValue(false);
+      vi.mocked(fileExists).mockResolvedValue(true);
+      const options: GenerateOptions = {};
+
+      await expect(generateCommand(mockLogger, options)).rejects.toThrow(
+        "Configured primary input root '/test/project/.rulesync' exists but is not a directory.",
+      );
     });
 
     it("should continue when .rulesync directory exists", async () => {

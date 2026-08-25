@@ -203,19 +203,25 @@ function getRecordField({
   return value;
 }
 
-function mergeTopLevelMcpServers({
-  baseServers,
-  overlayServers,
+/**
+ * Overlay one record onto another, dropping any overlay key that could reach
+ * `Object.prototype`. Every overlay merge goes through this so a `__proto__`
+ * entry cannot enter the merged config from any depth — top-level
+ * `mcpServers`, a tool-scoped block, or that block's own `mcpServers`.
+ */
+function mergeRecordsSkippingPollutionKeys({
+  base,
+  overlay,
 }: {
-  baseServers: Record<string, unknown>;
-  overlayServers: Record<string, unknown>;
+  base: Record<string, unknown>;
+  overlay: Record<string, unknown>;
 }): Record<string, unknown> {
-  const merged = { ...baseServers };
+  const merged = { ...base };
 
-  for (const [serverName, serverConfig] of Object.entries(overlayServers)) {
-    if (isPrototypePollutionKey(serverName)) continue;
+  for (const [key, value] of Object.entries(overlay)) {
+    if (isPrototypePollutionKey(key)) continue;
 
-    merged[serverName] = serverConfig;
+    merged[key] = value;
   }
 
   return merged;
@@ -237,14 +243,20 @@ export function mergeMcpJsonOverlays({
       const baseServers = getRecordField({ value: base.mcpServers, path: "mcpServers" });
       const overlayServers = getRecordField({ value: overlayValue, path: "mcpServers" });
 
-      merged.mcpServers = mergeTopLevelMcpServers({ baseServers, overlayServers });
+      merged.mcpServers = mergeRecordsSkippingPollutionKeys({
+        base: baseServers,
+        overlay: overlayServers,
+      });
       continue;
     }
 
     if (TOOL_SCOPED_MCP_KEYS.has(key)) {
       const baseBlock = getRecordField({ value: base[key], path: key });
       const overlayBlock = getRecordField({ value: overlayValue, path: key });
-      const mergedBlock: Record<string, unknown> = { ...baseBlock, ...overlayBlock };
+      const mergedBlock: Record<string, unknown> = mergeRecordsSkippingPollutionKeys({
+        base: baseBlock,
+        overlay: overlayBlock,
+      });
 
       const baseServers = getRecordField({
         value: baseBlock.mcpServers,
@@ -256,7 +268,10 @@ export function mergeMcpJsonOverlays({
       });
 
       if (Object.keys(baseServers).length > 0 || Object.keys(overlayServers).length > 0) {
-        mergedBlock.mcpServers = { ...baseServers, ...overlayServers };
+        mergedBlock.mcpServers = mergeRecordsSkippingPollutionKeys({
+          base: baseServers,
+          overlay: overlayServers,
+        });
       }
 
       merged[key] = mergedBlock;
@@ -358,7 +373,13 @@ export class RulesyncMcp extends RulesyncFile {
     }
 
     const paths = this.getSettablePaths();
-    const rootRecords: Record<string, unknown>[] = [];
+    const rootSources: {
+      record: Record<string, unknown>;
+      outputRoot: string;
+      relativeDirPath: string;
+      relativeFilePath: string;
+      fileContent: string;
+    }[] = [];
 
     for (const root of inputRoots) {
       // Each `root` is a source tree itself (e.g. `/repo/.rulesync.local`);
@@ -374,7 +395,7 @@ export class RulesyncMcp extends RulesyncFile {
 
       if (found === undefined) continue;
 
-      const { filePath } = found;
+      const { filePath, candidate } = found;
 
       if (filePath.endsWith(".mcp.json")) {
         const recommendedPath = join(parent, treeName, paths.recommended.relativeFilePath);
@@ -407,10 +428,16 @@ export class RulesyncMcp extends RulesyncFile {
         });
       }
 
-      rootRecords.push(parsed);
+      rootSources.push({
+        record: parsed,
+        outputRoot: parent,
+        relativeDirPath: candidate.relativeDirPath,
+        relativeFilePath: candidate.relativeFilePath,
+        fileContent,
+      });
     }
 
-    if (rootRecords.length === 0) {
+    if (rootSources.length === 0) {
       const primary = inputRoots[0];
 
       return this.fromFile({
@@ -421,11 +448,30 @@ export class RulesyncMcp extends RulesyncFile {
       });
     }
 
-    const merged = rootRecords.reduce<Record<string, unknown>>(
-      (acc, next) => mergeMcpJsonOverlays({ base: acc, overlay: next }),
+    const onlySource = rootSources.length === 1 ? rootSources[0]! : undefined;
+
+    if (onlySource !== undefined) {
+      // Nothing was merged, so keep the file exactly as authored — re-emitting
+      // it through `JSON.stringify` would drop JSONC comments — and anchor the
+      // instance at the root that actually supplied it rather than at the
+      // primary root's recommended path.
+      return new RulesyncMcp({
+        outputRoot: onlySource.outputRoot,
+        relativeDirPath: onlySource.relativeDirPath,
+        relativeFilePath: onlySource.relativeFilePath,
+        fileContent: onlySource.fileContent,
+        validate,
+      });
+    }
+
+    const merged = rootSources.reduce<Record<string, unknown>>(
+      (acc, next) => mergeMcpJsonOverlays({ base: acc, overlay: next.record }),
       {},
     );
 
+    // A merged config has no single source file, so it is anchored at the
+    // primary root's recommended path; comments cannot survive a merge of
+    // several files anyway.
     const primary = inputRoots[0];
 
     return new RulesyncMcp({

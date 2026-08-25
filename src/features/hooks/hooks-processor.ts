@@ -791,6 +791,8 @@ export class HooksProcessor extends FeatureProcessor {
     const winningRoot = await pickLastRootWithFile({
       inputRoots: this.inputRoots,
       relativePaths,
+      logger: this.logger,
+      artifactName: "The hooks file",
     });
     const sourceTree = winningRoot ?? this.inputRoots[0];
 

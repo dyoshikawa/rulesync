@@ -593,6 +593,75 @@ describe("doctorCommand", () => {
     );
   });
 
+  it("reports an inputRoots entry that is not a non-empty string instead of dropping it", async () => {
+    const base = join(testDir, "base");
+    await ensureDir(base);
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [base, 42, ""],
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("'inputRoots[1]' must be a non-empty string"),
+    );
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("'inputRoots[2]' must be a non-empty string"),
+    );
+  });
+
+  it("reports an inputRoots value that is not an array", async () => {
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: "./.rulesync",
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("'inputRoots' must be an array of non-empty strings"),
+    );
+  });
+
+  it("reports an empty inputRoots list", async () => {
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [],
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("'inputRoots' is an empty list"),
+    );
+  });
+
+  it("reports an inputRoot that is not a non-empty string", async () => {
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoot: "",
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("'inputRoot' must be a non-empty string"),
+    );
+  });
+
   it("accepts an inputRoots array of existing directories", async () => {
     const base = join(testDir, "base");
     const overlay = join(testDir, "overlay");

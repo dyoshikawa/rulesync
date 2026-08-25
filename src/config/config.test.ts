@@ -401,7 +401,7 @@ describe("Config", () => {
     });
   });
 
-  describe("getInputRoot", () => {
+  describe("getInputRoots", () => {
     let originalCwd: string;
 
     beforeEach(() => {

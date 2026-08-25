@@ -323,7 +323,10 @@ export function resolveEffectiveInputRoots({
     source = [join(cwd, RULESYNC_RELATIVE_DIR_PATH)];
   }
 
-  const candidates = source.map((entry) => resolve(entry));
+  // Resolve against the passed-in `cwd` rather than the ambient
+  // `process.cwd()`, so a relative entry lands under the directory the caller
+  // considers current (the default branch above already anchors to `cwd`).
+  const candidates = source.map((entry) => resolve(cwd, entry));
   const seen = new Set<string>();
   const resolved: string[] = [];
 

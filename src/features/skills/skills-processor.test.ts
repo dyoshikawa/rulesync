@@ -396,10 +396,12 @@ describe("SkillsProcessor", () => {
 
   describe("loadRulesyncDirs", () => {
     let processor: SkillsProcessor;
+    let logger: ReturnType<typeof createMockLogger>;
 
     beforeEach(() => {
+      logger = createMockLogger();
       processor = new SkillsProcessor({
-        logger: createMockLogger(),
+        logger,
         outputRoot: testDir,
         toolTarget: "claudecode",
       });
@@ -500,6 +502,43 @@ Curated content`,
       expect(rulesyncDirs).toHaveLength(1);
       expect((rulesyncDirs[0] as RulesyncSkill).getDirName()).toBe("Shared-Skill");
       expect((rulesyncDirs[0] as RulesyncSkill).getBody()).toBe("Local content");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Case-insensitive skill collision"),
+      );
+    });
+
+    it("should not warn when a curated skill is shadowed by an exactly-named local skill", async () => {
+      const localSkillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "shared-skill");
+      const curatedSkillDir = join(
+        testDir,
+        RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+        "shared-skill",
+      );
+      await ensureDir(localSkillDir);
+      await ensureDir(curatedSkillDir);
+      await writeFileContent(
+        join(localSkillDir, "SKILL.md"),
+        `---
+name: shared-skill
+description: Local skill
+---
+Local content`,
+      );
+      await writeFileContent(
+        join(curatedSkillDir, "SKILL.md"),
+        `---
+name: shared-skill
+description: Curated skill
+---
+Curated content`,
+      );
+
+      const rulesyncDirs = await processor.loadRulesyncDirs();
+
+      expect(rulesyncDirs).toHaveLength(1);
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Case-insensitive skill collision"),
+      );
     });
 
     it("should throw error when invalid skill directory is found", async () => {

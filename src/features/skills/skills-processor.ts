@@ -10,6 +10,7 @@ import {
 import { AiDir } from "../../types/ai-dir.js";
 import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
 import {
+  caseFoldIdentity,
   ClaimedIdentities,
   mergeByCaseInsensitiveIdentity,
 } from "../../types/feature-processor.js";
@@ -657,7 +658,12 @@ export class SkillsProcessor extends DirFeatureProcessor {
       ),
     );
 
-    const localSkillNames = new Set(localDirNames.map((name) => name.toLowerCase()));
+    // Keyed by case-folded name because two skill directories whose names
+    // differ only in case collapse onto one directory on macOS/Windows. The
+    // original spelling is kept as the value so the warning below names both.
+    const localSkillNamesByIdentity = new Map<string, string>(
+      localDirNames.map((name) => [caseFoldIdentity(name), name]),
+    );
 
     const curatedDirPath = join(sourceTree, CURATED_SKILLS_FEATURE_SUBDIR);
     let curatedSkills: RulesyncSkill[] = [];
@@ -667,12 +673,24 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const curatedDirNames = curatedDirPaths.map((path) => basename(path));
 
       const nonConflicting = curatedDirNames.filter((name) => {
-        if (localSkillNames.has(name.toLowerCase())) {
-          this.logger.debug(`Skipping curated skill "${name}": local skill takes precedence.`);
-          return false;
+        const shadowedBy = localSkillNamesByIdentity.get(caseFoldIdentity(name));
+
+        if (shadowedBy === undefined) {
+          return true;
         }
 
-        return true;
+        // An exact match is the documented local-wins-over-curated flow and
+        // stays at debug level; a case-only match is ambiguous enough to
+        // surface, mirroring the warning the cross-root merge emits.
+        if (shadowedBy === name) {
+          this.logger.debug(`Skipping curated skill "${name}": local skill takes precedence.`);
+        } else {
+          this.logger.warn(
+            `Case-insensitive skill collision under ${treeSkillsDirPath}: curated '${name}' and local '${shadowedBy}' resolve to the same identity. The local skill wins and the curated skill is skipped.`,
+          );
+        }
+
+        return false;
       });
 
       curatedSkills = await Promise.all(

@@ -183,19 +183,37 @@ export abstract class FeatureProcessor {
 export async function pickLastRootWithFile({
   inputRoots,
   relativePaths,
+  logger,
+  artifactName,
 }: {
   inputRoots: readonly string[];
   relativePaths: readonly string[];
+  logger?: Logger;
+  artifactName?: string;
 }): Promise<string | undefined> {
   let winner: string | undefined;
+  const rootsWithFile: string[] = [];
 
   for (const root of inputRoots) {
     for (const relativePath of relativePaths) {
       if (await fileExists(join(root, relativePath))) {
         winner = root;
+        rootsWithFile.push(root);
         break;
       }
     }
+  }
+
+  // Replacing the whole file is the documented policy for single-file
+  // features, but doing it silently makes an overlay look like it merged with
+  // the base file. Name the roots that lost so the dropped content is
+  // traceable.
+  if (rootsWithFile.length > 1 && winner !== undefined) {
+    const shadowed = rootsWithFile.slice(0, -1);
+
+    logger?.info(
+      `${artifactName ?? "This file"} is provided by more than one input root; '${winner}' replaces the whole file from ${shadowed.map((root) => `'${root}'`).join(", ")}.`,
+    );
   }
 
   return winner;
@@ -254,7 +272,7 @@ export function mergeByIdentity<T>({
  * filesystem); folding them here would instead drop names that a
  * case-sensitive filesystem keeps genuinely apart.
  */
-function caseFoldIdentity(identity: string): string {
+export function caseFoldIdentity(identity: string): string {
   return identity.normalize("NFC").toLowerCase();
 }
 

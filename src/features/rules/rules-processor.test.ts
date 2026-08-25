@@ -3241,6 +3241,34 @@ targets: ["opencode", "agentsmd"]
       expect(result).toHaveLength(1);
       expect(result[0]?.getRelativeFilePath()).toBe("Shared.md");
       expect(result[0]?.getBody()).toBe("Local content");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Case-insensitive rule collision"),
+      );
+    });
+
+    it("should not warn when a curated rule is shadowed by an exactly-named local rule", async () => {
+      const frontmatter = "---\ntargets:\n  - '*'\n---\n";
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "shared.md"),
+        `${frontmatter}Local content`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "shared.md"),
+        `${frontmatter}Remote content`,
+      );
+      const processor = new RulesProcessor({
+        logger,
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        outputRoot: testDir,
+        toolTarget: "copilot",
+      });
+
+      const result = (await processor.loadRulesyncFiles()) as RulesyncRule[];
+
+      expect(result).toHaveLength(1);
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Case-insensitive rule collision"),
+      );
     });
   });
 

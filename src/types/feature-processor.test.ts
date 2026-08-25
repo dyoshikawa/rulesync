@@ -504,6 +504,55 @@ describe("pickLastRootWithFile", () => {
     }
   });
 
+  it("logs which root replaced which when several roots provide the file", async () => {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const { testDir: root, cleanup } = await setupTestDirectory();
+    try {
+      const rootA = `${root}/a`;
+      const rootB = `${root}/b`;
+      await mkdir(rootA, { recursive: true });
+      await mkdir(rootB, { recursive: true });
+      await writeFile(`${rootA}/mcp.jsonc`, "{}");
+      await writeFile(`${rootB}/mcp.jsonc`, "{}");
+      const logger = createMockLogger();
+
+      await pickLastRootWithFile({
+        inputRoots: [rootA, rootB],
+        relativePaths: ["mcp.jsonc"],
+        logger,
+        artifactName: "The hooks file",
+      });
+
+      expect(logger.info).toHaveBeenCalledWith(
+        `The hooks file is provided by more than one input root; '${rootB}' replaces the whole file from '${rootA}'.`,
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("does not log when only one root provides the file", async () => {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const { testDir: root, cleanup } = await setupTestDirectory();
+    try {
+      const rootA = `${root}/a`;
+      await mkdir(rootA, { recursive: true });
+      await writeFile(`${rootA}/mcp.jsonc`, "{}");
+      const logger = createMockLogger();
+
+      await pickLastRootWithFile({
+        inputRoots: [rootA, `${root}/b`],
+        relativePaths: ["mcp.jsonc"],
+        logger,
+        artifactName: "The hooks file",
+      });
+
+      expect(logger.info).not.toHaveBeenCalled();
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("returns undefined when no root has any candidate", async () => {
     const { testDir: root, cleanup } = await setupTestDirectory();
     try {

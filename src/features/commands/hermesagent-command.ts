@@ -18,6 +18,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import { caseFoldIdentity } from "../../types/feature-processor.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { findFilesByGlobs, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import {
@@ -289,14 +290,24 @@ export class HermesagentCommand extends ToolCommand {
     for (const rootPath of inputRoots) {
       const skillsRoot = join(rootPath, SKILLS_FEATURE_SUBDIR);
       const skillFiles = await findFilesByGlobs(join(skillsRoot, "**", "SKILL.md"));
-      for (const filePath of skillFiles) {
-        const dirName = toPosixPath(relative(skillsRoot, dirname(filePath)));
-        const rulesyncSkill = await RulesyncSkill.fromDir({
-          outputRoot: rootPath,
-          relativeDirPath: SKILLS_FEATURE_SUBDIR,
-          dirName,
-        });
-        skillsByName.set(dirName, { rulesyncSkill, dirName, rootPath });
+      // Roots stay sequential so a later root still shadows an earlier one, but
+      // the skills inside one root are independent and load concurrently.
+      const loaded = await Promise.all(
+        skillFiles.map(async (filePath) => {
+          const dirName = toPosixPath(relative(skillsRoot, dirname(filePath)));
+          const rulesyncSkill = await RulesyncSkill.fromDir({
+            outputRoot: rootPath,
+            relativeDirPath: SKILLS_FEATURE_SUBDIR,
+            dirName,
+          });
+          return { rulesyncSkill, dirName, rootPath };
+        }),
+      );
+      for (const entry of loaded) {
+        // Key on the case-folded name so shadowing matches what the skills
+        // processor actually does across roots; a case-only variant in a later
+        // root replaces the earlier skill instead of being counted twice.
+        skillsByName.set(caseFoldIdentity(entry.dirName), entry);
       }
     }
     const collisions = [...skillsByName.values()]

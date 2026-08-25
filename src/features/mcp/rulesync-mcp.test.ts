@@ -1559,6 +1559,25 @@ describe("RulesyncMcp.fromRoots", () => {
     expect(rulesyncMcp.getFileContent()).toBe(fileContent);
   });
 
+  it("should preserve JSONC content and source path when only one of several roots has the file", async () => {
+    const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+    const overlayRoot = join(testDir, ".rulesync.local");
+    const fileContent = `{
+  // Only the overlay provides an MCP file, so nothing is merged.
+  "mcpServers": {
+    "alpha": { "command": "alpha" },
+  },
+}`;
+
+    await ensureDir(baseRoot);
+    await writeFileContent(join(overlayRoot, RULESYNC_MCP_FILE_NAME), fileContent);
+
+    const rulesyncMcp = await RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] });
+
+    expect(rulesyncMcp.getFileContent()).toBe(fileContent);
+    expect(rulesyncMcp.getFilePath()).toBe(join(overlayRoot, RULESYNC_MCP_FILE_NAME));
+  });
+
   it("should reject top-level null MCP servers instead of treating them as deletions", async () => {
     const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
     const overlayRoot = join(testDir, ".rulesync.local");
@@ -1710,6 +1729,20 @@ describe("mergeMcpJsonOverlays", () => {
     expect(mergeMcpJsonOverlays({ base: { mcpServers: {} }, overlay })).toEqual({
       mcpServers: {},
     });
+  });
+
+  it("drops prototype-pollution keys inside a tool-scoped block and its mcpServers", () => {
+    const overlay = JSON.parse(
+      '{"cursor": {"__proto__": {"polluted": true}, "mcpServers": {"__proto__": {"polluted": true}, "alpha": {"command": "alpha"}}}}',
+    );
+
+    const merged = mergeMcpJsonOverlays({ base: { cursor: { mcpServers: {} } }, overlay });
+
+    expect(merged).toEqual({ cursor: { mcpServers: { alpha: { command: "alpha" } } } });
+    expect(Object.keys(merged.cursor as Record<string, unknown>)).toEqual(["mcpServers"]);
+    expect(
+      Object.keys((merged.cursor as Record<string, unknown>).mcpServers as Record<string, unknown>),
+    ).toEqual(["alpha"]);
   });
 
   it("rejects non-object mcpServers overlays instead of treating them as empty", () => {

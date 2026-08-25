@@ -10,7 +10,11 @@ import {
   RULES_FEATURE_SUBDIR,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import { FeatureProcessor, mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
+import {
+  caseFoldIdentity,
+  FeatureProcessor,
+  mergeByCaseInsensitiveIdentity,
+} from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -1658,14 +1662,37 @@ As this project's AI coding tool, you must follow the additional conventions bel
     const localFiles = files.filter(
       (file) => !relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`),
     );
-    const localRelativePaths = new Set(
-      localFiles.map((file) => relative(rulesyncOutputRoot, file).toLowerCase()),
-    );
+    // Keyed by case-folded path because a curated and a local file whose names
+    // differ only in case collapse onto one file on macOS/Windows, so the
+    // curated one cannot be emitted alongside the local one there. The original
+    // spelling is kept as the value so the warning below can name both.
+    const localRelativePathsByIdentity = new Map<string, string>();
+    for (const file of localFiles) {
+      const relativeFilePath = relative(rulesyncOutputRoot, file);
+      localRelativePathsByIdentity.set(caseFoldIdentity(relativeFilePath), relativeFilePath);
+    }
 
     const curatedFiles = files
       .filter((file) => relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`))
       .map((file) => ({ file, relativeFilePath: relative(curatedOutputRoot, file) }))
-      .filter(({ relativeFilePath }) => !localRelativePaths.has(relativeFilePath.toLowerCase()));
+      .filter(({ relativeFilePath }) => {
+        const shadowedBy = localRelativePathsByIdentity.get(caseFoldIdentity(relativeFilePath));
+
+        if (shadowedBy === undefined) {
+          return true;
+        }
+
+        // An exact match is the documented local-wins-over-curated flow and
+        // stays silent; a case-only match is ambiguous enough to surface,
+        // mirroring the warning the cross-root merge emits.
+        if (shadowedBy !== relativeFilePath) {
+          this.logger.warn(
+            `Case-insensitive rule collision under ${treeRulesDirPath}: curated '${join(".curated", relativeFilePath)}' and local '${shadowedBy}' resolve to the same identity. The local file wins and the curated file is skipped.`,
+          );
+        }
+
+        return false;
+      });
 
     const selectedFiles = [
       ...localFiles.map((file) => ({

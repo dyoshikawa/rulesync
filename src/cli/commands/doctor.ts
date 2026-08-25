@@ -671,6 +671,16 @@ async function checkInputRootExists({
     [baseInputConfig, baseFile],
     [localInputConfig, localFile],
   ] as const) {
+    for (const issue of config.issues) {
+      diagnostics.push({
+        severity: "error",
+        code: "config/input-root-invalid",
+        file,
+        message: issue.message,
+        hint: issue.hint,
+      });
+    }
+
     if (config.inputRoot !== undefined && config.inputRoots !== undefined) {
       diagnostics.push({
         severity: "error",
@@ -748,23 +758,69 @@ async function checkInputRootExists({
   return diagnostics;
 }
 
-function readDoctorInputRootConfig(config: Record<string, unknown> | undefined): InputRootConfig {
+/**
+ * Reading the raw config here is deliberately tolerant so `doctor` can keep
+ * inspecting a file the strict loader would reject outright. Everything it
+ * drops is reported back as an `issue` instead of vanishing, which is the
+ * whole point of the command.
+ */
+function readDoctorInputRootConfig(config: Record<string, unknown> | undefined): InputRootConfig & {
+  issues: { message: string; hint: string }[];
+} {
   const inputRootValue = config?.inputRoot;
   const inputRootsValue = config?.inputRoots;
+  const issues: { message: string; hint: string }[] = [];
+
   const inputRoot =
     typeof inputRootValue === "string" && inputRootValue.length > 0 ? inputRootValue : undefined;
 
-  if (!Array.isArray(inputRootsValue) || inputRootsValue.length === 0) {
-    return { inputRoot, inputRoots: undefined };
+  if (inputRootValue !== undefined && inputRoot === undefined) {
+    issues.push({
+      message: `'inputRoot' must be a non-empty string, but got ${JSON.stringify(inputRootValue)}; the value is ignored.`,
+      hint: "Set 'inputRoot' to the directory that contains your '.rulesync' source tree.",
+    });
   }
 
-  const inputRoots = inputRootsValue.filter(
-    (entry): entry is string => typeof entry === "string" && entry.length > 0,
-  );
+  if (inputRootsValue === undefined) {
+    return { inputRoot, inputRoots: undefined, issues };
+  }
+
+  if (!Array.isArray(inputRootsValue)) {
+    issues.push({
+      message: `'inputRoots' must be an array of non-empty strings, but got ${JSON.stringify(inputRootsValue)}; the value is ignored.`,
+      hint: 'Write \'inputRoots\' as a list, e.g. [".rulesync", ".rulesync.local"].',
+    });
+
+    return { inputRoot, inputRoots: undefined, issues };
+  }
+
+  if (inputRootsValue.length === 0) {
+    issues.push({
+      message: "'inputRoots' is an empty list; the value is ignored.",
+      hint: "Remove the empty 'inputRoots' or list at least one source tree.",
+    });
+
+    return { inputRoot, inputRoots: undefined, issues };
+  }
+
+  const inputRoots: string[] = [];
+
+  for (const [index, entry] of inputRootsValue.entries()) {
+    if (typeof entry === "string" && entry.length > 0) {
+      inputRoots.push(entry);
+      continue;
+    }
+
+    issues.push({
+      message: `'inputRoots[${index}]' must be a non-empty string, but got ${JSON.stringify(entry)}; the entry is ignored.`,
+      hint: "Replace the entry with a path to a source tree, or remove it.",
+    });
+  }
 
   return {
     inputRoot,
     inputRoots: inputRoots.length === 0 ? undefined : inputRoots,
+    issues,
   };
 }
 

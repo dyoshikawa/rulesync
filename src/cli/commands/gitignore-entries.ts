@@ -55,6 +55,10 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   },
   { target: "common", feature: "general", entry: ".rulesync/rules/*.local.md" },
   { target: "common", feature: "general", entry: "rulesync.local.jsonc" },
+  // The conventional per-developer overlay source tree. The multi-root guide
+  // describes it as untracked, so ignoring it keeps that promise by default;
+  // a team that does want to commit it can un-ignore it locally.
+  { target: "common", feature: "general", entry: ".rulesync.local/" },
   // AGENTS.local.md is placed in common scope (not rovodev-only) so that
   // local rule files are always gitignored regardless of which targets are enabled.
   { target: "common", feature: "general", entry: "**/AGENTS.local.md" },

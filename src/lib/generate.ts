@@ -226,6 +226,7 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
   const existing: string[] = [];
   const missing: string[] = [];
   const invalidOverlays: string[] = [];
+  const nonDirectories = new Set<string>();
 
   for (const [index, root] of inputRoots.entries()) {
     if (await directoryExists(root)) {
@@ -233,8 +234,14 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
     } else {
       missing.push(root);
 
-      if (index > 0 && (await fileExists(root))) {
-        invalidOverlays.push(root);
+      // A path that exists but is not a directory is a different mistake than
+      // a path that is simply absent, so it gets its own wording below.
+      if (await fileExists(root)) {
+        nonDirectories.add(root);
+
+        if (index > 0) {
+          invalidOverlays.push(root);
+        }
       }
     }
   }
@@ -256,7 +263,7 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
 
   const defaultRoot = join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH);
 
-  if (primaryRoot === defaultRoot) {
+  if (primaryRoot === defaultRoot && !nonDirectories.has(primaryRoot)) {
     return {
       existing,
       missing,
@@ -264,10 +271,24 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
     };
   }
 
+  // The primary root can come from either the plural `inputRoots` or the
+  // deprecated singular `inputRoot`, and this function does not know which one
+  // the user actually wrote, so the hint names both instead of asserting a
+  // setting the user may not have.
+  const settingHint = `your input root setting ('inputRoots', or the deprecated 'inputRoot')`;
+
+  if (nonDirectories.has(primaryRoot)) {
+    return {
+      existing,
+      missing,
+      message: `Configured primary input root '${primaryRoot}' exists but is not a directory. Point ${settingHint} at a directory.`,
+    };
+  }
+
   return {
     existing,
     missing,
-    message: `Configured primary input root '${primaryRoot}' does not exist. Create the directory or update your inputRoots setting.`,
+    message: `Configured primary input root '${primaryRoot}' does not exist. Create the directory or update ${settingHint}.`,
   };
 }
 

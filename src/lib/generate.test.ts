@@ -92,7 +92,21 @@ describe("inspectInputRoots", () => {
     const result = await inspectInputRoots(["/shared/.rulesync"]);
 
     expect(result.message).toBe(
-      "Configured primary input root '/shared/.rulesync' does not exist. Create the directory or update your inputRoots setting.",
+      "Configured primary input root '/shared/.rulesync' does not exist. Create the directory or update your input root setting ('inputRoots', or the deprecated 'inputRoot').",
+    );
+  });
+
+  it("should distinguish a primary input root that exists but is not a directory", async () => {
+    vi.spyOn(process, "cwd").mockReturnValue("/project");
+    vi.mocked(directoryExists).mockResolvedValue(false);
+    // `Once` so the stub does not leak into the sibling tests, which rely on
+    // the default falsy `fileExists`.
+    vi.mocked(fileExists).mockResolvedValueOnce(true);
+
+    const result = await inspectInputRoots(["/project/.rulesync"]);
+
+    expect(result.message).toBe(
+      "Configured primary input root '/project/.rulesync' exists but is not a directory. Point your input root setting ('inputRoots', or the deprecated 'inputRoot') at a directory.",
     );
   });
 
