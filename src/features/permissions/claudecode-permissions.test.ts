@@ -1251,7 +1251,7 @@ describe("ClaudecodePermissions", () => {
         // Written either way — the warning marks the loosening value, it does
         // not veto it.
         expect(JSON.parse(instance.getFileContent()).disableSkillShellExecution).toBe(value);
-        const matcher = expect.stringContaining("writing 'disableSkillShellExecution'");
+        const matcher = expect.stringContaining("'disableSkillShellExecution' —");
         if (expectWarning) {
           expect(warnSpy).toHaveBeenCalledWith(matcher);
         } else {
@@ -1308,7 +1308,7 @@ describe("ClaudecodePermissions", () => {
 
         // Written, because the key is honored in a project settings file.
         expect(JSON.parse(instance.getFileContent())[key]).toEqual(["*"]);
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`writing '${key}'`));
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`'${key}' —`));
       },
     );
 
@@ -1389,7 +1389,7 @@ describe("ClaudecodePermissions", () => {
         });
 
         expect(JSON.parse(instance.getFileContent())[key]).toBeDefined();
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`writing '${key}'`));
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`'${key}' —`));
       },
     );
 
@@ -1430,7 +1430,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       expect(JSON.parse(instance.getFileContent()).sandbox).toBeDefined();
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`writing '${expectedPath}'`));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`'${expectedPath}' —`));
     });
 
     it("stays quiet about the sandbox values that restrict rather than loosen", async () => {
@@ -1461,7 +1461,7 @@ describe("ClaudecodePermissions", () => {
         logger: mockLogger,
       });
 
-      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("writing 'sandbox."));
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("'sandbox."));
     });
 
     it("does not claim to write a sandbox path the project scope drops", async () => {
@@ -1487,7 +1487,7 @@ describe("ClaudecodePermissions", () => {
 
       expect(JSON.parse(instance.getFileContent()).sandbox).toBeUndefined();
       expect(warnSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining("writing 'sandbox.allowAppleEvents'"),
+        expect.stringContaining("'sandbox.allowAppleEvents' —"),
       );
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("'sandbox.allowAppleEvents' is only honored"),
@@ -1514,9 +1514,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       expect(JSON.parse(instance.getFileContent()).sandbox.allowAppleEvents).toBe(true);
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("writing 'sandbox.allowAppleEvents'"),
-      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'sandbox.allowAppleEvents' —"));
     });
 
     it.each(["autoMode", "skipAutoPermissionPrompt", "skipDangerousModePermissionPrompt"])(
@@ -1553,11 +1551,9 @@ describe("ClaudecodePermissions", () => {
 
         // Project scope drops the key before the trust warning could name it,
         // so it is reported as skipped rather than as written.
-        expect(projectWarnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining(`writing '${key}'`),
-        );
+        expect(projectWarnSpy).not.toHaveBeenCalledWith(expect.stringContaining(`'${key}' —`));
         expect(JSON.parse(globalInstance.getFileContent())[key]).toBe(true);
-        expect(globalWarnSpy).toHaveBeenCalledWith(expect.stringContaining(`writing '${key}'`));
+        expect(globalWarnSpy).toHaveBeenCalledWith(expect.stringContaining(`'${key}' —`));
       },
     );
 
@@ -1582,9 +1578,7 @@ describe("ClaudecodePermissions", () => {
         });
 
         expect(JSON.parse(instance.getFileContent()).sandbox.network[key]).toBe(8080);
-        expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining(`writing 'sandbox.network.${key}'`),
-        );
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`'sandbox.network.${key}' —`));
       },
     );
 
@@ -1610,9 +1604,7 @@ describe("ClaudecodePermissions", () => {
         "https://marketplace.test",
       ]);
       // Warned under the authored spelling, matched through its canonical key.
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("writing 'additionalMarketplaces'"),
-      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'additionalMarketplaces' —"));
     });
 
     it("explains the refusal in terms of the shareable permissions file", async () => {
@@ -1720,9 +1712,294 @@ describe("ClaudecodePermissions", () => {
       expect(content.env).toEqual({ ANTHROPIC_BASE_URL: "https://proxy.test" });
       expect(content.enableAllProjectMcpServers).toBe(true);
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("writing 'env' to settings.json"),
+        expect.stringContaining("'env' — sets environment variables"),
       );
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'enableAllProjectMcpServers'"));
+    });
+
+    it("reports every trust-affecting setting in a single warning per file", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: {
+            permissions: { defaultMode: "acceptEdits" },
+            sandbox: { enabled: true, network: { allowedDomains: ["*"] } },
+            env: { ANTHROPIC_BASE_URL: "https://proxy.test" },
+          },
+        }),
+      });
+
+      await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      // One line, not four: the reasons are what differ, and repeating the
+      // "review this as you would a hook" advice per key buries them.
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("writing 4 trust-affecting settings to settings.json");
+      expect(message).toContain(`'permissions.defaultMode: "acceptEdits"' —`);
+      expect(message).toContain("'sandbox.enabled' —");
+      expect(message).toContain("'sandbox.network.allowedDomains' —");
+      expect(message).toContain("'env' —");
+    });
+
+    it("keeps the summary singular when only one setting is trust-affecting", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { disableAllHooks: true },
+        }),
+      });
+
+      await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "writing 1 trust-affecting setting to settings.json; review it as you would a hook",
+        ),
+      );
+    });
+
+    it("stays silent when nothing the override writes is trust-affecting", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { editorMode: "vim" },
+        }),
+      });
+
+      await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("trust-affecting"));
+    });
+
+    it.each([
+      [
+        { filesystem: { allowManagedReadPathsOnly: true } },
+        "sandbox.filesystem.allowManagedReadPathsOnly",
+      ],
+      [{ network: { allowManagedDomainsOnly: true } }, "sandbox.network.allowManagedDomainsOnly"],
+    ])(
+      "drops a managed-only sandbox path in both scopes and warns (%o)",
+      async (sandbox, expectedPath) => {
+        for (const global of [false, true]) {
+          const mockLogger = createMockLogger();
+          const warnSpy = vi.spyOn(mockLogger, "warn");
+          const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+            outputRoot: testDir,
+            rulesyncPermissions: new RulesyncPermissions({
+              relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+              relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+              fileContent: JSON.stringify({
+                permission: { bash: { "git *": "allow" } },
+                claudecode: { sandbox },
+              }),
+            }),
+            global,
+            logger: mockLogger,
+          });
+
+          // Nothing is left behind: the emptied container goes with the path.
+          expect(JSON.parse(instance.getFileContent()).sandbox).toBeUndefined();
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining(`'${expectedPath}' is only honored in managed settings`),
+          );
+        }
+      },
+    );
+
+    it("keeps the deny lists beside a dropped managed-only sandbox path", async () => {
+      const mockLogger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: {
+            sandbox: { network: { allowManagedDomainsOnly: true, deniedDomains: ["evil.test"] } },
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      const network = JSON.parse(instance.getFileContent()).sandbox.network;
+      expect(network.allowManagedDomainsOnly).toBeUndefined();
+      expect(network.deniedDomains).toEqual(["evil.test"]);
+    });
+
+    it.each([
+      ["claudeMdExcludes", ["**/vendor/**/CLAUDE.md"], []],
+      ["companyAnnouncements", ["Read our guidelines at docs.example.com"], []],
+      ["modelOverrides", { "claude-opus-4-6": "arn:aws:bedrock:::profile/x" }, {}],
+      ["prUrlTemplate", "https://reviews.test/{owner}/{repo}/pull/{number}", undefined],
+      ["skipWebFetchPreflight", true, false],
+    ])(
+      "warns about '%s' at the value that widens and stays quiet at the one that does not",
+      async (key, wideningValue, quietValue) => {
+        const generate = async (value: unknown) => {
+          const mockLogger = createMockLogger();
+          const warnSpy = vi.spyOn(mockLogger, "warn");
+          const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+            outputRoot: testDir,
+            rulesyncPermissions: new RulesyncPermissions({
+              relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+              relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+              fileContent: JSON.stringify({
+                permission: { bash: { "git *": "allow" } },
+                claudecode: { [key]: value },
+              }),
+            }),
+            logger: mockLogger,
+          });
+          return { content: JSON.parse(instance.getFileContent()), warnSpy };
+        };
+
+        // Every one of these is documented `Any file`, so it is written at
+        // project scope either way; only the warning depends on the value.
+        const widening = await generate(wideningValue);
+        expect(widening.content[key]).toEqual(wideningValue);
+        expect(widening.warnSpy).toHaveBeenCalledWith(expect.stringContaining(`'${key}' —`));
+
+        if (quietValue === undefined) return;
+        const quiet = await generate(quietValue);
+        expect(quiet.content[key]).toEqual(quietValue);
+        expect(quiet.warnSpy).not.toHaveBeenCalledWith(expect.stringContaining(`'${key}' —`));
+      },
+    );
+
+    it("drops a project-scoped 'remoteControlAtStartup: true' that Claude Code ignores", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { remoteControlAtStartup: true },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).remoteControlAtStartup).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "this value of 'remoteControlAtStartup' is not honored in the project-scoped settings.json",
+        ),
+      );
+      // Reported as skipped, not as written.
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("'remoteControlAtStartup' —"),
+      );
+    });
+
+    it("writes the project-scoped 'remoteControlAtStartup: false' that Claude Code honors", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { remoteControlAtStartup: false },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      // `false` turns auto-connect off for the checkout, which restricts, so it
+      // is written and says nothing.
+      expect(JSON.parse(instance.getFileContent()).remoteControlAtStartup).toBe(false);
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("'remoteControlAtStartup'"));
+    });
+
+    it("writes 'remoteControlAtStartup: true' under --global and warns", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { remoteControlAtStartup: true },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        global: true,
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).remoteControlAtStartup).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'remoteControlAtStartup' —"));
+    });
+
+    it("writes a settings key named after an Object.prototype member untouched", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          // `toString` and `valueOf` resolve on `Object.prototype`, so a
+          // lookup in either key table finds a function where it expected
+          // `undefined` unless it is guarded by `Object.hasOwn`. Nothing calls
+          // that function today, because the `CLAUDECODE_TRUST_AFFECTING_KEYS`
+          // check short-circuits first; this pins the behavior the guard makes
+          // local instead of order-dependent.
+          claudecode: { toString: "vim", valueOf: 1 },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.toString).toBe("vim");
+      expect(content.valueOf).toBe(1);
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("trust-affecting"));
     });
   });
 
