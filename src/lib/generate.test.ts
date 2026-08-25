@@ -96,6 +96,23 @@ describe("inspectInputRoots", () => {
     );
   });
 
+  it("should strip control characters from a configured input root", async () => {
+    // The path comes from a config file that can be checked into a repository,
+    // so an erase-line sequence must not reach the terminal. This message needs
+    // only a configured root, not an existing one, so it is the cheapest of
+    // these paths to reach.
+    const eraseLine = "\u001b[2K";
+    vi.mocked(directoryExists).mockResolvedValue(false);
+
+    const result = await inspectInputRoots([`/shared/${eraseLine}.rulesync`]);
+
+    // The escape introducer is what makes the sequence act on the terminal; the
+    // remaining `[2K` is inert printable text and is left visible.
+    expect(result.message).toBe(
+      "Configured primary input root '/shared/[2K.rulesync' does not exist. Create the directory or update your input root setting ('inputRoots', or the deprecated 'inputRoot').",
+    );
+  });
+
   it("should distinguish a primary input root that exists but is not a directory", async () => {
     vi.spyOn(process, "cwd").mockReturnValue("/project");
     vi.mocked(directoryExists).mockResolvedValue(false);

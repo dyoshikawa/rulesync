@@ -33,6 +33,7 @@ import type { Feature } from "../types/features.js";
 import { getProcessorRegistryEntry } from "../types/processor-registry.js";
 import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import { directoryExists, fileExists, toPosixPath } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -247,6 +248,11 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
   }
 
   const primaryRoot = inputRoots[0];
+  // Input roots come from a config file that can be checked into a repository,
+  // so every one of them is sanitized before it reaches the terminal. These
+  // messages are the easiest of the lot to reach: a root only has to be
+  // configured, not to exist.
+  const displayPrimaryRoot = stripControlCharacters(primaryRoot ?? "");
 
   if (primaryRoot === undefined || existing.includes(primaryRoot)) {
     const invalidOverlay = invalidOverlays[0];
@@ -257,7 +263,7 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
       message:
         invalidOverlay === undefined
           ? undefined
-          : `Configured optional input root '${invalidOverlay}' exists but is not a directory.`,
+          : `Configured optional input root '${stripControlCharacters(invalidOverlay)}' exists but is not a directory.`,
     };
   }
 
@@ -281,14 +287,14 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
     return {
       existing,
       missing,
-      message: `Configured primary input root '${primaryRoot}' exists but is not a directory. Point ${settingHint} at a directory.`,
+      message: `Configured primary input root '${displayPrimaryRoot}' exists but is not a directory. Point ${settingHint} at a directory.`,
     };
   }
 
   return {
     existing,
     missing,
-    message: `Configured primary input root '${primaryRoot}' does not exist. Create the directory or update ${settingHint}.`,
+    message: `Configured primary input root '${displayPrimaryRoot}' does not exist. Create the directory or update ${settingHint}.`,
   };
 }
 
