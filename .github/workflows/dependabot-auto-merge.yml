@@ -25,6 +25,14 @@ concurrency:
 
 jobs:
   dependabot-auto-merge:
+    # The `github.actor` gate mirrors `draft-release.yml`, so the job that receives
+    # the model key and a write-scoped token stays reachable only through the
+    # schedule — whose definition always comes from `main` — or a maintainer's own
+    # dispatch.
+    if: >-
+      github.event_name == 'schedule' ||
+      github.actor == 'dyoshikawa' ||
+      github.actor == 'cm-dyoshikawa'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -71,7 +79,7 @@ jobs:
 
       - name: Run OpenCode to babysit Dependabot pull requests
         if: steps.check.outputs.count != '0'
-        uses: anomalyco/opencode/github@31406ccc51b4bd2a4e1e086b2bcaa5f7f804f26d # v1.18.18
+        uses: anomalyco/opencode/github@2b72179c663cadcb54f54d9f19221b3fb3d11fb6 # v1.18.19
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -86,3 +94,8 @@ jobs:
             For each one, run the `babysit-dependabot-pr` skill with that pull request number, one pull request at a time.
             The skill verifies the author is the genuine Dependabot bot, diagnoses any CI failure, excludes or fixes a breaking bump, and merges once every check is green.
             Do not act on any pull request whose author is not Dependabot.
+
+            This repository's `main` ruleset lists no bypass actor for the Actions app, so
+            `gh pr merge --admin` cannot force a merge from here. Merge with
+            `gh pr merge <number> --merge` instead, and if the ruleset rejects it, leave the
+            pull request open and report why rather than retrying with `--admin`.
