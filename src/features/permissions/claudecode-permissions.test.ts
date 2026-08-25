@@ -1906,13 +1906,13 @@ describe("ClaudecodePermissions", () => {
     // An exact match on the widening value would let every case below through
     // in silence.
     it.each([
-      ["skipWebFetchPreflight", 1, "skipWebFetchPreflight"],
-      ["skipWebFetchPreflight", "true", "skipWebFetchPreflight"],
-      ["disableSkillShellExecution", 0, "disableSkillShellExecution"],
-      ["sandbox", { filesystem: { allowRead: "/etc" } }, "sandbox.filesystem.allowRead"],
-      ["sandbox", { enableWeakerNestedSandbox: 1 }, "sandbox.enableWeakerNestedSandbox"],
-      ["sandbox", { network: { allowLocalBinding: "yes" } }, "sandbox.network.allowLocalBinding"],
-    ])("reports an off-type '%s' rather than passing it over", async (key, value, label) => {
+      ["skipWebFetchPreflight", "skipWebFetchPreflight", 1],
+      ["skipWebFetchPreflight (string)", "skipWebFetchPreflight", "true"],
+      ["disableSkillShellExecution", "disableSkillShellExecution", 0],
+      ["sandbox.filesystem.allowRead", "sandbox", { filesystem: { allowRead: "/etc" } }],
+      ["sandbox.enableWeakerNestedSandbox", "sandbox", { enableWeakerNestedSandbox: 1 }],
+      ["sandbox.network.allowLocalBinding", "sandbox", { network: { allowLocalBinding: "yes" } }],
+    ])("reports an off-type '%s' rather than passing it over", async (label, key, value) => {
       const mockLogger = createMockLogger();
       const warnSpy = vi.spyOn(mockLogger, "warn");
       const rulesyncPermissions = new RulesyncPermissions({
@@ -1931,7 +1931,8 @@ describe("ClaudecodePermissions", () => {
       });
 
       expect(JSON.parse(instance.getFileContent())[key]).toEqual(value);
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`'${label}' —`));
+      const warnedPath = label.replace(" (string)", "");
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`'${warnedPath}' —`));
     });
 
     it("drops a project-scoped 'remoteControlAtStartup: true' that Claude Code ignores", async () => {
