@@ -40,6 +40,7 @@ import type { Logger } from "../utils/logger.js";
 import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
+import { resetWarnedOnceMessages } from "../utils/warned-once.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
 export type GenerateResult = {
@@ -608,6 +609,10 @@ export async function generate(params: {
   // `--watch` reuses one logger across every regeneration, so each run starts
   // from a clean slate.
   resetRootShadowingWarnings({ logger });
+  // "Once per run" means once per generate, not once per process: `--watch` and
+  // the MCP server keep one process alive across many runs, and a warning that
+  // still applies has to be said again.
+  resetWarnedOnceMessages();
 
   for (const toolTarget of config.getTargets()) {
     for (const outputRoot of config.getOutputRoots(toolTarget)) {

@@ -651,18 +651,87 @@ describe("file utilities", () => {
             expect(result.startsWith("/") || /^[A-Za-z]:/.test(result)).toBe(true);
           }
         });
+
+        it("should skip dot-prefixed entries by default", async () => {
+          const dotDir = join(testDir, "dot-default");
+          await writeFileContent(join(dotDir, "visible.md"), "visible");
+          await writeFileContent(join(dotDir, ".hidden.md"), "hidden");
+          await writeFileContent(join(dotDir, ".hidden-dir", "inside.md"), "inside");
+
+          const results = await findFilesByGlobs(join(dotDir, "**/*.md"), { type: "file" });
+
+          expect(results).toEqual([join(dotDir, "visible.md")]);
+        });
+
+        it("should include dot-prefixed files and directories when dot is enabled", async () => {
+          const dotDir = join(testDir, "dot-enabled");
+          await writeFileContent(join(dotDir, "visible.md"), "visible");
+          await writeFileContent(join(dotDir, ".hidden.md"), "hidden");
+          await writeFileContent(join(dotDir, ".hidden-dir", "inside.md"), "inside");
+
+          const results = await findFilesByGlobs(join(dotDir, "**/*.md"), {
+            type: "file",
+            dot: true,
+          });
+
+          expect(results.toSorted()).toEqual(
+            [
+              join(dotDir, "visible.md"),
+              join(dotDir, ".hidden.md"),
+              join(dotDir, ".hidden-dir", "inside.md"),
+            ].toSorted(),
+          );
+        });
+
+        it("should still apply ignore patterns to dot-prefixed entries", async () => {
+          const dotDir = join(testDir, "dot-ignored");
+          await writeFileContent(join(dotDir, "visible.md"), "visible");
+          await writeFileContent(join(dotDir, ".git", "HEAD"), "ref: refs/heads/main");
+
+          const results = await findFilesByGlobs(join(dotDir, "**/*"), {
+            type: "file",
+            dot: true,
+            ignore: ["**/.git/**"],
+          });
+
+          expect(results).toEqual([join(dotDir, "visible.md")]);
+        });
+
+        // fs.symlink with the default/file type needs admin or Developer Mode on Windows.
+        it.skipIf(process.platform === "win32")(
+          "should represent a real file by its named alias rather than a hidden one",
+          async () => {
+            const sharedDir = join(testDir, "alias-shared");
+            await writeFileContent(join(sharedDir, "note.md"), "note");
+            const aliasDir = join(testDir, "alias-root");
+            await ensureDir(aliasDir);
+            await symlink(sharedDir, join(aliasDir, ".hidden-link"));
+            await symlink(sharedDir, join(aliasDir, "docs"));
+
+            const results = await findFilesByGlobs(join(aliasDir, "**/*"), {
+              type: "file",
+              dot: true,
+            });
+
+            // Both links reach the same file, so only one path is returned; it
+            // has to be the named one, which is what a caller asked about.
+            expect(results).toEqual([join(aliasDir, "docs", "note.md")]);
+          },
+        );
       });
 
       // fs.symlink with the default/file type needs admin or Developer Mode on Windows, so
       // these tests are skipped there (CI unit tests run on ubuntu). See issue #1808 #5.
       describe.skipIf(process.platform === "win32")("symlink support", () => {
         it("should include a symlinked file in results", async () => {
-          const realFile = join(testDir, "real.md");
+          const realFile = join(testDir, "outside.md");
           const linkedFile = join(testDir, "linked.md");
           await writeFileContent(realFile, "content");
           await symlink(realFile, linkedFile);
 
-          const results = await findFilesByGlobs(join(testDir, "*.md"), { type: "file" });
+          // The link is the only path matching the glob, so nothing else can
+          // represent the file it reaches.
+          const results = await findFilesByGlobs(join(testDir, "linked*.md"), { type: "file" });
 
           expect(results).toContain(linkedFile);
         });
@@ -705,19 +774,85 @@ describe("file utilities", () => {
           expect(fileResults.length).toBeLessThan(5);
         });
 
-        it("should keep only one path per real file when a link and its target both match", async () => {
-          const realFile = join(testDir, "real.md");
-          const linkedFile = join(testDir, "linked.md");
+        it("should represent a file by its real path rather than by a directory alias", async () => {
+          // The alias sorts before the real directory, so a representative
+          // chosen by sort order alone would hide `zzz` entirely and leave the
+          // generated tree without the path the SKILL.md refers to.
+          const aliasDir = join(testDir, "real-over-alias");
+          const realSubDir = join(aliasDir, "zzz");
+          await writeFileContent(join(realSubDir, "x.md"), "content");
+          await symlink(realSubDir, join(aliasDir, "aaa"));
+
+          const results = await findFilesByGlobs(join(aliasDir, "**", "*"), {
+            type: "file",
+            dot: true,
+          });
+
+          expect(results).toEqual([join(realSubDir, "x.md")]);
+        });
+
+        it("should represent a file by its flat real path rather than through a cycle", async () => {
+          // The link name sorts before the file name, so the deepest path the
+          // cycle produces would otherwise win and be written out as a real
+          // directory chain on generate.
+          const cycleDir = join(testDir, "real-over-cycle");
+          const nestedDir = join(cycleDir, "sub");
+          await writeFileContent(join(nestedDir, "note.md"), "note");
+          await symlink(cycleDir, join(nestedDir, "aaa"));
+
+          const results = await findFilesByGlobs(join(cycleDir, "**", "*"), {
+            type: "file",
+            dot: true,
+          });
+
+          expect(results).toEqual([join(nestedDir, "note.md")]);
+        });
+
+        it("should return one path when a link and the file it points at sit side by side", async () => {
+          const sideBySideDir = join(testDir, "side-by-side");
+          const realFile = join(sideBySideDir, "real.md");
+          const linkedFile = join(sideBySideDir, "linked.md");
           await writeFileContent(realFile, "content");
           await symlink(realFile, linkedFile);
 
-          const results = await findFilesByGlobs(join(testDir, "*.md"), { type: "file" });
+          const results = await findFilesByGlobs(join(sideBySideDir, "*.md"), { type: "file" });
 
-          const realPaths = await Promise.all(results.map((p) => realpath(p)));
-          expect(new Set(realPaths).size).toBe(results.length);
-          // The sorted-first path (linked.md < real.md) survives; its target is dropped.
-          expect(results).toContain(linkedFile);
-          expect(results).not.toContain(realFile);
+          // One file is one result, however many names reach it: a discovery glob
+          // asks what exists, and reading the same bytes once per link is what a
+          // tree of links to one file would otherwise cost. A skill directory,
+          // which does carry every name it ships, walks its own tree instead.
+          expect(results).toEqual([realFile]);
+        });
+
+        it("should represent an aliased path in a subdirectory by the file it points at", async () => {
+          const skillDir = join(testDir, "alias-skill");
+          const realFile = join(skillDir, "reference.md");
+          const docsDir = join(skillDir, "docs");
+          await writeFileContent(realFile, "reference");
+          await ensureDir(docsDir);
+          await symlink(realFile, join(docsDir, "reference.md"));
+
+          const results = await findFilesByGlobs(join(skillDir, "**/*.md"), { type: "file" });
+
+          // The alias resolves to the file above it, so the real path represents
+          // it. (A skill that ships both names keeps both: its supporting files
+          // come from its own walk, not from here.)
+          expect(results).toEqual([realFile]);
+        });
+
+        it("should represent a plainly named link by the hidden file it points at", async () => {
+          const realFile = join(testDir, ".env.example");
+          const aliasFile = join(testDir, "zz-alias.example");
+          await writeFileContent(realFile, "TOKEN=");
+          await symlink(realFile, aliasFile);
+
+          const results = await findFilesByGlobs(join(testDir, "*.example"), {
+            type: "file",
+            dot: true,
+          });
+
+          // Both names reach one file, and the real one represents it.
+          expect(results).toEqual([realFile]);
         });
       });
     });

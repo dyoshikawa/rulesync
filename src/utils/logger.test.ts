@@ -6,6 +6,7 @@ import {
   fallbackLogger,
   JsonLogger,
   warnOnConflictingFlags,
+  warnOnceWithFallback,
   warnWithFallback,
 } from "./logger.js";
 
@@ -405,6 +406,32 @@ describe("JsonLogger", () => {
 
       errorSpy.mockRestore();
     });
+  });
+});
+
+describe("warnOnceWithFallback", () => {
+  it("reports a repeated message only once within a run", () => {
+    const logger = { warn: vi.fn() } as unknown as Logger;
+
+    warnOnceWithFallback(logger, "repeated message");
+    warnOnceWithFallback(logger, "repeated message");
+    warnOnceWithFallback(logger, "another message");
+
+    expect(logger.warn).toHaveBeenNthCalledWith(1, "repeated message");
+    expect(logger.warn).toHaveBeenNthCalledWith(2, "another message");
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back to the shared logger like warnWithFallback", () => {
+    const fallbackWarnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+    try {
+      warnOnceWithFallback(undefined, "message without a logger");
+
+      expect(fallbackWarnSpy).toHaveBeenCalledWith("message without a logger");
+    } finally {
+      fallbackWarnSpy.mockRestore();
+    }
   });
 });
 

@@ -20,8 +20,23 @@ import { globbySync, isGitIgnoredSync } from "globby";
 import { formatError } from "./error.js";
 import { isEnvTest } from "./vitest.js";
 
-function pathEscapesRoot(relativePath: string): boolean {
+/**
+ * Whether a relative path leads out of the root it is relative to. Matching
+ * whole segments matters: a directory really named `..cache` relatively
+ * resolves to `..cache/file`, which a prefix test would report as an escape.
+ */
+export function pathEscapesRoot(relativePath: string): boolean {
   return relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
+}
+
+/** Whether a single path segment is a hidden (dot-prefixed) name. */
+export function isHiddenPathSegment(segment: string): boolean {
+  return segment.startsWith(".") && segment !== "." && segment !== "..";
+}
+
+/** Split a path on both separators, so one predicate serves either platform. */
+export function splitPathSegments(filePath: string): string[] {
+  return filePath.split(/[/\\]/);
 }
 
 export async function assertWritablePathInsideRoot(params: {
@@ -412,6 +427,52 @@ export async function findFiles(dir: string, extension: string = ".md"): Promise
   }
 }
 
+/** How many dot-prefixed segments a path has, used to prefer a named alias over a hidden one. */
+function countHiddenSegments(filePath: string): number {
+  return splitPathSegments(filePath).filter(isHiddenPathSegment).length;
+}
+
+/**
+ * The real file a path denotes, posix-separated so it compares against the globby results
+ * that produce it. Two paths share an identity when they resolve to the very same file --
+ * a link beside its target, a link into a shared tree, or a cycle that walks back into an
+ * ancestor and yields the same file forty levels down.
+ */
+async function realFileIdentity(filePath: string): Promise<string> {
+  try {
+    return toPosixPath(await realpath(filePath));
+  } catch {
+    // realpath can fail on a broken link or a race; fall back to the literal path so the
+    // entry still counts (and is still deduplicated against identical literals).
+    return toPosixPath(filePath);
+  }
+}
+
+/**
+ * Pick the one path that represents a file among the paths that resolve to it.
+ *
+ * The path that walked through no link at all wins outright: it is already the real one,
+ * so it equals the file's identity. That keeps the real location of a file as the path
+ * callers see, rather than an alias that happens to sort first -- a directory link named
+ * `aaa` pointing at `zzz` must not make `zzz/x.md` disappear, and a cycle must not replace
+ * `sub/note.md` with the same file reached back through the cycle.
+ * Failing that, the fewest dot-prefixed segments wins: when only links are on offer, the
+ * named one represents the entry rather than a hidden alias that a hidden-entry rule may
+ * then drop, taking the named path's content with it. `candidates` arrives in sorted
+ * order, so ties keep the first one deterministically.
+ */
+function chooseRepresentative(candidates: string[], identity: string): string {
+  return candidates.reduce((best, candidate) => {
+    if (toPosixPath(best) === identity) {
+      return best;
+    }
+    if (toPosixPath(candidate) === identity) {
+      return candidate;
+    }
+    return countHiddenSegments(candidate) < countHiddenSegments(best) ? candidate : best;
+  });
+}
+
 export async function findFilesByGlobs(
   globs: string | string[],
   options: {
@@ -428,9 +489,26 @@ export async function findFilesByGlobs(
      * absolute ignore patterns or anchor them with a leading `**\/`.
      */
     ignore?: string[];
+    /**
+     * Include dot-prefixed files and directories, passed to globby's `dot`.
+     * Off by default because discovery globs look for named config files, and a
+     * hidden entry is far more likely to be editor or VCS noise than something
+     * a tool reads. Turn it on where the contract is "carry this tree as it is"
+     * rather than "find these files".
+     *
+     * No caller does today: the one that did — a skill directory, whose
+     * specification says it "may contain any files and directories beyond the
+     * required `SKILL.md`" — now walks its own tree, because a glob walk cannot
+     * bound what a symbolic link in somebody else's tree reaches. The option and
+     * the entry de-duplication below stay for the next caller with that
+     * contract; both are covered by tests.
+     *
+     * @see https://agentskills.io/specification
+     */
+    dot?: boolean;
   } = {},
 ): Promise<string[]> {
-  const { type = "all", followSymbolicLinks = true, ignore } = options;
+  const { type = "all", followSymbolicLinks = true, ignore, dot = false } = options;
   const globbyOptions =
     type === "file"
       ? { onlyFiles: true, onlyDirectories: false }
@@ -448,30 +526,28 @@ export async function findFilesByGlobs(
   const results = globbySync(normalizedGlobs, {
     absolute: true,
     followSymbolicLinks,
+    dot,
     ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
     ...globbyOptions,
   });
-  // Deduplicate by real path so that directory symlink cycles (which globby follows up to
+  // Deduplicate by real file so that directory symlink cycles (which globby follows up to
   // the kernel ELOOP limit, ~40 levels) do not yield ~40x duplicated entries that would be
-  // read and re-emitted. Keep the first path per real file in sorted order for determinism.
-  const seenRealPaths = new Set<string>();
-  const deduped: string[] = [];
+  // read and re-emitted -- and so that a thousand links to one file cost one read of it,
+  // not a thousand. One path per file, chosen by `chooseRepresentative`.
+  const candidatesByFile = new Map<string, string[]>();
   for (const result of results.toSorted()) {
-    let realResult: string;
-    try {
-      realResult = await realpath(result);
-    } catch {
-      // realpath can fail on a broken link or race; fall back to the literal path so the
-      // entry is still considered (and still deduplicated against identical literals).
-      realResult = result;
+    const identity = await realFileIdentity(result);
+    const candidates = candidatesByFile.get(identity);
+    if (candidates === undefined) {
+      candidatesByFile.set(identity, [result]);
+    } else {
+      candidates.push(result);
     }
-    if (seenRealPaths.has(realResult)) {
-      continue;
-    }
-    seenRealPaths.add(realResult);
-    deduped.push(result);
   }
-  return deduped;
+  const representatives = [...candidatesByFile.entries()].map(([identity, candidates]) =>
+    chooseRepresentative(candidates, identity),
+  );
+  return representatives.toSorted();
 }
 
 export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {

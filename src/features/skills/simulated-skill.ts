@@ -7,7 +7,7 @@ import { ValidationResult } from "../../types/ai-dir.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
+import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -15,6 +15,7 @@ import {
   ToolSkillFromDirParams,
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
+  warnOnEmptyLoadedDescription,
 } from "./tool-skill.js";
 
 export const SimulatedSkillFrontmatterSchema = z.looseObject({
@@ -153,12 +154,17 @@ export abstract class SimulatedSkill extends ToolSkill {
     }
 
     const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, skillFilePath);
+    const { frontmatter, body: content } = parseFrontmatterWithYamlRepair(
+      fileContent,
+      skillFilePath,
+    );
 
     const result = SimulatedSkillFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
     }
+
+    warnOnEmptyLoadedDescription({ skillFilePath, description: result.data.description });
 
     const otherFiles = await this.collectOtherFiles(
       outputRoot,

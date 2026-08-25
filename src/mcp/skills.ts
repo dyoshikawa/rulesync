@@ -22,6 +22,7 @@ import {
 } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { ConsoleLogger } from "../utils/logger.js";
+import { resetWarnedOnceMessages } from "../utils/warned-once.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
 
@@ -121,6 +122,11 @@ async function listSkills(): Promise<
     frontmatter: RulesyncSkillFrontmatter;
   }>
 > {
+  // The MCP server outlives a single call, and the diagnostics a skill read
+  // reports are reported once per run; without this, only the first listing of
+  // a session would say what it refused to carry.
+  resetWarnedOnceMessages();
+
   const skillsDir = join(process.cwd(), RULESYNC_SKILLS_RELATIVE_DIR_PATH);
 
   try {

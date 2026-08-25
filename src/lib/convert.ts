@@ -13,6 +13,7 @@ import type { ToolTarget } from "../types/tool-targets.js";
 import type { Logger } from "../utils/logger.js";
 import { isPackagingToolTarget } from "../utils/plugin-root.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
+import { resetWarnedOnceMessages } from "../utils/warned-once.js";
 
 export type ConvertResult = {
   rulesCount: number;
@@ -62,6 +63,10 @@ export async function convertFromTool(params: {
   toTools: ToolTarget[];
   logger: Logger;
 }): Promise<ConvertResult> {
+  // Diagnostics are reported once per run, so a run that follows another in the
+  // same process starts from a clean slate.
+  resetWarnedOnceMessages();
+
   const packagingTarget = [params.fromTool, ...params.toTools].find(isPackagingToolTarget);
   if (packagingTarget) {
     throw new Error(

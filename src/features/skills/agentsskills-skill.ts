@@ -6,7 +6,9 @@ import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
+import { toPosixPath } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import {
   RulesyncSkill,
@@ -15,6 +17,7 @@ import {
   SkillFile,
 } from "./rulesync-skill.js";
 import {
+  EMPTY_SKILL_DESCRIPTION_VIOLATION,
   ToolSkill,
   ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
@@ -186,6 +189,19 @@ export function toSpecConformantAgentSkillFields(
   };
 }
 
+/** The `SKILL.md` a diagnostic should point at, in the scope it is written to. */
+function agentSkillFilePath({
+  outputRoot,
+  relativeDirPath,
+  dirName,
+}: {
+  outputRoot: string;
+  relativeDirPath: string;
+  dirName: string;
+}): string {
+  return join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME);
+}
+
 /**
  * Collect the normative violations the Agent Skills spec defines for a skill
  * about to be written. These are reported as warnings rather than errors:
@@ -236,9 +252,7 @@ function collectAgentSkillViolations({
   }
 
   if (description.length === 0) {
-    violations.push(
-      "`description` is required and must not be empty; conformant clients skip a skill without one",
-    );
+    violations.push(EMPTY_SKILL_DESCRIPTION_VIOLATION);
   } else if (description.length > DESCRIPTION_MAX_LENGTH) {
     violations.push(
       `\`description\` is ${description.length} characters; the Agent Skills spec allows at most ${DESCRIPTION_MAX_LENGTH}`,
@@ -459,13 +473,13 @@ export class AgentsSkillsSkill extends ToolSkill {
     sourceAllowedTools?: string | string[];
     logger?: Logger;
   }): void {
-    const skillPath = join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME);
+    const skillPath = agentSkillFilePath({ outputRoot, relativeDirPath, dirName });
     for (const violation of collectAgentSkillViolations({
       frontmatter,
       dirName,
       sourceAllowedTools,
     })) {
-      warnWithFallback(logger, `${skillPath}: ${violation}`);
+      warnWithFallback(logger, `${stripControlCharacters(toPosixPath(skillPath))}: ${violation}`);
     }
   }
 

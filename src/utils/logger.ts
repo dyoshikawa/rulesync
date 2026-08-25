@@ -1,5 +1,6 @@
 import { CLIError, ErrorCodes, JsonOutput } from "../types/json-output.js";
 import { isEnvTest } from "./vitest.js";
+import { claimWarnOnce } from "./warned-once.js";
 
 export type JsonErrorInfo = {
   code: string;
@@ -258,4 +259,18 @@ export const fallbackLogger: Logger = new ConsoleLogger();
  */
 export function warnWithFallback(logger: Logger | undefined, message: string): void {
   (logger ?? fallbackLogger).warn(message);
+}
+
+/**
+ * Emit a warning at most once per run. A single `generate` reads the same source
+ * file once per enabled tool target, so a warning that describes the source
+ * rather than the target would otherwise be printed a dozen identical times.
+ * Diagnostics that name the file they are about qualify; anything whose text
+ * varies with what the user should do next does not.
+ */
+export function warnOnceWithFallback(logger: Logger | undefined, message: string): void {
+  if (!claimWarnOnce(message)) {
+    return;
+  }
+  warnWithFallback(logger, message);
 }

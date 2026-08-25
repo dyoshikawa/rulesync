@@ -4,9 +4,10 @@ import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { AMP_SKILLS_GLOBAL_DIR } from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { AiDir } from "../../types/ai-dir.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { fileExists, readFileContent, toPosixPath } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
-import type { Logger } from "../../utils/logger.js";
+import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
+import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 
 export type ToolSkillFromRulesyncSkillParams = {
@@ -56,6 +57,42 @@ const AGENT_SKILLS_INTEROP_ROOTS: ReadonlySet<string> = new Set([
   toPosixPath(AGENTSMD_SKILLS_DIR_PATH),
   toPosixPath(AMP_SKILLS_GLOBAL_DIR),
 ]);
+
+/**
+ * The one spec violation both sides of the conversion report. Generation warns
+ * about it before writing the file; import warns about it because a conformant
+ * client would skip the skill entirely, and a user who never sees that has no
+ * reason to fix it.
+ */
+export const EMPTY_SKILL_DESCRIPTION_VIOLATION =
+  "`description` is required and must not be empty; conformant clients skip a skill without one";
+
+/**
+ * Report a skill read from disk whose `description` is empty. This lives on the
+ * read rather than on any one tool class because several targets share one
+ * `.agents/skills` tree: which of them reports the skill must not depend on
+ * which target the user happened to enable. Every loader calls it — the two
+ * directory loaders (`loadSkillDirContent`, `SimulatedSkill.fromDirDefault`)
+ * and the flat-file one — so the form a tool stores its skills in does not
+ * decide whether the problem is reported either.
+ */
+export function warnOnEmptyLoadedDescription({
+  skillFilePath,
+  description,
+}: {
+  skillFilePath: string;
+  description: unknown;
+}): void {
+  if (typeof description !== "string" || description.length > 0) {
+    return;
+  }
+  // No logger parameter: loading a directory carries no logger down to here, so
+  // one would only ever be the fallback.
+  warnOnceWithFallback(
+    undefined,
+    `${stripControlCharacters(toPosixPath(skillFilePath))}: ${EMPTY_SKILL_DESCRIPTION_VIOLATION}. Rulesync imports it anyway so the content is not lost; fill it in before relying on this skill.`,
+  );
+}
 
 export function isAgentSkillsInteropRoot(relativeDirPath: string): boolean {
   return AGENT_SKILLS_INTEROP_ROOTS.has(toPosixPath(relativeDirPath));
@@ -240,7 +277,12 @@ export abstract class ToolSkill extends AiDir {
     }
 
     const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, skillFilePath);
+    const { frontmatter, body: content } = parseFrontmatterWithYamlRepair(
+      fileContent,
+      skillFilePath,
+    );
+
+    warnOnEmptyLoadedDescription({ skillFilePath, description: frontmatter.description });
 
     const otherFiles = await this.collectOtherFiles(
       outputRoot,

@@ -12,7 +12,7 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { parseFrontmatterWithYamlRepair, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -242,7 +242,7 @@ export class ReasonixSubagent extends ToolSubagent {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
+    const { frontmatter, body: content } = parseFrontmatterWithYamlRepair(fileContent, filePath);
 
     const result = ReasonixSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
@@ -285,7 +285,9 @@ export class ReasonixSubagent extends ToolSubagent {
     const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
     try {
       const fileContent = await readFileContent(filePath);
-      const { frontmatter } = parseFrontmatter(fileContent, filePath);
+      const { frontmatter } = parseFrontmatterWithYamlRepair(fileContent, filePath, {
+        quiet: true,
+      });
       return frontmatter["runAs"] === REASONIX_SUBAGENT_RUN_AS;
     } catch {
       return false;

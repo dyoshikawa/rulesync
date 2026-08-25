@@ -1,5 +1,5 @@
 import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { createInterface } from "node:readline/promises";
 
 import {
@@ -36,6 +36,7 @@ import {
   directoryExists,
   ensureDir,
   fileExists,
+  pathEscapesRoot,
   readFileContent,
   readFileContentOrNull,
   resolvePath,
@@ -83,10 +84,6 @@ type InstallSnapshot = {
   sourcesLockContent: string | null;
   npmSourcesLockContent: string | null;
 };
-
-function pathEscapesRoot(relativePath: string): boolean {
-  return relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
-}
 
 function assertSourceHasNoEmbeddedCredentials(source: string): void {
   if (!/^[a-z][a-z\d+.-]*:\/\//i.test(source)) {

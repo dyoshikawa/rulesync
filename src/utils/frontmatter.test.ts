@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { parseFrontmatter, stringifyFrontmatter } from "./frontmatter.js";
+import {
+  parseFrontmatter,
+  parseFrontmatterWithYamlRepair,
+  stringifyFrontmatter,
+} from "./frontmatter.js";
+import { fallbackLogger } from "./logger.js";
 
 // Hoisted mock for gray-matter - used by specific tests
 const mockMatter = vi.hoisted(() => ({
@@ -553,6 +558,255 @@ Body.`;
       expect(parsed.frontmatter.description).toBe(frontmatter.description);
       expect(parsed.frontmatter.targets).toEqual(["claudecode", "cursor"]);
       expect(parsed.hasFrontmatter).toBe(true);
+    });
+  });
+  describe("parseFrontmatterWithYamlRepair", () => {
+    it("should recover a description whose unquoted value contains a colon", () => {
+      // The exact shape the Agent Skills client guide names: valid to the
+      // client that wrote it, a YAML syntax error to everyone else.
+      const content = [
+        "---",
+        "name: pdf-processing",
+        "description: Use this skill when: the user asks about PDFs",
+        "---",
+        "",
+        "Body content",
+      ].join("\n");
+
+      expect(() => parseFrontmatter(content, "SKILL.md")).toThrow();
+
+      const { frontmatter, body, hasFrontmatter } = parseFrontmatterWithYamlRepair(
+        content,
+        "SKILL.md",
+      );
+
+      expect(frontmatter.name).toBe("pdf-processing");
+      expect(frontmatter.description).toBe("Use this skill when: the user asks about PDFs");
+      expect(body.trim()).toBe("Body content");
+      expect(hasFrontmatter).toBe(true);
+    });
+
+    it("should parse valid frontmatter exactly as the plain parser does", () => {
+      const content = ["---", "name: valid", "homepage: https://example.com", "---", "Body"].join(
+        "\n",
+      );
+
+      expect(parseFrontmatterWithYamlRepair(content, "SKILL.md")).toEqual(
+        parseFrontmatter(content, "SKILL.md"),
+      );
+    });
+
+    it("should recover a CRLF file without corrupting its line endings", () => {
+      const content = [
+        "---",
+        "name: crlf",
+        "description: Use when: the file has Windows line endings",
+        "---",
+        "Body",
+      ].join("\r\n");
+
+      const { frontmatter } = parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+      expect(frontmatter.description).toBe("Use when: the file has Windows line endings");
+    });
+
+    it("should quote only the offending value and leave the rest of the block alone", () => {
+      const content = [
+        "---",
+        "name: quoting",
+        'title: "already: quoted"',
+        "description: Use when: a colon appears",
+        "list: [a, b]",
+        "---",
+        "Body",
+      ].join("\n");
+
+      const { frontmatter } = parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+      expect(frontmatter.title).toBe("already: quoted");
+      expect(frontmatter.description).toBe("Use when: a colon appears");
+      expect(frontmatter.list).toEqual(["a", "b"]);
+    });
+
+    it("should report the original error when quoting cannot fix the file", () => {
+      // Bad indentation, not an unquoted colon. Nothing is rewritten, so the
+      // message the user sees is the one that describes the real problem.
+      const content = ["---", "name: broken", "  stray: indentation", "---", "Body"].join("\n");
+
+      expect(() => parseFrontmatterWithYamlRepair(content, "SKILL.md")).toThrow(
+        /Failed to parse frontmatter in SKILL\.md/,
+      );
+    });
+
+    it("should leave nested entries alone rather than guess at their meaning", () => {
+      // A nested value is not the failure this repair exists for, and rewriting
+      // one would change a mapping the author may have meant.
+      const content = [
+        "---",
+        "name: nested",
+        "metadata:",
+        "  note: Use when: a colon appears",
+        "---",
+        "Body",
+      ].join("\n");
+
+      expect(() => parseFrontmatterWithYamlRepair(content, "SKILL.md")).toThrow();
+    });
+
+    it("should report the recovery so the file still gets fixed at the source", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const content = ["---", "description: Use when: a colon appears", "---", "Body"].join("\n");
+
+      try {
+        parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Recovered malformed YAML frontmatter in SKILL.md"),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should stay quiet when the caller only probes the file for ownership", () => {
+      // An ownership probe parses the same file the loader parses moments
+      // later; warning twice about one file says nothing the first did not.
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const content = ["---", "description: Use when: a colon appears", "---", "Body"].join("\n");
+
+      try {
+        const result = parseFrontmatterWithYamlRepair(content, "SKILL.md", { quiet: true });
+
+        expect(result.frontmatter.description).toBe("Use when: a colon appears");
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should repair a value padded with a long run of spaces without stalling", () => {
+      // Scanning for an inline comment with `/\s+#.*$/` backtracks from every
+      // starting position when no `#` follows, which turns a padded value into
+      // minutes of CPU time. Any file whose first parse fails reaches it.
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const padded = `Use when: a colon appears${" ".repeat(200_000)}`;
+      const content = ["---", `description: ${padded}`, "unclosed: [", "---", "Body"].join("\n");
+
+      try {
+        const startedAt = performance.now();
+        expect(() => parseFrontmatterWithYamlRepair(content, "SKILL.md")).toThrow();
+        // The linear scan takes single-digit milliseconds here; the quadratic one
+        // took over 20 seconds. The bound is loose enough for a busy CI runner
+        // and still fails long before the suite timeout would.
+        expect(performance.now() - startedAt).toBeLessThan(2_000);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    }, 30_000);
+
+    it("should stay quiet when the content parses without help", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const content = ["---", "description: A plain value", "---", "Body"].join("\n");
+
+      try {
+        parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should not rewrite body text when the closing delimiter shares its line", () => {
+      // gray-matter ends the block at the first `\n---`, whatever follows it on
+      // that line, so everything after is body and must be passed through.
+      const content = "---\nname: a: b\n---more\ndescription: c: d\n---\nbody\n";
+
+      const result = parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+      expect(result.frontmatter.name).toBe("a: b");
+      expect(result.body).toContain("description: c: d");
+      expect(result.body).not.toContain('description: "c: d"');
+    });
+
+    it("should not fold an inline comment into a repaired value", () => {
+      // A plain scalar ends at ` #`. Quoting the comment along with the value
+      // would turn a disabled tool in `allowed-tools` into an enabled one,
+      // because that field is read back as a space-separated list.
+      const content = [
+        "---",
+        "name: commented # note: keep lowercase",
+        "description: Use this skill when: the user asks about PDFs",
+        "allowed-tools: Read # TODO: add Bash later",
+        "---",
+        "Body",
+      ].join("\n");
+
+      const result = parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+      expect(result.frontmatter.name).toBe("commented");
+      expect(result.frontmatter.description).toBe("Use this skill when: the user asks about PDFs");
+      expect(result.frontmatter["allowed-tools"]).toBe("Read");
+    });
+
+    it("should cut a repaired value at an inline comment even when that loses text", () => {
+      // ` #` starts a comment in a plain scalar, so this is what YAML itself
+      // reads. Keeping the tail instead would let a comment on `allowed-tools`
+      // grant a permission it had disabled, which is the worse failure.
+      const content = ["---", "description: Use when: issue #42 is open", "---", "Body"].join("\n");
+
+      const result = parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+      expect(result.frontmatter.description).toBe("Use when: issue");
+    });
+
+    it("should say in the warning that an inline comment was left out", () => {
+      // A silently shortened description is hard to notice, so the warning has
+      // to name the reason the value got shorter.
+      const content = ["---", "description: Use when: issue #42 is open", "---", "Body"].join("\n");
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("was read as a YAML comment and left out of the value"),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should not mention comments when nothing was left out", () => {
+      const content = ["---", "description: Use when: reviewing", "---", "Body"].join("\n");
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        parseFrontmatterWithYamlRepair(content, "SKILL.md");
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.not.stringContaining("was read as a YAML comment"),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should keep reporting the same malformed content on a second parse", () => {
+      // gray-matter caches a file before parsing it, so a throw used to leave
+      // an entry whose data is empty and whose content is the unparsed file.
+      // The second parse then returned that quietly instead of failing again.
+      const content = ["---", "name: broken", "  stray: indentation", "---", "Body"].join("\n");
+
+      expect(() => parseFrontmatter(content, "SKILL.md")).toThrow();
+      expect(() => parseFrontmatter(content, "SKILL.md")).toThrow();
+      expect(() => parseFrontmatterWithYamlRepair(content, "SKILL.md")).toThrow();
+    });
+
+    it("should pass a file without frontmatter straight through", () => {
+      const content = "Just a body, no frontmatter.";
+
+      expect(parseFrontmatterWithYamlRepair(content)).toEqual(parseFrontmatter(content));
     });
   });
 });
