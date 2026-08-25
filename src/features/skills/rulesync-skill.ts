@@ -241,6 +241,14 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       // `enabled: false` keeps the skill on disk but stops Droid loading it.
       enabled: z.optional(z.boolean()),
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+      // Packaging metadata for shared or catalogued skills. Droid documents
+      // these without a type and never validates them, so they are carried
+      // through as-is rather than type-constrained — see `factorydroid-skill.ts`.
+      // https://docs.factory.ai/cli/configuration/skills
+      license: z.optional(z.unknown()),
+      compatibility: z.optional(z.unknown()),
+      metadata: z.optional(z.unknown()),
+      version: z.optional(z.unknown()),
     }),
   ),
   // Grok honours both flags: `user-invocable: false` hides a skill from the
@@ -439,6 +447,10 @@ export type RulesyncSkillFrontmatterInput = {
     "user-invocable"?: boolean;
     enabled?: boolean;
     "allowed-tools"?: string | string[];
+    license?: unknown;
+    compatibility?: unknown;
+    metadata?: unknown;
+    version?: unknown;
   };
   "kimi-code"?: {
     type?: "prompt" | "inline" | "flow";

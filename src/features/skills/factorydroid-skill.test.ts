@@ -220,6 +220,79 @@ This is a test factorydroid skill content.`;
       expect(frontmatter["allowed-tools"]).toEqual(["Read", "Execute"]);
     });
 
+    it("should write the packaging metadata fields from the factorydroid section", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "packaged",
+        frontmatter: {
+          name: "Packaged",
+          description: "A skill shared through a catalog",
+          targets: ["*"],
+          factorydroid: {
+            license: "MIT",
+            compatibility: "droid",
+            metadata: { owner: "platform-team" },
+            version: "1.0.0",
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = FactorydroidSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill,
+        validate: true,
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "Packaged",
+        description: "A skill shared through a catalog",
+        license: "MIT",
+        compatibility: "droid",
+        metadata: { owner: "platform-team" },
+        version: "1.0.0",
+      });
+    });
+
+    it("should let the section flag win while the root default fills the omitted one", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "packaged-flags",
+        frontmatter: {
+          name: "Packaged Flags",
+          description: "Root flags with a packaged section",
+          targets: ["*"],
+          "disable-model-invocation": true,
+          "user-invocable": true,
+          factorydroid: {
+            // A defined section value wins over the root default, so the
+            // section spread must not be undone by the resolved override.
+            "user-invocable": false,
+            version: "2.1.0",
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = FactorydroidSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill,
+        validate: true,
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "Packaged Flags",
+        description: "Root flags with a packaged section",
+        "disable-model-invocation": true,
+        "user-invocable": false,
+        version: "2.1.0",
+      });
+    });
+
     it("should pick up root-level user-invocable when factorydroid section omits it", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
@@ -331,6 +404,65 @@ This is a test factorydroid skill content.`;
         "allowed-tools": "Read Execute",
       });
     });
+
+    it("should round-trip the packaging metadata fields into the factorydroid section", () => {
+      const skill = new FactorydroidSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".factory", "skills"),
+        dirName: "packaged",
+        frontmatter: {
+          name: "Packaged",
+          description: "A skill shared through a catalog",
+          license: "MIT",
+          compatibility: "droid",
+          metadata: { owner: "platform-team" },
+          version: "1.0.0",
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().factorydroid).toEqual({
+        license: "MIT",
+        compatibility: "droid",
+        metadata: { owner: "platform-team" },
+        version: "1.0.0",
+      });
+    });
+
+    it("should carry a frontmatter key beyond the schema into the factorydroid section", () => {
+      const skill = new FactorydroidSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".factory", "skills"),
+        dirName: "hand-written",
+        frontmatter: {
+          name: "Hand Written",
+          description: "Carries a key rulesync does not model",
+          "some-future-field": "kept",
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().factorydroid).toEqual({
+        "some-future-field": "kept",
+      });
+
+      // The emit direction has to write the key back out, otherwise the round
+      // trip still loses it on the next generate.
+      expect(
+        FactorydroidSkill.fromRulesyncSkill({
+          outputRoot: testDir,
+          rulesyncSkill,
+          validate: true,
+        }).getFrontmatter(),
+      ).toEqual({
+        name: "Hand Written",
+        description: "Carries a key rulesync does not model",
+        "some-future-field": "kept",
+      });
+    });
   });
 
   describe("fromDir", () => {
@@ -354,6 +486,40 @@ This is a test factorydroid skill content.`;
         description: "Test skill description",
         "user-invocable": true,
         "disable-model-invocation": false,
+      });
+    });
+
+    it("should import the packaging metadata in the shapes YAML actually produces", async () => {
+      const skillDir = join(testDir, ".factory", "skills", "packaged-skill");
+      // `version: 2026-01-01` parses as a Date, `compatibility` as an array and
+      // `metadata` as a scalar. Droid never validates these fields, so none of
+      // them may fail the import of a SKILL.md it happily loads.
+      const skillContent = `---
+name: packaged-skill
+description: A skill shared through a catalog
+license: MIT
+compatibility:
+  - droid
+  - claude-code
+metadata: platform-team
+version: 2026-01-01
+---
+
+Packaged body`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await FactorydroidSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "packaged-skill",
+        global: false,
+      });
+
+      const section = skill.toRulesyncSkill().getFrontmatter().factorydroid;
+      expect(section).toEqual({
+        license: "MIT",
+        compatibility: ["droid", "claude-code"],
+        metadata: "platform-team",
+        version: new Date("2026-01-01T00:00:00.000Z"),
       });
     });
 
@@ -450,6 +616,19 @@ Global body content`;
         description: "Skill description",
         "user-invocable": true,
         "disable-model-invocation": false,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should accept the packaging metadata shapes a typed schema would reject", () => {
+      const result = FactorydroidSkillFrontmatterSchema.safeParse({
+        name: "skill-name",
+        description: "Skill description",
+        license: 2024,
+        compatibility: ["droid", "claude-code"],
+        metadata: "platform-team",
+        version: new Date("2026-01-01T00:00:00.000Z"),
       });
 
       expect(result.success).toBe(true);

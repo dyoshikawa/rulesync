@@ -27,6 +27,14 @@ import {
 //     disable it.
 //   - `allowed-tools`: declares the tools the skill is designed to use. (The
 //     older `tools` spelling is deprecated upstream.)
+//   - `license`, `compatibility`, `metadata`, `version`: packaging metadata for
+//     skills shared through catalogs, plugins, or team tooling. Droid documents
+//     them without a type and never validates them, so they are declared for
+//     discoverability and carried through as-is (up to YAML's own scalar
+//     normalization) rather than type-constrained:
+//     rejecting a value Droid accepts (a YAML list `compatibility`, an unquoted
+//     `version: 2026-01-01` that js-yaml parses as a Date) would break the
+//     import of a working SKILL.md.
 export const FactorydroidSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
@@ -34,6 +42,10 @@ export const FactorydroidSkillFrontmatterSchema = z.looseObject({
   "disable-model-invocation": z.optional(z.boolean()),
   enabled: z.optional(z.boolean()),
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  license: z.optional(z.unknown()),
+  compatibility: z.optional(z.unknown()),
+  metadata: z.optional(z.unknown()),
+  version: z.optional(z.unknown()),
 });
 
 export type FactorydroidSkillFrontmatter = z.infer<typeof FactorydroidSkillFrontmatterSchema>;
@@ -133,21 +145,15 @@ export class FactorydroidSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
-    const factorydroidBlock = {
-      ...(frontmatter["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": frontmatter["disable-model-invocation"],
-      }),
-      ...(frontmatter["user-invocable"] !== undefined && {
-        "user-invocable": frontmatter["user-invocable"],
-      }),
-      ...(frontmatter.enabled !== undefined && { enabled: frontmatter.enabled }),
-      ...(frontmatter["allowed-tools"] !== undefined && {
-        "allowed-tools": frontmatter["allowed-tools"],
-      }),
-    };
+    // `name` and `description` have canonical homes; every other key — the
+    // documented Droid fields including the packaging metadata, plus anything
+    // beyond the schema a hand-written SKILL.md carries — rides the tool-scoped
+    // `factorydroid` section so it survives the round trip instead of being
+    // erased by the next generate.
+    const { name, description, ...factorydroidBlock } = frontmatter;
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name: frontmatter.name,
-      description: frontmatter.description,
+      name,
+      description,
       targets: ["*"],
       ...(Object.keys(factorydroidBlock).length > 0 && { factorydroid: factorydroidBlock }),
     };
@@ -182,20 +188,25 @@ export class FactorydroidSkill extends ToolSkill {
       section: factorydroidSection,
     });
 
+    // A `name`/`description` that somehow rode along in the section is dropped
+    // so the canonical values keep owning those keys, which also lets them stay
+    // first in the emitted frontmatter instead of trailing the section.
+    const {
+      name: _sectionName,
+      description: _sectionDescription,
+      ...section
+    } = factorydroidSection ?? {};
     const factorydroidFrontmatter: FactorydroidSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...section,
+      // Both resolvers already prefer a defined section value over the root
+      // default, so overriding the spread with them never discards one.
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),
       ...(resolvedUserInvocable !== undefined && {
         "user-invocable": resolvedUserInvocable,
-      }),
-      ...(factorydroidSection?.enabled !== undefined && {
-        enabled: factorydroidSection.enabled,
-      }),
-      ...(factorydroidSection?.["allowed-tools"] !== undefined && {
-        "allowed-tools": factorydroidSection["allowed-tools"],
       }),
     };
 
