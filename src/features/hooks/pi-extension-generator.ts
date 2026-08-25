@@ -24,6 +24,17 @@ const PI_ASSISTANT_MESSAGE_EVENTS = new Set(["message_end"]);
 const PI_BLOCKING_EVENT = "tool_call";
 
 /**
+ * `input` is Pi's prompt-submission gate. A handler that returns
+ * `{ action: "handled" }` skips the agent entirely for that prompt (the first
+ * handler returning it wins), which is how a canonical `beforeSubmitPrompt`
+ * hook cancels a prompt on the other hook-capable targets. `handled` carries no
+ * reason field, so the failure text is surfaced through `ctx.ui.notify`.
+ *
+ * @see https://github.com/earendil-works/pi/blob/v0.84.3/packages/coding-agent/docs/extensions.md#input
+ */
+const PI_PROMPT_BLOCKING_EVENT = "input";
+
+/**
  * Helper emitted alongside blocking handlers. `promisify(exec)` rejects on a
  * non-zero exit with an error carrying `stdout` / `stderr` / `code`, so the
  * reason is derived from the rejection rather than from a resolved exit code.
@@ -97,14 +108,16 @@ function collectPiHandlers({
   return handlerGroups;
 }
 
+type BlockingMode = "none" | "tool" | "prompt";
+
 function buildCommandLines({
   handler,
   usesToolName,
-  blocksToolCall,
+  blocking,
 }: {
   handler: Handler;
   usesToolName: boolean;
-  blocksToolCall: boolean;
+  blocking: BlockingMode;
 }): string[] {
   const lines: string[] = [];
   const gated = usesToolName && Boolean(handler.matcher);
@@ -116,7 +129,7 @@ function buildCommandLines({
     );
   }
 
-  if (blocksToolCall) {
+  if (blocking === "tool") {
     lines.push(`${indent}try {`);
     lines.push(`${indent}  await run(${embeddedCommand});`);
     lines.push(`${indent}} catch (error) {`);
@@ -124,6 +137,15 @@ function buildCommandLines({
     // control back to the model (as Claude Code's `PreToolUse` deny does)
     // rather than end the agent turn.
     lines.push(`${indent}  return { block: true, reason: toBlockReason(error) };`);
+    lines.push(`${indent}}`);
+  } else if (blocking === "prompt") {
+    lines.push(`${indent}try {`);
+    lines.push(`${indent}  await run(${embeddedCommand});`);
+    lines.push(`${indent}} catch (error) {`);
+    // `handled` has no reason field, so the failure text only reaches the user
+    // through the UI channel, which is unavailable in print and JSON modes.
+    lines.push(`${indent}  if (ctx.hasUI) ctx.ui.notify(toBlockReason(error), "error");`);
+    lines.push(`${indent}  return { action: "handled" };`);
     lines.push(`${indent}}`);
   } else {
     lines.push(`${indent}await run(${embeddedCommand});`);
@@ -140,8 +162,18 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
   for (const [piEvent, handlers] of Object.entries(handlerGroups)) {
     const usesToolName = PI_TOOL_EVENTS.has(piEvent) && handlers.some((h) => h.matcher);
     const gatesOnAssistant = PI_ASSISTANT_MESSAGE_EVENTS.has(piEvent);
+    const blocking: BlockingMode =
+      piEvent === PI_BLOCKING_EVENT
+        ? "tool"
+        : piEvent === PI_PROMPT_BLOCKING_EVENT
+          ? "prompt"
+          : "none";
     const usesEvent = usesToolName || gatesOnAssistant;
-    lines.push(`  pi.on(${JSON.stringify(piEvent)}, async (${usesEvent ? "event" : ""}) => {`);
+    // `ctx` is the second handler argument, so the unused first one still has
+    // to be named when only `ctx` is read.
+    const params =
+      blocking === "prompt" ? `${usesEvent ? "event" : "_event"}, ctx` : usesEvent ? "event" : "";
+    lines.push(`  pi.on(${JSON.stringify(piEvent)}, async (${params}) => {`);
     if (gatesOnAssistant) {
       lines.push(`    if (event.message.role !== "assistant") return;`);
     }
@@ -150,9 +182,12 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
         ...buildCommandLines({
           handler,
           usesToolName,
-          blocksToolCall: piEvent === PI_BLOCKING_EVENT,
+          blocking,
         }),
       );
+    }
+    if (blocking === "prompt") {
+      lines.push(`    return { action: "continue" };`);
     }
     lines.push("  });");
   }
@@ -164,8 +199,9 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
  * default-export factory receiving Pi's ExtensionAPI) that subscribes to the
  * mapped lifecycle events and executes the configured hook commands via the
  * platform shell. Handlers observe events, except on `tool_call` — Pi's only
- * blocking event and its only tool gate — where a hook command that exits
- * non-zero denies the call with `{ block: true, reason }`.
+ * tool gate — where a hook command that exits non-zero denies the call with
+ * `{ block: true, reason }`, and on `input` — Pi's prompt-submission gate —
+ * where a non-zero exit cancels the prompt with `{ action: "handled" }`.
  *
  * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
@@ -188,7 +224,9 @@ export function generatePiExtensionCode({
 
   const handlerGroups = collectPiHandlers({ effectiveHooks, eventMap });
   const subscriptionLines = buildSubscriptionLines(handlerGroups);
-  const needsBlockReasonHelper = Boolean(handlerGroups[PI_BLOCKING_EVENT]);
+  const needsBlockReasonHelper = Boolean(
+    handlerGroups[PI_BLOCKING_EVENT] ?? handlerGroups[PI_PROMPT_BLOCKING_EVENT],
+  );
 
   const lines: string[] = ["// Generated by rulesync. Do not edit manually."];
   if (subscriptionLines.length === 0) {

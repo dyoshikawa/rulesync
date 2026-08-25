@@ -90,8 +90,11 @@ describe("PiHooks", () => {
       expect(content).toContain("teardown.sh");
       expect(content).toContain('pi.on("agent_end", async () => {');
       expect(content).toContain(".rulesync/hooks/audit.sh");
-      expect(content).toContain('pi.on("input", async () => {');
+      // `input` gates prompt submission, so the handler takes `ctx` for the
+      // notify channel and returns an explicit `continue` on success.
+      expect(content).toContain('pi.on("input", async (_event, ctx) => {');
       expect(content).toContain("pre-prompt.sh");
+      expect(content).toContain('return { action: "continue" };');
       expect(content).toContain('pi.on("context", async () => {');
       expect(content).toContain("pre-model.sh");
       // `message_end` fires for every message role, so the generated handler
@@ -161,6 +164,36 @@ describe("PiHooks", () => {
       expect(content).not.toContain("terminate");
       // `tool_result` cannot block, so it stays observe-only.
       expect(content).toContain('    await run("post-tool.sh");');
+    });
+
+    it("should cancel the prompt when a beforeSubmitPrompt hook command fails", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          beforeSubmitPrompt: [{ type: "command", command: "gate.sh" }],
+        },
+      };
+      const piHooks = PiHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
+        validate: false,
+      });
+
+      const content = piHooks.getFileContent();
+      // Pi's `input` event skips the agent entirely when a handler returns
+      // `{ action: "handled" }`, matching how the canonical event blocks on
+      // every other hook-capable target.
+      expect(content).toContain("function toBlockReason(error: unknown): string {");
+      expect(content).toContain('pi.on("input", async (_event, ctx) => {');
+      expect(content).toContain("    try {");
+      expect(content).toContain('      await run("gate.sh");');
+      expect(content).toContain("    } catch (error) {");
+      // `handled` carries no reason field, so the reason goes through the UI.
+      expect(content).toContain(
+        '      if (ctx.hasUI) ctx.ui.notify(toBlockReason(error), "error");',
+      );
+      expect(content).toContain('      return { action: "handled" };');
+      expect(content).toContain('    return { action: "continue" };');
     });
 
     it("should omit the block-reason helper when no preToolUse hook is configured", () => {
@@ -351,6 +384,66 @@ describe("PiHooks", () => {
         "agent_end",
       ]);
       expect(on).toHaveBeenCalledWith("session_start", expect.any(Function));
+    });
+
+    it("should generate an input handler that skips the agent when the command fails", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          beforeSubmitPrompt: [{ type: "command", command: "exit 3" }],
+        },
+      };
+      const piHooks = PiHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
+        validate: false,
+      });
+
+      const extensionsDir = join(testDir, ".pi", "extensions");
+      await ensureDir(extensionsDir);
+      const filePath = join(extensionsDir, "rulesync-hooks.ts");
+      await writeFileContent(filePath, piHooks.getFileContent());
+
+      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
+      const on = vi.fn();
+      mod.default({ on });
+      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
+      expect(handler).toBeTypeOf("function");
+
+      const notify = vi.fn();
+      expect(await handler({ text: "hi" }, { hasUI: true, ui: { notify } })).toEqual({
+        action: "handled",
+      });
+      expect(notify).toHaveBeenCalledWith(expect.stringContaining("3"), "error");
+    });
+
+    it("should generate an input handler that continues when the command succeeds", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          beforeSubmitPrompt: [{ type: "command", command: "exit 0" }],
+        },
+      };
+      const piHooks = PiHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
+        validate: false,
+      });
+
+      const extensionsDir = join(testDir, ".pi", "extensions");
+      await ensureDir(extensionsDir);
+      const filePath = join(extensionsDir, "rulesync-hooks.ts");
+      await writeFileContent(filePath, piHooks.getFileContent());
+
+      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
+      const on = vi.fn();
+      mod.default({ on });
+      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
+      const notify = vi.fn();
+      expect(await handler({ text: "hi" }, { hasUI: true, ui: { notify } })).toEqual({
+        action: "continue",
+      });
+      expect(notify).not.toHaveBeenCalled();
     });
   });
 
