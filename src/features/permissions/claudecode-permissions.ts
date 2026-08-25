@@ -409,7 +409,10 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
     // sandbox still blocks the access, so what widens here is what you get to
     // see, not what runs.
     reason: "hides the sandbox violations it names, so a blocked access stops being reported",
-    widens: (value) => (isPlainRecord(value) ? Object.keys(value).length > 0 : value !== false),
+    // Composed rather than shared outright: an empty map suppresses nothing, and
+    // `isNonEmptyMap(false)` is true, so the `false` that spells the key off
+    // has to be excluded as well.
+    widens: (value) => isNonEmptyMap(value) && isNotFalse(value),
   },
   {
     path: ["network", "allowAllUnixSockets"],

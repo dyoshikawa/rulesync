@@ -1906,11 +1906,13 @@ describe("ClaudecodePermissions", () => {
     // An exact match on the widening value would let every case below through
     // in silence.
     it.each([
-      ["skipWebFetchPreflight", 1],
-      ["skipWebFetchPreflight", "true"],
-      ["disableSkillShellExecution", 0],
-      ["sandbox", { filesystem: { allowRead: "/etc" } }],
-    ])("reports an off-type '%s' rather than passing it over", async (key, value) => {
+      ["skipWebFetchPreflight", 1, "skipWebFetchPreflight"],
+      ["skipWebFetchPreflight", "true", "skipWebFetchPreflight"],
+      ["disableSkillShellExecution", 0, "disableSkillShellExecution"],
+      ["sandbox", { filesystem: { allowRead: "/etc" } }, "sandbox.filesystem.allowRead"],
+      ["sandbox", { enableWeakerNestedSandbox: 1 }, "sandbox.enableWeakerNestedSandbox"],
+      ["sandbox", { network: { allowLocalBinding: "yes" } }, "sandbox.network.allowLocalBinding"],
+    ])("reports an off-type '%s' rather than passing it over", async (key, value, label) => {
       const mockLogger = createMockLogger();
       const warnSpy = vi.spyOn(mockLogger, "warn");
       const rulesyncPermissions = new RulesyncPermissions({
@@ -1929,8 +1931,7 @@ describe("ClaudecodePermissions", () => {
       });
 
       expect(JSON.parse(instance.getFileContent())[key]).toEqual(value);
-      const label = key === "sandbox" ? "'sandbox.filesystem.allowRead' —" : `'${key}' —`;
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(label));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`'${label}' —`));
     });
 
     it("drops a project-scoped 'remoteControlAtStartup: true' that Claude Code ignores", async () => {
