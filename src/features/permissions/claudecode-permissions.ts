@@ -316,6 +316,20 @@ const CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS: readonly (readonly string[])[]
 ];
 
 /**
+ * The predicates the "which value actually widens?" tables are built from.
+ * Each names the value that does *not* widen and reports everything else, never
+ * the reverse: the override is authored JSONC, so a key can carry any value at
+ * all, and one Claude Code coerces is still honored. Reporting an off-type value
+ * keeps the warning fail-safe — silence has to mean "this cannot loosen
+ * anything", not "this is not the type the table expected".
+ */
+const isNotFalse = (value: unknown): boolean => value !== false;
+const isNotTrue = (value: unknown): boolean => value !== true;
+const isNonEmptyList = (value: unknown): boolean => !Array.isArray(value) || value.length > 0;
+const isNonEmptyMap = (value: unknown): boolean =>
+  !isPlainRecord(value) || Object.keys(value).length > 0;
+
+/**
  * `sandbox` paths that loosen the sandbox rather than naming something to run:
  * they let commands out of it, weaken the isolation it provides, or redirect
  * where its traffic goes. They are written like `env` is — the ordinary uses are
@@ -339,7 +353,7 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
   {
     path: ["allowAppleEvents"],
     reason: "lets sandboxed commands send Apple Events, which removes code-execution isolation",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["allowUnsandboxedCommands"],
@@ -349,45 +363,45 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
     // file, so an explicit `true` from a fetched override re-opens the escape
     // hatch a user's `false` closed, and it does so without changing anything a
     // diff of the *effective* policy would show.
-    widens: (value) => value !== false,
+    widens: isNotFalse,
   },
   {
     path: ["autoAllowBashIfSandboxed"],
     reason: "controls whether every Bash command the sandbox accepts runs without a prompt",
     // Same reasoning as `allowUnsandboxedCommands`: default `true`, and a
     // project-scope `true` overrides a user-scope `false`.
-    widens: (value) => value !== false,
+    widens: isNotFalse,
   },
   {
     path: ["enableWeakerNestedSandbox"],
     reason: "runs the Linux sandbox inside an unprivileged container, which weakens it",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["enableWeakerNetworkIsolation"],
     reason: "weakens the sandbox's network isolation on macOS",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["enabled"],
     reason:
       "turns the sandbox on, and sandboxed Bash commands then run without a permission prompt unless `autoAllowBashIfSandboxed` is false",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["excludedCommands"],
     reason: "names commands that always run outside the sandbox, with no sandbox policy applied",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["filesystem", "allowRead"],
     reason: "re-opens reading inside a region the sandbox's `denyRead` blocks",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["filesystem", "allowWrite"],
     reason: "adds paths sandboxed commands may write to, outside the working directory",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["ignoreViolations"],
@@ -400,28 +414,28 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
   {
     path: ["network", "allowAllUnixSockets"],
     reason: "lets sandboxed commands connect to every Unix socket",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["network", "allowedDomains"],
     reason: "pre-allows domains sandboxed commands may reach without a prompt",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["network", "allowLocalBinding"],
     reason: "lets sandboxed commands bind local ports",
-    widens: (value) => value === true,
+    widens: isNotFalse,
   },
   {
     path: ["network", "allowMachLookup"],
     reason: "names the macOS services sandboxed commands may reach, and `*` means every service",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["network", "allowUnixSockets"],
     reason:
       "names Unix sockets sandboxed commands may reach, and one such as `/var/run/docker.sock` is host access",
-    widens: (value) => !Array.isArray(value) || value.length > 0,
+    widens: isNonEmptyList,
   },
   {
     path: ["network", "httpProxyPort"],
@@ -760,7 +774,7 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
   httpHookAllowedEnvVars:
     "controls which environment variables an HTTP hook may put in a request header, credentials included",
   modelOverrides:
-    "maps the model IDs it names to provider IDs, so an entry decides which endpoint every prompt for that model reaches",
+    "maps the model IDs it names to provider-specific model IDs, so an entry decides which inference profile or deployment every call for that model is routed to",
   outputStyle: "replaces the system prompt every session runs with",
   prUrlTemplate:
     "rewrites the pull-request links Claude Code renders, so they can point at a host of the template's choosing rather than at the reviewed PR",
@@ -772,20 +786,6 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
   skipWebFetchPreflight:
     "turns off the WebFetch domain safety check, so WebFetch retrieves any URL without consulting Anthropic's blocklist",
 };
-
-/**
- * The predicates {@link CLAUDECODE_TRUST_KEY_WIDENING_VALUES} is built from.
- * Each names the value that does *not* widen and reports everything else, never
- * the reverse: the override is authored JSONC, so a key can carry any value at
- * all, and one Claude Code coerces is still honored. Reporting an off-type value
- * keeps the warning fail-safe — silence has to mean "this cannot loosen
- * anything", not "this is not the type the table expected".
- */
-const isNotFalse = (value: unknown): boolean => value !== false;
-const isNotTrue = (value: unknown): boolean => value !== true;
-const isNonEmptyList = (value: unknown): boolean => !Array.isArray(value) || value.length > 0;
-const isNonEmptyMap = (value: unknown): boolean =>
-  !isPlainRecord(value) || Object.keys(value).length > 0;
 
 /**
  * The keys from the table above that only widen at one particular value.
@@ -836,9 +836,10 @@ const CLAUDECODE_PROJECT_SCOPE_IGNORED_VALUES: Readonly<
   Record<string, { readonly ignored: (value: unknown) => boolean; readonly note: string }>
 > = {
   remoteControlAtStartup: {
-    // The same predicate the widening table uses, shared rather than repeated:
-    // both ask "is this something other than the restrictive `false`?", so they
-    // must not be able to drift apart.
+    // The same predicate the widening table uses. "Does this widen trust?" and
+    // "does project scope ignore this?" are different questions that happen to
+    // have the same answer for this key, so the sharing is for the reader's
+    // benefit; a future key needing one but not the other gets its own.
     ignored: isNotFalse,
     note: "Claude Code honors only a `false` there, so that a checked-in file cannot turn Remote Control on for everyone who opens the repository",
   },
@@ -1062,13 +1063,11 @@ export class ClaudecodePermissions extends ToolPermissions {
       // policy that never applies.
       const honorableSandbox = stripSandboxPaths({
         sandbox: overrideSandbox,
-        refusals: global
-          ? [CLAUDECODE_COMMAND_EXECUTING_SANDBOX_REFUSAL, CLAUDECODE_MANAGED_ONLY_SANDBOX_REFUSAL]
-          : [
-              CLAUDECODE_COMMAND_EXECUTING_SANDBOX_REFUSAL,
-              CLAUDECODE_MANAGED_ONLY_SANDBOX_REFUSAL,
-              CLAUDECODE_GLOBAL_ONLY_SANDBOX_REFUSAL,
-            ],
+        refusals: [
+          CLAUDECODE_COMMAND_EXECUTING_SANDBOX_REFUSAL,
+          CLAUDECODE_MANAGED_ONLY_SANDBOX_REFUSAL,
+          ...(global ? [] : [CLAUDECODE_GLOBAL_ONLY_SANDBOX_REFUSAL]),
+        ],
         relativeFilePath: paths.relativeFilePath,
         logger,
       });
@@ -1181,8 +1180,11 @@ export class ClaudecodePermissions extends ToolPermissions {
 
     // The sibling `sandbox` subtree round-trips through the same override block,
     // minus the paths that name an executable: symmetric with generate, which
-    // refuses to write them, so the override never carries a value that only
-    // ever produces a warning.
+    // refuses to write them, so the override never carries a command a reviewer
+    // would not look for there. The managed-only paths are deliberately not
+    // stripped even though generate refuses them too — see
+    // `CLAUDECODE_MANAGED_ONLY_SANDBOX_PATHS` for why keeping the author's value
+    // is worth the warning it costs on every generate.
     const { sandbox } = settings;
     if (isPlainRecord(sandbox)) {
       const importedSandbox = structuredClone(sandbox);

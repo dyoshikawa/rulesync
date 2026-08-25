@@ -1901,6 +1901,38 @@ describe("ClaudecodePermissions", () => {
       },
     );
 
+    // Each widening condition names the value that stays quiet, not the one that
+    // warns, so a value of the wrong type is reported rather than passed over.
+    // An exact match on the widening value would let every case below through
+    // in silence.
+    it.each([
+      ["skipWebFetchPreflight", 1],
+      ["skipWebFetchPreflight", "true"],
+      ["disableSkillShellExecution", 0],
+      ["sandbox", { filesystem: { allowRead: "/etc" } }],
+    ])("reports an off-type '%s' rather than passing it over", async (key, value) => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { [key]: value },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent())[key]).toEqual(value);
+      const label = key === "sandbox" ? "'sandbox.filesystem.allowRead' —" : `'${key}' —`;
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(label));
+    });
+
     it("drops a project-scoped 'remoteControlAtStartup: true' that Claude Code ignores", async () => {
       const mockLogger = createMockLogger();
       const warnSpy = vi.spyOn(mockLogger, "warn");
@@ -2029,6 +2061,29 @@ describe("ClaudecodePermissions", () => {
       // A top-level settings key no other feature owns round-trips through the
       // same override block, so the next generate writes it back.
       expect(config.claudecode.model).toBe("opus");
+    });
+
+    it("keeps a managed-only sandbox path on import even though generate refuses it", () => {
+      const instance = new ClaudecodePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          sandbox: {
+            filesystem: { allowManagedReadPathsOnly: true },
+            // The command-executing path beside it is dropped, which is the
+            // asymmetry this test pins: a hand-written managed-only value is
+            // kept for the day it moves into a managed file, while a command
+            // is never carried into a shareable permissions file.
+            ripgrep: "/usr/local/bin/rg",
+          },
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.claudecode.sandbox).toEqual({
+        filesystem: { allowManagedReadPathsOnly: true },
+      });
     });
 
     it("routes non-list permissions fields into the claudecode override on import", () => {
