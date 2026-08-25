@@ -1,5 +1,5 @@
 import { existsSync, type FSWatcher, watch as fsWatch, statSync } from "node:fs";
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
 import { RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 
@@ -441,10 +441,12 @@ export function formatTriggerPaths({
     for (const root of rootsByPrecedence) {
       const rel = relative(root, trigger);
 
-      // `rel` is empty when trigger === root, starts with `..` when trigger
-      // is outside root, or is absolute on Windows when the two live on
-      // different drives — none of those count as "under" root.
-      if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
+      // `rel` is empty when trigger === root, is exactly `..` or starts with a
+      // `..` path segment when trigger is outside root, or is absolute on
+      // Windows when the two live on different drives — none of those count as
+      // "under" root. The segment check matters because a legitimate child
+      // named `..foo` also starts with the two characters `..`.
+      if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
         continue;
       }
 

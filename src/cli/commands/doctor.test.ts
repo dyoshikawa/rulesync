@@ -593,6 +593,84 @@ describe("doctorCommand", () => {
     );
   });
 
+  it("reports an empty inputRoots entry, which the config schema accepts", async () => {
+    const base = join(testDir, "base");
+    await ensureDir(base);
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [base, ""],
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("'inputRoots[1]' is an empty string"),
+    );
+  });
+
+  it("reports an empty inputRoot, which the config schema accepts", async () => {
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoot: "",
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("'inputRoot' is an empty string"),
+    );
+  });
+
+  // A wrong type is already reported by the schema check, so `doctor` must not
+  // print a second `config/input-root-invalid` line for the same mistake.
+  it("does not duplicate the schema error for a non-string inputRoots entry", async () => {
+    const base = join(testDir, "base");
+    await ensureDir(base);
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [base, 42],
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("Invalid value at 'inputRoots.1'"),
+    );
+    expect(mockLogger.error).not.toHaveBeenCalledWith(
+      expect.stringContaining("config/input-root-invalid"),
+    );
+  });
+
+  // Reporting an empty entry must not suppress the existence checks that ran
+  // before the entry was reported at all.
+  it("still reports a missing primary root alongside an empty entry", async () => {
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        inputRoots: [join(testDir, "missing-base"), ""],
+      }),
+    );
+
+    await expect(doctorCommand(mockLogger, {})).rejects.toThrow(CLIError);
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("'inputRoots[1]' is an empty string"),
+    );
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining("config/input-root-not-found"),
+    );
+  });
+
   it("accepts an inputRoots array of existing directories", async () => {
     const base = join(testDir, "base");
     const overlay = join(testDir, "overlay");

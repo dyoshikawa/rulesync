@@ -182,6 +182,36 @@ describe("HermesagentCommand", () => {
     ).resolves.toBeDefined();
   });
 
+  it("lets a later root's case-variant skill directory shadow an earlier root's skill", async () => {
+    // The skills processor treats `Review` and `review` as one directory, so
+    // the collision check must resolve the same single winner instead of
+    // seeing both spellings and failing on the shadowed one.
+    const baseSkillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "Review");
+    const overlaySkillDir = join(testDir, ".rulesync.local", "skills", "review");
+    await mkdir(baseSkillDir, { recursive: true });
+    await mkdir(overlaySkillDir, { recursive: true });
+    await writeFile(
+      join(baseSkillDir, "SKILL.md"),
+      '---\nname: review\ndescription: Review changes\ntargets: ["hermesagent"]\n---\n',
+      "utf8",
+    );
+    await writeFile(
+      join(overlaySkillDir, "SKILL.md"),
+      '---\nname: review\ndescription: Review changes\ntargets: ["claudecode"]\n---\n',
+      "utf8",
+    );
+    const processor = new CommandsProcessor({
+      inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH), join(testDir, ".rulesync.local")],
+      toolTarget: "hermesagent",
+      global: true,
+      logger: createMockLogger(),
+    });
+
+    await expect(
+      processor.convertRulesyncFilesToToolFiles([rulesyncCommand()]),
+    ).resolves.toBeDefined();
+  });
+
   it("rejects command names that collide after case normalization", async () => {
     const processor = new CommandsProcessor({
       inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],

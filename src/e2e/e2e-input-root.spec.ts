@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_CHECKS_RELATIVE_DIR_PATH,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
@@ -251,6 +252,27 @@ Body content for the input-root skill.
     const outputPath = join(".claude", "skills", "test-skill", "SKILL.md");
     const generatedContent = await readFileContent(join(outputDir, outputPath));
     expect(generatedContent).toContain("Body content for the input-root skill.");
+    expect(await fileExists(join(sourceDir, outputPath))).toBe(false);
+  });
+
+  it("should read checks from --input-roots and write amp output to cwd", async () => {
+    const checkContent = `---
+targets: ["*"]
+description: "Flags security issues"
+severity: high
+---
+Look for injection vulnerabilities.
+`;
+    await writeFileContent(
+      join(sourceDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "security.md"),
+      checkContent,
+    );
+
+    await runGenerate({ target: "amp", features: "checks", inputRoots: [sourceRoot] });
+
+    const outputPath = join(".agents", "checks", "security.md");
+    const generatedContent = await readFileContent(join(outputDir, outputPath));
+    expect(generatedContent).toContain("Look for injection vulnerabilities.");
     expect(await fileExists(join(sourceDir, outputPath))).toBe(false);
   });
 });
@@ -525,6 +547,56 @@ OVERLAY-ONLY skill body.
       join(outputDir, ".claude", "skills", "overlay-only-skill", "SKILL.md"),
     );
     expect(overlayOnlyOut).toContain("OVERLAY-ONLY skill body.");
+  });
+
+  it("checks: last root wins for same relative path, unique checks from each root survive", async () => {
+    const baseSecurity = `---
+targets: ["*"]
+description: "base security check"
+severity: high
+---
+BASE security check body.
+`;
+    const overlaySecurity = `---
+targets: ["*"]
+description: "overlay security check"
+severity: high
+---
+OVERLAY security check body.
+`;
+    const overlayStyle = `---
+targets: ["*"]
+description: "overlay style check"
+severity: low
+---
+OVERLAY style check body.
+`;
+
+    await writeFileContent(
+      join(baseDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "security.md"),
+      baseSecurity,
+    );
+    await writeFileContent(
+      join(overlayDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "security.md"),
+      overlaySecurity,
+    );
+    await writeFileContent(
+      join(overlayDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "style.md"),
+      overlayStyle,
+    );
+
+    await runGenerate({
+      target: "amp",
+      features: "checks",
+      inputRoots: [baseRoot, overlayRoot],
+    });
+
+    const security = await readFileContent(join(outputDir, ".agents", "checks", "security.md"));
+    expect(security).toContain("OVERLAY security check body.");
+    expect(security).not.toContain("BASE security check body.");
+
+    const style = await readFileContent(join(outputDir, ".agents", "checks", "style.md"));
+    expect(style).toContain("OVERLAY style check body.");
   });
 
   it("ignore: later root fully replaces earlier root's file", async () => {

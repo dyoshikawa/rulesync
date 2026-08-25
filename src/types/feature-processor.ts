@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 import {
   addTrailingNewline,
   applyFileMode,
@@ -169,6 +170,30 @@ export abstract class FeatureProcessor {
 }
 
 /**
+ * Messages already reported for a given logger.
+ *
+ * One `generate` run constructs a single-file processor per tool target and
+ * per output root — more than twenty times for `--targets "*"` — and each one
+ * re-resolves the same roots. Keying on the logger — created once per run, and
+ * once per test — keeps the shadowing warning to a single line instead of
+ * repeating it for every target. `--watch` reuses one logger across runs, so
+ * {@link resetRootShadowingWarnings} clears the set at the start of each one.
+ */
+const warnedRootShadowingByLogger = new WeakMap<Logger, Set<string>>();
+
+/**
+ * Forget which shadowing warnings have already been reported.
+ *
+ * `generate` calls this once per run. Without it, `--watch` reuses one logger
+ * for the whole session, so the warning would be printed on the first
+ * generation and never again — the opposite of why it is a warning, since
+ * `--watch` is exactly when an overlay is most likely to be added or edited.
+ */
+export function resetRootShadowingWarnings({ logger }: { logger: Logger }): void {
+  warnedRootShadowingByLogger.delete(logger);
+}
+
+/**
  * Return the last input root that contains any of the given `relativePaths`,
  * or `undefined` when none of the roots has any of them. Used by single-file
  * features (hooks, permissions, ignore) to implement the "later root wins
@@ -183,18 +208,51 @@ export abstract class FeatureProcessor {
 export async function pickLastRootWithFile({
   inputRoots,
   relativePaths,
+  logger,
+  artifactName,
 }: {
   inputRoots: readonly string[];
   relativePaths: readonly string[];
+  logger: Logger;
+  // Named so the log line below points at the artifact the user recognizes
+  // (e.g. "The permissions file") instead of an anonymous "This file".
+  artifactName: string;
 }): Promise<string | undefined> {
   let winner: string | undefined;
+  const rootsWithFile: string[] = [];
 
   for (const root of inputRoots) {
     for (const relativePath of relativePaths) {
       if (await fileExists(join(root, relativePath))) {
         winner = root;
+        rootsWithFile.push(root);
         break;
       }
+    }
+  }
+
+  // Replacing the whole file is the documented policy for single-file
+  // features, but doing it silently makes an overlay look like it merged with
+  // the base file. Name the roots that lost so the dropped content is
+  // traceable. This is a warning rather than progress output because the
+  // affected files (ignore, permissions, hooks) gate what an agent may read
+  // and run, so a whole-file replacement is worth noticing.
+  if (rootsWithFile.length > 1 && winner !== undefined) {
+    const shadowed = rootsWithFile.slice(0, -1);
+
+    // Input roots come from a config file that can be checked into a
+    // repository, so they are sanitized before reaching the terminal.
+    const message = `${artifactName} is provided by more than one input root; '${stripControlCharacters(winner)}' replaces the whole file from ${shadowed.map((root) => `'${stripControlCharacters(root)}'`).join(", ")}.`;
+    let warnedMessages = warnedRootShadowingByLogger.get(logger);
+
+    if (warnedMessages === undefined) {
+      warnedMessages = new Set<string>();
+      warnedRootShadowingByLogger.set(logger, warnedMessages);
+    }
+
+    if (!warnedMessages.has(message)) {
+      warnedMessages.add(message);
+      logger.warn(message);
     }
   }
 
@@ -254,8 +312,76 @@ export function mergeByIdentity<T>({
  * filesystem); folding them here would instead drop names that a
  * case-sensitive filesystem keeps genuinely apart.
  */
-function caseFoldIdentity(identity: string): string {
+export function caseFoldIdentity(identity: string): string {
   return identity.normalize("NFC").toLowerCase();
+}
+
+/**
+ * Group spellings by their case-folded identity, keeping every original
+ * spelling. On a case-sensitive filesystem one identity can cover several
+ * spellings at once, and the caller needs them all to describe a collision
+ * accurately.
+ */
+export function groupSpellingsByCaseFoldedIdentity(
+  spellings: readonly string[],
+): Map<string, string[]> {
+  const grouped = new Map<string, string[]>();
+
+  for (const spelling of spellings) {
+    const identity = caseFoldIdentity(spelling);
+    const existing = grouped.get(identity);
+
+    if (existing === undefined) {
+      grouped.set(identity, [spelling]);
+    } else {
+      existing.push(spelling);
+    }
+  }
+
+  return grouped;
+}
+
+/**
+ * Build the warning emitted when a `.curated/` entry and a local entry in the
+ * same tree differ only in case.
+ *
+ * `.curated/` is expanded from a declarative source (an external Git repository
+ * or npm package), so its names are untrusted input; both sides are stripped of
+ * control characters before they reach the terminal.
+ *
+ * The winning local spelling is the LAST one, matching the precedence
+ * {@link mergeByCaseInsensitiveIdentity} applies afterwards; any other spelling
+ * that folds onto the same identity is listed too, so the message never names a
+ * spelling that loses.
+ */
+export function formatCuratedCaseCollisionWarning({
+  artifactKind,
+  entryNoun,
+  treeDirPath,
+  curatedSpelling,
+  localSpellings,
+}: {
+  artifactKind: string;
+  entryNoun: string;
+  treeDirPath: string;
+  curatedSpelling: string;
+  localSpellings: readonly string[];
+}): string {
+  const winner = localSpellings[localSpellings.length - 1] ?? "";
+  const shadowed = localSpellings.slice(0, -1);
+  const shadowedSuffix =
+    shadowed.length === 0
+      ? ""
+      : ` Other local spellings that fold onto the same identity: ${shadowed
+          .map((spelling) => `'${stripControlCharacters(spelling)}'`)
+          .join(", ")}.`;
+
+  return (
+    `Case-insensitive ${artifactKind} collision under ${stripControlCharacters(treeDirPath)}: ` +
+    `curated '${stripControlCharacters(curatedSpelling)}' and local '${stripControlCharacters(winner)}' ` +
+    `resolve to the same identity. The local ${entryNoun} wins and the curated ${entryNoun} is skipped.` +
+    shadowedSuffix
+  );
 }
 
 /**
@@ -290,7 +416,9 @@ export function mergeByCaseInsensitiveIdentity<T>({
 
       if (previousSpelling !== undefined && previousSpelling !== spelling && !warnedKeys.has(key)) {
         logger.warn(
-          `Case-insensitive ${artifactName} collision: '${previousSpelling}' and '${spelling}' resolve to the same identity. The later entry wins.`,
+          // Both spellings can come from `.curated/`, which is expanded from an
+          // external Git repository or npm package, so they are untrusted.
+          `Case-insensitive ${artifactName} collision: '${stripControlCharacters(previousSpelling)}' and '${stripControlCharacters(spelling)}' resolve to the same identity. The later entry wins.`,
         );
         warnedKeys.add(key);
       }

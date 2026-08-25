@@ -10,7 +10,10 @@ import {
 import { AiDir } from "../../types/ai-dir.js";
 import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
 import {
+  caseFoldIdentity,
   ClaimedIdentities,
+  formatCuratedCaseCollisionWarning,
+  groupSpellingsByCaseFoldedIdentity,
   mergeByCaseInsensitiveIdentity,
 } from "../../types/feature-processor.js";
 import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
@@ -657,7 +660,9 @@ export class SkillsProcessor extends DirFeatureProcessor {
       ),
     );
 
-    const localSkillNames = new Set(localDirNames.map((name) => name.toLowerCase()));
+    // Keyed by case-folded name because two skill directories whose names
+    // differ only in case collapse onto one directory on macOS/Windows.
+    const localSkillNamesByIdentity = groupSpellingsByCaseFoldedIdentity(localDirNames);
 
     const curatedDirPath = join(sourceTree, CURATED_SKILLS_FEATURE_SUBDIR);
     let curatedSkills: RulesyncSkill[] = [];
@@ -667,12 +672,32 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const curatedDirNames = curatedDirPaths.map((path) => basename(path));
 
       const nonConflicting = curatedDirNames.filter((name) => {
-        if (localSkillNames.has(name.toLowerCase())) {
-          this.logger.debug(`Skipping curated skill "${name}": local skill takes precedence.`);
-          return false;
+        const spellings = localSkillNamesByIdentity.get(caseFoldIdentity(name));
+
+        if (spellings === undefined) {
+          return true;
         }
 
-        return true;
+        // An exact match is the documented local-wins-over-curated flow and
+        // stays at debug level; a case-only match is ambiguous enough to
+        // surface, mirroring the warning the cross-root merge emits. The exact
+        // spelling is preferred so an unrelated case variant sitting next to
+        // it does not turn a plain override into a spurious collision warning.
+        if (spellings.includes(name)) {
+          this.logger.debug(`Skipping curated skill "${name}": local skill takes precedence.`);
+        } else {
+          this.logger.warn(
+            formatCuratedCaseCollisionWarning({
+              artifactKind: "skill",
+              entryNoun: "skill",
+              treeDirPath: treeSkillsDirPath,
+              curatedSpelling: name,
+              localSpellings: spellings,
+            }),
+          );
+        }
+
+        return false;
       });
 
       curatedSkills = await Promise.all(

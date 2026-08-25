@@ -172,6 +172,8 @@ export class IgnoreProcessor extends FeatureProcessor {
     const winningRoot = await pickLastRootWithFile({
       inputRoots: this.inputRoots,
       relativePaths,
+      logger: this.logger,
+      artifactName: "The ignore file (.aiignore)",
     });
     const sourceTree = winningRoot ?? this.inputRoots[0];
 

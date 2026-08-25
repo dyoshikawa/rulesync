@@ -10,7 +10,13 @@ import {
   RULES_FEATURE_SUBDIR,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import { FeatureProcessor, mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
+import {
+  caseFoldIdentity,
+  FeatureProcessor,
+  formatCuratedCaseCollisionWarning,
+  groupSpellingsByCaseFoldedIdentity,
+  mergeByCaseInsensitiveIdentity,
+} from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -1658,14 +1664,42 @@ As this project's AI coding tool, you must follow the additional conventions bel
     const localFiles = files.filter(
       (file) => !relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`),
     );
-    const localRelativePaths = new Set(
-      localFiles.map((file) => relative(rulesyncOutputRoot, file).toLowerCase()),
+    // Keyed by case-folded path because a curated and a local file whose names
+    // differ only in case collapse onto one file on macOS/Windows, so the
+    // curated one cannot be emitted alongside the local one there.
+    const localRelativePathsByIdentity = groupSpellingsByCaseFoldedIdentity(
+      localFiles.map((file) => relative(rulesyncOutputRoot, file)),
     );
 
     const curatedFiles = files
       .filter((file) => relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`))
       .map((file) => ({ file, relativeFilePath: relative(curatedOutputRoot, file) }))
-      .filter(({ relativeFilePath }) => !localRelativePaths.has(relativeFilePath.toLowerCase()));
+      .filter(({ relativeFilePath }) => {
+        const spellings = localRelativePathsByIdentity.get(caseFoldIdentity(relativeFilePath));
+
+        if (spellings === undefined) {
+          return true;
+        }
+
+        // An exact match is the documented local-wins-over-curated flow and
+        // stays silent; a case-only match is ambiguous enough to surface,
+        // mirroring the warning the cross-root merge emits. The exact spelling
+        // is preferred so an unrelated case variant sitting next to it does
+        // not turn a plain override into a spurious collision warning.
+        if (!spellings.includes(relativeFilePath)) {
+          this.logger.warn(
+            formatCuratedCaseCollisionWarning({
+              artifactKind: "rule",
+              entryNoun: "file",
+              treeDirPath: treeRulesDirPath,
+              curatedSpelling: join(".curated", relativeFilePath),
+              localSpellings: spellings,
+            }),
+          );
+        }
+
+        return false;
+      });
 
     const selectedFiles = [
       ...localFiles.map((file) => ({

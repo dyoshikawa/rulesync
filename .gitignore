@@ -224,6 +224,7 @@ docs/.vitepress/cache
 .rulesync/rules/.curated/
 .rulesync/rules/*.local.md
 rulesync.local.jsonc
+.rulesync.local/
 **/AGENTS.local.md
 **/CLAUDE.local.md
 **/.qwen/QWEN.local.md

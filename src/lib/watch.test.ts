@@ -349,6 +349,23 @@ describe("formatTriggerPaths", () => {
     expect(formatTriggerPaths({ triggers: [baseDir], inputRoots: [baseDir] })).toBe(baseDir);
   });
 
+  it("keeps a child whose name merely starts with two dots relative", () => {
+    // `relative()` returns `..foo/bar.md` here, which a naive `startsWith("..")`
+    // check would misread as an escape from the root.
+    expect(
+      formatTriggerPaths({
+        triggers: [join(baseDir, "..foo", "bar.md")],
+        inputRoots: [baseDir],
+      }),
+    ).toBe(join("..foo", "bar.md"));
+  });
+
+  it("falls back to the absolute path for a sibling directory of the root", () => {
+    const sibling = join("/", "sibling", "rules.md");
+
+    expect(formatTriggerPaths({ triggers: [sibling], inputRoots: [baseDir] })).toBe(sibling);
+  });
+
   it("picks the containing root when several are configured", () => {
     const base = join("/", "team-config");
     const overlay = join("/", "repo");

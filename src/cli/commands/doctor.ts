@@ -667,11 +667,24 @@ async function checkInputRootExists({
   const localInputConfig = readDoctorInputRootConfig(localConfig);
   const diagnostics: DoctorDiagnostic[] = [];
 
+  let hasConflict = false;
+
   for (const [config, file] of [
     [baseInputConfig, baseFile],
     [localInputConfig, localFile],
   ] as const) {
+    for (const issue of config.issues) {
+      diagnostics.push({
+        severity: "error",
+        code: "config/input-root-invalid",
+        file,
+        message: issue.message,
+        hint: issue.hint,
+      });
+    }
+
     if (config.inputRoot !== undefined && config.inputRoots !== undefined) {
+      hasConflict = true;
       diagnostics.push({
         severity: "error",
         code: "config/input-roots-conflict",
@@ -682,7 +695,11 @@ async function checkInputRootExists({
     }
   }
 
-  if (diagnostics.length > 0) {
+  // Only a conflict short-circuits the checks below: `generate` throws before
+  // it resolves anything, so describing the roots it would have used is
+  // misleading. The issues above leave a resolvable configuration, and
+  // stopping on them would drop the existence checks the command used to run.
+  if (hasConflict) {
     return diagnostics;
   }
 
@@ -748,23 +765,65 @@ async function checkInputRootExists({
   return diagnostics;
 }
 
-function readDoctorInputRootConfig(config: Record<string, unknown> | undefined): InputRootConfig {
+/**
+ * Reading the raw config here is deliberately tolerant so `doctor` can keep
+ * inspecting a file the strict loader would reject outright.
+ *
+ * Only values the config schema itself accepts are reported as an `issue`. A
+ * wrong type (`inputRoot: 42`, `inputRoots: "x"`, a non-string entry) and an
+ * empty `inputRoots` list are already reported as `config/invalid-value` by
+ * `checkAgainstConfigFileSchema`, so repeating them here would print two
+ * errors for one mistake. An empty string passes `z.string()`, which leaves it
+ * for this function to catch.
+ *
+ * Values that do pass the schema are handed back verbatim rather than filtered
+ * out, so the checks below analyze the same values `generate` receives. An
+ * empty string is the one value `generate` never gets as far as resolving:
+ * `ConfigResolver` runs it through `validateOutputRoot`, which throws
+ * `outputRoot cannot be an empty string`.
+ */
+function readDoctorInputRootConfig(config: Record<string, unknown> | undefined): InputRootConfig & {
+  issues: { message: string; hint: string }[];
+} {
   const inputRootValue = config?.inputRoot;
   const inputRootsValue = config?.inputRoots;
-  const inputRoot =
-    typeof inputRootValue === "string" && inputRootValue.length > 0 ? inputRootValue : undefined;
+  const issues: { message: string; hint: string }[] = [];
 
-  if (!Array.isArray(inputRootsValue) || inputRootsValue.length === 0) {
-    return { inputRoot, inputRoots: undefined };
+  const inputRoot = typeof inputRootValue === "string" ? inputRootValue : undefined;
+
+  if (inputRoot === "") {
+    issues.push({
+      message:
+        "'inputRoot' is an empty string, so 'generate' fails with \"outputRoot cannot be an empty string\" before it resolves any source tree.",
+      hint: "Set 'inputRoot' to the directory that contains your '.rulesync' source tree, or remove it.",
+    });
   }
 
-  const inputRoots = inputRootsValue.filter(
-    (entry): entry is string => typeof entry === "string" && entry.length > 0,
-  );
+  if (!Array.isArray(inputRootsValue) || inputRootsValue.length === 0) {
+    return { inputRoot, inputRoots: undefined, issues };
+  }
+
+  const inputRoots: string[] = [];
+
+  for (const [index, entry] of inputRootsValue.entries()) {
+    // A non-string entry is already an error from the schema check, and it
+    // cannot be resolved, so it is dropped without a second message.
+    if (typeof entry !== "string") continue;
+
+    if (entry === "") {
+      issues.push({
+        message: `'inputRoots[${index}]' is an empty string, so 'generate' fails with "outputRoot cannot be an empty string" before it resolves any source tree.`,
+        hint: "Replace the entry with a path to a source tree, or remove it.",
+      });
+    }
+
+    inputRoots.push(entry);
+  }
 
   return {
     inputRoot,
     inputRoots: inputRoots.length === 0 ? undefined : inputRoots,
+    issues,
   };
 }
 

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import { fallbackLogger, type Logger } from "../utils/logger.js";
-import { ConfigResolver } from "./config-resolver.js";
+import { ConfigResolver, resolveEffectiveInputRoots } from "./config-resolver.js";
 
 const { getHomeDirectoryMock } = vi.hoisted(() => {
   return {
@@ -1032,5 +1032,45 @@ describe("config-resolver", () => {
         }),
       ).rejects.toThrow(/outputRoot must not be the filesystem root/);
     });
+  });
+});
+
+describe("resolveEffectiveInputRoots", () => {
+  // These tests spy on `process.cwd()`, and this block sits outside the
+  // `config-resolver` describe that owns the file's restoring `afterEach`.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("resolves relative entries against the passed-in cwd, not process.cwd()", () => {
+    const cwd = resolve(join("/", "callers", "project"));
+    vi.spyOn(process, "cwd").mockReturnValue(resolve(join("/", "somewhere", "else")));
+
+    const resolved = resolveEffectiveInputRoots({
+      cliInputRoot: undefined,
+      cliInputRoots: ["./.rulesync", "./.rulesync.local"],
+      configByFile: {},
+      cwd,
+      logger: undefined,
+    });
+
+    expect(resolved.inputRoots).toEqual([join(cwd, ".rulesync"), join(cwd, ".rulesync.local")]);
+    expect(resolved.field).toBe("inputRoots");
+  });
+
+  it("resolves a relative singular inputRoot against the passed-in cwd as well", () => {
+    const cwd = resolve(join("/", "callers", "project"));
+    vi.spyOn(process, "cwd").mockReturnValue(resolve(join("/", "somewhere", "else")));
+
+    const resolved = resolveEffectiveInputRoots({
+      cliInputRoot: "../shared",
+      cliInputRoots: undefined,
+      configByFile: {},
+      cwd,
+      logger: undefined,
+    });
+
+    expect(resolved.inputRoots).toEqual([resolve(cwd, join("..", "shared", ".rulesync"))]);
+    expect(resolved.field).toBe("inputRoot");
   });
 });

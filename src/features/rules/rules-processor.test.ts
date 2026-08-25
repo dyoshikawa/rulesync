@@ -3241,6 +3241,68 @@ targets: ["opencode", "agentsmd"]
       expect(result).toHaveLength(1);
       expect(result[0]?.getRelativeFilePath()).toBe("Shared.md");
       expect(result[0]?.getBody()).toBe("Local content");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Case-insensitive rule collision under"),
+      );
+    });
+
+    it("should not warn when a curated rule is shadowed by an exactly-named local rule", async () => {
+      const frontmatter = "---\ntargets:\n  - '*'\n---\n";
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "shared.md"),
+        `${frontmatter}Local content`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "shared.md"),
+        `${frontmatter}Remote content`,
+      );
+      const processor = new RulesProcessor({
+        logger,
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        outputRoot: testDir,
+        toolTarget: "copilot",
+      });
+
+      const result = (await processor.loadRulesyncFiles()) as RulesyncRule[];
+
+      expect(result).toHaveLength(1);
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Case-insensitive rule collision under"),
+      );
+    });
+
+    // On a case-sensitive filesystem both spellings can exist side by side, so
+    // the exactly-named local rule must be the one that decides whether this is
+    // a plain override or an ambiguous collision. (On a case-insensitive
+    // filesystem the two files are one, so this degenerates into the
+    // plain-override case above and still holds.)
+    it("should not warn when an exactly-named local rule exists next to a case variant", async () => {
+      const frontmatter = "---\ntargets:\n  - '*'\n---\n";
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "shared.md"),
+        `${frontmatter}Local content`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "Shared.md"),
+        `${frontmatter}Local variant content`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH, "shared.md"),
+        `${frontmatter}Remote content`,
+      );
+      const processor = new RulesProcessor({
+        logger,
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        outputRoot: testDir,
+        toolTarget: "copilot",
+      });
+
+      const result = (await processor.loadRulesyncFiles()) as RulesyncRule[];
+
+      expect(result.map((rule) => rule.getBody())).not.toContain("Remote content");
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Case-insensitive rule collision under"),
+      );
     });
   });
 

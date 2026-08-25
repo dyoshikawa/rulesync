@@ -28,11 +28,12 @@ import { SubagentsProcessor } from "../features/subagents/subagents-processor.js
 import { AiDir } from "../types/ai-dir.js";
 import { AiFile } from "../types/ai-file.js";
 import { DirFeatureProcessor } from "../types/dir-feature-processor.js";
-import { FeatureProcessor } from "../types/feature-processor.js";
+import { FeatureProcessor, resetRootShadowingWarnings } from "../types/feature-processor.js";
 import type { Feature } from "../types/features.js";
 import { getProcessorRegistryEntry } from "../types/processor-registry.js";
 import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import { directoryExists, fileExists, toPosixPath } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -226,6 +227,7 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
   const existing: string[] = [];
   const missing: string[] = [];
   const invalidOverlays: string[] = [];
+  const nonDirectories = new Set<string>();
 
   for (const [index, root] of inputRoots.entries()) {
     if (await directoryExists(root)) {
@@ -233,13 +235,24 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
     } else {
       missing.push(root);
 
-      if (index > 0 && (await fileExists(root))) {
-        invalidOverlays.push(root);
+      // A path that exists but is not a directory is a different mistake than
+      // a path that is simply absent, so it gets its own wording below.
+      if (await fileExists(root)) {
+        nonDirectories.add(root);
+
+        if (index > 0) {
+          invalidOverlays.push(root);
+        }
       }
     }
   }
 
   const primaryRoot = inputRoots[0];
+  // Input roots come from a config file that can be checked into a repository,
+  // so every one of them is sanitized before it reaches the terminal. These
+  // messages are the easiest of the lot to reach: a root only has to be
+  // configured, not to exist.
+  const displayPrimaryRoot = stripControlCharacters(primaryRoot ?? "");
 
   if (primaryRoot === undefined || existing.includes(primaryRoot)) {
     const invalidOverlay = invalidOverlays[0];
@@ -250,13 +263,13 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
       message:
         invalidOverlay === undefined
           ? undefined
-          : `Configured optional input root '${invalidOverlay}' exists but is not a directory.`,
+          : `Configured optional input root '${stripControlCharacters(invalidOverlay)}' exists but is not a directory.`,
     };
   }
 
   const defaultRoot = join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH);
 
-  if (primaryRoot === defaultRoot) {
+  if (primaryRoot === defaultRoot && !nonDirectories.has(primaryRoot)) {
     return {
       existing,
       missing,
@@ -264,10 +277,24 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
     };
   }
 
+  // The primary root can come from either the plural `inputRoots` or the
+  // deprecated singular `inputRoot`, and this function does not know which one
+  // the user actually wrote, so the hint names both instead of asserting a
+  // setting the user may not have.
+  const settingHint = `your input root setting ('inputRoots', or the deprecated 'inputRoot')`;
+
+  if (nonDirectories.has(primaryRoot)) {
+    return {
+      existing,
+      missing,
+      message: `Configured primary input root '${displayPrimaryRoot}' exists but is not a directory. Point ${settingHint} at a directory.`,
+    };
+  }
+
   return {
     existing,
     missing,
-    message: `Configured primary input root '${primaryRoot}' does not exist. Create the directory or update your inputRoots setting.`,
+    message: `Configured primary input root '${displayPrimaryRoot}' does not exist. Create the directory or update ${settingHint}.`,
   };
 }
 
@@ -576,6 +603,11 @@ export async function generate(params: {
   logger: Logger;
 }): Promise<GenerateResult> {
   const { config, logger } = params;
+
+  // Single-file features suppress a repeated shadowing warning per logger, and
+  // `--watch` reuses one logger across every regeneration, so each run starts
+  // from a clean slate.
+  resetRootShadowingWarnings({ logger });
 
   for (const toolTarget of config.getTargets()) {
     for (const outputRoot of config.getOutputRoots(toolTarget)) {
