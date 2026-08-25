@@ -503,7 +503,7 @@ Curated content`,
       expect((rulesyncDirs[0] as RulesyncSkill).getDirName()).toBe("Shared-Skill");
       expect((rulesyncDirs[0] as RulesyncSkill).getBody()).toBe("Local content");
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Case-insensitive skill collision"),
+        expect.stringContaining("Case-insensitive skill collision under"),
       );
     });
 
@@ -537,7 +537,7 @@ Curated content`,
 
       expect(rulesyncDirs).toHaveLength(1);
       expect(logger.warn).not.toHaveBeenCalledWith(
-        expect.stringContaining("Case-insensitive skill collision"),
+        expect.stringContaining("Case-insensitive skill collision under"),
       );
     });
 
@@ -589,7 +589,7 @@ Curated content`,
       // skipped as a plain override rather than reported as a collision.
       expect(rulesyncDirs).toHaveLength(1);
       expect(logger.warn).not.toHaveBeenCalledWith(
-        expect.stringContaining("Case-insensitive skill collision"),
+        expect.stringContaining("Case-insensitive skill collision under"),
       );
     });
 

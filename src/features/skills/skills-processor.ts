@@ -12,6 +12,8 @@ import { DirFeatureProcessor } from "../../types/dir-feature-processor.js";
 import {
   caseFoldIdentity,
   ClaimedIdentities,
+  formatCuratedCaseCollisionWarning,
+  groupSpellingsByCaseFoldedIdentity,
   mergeByCaseInsensitiveIdentity,
 } from "../../types/feature-processor.js";
 import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
@@ -659,21 +661,8 @@ export class SkillsProcessor extends DirFeatureProcessor {
     );
 
     // Keyed by case-folded name because two skill directories whose names
-    // differ only in case collapse onto one directory on macOS/Windows. Every
-    // original spelling is kept so the warning below names the local skill
-    // that actually shadows the curated one — on a case-sensitive filesystem
-    // one identity can cover several local spellings at once.
-    const localSkillNamesByIdentity = new Map<string, string[]>();
-    for (const name of localDirNames) {
-      const identity = caseFoldIdentity(name);
-      const spellings = localSkillNamesByIdentity.get(identity);
-
-      if (spellings === undefined) {
-        localSkillNamesByIdentity.set(identity, [name]);
-      } else {
-        spellings.push(name);
-      }
-    }
+    // differ only in case collapse onto one directory on macOS/Windows.
+    const localSkillNamesByIdentity = groupSpellingsByCaseFoldedIdentity(localDirNames);
 
     const curatedDirPath = join(sourceTree, CURATED_SKILLS_FEATURE_SUBDIR);
     let curatedSkills: RulesyncSkill[] = [];
@@ -698,7 +687,13 @@ export class SkillsProcessor extends DirFeatureProcessor {
           this.logger.debug(`Skipping curated skill "${name}": local skill takes precedence.`);
         } else {
           this.logger.warn(
-            `Case-insensitive skill collision under ${treeSkillsDirPath}: curated '${name}' and local '${spellings[0]}' resolve to the same identity. The local skill wins and the curated skill is skipped.`,
+            formatCuratedCaseCollisionWarning({
+              artifactKind: "skill",
+              entryNoun: "skill",
+              treeDirPath: treeSkillsDirPath,
+              curatedSpelling: name,
+              localSpellings: spellings,
+            }),
           );
         }
 

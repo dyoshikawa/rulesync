@@ -533,6 +533,46 @@ describe("pickLastRootWithFile", () => {
     }
   });
 
+  it("logs the same shadowing only once per logger", async () => {
+    // `generate` builds one single-file processor per tool target and per
+    // output root, and every one of them re-resolves the same roots, so the
+    // warning must not be repeated for each target.
+    const { testDir: root, cleanup } = await setupTestDirectory();
+    try {
+      const rootA = `${root}/a`;
+      const rootB = `${root}/b`;
+      await mkdir(rootA, { recursive: true });
+      await mkdir(rootB, { recursive: true });
+      await writeFile(`${rootA}/mcp.jsonc`, "{}");
+      await writeFile(`${rootB}/mcp.jsonc`, "{}");
+      const logger = createMockLogger();
+
+      for (let i = 0; i < 3; i++) {
+        await pickLastRootWithFile({
+          inputRoots: [rootA, rootB],
+          relativePaths: ["mcp.jsonc"],
+          logger,
+          artifactName: "The hooks file",
+        });
+      }
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+
+      // A different run gets a fresh logger, so it is told about it again.
+      const nextLogger = createMockLogger();
+      await pickLastRootWithFile({
+        inputRoots: [rootA, rootB],
+        relativePaths: ["mcp.jsonc"],
+        logger: nextLogger,
+        artifactName: "The hooks file",
+      });
+
+      expect(nextLogger.warn).toHaveBeenCalledTimes(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("does not log when only one root provides the file", async () => {
     const { testDir: root, cleanup } = await setupTestDirectory();
     try {

@@ -348,6 +348,12 @@ export class RulesyncMcp extends RulesyncFile {
    * file. The merged object is necessarily synthetic, serialized JSON anchored
    * to the first root's recommended path.
    *
+   * A multi-root configuration where only one root actually supplies a file is
+   * treated as the single-root case: nothing is merged, so the original file
+   * content is kept verbatim (preserving JSONC comments) and the instance is
+   * anchored at the root that supplied it rather than at the primary root's
+   * recommended path.
+   *
    * When no root supplies any candidate, this falls back to reading the
    * primary root's recommended path so the underlying file-not-found error
    * matches the single-root behavior of `fromFile`.

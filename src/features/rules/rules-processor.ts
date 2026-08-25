@@ -13,6 +13,8 @@ import {
 import {
   caseFoldIdentity,
   FeatureProcessor,
+  formatCuratedCaseCollisionWarning,
+  groupSpellingsByCaseFoldedIdentity,
   mergeByCaseInsensitiveIdentity,
 } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
@@ -1664,22 +1666,10 @@ As this project's AI coding tool, you must follow the additional conventions bel
     );
     // Keyed by case-folded path because a curated and a local file whose names
     // differ only in case collapse onto one file on macOS/Windows, so the
-    // curated one cannot be emitted alongside the local one there. Every
-    // original spelling is kept so the warning below can name the local file
-    // that actually shadows the curated one — on a case-sensitive filesystem
-    // one identity can cover several local spellings at once.
-    const localRelativePathsByIdentity = new Map<string, string[]>();
-    for (const file of localFiles) {
-      const relativeFilePath = relative(rulesyncOutputRoot, file);
-      const identity = caseFoldIdentity(relativeFilePath);
-      const spellings = localRelativePathsByIdentity.get(identity);
-
-      if (spellings === undefined) {
-        localRelativePathsByIdentity.set(identity, [relativeFilePath]);
-      } else {
-        spellings.push(relativeFilePath);
-      }
-    }
+    // curated one cannot be emitted alongside the local one there.
+    const localRelativePathsByIdentity = groupSpellingsByCaseFoldedIdentity(
+      localFiles.map((file) => relative(rulesyncOutputRoot, file)),
+    );
 
     const curatedFiles = files
       .filter((file) => relative(rulesyncOutputRoot, file).startsWith(`.curated${sep}`))
@@ -1698,7 +1688,13 @@ As this project's AI coding tool, you must follow the additional conventions bel
         // not turn a plain override into a spurious collision warning.
         if (!spellings.includes(relativeFilePath)) {
           this.logger.warn(
-            `Case-insensitive rule collision under ${treeRulesDirPath}: curated '${join(".curated", relativeFilePath)}' and local '${spellings[0]}' resolve to the same identity. The local file wins and the curated file is skipped.`,
+            formatCuratedCaseCollisionWarning({
+              artifactKind: "rule",
+              entryNoun: "file",
+              treeDirPath: treeRulesDirPath,
+              curatedSpelling: join(".curated", relativeFilePath),
+              localSpellings: spellings,
+            }),
           );
         }
 

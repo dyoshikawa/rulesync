@@ -3242,7 +3242,7 @@ targets: ["opencode", "agentsmd"]
       expect(result[0]?.getRelativeFilePath()).toBe("Shared.md");
       expect(result[0]?.getBody()).toBe("Local content");
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Case-insensitive rule collision"),
+        expect.stringContaining("Case-insensitive rule collision under"),
       );
     });
 
@@ -3267,7 +3267,7 @@ targets: ["opencode", "agentsmd"]
 
       expect(result).toHaveLength(1);
       expect(logger.warn).not.toHaveBeenCalledWith(
-        expect.stringContaining("Case-insensitive rule collision"),
+        expect.stringContaining("Case-insensitive rule collision under"),
       );
     });
 
@@ -3301,7 +3301,7 @@ targets: ["opencode", "agentsmd"]
 
       expect(result.map((rule) => rule.getBody())).not.toContain("Remote content");
       expect(logger.warn).not.toHaveBeenCalledWith(
-        expect.stringContaining("Case-insensitive rule collision"),
+        expect.stringContaining("Case-insensitive rule collision under"),
       );
     });
   });

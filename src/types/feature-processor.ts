@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 import {
   addTrailingNewline,
   applyFileMode,
@@ -180,6 +181,17 @@ export abstract class FeatureProcessor {
  * A root counts as "having" the file as long as at least one candidate path
  * is present.
  */
+/**
+ * Messages already reported for a given logger.
+ *
+ * One `generate` run constructs a single-file processor per tool target and
+ * per output root — more than twenty times for `--targets "*"` — and each one
+ * re-resolves the same roots. Keying on the logger, which is created once per
+ * run (and once per test), keeps the shadowing warning to a single line per
+ * run instead of repeating it for every target.
+ */
+const warnedRootShadowingByLogger = new WeakMap<Logger, Set<string>>();
+
 export async function pickLastRootWithFile({
   inputRoots,
   relativePaths,
@@ -215,9 +227,20 @@ export async function pickLastRootWithFile({
   if (rootsWithFile.length > 1 && winner !== undefined) {
     const shadowed = rootsWithFile.slice(0, -1);
 
-    logger.warn(
-      `${artifactName} is provided by more than one input root; '${winner}' replaces the whole file from ${shadowed.map((root) => `'${root}'`).join(", ")}.`,
-    );
+    // Input roots come from a config file that can be checked into a
+    // repository, so they are sanitized before reaching the terminal.
+    const message = `${artifactName} is provided by more than one input root; '${stripControlCharacters(winner)}' replaces the whole file from ${shadowed.map((root) => `'${stripControlCharacters(root)}'`).join(", ")}.`;
+    let warnedMessages = warnedRootShadowingByLogger.get(logger);
+
+    if (warnedMessages === undefined) {
+      warnedMessages = new Set<string>();
+      warnedRootShadowingByLogger.set(logger, warnedMessages);
+    }
+
+    if (!warnedMessages.has(message)) {
+      warnedMessages.add(message);
+      logger.warn(message);
+    }
   }
 
   return winner;
@@ -278,6 +301,74 @@ export function mergeByIdentity<T>({
  */
 export function caseFoldIdentity(identity: string): string {
   return identity.normalize("NFC").toLowerCase();
+}
+
+/**
+ * Group spellings by their case-folded identity, keeping every original
+ * spelling. On a case-sensitive filesystem one identity can cover several
+ * spellings at once, and the caller needs them all to describe a collision
+ * accurately.
+ */
+export function groupSpellingsByCaseFoldedIdentity(
+  spellings: readonly string[],
+): Map<string, string[]> {
+  const grouped = new Map<string, string[]>();
+
+  for (const spelling of spellings) {
+    const identity = caseFoldIdentity(spelling);
+    const existing = grouped.get(identity);
+
+    if (existing === undefined) {
+      grouped.set(identity, [spelling]);
+    } else {
+      existing.push(spelling);
+    }
+  }
+
+  return grouped;
+}
+
+/**
+ * Build the warning emitted when a `.curated/` entry and a local entry in the
+ * same tree differ only in case.
+ *
+ * `.curated/` is expanded from a declarative source (an external Git repository
+ * or npm package), so its names are untrusted input; both sides are stripped of
+ * control characters before they reach the terminal.
+ *
+ * The winning local spelling is the LAST one, matching the precedence
+ * {@link mergeByCaseInsensitiveIdentity} applies afterwards; any other spelling
+ * that folds onto the same identity is listed too, so the message never names a
+ * spelling that loses.
+ */
+export function formatCuratedCaseCollisionWarning({
+  artifactKind,
+  entryNoun,
+  treeDirPath,
+  curatedSpelling,
+  localSpellings,
+}: {
+  artifactKind: string;
+  entryNoun: string;
+  treeDirPath: string;
+  curatedSpelling: string;
+  localSpellings: readonly string[];
+}): string {
+  const winner = localSpellings[localSpellings.length - 1] ?? "";
+  const shadowed = localSpellings.slice(0, -1);
+  const shadowedSuffix =
+    shadowed.length === 0
+      ? ""
+      : ` Other local spellings that fold onto the same identity: ${shadowed
+          .map((spelling) => `'${stripControlCharacters(spelling)}'`)
+          .join(", ")}.`;
+
+  return (
+    `Case-insensitive ${artifactKind} collision under ${treeDirPath}: ` +
+    `curated '${stripControlCharacters(curatedSpelling)}' and local '${stripControlCharacters(winner)}' ` +
+    `resolve to the same identity. The local ${entryNoun} wins and the curated ${entryNoun} is skipped.` +
+    shadowedSuffix
+  );
 }
 
 /**

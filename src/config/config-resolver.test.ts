@@ -1036,6 +1036,12 @@ describe("config-resolver", () => {
 });
 
 describe("resolveEffectiveInputRoots", () => {
+  // These tests spy on `process.cwd()`, and this block sits outside the
+  // `config-resolver` describe that owns the file's restoring `afterEach`.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("resolves relative entries against the passed-in cwd, not process.cwd()", () => {
     const cwd = resolve(join("/", "callers", "project"));
     vi.spyOn(process, "cwd").mockReturnValue(resolve(join("/", "somewhere", "else")));

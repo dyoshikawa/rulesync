@@ -777,7 +777,10 @@ async function checkInputRootExists({
  * for this function to catch.
  *
  * Values that do pass the schema are handed back verbatim rather than filtered
- * out, so the checks below analyze exactly what `generate` would resolve.
+ * out, so the checks below analyze the same values `generate` receives. An
+ * empty string is the one value `generate` never gets as far as resolving:
+ * `ConfigResolver` runs it through `validateOutputRoot`, which throws
+ * `outputRoot cannot be an empty string`.
  */
 function readDoctorInputRootConfig(config: Record<string, unknown> | undefined): InputRootConfig & {
   issues: { message: string; hint: string }[];
@@ -791,7 +794,7 @@ function readDoctorInputRootConfig(config: Record<string, unknown> | undefined):
   if (inputRoot === "") {
     issues.push({
       message:
-        "'inputRoot' is an empty string, so it resolves to the current directory instead of a source tree.",
+        "'inputRoot' is an empty string, so 'generate' fails with \"outputRoot cannot be an empty string\" before it resolves any source tree.",
       hint: "Set 'inputRoot' to the directory that contains your '.rulesync' source tree, or remove it.",
     });
   }
@@ -809,7 +812,7 @@ function readDoctorInputRootConfig(config: Record<string, unknown> | undefined):
 
     if (entry === "") {
       issues.push({
-        message: `'inputRoots[${index}]' is an empty string, so it resolves to the current directory instead of a source tree.`,
+        message: `'inputRoots[${index}]' is an empty string, so 'generate' fails with "outputRoot cannot be an empty string" before it resolves any source tree.`,
         hint: "Replace the entry with a path to a source tree, or remove it.",
       });
     }
