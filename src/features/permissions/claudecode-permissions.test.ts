@@ -1855,15 +1855,20 @@ describe("ClaudecodePermissions", () => {
       expect(network.deniedDomains).toEqual(["evil.test"]);
     });
 
+    // The quiet value is a 0-or-1 element list rather than a bare value, so that
+    // "this key has no quiet value" (`prUrlTemplate`, which widens whatever it
+    // is set to) cannot be confused with "its quiet value happens to be
+    // `undefined`" and silently skip the second half of the case.
     it.each([
-      ["claudeMdExcludes", ["**/vendor/**/CLAUDE.md"], []],
-      ["companyAnnouncements", ["Read our guidelines at docs.example.com"], []],
-      ["modelOverrides", { "claude-opus-4-6": "arn:aws:bedrock:::profile/x" }, {}],
-      ["prUrlTemplate", "https://reviews.test/{owner}/{repo}/pull/{number}", undefined],
-      ["skipWebFetchPreflight", true, false],
+      ["claudeMdExcludes", ["**/vendor/**/CLAUDE.md"], [[]]],
+      ["crossSessionInbound", "accept", ["hold", "refuse"]],
+      ["companyAnnouncements", ["Read our guidelines at docs.example.com"], [[]]],
+      ["modelOverrides", { "claude-opus-4-6": "arn:aws:bedrock:::profile/x" }, [{}]],
+      ["prUrlTemplate", "https://reviews.test/{owner}/{repo}/pull/{number}", []],
+      ["skipWebFetchPreflight", true, [false]],
     ])(
       "warns about '%s' at the value that widens and stays quiet at the one that does not",
-      async (key, wideningValue, quietValue) => {
+      async (key, wideningValue, quietValues) => {
         const generate = async (value: unknown) => {
           const mockLogger = createMockLogger();
           const warnSpy = vi.spyOn(mockLogger, "warn");
@@ -1888,10 +1893,11 @@ describe("ClaudecodePermissions", () => {
         expect(widening.content[key]).toEqual(wideningValue);
         expect(widening.warnSpy).toHaveBeenCalledWith(expect.stringContaining(`'${key}' —`));
 
-        if (quietValue === undefined) return;
-        const quiet = await generate(quietValue);
-        expect(quiet.content[key]).toEqual(quietValue);
-        expect(quiet.warnSpy).not.toHaveBeenCalledWith(expect.stringContaining(`'${key}' —`));
+        for (const quietValue of quietValues) {
+          const quiet = await generate(quietValue);
+          expect(quiet.content[key]).toEqual(quietValue);
+          expect(quiet.warnSpy).not.toHaveBeenCalledWith(expect.stringContaining(`'${key}' —`));
+        }
       },
     );
 
