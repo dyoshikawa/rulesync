@@ -12,6 +12,7 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -126,6 +127,13 @@ function vibeEntryToCanonicalDef(
   const entry = raw as Record<string, unknown>;
   const vibeEvent = typeof entry.type === "string" ? entry.type : undefined;
   if (vibeEvent === undefined) {
+    return null;
+  }
+  // A crafted `type` (e.g. "__proto__") would otherwise make the bracket lookup
+  // below resolve to a prototype member instead of falling back to the raw name,
+  // keying the canonical record by that member. Skip such names, as
+  // `kiroIdeHooksToCanonical` does.
+  if (isPrototypePollutionKey(vibeEvent)) {
     return null;
   }
   const canonicalEvent = VIBE_TO_CANONICAL_EVENT_NAMES[vibeEvent] ?? vibeEvent;
