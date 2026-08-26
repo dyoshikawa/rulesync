@@ -933,7 +933,6 @@ describe("RovodevMcp", () => {
     it.each([
       ["the tilde spelling", "~/.rovodev/mcp_config.json"],
       ["an already-expanded absolute path", "<HOME>/.rovodev/mcp_config.json"],
-      ["the environment-variable spelling", "$HOME/.rovodev/mcp_config.json"],
     ])(
       "tells a user pointed at Atlassian's documented default what to change (%s)",
       async (_label, value) => {
@@ -972,7 +971,6 @@ describe("RovodevMcp", () => {
     it.each([
       ["the tilde spelling", "~/.rovodev/mcp.json"],
       ["an already-expanded absolute path", "<HOME>/.rovodev/mcp.json"],
-      ["the environment-variable spelling", "$HOME/.rovodev/mcp.json"],
     ])("recognizes a global pointer already naming the generated file (%s)", async (_l, value) => {
       const logger = createMockLogger();
       await ensureDir(join(testDir, ".rovodev"));
@@ -1003,6 +1001,120 @@ describe("RovodevMcp", () => {
           String(message).includes("leaving mcp.mcpConfigPath"),
         ),
       ).toBe(false);
+    });
+
+    it.each([
+      ["$HOME", "$HOME/.rovodev/mcp.json"],
+      ["${HOME}", "${HOME}/.rovodev/mcp.json"],
+    ])("tells a user spelling the pointer with %s that it may never expand", async (_l, value) => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        `mcp:\n  mcpConfigPath: "${value}"\n`,
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp,
+        logger,
+      });
+
+      // Nothing documents Rovo Dev expanding variables here, so calling this
+      // spelling correct would silence the one user whose pointer resolves to
+      // a literal `$HOME` directory and reads no servers at all.
+      expect(auxiliary[0]!.getFileContent()).toContain(value);
+      const message = logger.warn.mock.calls
+        .map(([entry]) => String(entry))
+        .find((entry) => entry.includes("expands environment variables"));
+      expect(message).toContain("Atlassian does not document");
+      expect(message).toContain('Write "~/.rovodev/mcp.json" instead');
+    });
+
+    it("withholds the global pointer when mcp_config.json has an unrecognized shape", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      // Parses, but rulesync cannot enumerate what it holds — the same
+      // epistemic position as a file it cannot parse at all.
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp_config.json"),
+        JSON.stringify({ mcpServers: [{ name: "legacy", command: "node" }] }),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp,
+        logger,
+      });
+
+      expect(auxiliary).toEqual([]);
+      const message = logger.warn.mock.calls
+        .map(([entry]) => String(entry))
+        .find((entry) => entry.includes("leaving mcp.mcpConfigPath unset"));
+      expect(message).toContain("does not have the expected shape");
+    });
+
+    it("writes the global pointer when mcp_config.json parses to an empty object", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(join(testDir, ".rovodev", "mcp_config.json"), "{}");
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp,
+        logger,
+      });
+
+      // `{}` is the one shape that affirmatively holds nothing.
+      expect(auxiliary[0]!.getFileContent()).toContain("mcpConfigPath: ~/.rovodev/mcp.json");
+    });
+
+    it("withholds the global pointer instead of throwing when mcp_config.json cannot be read", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      // A directory where a file is expected: the read throws EISDIR, which
+      // must cost this one decision rather than every target's MCP output.
+      await ensureDir(join(testDir, ".rovodev", "mcp_config.json"));
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp,
+        logger,
+      });
+
+      expect(auxiliary).toEqual([]);
+      const message = logger.warn.mock.calls
+        .map(([entry]) => String(entry))
+        .find((entry) => entry.includes("leaving mcp.mcpConfigPath unset"));
+      expect(message).toContain("cannot be read");
     });
 
     it("warns when a global pointer now names an mcp.json with no enabled server", async () => {

@@ -245,9 +245,13 @@ const ROVODEV_ALTERNATE_MCP_FILE_NAME = "mcp_config.json";
  * Describe what the user would lose by pointing `mcpConfigPath` at the global
  * `mcp.json`, or `null` when there is nothing in the way.
  *
- * A file that exists but cannot be parsed counts as in the way: it cannot be
+ * Only a file that can be shown to hold nothing answers `null`. One that
+ * cannot be read, cannot be parsed, or carries a shape rulesync does not
+ * recognize all count as in the way for the same reason: none of them can be
  * shown to be empty, and taking a user's whole global MCP config away is not a
- * decision to make on a guess.
+ * decision to make on a guess. An unreadable file answers rather than throwing,
+ * so a directory or a permission error at that path costs the run one decision
+ * instead of every target's MCP output.
  */
 async function describeDisplacedGlobalServers({
   outputRoot,
@@ -255,9 +259,17 @@ async function describeDisplacedGlobalServers({
   outputRoot: string;
 }): Promise<string | null> {
   const label = posix.join("~", ROVODEV_DIR, ROVODEV_ALTERNATE_MCP_FILE_NAME);
-  const content = await readFileContentOrNull(
-    join(outputRoot, ROVODEV_DIR, ROVODEV_ALTERNATE_MCP_FILE_NAME),
-  );
+  const unrecognized =
+    `${label} exists but does not have the expected shape, so the servers it holds cannot be ` +
+    `ruled out`;
+  let content: string | null;
+  try {
+    content = await readFileContentOrNull(
+      join(outputRoot, ROVODEV_DIR, ROVODEV_ALTERNATE_MCP_FILE_NAME),
+    );
+  } catch {
+    return `${label} exists but cannot be read, so the servers it holds cannot be ruled out`;
+  }
   if (content === null) {
     return null;
   }
@@ -267,8 +279,14 @@ async function describeDisplacedGlobalServers({
   } catch {
     return `${label} exists but cannot be parsed, so the servers it holds cannot be ruled out`;
   }
-  if (!isPlainObject(parsed) || !isPlainObject(parsed.mcpServers)) {
-    return null;
+  if (!isPlainObject(parsed)) {
+    return unrecognized;
+  }
+  if (!isPlainObject(parsed.mcpServers)) {
+    // `{}` is affirmatively empty. Anything else — servers under a key
+    // rulesync does not know, or an `mcpServers` that is not a mapping — is
+    // the same epistemic position as a file that cannot be parsed.
+    return Object.keys(parsed).length === 0 ? null : unrecognized;
   }
   const names = Object.keys(parsed.mcpServers);
   return names.length === 0 ? null : `${label} defines ${names.join(", ")}`;
@@ -286,14 +304,17 @@ function normalizeMcpConfigPathValue(value: string): string {
 }
 
 /**
- * Every way one of Rovo Dev's home-directory MCP files can be spelled in
- * `mcpConfigPath`. In global scope `outputRoot` *is* the home directory, so an
- * already-expanded absolute path is recognized without asking the OS, along
- * with the two environment-variable forms a shell or the Rovo Dev CLI's own
- * config command may leave behind. Treating those as "somewhere else" would
- * report a file as
- * unread while Rovo Dev is reading it, and would miss the stale-pointer
- * warning in the other direction.
+ * Every way one of Rovo Dev's home-directory MCP files can be spelled and still
+ * resolve to that file. In global scope `outputRoot` *is* the home directory,
+ * so an already-expanded absolute path is recognized without asking the OS,
+ * alongside the `~` form Atlassian's own documented default uses. Treating
+ * either as "somewhere else" would report a file as unread while Rovo Dev is
+ * reading it, and would miss the stale-pointer warning in the other direction.
+ *
+ * A home directory of `/` is why the absolute form falls back rather than
+ * joining against an emptied string: `posix.join("", tail)` would yield the
+ * bare repo-relative `.rovodev/<file>`, the one value global scope has to keep
+ * reporting as wrong.
  */
 function mcpFileSpellings({
   fileName,
@@ -309,7 +330,21 @@ function mcpFileSpellings({
     return [tail];
   }
   const home = toPosixPath(outputRoot).replace(/\/+$/, "");
-  return [posix.join("~", tail), posix.join(home, tail), `$HOME/${tail}`, `\${HOME}/${tail}`];
+  return [posix.join("~", tail), posix.join(home || "/", tail)];
+}
+
+/**
+ * The environment-variable spellings a shell or a hand edit can leave in
+ * `mcpConfigPath`. They are kept apart from {@link mcpFileSpellings} because
+ * nothing in Atlassian's documentation says Rovo Dev expands variables in this
+ * setting — unlike `~`, which its own documented default relies on. Calling
+ * them correct would silence the one user whose pointer resolves to a literal
+ * `$HOME` directory and reads no servers at all, so they get a message of
+ * their own instead.
+ */
+function envVarMcpFileSpellings({ fileName }: { fileName: string }): string[] {
+  const tail = posix.join(ROVODEV_DIR, fileName);
+  return [`$HOME/${tail}`, `\${HOME}/${tail}`];
 }
 
 /**
@@ -510,6 +545,23 @@ async function applyMcpConfigPointer({
   // "you aimed this somewhere else".
   if (global && namesFile(ROVODEV_ALTERNATE_MCP_FILE_NAME)) {
     await warnAtDocumentedDefault({ existing, global, outputRoot, logger });
+    return false;
+  }
+
+  // Aimed at the right file under a spelling that only works if Rovo Dev
+  // expands environment variables, which nothing documents that it does.
+  if (
+    global &&
+    normalizedExisting !== undefined &&
+    envVarMcpFileSpellings({ fileName: ROVODEV_MCP_FILE_NAME }).includes(normalizedExisting)
+  ) {
+    logger?.warn(
+      `Rovo Dev MCP: mcp.mcpConfigPath in ${configLabel} is ${JSON.stringify(existing)}. That ` +
+        `names ${mcpLabel} only if Rovo Dev expands environment variables in this setting, ` +
+        `which Atlassian does not document — if it does not, the path resolves literally and ` +
+        `Rovo Dev reads no MCP servers at all. Write "${pointer}" instead, the form its own ` +
+        `documented default uses.`,
+    );
     return false;
   }
 
