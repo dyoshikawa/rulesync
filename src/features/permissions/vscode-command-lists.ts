@@ -3,64 +3,107 @@ import type { Logger } from "../../utils/logger.js";
 import { warnWithFallback } from "../../utils/logger.js";
 
 /**
- * Characters that make a pattern read as a matcher — a glob, a regex anchor, an
- * alternation — where the Roo Code / Zoo Code lineage sees only literal text.
+ * A `/…/`-delimited pattern written as an **anchored** regex literal, with the
+ * body after `^` captured so the prefix can be read out of it.
  *
- * `findLongestPrefixMatch` lowercases both sides and compares with
- * `startsWith`, with exactly one special case: the entry `"*"` on its own,
- * which matches any command. Everything else is part of the prefix, `*` in the
- * middle or at the end included. `^`, `$`, `(`, `)` and `|` are in the class
- * for the same reason and cost no realistic false positives: the extension
- * splits a command chain on `|` and `&&` before matching, so none of them can
- * begin a real command prefix either.
+ * The anchor is required for two reasons. An absolute command path
+ * (`/usr/bin/curl`, `/bin/sh`, `/etc/init.d/x`) has the delimiters and nothing
+ * else, so matching on those alone would read `/bin/sh` as the regex `bin` and
+ * throw the real command prefix away. And an unanchored regex pins down no
+ * prefix in the first place — only `^` promises that a match starts where the
+ * pattern starts, which is the sole reason a prefix can be derived at all.
+ */
+const REGEX_LITERAL = /^\/\^(.*)\/[a-z]*$/;
+
+/**
+ * Grouping and alternation. A pattern using them names alternatives rather
+ * than one prefix, and `parseCommand` splits a command chain on `|` before
+ * matching, so such a pattern cannot match a parsed subcommand at all. No
+ * sound prefix can be derived either — the prefix common to `npm run (build|
+ * test)` is `npm run `, which denies every script rather than the two named —
+ * so these are reported as inert instead of widened.
+ */
+const ALTERNATION = /[()|]/;
+
+/**
+ * Where a regex stops pinning down literal text. Deliberately the full regex
+ * metacharacter set, since a pattern that announces itself as a regex has to be
+ * read as one.
+ */
+const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/;
+
+/**
+ * What a pattern is, once read the way the Roo Code / Zoo Code lineage reads
+ * it: `findLongestPrefixMatch` lowercases both sides and compares with
+ * `startsWith`, with exactly one special case — the entry `"*"` on its own,
+ * which matches any command.
+ *
+ * `literal` is the overwhelmingly common case and covers far more than it
+ * looks like it does. `parseCommand` splits a chain on `&&`, `||`, `;`, `|` and
+ * `&`, but every other shell character is put back verbatim by
+ * `restorePlaceholders` before matching — variables, parameter expansions,
+ * bracket and brace syntax, quoted strings — so `echo $HOME`, `[ -f x ]` and
+ * `mv a{,.bak}` are all real command prefixes that really do match. Only
+ * syntax that cannot be anything but a matcher is treated as one, because the
+ * remedy below (widening a deny) is destructive when misapplied: turning
+ * `echo $HOME` into `echo ` would auto-deny every `echo`.
  *
  * @see https://github.com/RooCodeInc/Roo-Code/blob/v3.54.0/src/core/auto-approval/commands.ts
+ * @see https://github.com/RooCodeInc/Roo-Code/blob/v3.54.0/src/shared/parse-command.ts
  */
-const MATCHER_METACHARACTERS = /[*?[\]{}^$()|]/;
+type PatternShape =
+  /** Compared as-is, and correct as written. Includes the bare `"*"` wildcard. */
+  | { kind: "literal" }
+  /** Glob or regex syntax, pinning down this literal command prefix. */
+  | { kind: "matcher"; prefix: string }
+  /** Glob or regex syntax pinning down no prefix at all, e.g. `"*.sh"`. */
+  | { kind: "matcher"; prefix: undefined };
 
-/** A `/…/`-delimited pattern, i.e. one written as a regex literal. */
-const REGEX_LITERAL = /^\/.*\/[a-z]*$/;
-
-/**
- * Whether a pattern reads as a matcher but will be compared as a literal
- * prefix.
- *
- * The bare `"*"` is excluded because it is the one entry the extension does
- * interpret, so writing it is correct rather than a mistake.
- */
-function looksLikeAnUnsupportedMatcher(pattern: string): boolean {
-  return pattern !== "*" && (MATCHER_METACHARACTERS.test(pattern) || REGEX_LITERAL.test(pattern));
+function firstPrefix(text: string, stopAt: RegExp): string | undefined {
+  const index = text.search(stopAt);
+  const prefix = index < 0 ? text : text.slice(0, index);
+  // A blank prefix is not a usable answer. The empty string is a prefix of
+  // every command, so acting on it would deny everything; a whitespace-only one
+  // is dropped outright by `mergeCommandLists`, which filters on
+  // `cmd.trim().length > 0`, so claiming the deny now takes effect would be a
+  // lie.
+  return prefix.trim() === "" ? undefined : prefix;
 }
 
-/**
- * The literal command prefix a matcher-shaped pattern still pins down: the
- * regex-literal delimiters and a leading `^` are peeled off, then everything
- * from the first remaining metacharacter on is dropped, since that is where the
- * pattern stops constraining the start of the command.
- *
- * Returns `undefined` when nothing is left — a pattern that opens with matcher
- * syntax (`"*.sh"`, `"(rm|mv) "`) constrains no prefix at all, and an empty
- * prefix is not a usable answer here: `"".startsWith` is true for every
- * command, so writing it would deny everything.
- */
-function toPrefixHint(pattern: string): string | undefined {
-  const unwrapped = REGEX_LITERAL.test(pattern)
-    ? pattern.slice(1, pattern.lastIndexOf("/"))
-    : pattern;
-  const unanchored = unwrapped.startsWith("^") ? unwrapped.slice(1) : unwrapped;
-  const index = unanchored.search(MATCHER_METACHARACTERS);
-  const hint = index < 0 ? unanchored : unanchored.slice(0, index);
-  return hint === "" ? undefined : hint;
+function classifyPattern(pattern: string): PatternShape {
+  if (pattern === "*") {
+    return { kind: "literal" };
+  }
+  const regexBody = REGEX_LITERAL.exec(pattern)?.[1];
+  if (regexBody !== undefined) {
+    return { kind: "matcher", prefix: firstPrefix(regexBody, REGEX_METACHARACTERS) };
+  }
+  if (pattern.startsWith("^")) {
+    // A leading anchor is regex syntax wherever it appears, so read the rest as
+    // a regex too.
+    return { kind: "matcher", prefix: firstPrefix(pattern.slice(1), REGEX_METACHARACTERS) };
+  }
+  if (ALTERNATION.test(pattern)) {
+    return { kind: "matcher", prefix: undefined };
+  }
+  if (pattern.includes("*")) {
+    return { kind: "matcher", prefix: firstPrefix(pattern, /\*/) };
+  }
+  return { kind: "literal" };
+}
+
+function pluralize(count: number, singular: string, plural: string): string {
+  return count === 1 ? singular : plural;
 }
 
 function formatPatterns(patterns: string[]): string {
-  const quoted = patterns.map((pattern) => JSON.stringify(pattern));
-  return quoted.length === 1 ? `pattern ${quoted[0]}` : `patterns ${quoted.join(", ")}`;
+  return patterns.map((pattern) => JSON.stringify(pattern)).join(", ");
 }
 
-function formatRewrites(rewrites: { from: string; to: string }[]): string {
-  const arrows = rewrites.map(({ from, to }) => `${JSON.stringify(from)} → ${JSON.stringify(to)}`);
-  return arrows.length === 1 ? `pattern ${arrows[0]}` : `patterns ${arrows.join(", ")}`;
+function formatAdditions(additions: { from: string; prefix: string }[]): string {
+  return additions
+    .map(({ from, prefix }) => `${JSON.stringify(from)} → ${JSON.stringify(prefix)}`)
+    .join(", ");
 }
 
 /**
@@ -96,23 +139,24 @@ function formatRewrites(rewrites: { from: string; to: string }[]): string {
  * global-state entries, which live in VS Code extension storage rather than in
  * any committable file, so they are outside what rulesync can express.)
  *
- * Matcher-shaped patterns are handled asymmetrically too, and for the same
- * reason — which way the mismatch fails. The canonical `bash` category is
- * glob-shaped for most other targets (claudecode writes `Bash(rm -rf *)`), so
- * such patterns do reach this target in practice:
+ * Glob- and regex-shaped patterns — which the canonical `bash` category carries
+ * for most other targets, since claudecode writes `Bash(rm -rf *)` — are
+ * handled asymmetrically too, and for the same reason: which way the mismatch
+ * fails.
  *
- * - A **deny** written as a matcher fails **open**: `{"*": "allow", "rm -rf *":
+ * - A matcher-shaped **deny** fails **open**: `{"*": "allow", "rm -rf *":
  *   "deny"}` yields a denied entry that never matches `rm -rf /` — the literal
  *   text `rm -rf *` is not a prefix of it — while the bare `"*"` on the allow
  *   side still matches everything, so the command auto-approves with no prompt.
- *   Such a pattern is therefore rewritten to the literal prefix it pins down
- *   (`"rm -rf "`) and the rewrite is reported. Truncating a deny only ever
- *   widens what is denied, so the result stays on the safe side of the author's
- *   intent, and a warning that is merely advisory would leave the generated
- *   file genuinely fail-open once the log scrolls past.
- * - An **allow** written as a matcher fails **closed**: it approves fewer
- *   commands than it looks like it does, and the rest reach the approval
- *   prompt. Truncating it would widen what runs unattended, so it is passed
+ *   The literal prefix such a pattern pins down (`"rm -rf "`) is therefore
+ *   **added alongside** it, which makes the deny take effect. Adding rather
+ *   than replacing keeps the author's own text in the file, so importing the
+ *   settings back does not quietly narrow the canonical rule and degrade what
+ *   every other target generates from it; the added prefix only ever widens
+ *   what is denied, so both directions stay on the safe side.
+ * - A matcher-shaped **allow** fails **closed**: it approves fewer commands
+ *   than it looks like it does, and the rest reach the approval prompt. Adding
+ *   its prefix would widen what runs unattended, so allow patterns are passed
  *   through unchanged and only warned about.
  */
 export function buildVscodeCommandLists({
@@ -127,69 +171,92 @@ export function buildVscodeCommandLists({
   const allowed: string[] = [];
   const denied: string[] = [];
   const matcherAllows: string[] = [];
-  const rewrittenDenies: { from: string; to: string }[] = [];
-  const inexpressibleDenies: string[] = [];
+  const widenedDenies: { from: string; prefix: string }[] = [];
+  const inertDenies: string[] = [];
   for (const [pattern, action] of Object.entries(rules)) {
+    if (action !== "allow" && action !== "deny") {
+      continue;
+    }
+    const shape = classifyPattern(pattern);
     if (action === "allow") {
       allowed.push(pattern);
-      if (looksLikeAnUnsupportedMatcher(pattern)) {
+      if (shape.kind === "matcher") {
         matcherAllows.push(pattern);
       }
       continue;
     }
-    if (action !== "deny") {
+    denied.push(pattern);
+    if (shape.kind !== "matcher") {
       continue;
     }
-    if (!looksLikeAnUnsupportedMatcher(pattern)) {
-      denied.push(pattern);
+    if (shape.prefix === undefined) {
+      inertDenies.push(pattern);
       continue;
     }
-    const hint = toPrefixHint(pattern);
-    if (hint === undefined) {
-      // No literal prefix to fall back on, and an empty one would deny every
-      // command. Keep the author's text so nothing is silently dropped, and say
-      // plainly that it cannot match.
-      denied.push(pattern);
-      inexpressibleDenies.push(pattern);
-      continue;
-    }
-    denied.push(hint);
-    rewrittenDenies.push({ from: pattern, to: hint });
+    denied.push(shape.prefix);
+    widenedDenies.push({ from: pattern, prefix: shape.prefix });
   }
 
   // Denies are reported first: they are the direction that widens what runs
   // unattended, while a matcher-shaped allow only narrows it.
-  if (rewrittenDenies.length > 0) {
+  if (widenedDenies.length > 0) {
+    const count = widenedDenies.length;
     warnWithFallback(
       logger,
-      `${toolLabel}: deny ${formatRewrites(rewrittenDenies)} rewritten to the literal command ` +
-        `prefix it pins down, because entries are compared as prefix text rather than as a glob ` +
-        `or regex and the original would never have matched. The rewritten prefix denies at ` +
-        `least everything the original named, so review it if that is wider than you intended.`,
+      `${toolLabel}: deny ${pluralize(count, "pattern", "patterns")} ` +
+        `${formatAdditions(widenedDenies)} — glob or regex syntax compared as literal command ` +
+        `prefix text, so ${pluralize(count, "it cannot match on its", "they cannot match on their")} ` +
+        `own. The literal prefix each one pins down has been added alongside it so the deny takes ` +
+        `effect. Each added prefix denies at least everything its pattern named, so review it if ` +
+        `that is wider than you intended.`,
     );
   }
-  if (inexpressibleDenies.length > 0) {
+  if (inertDenies.length > 0) {
+    const count = inertDenies.length;
     warnWithFallback(
       logger,
-      `${toolLabel}: deny ${formatPatterns(inexpressibleDenies)} starts with glob or regex ` +
-        `syntax, so it pins down no command prefix and is written unchanged — it will never ` +
-        `match, which leaves the command auto-approved whenever an allow entry does match. ` +
-        `Rewrite it as the literal text a command starts with.`,
+      `${toolLabel}: deny ${pluralize(count, "pattern", "patterns")} ${formatPatterns(inertDenies)} ` +
+        `${pluralize(count, "uses", "use")} glob or regex syntax that pins down no command ` +
+        `prefix, so ${pluralize(count, "it is", "they are")} written unchanged and will never ` +
+        `match. That leaves the command auto-approved whenever an allow entry does match; rewrite ` +
+        `each one as the literal text a command starts with — an alternation needs one entry per ` +
+        `alternative.`,
+    );
+  }
+  // An added prefix can land on a pattern the author allowed. Deny wins on an
+  // equal-length match, so the allow entry stops approving anything — the safe
+  // direction, but not obviously what was written.
+  const allowedSet = new Set(allowed);
+  const shadowedAllows = widenedDenies
+    .map(({ prefix }) => prefix)
+    .filter((prefix) => allowedSet.has(prefix));
+  if (shadowedAllows.length > 0) {
+    const count = shadowedAllows.length;
+    warnWithFallback(
+      logger,
+      `${toolLabel}: the added deny ${pluralize(count, "prefix", "prefixes")} ` +
+        `${formatPatterns([...new Set(shadowedAllows)])} also ${pluralize(count, "appears", "appear")} ` +
+        `in the allow list. A denied match of equal length wins over an allowed one, so ` +
+        `${pluralize(count, "that allow entry", "those allow entries")} no longer ` +
+        `${pluralize(count, "approves", "approve")} anything.`,
     );
   }
   if (matcherAllows.length > 0) {
+    const count = matcherAllows.length;
     warnWithFallback(
       logger,
-      `${toolLabel}: allow ${formatPatterns(matcherAllows)} will be compared as literal command ` +
-        `prefix text, not as a glob or regex, so it approves fewer commands than it looks like it ` +
-        `does. It is left unchanged, since narrowing an allow is the safe direction; write the ` +
-        `literal prefix instead if you meant more. A bare "*" is the one entry treated as a ` +
-        `wildcard.`,
+      `${toolLabel}: allow ${pluralize(count, "pattern", "patterns")} ` +
+        `${formatPatterns(matcherAllows)} will be compared as literal command prefix text, not as ` +
+        `a glob or regex, so ${pluralize(count, "it approves", "they approve")} fewer commands ` +
+        `than ${pluralize(count, "it looks", "they look")} like. ` +
+        `${pluralize(count, "It is", "They are")} left unchanged, since narrowing an allow is the ` +
+        `safe direction; write the literal prefix instead if you meant more. A bare "*" is the one ` +
+        `entry treated as a wildcard.`,
     );
   }
 
-  // Two matcher-shaped denies can truncate to the same prefix, so the deny list
-  // is the one that needs deduplicating; canonical rule keys are unique.
+  // A widened prefix can coincide with another entry — with a second matcher
+  // that pins down the same prefix, or with a literal the author already wrote.
   const deduped = [...new Set(denied)];
   return { allowed, denied: deduped.length > 0 ? deduped : undefined };
 }

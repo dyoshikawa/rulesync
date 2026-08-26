@@ -178,10 +178,10 @@ describe("RooPermissions", () => {
 
     // The canonical `bash` category is glob-shaped for most targets
     // (claudecode writes `Bash(rm -rf *)`), but Roo Code compares entries with
-    // `startsWith` and only treats a bare "*" as a wildcard. Left verbatim,
+    // `startsWith` and only treats a bare "*" as a wildcard. Left on its own,
     // `rm -rf *` would not match `rm -rf /` while the bare `*` allow still
     // would, so the file would auto-approve the very command it names.
-    it("rewrites a glob-shaped deny to the literal prefix it pins down", async () => {
+    it("adds the literal prefix a glob- or regex-shaped deny pins down", async () => {
       const logger = createMockLogger();
 
       const permissions = await RooPermissions.fromRulesyncPermissions({
@@ -192,9 +192,12 @@ describe("RooPermissions", () => {
         logger,
       });
 
+      // The author's own text stays in the file: adding rather than replacing
+      // keeps `rulesync import` from narrowing the canonical rule, which would
+      // degrade what every other target generates from it.
       expect(JSON.parse(permissions.getFileContent())).toEqual({
         [ALLOWED_KEY]: ["*"],
-        [DENIED_KEY]: ["rm -rf ", "curl "],
+        [DENIED_KEY]: ["rm -rf *", "rm -rf ", "/^curl /", "curl "],
       });
       const warning = logger.warn.mock.calls.map(([message]) => String(message)).join("\n");
       expect(warning).toContain("Roo Code");
@@ -202,9 +205,123 @@ describe("RooPermissions", () => {
       expect(warning).toContain('"/^curl /" → "curl "');
     });
 
-    // Truncating this one would leave the empty prefix, which `startsWith`
+    // Round-tripping the widened list must not lose the original pattern, or a
+    // later `generate --targets claudecode` would emit `Bash(rm -rf )` instead
+    // of `Bash(rm -rf *)` and stop denying `rm -rf /` there.
+    it("keeps the authored pattern importable after widening", async () => {
+      const generated = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ bash: { "rm -rf *": "deny" } }),
+      });
+      await writeSettings(testDir, JSON.parse(generated.getFileContent()));
+
+      const reimported = await RooPermissions.fromFile({ outputRoot: testDir });
+
+      expect(JSON.parse(reimported.toRulesyncPermissions().getFileContent())).toEqual({
+        permission: { bash: { "rm -rf *": "deny", "rm -rf ": "deny" } },
+      });
+    });
+
+    // A widened prefix can land on an entry that is already there.
+    it("does not repeat a prefix the author already wrote", async () => {
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "rm -rf ": "deny", "rm -rf *": "deny" },
+        }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())[DENIED_KEY]).toEqual(["rm -rf ", "rm -rf *"]);
+    });
+
+    // `/…/` delimiters alone do not make a regex: an absolute command path has
+    // exactly that shape. Reading `/bin/sh` as the regex `bin` used to replace
+    // the deny with `bin`, which matches no real command — and, combined with a
+    // bare `*` allow, turned an auto-denied `/bin/sh -c …` into an auto-approved
+    // one.
+    it("treats an absolute command path as the literal prefix it is", async () => {
+      const logger = createMockLogger();
+
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: {
+            "*": "allow",
+            "/bin/sh": "deny",
+            "/usr/bin/curl": "deny",
+            "/etc/init.d/x": "deny",
+          },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())[DENIED_KEY]).toEqual([
+        "/bin/sh",
+        "/usr/bin/curl",
+        "/etc/init.d/x",
+      ]);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    // Alternation names alternatives, not a prefix. `npm run ` is the text they
+    // share, but denying it would deny every script rather than the two written,
+    // so it is reported as inert instead of widened.
+    it("reports an alternation as inert rather than widening it", async () => {
+      const logger = createMockLogger();
+
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "npm run (build|test)": "deny" },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())[DENIED_KEY]).toEqual([
+        "npm run (build|test)",
+      ]);
+      const warning = String(logger.warn.mock.calls[0]?.[0]);
+      expect(warning).toContain("will never match");
+      expect(warning).toContain("one entry per alternative");
+    });
+
+    // `mergeCommandLists` filters entries on `cmd.trim().length > 0`, so a
+    // whitespace-only prefix would be dropped by the extension while rulesync
+    // reported the deny as now effective.
+    it("does not add a prefix that is only whitespace", async () => {
+      const logger = createMockLogger();
+
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ bash: { " *": "deny" } }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())[DENIED_KEY]).toEqual([" *"]);
+      expect(String(logger.warn.mock.calls[0]?.[0])).toContain("will never match");
+    });
+
+    // Deny wins on an equal-length match, so the added prefix silently cancels
+    // the allow the author wrote. Safe, but worth saying out loud.
+    it("reports an added prefix that cancels an allow entry", async () => {
+      const logger = createMockLogger();
+
+      await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "git ": "allow", "git *": "deny" },
+        }),
+        logger,
+      });
+
+      const warning = logger.warn.mock.calls.map(([message]) => String(message)).join("\n");
+      expect(warning).toContain('added deny prefix "git "');
+      expect(warning).toContain("no longer approves anything");
+    });
+
+    // Widening this one would leave the empty prefix, which `startsWith`
     // matches for every command — a deny-everything setting the author never
-    // asked for. It is kept verbatim and reported as unmatchable instead.
+    // asked for. It is kept as-is and reported as inert instead.
     it("keeps a deny that pins down no prefix and says it cannot match", async () => {
       const logger = createMockLogger();
 
@@ -220,12 +337,36 @@ describe("RooPermissions", () => {
       });
       const warning = String(logger.warn.mock.calls[0]?.[0]);
       expect(warning).toContain('deny pattern "*.sh"');
-      expect(warning).toContain("will never");
+      expect(warning).toContain("will never match");
+    });
+
+    // `parseCommand` splits a chain on the shell operators, but every other
+    // shell character is restored verbatim before matching, so variables,
+    // test brackets and brace expansions are real command prefixes that really
+    // do match. Widening them would auto-deny far more than the author wrote —
+    // `echo $HOME` would become `echo `.
+    it("leaves shell syntax that really is a literal prefix alone", async () => {
+      const logger = createMockLogger();
+
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "echo $HOME": "deny", "[ -f x ]": "deny", "mv a{,.bak}": "deny" },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())[DENIED_KEY]).toEqual([
+        "echo $HOME",
+        "[ -f x ]",
+        "mv a{,.bak}",
+      ]);
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     // Narrowing an allow is the safe direction, so this one is passed through:
     // the commands it fails to match reach the approval prompt.
-    it("warns about a glob-shaped allow without rewriting it or flagging a bare wildcard", async () => {
+    it("warns about a glob-shaped allow without widening it or flagging a bare wildcard", async () => {
       const logger = createMockLogger();
 
       const permissions = await RooPermissions.fromRulesyncPermissions({
