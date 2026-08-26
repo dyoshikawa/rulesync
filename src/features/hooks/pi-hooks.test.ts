@@ -605,6 +605,93 @@ describe("PiHooks", () => {
       expect(notify).toHaveBeenCalledWith("denied", "error");
     });
 
+    it("should strip C1 controls and bidi overrides and fold carriage returns", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          beforeSubmitPrompt: [
+            // "a", 8-bit CSI (U+009B), "b", RIGHT-TO-LEFT OVERRIDE (U+202E),
+            // "c", CR, "d" -- none of which may reach the terminal intact.
+            { type: "command", command: "printf 'a\\302\\233b\\342\\200\\256c\\rd' >&2; exit 1" },
+          ],
+        },
+      };
+      const piHooks = PiHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
+        validate: false,
+      });
+
+      const extensionsDir = join(testDir, ".pi", "extensions");
+      await ensureDir(extensionsDir);
+      const filePath = join(extensionsDir, "rulesync-hooks.ts");
+      await writeFileContent(filePath, piHooks.getFileContent());
+
+      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
+      const on = vi.fn();
+      mod.default({ on });
+      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
+
+      const notify = vi.fn();
+      await handler({ text: "hi", source: "interactive" }, { hasUI: true, ui: { notify } });
+      expect(notify).toHaveBeenCalledWith("abc\nd", "error");
+    });
+
+    it("should report a fallback reason when nothing survives sanitization", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          beforeSubmitPrompt: [
+            { type: "command", command: "printf '\\033[0m\\033[1m' >&2; exit 1" },
+          ],
+        },
+      };
+      const piHooks = PiHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
+        validate: false,
+      });
+
+      const extensionsDir = join(testDir, ".pi", "extensions");
+      await ensureDir(extensionsDir);
+      const filePath = join(extensionsDir, "rulesync-hooks.ts");
+      await writeFileContent(filePath, piHooks.getFileContent());
+
+      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
+      const on = vi.fn();
+      mod.default({ on });
+      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
+
+      const notify = vi.fn();
+      // The prompt is still cancelled, so the user must not be left without a
+      // reason just because the command only emitted escape sequences.
+      expect(
+        await handler({ text: "hi", source: "interactive" }, { hasUI: true, ui: { notify } }),
+      ).toEqual({ action: "handled" });
+      expect(notify).toHaveBeenCalledWith("Hook command failed.", "error");
+    });
+
+    it("should bound the text the sanitizing patterns scan", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          beforeSubmitPrompt: [{ type: "command", command: "exit 1" }],
+        },
+      };
+      const piHooks = PiHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
+        validate: false,
+      });
+
+      const content = piHooks.getFileContent();
+      // A hook command can emit up to `exec`'s full maxBuffer. Slicing first,
+      // and bounding the OSC body instead of letting it run to end-of-string,
+      // keeps sanitization linear rather than quadratic in the output size.
+      expect(content).toContain(".slice(0, MAX_RAW_REASON_LENGTH)");
+      expect(content).toContain("[^\\u0007\\u001b]{0,256}");
+    });
+
     it("should generate an input handler that continues when the command succeeds", async () => {
       const config = {
         version: 1,
