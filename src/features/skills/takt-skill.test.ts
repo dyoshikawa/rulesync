@@ -117,6 +117,23 @@ describe("TaktSkill", () => {
     });
   });
 
+  describe("ownsDirTree", () => {
+    it("does not own its tree, because it flattens into a shared root", () => {
+      // Every takt skill lands as a flat file directly in
+      // `.takt/facets/knowledge`, so that root is not this skill's own
+      // directory. The `--delete` orphan sweep must therefore claim only the
+      // path this skill writes, not the whole root.
+      const skill = new TaktSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".takt", "facets", "knowledge"),
+        dirName: "my-skill",
+        fileName: "my-skill.md",
+        body: "y",
+      });
+      expect(skill.ownsDirTree()).toBe(false);
+    });
+  });
+
   describe("fromDir / toRulesyncSkill (unsupported)", () => {
     it("fromDir throws because reverse import is unsupported", async () => {
       await expect(TaktSkill.fromDir({ outputRoot: testDir, dirName: "x" })).rejects.toThrow(

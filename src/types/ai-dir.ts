@@ -763,6 +763,19 @@ export abstract class AiDir {
     return this.dirName;
   }
 
+  /**
+   * True when {@link getDirPath} really is this instance's own directory, so
+   * everything under it belongs to this instance.
+   *
+   * The `--delete` orphan sweep uses this to decide whether it may claim the
+   * whole tree. Subclasses that flatten into a shared root instead of nesting
+   * under `dirName` (`TaktSkill`) return false here, because claiming that root
+   * as a tree would exempt every sibling in it from the sweep.
+   */
+  ownsDirTree(): boolean {
+    return basename(this.getDirPath()) === this.getDirName();
+  }
+
   getDirPath(): string {
     const fullPath = path.join(this.outputRoot, this.relativeDirPath, this.dirName);
 

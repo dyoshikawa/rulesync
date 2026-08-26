@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { AiDir, AiDirParams, ValidationResult } from "./ai-dir.js";
@@ -60,5 +62,29 @@ describe("AiDir constructor - dirName validation", () => {
     expect(() =>
       makeTestDir({ relativeDirPath: ".agents/skills", dirName: ".hidden-skill" }),
     ).not.toThrow();
+  });
+});
+
+describe("AiDir.ownsDirTree", () => {
+  it("should own its tree when getDirPath() ends with dirName", () => {
+    const dir = makeTestDir({ relativeDirPath: ".agents/skills", dirName: "my-skill" });
+    expect(dir.ownsDirTree()).toBe(true);
+  });
+
+  it("should not own a tree when a subclass flattens into a shared root", () => {
+    // `TaktSkill` does exactly this: it drops `dirName` so every skill lands as a
+    // flat file in one root. Claiming that root as a tree would exempt every
+    // sibling in it from the `--delete` orphan sweep.
+    class FlattenedAiDir extends TestAiDir {
+      override getDirPath(): string {
+        return join(this.getOutputRoot(), this.getRelativeDirPath());
+      }
+    }
+
+    const dir = new FlattenedAiDir({
+      relativeDirPath: ".takt/facets/knowledge",
+      dirName: "my-skill",
+    });
+    expect(dir.ownsDirTree()).toBe(false);
   });
 });

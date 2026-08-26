@@ -145,7 +145,15 @@ async function processDirFeatureGeneration(params: {
   // (deferring the sweeps means every sweep runs after the skills step has
   // written), so claiming the directory path alone would leave `SKILL.md` and
   // its companions looking like orphans.
-  sweepPlan.registerGeneratedTree({ paths: toolDirs.map((d) => d.getDirPath()) });
+  //
+  // Only a directory that is actually named after itself owns a whole tree.
+  // `TaktSkill` overrides `getDirPath()` to drop `dirName` and return the shared
+  // root every takt skill flattens into; claiming *that* as a tree would exempt
+  // every sibling under the root from the sweep. Such a directory gets an exact
+  // claim instead, which still protects the path this run wrote.
+  const ownedTrees = toolDirs.filter((d) => d.ownsDirTree());
+  sweepPlan.registerGeneratedTree({ paths: ownedTrees.map((d) => d.getDirPath()) });
+  sweepPlan.registerGenerated({ paths: toolDirs.map((d) => d.getDirPath()) });
 
   if (config.getDelete()) {
     sweepPlan.defer({
