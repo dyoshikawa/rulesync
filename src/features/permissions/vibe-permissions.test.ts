@@ -1840,6 +1840,69 @@ describe("VibePermissions", () => {
     ).toHaveLength(0);
   });
 
+  it("should preserve a shell whose denylist is not spelled as a list", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.git_bash]", 'denylist = "rm -rf *"', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "allow" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.git_bash.denylist).toBe("rm -rf *");
+    expect(parsed.tools.git_bash.permission).toBeUndefined();
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Keeping the existing Vibe permission for git_bash"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("should warn before promoting a legacy allow list into the enforced allowlist", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        "[tools.read_file]",
+        'permission = "never"',
+        'allow = ["curl *"]',
+        'allowlist = ["ls"]',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { read: { "cat *": "allow" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.read_file.allowlist).toEqual(["cat *", "curl *", "ls"]);
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Promoting curl * from the legacy 'allow' key"),
+      ),
+    ).toHaveLength(1);
+  });
+
   it("should overwrite a loosely configured shell when the bash category denies everything", async () => {
     // Standing down protects a shell from being broadened. A wildcard deny can
     // only restrict, so letting the stand-down win there would strand the deny.

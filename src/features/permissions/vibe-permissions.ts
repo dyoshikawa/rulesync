@@ -86,10 +86,13 @@ const VIBE_SHELL_ALIAS_TOOL_NAMES = ["git_bash", "powershell"];
 const VIBE_SHELL_CATEGORY = "bash";
 
 /**
- * The `[tools.<name>]` keys the `bash` fan-out mirrors, and therefore the only
- * ones that decide whether an alias table is a decision made outside the `bash`
- * category. The legacy `allow`/`deny` spellings count because rulesync deletes
- * them.
+ * The `[tools.<name>]` keys the `bash` fan-out mirrors onto the alias shells. The
+ * legacy `allow`/`deny` spellings are listed because rulesync deletes them from
+ * every table a category writes, so the mirror has to clear them too.
+ *
+ * This is the mirror's copy list only. Whether an alias table states a decision
+ * of its own is decided independently, by `resolveFanOutShellAliases`, which
+ * compares the legacy and canonical spellings as one list rather than key by key.
  *
  * `sensitive_patterns` is deliberately absent: it is written by the separate
  * `vibe.permission` pass, which addresses each shell by name, so a
@@ -250,6 +253,7 @@ export class VibePermissions extends ToolPermissions {
     // The two passes resolve the same categories, so a name Vibe cannot reach is
     // reported once rather than once per pass.
     const warnedUnreachable = new Set<string>();
+    const warnedLegacyAllow = new Set<string>();
     const removedEnabledTools = clearStaleToolFilters({
       permission,
       resolveNames,
@@ -270,6 +274,7 @@ export class VibePermissions extends ToolPermissions {
         continue;
       }
       warnOnUnreachableToolName({ category, vibeToolNames, warned: warnedUnreachable, logger });
+      warnOnLegacyAllowPromotion({ vibeToolNames, tools, warned: warnedLegacyAllow, logger });
       applyCategoryRules({
         vibeToolNames,
         category,
@@ -1053,11 +1058,21 @@ function resolveFanOutShellAliases({
       const value = readVibeToolPatterns({ toolConfig: table, kind }).toSorted();
       return value.length > 0 ? [[kind, value] as const] : [];
     });
+    // A key whose value is not a list reads as no patterns above, yet the author
+    // plainly meant it as a decision. Vibe's own `BaseToolConfig` types these as
+    // `list[str]`, so the file fails to load upstream either way and nothing it
+    // asks for is in force — but of the two ways to be wrong about it, deleting
+    // the key is the one the author cannot recover from. Treat it as a decision
+    // and stand the fan-out down.
+    const malformed = (["allow", "allowlist", "deny", "denylist"] as const).filter(
+      (key) => table[key] !== undefined && !Array.isArray(table[key]),
+    );
     return {
-      managed:
-        table.permission === undefined
-          ? patterns
-          : [["permission", table.permission] as const, ...patterns],
+      managed: [
+        ...(table.permission === undefined ? [] : [["permission", table.permission] as const]),
+        ...patterns,
+        ...(malformed.length > 0 ? [["malformed", malformed] as const] : []),
+      ],
       disabled: disabledTools.has(name),
     };
   };
@@ -1358,6 +1373,11 @@ function toCanonicalToolName(vibeToolName: string): string {
  * side that silently discards a restriction Vibe was actually applying. Reading
  * them together means the canonical key rulesync writes back enforces every
  * pattern the file mentioned.
+ *
+ * The two sides are not symmetric. Reading both deny lists can only restrict
+ * further, but reading both allow lists promotes a pattern Vibe was ignoring
+ * into one it enforces, so `warnOnLegacyAllowPromotion` announces that before it
+ * happens.
  */
 function readVibeToolPatterns({
   toolConfig,
@@ -1371,6 +1391,47 @@ function readVibeToolPatterns({
       ? [toolConfig.allow, toolConfig.allowlist]
       : [toolConfig.deny, toolConfig.denylist];
   return [...new Set([...toStringArray(legacy), ...toStringArray(canonical)])];
+}
+
+/**
+ * Warn before a legacy `allow` list is promoted into the enforced `allowlist`.
+ *
+ * Reading both spellings as one list is restriction-preserving on the deny side
+ * — a denylist match wins over everything upstream — but the allow side runs the
+ * other way: a pattern Vibe was ignoring becomes one it unconditionally permits,
+ * and `_is_unconditionally_allowed` grants an allowlist match even under
+ * `permission = "never"`. Dropping the legacy list instead would be its own
+ * silent change, so the promotion stands and is announced.
+ */
+function warnOnLegacyAllowPromotion({
+  vibeToolNames,
+  tools,
+  warned,
+  logger,
+}: {
+  vibeToolNames: readonly string[];
+  tools: Record<string, VibeToolConfig>;
+  warned: Set<string>;
+  logger?: Logger;
+}): void {
+  for (const vibeToolName of vibeToolNames) {
+    if (warned.has(vibeToolName)) {
+      continue;
+    }
+    const toolConfig = readVibeToolConfig({ tools, vibeToolName });
+    const enforced = new Set(toStringArray(toolConfig.allowlist));
+    const promoted = toStringArray(toolConfig.allow).filter((pattern) => !enforced.has(pattern));
+    if (promoted.length === 0) {
+      continue;
+    }
+    warned.add(vibeToolName);
+    logger?.warn(
+      `Promoting ${promoted.join(", ")} from the legacy 'allow' key of [tools.${vibeToolName}] ` +
+        `into its 'allowlist', which is the key Vibe's permission engine actually reads. Those ` +
+        `patterns were inert on disk and become unconditionally allowed — even under ` +
+        `permission = "never" — so delete them from config.toml if the legacy list was stale.`,
+    );
+  }
 }
 
 function readVibeToolConfig({
