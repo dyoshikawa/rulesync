@@ -8,7 +8,7 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
@@ -172,11 +172,18 @@ function convertToMusecodeFormat(mcpServers: McpServers, logger?: Logger): Recor
  * `mode` is lifted into the authoring key `musecodeMode` so the next generate
  * reproduces it, and unknown keys (e.g. `framing`) pass through untouched.
  *
- * A `mode` whose value is neither `required` nor `optional` is left alone rather
- * than renamed: `musecodeMode` is typed as those two values, so moving an
- * unrecognized one there would produce a `.rulesync/mcp.json` that the next
- * parse rejects (the `kiroAutoApprove` precedent in `kiro-mcp.ts`). Passing it
- * through keeps it visible to the reader while still dropping it on generate.
+ * A `mode` whose value is neither `required` nor `optional` is dropped with a
+ * warning rather than either renamed or passed through. Renaming is out because
+ * `musecodeMode` is typed as those two values, so an unrecognized one there
+ * would produce a `.rulesync/mcp.json` that the next parse rejects — for every
+ * server in the file, not just this entry (the `kiroAutoApprove` precedent in
+ * `kiro-mcp.ts`). Passing it through is out because `McpServerSchema` is loose:
+ * a surviving `mode` reaches `getMcpServers()` and is copied verbatim into every
+ * *other* target's config, so a Muse Code key would land everywhere except Muse
+ * Code, whose own generate does not emit it. Dropping loses nothing that was not
+ * already lost on the next generate, and it matches how this same function
+ * already drops `transport` and how the rovodev adapter drops a `transport`
+ * outside its vocabulary.
  */
 function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpServers {
   const result: McpServers = {};
@@ -188,14 +195,31 @@ function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpSer
     for (const [key, value] of Object.entries(config)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
       if (key === "transport") continue;
+      // The rulesync-side spelling of the key `mode` is lifted into below. Muse
+      // Code never writes it, so one that turns up in settings.json is noise —
+      // and passing it through would put an unchecked value into
+      // `.rulesync/mcp.json` under a key typed as exactly two values, failing
+      // the next parse of the whole file rather than just this entry.
+      if (key === "musecodeMode") continue;
       if (key === "enabled") {
         if (value === false) {
           converted.disabled = true;
         }
         continue;
       }
-      const mode = key === "mode" ? asMusecodeMode(value) : undefined;
-      if (mode !== undefined) {
+      if (key === "mode") {
+        const mode = asMusecodeMode(value);
+        if (mode === undefined) {
+          // Serialized rather than interpolated: both halves come off disk, and
+          // an unquoted value is what lets a crafted one read as a second line.
+          warnWithFallback(
+            undefined,
+            `Dropping mode ${JSON.stringify(value)} on Muse Code MCP server ` +
+              `${JSON.stringify(name)}: it is neither "required" nor "optional", the only two ` +
+              `modes Muse Code documents.`,
+          );
+          continue;
+        }
         converted.musecodeMode = mode;
         continue;
       }

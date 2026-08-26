@@ -6,6 +6,7 @@ import { RULESYNC_MCP_SCHEMA_URL } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { readFileContent, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { MusecodeMcp } from "./musecode-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { ToolMcp } from "./tool-mcp.js";
@@ -264,7 +265,7 @@ describe("MusecodeMcp", () => {
               transport: "streamable_http",
               url: "https://example.com/mcp",
               enabled: false,
-              mode: "trusted",
+              framing: "ndjson",
             },
           },
         }),
@@ -277,8 +278,8 @@ describe("MusecodeMcp", () => {
       expect(json.mcpServers).toEqual({
         fs: { command: "fs", args: ["--x"], env: { A: "1" } },
         // `transport` is dropped, `enabled: false` maps to `disabled: true`,
-        // unknown keys (`mode`) pass through.
-        remote: { url: "https://example.com/mcp", disabled: true, mode: "trusted" },
+        // unknown keys (`framing`) pass through.
+        remote: { url: "https://example.com/mcp", disabled: true, framing: "ndjson" },
       });
       expect(json.schema_version).toBeUndefined();
       expect(json.model).toBeUndefined();
@@ -304,6 +305,99 @@ describe("MusecodeMcp", () => {
       expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers).toEqual({
         flaky: { command: "flaky-server", musecodeMode: "optional" },
         core: { command: "core-server", musecodeMode: "required" },
+      });
+    });
+
+    it("should drop a rulesync-side musecodeMode found in the settings file", () => {
+      // Muse Code never writes `musecodeMode`, so one in settings.json is noise.
+      // Passing it through would put an unchecked value into `.rulesync/mcp.json`
+      // under a key typed as exactly two values, and the next parse would reject
+      // the whole file rather than just this entry.
+      const rulesyncMcp = importSettings({
+        junk: { transport: "stdio", command: "junk-server", musecodeMode: 5 },
+        both: {
+          transport: "stdio",
+          command: "both-server",
+          mode: "optional",
+          musecodeMode: "GARBAGE",
+        },
+      }).toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers).toEqual({
+        junk: { command: "junk-server" },
+        both: { command: "both-server", musecodeMode: "optional" },
+      });
+    });
+
+    it("should drop an undocumented mode with a warning instead of passing it through", () => {
+      // Keeping it would copy a Muse Code key into every OTHER target's config,
+      // since `McpServerSchema` is loose — while Muse Code's own generate would
+      // still not emit it. Dropping loses nothing the next generate kept.
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const rulesyncMcp = importSettings({
+        odd: { transport: "stdio", command: "odd-server", mode: "lazy" },
+      }).toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers).toEqual({
+        odd: { command: "odd-server" },
+      });
+      // Both halves quoted by the serializer, since both come off disk.
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"lazy"'));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"odd"'));
+      warnSpy.mockRestore();
+    });
+
+    it("should carry mode alongside a remote transport and a disabled server", () => {
+      // `mode` is appended after the transport branch, so the remote path and
+      // the `enabled: false` path both have to keep it.
+      const settings = {
+        remote: {
+          transport: "streamable_http",
+          url: "https://example.com/mcp",
+          mode: "optional",
+        },
+        off: { transport: "stdio", command: "off-server", enabled: false, mode: "required" },
+      };
+
+      const rulesyncMcp = importSettings(settings).toRulesyncMcp();
+      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers).toEqual({
+        remote: { url: "https://example.com/mcp", musecodeMode: "optional" },
+        off: { command: "off-server", disabled: true, musecodeMode: "required" },
+      });
+    });
+
+    it("should keep musecodeMode through the pipeline generate actually runs", async () => {
+      // The re-merge reads `getJson().mcpServers` off whatever instance the
+      // processor hands over, which is a rebuilt one: `forTarget()` folds the
+      // tool-scoped `musecode` block into the shared map and `stripMcpServerFields`
+      // rebuilds it again. Both steps are the only way the re-merge can break, and
+      // constructing a RulesyncMcp directly (as the tests above do) skips them.
+      const source = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { shared: { command: "shared-server", musecodeMode: "optional" } },
+          musecode: {
+            mcpServers: { scoped: { command: "scoped-server", musecodeMode: "required" } },
+          },
+        }),
+      });
+
+      const mcp = await MusecodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        // musecode's meta sets both supportsEnabledTools and supportsDisabledTools
+        // to false, so these are the fields `mcp-processor.ts` strips for it.
+        rulesyncMcp: source
+          .forTarget({ toolTarget: "musecode" })
+          .stripMcpServerFields(["enabledTools", "disabledTools"]),
+        global: true,
+      });
+
+      expect(mcp.getJson().mcp_servers).toEqual({
+        shared: { transport: "stdio", command: "shared-server", args: [], mode: "optional" },
+        scoped: { transport: "stdio", command: "scoped-server", args: [], mode: "required" },
       });
     });
 
