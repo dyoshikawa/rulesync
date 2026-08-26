@@ -259,13 +259,13 @@ async function describeDisplacedGlobalServers({
   outputRoot: string;
 }): Promise<string | null> {
   const label = posix.join("~", ROVODEV_DIR, ROVODEV_ALTERNATE_MCP_FILE_NAME);
-  // Every "cannot be ruled out" answer says how to proceed anyway, because the
-  // file may well hold nothing the user needs. Rulesync never overwrites a
-  // `mcpConfigPath` that is already there, so setting it by hand settles the
-  // question permanently.
+  // A reason clause, not a whole message: the two callers put it in sentences
+  // that need different endings, since one is talking to a user whose
+  // `mcpConfigPath` is unset and the other to one who already has a value.
+  // Each of them says what to do when the file turns out to hold nothing the
+  // user needs, which this answer cannot rule out either way.
   const cannotRuleOut = (reason: string): string =>
-    `${label} ${reason}, so the servers it holds cannot be ruled out — if it turns out to hold ` +
-    `nothing you need, set mcp.mcpConfigPath yourself and rulesync will leave your value alone`;
+    `${label} ${reason}, so the servers it holds cannot be ruled out`;
   let content: string | null;
   try {
     content = await readFileContentOrNull(
@@ -462,8 +462,12 @@ async function warnAtDocumentedDefault({
       (displaced === null
         ? `It defines no servers of its own, so setting mcp.mcpConfigPath to "${pointer}" costs ` +
           `nothing.`
-        : `Move the servers you want to keep into .rulesync/mcp.jsonc first, then set ` +
-          `mcp.mcpConfigPath to "${pointer}" — ${displaced}.`),
+        : // Ends on the change to make: this user already has a value, so a
+          // closing "rulesync will leave your value alone" would read as
+          // permission to do nothing, which is the outcome being warned about.
+          `${displaced} — move the servers you want to keep into .rulesync/mcp.jsonc first, or ` +
+          `none at all if it turns out to hold nothing you need, then change mcp.mcpConfigPath ` +
+          `to "${pointer}".`),
   );
 }
 
@@ -536,7 +540,9 @@ async function applyMcpConfigPointer({
           `Atlassian documents that path and ${mcpLabel} as two different defaults for the ` +
           `setting, and mcpConfigPath names one config rather than merging, so pointing it at ` +
           `${mcpLabel} would stop those servers being read on every project. Move the ones you ` +
-          `want to keep into .rulesync/mcp.jsonc, then set mcp.mcpConfigPath to "${pointer}".`,
+          `want to keep into .rulesync/mcp.jsonc — or none at all, if it turns out to hold ` +
+          `nothing you need — then set mcp.mcpConfigPath to "${pointer}" yourself, which ` +
+          `rulesync will not overwrite.`,
       );
       return false;
     }

@@ -1010,6 +1010,73 @@ describe("RovodevMcp", () => {
       ).toBe(false);
     });
 
+    it("names the servers a documented-default pointer is holding", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        "mcp:\n  mcpConfigPath: ~/.rovodev/mcp_config.json\n",
+      );
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp_config.json"),
+        JSON.stringify({ mcpServers: { legacy: { command: "node" } } }),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp,
+        logger,
+      });
+
+      expect(auxiliary[0]!.getFileContent()).not.toContain("mcpConfigPath: ~/.rovodev/mcp.json");
+      const message = logger.warn.mock.calls
+        .map(([entry]) => String(entry))
+        .find((entry) => entry.includes("leaving mcp.mcpConfigPath"));
+      expect(message).toContain("defines legacy");
+      // This user already has a value, so the message has to end on the change
+      // to make rather than on rulesync leaving their value alone.
+      expect(message).toContain('change mcp.mcpConfigPath to "~/.rovodev/mcp.json"');
+      expect(message).not.toContain("will not overwrite");
+    });
+
+    it("reports an unreadable mcp_config.json behind a documented-default pointer", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        "mcp:\n  mcpConfigPath: ~/.rovodev/mcp_config.json\n",
+      );
+      await ensureDir(join(testDir, ".rovodev", "mcp_config.json"));
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp,
+        logger,
+      });
+
+      // The read failure costs this one message its detail, not the run.
+      expect(auxiliary).not.toEqual([]);
+      const message = logger.warn.mock.calls
+        .map(([entry]) => String(entry))
+        .find((entry) => entry.includes("leaving mcp.mcpConfigPath"));
+      expect(message).toContain("cannot be read");
+      expect(message).toContain("or none at all if it turns out to hold nothing you need");
+    });
+
     it.each([
       ["$HOME", "$HOME/.rovodev/mcp.json"],
       ["${HOME}", "${HOME}/.rovodev/mcp.json"],
@@ -1075,7 +1142,8 @@ describe("RovodevMcp", () => {
       expect(message).toContain("does not have the expected shape");
       // A stub with no servers in it is a real possibility here, so the message
       // has to say what to do when there is nothing to move.
-      expect(message).toContain("set mcp.mcpConfigPath yourself");
+      expect(message).toContain("or none at all");
+      expect(message).toContain('set mcp.mcpConfigPath to "~/.rovodev/mcp.json" yourself');
     });
 
     it("writes the global pointer when mcp_config.json parses to an empty object", async () => {
