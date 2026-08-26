@@ -55,10 +55,10 @@ export type AntigravitySubagentFrontmatter = z.infer<typeof AntigravitySubagentF
  * Tool-specific rulesync sections every writer of the shared
  * `.agents/agents/<name>.md` file merges, in increasing precedence order.
  */
-export const ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS: ToolTarget[] = [
+export const ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS = [
   "antigravity-ide",
   "antigravity-cli",
-];
+] as const satisfies readonly ToolTarget[];
 
 export type AntigravitySharedSubagentParams = {
   frontmatter: AntigravitySubagentFrontmatter;
@@ -83,7 +83,7 @@ export function toAntigravitySubagentFrontmatter({
   toolTarget,
 }: {
   rulesyncSubagent: RulesyncSubagent;
-  sectionKeys: ToolTarget[];
+  sectionKeys: readonly ToolTarget[];
   toolTarget: ToolTarget;
 }): AntigravitySubagentFrontmatter {
   const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
@@ -109,6 +109,23 @@ export function toAntigravitySubagentFrontmatter({
     );
   }
   return result.data;
+}
+
+/**
+ * Render the bytes an `.agents/agents/<name>.md` file carries.
+ *
+ * Frontmatter construction alone is not enough to keep the shared file
+ * identical between writers — the serialization has to match too, so it lives
+ * here rather than being hand-copied at each call site.
+ */
+export function stringifyAntigravitySubagentFile({
+  body,
+  frontmatter,
+}: {
+  body: string;
+  frontmatter: AntigravitySubagentFrontmatter;
+}): string {
+  return stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true });
 }
 
 /**
@@ -145,8 +162,7 @@ export class AntigravitySharedSubagent extends ToolSubagent {
 
     super({
       ...rest,
-      fileContent:
-        fileContent ?? stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true }),
+      fileContent: fileContent ?? stringifyAntigravitySubagentFile({ body, frontmatter }),
     });
     this.frontmatter = frontmatter;
     this.body = body;
@@ -235,7 +251,7 @@ export class AntigravitySharedSubagent extends ToolSubagent {
       body,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
-      fileContent: stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true }),
+      fileContent: stringifyAntigravitySubagentFile({ body, frontmatter }),
       validate,
       global,
     });

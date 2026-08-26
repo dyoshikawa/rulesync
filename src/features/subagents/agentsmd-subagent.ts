@@ -1,7 +1,7 @@
 import { AGENTSMD_SUBAGENTS_DIR_PATH } from "../../constants/agentsmd-paths.js";
-import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import {
   ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS,
+  stringifyAntigravitySubagentFile,
   toAntigravitySubagentFrontmatter,
 } from "./antigravity-shared-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -38,6 +38,9 @@ export class AgentsmdSubagent extends SimulatedSubagent {
   }
 
   static async fromFile(params: ToolSubagentFromFileParams): Promise<AgentsmdSubagent> {
+    // `fromFileDefault` carries the raw bytes through, so a file another writer
+    // of this shared path produced is not silently re-rendered into the
+    // simulated shape when it is read back.
     const baseParams = await this.fromFileDefault(params);
     return new AgentsmdSubagent(baseParams);
   }
@@ -55,7 +58,7 @@ export class AgentsmdSubagent extends SimulatedSubagent {
     return new AgentsmdSubagent({
       ...defaults,
       frontmatter,
-      fileContent: stringifyFrontmatter(defaults.body, frontmatter, { avoidBlockScalars: true }),
+      fileContent: stringifyAntigravitySubagentFile({ body: defaults.body, frontmatter }),
     });
   }
 

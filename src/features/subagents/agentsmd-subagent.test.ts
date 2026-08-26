@@ -310,9 +310,97 @@ Body content`;
       expect(agentsmdSubagent.getFileContent()).toContain("model: flash");
       expect(agentsmdSubagent.getFileContent()).toContain("commandExecutionPolicy: sandbox");
     });
+
+    it("should emit plain name/description frontmatter when no Antigravity section is authored", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "plain-agent.md",
+        frontmatter: {
+          targets: ["agentsmd"],
+          name: "plain-agent",
+          description: "Plain agent description",
+        },
+        body: "Plain agent body.",
+        validate: true,
+      });
+
+      const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".agents/agents",
+        rulesyncSubagent,
+        validate: true,
+      });
+
+      expect(agentsmdSubagent.getFileContent()).toBe(
+        [
+          "---",
+          "name: plain-agent",
+          "description: Plain agent description",
+          "---",
+          "Plain agent body.",
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("should read the shared Antigravity sections even for an agentsmd-only subagent", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "scoped-agent.md",
+        frontmatter: {
+          targets: ["agentsmd"],
+          name: "scoped-agent",
+          description: "Scoped agent description",
+          "antigravity-cli": { model: "pro" },
+        },
+        body: "Scoped agent body.",
+        validate: true,
+      });
+
+      const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".agents/agents",
+        rulesyncSubagent,
+        validate: true,
+      });
+
+      // The file is shared, so the block belongs to the path rather than to the
+      // target list the canonical subagent happens to name.
+      expect(agentsmdSubagent.getFileContent()).toContain("model: pro");
+    });
   });
 
   describe("fromFile", () => {
+    it("should preserve the bytes a native writer of the shared path produced", async () => {
+      const nativeContent = [
+        "---",
+        "name: native-agent",
+        "description: Written by an Antigravity target",
+        "model: pro",
+        "commandExecutionPolicy: sandbox",
+        "---",
+        "",
+        "Native agent body.",
+        "",
+      ].join("\n");
+      await writeFileContent(join(testDir, ".agents", "agents", "native-agent.md"), nativeContent);
+
+      const subagent = await AgentsmdSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "native-agent.md",
+        validate: true,
+      });
+
+      expect(subagent.getFileContent()).toBe(nativeContent);
+      expect(subagent.getFrontmatter()).toMatchObject({
+        name: "native-agent",
+        model: "pro",
+        commandExecutionPolicy: "sandbox",
+      });
+    });
+
     it("should load AgentsmdSubagent from file", async () => {
       const subagentsDir = join(testDir, ".agents", "agents");
       const filePath = join(subagentsDir, "test-file-agent.md");
