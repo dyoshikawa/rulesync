@@ -209,11 +209,13 @@ export class VibePermissions extends ToolPermissions {
 
     // Only a category that actually writes something may take a shell alias out
     // of `bash`'s fan-out; see `expressesVibePermission`.
+    const shellRules = permission[VIBE_SHELL_CATEGORY] ?? {};
     const shellAliases = resolveFanOutShellAliases({
       config,
       fansOut:
-        expressesVibePermission(permission[VIBE_SHELL_CATEGORY] ?? {}) ||
+        expressesVibePermission(shellRules) ||
         Object.hasOwn(vibeOverride?.permission ?? {}, VIBE_SHELL_CATEGORY),
+      tightening: shellRules["*"] === "deny",
       logger,
     });
     const claimingCategories = Object.keys(permission).filter((category) =>
@@ -293,8 +295,10 @@ export class VibePermissions extends ToolPermissions {
       logger.warn(
         `Removed ${removedEnabledTools.join(", ")} from Vibe's exclusive enabled_tools list ` +
           `(rulesync owns the tools it configures and no longer expresses allows through that ` +
-          `key). If the exclusive narrowing was intentional, declare the full list explicitly ` +
-          `via vibe.enabled_tools in .rulesync/permissions.jsonc.`,
+          `key); their [tools.<name>] permission carries the rule instead. Note that any entry ` +
+          `left in enabled_tools keeps every tool outside it inactive, so an allow authored here ` +
+          `stays switched off until the key is empty. If the exclusive narrowing was intentional, ` +
+          `declare the full list explicitly via vibe.enabled_tools in .rulesync/permissions.jsonc.`,
       );
     }
 
@@ -484,7 +488,40 @@ function applyVibeSensitivePatterns({
       );
     }
     const patterns = toStringArray(toolOverride.sensitive_patterns);
+    // Anything past the first name is a `bash` fan-out alias. `sensitive_patterns`
+    // is outside the state `resolveFanOutShellAliases` compares, so an alias can
+    // still hold escalation patterns of its own here — and those are the author's
+    // only defense once the base permission becomes ALWAYS. Overwrite an alias
+    // only where it says nothing, or repeats what `[tools.bash]` already said.
+    const [primaryToolName, ...aliasToolNames] = vibeToolNames;
+    const primaryPatterns =
+      primaryToolName === undefined
+        ? []
+        : toStringArray(
+            readVibeToolConfig({ tools, vibeToolName: primaryToolName }).sensitive_patterns,
+          );
+    const divergingAliases = aliasToolNames.filter((aliasToolName) => {
+      const existing = readVibeToolConfig({
+        tools,
+        vibeToolName: aliasToolName,
+      }).sensitive_patterns;
+      return (
+        existing !== undefined && !arePatternListsEqual(toStringArray(existing), primaryPatterns)
+      );
+    });
+    if (divergingAliases.length > 0) {
+      logger?.warn(
+        `Keeping the existing Vibe sensitive_patterns for ${divergingAliases.join(", ")} instead ` +
+          `of fanning vibe.permission.${category}.sensitive_patterns out to it, because the ` +
+          `existing config.toml already sets different patterns for that shell. Author ` +
+          `vibe.permission.${divergingAliases.join(", ")}.sensitive_patterns to replace them.`,
+      );
+    }
+
     for (const vibeToolName of vibeToolNames) {
+      if (divergingAliases.includes(vibeToolName)) {
+        continue;
+      }
       const nextTool = readVibeToolConfig({ tools, vibeToolName });
       if (patterns.length > 0) {
         nextTool.sensitive_patterns = [...patterns].toSorted();
@@ -670,11 +707,18 @@ function applyCategoryRulesToTool({
   // from the existing file so a server is never left with both.
   delete nextTool.allow;
   delete nextTool.deny;
+  // An empty list states nothing, so it is dropped rather than carried over from
+  // the existing file — otherwise the fan-out mirrors the empty key onto every
+  // shell as pure noise.
   if (allow.size > 0) {
     nextTool.allowlist = [...allow].toSorted();
+  } else {
+    delete nextTool.allowlist;
   }
   if (deny.size > 0) {
     nextTool.denylist = [...deny].toSorted();
+  } else {
+    delete nextTool.denylist;
   }
 
   // A category with no expressible rule (`{}`, or only skipped `ask` patterns)
@@ -904,11 +948,14 @@ function toVibeMcpToolName(category: string): string[] | undefined {
 function resolveFanOutShellAliases({
   config,
   fansOut,
+  tightening,
   logger,
 }: {
   config: VibeConfig;
   /** Whether the `bash` category has a permission to spread in the first place. */
   fansOut: boolean;
+  /** Whether that permission denies every pattern, and so can only restrict. */
+  tightening: boolean;
   logger?: Logger;
 }): string[] {
   const tools = toVibeToolsRecord(config.tools);
@@ -954,13 +1001,32 @@ function resolveFanOutShellAliases({
   // permission does NOT apply" while no `bash` category exists points at a
   // permission the file never authored.
   const preserved = VIBE_SHELL_ALIAS_TOOL_NAMES.filter((name) => !fanOutTargets.includes(name));
-  if (fansOut && preserved.length > 0) {
-    logger?.warn(
-      `Keeping the existing Vibe permission for ${preserved.join(", ")} instead of fanning the ` +
-        `'bash' category out to it, because the existing config.toml already configures that ` +
-        `shell differently from 'bash'. The 'bash' permission does NOT apply to it.`,
-    );
+  if (preserved.length === 0 || !fansOut) {
+    return fanOutTargets;
   }
+
+  // Standing down protects a decision made outside the category from being
+  // *broadened* — a `permission = "never"` overwritten by whatever `bash` says.
+  // A `bash` category that denies every pattern cannot broaden anything: the
+  // shell ends up disabled outright, which is at least as strict as whatever it
+  // held. Letting the stand-down win there would leave a deny the author wrote
+  // silently absent from one of the three shells, which is the exact failure
+  // this fan-out exists to prevent, so tightening always reaches every shell.
+  if (tightening) {
+    logger?.warn(
+      `Overwriting the existing Vibe permission for ${preserved.join(", ")} with the 'bash' ` +
+        `category, because that category denies every pattern and a deny must reach every ` +
+        `managed shell. Author ${preserved.join(", ")} as its own category to keep a different ` +
+        `permission for it.`,
+    );
+    return VIBE_SHELL_ALIAS_TOOL_NAMES;
+  }
+
+  logger?.warn(
+    `Keeping the existing Vibe permission for ${preserved.join(", ")} instead of fanning the ` +
+      `'bash' category out to it, because the existing config.toml already configures that ` +
+      `shell differently from 'bash'. The 'bash' permission does NOT apply to it.`,
+  );
   return fanOutTargets;
 }
 
