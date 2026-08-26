@@ -83,10 +83,18 @@ const FAILURE_LINES_BY_MODE: Record<BlockingMode, readonly string[]> = {
  * `maxBuffer`, and the slice bounds the work even if a later edit reintroduces
  * a pattern that is not linear. A slice that actually fired is reported as
  * truncated, so the text is never silently cut.
+ *
+ * Both slices cut on UTF-16 code units, so each drops a trailing lone high
+ * surrogate: the reason travels to an RPC client as JSON, and half a surrogate
+ * pair is not text a strict consumer has to accept.
  */
 const BLOCK_REASON_HELPER_LINES = [
   "const MAX_BLOCK_REASON_LENGTH = 2000;",
   "const MAX_SCANNED_REASON_LENGTH = 128_000;",
+  "",
+  "function dropTrailingLoneSurrogate(text: string): string {",
+  '  return text.replace(/[\\ud800-\\udbff]$/, "");',
+  "}",
   "",
   "function toBlockReason(error: unknown): string {",
   "  const result = error as { stdout?: unknown; stderr?: unknown; code?: unknown } | null;",
@@ -100,7 +108,10 @@ const BLOCK_REASON_HELPER_LINES = [
   "      : error instanceof Error",
   "        ? error.message",
   "        : String(error));",
-  "  const scanned = raw.slice(0, MAX_SCANNED_REASON_LENGTH);",
+  "  const scannedTruncated = raw.length > MAX_SCANNED_REASON_LENGTH;",
+  "  const scanned = scannedTruncated",
+  "    ? dropTrailingLoneSurrogate(raw.slice(0, MAX_SCANNED_REASON_LENGTH))",
+  "    : raw;",
   "  const sanitized = scanned",
   '    .replace(/\\r\\n?/g, "\\n")',
   '    .replace(/\\u001b\\[[0-9;?]*[\\u0020-\\u002f]*[\\u0040-\\u007e]/g, "")',
@@ -109,11 +120,8 @@ const BLOCK_REASON_HELPER_LINES = [
   '    .replace(/[\\p{Cf}\\p{Zl}\\p{Zp}]/gu, "")',
   "    .trim();",
   '  if (!sanitized) return "Hook command failed.";',
-  "  const truncated =",
-  "    sanitized.length > MAX_BLOCK_REASON_LENGTH || scanned.length < raw.length;",
-  "  return truncated",
-  "    ? `${sanitized.slice(0, MAX_BLOCK_REASON_LENGTH)}...`",
-  "    : sanitized;",
+  "  if (sanitized.length <= MAX_BLOCK_REASON_LENGTH && !scannedTruncated) return sanitized;",
+  "  return `${dropTrailingLoneSurrogate(sanitized.slice(0, MAX_BLOCK_REASON_LENGTH))}...`;",
   "}",
 ];
 

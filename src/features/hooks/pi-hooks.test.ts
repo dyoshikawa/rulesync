@@ -651,6 +651,38 @@ describe("PiHooks", () => {
       expect(notify).toHaveBeenCalledWith("real failure", "error");
     });
 
+    it("should mark a reason as truncated when the scan backstop drops the tail", async () => {
+      const gate = await loadPromptGate({
+        testDir,
+        // 12 characters of message plus 40000 four-character escapes, so the
+        // 128000-character scan backstop cuts exactly on a sequence boundary.
+        // What survives is far shorter than the reported length, so only the
+        // backstop can mark it truncated.
+        command:
+          'awk \'BEGIN { printf "real failure"; for (i = 0; i < 40000; i++) printf "%c[0m", 27 }\' >&2; exit 1',
+      });
+
+      const notify = vi.fn();
+      await gate(userPrompt(), uiContext({ notify }));
+      expect(notify).toHaveBeenCalledWith("real failure...", "error");
+    });
+
+    it("should not cut a reason in the middle of a surrogate pair", async () => {
+      const gate = await loadPromptGate({
+        testDir,
+        // 1999 characters then U+1F600, whose pair straddles the 2000th code
+        // unit. The reason reaches an RPC client as JSON, so half a pair must
+        // not survive the cut.
+        command:
+          "awk 'BEGIN { for (i = 0; i < 1999; i++) printf \"a\" }' >&2; printf '\\360\\237\\230\\200 tail' >&2; exit 1",
+      });
+
+      const notify = vi.fn();
+      await gate(userPrompt(), uiContext({ notify }));
+      const [reason] = notify.mock.calls[0] ?? [];
+      expect(reason).toBe(`${"a".repeat(1999)}...`);
+    });
+
     it("should generate an input handler that continues when the command succeeds", async () => {
       const gate = await loadPromptGate({ testDir, command: "exit 0" });
 
