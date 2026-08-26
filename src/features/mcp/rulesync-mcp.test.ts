@@ -1368,6 +1368,35 @@ describe("RulesyncMcp", () => {
       expect((rulesyncMcp.getJson().mcpServers.pal as any).musecodeMode).toBe("optional");
     });
 
+    it("should strip the rovodev-only enable_instructions from getMcpServers output", () => {
+      // Stronger reason than envVars/musecodeMode: this key decides whether a
+      // third-party server's own text is pasted into the agent's system prompt,
+      // so leaking it into every other tool's config would opt the user into
+      // that for tools they were not writing about. Both spellings are stripped
+      // because both are accepted on the way in.
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            canonical: { command: "uvx", rovodevEnableInstructions: true },
+            raw: { command: "uvx", enable_instructions: true },
+          },
+        }),
+      });
+
+      const servers = rulesyncMcp.getMcpServers();
+
+      expect((servers.canonical as any).rovodevEnableInstructions).toBeUndefined();
+      expect((servers.raw as any).enable_instructions).toBeUndefined();
+      expect((servers.canonical as any).command).toBe("uvx");
+      expect((servers.raw as any).command).toBe("uvx");
+      expect((rulesyncMcp.getJson().mcpServers.canonical as any).rovodevEnableInstructions).toBe(
+        true,
+      );
+      expect((rulesyncMcp.getJson().mcpServers.raw as any).enable_instructions).toBe(true);
+    });
+
     it("should still expose envVars via getJson() for the codex generator", () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,

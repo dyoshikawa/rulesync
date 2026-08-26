@@ -564,7 +564,13 @@ export class RulesyncMcp extends RulesyncFile {
           // including the raw `experimental_environment` spelling, which is
           // what someone copying a codex config writes and which no other tool
           // understands. `musecodeMode` is the same arrangement for Muse Code,
-          // whose generator re-merges it from the raw JSON the same way.
+          // whose generator re-merges it from the raw JSON the same way, and
+          // `rovodevEnableInstructions` for Rovo Dev — along with the raw
+          // `enable_instructions` spelling someone copying a Rovo Dev config
+          // writes. That pair is stripped for a stronger reason than the
+          // others: it decides whether a third-party server's own instructions
+          // are pasted into the agent's system prompt, so carrying it to a tool
+          // the author never named would widen what steers the model.
           // `enabled` is stripped because OpenCode, Kilo, Grok CLI
           // and Goose have a NATIVE `enabled` field with different semantics a
           // leaked value would silently collide with.
@@ -578,6 +584,8 @@ export class RulesyncMcp extends RulesyncFile {
               "experimentalEnvironment",
               "experimental_environment",
               "musecodeMode",
+              "rovodevEnableInstructions",
+              "enable_instructions",
               "enabled",
             ]),
           ];
