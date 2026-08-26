@@ -127,7 +127,8 @@ The `generate` command reads source files from one or more rulesync source trees
 > unchanged: a file in a generated directory that no `.rulesync/` source
 > produces.
 >
-> One target is exempt. Takt skills are flat files sharing a single
+> Takt's skills are the one exception (its rules, commands, and subagents are
+> swept normally). They are flat files sharing a single
 > `.takt/facets/knowledge/` root rather than each getting a directory of its own,
 > so the sweep has no per-skill directory to remove and never touches that root —
 > which is what keeps it from deleting hand-authored files alongside generated
