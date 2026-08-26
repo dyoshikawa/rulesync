@@ -15,6 +15,9 @@ vi.mock("@inquirer/checkbox", () => ({
 }));
 
 describe("promptSkillSelection", () => {
+  // The `shortcuts` assertions below are the point of this test as much as the
+  // unchecked boxes are: starting from an empty selection is only reasonable
+  // because <a> makes "fetch everything" one keystroke away.
   it("should check no skills when none are preselected", async () => {
     checkboxMock.mockResolvedValue([]);
 
@@ -51,20 +54,6 @@ describe("promptSkillSelection", () => {
       shortcuts: { all: "a", invert: "i" },
     });
     expect(selected).toEqual(["skill-b"]);
-  });
-
-  it("should offer a select-all shortcut so nothing-checked is not a dead end", async () => {
-    checkboxMock.mockResolvedValue(["skill-a", "skill-b"]);
-
-    await promptSkillSelection({
-      availableSkills: ["skill-a", "skill-b"],
-      preselectedSkills: [],
-    });
-
-    const call = checkboxMock.mock.calls[0]?.[0];
-    expect(call.shortcuts.all).toBe("a");
-    expect(call.shortcuts.invert).toBe("i");
-    expect(call.message).toContain("<a> to select all");
   });
 
   it("should convert ExitPromptError (Ctrl+C) into SkillSelectionCancelledError", async () => {

@@ -51,7 +51,7 @@ export async function fetchCommand(logger: Logger, options: FetchCommandOptions)
     }
   } catch (error) {
     if (error instanceof SkillSelectionCancelledError) {
-      logger.warn("Fetch cancelled: no skills were selected.");
+      logger.warn("Fetch cancelled by the user.");
       return;
     }
     if (error instanceof GitHubClientError) {

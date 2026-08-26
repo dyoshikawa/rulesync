@@ -43,7 +43,7 @@ export async function promptSkillSelection(params: {
 
   try {
     return await checkbox({
-      message: "Select skills to fetch (press <a> to select all)",
+      message: `Select skills to fetch (press <${SKILL_PROMPT_SHORTCUTS.all}> to select all)`,
       choices: availableSkills.map((name) => ({
         name,
         value: name,
