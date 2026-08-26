@@ -195,11 +195,12 @@ function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpSer
     for (const [key, value] of Object.entries(config)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
       if (key === "transport") continue;
-      // The rulesync-side spelling of the key `mode` is lifted into below. Muse
-      // Code never writes it, so one that turns up in settings.json is noise —
-      // and passing it through would put an unchecked value into
-      // `.rulesync/mcp.json` under a key typed as exactly two values, failing
-      // the next parse of the whole file rather than just this entry.
+      // `musecodeMode` is the rulesync-side spelling that the `mode` branch
+      // below lifts into. Muse Code never writes it, so one that turns up in
+      // settings.json is noise — and passing it through would put an unchecked
+      // value into `.rulesync/mcp.json` under a key typed as exactly two
+      // values, failing the next parse of the whole file rather than just this
+      // entry.
       if (key === "musecodeMode") continue;
       if (key === "enabled") {
         if (value === false) {
@@ -214,9 +215,9 @@ function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpSer
           // an unquoted value is what lets a crafted one read as a second line.
           warnWithFallback(
             undefined,
-            `Dropping mode ${JSON.stringify(value)} on Muse Code MCP server ` +
-              `${JSON.stringify(name)}: it is neither "required" nor "optional", the only two ` +
-              `modes Muse Code documents.`,
+            `Muse Code MCP: dropping mode ${JSON.stringify(value)} on server ` +
+              `${JSON.stringify(name)} because it is neither "required" nor "optional", the ` +
+              `only two modes Muse Code documents.`,
           );
           continue;
         }
