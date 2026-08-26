@@ -132,6 +132,19 @@ describe("TaktSkill", () => {
       });
       expect(skill.ownsDirTree()).toBe(false);
     });
+
+    it("does not own its tree even when named after its own facet root", () => {
+      // The last path segment matches `dirName` here by coincidence, so a
+      // name-based check would wrongly claim the whole facet root.
+      const skill = new TaktSkill({
+        outputRoot: testDir,
+        relativeDirPath: join(".takt", "facets", "knowledge"),
+        dirName: "knowledge",
+        fileName: "knowledge.md",
+        body: "y",
+      });
+      expect(skill.ownsDirTree()).toBe(false);
+    });
   });
 
   describe("fromDir / toRulesyncSkill (unsupported)", () => {

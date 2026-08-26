@@ -771,9 +771,14 @@ export abstract class AiDir {
    * whole tree. Subclasses that flatten into a shared root instead of nesting
    * under `dirName` (`TaktSkill`) return false here, because claiming that root
    * as a tree would exempt every sibling in it from the sweep.
+   *
+   * The comparison is structural rather than a name match on the last segment:
+   * a takt skill named after its own facet root (`.takt/facets/knowledge` and a
+   * skill called `knowledge`) ends on the same segment without ever nesting
+   * inside it.
    */
   ownsDirTree(): boolean {
-    return basename(this.getDirPath()) === this.getDirName();
+    return this.getDirPath() === path.join(this.outputRoot, this.relativeDirPath, this.dirName);
   }
 
   getDirPath(): string {

@@ -728,11 +728,15 @@ describe("generate", () => {
         loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
         removeAiDirs: vi.fn().mockResolvedValue(undefined),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
-        convertRulesyncDirsToToolDirs: vi
-          .fn()
-          .mockResolvedValue([
-            { dir: "skill", getDirPath: () => "/path/to/skill", ownsDirTree: () => true },
-          ]),
+        convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([
+          {
+            dir: "skill",
+            getDirPath: () => "/path/to/skill",
+            ownsDirTree: () => true,
+            getMainFile: () => undefined,
+            getOtherFiles: () => [],
+          },
+        ]),
         writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(SkillsProcessor).mockImplementation(function () {
@@ -793,10 +797,22 @@ describe("generate", () => {
       mockConfig.getDelete.mockReturnValue(true);
 
       const existingDirs = [
-        { dir: "existing-skill", getDirPath: () => "/path/to/existing", ownsDirTree: () => true },
+        {
+          dir: "existing-skill",
+          getDirPath: () => "/path/to/existing",
+          ownsDirTree: () => true,
+          getMainFile: () => undefined,
+          getOtherFiles: () => [],
+        },
       ];
       const generatedDirs = [
-        { dir: "generated-skill", getDirPath: () => "/path/to/generated", ownsDirTree: () => true },
+        {
+          dir: "generated-skill",
+          getDirPath: () => "/path/to/generated",
+          ownsDirTree: () => true,
+          getMainFile: () => undefined,
+          getOtherFiles: () => [],
+        },
       ];
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue(existingDirs),

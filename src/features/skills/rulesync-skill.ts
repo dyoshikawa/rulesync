@@ -13,9 +13,10 @@ import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 /**
  * Several targets use a skill's `name` verbatim as the directory name they write
  * (`roo`, `rovodev`, `junie`, `cline`, `takt`), and `rulesync fetch` can pull a
- * skill from a third-party repository. `AiDir` rejects the unsafe names as a last
- * resort, but it reports only the name; checking here means the error names the
- * offending skill's path instead.
+ * skill from a third-party repository. `AiDir` also rejects the names that
+ * `path.join` normalizes away, but it reports only the name, and it does not
+ * reject the Windows-stripped spellings below; checking here catches the whole
+ * set and names the offending skill's path.
  *
  * Rejected: names that `path.join` normalizes away (`"."`, `".."`, `""`), names
  * carrying a path separator, and names whose last character Windows strips from
