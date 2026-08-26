@@ -51,10 +51,65 @@ export const AntigravitySubagentFrontmatterSchema = z.looseObject({
 
 export type AntigravitySubagentFrontmatter = z.infer<typeof AntigravitySubagentFrontmatterSchema>;
 
+/**
+ * Tool-specific rulesync sections every writer of the shared
+ * `.agents/agents/<name>.md` file merges, in increasing precedence order.
+ */
+export const ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS: ToolTarget[] = [
+  "antigravity-ide",
+  "antigravity-cli",
+];
+
 export type AntigravitySharedSubagentParams = {
   frontmatter: AntigravitySubagentFrontmatter;
   body: string;
 } & Omit<AiFileParams, "fileContent"> & { fileContent?: string };
+
+/**
+ * Build the frontmatter an `.agents/agents/<name>.md` file carries.
+ *
+ * That path is shared: every Antigravity target writes it, and so does the
+ * simulated `agentsmd` target, which has no format of its own. Exporting the
+ * construction — rather than letting each writer assemble its own — is what
+ * keeps the file identical whichever target runs last, the same arrangement
+ * `toSpecConformantAgentSkillFields` already gives `.agents/skills/`.
+ *
+ * `sectionKeys` are the rulesync frontmatter sections to merge, in increasing
+ * precedence order; `toolTarget` only names the writer in the error message.
+ */
+export function toAntigravitySubagentFrontmatter({
+  rulesyncSubagent,
+  sectionKeys,
+  toolTarget,
+}: {
+  rulesyncSubagent: RulesyncSubagent;
+  sectionKeys: ToolTarget[];
+  toolTarget: ToolTarget;
+}): AntigravitySubagentFrontmatter {
+  const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
+  const mergedSection = Object.assign(
+    {},
+    ...sectionKeys.map((key) => rulesyncFrontmatter[key] ?? {}),
+  ) as Record<string, unknown>;
+  const { name: _name, description: _description, ...toolSection } = mergedSection;
+
+  const rawFrontmatter = {
+    name: rulesyncFrontmatter.name,
+    // Antigravity refuses to load an agent without a description, so a
+    // canonical file that omits it gets a minimal generated one rather than
+    // an inert output file.
+    description: rulesyncFrontmatter.description || `${rulesyncFrontmatter.name} subagent`,
+    ...toolSection,
+  };
+
+  const result = AntigravitySubagentFrontmatterSchema.safeParse(rawFrontmatter);
+  if (!result.success) {
+    throw new Error(
+      `Invalid ${toolTarget} subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
+    );
+  }
+  return result.data;
+}
 
 /**
  * Shared custom-agent (subagent) implementation for Google Antigravity 2.0,
@@ -115,7 +170,7 @@ export class AntigravitySharedSubagent extends ToolSubagent {
    * import writes back into.
    */
   protected static getReadSectionKeys(): ToolTarget[] {
-    return ["antigravity-ide", "antigravity-cli"];
+    return [...ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS];
   }
 
   static getSettablePaths({
@@ -166,30 +221,11 @@ export class AntigravitySharedSubagent extends ToolSubagent {
     validate = true,
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
-    const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const mergedSection = Object.assign(
-      {},
-      ...this.getReadSectionKeys().map((key) => rulesyncFrontmatter[key] ?? {}),
-    ) as Record<string, unknown>;
-    const toolSection = this.filterToolSpecificSection(mergedSection, ["name", "description"]);
-
-    const rawFrontmatter = {
-      name: rulesyncFrontmatter.name,
-      // Antigravity refuses to load an agent without a description, so a
-      // canonical file that omits it gets a minimal generated one rather than
-      // an inert output file.
-      description: rulesyncFrontmatter.description || `${rulesyncFrontmatter.name} subagent`,
-      ...toolSection,
-    };
-
-    const result = AntigravitySubagentFrontmatterSchema.safeParse(rawFrontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid ${this.getToolTarget()} subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-      );
-    }
-
-    const frontmatter = result.data;
+    const frontmatter = toAntigravitySubagentFrontmatter({
+      rulesyncSubagent,
+      sectionKeys: this.getReadSectionKeys(),
+      toolTarget: this.getToolTarget(),
+    });
     const body = rulesyncSubagent.getBody();
     const paths = this.getSettablePaths({ global });
 

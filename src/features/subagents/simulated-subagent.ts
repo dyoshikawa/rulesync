@@ -24,13 +24,19 @@ export type SimulatedSubagentFrontmatter = z.infer<typeof SimulatedSubagentFront
 export type SimulatedSubagentParams = {
   frontmatter: SimulatedSubagentFrontmatter;
   body: string;
+  /**
+   * Pre-rendered file content, for subclasses that write to a path another
+   * (native) target also writes and therefore have to match that target's
+   * serialization byte for byte. Defaults to the plain frontmatter rendering.
+   */
+  fileContent?: string;
 } & Omit<AiFileParams, "fileContent">;
 
 export abstract class SimulatedSubagent extends ToolSubagent {
   private readonly frontmatter: SimulatedSubagentFrontmatter;
   private readonly body: string;
 
-  constructor({ frontmatter, body, ...rest }: SimulatedSubagentParams) {
+  constructor({ frontmatter, body, fileContent, ...rest }: SimulatedSubagentParams) {
     if (rest.validate) {
       const result = SimulatedSubagentFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
@@ -42,7 +48,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
 
     super({
       ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
+      fileContent: fileContent ?? stringifyFrontmatter(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;

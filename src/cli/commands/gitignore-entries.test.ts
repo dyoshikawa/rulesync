@@ -175,6 +175,9 @@ describe("registry derivation", () => {
       // .gooseignore and the inert sub-recipe subagents directory.
       "goose::ignore::**/.gooseignore",
       "goose::subagents::**/.goose/recipes/subagents/",
+      // AGENTS.md subagents moved to the cross-vendor `.agents/agents/` root;
+      // the old `.agents/subagents/` outputs are no longer generated.
+      "agentsmd::subagents::**/.agents/subagents/",
       // Cline's hook scripts come from getAuxiliaryFiles, not getSettablePaths,
       // and are listed individually so a hand-authored hook stays tracked.
       "cline::hooks::**/.clinerules/hooks/Notification",
