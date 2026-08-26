@@ -5,10 +5,6 @@ import {
   AGENTSMD_MEMORIES_DIR_PATH,
   AGENTSMD_RULE_FILE_NAME,
 } from "../../constants/agentsmd-paths.js";
-import {
-  RULESYNC_OVERVIEW_FILE_NAME,
-  RULESYNC_RULES_RELATIVE_DIR_PATH,
-} from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
 import {
@@ -190,32 +186,7 @@ export class AgentsMdRule extends ToolRule {
       return this.toRulesyncRuleDefault();
     }
 
-    // Every nested file is named `AGENTS.md`, so the rulesync file is named after
-    // the directory it scopes; `subprojectPath` sends it back to the same place
-    // on the next generate. A subproject that would claim the reserved root-rule
-    // name gets a suffix instead: overwriting `overview.md` would drop the root
-    // rule entirely, and the next `--delete` would then remove the root
-    // `AGENTS.md` along with it.
-    // Compared case-insensitively: on a case-insensitive filesystem an
-    // `Overview/` subproject would otherwise still land on the root rule's file.
-    const slug = subprojectPath.replaceAll("/", "-");
-    const derivedName = `${slug}.md`;
-    return new RulesyncRule({
-      outputRoot: process.cwd(),
-      relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-      relativeFilePath:
-        derivedName.toLowerCase() === RULESYNC_OVERVIEW_FILE_NAME.toLowerCase()
-          ? `${slug}-agents.md`
-          : derivedName,
-      frontmatter: {
-        root: false,
-        targets: ["*"],
-        description: this.getDescription(),
-        globs: [`${subprojectPath}/**/*`],
-        agentsmd: { subprojectPath },
-      },
-      body: this.getFileContent(),
-    });
+    return this.toRulesyncRuleNestedAgentsmd({ subprojectPath });
   }
 
   validate(): ValidationResult {

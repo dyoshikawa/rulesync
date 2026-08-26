@@ -3753,6 +3753,7 @@ targets: ["claudecode"]
         "kimi-code",
         "pi",
         "reasonix",
+        "vibe",
         "warp",
       ]);
     });

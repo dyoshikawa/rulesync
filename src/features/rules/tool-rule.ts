@@ -261,6 +261,48 @@ export abstract class ToolRule extends ToolFile {
     return params;
   }
 
+  /**
+   * The rulesync rule for a nested `AGENTS.md` — the AGENTS.md standard's own
+   * per-directory file, which several targets read from the same path.
+   *
+   * Every nested file has the same name, so the rulesync file is named after
+   * the directory it scopes and carries `agentsmd.subprojectPath` to send it
+   * back there on the next generate. A subproject that would claim the
+   * reserved root-rule name gets a suffix instead: overwriting `overview.md`
+   * would drop the root rule entirely, and the next `--delete` would then
+   * remove the root `AGENTS.md` along with it. Compared case-insensitively:
+   * on a case-insensitive filesystem an `Overview/` subproject would otherwise
+   * still land on the root rule's file.
+   *
+   * Shared rather than per-target so that importing the same file through two
+   * targets that both read it produces one rulesync rule, not two copies under
+   * different names.
+   */
+  protected toRulesyncRuleNestedAgentsmd({
+    subprojectPath,
+  }: {
+    subprojectPath: string;
+  }): RulesyncRule {
+    const slug = subprojectPath.replaceAll("/", "-");
+    const derivedName = `${slug}.md`;
+    return new RulesyncRule({
+      outputRoot: process.cwd(),
+      relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+      relativeFilePath:
+        derivedName.toLowerCase() === RULESYNC_OVERVIEW_FILE_NAME.toLowerCase()
+          ? `${slug}-agents.md`
+          : derivedName,
+      frontmatter: {
+        root: false,
+        targets: ["*"],
+        description: this.getDescription(),
+        globs: [`${subprojectPath}/**/*`],
+        agentsmd: { subprojectPath },
+      },
+      body: this.getFileContent(),
+    });
+  }
+
   abstract toRulesyncRule(): RulesyncRule;
 
   protected toRulesyncRuleDefault(): RulesyncRule {

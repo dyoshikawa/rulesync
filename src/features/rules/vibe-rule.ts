@@ -1,16 +1,24 @@
 import { join } from "node:path";
 
+import { AGENTSMD_RULE_FILE_NAME } from "../../constants/agentsmd-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, toPosixPath } from "../../utils/file.js";
+import {
+  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
+  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
+} from "./nested-scan-exclusions.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
+
+export const VIBE_GLOBAL_DIR = ".vibe";
 
 export type VibeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   root: {
@@ -32,40 +40,98 @@ export class VibeRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: ".vibe",
-          relativeFilePath: "AGENTS.md",
+          relativeDirPath: VIBE_GLOBAL_DIR,
+          relativeFilePath: AGENTSMD_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
         relativeDirPath: ".",
-        relativeFilePath: "AGENTS.md",
+        relativeFilePath: AGENTSMD_RULE_FILE_NAME,
       },
     };
   }
 
+  /**
+   * Vibe's harness manager walks the directories between the workspace root and
+   * the file being read and loads every `AGENTS.md` it finds along the way
+   * (`find_subdirectory_agents_md`), injecting the result into the `read_file`
+   * tool's output. Nested files are therefore a real scoping surface, not just
+   * the root file's overflow.
+   *
+   * The scan mirrors the AGENTS.md standard's nested discovery — same file
+   * name, same exclusions, import-only, project scope — because it discovers
+   * literally the same files.
+   * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/config/harness_files/_harness_manager.py
+   */
+  static getNestedFilePatterns({ outputRoot }: { outputRoot: string }): ToolRuleNestedFilePatterns {
+    const root = toPosixPath(outputRoot);
+    return {
+      include: [`${root}/**/${AGENTSMD_RULE_FILE_NAME}`],
+      ignore: [
+        // Enumerated separately as the root rule.
+        `${root}/${AGENTSMD_RULE_FILE_NAME}`,
+        `${root}/**/.*/**`,
+        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
+        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
+      ],
+    };
+  }
+
+  /**
+   * The subproject directory this rule scopes, or `undefined` for the root file
+   * (project or global).
+   */
+  private getSubprojectPath(): string | undefined {
+    if (this.isRoot()) {
+      return undefined;
+    }
+    const relativeDirPath = toPosixPath(this.getRelativeDirPath());
+    if (relativeDirPath === "." || relativeDirPath === "" || relativeDirPath.startsWith(".")) {
+      return undefined;
+    }
+    return relativeDirPath;
+  }
+
   static async fromFile({
     outputRoot = process.cwd(),
-    relativeFilePath,
+    relativeFilePath: _relativeFilePath,
+    relativeDirPath: overrideDirPath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<VibeRule> {
-    const paths = this.getSettablePaths({ global });
-    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+    const { root } = this.getSettablePaths({ global });
 
-    if (!isRoot) {
-      throw new Error(`VibeRule only supports root rules: ${relativeFilePath}`);
+    // A nested per-directory file discovered by `getNestedFilePatterns` — the
+    // processor passes its directory; the root file passes none (or the root
+    // directory itself).
+    if (
+      overrideDirPath !== undefined &&
+      overrideDirPath !== root.relativeDirPath &&
+      overrideDirPath !== "."
+    ) {
+      const fileContent = await readFileContent(
+        join(outputRoot, overrideDirPath, AGENTSMD_RULE_FILE_NAME),
+      );
+      return new VibeRule({
+        outputRoot,
+        relativeDirPath: overrideDirPath,
+        relativeFilePath: AGENTSMD_RULE_FILE_NAME,
+        fileContent,
+        validate,
+        root: false,
+      });
     }
 
     const fileContent = await readFileContent(
-      join(outputRoot, paths.root.relativeDirPath, paths.root.relativeFilePath),
+      join(outputRoot, root.relativeDirPath, root.relativeFilePath),
     );
 
     return new VibeRule({
       outputRoot,
-      relativeDirPath: paths.root.relativeDirPath,
-      relativeFilePath: paths.root.relativeFilePath,
+      relativeDirPath: root.relativeDirPath,
+      relativeFilePath: root.relativeFilePath,
       fileContent,
       validate,
       root: true,
@@ -78,25 +144,49 @@ export class VibeRule extends ToolRule {
     validate = true,
     global = false,
   }: ToolRuleFromRulesyncRuleParams): VibeRule {
-    const paths = this.getSettablePaths({ global });
-    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
-    if (!isRoot) {
-      throw new Error(`VibeRule only supports root rules: ${rulesyncRule.getRelativeFilePath()}`);
+    const { root } = this.getSettablePaths({ global });
+    const frontmatter = rulesyncRule.getFrontmatter();
+    const isRoot = frontmatter.root ?? false;
+
+    // A directory-scoped rule (the shared `agentsmd.subprojectPath` carrier)
+    // becomes a nested `<dir>/AGENTS.md` instead of being folded into the root
+    // file, because Vibe loads it only while working under that directory.
+    // Project scope only; the global root has no workspace to nest under.
+    const subprojectPath = frontmatter.agentsmd?.subprojectPath;
+    if (!global && !isRoot && subprojectPath) {
+      return new VibeRule({
+        outputRoot,
+        relativeDirPath: join(subprojectPath),
+        relativeFilePath: AGENTSMD_RULE_FILE_NAME,
+        fileContent: rulesyncRule.getBody(),
+        validate,
+        root: false,
+      });
     }
 
-    return new VibeRule(
-      this.buildToolRuleParamsDefault({
-        outputRoot,
-        rulesyncRule,
-        validate,
-        rootPath: paths.root,
-        nonRootPath: undefined,
-      }),
-    );
+    // Every other non-root rule folds into the root file: Vibe has no modular
+    // non-root instruction directory to map topic rules onto.
+    return new VibeRule({
+      outputRoot,
+      relativeDirPath: root.relativeDirPath,
+      relativeFilePath: root.relativeFilePath,
+      fileContent: rulesyncRule.getBody(),
+      validate,
+      root: isRoot,
+    });
   }
 
   toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
+    const subprojectPath = this.getSubprojectPath();
+    if (subprojectPath === undefined) {
+      return this.toRulesyncRuleDefault();
+    }
+
+    // Vibe's nested file *is* the AGENTS.md standard's own per-directory file,
+    // at the same path several other targets read. Importing it through the
+    // shared helper keeps one rulesync rule per subproject no matter which of
+    // those targets discovered it first.
+    return this.toRulesyncRuleNestedAgentsmd({ subprojectPath });
   }
 
   validate(): ValidationResult {
@@ -107,10 +197,10 @@ export class VibeRule extends ToolRule {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
-    global = false,
   }: ToolRuleForDeletionParams): VibeRule {
-    const paths = this.getSettablePaths({ global });
-    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+    const isRoot =
+      relativeFilePath === AGENTSMD_RULE_FILE_NAME &&
+      (relativeDirPath === "." || relativeDirPath === VIBE_GLOBAL_DIR);
 
     return new VibeRule({
       outputRoot,
@@ -123,11 +213,6 @@ export class VibeRule extends ToolRule {
   }
 
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
-    if (!isRoot) {
-      return false;
-    }
-
     return this.isTargetedByRulesyncRuleDefault({
       rulesyncRule,
       toolTarget: "vibe",
