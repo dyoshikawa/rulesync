@@ -212,9 +212,7 @@ export class VibePermissions extends ToolPermissions {
     const shellRules = permission[VIBE_SHELL_CATEGORY] ?? {};
     const shellAliases = resolveFanOutShellAliases({
       config,
-      fansOut:
-        expressesVibePermission(shellRules) ||
-        Object.hasOwn(vibeOverride?.permission ?? {}, VIBE_SHELL_CATEGORY),
+      fanOut: resolveShellFanOutKind({ shellRules, vibeOverride }),
       tightening: shellRules["*"] === "deny",
       logger,
     });
@@ -627,6 +625,16 @@ function mirrorFanOutState({
     }
   }
 
+  // `sensitive_patterns` is outside the mirrored state, because the
+  // `vibe.permission` pass owns it and addresses each shell by name. But an
+  // alias that has none of its own would otherwise receive `[tools.bash]`'s
+  // permission while its ASK escalation stayed behind — spreading an allow and
+  // dropping the guard that came with it. Fill it in; never overwrite.
+  if (nextTool.sensitive_patterns === undefined && primaryTool.sensitive_patterns !== undefined) {
+    const patterns = primaryTool.sensitive_patterns;
+    nextTool.sensitive_patterns = Array.isArray(patterns) ? [...patterns] : patterns;
+  }
+
   // `disabled_tools` membership is part of that shared state and is mirrored even
   // when the category itself did not state a base permission: the three shells are
   // one decision, and leaving the alias out would re-diverge them and stand the
@@ -796,7 +804,7 @@ function createVibeToolNameResolver({
       if (owner !== undefined) {
         logger?.warn(
           `The '${owner}' and '${category}' categories both resolve to [tools.${vibeToolName}]; ` +
-            `only the last one applied is kept.`,
+            `their allow/deny patterns are merged, and the last base permission applied wins.`,
         );
         continue;
       }
@@ -825,6 +833,27 @@ function createVibeToolNameResolver({
  * would drop the `bash` deny for that shell and put nothing in its place, which
  * is the dangerous direction.
  */
+/** What the `bash` category has to spread across the managed shells. */
+type VibeShellFanOutKind = "permission" | "patterns" | "none";
+
+/**
+ * A `vibe.permission.bash` entry alone spreads `sensitive_patterns` and nothing
+ * else, so it must not be reported as a `bash` *permission* that does or does
+ * not reach a shell.
+ */
+function resolveShellFanOutKind({
+  shellRules,
+  vibeOverride,
+}: {
+  shellRules: Record<string, PermissionAction>;
+  vibeOverride: VibePermissionsOverride | undefined;
+}): VibeShellFanOutKind {
+  if (expressesVibePermission(shellRules)) {
+    return "permission";
+  }
+  return Object.hasOwn(vibeOverride?.permission ?? {}, VIBE_SHELL_CATEGORY) ? "patterns" : "none";
+}
+
 function expressesVibePermission(rules: Record<string, PermissionAction>): boolean {
   return Object.entries(rules).some(([pattern, action]) => pattern === "*" || action !== "ask");
 }
@@ -947,13 +976,13 @@ function toVibeMcpToolName(category: string): string[] | undefined {
  */
 function resolveFanOutShellAliases({
   config,
-  fansOut,
+  fanOut,
   tightening,
   logger,
 }: {
   config: VibeConfig;
-  /** Whether the `bash` category has a permission to spread in the first place. */
-  fansOut: boolean;
+  /** What the `bash` category has to spread: a permission, only `sensitive_patterns`, or nothing. */
+  fanOut: VibeShellFanOutKind;
   /** Whether that permission denies every pattern, and so can only restrict. */
   tightening: boolean;
   logger?: Logger;
@@ -975,7 +1004,12 @@ function resolveFanOutShellAliases({
       if (Array.isArray(value) && value.length === 0) {
         return [];
       }
-      return [[VIBE_LEGACY_KEY_ALIASES[key] ?? key, value] as const];
+      // Authoring order is not part of the decision: `["b", "a"]` next to
+      // `["a", "b"]` is the same denylist, and treating it as a divergence would
+      // stand the fan-out down and strand a `bash` deny on a shell that already
+      // agrees with it.
+      const compared = Array.isArray(value) ? [...value].toSorted() : value;
+      return [[VIBE_LEGACY_KEY_ALIASES[key] ?? key, compared] as const];
     });
     return JSON.stringify({
       managed: managed.toSorted(([a], [b]) => a.localeCompare(b)),
@@ -997,11 +1031,20 @@ function resolveFanOutShellAliases({
     const state = describe(name);
     return state === noDecision || state === bashState;
   });
-  // Warn only when there is a fan-out to stand down: announcing that "the 'bash'
-  // permission does NOT apply" while no `bash` category exists points at a
-  // permission the file never authored.
+  // Warn only about what is actually being kept from the shell. Announcing that
+  // "the 'bash' permission does NOT apply" while the shared block has no `bash`
+  // category points at a permission the file never authored.
   const preserved = VIBE_SHELL_ALIAS_TOOL_NAMES.filter((name) => !fanOutTargets.includes(name));
-  if (preserved.length === 0 || !fansOut) {
+  if (preserved.length === 0 || fanOut === "none") {
+    return fanOutTargets;
+  }
+
+  if (fanOut === "patterns") {
+    logger?.warn(
+      `vibe.permission.bash.sensitive_patterns is not fanned out to ${preserved.join(", ")}, ` +
+        `because the existing config.toml already configures that shell differently from 'bash'. ` +
+        `Author vibe.permission.${preserved.join(", ")}.sensitive_patterns to set its patterns.`,
+    );
     return fanOutTargets;
   }
 
@@ -1228,6 +1271,11 @@ function arePermissionRulesEqual(
   );
 }
 
+/** Compares two pattern lists as sets: authoring order carries no meaning. */
 function arePatternListsEqual(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((pattern, index) => pattern === b[index]);
+  if (a.length !== b.length) {
+    return false;
+  }
+  const sortedB = [...b].toSorted();
+  return [...a].toSorted().every((pattern, index) => pattern === sortedB[index]);
 }
