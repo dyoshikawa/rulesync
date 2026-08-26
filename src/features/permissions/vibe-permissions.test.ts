@@ -1276,6 +1276,88 @@ describe("VibePermissions", () => {
     expect(parsed.tools.powershell).toBeUndefined();
   });
 
+  it("should still fan bash out to a shell whose table states no permission", async () => {
+    // `sensitive_patterns` is a masking setting and an empty list is the absent
+    // key spelled out; neither states a permission decision, so neither may take
+    // a Windows shell out of a `bash` deny.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        "[tools.powershell]",
+        'sensitive_patterns = ["cred"]',
+        "[tools.git_bash]",
+        "allowlist = []",
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "deny" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.disabled_tools).toEqual(["bash", "git_bash", "powershell"]);
+    expect(parsed.tools.powershell.permission).toBe("never");
+    expect(parsed.tools.git_bash.permission).toBe("never");
+    // The masking patterns the file already had are kept.
+    expect(parsed.tools.powershell.sensitive_patterns).toEqual(["cred"]);
+  });
+
+  it("should not warn about standing the fan-out down when there is no bash category", async () => {
+    const logger = { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn(), log: vi.fn() };
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.powershell]", 'permission = "never"', ""].join("\n"),
+    );
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger: logger as any,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { read: { "*": "deny" } } }),
+      }),
+    });
+
+    expect(
+      logger.warn.mock.calls.filter((call) => String(call[0]).includes("instead of fanning")),
+    ).toHaveLength(0);
+  });
+
+  it("should warn about a vibe override key it cannot express", async () => {
+    const logger = { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn(), log: vi.fn() };
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger: logger as any,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "allow" } },
+          vibe: { permission: { powershell: { permission: "never" } } },
+        }),
+      }),
+    });
+
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("only expresses 'sensitive_patterns'"),
+      ),
+    ).toHaveLength(1);
+  });
+
   it("should fan an existing bash base permission out to the shells", async () => {
     await ensureDir(join(testDir, ".vibe"));
     await writeFileContent(

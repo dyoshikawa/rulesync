@@ -111,6 +111,9 @@ const VIBE_FAN_OUT_PERMISSION_KEYS = [
   "deny",
 ] as const;
 
+/** The only key `vibe.permission.<category>` can express. */
+const VIBE_OVERRIDE_SUPPORTED_KEY = "sensitive_patterns";
+
 /** Canonical per-tool MCP category prefix: `mcp__<server>__<tool>`. */
 const MCP_CANONICAL_PREFIX = "mcp__";
 
@@ -206,7 +209,13 @@ export class VibePermissions extends ToolPermissions {
 
     // Only a category that actually writes something may take a shell alias out
     // of `bash`'s fan-out; see `expressesVibePermission`.
-    const shellAliases = resolveFanOutShellAliases({ config, logger });
+    const shellAliases = resolveFanOutShellAliases({
+      config,
+      fansOut:
+        expressesVibePermission(permission[VIBE_SHELL_CATEGORY] ?? {}) ||
+        Object.hasOwn(vibeOverride?.permission ?? {}, VIBE_SHELL_CATEGORY),
+      logger,
+    });
     const claimingCategories = Object.keys(permission).filter((category) =>
       expressesVibePermission(permission[category] ?? {}),
     );
@@ -460,6 +469,20 @@ function applyVibeSensitivePatterns({
       continue;
     }
     warnOnUnreachableToolName({ category, vibeToolNames, logger });
+    // The override block carries `sensitive_patterns` only. Anything else in it
+    // is a restriction the author wrote and rulesync silently discards — say so,
+    // because the base permission from the shared block can be its exact
+    // opposite.
+    const unsupportedKeys = Object.keys(toolOverride).filter(
+      (key) => key !== VIBE_OVERRIDE_SUPPORTED_KEY,
+    );
+    if (unsupportedKeys.length > 0) {
+      logger?.warn(
+        `vibe.permission.${category} carries ${unsupportedKeys.join(", ")}, but the Vibe override ` +
+          `only expresses '${VIBE_OVERRIDE_SUPPORTED_KEY}'; author the base permission and the ` +
+          `allow/deny patterns in the shared 'permission' block instead. Ignoring those keys.`,
+      );
+    }
     const patterns = toStringArray(toolOverride.sensitive_patterns);
     for (const vibeToolName of vibeToolNames) {
       const nextTool = readVibeToolConfig({ tools, vibeToolName });
@@ -880,9 +903,12 @@ function toVibeMcpToolName(category: string): string[] | undefined {
  */
 function resolveFanOutShellAliases({
   config,
+  fansOut,
   logger,
 }: {
   config: VibeConfig;
+  /** Whether the `bash` category has a permission to spread in the first place. */
+  fansOut: boolean;
   logger?: Logger;
 }): string[] {
   const tools = toVibeToolsRecord(config.tools);
@@ -892,11 +918,18 @@ function resolveFanOutShellAliases({
     // The legacy `allow`/`deny` spellings mean exactly what `allowlist`/
     // `denylist` mean, so normalize before comparing: `[tools.bash] allow` next
     // to `[tools.git_bash] allowlist` is the same decision, not a divergence.
-    const managed = VIBE_FAN_OUT_PERMISSION_KEYS.flatMap((key) =>
-      Object.hasOwn(table, key)
-        ? [[VIBE_LEGACY_KEY_ALIASES[key] ?? key, table[key as keyof VibeToolConfig]] as const]
-        : [],
-    );
+    const managed = VIBE_FAN_OUT_PERMISSION_KEYS.flatMap((key) => {
+      if (!Object.hasOwn(table, key)) {
+        return [];
+      }
+      const value = table[key as keyof VibeToolConfig];
+      // An empty `allowlist = []` states no decision either — it is the absent
+      // key spelled out — so it must not take the shell out of the fan-out.
+      if (Array.isArray(value) && value.length === 0) {
+        return [];
+      }
+      return [[VIBE_LEGACY_KEY_ALIASES[key] ?? key, value] as const];
+    });
     return JSON.stringify({
       managed: managed.toSorted(([a], [b]) => a.localeCompare(b)),
       // `enabled_tools` membership is deliberately NOT part of the state: that
@@ -917,8 +950,11 @@ function resolveFanOutShellAliases({
     const state = describe(name);
     return state === noDecision || state === bashState;
   });
+  // Warn only when there is a fan-out to stand down: announcing that "the 'bash'
+  // permission does NOT apply" while no `bash` category exists points at a
+  // permission the file never authored.
   const preserved = VIBE_SHELL_ALIAS_TOOL_NAMES.filter((name) => !fanOutTargets.includes(name));
-  if (preserved.length > 0) {
+  if (fansOut && preserved.length > 0) {
     logger?.warn(
       `Keeping the existing Vibe permission for ${preserved.join(", ")} instead of fanning the ` +
         `'bash' category out to it, because the existing config.toml already configures that ` +
