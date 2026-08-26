@@ -563,7 +563,9 @@ export class RulesyncMcp extends RulesyncFile {
           // JSON. Strip here so they do not leak into other tools' outputs —
           // including the raw `experimental_environment` spelling, which is
           // what someone copying a codex config writes and which no other tool
-          // understands. `enabled` is stripped because OpenCode, Kilo, Grok CLI
+          // understands. `musecodeMode` is the same arrangement for Muse Code,
+          // whose generator re-merges it from the raw JSON the same way.
+          // `enabled` is stripped because OpenCode, Kilo, Grok CLI
           // and Goose have a NATIVE `enabled` field with different semantics a
           // leaked value would silently collide with.
           return [
@@ -575,6 +577,7 @@ export class RulesyncMcp extends RulesyncFile {
               "envVars",
               "experimentalEnvironment",
               "experimental_environment",
+              "musecodeMode",
               "enabled",
             ]),
           ];

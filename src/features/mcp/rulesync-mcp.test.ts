@@ -1347,6 +1347,27 @@ describe("RulesyncMcp", () => {
       expect((servers.raw as any).command).toBe("uvx");
     });
 
+    it("should strip the musecode-only musecodeMode from getMcpServers output", () => {
+      // Same arrangement as envVars: `musecodeMode` is written out only by the
+      // musecode generator, which reads it back off getJson(). Leaving it in the
+      // shared map would put a rulesync-only key into every other tool's config.
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            pal: { command: "uvx", args: ["pal-mcp-server"], musecodeMode: "optional" },
+          },
+        }),
+      });
+
+      const servers = rulesyncMcp.getMcpServers();
+
+      expect((servers.pal as any).musecodeMode).toBeUndefined();
+      expect((servers.pal as any).command).toBe("uvx");
+      expect((rulesyncMcp.getJson().mcpServers.pal as any).musecodeMode).toBe("optional");
+    });
+
     it("should still expose envVars via getJson() for the codex generator", () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,

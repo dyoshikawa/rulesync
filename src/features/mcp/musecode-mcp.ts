@@ -52,11 +52,26 @@ function parseMusecodeSettings(fileContent: string, filePath?: string): Record<s
 }
 
 /**
+ * The whole documented `mode` vocabulary: `required` (Muse Code's default)
+ * aborts the run when the server fails to start, `optional` skips it with a
+ * warning. Anything else is not a mode Muse Code implements, so every direction
+ * treats it as absent rather than writing it out or lifting it into the
+ * `musecodeMode` authoring key, which is typed as exactly these two values.
+ *
+ * @see https://dev.meta.ai/docs/muse-code/extending.md
+ */
+function asMusecodeMode(value: unknown): "required" | "optional" | undefined {
+  return value === "required" || value === "optional" ? value : undefined;
+}
+
+/**
  * Convert canonical rulesync servers to Muse Code's native `mcp_servers` shape.
  * Each entry carries a `transport` discriminator: `stdio` servers spawn a
  * `command` (single string) with `args`/`env`, and `streamable_http` servers
  * are reached at a `url` with optional `headers`. Only documented fields are
- * emitted; a canonical `disabled: true` maps to Muse's `enabled: false`.
+ * emitted; a canonical `disabled: true` maps to Muse's `enabled: false`, and
+ * the authoring key `musecodeMode` is written out under Muse Code's own name,
+ * `mode`.
  */
 function convertToMusecodeFormat(mcpServers: McpServers, logger?: Logger): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
@@ -133,6 +148,15 @@ function convertToMusecodeFormat(mcpServers: McpServers, logger?: Logger): Recor
     if (config.disabled === true) {
       converted.enabled = false;
     }
+    // Authored as `musecodeMode` and re-merged from the raw source JSON by
+    // `fromRulesyncMcp`, because `getMcpServers()` strips it. Muse Code defaults
+    // an absent `mode` to `required`, so an explicit `"required"` is still
+    // written when it was authored: dropping it as redundant would silently
+    // rewrite the file on the next generate.
+    const mode = asMusecodeMode(config.musecodeMode);
+    if (mode !== undefined) {
+      converted.mode = mode;
+    }
 
     result[name] = converted;
   }
@@ -144,8 +168,15 @@ function convertToMusecodeFormat(mcpServers: McpServers, logger?: Logger): Recor
  * Convert Muse Code's native `mcp_servers` shape back to canonical rulesync
  * servers. The `transport` discriminator is dropped (`streamable_http` is not a
  * canonical enum value; the transport is re-derived from `command`/`url` on the
- * next generate), `enabled: false` maps back to `disabled: true`, and unknown
- * keys (e.g. `mode`, `framing`) pass through untouched.
+ * next generate), `enabled: false` maps back to `disabled: true`, a documented
+ * `mode` is lifted into the authoring key `musecodeMode` so the next generate
+ * reproduces it, and unknown keys (e.g. `framing`) pass through untouched.
+ *
+ * A `mode` whose value is neither `required` nor `optional` is left alone rather
+ * than renamed: `musecodeMode` is typed as those two values, so moving an
+ * unrecognized one there would produce a `.rulesync/mcp.json` that the next
+ * parse rejects (the `kiroAutoApprove` precedent in `kiro-mcp.ts`). Passing it
+ * through keeps it visible to the reader while still dropping it on generate.
  */
 function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpServers {
   const result: McpServers = {};
@@ -161,6 +192,11 @@ function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpSer
         if (value === false) {
           converted.disabled = true;
         }
+        continue;
+      }
+      const mode = key === "mode" ? asMusecodeMode(value) : undefined;
+      if (mode !== undefined) {
+        converted.musecodeMode = mode;
         continue;
       }
       converted[key] = value;
@@ -253,7 +289,18 @@ export class MusecodeMcp extends ToolMcp {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const existing = parseMusecodeSettings(existingContent, filePath);
 
-    const converted = convertToMusecodeFormat(rulesyncMcp.getMcpServers(), logger);
+    // `musecodeMode` is stripped by `getMcpServers()` so it cannot leak into
+    // other tools' configs, so read it back off the unfiltered source JSON —
+    // the same re-merge codex does for `envVars`.
+    const rawMcpServers = rulesyncMcp.getJson().mcpServers;
+    const mcpServers = Object.fromEntries(
+      Object.entries(rulesyncMcp.getMcpServers()).map(([serverName, serverConfig]) => {
+        const rawServer = isRecord(rawMcpServers) ? rawMcpServers[serverName] : undefined;
+        const mode = asMusecodeMode(isRecord(rawServer) ? rawServer.musecodeMode : undefined);
+        return [serverName, { ...serverConfig, ...(mode !== undefined && { musecodeMode: mode }) }];
+      }),
+    );
+    const converted = convertToMusecodeFormat(mcpServers, logger);
 
     return new MusecodeMcp({
       outputRoot,

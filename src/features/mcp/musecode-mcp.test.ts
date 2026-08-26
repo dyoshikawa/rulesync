@@ -162,6 +162,27 @@ describe("MusecodeMcp", () => {
       }
     });
 
+    it("should write musecodeMode out under Muse Code's own mode key", async () => {
+      const mcp = await MusecodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          // Both documented values, including the one that matches Muse Code's
+          // default: an authored `required` is written rather than dropped as
+          // redundant, so a generate does not silently rewrite the file.
+          flaky: { command: "flaky-server", musecodeMode: "optional" },
+          core: { command: "core-server", musecodeMode: "required" },
+          plain: { command: "plain-server" },
+        }),
+        global: true,
+      });
+
+      expect(mcp.getJson().mcp_servers).toEqual({
+        flaky: { transport: "stdio", command: "flaky-server", args: [], mode: "optional" },
+        core: { transport: "stdio", command: "core-server", args: [], mode: "required" },
+        plain: { transport: "stdio", command: "plain-server", args: [] },
+      });
+    });
+
     it("should bootstrap schema_version: 1 when creating the file", async () => {
       const mcp = await MusecodeMcp.fromRulesyncMcp({
         outputRoot: testDir,
@@ -261,6 +282,47 @@ describe("MusecodeMcp", () => {
       });
       expect(json.schema_version).toBeUndefined();
       expect(json.model).toBeUndefined();
+    });
+  });
+
+  describe("mode round-trip", () => {
+    const importSettings = (mcpServers: Record<string, unknown>): MusecodeMcp =>
+      new MusecodeMcp({
+        outputRoot: testDir,
+        relativeDirPath: join(".config", "muse"),
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ schema_version: 1, mcp_servers: mcpServers }),
+        global: true,
+      });
+
+    it("should lift a documented mode into musecodeMode on import", () => {
+      const rulesyncMcp = importSettings({
+        flaky: { transport: "stdio", command: "flaky-server", mode: "optional" },
+        core: { transport: "stdio", command: "core-server", mode: "required" },
+      }).toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers).toEqual({
+        flaky: { command: "flaky-server", musecodeMode: "optional" },
+        core: { command: "core-server", musecodeMode: "required" },
+      });
+    });
+
+    it("should survive an import followed by a generate", async () => {
+      // The regression #2769 reported: before `musecodeMode` existed, `mode`
+      // came back as an unknown key and the next generate dropped it silently.
+      const imported = importSettings({
+        flaky: { transport: "stdio", command: "flaky-server", args: ["--x"], mode: "optional" },
+      }).toRulesyncMcp();
+
+      const regenerated = await MusecodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: imported,
+        global: true,
+      });
+
+      expect(regenerated.getJson().mcp_servers).toEqual({
+        flaky: { transport: "stdio", command: "flaky-server", args: ["--x"], mode: "optional" },
+      });
     });
   });
 
