@@ -85,11 +85,6 @@ const VIBE_SHELL_ALIAS_TOOL_NAMES = ["git_bash", "powershell"];
 /** The canonical category (and Vibe tool name) the aliases above fan out from. */
 const VIBE_SHELL_CATEGORY = "bash";
 
-const VIBE_LEGACY_KEY_ALIASES: Record<string, string> = {
-  allow: "allowlist",
-  deny: "denylist",
-};
-
 /**
  * The `[tools.<name>]` keys the `bash` fan-out mirrors, and therefore the only
  * ones that decide whether an alias table is a decision made outside the `bash`
@@ -204,32 +199,26 @@ export class VibePermissions extends ToolPermissions {
     const vibeOverride = rulesyncPermissions.getJson().vibe;
 
     const tools = toVibeToolsRecord(config.tools);
+    // Read before any pass mutates a table: the fan-out fills a shell's
+    // `sensitive_patterns` from `[tools.bash]` but never clears one, so an
+    // asymmetry has to be judged against the file as authored.
+    const diskShellPatterns = new Map(
+      [VIBE_SHELL_CATEGORY, ...VIBE_SHELL_ALIAS_TOOL_NAMES].map((vibeToolName) => [
+        vibeToolName,
+        toStringArray(readVibeToolConfig({ tools, vibeToolName }).sensitive_patterns),
+      ]),
+    );
     const enabledTools = new Set(toStringArray(config.enabled_tools));
     const disabledTools = new Set(toStringArray(config.disabled_tools));
 
     // Only a category that actually writes something may take a shell alias out
     // of `bash`'s fan-out; see `expressesVibePermission`.
     const shellRules = permission[VIBE_SHELL_CATEGORY] ?? {};
-    const claimingCategories = Object.keys(permission).filter((category) =>
-      expressesVibePermission(permission[category] ?? {}),
-    );
-    const fanOut = resolveShellFanOutKind({ shellRules, vibeOverride });
-    // A shell another category writes by name belongs to that category, so the
-    // fan-out neither claims it nor reports it as one it stood down from. In
-    // `patterns` mode the shared block states no `bash` permission at all, so the
-    // `vibe.permission.<shell>` entries are the only claims that exist.
-    const claimedShells = new Set(
-      resolveClaimedShellNames(
-        fanOut === "patterns"
-          ? [...claimingCategories, ...Object.keys(vibeOverride?.permission ?? {})]
-          : claimingCategories,
-      ),
-    );
-    const { aliases: shellAliases, standDown: standDownShells } = resolveFanOutShellAliases({
+    const { claimingCategories, shellAliases, standDownShells } = resolveShellFanOutPlan({
       config,
-      fanOut,
-      tightening: shellRules["*"] === "deny",
-      claimedShells,
+      permission,
+      shellRules,
+      vibeOverride,
       logger,
     });
     const resolveNames = createVibeToolNameResolver({
@@ -258,6 +247,9 @@ export class VibePermissions extends ToolPermissions {
     // needs no such guard: rulesync no longer writes it at all, so every entry
     // is legacy output being migrated away, and the removal is warned about
     // below.)
+    // The two passes resolve the same categories, so a name Vibe cannot reach is
+    // reported once rather than once per pass.
+    const warnedUnreachable = new Set<string>();
     const removedEnabledTools = clearStaleToolFilters({
       permission,
       resolveNames,
@@ -277,7 +269,7 @@ export class VibePermissions extends ToolPermissions {
         }
         continue;
       }
-      warnOnUnreachableToolName({ category, vibeToolNames, logger });
+      warnOnUnreachableToolName({ category, vibeToolNames, warned: warnedUnreachable, logger });
       applyCategoryRules({
         vibeToolNames,
         category,
@@ -290,11 +282,18 @@ export class VibePermissions extends ToolPermissions {
     }
 
     applyStandDownShellDenies({ shellRules, tools, standDownShells });
+    warnOnStrandedShellPatterns({
+      diskShellPatterns,
+      shellAliases,
+      ownedShells: new Set(Object.keys(vibeOverride?.permission ?? {})),
+      logger,
+    });
 
     applyVibeSensitivePatterns({
       tools,
       vibeOverride,
       resolveNames: resolveOverrideNames,
+      warnedUnreachable,
       logger,
     });
 
@@ -324,7 +323,10 @@ export class VibePermissions extends ToolPermissions {
         feature: "permissions",
         existingContent,
         patch: {
-          tools,
+          // An empty table header is pure noise in a file shared with the MCP
+          // feature, and a category that expresses nothing Vibe can read leaves
+          // `tools` empty.
+          tools: Object.keys(tools).length > 0 ? tools : undefined,
           enabled_tools: resolveEnabledToolsPatch({ vibeOverride, enabledTools }),
           disabled_tools: disabledTools.size > 0 ? [...disabledTools].toSorted() : undefined,
         },
@@ -355,10 +357,10 @@ export class VibePermissions extends ToolPermissions {
       if (action !== undefined) {
         rules["*"] = action;
       }
-      for (const pattern of toStringArray(toolConfig.allow ?? toolConfig.allowlist)) {
+      for (const pattern of readVibeToolPatterns({ toolConfig, kind: "allow" })) {
         rules[pattern] = "allow";
       }
-      for (const pattern of toStringArray(toolConfig.deny ?? toolConfig.denylist)) {
+      for (const pattern of readVibeToolPatterns({ toolConfig, kind: "deny" })) {
         rules[pattern] = "deny";
       }
 
@@ -469,11 +471,13 @@ function applyVibeSensitivePatterns({
   tools,
   vibeOverride,
   resolveNames,
+  warnedUnreachable,
   logger,
 }: {
   tools: Record<string, VibeToolConfig>;
   vibeOverride: VibePermissionsOverride | undefined;
   resolveNames: (category: string) => string[] | undefined;
+  warnedUnreachable: Set<string>;
   logger?: Logger;
 }): void {
   for (const [category, toolOverride] of Object.entries(vibeOverride?.permission ?? {})) {
@@ -485,7 +489,7 @@ function applyVibeSensitivePatterns({
       );
       continue;
     }
-    warnOnUnreachableToolName({ category, vibeToolNames, logger });
+    warnOnUnreachableToolName({ category, vibeToolNames, warned: warnedUnreachable, logger });
     // The override block carries `sensitive_patterns` only. Anything else in it
     // is a restriction the author wrote and rulesync silently discards — say so,
     // because the base permission from the shared block can be its exact
@@ -651,9 +655,12 @@ function mirrorFanOutState({
   // alias that has none of its own would otherwise receive `[tools.bash]`'s
   // permission while its ASK escalation stayed behind — spreading an allow and
   // dropping the guard that came with it. Fill it in; never overwrite.
-  if (nextTool.sensitive_patterns === undefined && primaryTool.sensitive_patterns !== undefined) {
-    const patterns = primaryTool.sensitive_patterns;
-    nextTool.sensitive_patterns = Array.isArray(patterns) ? [...patterns] : patterns;
+  const primaryPatterns = primaryTool.sensitive_patterns;
+  if (nextTool.sensitive_patterns === undefined && Array.isArray(primaryPatterns)) {
+    // Sorted like every list rulesync emits, so an unsorted hand-authored guard
+    // does not produce one throwaway diff on the next generate. A non-array value
+    // is left behind rather than replicated onto two more tables.
+    nextTool.sensitive_patterns = [...primaryPatterns].toSorted();
   }
 
   // `disabled_tools` membership is part of that shared state and is mirrored even
@@ -696,8 +703,8 @@ function applyCategoryRulesToTool({
 }): void {
   const existingTool = readVibeToolConfig({ tools, vibeToolName });
   const nextTool: VibeToolConfig = { ...existingTool };
-  const allow = new Set(toStringArray(existingTool.allow ?? existingTool.allowlist));
-  const deny = new Set(toStringArray(existingTool.deny ?? existingTool.denylist));
+  const allow = new Set(readVibeToolPatterns({ toolConfig: existingTool, kind: "allow" }));
+  const deny = new Set(readVibeToolPatterns({ toolConfig: existingTool, kind: "deny" }));
 
   for (const [pattern, action] of Object.entries(rules)) {
     if (pattern === "*") {
@@ -1013,53 +1020,48 @@ function resolveFanOutShellAliases({
 }): { aliases: string[]; standDown: string[] } {
   const tools = toVibeToolsRecord(config.tools);
   const disabledTools = new Set(toStringArray(config.disabled_tools));
-  const describe = (name: string): string => {
+  // A table states a decision through its base permission and its allow/deny
+  // patterns, plus `disabled_tools` membership. `enabled_tools` membership is
+  // deliberately NOT part of it: that key is an exclusive registry filter, not a
+  // per-tool permission, and counting it let `enabled_tools = ["powershell"]`
+  // take that shell out of a `bash` deny AND leave it the only active tool.
+  const stateOf = (name: string) => {
     const table = Object.hasOwn(tools, name) ? (tools[name] ?? {}) : {};
-    // The legacy `allow`/`deny` spellings mean exactly what `allowlist`/
-    // `denylist` mean, so normalize before comparing: `[tools.bash] allow` next
-    // to `[tools.git_bash] allowlist` is the same decision, not a divergence.
-    const managed = VIBE_FAN_OUT_PERMISSION_KEYS.flatMap((key) => {
-      if (!Object.hasOwn(table, key)) {
-        return [];
-      }
-      const value = table[key as keyof VibeToolConfig];
-      // An empty `allowlist = []` states no decision either — it is the absent
-      // key spelled out — so it must not take the shell out of the fan-out.
-      if (Array.isArray(value) && value.length === 0) {
-        return [];
-      }
-      // Authoring order is not part of the decision: `["b", "a"]` next to
-      // `["a", "b"]` is the same denylist, and treating it as a divergence would
-      // stand the fan-out down and strand a `bash` deny on a shell that already
-      // agrees with it.
-      const compared = Array.isArray(value) ? [...value].toSorted() : value;
-      return [[VIBE_LEGACY_KEY_ALIASES[key] ?? key, compared] as const];
+    // Compare the same union rulesync writes back (see `readVibeToolPatterns`),
+    // so `[tools.bash] allow` next to `[tools.git_bash] allowlist` is the same
+    // decision rather than a divergence. Authoring order is not part of it
+    // either — upstream matches with `any()` and first-hit — and an empty list
+    // states nothing at all, being the absent key spelled out.
+    const patterns = (["allow", "deny"] as const).flatMap((kind) => {
+      const value = readVibeToolPatterns({ toolConfig: table, kind }).toSorted();
+      return value.length > 0 ? [[kind, value] as const] : [];
     });
-    return JSON.stringify({
-      managed: managed.toSorted(([a], [b]) => a.localeCompare(b)),
-      // `enabled_tools` membership is deliberately NOT part of the state: that
-      // key is an exclusive registry filter, not a per-tool permission. Treating
-      // it as a decision let `enabled_tools = ["powershell"]` take that shell out
-      // of a `bash` deny AND leave it the only active tool.
+    return {
+      managed:
+        table.permission === undefined
+          ? patterns
+          : [["permission", table.permission] as const, ...patterns],
       disabled: disabledTools.has(name),
-    });
+    };
   };
-
-  // A table that states no permission — absent, empty, or holding only keys this
+  // A table holding none of those — absent, empty, or carrying only keys this
   // comparison leaves out (an editor setting, or the `sensitive_patterns` the
   // `vibe.permission` pass owns and addresses per shell) — has no decision to
   // preserve.
-  const noDecision = JSON.stringify({ managed: [], disabled: false });
+  const statesDecision = (name: string): boolean => {
+    const state = stateOf(name);
+    return state.managed.length > 0 || state.disabled;
+  };
+  const describe = (name: string): string => JSON.stringify(stateOf(name));
   const bashState = describe(VIBE_SHELL_CATEGORY);
   // A shell its own category writes is neither a fan-out target nor something
   // this fan-out kept: reporting it would announce a stand-down that never
   // happened, and claim `bash`'s permission does not reach a shell whose own
   // category is about to give it one.
   const candidates = VIBE_SHELL_ALIAS_TOOL_NAMES.filter((name) => !claimedShells.has(name));
-  const fanOutTargets = candidates.filter((name) => {
-    const state = describe(name);
-    return state === noDecision || state === bashState;
-  });
+  const fanOutTargets = candidates.filter(
+    (name) => !statesDecision(name) || describe(name) === bashState,
+  );
   // Warn only about what is actually being kept from the shell. Announcing that
   // "the 'bash' permission does NOT apply" while the shared block has no `bash`
   // category points at a permission the file never authored.
@@ -1088,8 +1090,9 @@ function resolveFanOutShellAliases({
     logger?.warn(
       `Overwriting the existing Vibe permission for ${preserved.join(", ")} with the 'bash' ` +
         `category, because that category denies every pattern and a deny must reach every ` +
-        `managed shell. Author ${preserved.join(", ")} as its own category to keep a different ` +
-        `permission for it.`,
+        `managed shell. Its own allowlist/denylist entries are replaced too, since the shell ` +
+        `ends up disabled outright. Author ${preserved.join(", ")} as its own category to keep ` +
+        `a different permission for it.`,
     );
     return { aliases: candidates, standDown: [] };
   }
@@ -1137,11 +1140,100 @@ function applyStandDownShellDenies({
     const nextTool = readVibeToolConfig({ tools, vibeToolName });
     // The legacy `deny` spelling is tolerated upstream but never consulted, so
     // fold it into the canonical key instead of leaving the shell with two lists.
-    const deny = new Set([...toStringArray(nextTool.deny ?? nextTool.denylist), ...denyPatterns]);
+    const deny = new Set([
+      ...readVibeToolPatterns({ toolConfig: nextTool, kind: "deny" }),
+      ...denyPatterns,
+    ]);
     delete nextTool.deny;
     nextTool.denylist = [...deny].toSorted();
     tools[vibeToolName] = nextTool;
   }
+}
+
+/**
+ * Decide how the `bash` category spreads across Vibe's three managed-shell
+ * tables: which categories may claim a table of their own, which shells the
+ * fan-out writes, and which it stands down from.
+ */
+function resolveShellFanOutPlan({
+  config,
+  permission,
+  shellRules,
+  vibeOverride,
+  logger,
+}: {
+  config: VibeConfig;
+  permission: PermissionsConfig["permission"];
+  shellRules: Record<string, PermissionAction>;
+  vibeOverride: VibePermissionsOverride | undefined;
+  logger?: Logger;
+}): { claimingCategories: string[]; shellAliases: string[]; standDownShells: string[] } {
+  const claimingCategories = Object.keys(permission).filter((category) =>
+    expressesVibePermission(permission[category] ?? {}),
+  );
+  const fanOut = resolveShellFanOutKind({ shellRules, vibeOverride });
+  // A shell another category writes by name belongs to that category, so the
+  // fan-out neither claims it nor reports it as one it stood down from. In
+  // `patterns` mode the shared block states no `bash` permission at all, so the
+  // `vibe.permission.<shell>` entries are the only claims that exist.
+  const claimedShells = new Set(
+    resolveClaimedShellNames(
+      fanOut === "patterns"
+        ? [...claimingCategories, ...Object.keys(vibeOverride?.permission ?? {})]
+        : claimingCategories,
+    ),
+  );
+  const { aliases, standDown } = resolveFanOutShellAliases({
+    config,
+    fanOut,
+    tightening: shellRules["*"] === "deny",
+    claimedShells,
+    logger,
+  });
+  return { claimingCategories, shellAliases: aliases, standDownShells: standDown };
+}
+
+/**
+ * Warn about a managed shell holding `sensitive_patterns` that `[tools.bash]`
+ * does not have.
+ *
+ * The fan-out fills a shell's patterns from `[tools.bash]` but never clears
+ * them, and the stand-down comparison deliberately leaves the key out, so
+ * deleting the `[tools.bash]` guard strands the copies on the Windows shells
+ * with nothing reporting it. Import then reads those copies as per-shell rules
+ * and writes `vibe.permission.<shell>.sensitive_patterns` entries the author
+ * never wrote — which claim the shell for good, so a later `vibe.permission.bash`
+ * guard never reaches it again. The patterns themselves only escalate to ASK, so
+ * the state is the safe direction; it is the silence that is not.
+ */
+function warnOnStrandedShellPatterns({
+  diskShellPatterns,
+  shellAliases,
+  ownedShells,
+  logger,
+}: {
+  diskShellPatterns: ReadonlyMap<string, string[]>;
+  shellAliases: readonly string[];
+  /** Shells whose patterns `vibe.permission.<shell>` already owns explicitly. */
+  ownedShells: ReadonlySet<string>;
+  logger?: Logger;
+}): void {
+  if ((diskShellPatterns.get(VIBE_SHELL_CATEGORY) ?? []).length > 0) {
+    return;
+  }
+  const stranded = shellAliases.filter(
+    (name) => !ownedShells.has(name) && (diskShellPatterns.get(name) ?? []).length > 0,
+  );
+  if (stranded.length === 0) {
+    return;
+  }
+  logger?.warn(
+    `${stranded.join(", ")} carries sensitive_patterns that [tools.${VIBE_SHELL_CATEGORY}] does ` +
+      `not, and the 'bash' fan-out fills a shell's patterns but never clears them. If they are ` +
+      `left over from an earlier vibe.permission.bash guard, delete them; otherwise author ` +
+      `vibe.permission.${stranded.join(", ")}.sensitive_patterns, so importing this file does ` +
+      `not invent that entry for you and claim the shell out of the fan-out for good.`,
+  );
 }
 
 /**
@@ -1170,12 +1262,19 @@ function resolveClaimedShellNames(categories: readonly string[]): string[] {
 function warnOnUnreachableToolName({
   category,
   vibeToolNames,
+  warned,
   logger,
 }: {
   category: string;
   vibeToolNames: string[];
+  /** Categories already reported, so the shared and override passes say it once. */
+  warned: Set<string>;
   logger?: Logger;
 }): void {
+  if (warned.has(category)) {
+    return;
+  }
+  warned.add(category);
   // Only the prefix decides whether translation kicks in — a server or tool name
   // may legitimately be capitalized, and those ARE translated.
   const prefix = category.slice(0, MCP_CANONICAL_PREFIX.length);
@@ -1223,6 +1322,31 @@ function toCanonicalToolName(vibeToolName: string): string {
  * record's prototype (and so a lookup for `toString` misses instead of
  * returning a function).
  */
+/**
+ * A tool table's allow (or deny) patterns, read as one list.
+ *
+ * Vibe's permission engine reads `allowlist` / `denylist` (`BaseToolConfig`);
+ * the legacy `allow` / `deny` spellings are tolerated by the config model but
+ * never consulted. A table carrying BOTH therefore holds one list Vibe enforces
+ * and one it ignores, and preferring either alone drops the other — for the deny
+ * side that silently discards a restriction Vibe was actually applying. Reading
+ * them together means the canonical key rulesync writes back enforces every
+ * pattern the file mentioned.
+ */
+function readVibeToolPatterns({
+  toolConfig,
+  kind,
+}: {
+  toolConfig: VibeToolConfig;
+  kind: "allow" | "deny";
+}): string[] {
+  const [legacy, canonical] =
+    kind === "allow"
+      ? [toolConfig.allow, toolConfig.allowlist]
+      : [toolConfig.deny, toolConfig.denylist];
+  return [...new Set([...toStringArray(legacy), ...toStringArray(canonical)])];
+}
+
 function readVibeToolConfig({
   tools,
   vibeToolName,
