@@ -1066,6 +1066,9 @@ describe("RovodevMcp", () => {
         .map(([entry]) => String(entry))
         .find((entry) => entry.includes("leaving mcp.mcpConfigPath unset"));
       expect(message).toContain("does not have the expected shape");
+      // A stub with no servers in it is a real possibility here, so the message
+      // has to say what to do when there is nothing to move.
+      expect(message).toContain("set mcp.mcpConfigPath yourself");
     });
 
     it("writes the global pointer when mcp_config.json parses to an empty object", async () => {

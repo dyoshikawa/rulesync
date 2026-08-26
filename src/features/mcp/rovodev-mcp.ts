@@ -259,16 +259,20 @@ async function describeDisplacedGlobalServers({
   outputRoot: string;
 }): Promise<string | null> {
   const label = posix.join("~", ROVODEV_DIR, ROVODEV_ALTERNATE_MCP_FILE_NAME);
-  const unrecognized =
-    `${label} exists but does not have the expected shape, so the servers it holds cannot be ` +
-    `ruled out`;
+  // Every "cannot be ruled out" answer says how to proceed anyway, because the
+  // file may well hold nothing the user needs. Rulesync never overwrites a
+  // `mcpConfigPath` that is already there, so setting it by hand settles the
+  // question permanently.
+  const cannotRuleOut = (reason: string): string =>
+    `${label} ${reason}, so the servers it holds cannot be ruled out — if it turns out to hold ` +
+    `nothing you need, set mcp.mcpConfigPath yourself and rulesync will leave your value alone`;
   let content: string | null;
   try {
     content = await readFileContentOrNull(
       join(outputRoot, ROVODEV_DIR, ROVODEV_ALTERNATE_MCP_FILE_NAME),
     );
   } catch {
-    return `${label} exists but cannot be read, so the servers it holds cannot be ruled out`;
+    return cannotRuleOut("exists but cannot be read");
   }
   if (content === null) {
     return null;
@@ -277,16 +281,18 @@ async function describeDisplacedGlobalServers({
   try {
     parsed = JSON.parse(content);
   } catch {
-    return `${label} exists but cannot be parsed, so the servers it holds cannot be ruled out`;
+    return cannotRuleOut("exists but cannot be parsed");
   }
   if (!isPlainObject(parsed)) {
-    return unrecognized;
+    return cannotRuleOut("exists but does not have the expected shape");
   }
   if (!isPlainObject(parsed.mcpServers)) {
     // `{}` is affirmatively empty. Anything else — servers under a key
     // rulesync does not know, or an `mcpServers` that is not a mapping — is
     // the same epistemic position as a file that cannot be parsed.
-    return Object.keys(parsed).length === 0 ? null : unrecognized;
+    return Object.keys(parsed).length === 0
+      ? null
+      : cannotRuleOut("exists but does not have the expected shape");
   }
   const names = Object.keys(parsed.mcpServers);
   return names.length === 0 ? null : `${label} defines ${names.join(", ")}`;
