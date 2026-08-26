@@ -55,6 +55,7 @@ const permissionsGenerateTargets = [
   "takt",
   "claudecode",
   "rovodev",
+  "roo",
   "zoocode",
 ] as const;
 
@@ -101,8 +102,9 @@ describe("E2E: permissions", () => {
     { target: "factorydroid", relativePaths: [[".factory", "settings.json"]] },
     { target: "copilot", relativePaths: [[".vscode", "settings.json"]] },
     // Zoo Code shares that workspace settings file, under its own `zoo-code.*`
-    // command-list keys.
+    // command-list keys, and Roo Code under the `roo-cline.*` spelling.
     { target: "zoocode", relativePaths: [[".vscode", "settings.json"]] },
+    { target: "roo", relativePaths: [[".vscode", "settings.json"]] },
     // `.github/copilot/settings.json` is upstream's committed repository
     // settings file, so an empty payload must not leave a bare `{}` behind.
     { target: "copilotcli", relativePaths: [[".github", "copilot", "settings.json"]] },
@@ -660,6 +662,51 @@ web_search_request = true
     const generated = JSON.parse(await readFileContent(join(testDir, ".vscode", "settings.json")));
     expect(generated["zoo-code.allowedCommands"]).toEqual(["git "]);
     expect(generated["zoo-code.deniedCommands"]).toEqual(["rm -rf"]);
+    expect(generated["editor.tabSize"]).toBe(2);
+    expect(generated["chat.tools.terminal.autoApprove"]).toEqual({ "git status": true });
+  });
+
+  it("should generate roo permissions into .vscode/settings.json", async () => {
+    const testDir = getTestDir();
+
+    // Both other owners of this file must survive untouched: Copilot's
+    // `chat.tools.*` key and Zoo Code's `zoo-code.*` pair, which spells the same
+    // two lists for the post-fork lineage.
+    await writeFileContent(
+      join(testDir, ".vscode", "settings.json"),
+      JSON.stringify(
+        {
+          "editor.tabSize": 2,
+          "chat.tools.terminal.autoApprove": { "git status": true },
+          "zoo-code.allowedCommands": ["npm run "],
+        },
+        null,
+        2,
+      ),
+    );
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git ": "allow", "rm -rf": "deny", "npm ": "ask" },
+            // Roo Code gates terminal commands only; other categories have no
+            // workspace-settable counterpart.
+            read: { "src/**": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "roo", features: "permissions" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".vscode", "settings.json")));
+    expect(generated["roo-cline.allowedCommands"]).toEqual(["git "]);
+    expect(generated["roo-cline.deniedCommands"]).toEqual(["rm -rf"]);
+    expect(generated["zoo-code.allowedCommands"]).toEqual(["npm run "]);
     expect(generated["editor.tabSize"]).toBe(2);
     expect(generated["chat.tools.terminal.autoApprove"]).toEqual({ "git status": true });
   });
@@ -1592,6 +1639,35 @@ enabled = true
     );
     expect(content.permission.bash["git "]).toBe("allow");
     expect(content.permission.bash["rm -rf"]).toBe("deny");
+  });
+
+  it("should import roo permissions into .rulesync/permissions.jsonc", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".vscode", "settings.json"),
+      JSON.stringify(
+        {
+          "editor.tabSize": 2,
+          "roo-cline.allowedCommands": ["git "],
+          "roo-cline.deniedCommands": ["rm -rf"],
+          // The other lineage's pair in the same file must not be imported by
+          // this target.
+          "zoo-code.allowedCommands": ["curl "],
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "roo", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git "]).toBe("allow");
+    expect(content.permission.bash["rm -rf"]).toBe("deny");
+    expect(content.permission.bash["curl "]).toBeUndefined();
   });
 });
 

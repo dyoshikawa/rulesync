@@ -1,11 +1,11 @@
 import { join } from "node:path";
 
 import {
-  ZOOCODE_ALLOWED_COMMANDS_KEY,
-  ZOOCODE_DENIED_COMMANDS_KEY,
-  ZOOCODE_VSCODE_SETTINGS_DIR,
-  ZOOCODE_VSCODE_SETTINGS_FILE_NAME,
-} from "../../constants/zoocode-paths.js";
+  ROO_ALLOWED_COMMANDS_KEY,
+  ROO_DENIED_COMMANDS_KEY,
+  ROO_VSCODE_SETTINGS_DIR,
+  ROO_VSCODE_SETTINGS_FILE_NAME,
+} from "../../constants/roo-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -25,7 +25,7 @@ import {
 } from "./tool-permissions.js";
 
 /**
- * The canonical category Zoo Code's command lists correspond to. Zoo Code gates
+ * The canonical category Roo Code's command lists correspond to. Roo Code gates
  * terminal command execution and nothing else through these settings, so only
  * `bash` maps; `read`/`write`/`edit`/`webfetch` have no workspace-settable
  * counterpart in the extension's contributions.
@@ -40,17 +40,18 @@ function asStringArray(value: unknown): string[] {
 }
 
 /**
- * Split one canonical category's rules into Zoo Code's two command lists.
+ * Split one canonical category's rules into Roo Code's two command lists.
  *
- * Zoo Code matches these entries as command **prefixes**: a command runs
- * without a confirmation prompt when it starts with an `allowedCommands` entry,
- * and is refused outright when it starts with a `deniedCommands` entry (deny
- * wins). `ask` is represented by listing the pattern in neither list, which
- * leaves Zoo Code's default approval prompt in charge.
+ * Roo Code matches these entries as command **prefixes** and resolves a command
+ * that matches both lists by the longer match: it auto-approves only when the
+ * allowed prefix is strictly longer than the denied one, and auto-denies when
+ * the denied prefix is longer or equal. `ask` is represented by listing the
+ * pattern in neither list, which leaves Roo Code's default approval prompt in
+ * charge.
  *
  * Each list is `undefined` when it would be empty, so the key is retracted from
  * the settings file rather than written as an empty array — an empty
- * `allowedCommands` and an absent one mean the same thing to Zoo Code, and the
+ * `allowedCommands` and an absent one mean the same thing to Roo Code, and the
  * absent form leaves no rulesync residue behind.
  */
 function buildCommandLists(rules: Record<string, PermissionAction>): {
@@ -73,11 +74,11 @@ function buildCommandLists(rules: Record<string, PermissionAction>): {
 }
 
 /**
- * Permissions generator for Zoo Code.
+ * Permissions generator for Roo Code.
  *
- * Zoo Code has no policy file in its `.roo/` tree: the committable command
+ * Roo Code has no policy file in its `.roo/` tree: the committable command
  * allow/deny lists are VS Code workspace settings
- * (`zoo-code.allowedCommands` / `zoo-code.deniedCommands` in
+ * (`roo-cline.allowedCommands` / `roo-cline.deniedCommands` in
  * `.vscode/settings.json`), which `ClineProvider.mergeCommandLists()` unions
  * into the lists the auto-approval decision reads. That file is a
  * general-purpose workspace settings file with many unrelated keys, so reads
@@ -87,16 +88,17 @@ function buildCommandLists(rules: Record<string, PermissionAction>): {
  * Only project scope is modeled: VS Code's user-scope `settings.json` lives at
  * a platform-dependent path outside rulesync's home-relative global model.
  *
- * The `roo` target deliberately does not share this adapter. The `zoo-code.*`
- * namespace arrived with the v3.74.0 rebrand, while the archived Roo lineage
- * reads `roo-cline.*`, so emitting `zoo-code.*` keys for a `--targets roo`
- * generate would write settings Roo itself never reads. `RooPermissions` writes
- * the `roo-cline.*` pair into the same file instead.
+ * This is a separate adapter from `ZoocodePermissions` rather than a shared
+ * one, because the two lineages spell the same settings differently: the
+ * `roo-cline.*` namespace here is what the archived Roo Code releases read,
+ * while the continuation project renamed it to `zoo-code.*` in v3.74.0.
+ * Emitting the other lineage's keys would write settings the targeted
+ * extension never reads.
  *
- * @see https://github.com/Zoo-Code-Org/Zoo-Code/blob/main/src/package.json
- * @see https://github.com/Zoo-Code-Org/Zoo-Code/blob/main/src/core/auto-approval/commands.ts
+ * @see https://github.com/RooCodeInc/Roo-Code/blob/v3.54.0/src/package.json
+ * @see https://github.com/RooCodeInc/Roo-Code/blob/v3.54.0/src/core/auto-approval/commands.ts
  */
-export class ZoocodePermissions extends ToolPermissions {
+export class RooPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
     super({
       ...params,
@@ -116,19 +118,19 @@ export class ZoocodePermissions extends ToolPermissions {
     // Project scope only. VS Code's user settings.json is at a platform-specific
     // path outside rulesync's home-relative global model.
     return {
-      relativeDirPath: ZOOCODE_VSCODE_SETTINGS_DIR,
-      relativeFilePath: ZOOCODE_VSCODE_SETTINGS_FILE_NAME,
+      relativeDirPath: ROO_VSCODE_SETTINGS_DIR,
+      relativeFilePath: ROO_VSCODE_SETTINGS_FILE_NAME,
     };
   }
 
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
-  }: ToolPermissionsFromFileParams): Promise<ZoocodePermissions> {
-    const paths = ZoocodePermissions.getSettablePaths();
+  }: ToolPermissionsFromFileParams): Promise<RooPermissions> {
+    const paths = RooPermissions.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "{}";
-    return new ZoocodePermissions({
+    return new RooPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -140,8 +142,8 @@ export class ZoocodePermissions extends ToolPermissions {
   static async fromRulesyncPermissions({
     outputRoot = process.cwd(),
     rulesyncPermissions,
-  }: ToolPermissionsFromRulesyncPermissionsParams): Promise<ZoocodePermissions> {
-    const paths = ZoocodePermissions.getSettablePaths();
+  }: ToolPermissionsFromRulesyncPermissionsParams): Promise<RooPermissions> {
+    const paths = RooPermissions.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     // Read without initializing so this stays side-effect-free under
     // `--dry-run`/`--check`; the actual write happens later in `writeAiFiles`.
@@ -150,17 +152,17 @@ export class ZoocodePermissions extends ToolPermissions {
     const rules = rulesyncPermissions.getJson().permission[COMMAND_CATEGORY];
     // A canonical config that states no `bash` category leaves both keys
     // exactly as the user left them — adopting rulesync for other tools must
-    // not wipe hand-authored Zoo Code command lists. A category that IS stated
+    // not wipe hand-authored Roo Code command lists. A category that IS stated
     // but yields nothing (all `ask`) still retracts the keys, since rulesync
     // owns them once it manages the category.
     const patch: Record<string, unknown> = {};
     if (rules !== undefined) {
       const { allowed, denied } = buildCommandLists(rules);
-      patch[ZOOCODE_ALLOWED_COMMANDS_KEY] = allowed;
-      patch[ZOOCODE_DENIED_COMMANDS_KEY] = denied;
+      patch[ROO_ALLOWED_COMMANDS_KEY] = allowed;
+      patch[ROO_DENIED_COMMANDS_KEY] = denied;
     }
 
-    return new ZoocodePermissions({
+    return new RooPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -191,19 +193,20 @@ export class ZoocodePermissions extends ToolPermissions {
       });
     } catch (error) {
       throw new Error(
-        `Failed to parse Zoo Code VS Code settings in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
+        `Failed to parse Roo Code VS Code settings in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
         { cause: error },
       );
     }
 
     const rules: Record<string, PermissionAction> = {};
-    for (const pattern of asStringArray(settings[ZOOCODE_ALLOWED_COMMANDS_KEY])) {
+    for (const pattern of asStringArray(settings[ROO_ALLOWED_COMMANDS_KEY])) {
       rules[pattern] = "allow";
     }
     // Applied second so a pattern listed in both lists imports as `deny`,
-    // matching Zoo Code's own precedence (a denied prefix is refused even when
-    // it also matches an allowed one).
-    for (const pattern of asStringArray(settings[ZOOCODE_DENIED_COMMANDS_KEY])) {
+    // matching Roo Code's own precedence: with identical prefixes the denied
+    // match is not shorter than the allowed one, and auto-approval requires a
+    // strictly longer allowed match.
+    for (const pattern of asStringArray(settings[ROO_DENIED_COMMANDS_KEY])) {
       rules[pattern] = "deny";
     }
 
@@ -225,8 +228,8 @@ export class ZoocodePermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
-  }: ToolPermissionsForDeletionParams): ZoocodePermissions {
-    return new ZoocodePermissions({
+  }: ToolPermissionsForDeletionParams): RooPermissions {
+    return new RooPermissions({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

@@ -284,6 +284,7 @@ export const permissionsProcessorToolTargetTuple = [
   "pi",
   "qwencode",
   "reasonix",
+  "roo",
   "rovodev",
   "takt",
   "vibe",

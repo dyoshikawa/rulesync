@@ -35,6 +35,7 @@ import { OpencodePermissions } from "./opencode-permissions.js";
 import { PiPermissions } from "./pi-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { ReasonixPermissions } from "./reasonix-permissions.js";
+import { RooPermissions } from "./roo-permissions.js";
 import { RovodevPermissions } from "./rovodev-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { TaktPermissions } from "./takt-permissions.js";
@@ -390,6 +391,25 @@ export const toolPermissionsFactories = new Map<
         // `~/.reasonix/config.toml` (global).
         supportsProject: true,
         supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "roo",
+    {
+      class: RooPermissions,
+      meta: {
+        // Roo Code is a VS Code extension: its committable command allow/deny
+        // lists are the `roo-cline.allowedCommands` / `roo-cline.deniedCommands`
+        // workspace settings in `.vscode/settings.json`, not a file in the
+        // `.roo/` tree. The `roo-cline.*` spelling is the archived Roo lineage's
+        // own, which is why this is a separate adapter from `zoocode` rather
+        // than a shared one. VS Code's user-scope settings.json is at a
+        // platform-dependent path outside rulesync's home-relative global
+        // model, so only project scope is supported.
+        supportsProject: true,
+        supportsGlobal: false,
         supportsImport: true,
       },
     },

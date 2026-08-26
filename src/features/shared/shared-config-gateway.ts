@@ -481,9 +481,10 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // shallow merge. The Copilot MCP feature writes a SEPARATE file
   // (`.vscode/mcp.json`, declared just below).
   //
-  // Two targets reach this file through the same `permissions` feature —
-  // `copilot` (the `chat.tools.*` keys) and `zoocode` (the `zoo-code.*` command
-  // lists) — so `ownedKeys` is their union. They stay independent because a
+  // Three targets reach this file through the same `permissions` feature —
+  // `copilot` (the `chat.tools.*` keys), `zoocode` (the `zoo-code.*` command
+  // lists) and `roo` (the same lists under the archived lineage's `roo-cline.*`
+  // spelling) — so `ownedKeys` is their union. They stay independent because a
   // patch only ever names the keys its own adapter builds: generating for one
   // target never mentions the other's keys, and a key is dropped only when its
   // own adapter explicitly retracts it (patch value `undefined`).
@@ -504,6 +505,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
           "chat.tools.urls.autoApprove",
           "zoo-code.allowedCommands",
           "zoo-code.deniedCommands",
+          "roo-cline.allowedCommands",
+          "roo-cline.deniedCommands",
         ],
       },
     },

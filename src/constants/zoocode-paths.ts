@@ -10,7 +10,8 @@
  *
  * The `zoo-code.*` namespace is Zoo-era (the v3.74.0 rebrand); the archived Roo
  * Code lineage spelled the same settings `roo-cline.*`, so this surface is
- * deliberately not shared with the `roo` target.
+ * deliberately not shared with the `roo` target, which has its own pair in
+ * `roo-paths.ts`.
  *
  * @see https://github.com/Zoo-Code-Org/Zoo-Code/blob/main/src/package.json
  * @see https://github.com/Zoo-Code-Org/Zoo-Code/blob/main/src/core/webview/ClineProvider.ts
