@@ -358,6 +358,13 @@ export class VibePermissions extends ToolPermissions {
     // — reading it as the `read` category and letting it silence
     // `[tools.read_file]` would disable a tool upstream leaves running.
     const disabledToolNames = new Set(toStringArray(this.toml.disabled_tools));
+    // The entry is still imported as a deny for its canonical category even when
+    // no builtin bears that raw name, because rulesync cannot see Vibe's registry:
+    // `disabled_tools = ["read"]` matches no builtin, but an MCP server is free to
+    // publish a tool called exactly that, and denying something already off is
+    // harmless where dropping a real deny is not. Silencing a `[tools.<name>]`
+    // table is the opposite case — there the name IS known, so it is matched
+    // exactly rather than through the category.
     for (const tool of disabledToolNames) {
       ensurePermission(permission, toCanonicalToolName(tool))["*"] = "deny";
     }
