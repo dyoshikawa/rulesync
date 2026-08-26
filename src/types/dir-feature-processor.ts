@@ -209,7 +209,10 @@ export abstract class DirFeatureProcessor {
       // take every sibling in that root with it (see `AiDir.ownsDirTree`).
       if (!d.ownsDirTree()) {
         this.logger.debug(
-          `Skipping orphan sweep for ${stripControlCharacters(d.getDirName())}: ` +
+          // Quoted by the serializer: the name comes off disk, and while the
+          // strip above rules out forging a whole line, an unquoted name like
+          // `Deleted directory: /home/you/important` still reads as one.
+          `Skipping orphan sweep for ${JSON.stringify(stripControlCharacters(d.getDirName()))}: ` +
             `${stripControlCharacters(d.getDirPath())} is a shared root, not a directory of its own`,
         );
         return false;
