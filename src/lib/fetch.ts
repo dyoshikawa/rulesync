@@ -427,7 +427,10 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
   const quoted = displays
     .filter((display) => display !== "")
     .toSorted()
-    .map((display) => `"${display}"`);
+    // Quoted by the serializer rather than by hand: a stripped name is still
+    // remote text, and one containing `", "` would otherwise forge a separator
+    // and make a single skipped directory read as two.
+    .map((display) => JSON.stringify(display));
   const unprintable = displays.filter((display) => display === "").length;
   const described = [
     ...(quoted.length > 0 ? [quoted.join(", ")] : []),
