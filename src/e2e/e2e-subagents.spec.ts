@@ -616,6 +616,88 @@ Break down tasks into steps.
     expect(await readFileContent(sharedAgentPath)).toContain("User-owned shared reviewer");
   });
 
+  it("should keep both targets' subagents when they share the .agents/agents root", async () => {
+    // `antigravity-ide` and `antigravity-cli` write into one directory, so a
+    // per-target orphan sweep sees the sibling's freshly written file as a
+    // leftover and deletes it.
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "cli-only.md"),
+      [
+        "---",
+        'targets: ["antigravity-cli"]',
+        "name: cli-only",
+        'description: "CLI only agent"',
+        "---",
+        "CLI body.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "ide-only.md"),
+      [
+        "---",
+        'targets: ["antigravity-ide"]',
+        "name: ide-only",
+        'description: "IDE only agent"',
+        "---",
+        "IDE body.",
+      ].join("\n"),
+    );
+
+    await runGenerate({
+      target: "antigravity-ide,antigravity-cli",
+      features: "subagents",
+      deleteFiles: true,
+    });
+
+    expect(await readFileContent(join(testDir, ".agents", "agents", "cli-only.md"))).toContain(
+      "CLI body.",
+    );
+    expect(await readFileContent(join(testDir, ".agents", "agents", "ide-only.md"))).toContain(
+      "IDE body.",
+    );
+
+    // A second run must be a no-op: the delete/rewrite churn a per-target sweep
+    // causes is what makes `--check` report a permanently out-of-date tree.
+    await expect(
+      runGenerate({
+        target: "antigravity-ide,antigravity-cli",
+        features: "subagents",
+        deleteFiles: true,
+        check: true,
+        env: { NODE_ENV: "e2e" },
+      }),
+    ).resolves.toMatchObject({ stdout: expect.stringContaining("All files are up to date") });
+  });
+
+  it("should still delete a genuine orphan from the shared .agents/agents root", async () => {
+    const testDir = getTestDir();
+    const orphanPath = join(testDir, ".agents", "agents", "left-over.md");
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md"),
+      [
+        "---",
+        'targets: ["antigravity-cli"]',
+        "name: reviewer",
+        'description: "Reviewer"',
+        "---",
+        "Reviewer body.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      orphanPath,
+      ["---", "name: left-over", 'description: "Left over"', "---", "Left over body."].join("\n"),
+    );
+
+    await runGenerate({
+      target: "antigravity-cli",
+      features: "subagents",
+      deleteFiles: true,
+    });
+
+    expect(await fileExists(orphanPath)).toBe(false);
+  });
+
   it("should not follow directory symlinks while deleting Kimi Code subagents", async () => {
     const testDir = getTestDir();
     const protectedDir = join(testDir, "protected-agents");

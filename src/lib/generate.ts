@@ -41,6 +41,7 @@ import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 import { resetWarnedOnceMessages } from "../utils/warned-once.js";
+import { createOrphanSweepPlan, type OrphanSweepPlan } from "./orphan-sweep.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
 export type GenerateResult = {
@@ -72,9 +73,10 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   config: Config;
   processor: FeatureProcessor;
   toolFiles: T[];
+  sweepPlan: OrphanSweepPlan;
   skipFilePaths?: Set<string>;
 }): Promise<FeatureGenerateResult> {
-  const { config, processor, toolFiles, skipFilePaths } = params;
+  const { config, processor, toolFiles, sweepPlan, skipFilePaths } = params;
 
   const filesToCheck =
     skipFilePaths && skipFilePaths.size > 0
@@ -90,11 +92,22 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   allPaths.push(...writeResult.paths);
   if (writeResult.count > 0) hasDiff = true;
 
-  if (config.getDelete()) {
-    const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+  // Registered even when the write was a no-op (unchanged content) or a dry run:
+  // what protects a path from a sibling target's sweep is that this run owns it,
+  // not that these particular bytes were flushed.
+  sweepPlan.registerGenerated({ paths: filesToCheck.map((f) => f.getFilePath()) });
 
-    const orphanCount = await processor.removeOrphanAiFiles(existingToolFiles, toolFiles);
-    if (orphanCount > 0) hasDiff = true;
+  if (config.getDelete()) {
+    sweepPlan.defer({
+      sweep: async () => {
+        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+        const orphanCount = await processor.removeOrphanAiFiles(
+          existingToolFiles.filter((f) => !sweepPlan.isGenerated({ path: f.getFilePath() })),
+          toolFiles,
+        );
+        return orphanCount > 0;
+      },
+    });
   }
 
   return { count: totalCount, paths: allPaths, hasDiff };
@@ -104,8 +117,9 @@ async function processDirFeatureGeneration(params: {
   config: Config;
   processor: DirFeatureProcessor;
   toolDirs: AiDir[];
+  sweepPlan: OrphanSweepPlan;
 }): Promise<FeatureGenerateResult> {
-  const { config, processor, toolDirs } = params;
+  const { config, processor, toolDirs, sweepPlan } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -116,11 +130,19 @@ async function processDirFeatureGeneration(params: {
   allPaths.push(...writeResult.paths);
   if (writeResult.count > 0) hasDiff = true;
 
-  if (config.getDelete()) {
-    const existingToolDirs = await processor.loadToolDirsToDelete();
+  sweepPlan.registerGenerated({ paths: toolDirs.map((d) => d.getDirPath()) });
 
-    const orphanCount = await processor.removeOrphanAiDirs(existingToolDirs, toolDirs);
-    if (orphanCount > 0) hasDiff = true;
+  if (config.getDelete()) {
+    sweepPlan.defer({
+      sweep: async () => {
+        const existingToolDirs = await processor.loadToolDirsToDelete();
+        const orphanCount = await processor.removeOrphanAiDirs(
+          existingToolDirs.filter((d) => !sweepPlan.isGenerated({ path: d.getDirPath() })),
+          toolDirs,
+        );
+        return orphanCount > 0;
+      },
+    });
   }
 
   return { count: totalCount, paths: allPaths, hasDiff };
@@ -130,26 +152,31 @@ async function processDirFeatureGeneration(params: {
 async function processEmptyFeatureGeneration(params: {
   config: Config;
   processor: FeatureProcessor;
+  sweepPlan: OrphanSweepPlan;
   skipFilePaths?: Set<string>;
 }): Promise<FeatureGenerateResult> {
-  const { config, processor, skipFilePaths } = params;
+  const { config, processor, sweepPlan, skipFilePaths } = params;
 
   const totalCount = 0;
-  let hasDiff = false;
 
   if (config.getDelete()) {
-    const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+    sweepPlan.defer({
+      sweep: async () => {
+        const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
 
-    const filesToDelete =
-      skipFilePaths && skipFilePaths.size > 0
-        ? existingToolFiles.filter((f) => !skipFilePaths.has(f.getRelativePathFromCwd()))
-        : existingToolFiles;
+        const filesToDelete = existingToolFiles.filter(
+          (f) =>
+            !sweepPlan.isGenerated({ path: f.getFilePath() }) &&
+            !skipFilePaths?.has(f.getRelativePathFromCwd()),
+        );
 
-    const orphanCount = await processor.removeOrphanAiFiles(filesToDelete, []);
-    if (orphanCount > 0) hasDiff = true;
+        const orphanCount = await processor.removeOrphanAiFiles(filesToDelete, []);
+        return orphanCount > 0;
+      },
+    });
   }
 
-  return { count: totalCount, paths: [], hasDiff };
+  return { count: totalCount, paths: [], hasDiff: false };
 }
 
 /**
@@ -160,14 +187,15 @@ async function processFeatureWithRulesyncFiles(params: {
   config: Config;
   processor: FeatureProcessor;
   rulesyncFiles: RulesyncFile[];
+  sweepPlan: OrphanSweepPlan;
   skipFilePaths?: Set<string>;
 }): Promise<FeatureGenerateResult> {
-  const { config, processor, rulesyncFiles, skipFilePaths } = params;
+  const { config, processor, rulesyncFiles, sweepPlan, skipFilePaths } = params;
   if (rulesyncFiles.length === 0) {
-    return processEmptyFeatureGeneration({ config, processor, skipFilePaths });
+    return processEmptyFeatureGeneration({ config, processor, sweepPlan, skipFilePaths });
   }
   const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
-  return processFeatureGeneration({ config, processor, toolFiles, skipFilePaths });
+  return processFeatureGeneration({ config, processor, toolFiles, sweepPlan, skipFilePaths });
 }
 
 const SIMULATE_OPTION_MAP: Partial<Record<Feature, string>> = {
@@ -625,19 +653,24 @@ export async function generate(params: {
   // Captured by the skills step so the rules step can read the generated skills.
   let skillsResult: Awaited<ReturnType<typeof generateSkillsCore>> | undefined;
 
+  // One plan for the whole run: every step registers what it writes into it, and
+  // every `--delete` sweep is held back until the last step has written, so no
+  // target sweeps a directory it shares with a target that has not run yet.
+  const sweepPlan = createOrphanSweepPlan();
+
   const runners: Record<GenerationStepId, () => Promise<FeatureGenerateResult>> = {
-    ignore: () => generateIgnoreCore({ config, logger }),
-    mcp: () => generateMcpCore({ config, logger }),
-    commands: () => generateCommandsCore({ config, logger }),
-    subagents: () => generateSubagentsCore({ config, logger }),
+    ignore: () => generateIgnoreCore({ config, logger, sweepPlan }),
+    mcp: () => generateMcpCore({ config, logger, sweepPlan }),
+    commands: () => generateCommandsCore({ config, logger, sweepPlan }),
+    subagents: () => generateSubagentsCore({ config, logger, sweepPlan }),
     skills: async () => {
-      skillsResult = await generateSkillsCore({ config, logger });
+      skillsResult = await generateSkillsCore({ config, logger, sweepPlan });
       return skillsResult;
     },
-    hooks: () => generateHooksCore({ config, logger }),
-    permissions: () => generatePermissionsCore({ config, logger }),
-    checks: () => generateChecksCore({ config, logger }),
-    rules: () => generateRulesCore({ config, logger, skills: skillsResult?.skills }),
+    hooks: () => generateHooksCore({ config, logger, sweepPlan }),
+    permissions: () => generatePermissionsCore({ config, logger, sweepPlan }),
+    checks: () => generateChecksCore({ config, logger, sweepPlan }),
+    rules: () => generateRulesCore({ config, logger, sweepPlan, skills: skillsResult?.skills }),
   };
 
   const steps: GenerationStep[] = GENERATION_STEP_GRAPH.map((meta) => ({
@@ -651,6 +684,11 @@ export async function generate(params: {
   for (const step of orderedSteps) {
     resultsById.set(step.id, await step.run());
   }
+
+  // Deletion runs only now, once every step has written: a sweep that ran inline
+  // would remove files a later step is about to write, which is both destructive
+  // for shared output directories and a permanent `--check` diff.
+  const sweepHasDiff = await sweepPlan.run();
 
   const activationResult = await activateHermesProjectPlugins({
     pluginNames: await collectHermesProjectPluginNames({ config, resultsById }),
@@ -670,7 +708,8 @@ export async function generate(params: {
     return result;
   };
 
-  const hasDiff = activationResult.hasDiff || orderedSteps.some((step) => get(step.id).hasDiff);
+  const hasDiff =
+    sweepHasDiff || activationResult.hasDiff || orderedSteps.some((step) => get(step.id).hasDiff);
 
   return {
     rulesCount: get("rules").count,
@@ -752,9 +791,10 @@ function computeRootFileOwnership(params: {
 async function generateRulesCore(params: {
   config: Config;
   logger: Logger;
+  sweepPlan: OrphanSweepPlan;
   skills?: RulesyncSkill[];
 }): Promise<FeatureGenerateResult> {
-  const { config, logger, skills } = params;
+  const { config, logger, sweepPlan, skills } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -812,6 +852,7 @@ async function generateRulesCore(params: {
         config,
         processor,
         rulesyncFiles,
+        sweepPlan,
         skipFilePaths: skipFilePaths.size > 0 ? skipFilePaths : undefined,
       });
 
@@ -827,8 +868,9 @@ async function generateRulesCore(params: {
 async function generateIgnoreCore(params: {
   config: Config;
   logger: Logger;
+  sweepPlan: OrphanSweepPlan;
 }): Promise<FeatureGenerateResult> {
-  const { config, logger } = params;
+  const { config, logger, sweepPlan } = params;
 
   const global = config.getGlobal();
   const supportedIgnoreTargets = IgnoreProcessor.getToolTargets({ global });
@@ -870,7 +912,12 @@ async function generateIgnoreCore(params: {
         });
 
         const rulesyncFiles = await processor.loadRulesyncFiles();
-        const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+        const result = await processFeatureWithRulesyncFiles({
+          config,
+          processor,
+          rulesyncFiles,
+          sweepPlan,
+        });
 
         totalCount += result.count;
         allPaths.push(...result.paths);
@@ -893,8 +940,9 @@ async function generateIgnoreCore(params: {
 async function generateMcpCore(params: {
   config: Config;
   logger: Logger;
+  sweepPlan: OrphanSweepPlan;
 }): Promise<FeatureGenerateResult> {
-  const { config, logger } = params;
+  const { config, logger, sweepPlan } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -930,7 +978,12 @@ async function generateMcpCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+      const result = await processFeatureWithRulesyncFiles({
+        config,
+        processor,
+        rulesyncFiles,
+        sweepPlan,
+      });
 
       totalCount += result.count;
       allPaths.push(...result.paths);
@@ -944,8 +997,9 @@ async function generateMcpCore(params: {
 async function generateCommandsCore(params: {
   config: Config;
   logger: Logger;
+  sweepPlan: OrphanSweepPlan;
 }): Promise<FeatureGenerateResult> {
-  const { config, logger } = params;
+  const { config, logger, sweepPlan } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -991,6 +1045,7 @@ async function generateCommandsCore(params: {
         config,
         processor,
         rulesyncFiles,
+        sweepPlan,
       });
 
       totalCount += result.count;
@@ -1005,8 +1060,9 @@ async function generateCommandsCore(params: {
 async function generateSubagentsCore(params: {
   config: Config;
   logger: Logger;
+  sweepPlan: OrphanSweepPlan;
 }): Promise<FeatureGenerateResult> {
-  const { config, logger } = params;
+  const { config, logger, sweepPlan } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -1046,7 +1102,12 @@ async function generateSubagentsCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+      const result = await processFeatureWithRulesyncFiles({
+        config,
+        processor,
+        rulesyncFiles,
+        sweepPlan,
+      });
 
       totalCount += result.count;
       allPaths.push(...result.paths);
@@ -1060,8 +1121,9 @@ async function generateSubagentsCore(params: {
 async function generateSkillsCore(params: {
   config: Config;
   logger: Logger;
+  sweepPlan: OrphanSweepPlan;
 }): Promise<FeatureGenerateResult & { skills: RulesyncSkill[] }> {
-  const { config, logger } = params;
+  const { config, logger, sweepPlan } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -1115,6 +1177,7 @@ async function generateSkillsCore(params: {
         config,
         processor,
         toolDirs,
+        sweepPlan,
       });
 
       totalCount += result.count;
@@ -1129,8 +1192,9 @@ async function generateSkillsCore(params: {
 async function generateHooksCore(params: {
   config: Config;
   logger: Logger;
+  sweepPlan: OrphanSweepPlan;
 }): Promise<FeatureGenerateResult> {
-  const { config, logger } = params;
+  const { config, logger, sweepPlan } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -1166,7 +1230,12 @@ async function generateHooksCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+      const result = await processFeatureWithRulesyncFiles({
+        config,
+        processor,
+        rulesyncFiles,
+        sweepPlan,
+      });
 
       totalCount += result.count;
       allPaths.push(...result.paths);
@@ -1180,8 +1249,9 @@ async function generateHooksCore(params: {
 async function generatePermissionsCore(params: {
   config: Config;
   logger: Logger;
+  sweepPlan: OrphanSweepPlan;
 }): Promise<FeatureGenerateResult> {
-  const { config, logger } = params;
+  const { config, logger, sweepPlan } = params;
 
   const supportedPermissionsTargets = PermissionsProcessor.getToolTargets({
     global: config.getGlobal(),
@@ -1218,7 +1288,12 @@ async function generatePermissionsCore(params: {
         });
 
         const rulesyncFiles = await processor.loadRulesyncFiles();
-        const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+        const result = await processFeatureWithRulesyncFiles({
+          config,
+          processor,
+          rulesyncFiles,
+          sweepPlan,
+        });
 
         totalCount += result.count;
         allPaths.push(...result.paths);
@@ -1242,8 +1317,9 @@ async function generatePermissionsCore(params: {
 async function generateChecksCore(params: {
   config: Config;
   logger: Logger;
+  sweepPlan: OrphanSweepPlan;
 }): Promise<FeatureGenerateResult> {
-  const { config, logger } = params;
+  const { config, logger, sweepPlan } = params;
 
   let totalCount = 0;
   const allPaths: string[] = [];
@@ -1279,7 +1355,12 @@ async function generateChecksCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      const result = await processFeatureWithRulesyncFiles({ config, processor, rulesyncFiles });
+      const result = await processFeatureWithRulesyncFiles({
+        config,
+        processor,
+        rulesyncFiles,
+        sweepPlan,
+      });
 
       totalCount += result.count;
       allPaths.push(...result.paths);
