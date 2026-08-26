@@ -203,7 +203,22 @@ export abstract class DirFeatureProcessor {
    */
   async removeOrphanAiDirs(existingDirs: AiDir[], generatedDirs: AiDir[]): Promise<number> {
     const generatedPaths = new Set(generatedDirs.map((d) => d.getDirPath()));
-    const orphanDirs = existingDirs.filter((d) => !generatedPaths.has(d.getDirPath()));
+    const orphanDirs = existingDirs.filter((d) => {
+      // A candidate that does not own its directory tree cannot be an orphan of
+      // itself: its path is a root it merely flattens into, so deleting it would
+      // take every sibling in that root with it (see `AiDir.ownsDirTree`).
+      if (!d.ownsDirTree()) {
+        this.logger.debug(
+          // Quoted by the serializer: the name comes off disk, and while the
+          // strip above rules out forging a whole line, an unquoted name like
+          // `Deleted directory: /home/you/important` still reads as one.
+          `Skipping orphan sweep for ${JSON.stringify(stripControlCharacters(d.getDirName()))}: ` +
+            `${stripControlCharacters(d.getDirPath())} is a shared root, not a directory of its own`,
+        );
+        return false;
+      }
+      return !generatedPaths.has(d.getDirPath());
+    });
 
     for (const aiDir of orphanDirs) {
       const dirPath = aiDir.getDirPath();

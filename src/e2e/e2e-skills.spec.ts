@@ -608,6 +608,50 @@ This is the fallback skill body content.`;
     expect(await fileExists(orphanPath)).toBe(false);
   });
 
+  it("should not delete the takt facet root when the run generates no takt skill", async () => {
+    // takt skills are flat files under one shared root, so every candidate the
+    // orphan sweep enumerates reports that root as its path. With no takt skill
+    // to claim it, the sweep used to delete the root itself and everything the
+    // user had put there by hand.
+    const testDir = getTestDir();
+    const handAuthoredPath = join(testDir, ".takt", "facets", "knowledge", "my-notes", "notes.md");
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(handAuthoredPath, "Hand-authored notes.");
+
+    await runGenerate({
+      target: "takt",
+      features: "skills",
+      deleteFiles: true,
+    });
+
+    expect(await readFileContent(handAuthoredPath)).toContain("Hand-authored notes.");
+  });
+
+  it("should keep a hand-authored takt facet file when a takt skill is generated", async () => {
+    // The companion case: once the root is claimed the sweep never reached it,
+    // so this has always worked. Pinning it keeps the two halves of the guard
+    // from drifting apart — the fix must not start sweeping the root when a
+    // skill *is* generated either.
+    const testDir = getTestDir();
+    const handAuthoredPath = join(testDir, ".takt", "facets", "knowledge", "my-notes", "notes.md");
+    await writeFileContent(handAuthoredPath, "Hand-authored notes.");
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "SKILL.md"),
+      ["---", "name: review", 'description: "Review"', "---", "Review body."].join("\n"),
+    );
+
+    await runGenerate({
+      target: "takt",
+      features: "skills",
+      deleteFiles: true,
+    });
+
+    expect(await readFileContent(handAuthoredPath)).toContain("Hand-authored notes.");
+    expect(
+      await readFileContent(join(testDir, ".takt", "facets", "knowledge", "review.md")),
+    ).toContain("Review body.");
+  });
+
   it("should reject a symlinked Kimi managed skills root during deletion", async () => {
     const testDir = getTestDir();
     const protectedDir = join(testDir, "protected-skills");

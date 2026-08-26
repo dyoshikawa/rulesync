@@ -62,6 +62,12 @@ The block is owned by the checks feature: it is rewritten from `.rulesync/checks
 
 Both project mode (`.takt/facets/...`, `.takt/config.yaml`) and global mode (`~/.takt/facets/...`, `~/.takt/config.yaml`) are supported.
 
+## `--delete` and `.takt/facets/knowledge/`
+
+Skills are written as flat files sharing one facet root instead of each getting a directory of its own, so `generate --delete` has no per-skill directory to sweep and never deletes anything under `.takt/facets/knowledge/` (or `~/.takt/facets/knowledge/` in global mode). That is deliberate: the root also holds whatever you have authored there by hand, and sweeping it would take those files too. The other facets are unaffected — rules, commands, and subagents each get their own directory and are swept normally.
+
+The trade-off is that a knowledge file whose `.rulesync/skills/` source you later delete or rename is not cleaned up for you — delete the stale `.md` file yourself.
+
 ## Importing existing TAKT files into rulesync
 
 Importing the **facet** features (rules, commands, subagents, skills) is **not supported**. TAKT facet files are plain Markdown with no frontmatter, so the original skill / command / subagent metadata cannot be recovered. Attempting to import a TAKT skill raises a clear error rather than silently producing a stub that round-trips badly.

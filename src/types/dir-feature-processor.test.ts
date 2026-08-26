@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,12 +28,14 @@ vi.mock("../utils/file.js", async () => {
   };
 });
 
-function createMockDir(dirPath: string): AiDir {
+function createMockDir(dirPath: string, ownsDirTree = true): AiDir {
   return {
     getDirPath: () => dirPath,
+    getDirName: () => basename(dirPath),
     getMainFile: () => undefined,
     getOtherFiles: () => [],
     getRelativePathFromCwd: () => dirPath,
+    ownsDirTree: () => ownsDirTree,
   } as unknown as AiDir;
 }
 
@@ -54,6 +56,7 @@ function createMockDirWithFiles({
         : undefined,
     getOtherFiles: () => otherFiles,
     getRelativePathFromCwd: () => dirPath,
+    ownsDirTree: () => true,
   } as unknown as AiDir;
 }
 
@@ -188,6 +191,60 @@ describe("DirFeatureProcessor", () => {
         "[DRY RUN] Would delete directory: /path/to/orphan2",
       );
       expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("kept"));
+    });
+
+    it("should never remove a candidate that only points at a shared root", async () => {
+      // Regression test for #2777. `TaktSkill` drops `dirName` from
+      // `getDirPath()` because takt skills are flat files under a shared root,
+      // so every enumerated candidate reports that root. Sweeping it when no
+      // skill was generated deleted the root itself, taking hand-authored files
+      // in it with it.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+
+      const sharedRoot = "/path/to/.takt/facets/knowledge";
+      const existingDirs = [createMockDir(sharedRoot, false), createMockDir(sharedRoot, false)];
+
+      const count = await processor.removeOrphanAiDirs(existingDirs, []);
+
+      expect(count).toBe(0);
+      expect(removeDirectory).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining(sharedRoot));
+    });
+
+    it("should still sweep a real orphan alongside a shared-root candidate", async () => {
+      // The guard has to work per candidate. Stopping the whole sweep the moment
+      // one flat-file tool appears in the list would silently turn `--delete`
+      // off for everything else in the same run.
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir("/path/to/.takt/facets/knowledge", false), createMockDir("/path/to/orphan")],
+        [],
+      );
+
+      expect(count).toBe(1);
+      expect(removeDirectory).toHaveBeenCalledTimes(1);
+      expect(removeDirectory).toHaveBeenCalledWith("/path/to/orphan");
+    });
+
+    it("should not remove a shared root even in dry-run mode", async () => {
+      // The dry-run line is what a user reads to decide whether `--delete` is
+      // safe to run, so it must not promise a deletion that must never happen.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({
+        logger,
+        outputRoot: testDir,
+        dryRun: true,
+      });
+
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir("/path/to/.takt/facets/knowledge", false)],
+        [],
+      );
+
+      expect(count).toBe(0);
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("Would delete"));
     });
 
     it("should not remove any dirs when existing is empty", async () => {

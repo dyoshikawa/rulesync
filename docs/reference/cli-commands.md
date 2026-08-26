@@ -126,6 +126,14 @@ The `generate` command reads source files from one or more rulesync source trees
 > already-synchronized tree stays a no-op under `--check`. What is swept is
 > unchanged: a file in a generated directory that no `.rulesync/` source
 > produces.
+>
+> Takt's skills are the one exception (its rules, commands, and subagents are
+> swept normally). They are flat files sharing a single
+> `.takt/facets/knowledge/` root rather than each getting a directory of its own,
+> so the sweep has no per-skill directory to remove and never touches that root —
+> which is what keeps it from deleting hand-authored files alongside generated
+> ones. A generated file there whose `.rulesync/skills/` source you later delete
+> stays behind, so remove it yourself. See [Takt](../tools/takt.md).
 
 ### Examples
 
