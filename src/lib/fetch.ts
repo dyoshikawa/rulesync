@@ -404,11 +404,19 @@ async function applySkillSelection(params: {
   });
 
   if (droppedUnsafeNames.size > 0) {
+    // The names are quoted, and one that strips down to nothing is labelled
+    // rather than printed, because the stripped form is exactly what made the
+    // directory unsafe: it can be empty, or identical to a real skill the user
+    // did fetch. Without the quotes the warning would read as if that real
+    // skill had been skipped.
+    const labels = [...droppedUnsafeNames]
+      .toSorted()
+      .map((display) => (display === "" ? "(nothing but control characters)" : `"${display}"`));
     logger.warn(
-      `Skipping skill director${droppedUnsafeNames.size === 1 ? "y" : "ies"} whose name ` +
-        `contains control characters: ${[...droppedUnsafeNames].toSorted().join(", ")} ` +
-        `(shown with those characters removed). Such a name cannot be listed truthfully, ` +
-        `so it is never offered for selection.`,
+      `Skipping ${labels.length} skill director${labels.length === 1 ? "y" : "ies"} whose name ` +
+        `contains control characters. Such a name cannot be listed truthfully, so it is never ` +
+        `offered for selection. Written here with the control characters removed, which is why ` +
+        `a name may look like one you did select: ${labels.join(", ")}.`,
     );
   }
 
