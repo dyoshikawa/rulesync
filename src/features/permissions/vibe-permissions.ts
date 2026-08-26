@@ -351,24 +351,34 @@ export class VibePermissions extends ToolPermissions {
     // as `"*": "allow"` misrepresented it. It is lifted verbatim into the
     // `vibe` override below instead, so the narrowing round-trips honestly.
     const enabledToolsList = toStringArray(this.toml.enabled_tools);
-    const disabledCategories = new Set(
-      toStringArray(this.toml.disabled_tools).map((tool) => toCanonicalToolName(tool)),
-    );
-    for (const category of disabledCategories) {
-      ensurePermission(permission, category)["*"] = "deny";
+    // Two spellings of the same list, because they answer different questions.
+    // The canonical names are the categories the filter denies; the raw names are
+    // what upstream actually matches a table against. Vibe's `name_matches` is a
+    // glob over the RAW tool name, so `disabled_tools = ["read"]` matches nothing
+    // — reading it as the `read` category and letting it silence
+    // `[tools.read_file]` would disable a tool upstream leaves running.
+    const disabledToolNames = new Set(toStringArray(this.toml.disabled_tools));
+    for (const tool of disabledToolNames) {
+      ensurePermission(permission, toCanonicalToolName(tool))["*"] = "deny";
     }
 
     for (const [vibeToolName, toolConfig] of Object.entries(toVibeToolsRecord(this.toml.tools))) {
       const category = toCanonicalToolName(vibeToolName);
-      const rules = ensurePermission(permission, category);
-      const action = fromVibePermission(toolConfig.permission);
       // `disabled_tools` is applied last and unconditionally upstream, so a tool
       // listed there is unavailable no matter what its table says. Letting the
-      // table's `permission` win here would import that contradiction as a mere
-      // `ask` (or even `always` plus an allowlist) and the next generate would
-      // drop the filter entirely — a silent broadening of what the file already
-      // forbids. The deny wins instead; drop the contradiction, not the guard.
-      if (action !== undefined && !disabledCategories.has(category)) {
+      // table win here would import that contradiction as a mere `ask` (or even
+      // `always` plus an allowlist) and the next generate would drop the filter
+      // entirely — a silent broadening of what the file already forbids. The deny
+      // wins instead; drop the contradiction, not the guard. The patterns go with
+      // it: they are just as inert upstream, and importing one as an `allow` would
+      // carry a hole through a tool the file switched off into every OTHER tool's
+      // generated config, where nothing is switched off.
+      if (disabledToolNames.has(vibeToolName)) {
+        continue;
+      }
+      const rules = ensurePermission(permission, category);
+      const action = fromVibePermission(toolConfig.permission);
+      if (action !== undefined) {
         rules["*"] = action;
       }
       for (const pattern of readVibeToolPatterns({ toolConfig, kind: "allow" })) {
@@ -1129,12 +1139,29 @@ function resolveFanOutShellAliases({
     return { aliases: candidates, standDown: [] };
   }
 
-  logger?.warn(
-    `Keeping the existing Vibe permission for ${preserved.join(", ")} instead of fanning the ` +
-      `'bash' category out to it, because the existing config.toml already configures that ` +
-      `shell differently from 'bash'. Only the 'bash' deny patterns are merged into it; its ` +
-      `base permission and allow patterns are NOT changed.`,
+  // A shell whose only decision is its `disabled_tools` membership has no table
+  // at all, so nothing is merged into it — saying otherwise would promise a deny
+  // that was never written (it is off the registry, so none is needed).
+  const offRegistry = preserved.filter(
+    (name) => !Object.hasOwn(tools, name) && disabledTools.has(name),
   );
+  const merged = preserved.filter((name) => !offRegistry.includes(name));
+  if (merged.length > 0) {
+    logger?.warn(
+      `Keeping the existing Vibe permission for ${merged.join(", ")} instead of fanning the ` +
+        `'bash' category out to it, because the existing config.toml already configures that ` +
+        `shell differently from 'bash'. Only the 'bash' deny patterns are merged into it; its ` +
+        `base permission and allow patterns are NOT changed.`,
+    );
+  }
+  if (offRegistry.length > 0) {
+    logger?.warn(
+      `Not fanning the 'bash' category out to ${offRegistry.join(", ")}, because the existing ` +
+        `config.toml disables that shell through 'disabled_tools' and gives it no table of its ` +
+        `own. Nothing is written for it — an entry there would be inert, since the shell is off ` +
+        `Vibe's registry entirely.`,
+    );
+  }
   return { aliases: fanOutTargets, standDown: preserved };
 }
 

@@ -1789,7 +1789,10 @@ describe("VibePermissions", () => {
     const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
     const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
 
-    expect(imported.permission.read["*"]).toBe("deny");
+    // The allowlist goes with the permission: it is just as inert upstream, and
+    // importing it would carry a hole through a switched-off tool into every
+    // other tool's generated config.
+    expect(imported.permission.read).toEqual({ "*": "deny" });
 
     const regenerated = await VibePermissions.fromRulesyncPermissions({
       outputRoot: testDir,
@@ -1901,6 +1904,60 @@ describe("VibePermissions", () => {
         String(call[0]).includes("Promoting curl * from the legacy 'allow' key"),
       ),
     ).toHaveLength(1);
+  });
+
+  it("should not read a disabled_tools entry that Vibe itself never matches", async () => {
+    // `name_matches` globs the raw tool name, so a bare "read" matches nothing —
+    // silencing [tools.read_file] with it would disable a tool Vibe leaves running.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        'disabled_tools = ["read"]',
+        "[tools.read_file]",
+        'permission = "always"',
+        'allowlist = ["src/*"]',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission.read).toEqual({ "*": "allow", "src/*": "allow" });
+  });
+
+  it("should say nothing is written for a shell that disabled_tools takes off the registry", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["powershell"]', ""].join("\n"),
+    );
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "ask", "rm -rf /": "deny" } },
+        }),
+      }),
+    });
+
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Not fanning the 'bash' category out to powershell"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Keeping the existing Vibe permission"),
+      ),
+    ).toHaveLength(0);
   });
 
   it("should overwrite a loosely configured shell when the bash category denies everything", async () => {
