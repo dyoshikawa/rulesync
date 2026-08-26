@@ -90,6 +90,11 @@ const VIBE_SHELL_CATEGORY = "bash";
  * decide whether an alias table is a decision made outside the `bash` category.
  * The legacy `allow`/`deny` spellings count because rulesync deletes them.
  */
+const VIBE_LEGACY_KEY_ALIASES: Record<string, string> = {
+  allow: "allowlist",
+  deny: "denylist",
+};
+
 const VIBE_FAN_OUT_MANAGED_KEYS = [
   "permission",
   "allowlist",
@@ -192,7 +197,25 @@ export class VibePermissions extends ToolPermissions {
     const enabledTools = new Set(toStringArray(config.enabled_tools));
     const disabledTools = new Set(toStringArray(config.disabled_tools));
 
-    const resolveNames = createVibeToolNameResolver({ permission, config, logger });
+    // Only a category that actually writes something may take a shell alias out
+    // of `bash`'s fan-out; see `expressesVibePermission`.
+    const shellAliases = resolveFanOutShellAliases({ config, logger });
+    const claimingCategories = Object.keys(permission).filter((category) =>
+      expressesVibePermission(permission[category] ?? {}),
+    );
+    const resolveNames = createVibeToolNameResolver({
+      categories: claimingCategories,
+      shellAliases,
+      logger,
+    });
+    // The override pass additionally honors its own per-shell entries: the base
+    // fan-out above has already given every shell its permission, so a
+    // `vibe.permission.<shell>` entry only needs to keep `bash`'s patterns from
+    // overwriting the ones authored for that shell.
+    const resolveOverrideNames = createVibeToolNameResolver({
+      categories: [...claimingCategories, ...Object.keys(vibeOverride?.permission ?? {})],
+      shellAliases,
+    });
 
     // rulesync is the source of truth for every tool it configures, so drop any
     // stale enabled/disabled filters for those tools before reapplying the
@@ -220,7 +243,7 @@ export class VibePermissions extends ToolPermissions {
         }
         continue;
       }
-      warnOnLookalikeToolName({ category, vibeToolNames, logger });
+      warnOnUnreachableToolName({ category, vibeToolNames, logger });
       applyCategoryRules({
         vibeToolNames,
         category,
@@ -232,7 +255,12 @@ export class VibePermissions extends ToolPermissions {
       });
     }
 
-    applyVibeSensitivePatterns({ tools, vibeOverride, resolveNames, logger });
+    applyVibeSensitivePatterns({
+      tools,
+      vibeOverride,
+      resolveNames: resolveOverrideNames,
+      logger,
+    });
 
     // `enabled_tools` is exclusive, so removing an entry changes semantics for
     // every OTHER tool too: an emptied list activates all tools, while a
@@ -387,7 +415,7 @@ function applyVibeSensitivePatterns({
       );
       continue;
     }
-    warnOnLookalikeToolName({ category, vibeToolNames, logger });
+    warnOnUnreachableToolName({ category, vibeToolNames, logger });
     const patterns = toStringArray(toolOverride.sensitive_patterns);
     for (const vibeToolName of vibeToolNames) {
       const nextTool = readVibeToolConfig({ tools, vibeToolName });
@@ -553,27 +581,28 @@ function parseVibeConfig(fileContent: string): VibeConfig {
  * loop and the Vibe override loop, so both agree on which tables `bash`'s
  * fan-out owns by construction instead of recomputing it and drifting apart.
  *
- * Only the shared block may take a shell alias out of the fan-out. A
- * `vibe.permission.<alias>` entry can carry `sensitive_patterns` and nothing
- * else (see `VibePermissionsOverride`), so letting it claim `powershell` would
- * strip the base `bash` permission from that shell while putting no permission
- * in its place — and the resulting table would then look hand-authored to the
- * next generate, making the loss permanent.
+ * `categories` is the set allowed to claim a table. For the shared-permission
+ * pass it holds only the categories that actually write one, so a
+ * `vibe.permission.<alias>` entry — which can carry `sensitive_patterns` and
+ * nothing else (see `VibePermissionsOverride`) — never strips the base `bash`
+ * permission from a shell. For the override pass those entries ARE included,
+ * because by then every shell already has its permission and the only thing
+ * left to protect is the shell's own patterns.
  */
 function createVibeToolNameResolver({
-  permission,
-  config,
+  categories,
+  shellAliases,
   logger,
 }: {
-  permission: PermissionsConfig["permission"];
-  config: VibeConfig;
+  categories: readonly string[];
+  shellAliases: readonly string[];
   logger?: Logger;
 }): (category: string) => string[] | undefined {
   // Resolving a non-`bash` category never consults the fan-out, so the empty
   // arguments here are inert — this pass exists only to learn the translated
   // names the other categories occupy.
   const claimedBy = new Map<string, string>();
-  for (const category of Object.keys(permission)) {
+  for (const category of categories) {
     if (category === VIBE_SHELL_CATEGORY) {
       continue;
     }
@@ -592,8 +621,19 @@ function createVibeToolNameResolver({
   }
 
   const claimedToolNames = new Set(claimedBy.keys());
-  const shellAliases = resolveFanOutShellAliases({ config, logger });
   return (category: string) => resolveVibeToolNames({ category, claimedToolNames, shellAliases });
+}
+
+/**
+ * Whether a category's rules produce anything Vibe can read, and therefore
+ * whether the category may claim a `[tools.<name>]` table out of `bash`'s
+ * fan-out. A category holding only pattern-level `ask` rules (which Vibe cannot
+ * express) or no rules at all writes no table — letting it claim `powershell`
+ * would drop the `bash` deny for that shell and put nothing in its place, which
+ * is the dangerous direction.
+ */
+function expressesVibePermission(rules: Record<string, PermissionAction>): boolean {
+  return Object.entries(rules).some(([pattern, action]) => pattern === "*" || action !== "ask");
 }
 
 /**
@@ -720,16 +760,23 @@ function resolveFanOutShellAliases({
   logger?: Logger;
 }): string[] {
   const tools = toVibeToolsRecord(config.tools);
-  const enabledTools = new Set(toStringArray(config.enabled_tools));
   const disabledTools = new Set(toStringArray(config.disabled_tools));
   const describe = (name: string): string => {
     const table = Object.hasOwn(tools, name) ? (tools[name] ?? {}) : {};
+    // The legacy `allow`/`deny` spellings mean exactly what `allowlist`/
+    // `denylist` mean, so normalize before comparing: `[tools.bash] allow` next
+    // to `[tools.git_bash] allowlist` is the same decision, not a divergence.
+    const managed = VIBE_FAN_OUT_MANAGED_KEYS.flatMap((key) =>
+      Object.hasOwn(table, key)
+        ? [[VIBE_LEGACY_KEY_ALIASES[key] ?? key, table[key as keyof VibeToolConfig]] as const]
+        : [],
+    );
     return JSON.stringify({
-      managed: VIBE_FAN_OUT_MANAGED_KEYS.filter((key) => Object.hasOwn(table, key)).map((key) => [
-        key,
-        table[key as keyof VibeToolConfig],
-      ]),
-      enabled: enabledTools.has(name),
+      managed: managed.toSorted(([a], [b]) => a.localeCompare(b)),
+      // `enabled_tools` membership is deliberately NOT part of the state: that
+      // key is an exclusive registry filter, not a per-tool permission. Treating
+      // it as a decision let `enabled_tools = ["powershell"]` take that shell out
+      // of a `bash` deny AND leave it the only active tool.
       disabled: disabledTools.has(name),
     });
   };
@@ -737,7 +784,7 @@ function resolveFanOutShellAliases({
   // A table that carries nothing rulesync manages — absent, empty, or holding
   // only unmanaged keys — states no permission decision, so there is none to
   // preserve.
-  const noDecision = JSON.stringify({ managed: [], enabled: false, disabled: false });
+  const noDecision = JSON.stringify({ managed: [], disabled: false });
   const bashState = describe(VIBE_SHELL_CATEGORY);
   const fanOutTargets = VIBE_SHELL_ALIAS_TOOL_NAMES.filter((name) => {
     const state = describe(name);
@@ -747,8 +794,8 @@ function resolveFanOutShellAliases({
   if (preserved.length > 0) {
     logger?.warn(
       `Keeping the existing Vibe permission for ${preserved.join(", ")} instead of fanning the ` +
-        `'bash' category out to it, because it already differs from [tools.bash] on disk. The ` +
-        `'bash' permission does NOT apply to that shell.`,
+        `'bash' category out to it, because the existing config.toml already configures that ` +
+        `shell differently from 'bash'. The 'bash' permission does NOT apply to it.`,
     );
   }
   return fanOutTargets;
@@ -756,11 +803,12 @@ function resolveFanOutShellAliases({
 
 /**
  * A non-canonical category is written verbatim as a Vibe tool name, which is how
- * MCP tools stay reachable — but it also means a misspelled builtin becomes an
- * inert table. Case is the one class of typo that can be detected without
- * guessing, so flag it rather than emitting `[tools.Bash]` silently.
+ * MCP tools stay reachable — but it also means a misspelled builtin, a
+ * mis-cased MCP prefix, or a glob becomes a table Vibe never looks up. None of
+ * those can be corrected without guessing, so flag them rather than emitting an
+ * inert `[tools.Bash]` silently.
  */
-function warnOnLookalikeToolName({
+function warnOnUnreachableToolName({
   category,
   vibeToolNames,
   logger,
@@ -769,8 +817,10 @@ function warnOnLookalikeToolName({
   vibeToolNames: string[];
   logger?: Logger;
 }): void {
-  const lowercasedCategory = category.toLowerCase();
-  if (lowercasedCategory !== category && lowercasedCategory.startsWith(MCP_CANONICAL_PREFIX)) {
+  // Only the prefix decides whether translation kicks in — a server or tool name
+  // may legitimately be capitalized, and those ARE translated.
+  const prefix = category.slice(0, MCP_CANONICAL_PREFIX.length);
+  if (prefix !== MCP_CANONICAL_PREFIX && prefix.toLowerCase() === MCP_CANONICAL_PREFIX) {
     logger?.warn(
       `The '${category}' category looks like an MCP category, but the canonical prefix is ` +
         `lowercase '${MCP_CANONICAL_PREFIX}'; it is written verbatim to [tools.${category}] ` +
@@ -778,6 +828,17 @@ function warnOnLookalikeToolName({
     );
   }
   for (const vibeToolName of vibeToolNames) {
+    // `[tools.<name>]` is looked up by exact tool name, so a glob in the name
+    // only ever reaches Vibe through the separately glob-matched
+    // `disabled_tools` filter that a wildcard `deny` also writes.
+    if (MCP_WILDCARD_PATTERN.test(vibeToolName)) {
+      logger?.warn(
+        `The '${category}' category contains a glob metacharacter, but Vibe looks ` +
+          `[tools.${vibeToolName}] up by exact tool name. Only a wildcard '*' deny reaches Vibe ` +
+          `here, through the 'disabled_tools' filter; its pattern-level rules are inert.`,
+      );
+      continue;
+    }
     if (Object.hasOwn(VIBE_TO_CANONICAL_TOOL_NAMES, vibeToolName)) {
       continue;
     }

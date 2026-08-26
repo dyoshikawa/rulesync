@@ -998,6 +998,184 @@ describe("VibePermissions", () => {
     expect(vibePermissions.getFileContent()).not.toContain("web_fetch");
   });
 
+  it("should not let the bash sensitive_patterns fan-out overwrite a sibling shell override", async () => {
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "deny" } },
+          vibe: {
+            permission: {
+              powershell: { sensitive_patterns: ["Remove-Item -Recurse"] },
+              bash: { sensitive_patterns: ["rm -rf /"] },
+            },
+          },
+        }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.powershell.sensitive_patterns).toEqual(["Remove-Item -Recurse"]);
+    expect(parsed.tools.bash.sensitive_patterns).toEqual(["rm -rf /"]);
+    expect(parsed.tools.git_bash.sensitive_patterns).toEqual(["rm -rf /"]);
+    expect(parsed.tools.powershell.permission).toBe("never");
+  });
+
+  it("should still fan bash out to a shell whose own category expresses nothing", async () => {
+    // Vibe has no pattern-level `ask`, so this `powershell` category writes no
+    // table; letting it claim the shell would drop the bash deny for it.
+    const logger = createMockLogger();
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {
+            bash: { "*": "deny" },
+            powershell: { "Remove-Item *": "ask" },
+          },
+        }),
+      }),
+      logger,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.powershell.permission).toBe("never");
+    expect(parsed.disabled_tools).toContain("powershell");
+  });
+
+  it("should not treat enabled_tools membership as a per-shell permission decision", async () => {
+    // `enabled_tools` is an exclusive registry filter, not a permission; letting
+    // it stand the fan-out down left the denied shell as the only active tool.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['enabled_tools = ["powershell"]', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "deny" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.powershell.permission).toBe("never");
+    expect(parsed.disabled_tools).toContain("powershell");
+    expect(parsed.enabled_tools ?? []).not.toContain("powershell");
+  });
+
+  it("should treat the legacy allow spelling as equal to allowlist in the fan-out check", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.bash]", 'allow = ["x"]', "[tools.git_bash]", 'allowlist = ["x"]', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "deny" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.git_bash.permission).toBe("never");
+    expect(parsed.tools.git_bash.allow).toBeUndefined();
+  });
+
+  it("should translate a capitalized MCP server name without warning about the prefix", async () => {
+    const logger = createMockLogger();
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { mcp__GitHub__create_issue: { "*": "deny" } },
+        }),
+      }),
+      logger,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.GitHub_create_issue.permission).toBe("never");
+    expect(
+      logger.warn.mock.calls.some(([message]) => String(message).includes("canonical prefix")),
+    ).toBe(false);
+  });
+
+  it("should warn about a mis-cased MCP prefix", async () => {
+    const logger = createMockLogger();
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { MCP__github__create_issue: { "*": "deny" } },
+        }),
+      }),
+      logger,
+    });
+
+    expect(
+      logger.warn.mock.calls.some(([message]) => String(message).includes("canonical prefix")),
+    ).toBe(true);
+  });
+
+  it("should warn about a glob in a verbatim tool name", async () => {
+    const logger = createMockLogger();
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { "github_*": { "npm run *": "deny" } } }),
+      }),
+      logger,
+    });
+
+    expect(
+      logger.warn.mock.calls.some(([message]) => String(message).includes("exact tool name")),
+    ).toBe(true);
+  });
+
+  it("should warn when two categories resolve to the same tool table", async () => {
+    const logger = createMockLogger();
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "*": "allow" }, read_file: { "*": "deny" } },
+        }),
+      }),
+      logger,
+    });
+
+    expect(
+      logger.warn.mock.calls.some(([message]) => String(message).includes("both resolve")),
+    ).toBe(true);
+  });
+
   it("should not touch phantom tool names for unmapped categories in the override or cleanup", async () => {
     const logger = createMockLogger();
     await ensureDir(join(testDir, ".vibe"));
