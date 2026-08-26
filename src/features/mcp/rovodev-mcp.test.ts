@@ -9,7 +9,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, toPosixPath, writeFileContent } from "../../utils/file.js";
 import { RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -907,7 +907,7 @@ describe("RovodevMcp", () => {
       await ensureDir(join(testDir, ".rovodev"));
       await writeFileContent(
         join(testDir, ".rovodev", "config.yml"),
-        "mcp:\n  mcpConfigPath: ~/.rovodev/mcp_config.json\n",
+        "mcp:\n  mcpConfigPath: ~/elsewhere/mcp.json\n",
       );
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
@@ -922,12 +922,115 @@ describe("RovodevMcp", () => {
         rulesyncMcp,
         logger,
       });
-      expect(auxiliary[0]!.getFileContent()).toContain("mcpConfigPath: ~/.rovodev/mcp_config.json");
+      expect(auxiliary[0]!.getFileContent()).toContain("mcpConfigPath: ~/elsewhere/mcp.json");
       expect(
         logger.warn.mock.calls.some(([message]) =>
           String(message).includes("leaving mcp.mcpConfigPath"),
         ),
       ).toBe(true);
+    });
+
+    it.each([
+      ["the tilde spelling", "~/.rovodev/mcp_config.json"],
+      ["an already-expanded absolute path", "<HOME>/.rovodev/mcp_config.json"],
+      ["the environment-variable spelling", "$HOME/.rovodev/mcp_config.json"],
+    ])(
+      "tells a user pointed at Atlassian's documented default what to change (%s)",
+      async (_label, value) => {
+        const logger = createMockLogger();
+        await ensureDir(join(testDir, ".rovodev"));
+        await writeFileContent(
+          join(testDir, ".rovodev", "config.yml"),
+          `mcp:\n  mcpConfigPath: "${value.replace("<HOME>", toPosixPath(testDir))}"\n`,
+        );
+        const rulesyncMcp = new RulesyncMcp({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "mcp.json",
+          fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+        });
+
+        const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+          outputRoot: testDir,
+          global: true,
+          rulesyncMcp,
+          logger,
+        });
+
+        // Still not overwritten — it may hold their servers — but this is the
+        // user the pointer exists for, so the message has to be actionable
+        // rather than the generic "you aimed this somewhere else".
+        expect(auxiliary[0]!.getFileContent()).not.toContain("mcpConfigPath: ~/.rovodev/mcp.json");
+        const message = logger.warn.mock.calls
+          .map(([entry]) => String(entry))
+          .find((entry) => entry.includes("leaving mcp.mcpConfigPath"));
+        expect(message).toContain("the default Atlassian's settings reference documents");
+        expect(message).toContain("defines no servers of its own");
+      },
+    );
+
+    it.each([
+      ["the tilde spelling", "~/.rovodev/mcp.json"],
+      ["an already-expanded absolute path", "<HOME>/.rovodev/mcp.json"],
+      ["the environment-variable spelling", "$HOME/.rovodev/mcp.json"],
+    ])("recognizes a global pointer already naming the generated file (%s)", async (_l, value) => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      const written = value.replace("<HOME>", toPosixPath(testDir));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        `mcp:\n  mcpConfigPath: "${written}"\n`,
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { managed: { command: "node" } } }),
+      });
+
+      const auxiliary = await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp,
+        logger,
+      });
+
+      // Nothing to change and nothing to complain about: reporting the file as
+      // unread while Rovo Dev is reading it would be plainly wrong.
+      expect(auxiliary[0]!.getFileContent()).toContain(written);
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("leaving mcp.mcpConfigPath"),
+        ),
+      ).toBe(false);
+    });
+
+    it("warns when a global pointer now names an mcp.json with no enabled server", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        "mcp:\n  mcpConfigPath: ~/.rovodev/mcp.json\n",
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { off: { command: "node", disabled: true } } }),
+      });
+
+      await RovodevMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp,
+        logger,
+      });
+
+      const message = logger.warn.mock.calls
+        .map(([entry]) => String(entry))
+        .find((entry) => entry.includes("points at ~/.rovodev/mcp.json"));
+      expect(message).toContain("Rovo Dev has no MCP servers at all");
+      expect(message).toContain("Rovo Dev's own default");
     });
 
     it("does not write a global pointer when no server can be started", async () => {

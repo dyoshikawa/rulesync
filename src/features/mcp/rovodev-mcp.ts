@@ -286,6 +286,33 @@ function normalizeMcpConfigPathValue(value: string): string {
 }
 
 /**
+ * Every way one of Rovo Dev's home-directory MCP files can be spelled in
+ * `mcpConfigPath`. In global scope `outputRoot` *is* the home directory, so an
+ * already-expanded absolute path is recognized without asking the OS, along
+ * with the two environment-variable forms a shell or the Rovo Dev CLI's own
+ * config command may leave behind. Treating those as "somewhere else" would
+ * report a file as
+ * unread while Rovo Dev is reading it, and would miss the stale-pointer
+ * warning in the other direction.
+ */
+function mcpFileSpellings({
+  fileName,
+  global,
+  outputRoot,
+}: {
+  fileName: string;
+  global: boolean;
+  outputRoot: string;
+}): string[] {
+  const tail = posix.join(ROVODEV_DIR, fileName);
+  if (!global) {
+    return [tail];
+  }
+  const home = toPosixPath(outputRoot).replace(/\/+$/, "");
+  return [posix.join("~", tail), posix.join(home, tail), `$HOME/${tail}`, `\${HOME}/${tail}`];
+}
+
+/**
  * Point `mcp.mcpConfigPath` at the `mcp.json` rulesync writes for this scope,
  * and report whether the block gained a value it did not already carry.
  *
@@ -325,7 +352,11 @@ function normalizeMcpConfigPathValue(value: string): string {
  * A pointer the user aimed somewhere else is theirs, not ours: overwriting it
  * would silently redirect Rovo Dev away from a file they chose. It is named in
  * a warning instead, because the generated `mcp.json` is unread while it
- * stands.
+ * stands. One value earns its own message: `~/.rovodev/mcp_config.json`, which
+ * the settings reference documents as the default and which Rovo Dev may
+ * therefore have written itself. That user is exactly the one this pointer
+ * exists for, so the message tells them what to change and whether that file
+ * holds anything they would lose by changing it.
  *
  * Whatever the outcome, it is logged: writing the pointer turns servers that
  * were generated-but-never-read into servers Rovo Dev actually spawns, and
@@ -335,6 +366,88 @@ function normalizeMcpConfigPathValue(value: string): string {
  * @see https://support.atlassian.com/bitbucket-cloud/docs/rovo-dev-advanced-agentic-configuration/
  * @see https://support.atlassian.com/rovo/docs/manage-rovo-dev-cli-settings/
  */
+/**
+ * The three names one scope's messages need: the value to write, and the two
+ * files as the user sees them — so a global-scope message does not report a
+ * home-directory file by its repo-relative path.
+ */
+function pointerLabels(global: boolean): {
+  pointer: string;
+  configLabel: string;
+  mcpLabel: string;
+} {
+  if (global) {
+    const pointer = ROVODEV_GLOBAL_MCP_CONFIG_POINTER;
+    return {
+      pointer,
+      configLabel: posix.join("~", ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME),
+      mcpLabel: pointer,
+    };
+  }
+  return {
+    pointer: ROVODEV_PROJECT_MCP_CONFIG_POINTER,
+    configLabel: join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME),
+    mcpLabel: join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME),
+  };
+}
+
+/**
+ * Report a `mcpConfigPath` sitting at the default Atlassian's settings
+ * reference documents. It is not overwritten — it may well hold the user's
+ * servers — but this is the user the pointer exists for, so the message says
+ * what to change and what changing it would cost.
+ */
+async function warnAtDocumentedDefault({
+  existing,
+  global,
+  outputRoot,
+  logger,
+}: {
+  existing: unknown;
+  global: boolean;
+  outputRoot: string;
+  logger?: Logger;
+}): Promise<void> {
+  const { pointer, configLabel, mcpLabel } = pointerLabels(global);
+  const displaced = await describeDisplacedGlobalServers({ outputRoot });
+  logger?.warn(
+    `Rovo Dev MCP: leaving mcp.mcpConfigPath as ${JSON.stringify(existing)} in ${configLabel}. ` +
+      `That is the default Atlassian's settings reference documents, so it may be Rovo Dev's ` +
+      `own value rather than one you chose — and while it stands, the generated ${mcpLabel} is ` +
+      `never read. ` +
+      (displaced === null
+        ? `It defines no servers of its own, so setting mcp.mcpConfigPath to "${pointer}" costs ` +
+          `nothing.`
+        : `Move the servers you want to keep into .rulesync/mcp.jsonc first, then set ` +
+          `mcp.mcpConfigPath to "${pointer}" — ${displaced}.`),
+  );
+}
+
+/**
+ * Announce a pointer that was just written. Warned rather than noted in global
+ * scope: the project pointer changes one repository, this one changes Rovo Dev
+ * everywhere on the machine.
+ *
+ * Writing it is the moment Rovo Dev starts running the generated servers:
+ * until now it read whichever file its default names, and the generated
+ * `mcp.json` was inert — in project scope always, and in global scope whenever
+ * the default is the `mcp_config.json` spelling. It also *replaces* that file
+ * rather than merging with it, since `mcpConfigPath` names a single config.
+ * Both are consequences worth stating out loud rather than applying silently.
+ */
+function announcePointer({ global, logger }: { global: boolean; logger?: Logger }): void {
+  const { pointer, configLabel, mcpLabel } = pointerLabels(global);
+  const announcement =
+    `Rovo Dev MCP: setting mcp.mcpConfigPath to "${pointer}" in ${configLabel}. Rovo Dev will ` +
+    `now launch the servers in ${mcpLabel}${global ? " on every project" : " for this project"} ` +
+    `instead of the ones in the config its default names.`;
+  if (global) {
+    logger?.warn(announcement);
+  } else {
+    logger?.info(announcement);
+  }
+}
+
 async function applyMcpConfigPointer({
   existingMcp,
   global,
@@ -348,17 +461,15 @@ async function applyMcpConfigPointer({
   outputRoot: string;
   logger?: Logger;
 }): Promise<boolean> {
-  const pointer = global ? ROVODEV_GLOBAL_MCP_CONFIG_POINTER : ROVODEV_PROJECT_MCP_CONFIG_POINTER;
-  // Names of the two files as the user sees them, so a global-scope message
-  // does not report a home-directory file by its repo-relative path.
-  const configLabel = global
-    ? posix.join("~", ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME)
-    : join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME);
-  const mcpLabel = global ? pointer : join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME);
+  const { pointer, configLabel, mcpLabel } = pointerLabels(global);
 
   const existing = existingMcp.mcpConfigPath;
-  const pointsAtGeneratedFile =
-    typeof existing === "string" && normalizeMcpConfigPathValue(existing) === pointer;
+  const normalizedExisting =
+    typeof existing === "string" ? normalizeMcpConfigPathValue(existing) : undefined;
+  const namesFile = (fileName: string): boolean =>
+    normalizedExisting !== undefined &&
+    mcpFileSpellings({ fileName, global, outputRoot }).includes(normalizedExisting);
+  const pointsAtGeneratedFile = namesFile(ROVODEV_MCP_FILE_NAME);
 
   if (!hasLiveServers) {
     if (pointsAtGeneratedFile) {
@@ -387,27 +498,18 @@ async function applyMcpConfigPointer({
     }
 
     existingMcp.mcpConfigPath = pointer;
-    // Writing the pointer is the moment Rovo Dev starts running the generated
-    // servers: until now it read whichever file its default names, and the
-    // generated `mcp.json` was inert — in project scope always, and in global
-    // scope whenever the default is the `mcp_config.json` spelling. It also
-    // *replaces* that file rather than merging with it, since `mcpConfigPath`
-    // names a single config. Both are consequences worth stating out loud
-    // rather than applying silently.
-    // Warned rather than noted in global scope: the project pointer changes one
-    // repository, this one changes Rovo Dev everywhere on the machine.
-    const announcement =
-      `Rovo Dev MCP: setting mcp.mcpConfigPath to "${pointer}" in ${configLabel}. Rovo Dev will ` +
-      `now launch the servers in ${mcpLabel}${global ? " on every project" : " for this project"} ` +
-      `instead of the ones in the config its default names.`;
-    if (global) {
-      logger?.warn(announcement);
-    } else {
-      logger?.info(announcement);
-    }
+    announcePointer({ global, logger });
     return true;
   }
   if (pointsAtGeneratedFile) {
+    return false;
+  }
+
+  // Quite possibly Rovo Dev's own writing rather than a destination the user
+  // chose, so it gets a message that says what to do rather than the generic
+  // "you aimed this somewhere else".
+  if (global && namesFile(ROVODEV_ALTERNATE_MCP_FILE_NAME)) {
+    await warnAtDocumentedDefault({ existing, global, outputRoot, logger });
     return false;
   }
 
@@ -551,15 +653,19 @@ export class RovodevMcp extends ToolMcp {
     const mcpServers = Object.fromEntries(
       Object.entries(rulesyncMcp.getMcpServers())
         .map(([name, server]) => {
-          const rawServer = isRecord(rawMcpServers) ? rawMcpServers[name] : undefined;
+          // `Object.hasOwn` before the lookup, matching `lookupTransport` and
+          // the `fromFile` disabled overlay: a name must never resolve up the
+          // prototype chain, however hard that is to reach from here.
+          const rawServer =
+            isRecord(rawMcpServers) && Object.hasOwn(rawMcpServers, name)
+              ? rawMcpServers[name]
+              : undefined;
           const record: Record<string, unknown> = {
             ...(server as Record<string, unknown>),
             // Both spellings are accepted in `.rulesync/mcp.json`: the
             // canonical camelCase key, and Rovo Dev's own `enable_instructions`
             // for anyone copying an entry straight out of Atlassian's docs.
-            ...(readEnableInstructions(rawServer) === true && {
-              rovodevEnableInstructions: true,
-            }),
+            ...(readEnableInstructions(rawServer) && { rovodevEnableInstructions: true }),
           };
           if (record.disabled === true && !canWriteDisableToggle) {
             logger?.warn(
