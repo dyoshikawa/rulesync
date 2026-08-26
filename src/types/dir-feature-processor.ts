@@ -5,6 +5,7 @@ import {
   companionFileContentsEquivalent,
   fileContentsEquivalent,
 } from "../utils/content-equivalence.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 import {
   addTrailingNewline,
   ensureDir,
@@ -153,14 +154,16 @@ export abstract class DirFeatureProcessor {
 
       const relativeDir = aiDir.getRelativePathFromCwd();
       if (this.dryRun) {
-        this.logger.info(`[DRY RUN] Would create directory: ${dirPath}`);
+        this.logger.info(`[DRY RUN] Would create directory: ${stripControlCharacters(dirPath)}`);
         if (mainFile) {
-          this.logger.info(`[DRY RUN] Would write: ${join(dirPath, mainFile.name)}`);
+          this.logger.info(
+            `[DRY RUN] Would write: ${stripControlCharacters(join(dirPath, mainFile.name))}`,
+          );
           changedPaths.push(join(relativeDir, mainFile.name));
         }
         for (const file of otherFiles) {
           this.logger.info(
-            `[DRY RUN] Would write: ${join(dirPath, file.relativeFilePathToDirPath)}`,
+            `[DRY RUN] Would write: ${stripControlCharacters(join(dirPath, file.relativeFilePathToDirPath))}`,
           );
           changedPaths.push(join(relativeDir, file.relativeFilePathToDirPath));
         }
@@ -204,10 +207,12 @@ export abstract class DirFeatureProcessor {
 
     for (const aiDir of orphanDirs) {
       const dirPath = aiDir.getDirPath();
+      const loggedPath = stripControlCharacters(dirPath);
       if (this.dryRun) {
-        this.logger.info(`[DRY RUN] Would delete directory: ${dirPath}`);
+        this.logger.info(`[DRY RUN] Would delete directory: ${loggedPath}`);
       } else {
         await removeDirectory(dirPath);
+        this.logger.info(`Deleted directory: ${loggedPath}`);
       }
     }
 

@@ -87,7 +87,8 @@ describe("FeatureProcessor", () => {
 
   describe("removeOrphanAiFiles", () => {
     it("should remove files that exist in existing but not in generated", async () => {
-      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+      const logger = createMockLogger();
+      const processor = new TestProcessor({ logger, outputRoot: testDir });
 
       const existingFiles = [
         createMockFile("/path/to/orphan1.md"),
@@ -103,6 +104,26 @@ describe("FeatureProcessor", () => {
       expect(removeFile).toHaveBeenCalledTimes(2);
       expect(removeFile).toHaveBeenCalledWith("/path/to/orphan1.md");
       expect(removeFile).toHaveBeenCalledWith("/path/to/orphan2.md");
+      // A real `--delete` run has to say what it deleted: a file swept from a
+      // directory rulesync shares with another vendor would otherwise disappear
+      // without a trace.
+      expect(logger.info).toHaveBeenCalledWith("Deleted: /path/to/orphan1.md");
+      expect(logger.info).toHaveBeenCalledWith("Deleted: /path/to/orphan2.md");
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("kept.md"));
+    });
+
+    it("should strip control characters from the deletion log", async () => {
+      const logger = createMockLogger();
+      const processor = new TestProcessor({ logger, outputRoot: testDir });
+
+      // The path is an on-disk name rulesync did not choose, so a name carrying
+      // `\x1b[2K\r` must not be able to rewrite the line and hide the deletion.
+      const existingFiles = [createMockFile("/path/to/\u001b[2K\r-innocent.md")];
+
+      const count = await processor.removeOrphanAiFiles(existingFiles, []);
+
+      expect(count).toBe(1);
+      expect(logger.info).toHaveBeenCalledWith("Deleted: /path/to/[2K-innocent.md");
     });
 
     it("should not remove any files when all existing files are in generated", async () => {
@@ -143,8 +164,9 @@ describe("FeatureProcessor", () => {
     });
 
     it("should return count without removing files in dry-run mode", async () => {
+      const logger = createMockLogger();
       const processor = new TestProcessor({
-        logger: createMockLogger(),
+        logger,
         outputRoot: testDir,
         dryRun: true,
       });
@@ -161,6 +183,9 @@ describe("FeatureProcessor", () => {
 
       expect(count).toBe(2);
       expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith("[DRY RUN] Would delete: /path/to/orphan1.md");
+      expect(logger.info).toHaveBeenCalledWith("[DRY RUN] Would delete: /path/to/orphan2.md");
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("kept.md"));
     });
 
     it("should not remove any files when existing is empty", async () => {
@@ -228,6 +253,20 @@ describe("FeatureProcessor", () => {
 
       expect(result).toEqual({ count: 2, paths: ["/path/to/file1.md", "/path/to/file2.md"] });
       expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
+    it("should strip control characters from the dry-run write log", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const logger = createMockLogger();
+      const processor = new TestProcessor({ logger, outputRoot: testDir, dryRun: true });
+
+      // Dry-run output is what a user reads to see what a run would do, and the
+      // name comes from a `.rulesync/**` file `rulesync fetch` may have supplied.
+      const files = [createMockFile("/path/to/\u001b[2K\r-innocent.md")];
+
+      await processor.writeAiFiles(files);
+
+      expect(logger.info).toHaveBeenCalledWith("[DRY RUN] Would write: /path/to/[2K-innocent.md");
     });
 
     it("should not create a missing shared config file when the payload is empty", async () => {

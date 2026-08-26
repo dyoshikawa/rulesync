@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
@@ -93,7 +95,8 @@ describe("DirFeatureProcessor", () => {
 
   describe("removeOrphanAiDirs", () => {
     it("should remove dirs that exist in existing but not in generated", async () => {
-      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
 
       const existingDirs = [
         createMockDir("/path/to/orphan1"),
@@ -109,6 +112,25 @@ describe("DirFeatureProcessor", () => {
       expect(removeDirectory).toHaveBeenCalledTimes(2);
       expect(removeDirectory).toHaveBeenCalledWith("/path/to/orphan1");
       expect(removeDirectory).toHaveBeenCalledWith("/path/to/orphan2");
+      // Symmetric with the dry-run case below: a real `--delete` run has to
+      // report the directories it removed.
+      expect(logger.info).toHaveBeenCalledWith("Deleted directory: /path/to/orphan1");
+      expect(logger.info).toHaveBeenCalledWith("Deleted directory: /path/to/orphan2");
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("kept"));
+    });
+
+    it("should strip control characters from the deletion log", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+
+      // The path is an on-disk name rulesync did not choose, so a name carrying
+      // `\x1b[2K\r` must not be able to rewrite the line and hide the deletion.
+      const existingDirs = [createMockDir("/path/to/\u001b[2K\r-innocent")];
+
+      const count = await processor.removeOrphanAiDirs(existingDirs, []);
+
+      expect(count).toBe(1);
+      expect(logger.info).toHaveBeenCalledWith("Deleted directory: /path/to/[2K-innocent");
     });
 
     it("should not remove any dirs when all existing dirs are in generated", async () => {
@@ -140,8 +162,9 @@ describe("DirFeatureProcessor", () => {
     });
 
     it("should return count without removing dirs in dry-run mode", async () => {
+      const logger = createMockLogger();
       const processor = new TestDirProcessor({
-        logger: createMockLogger(),
+        logger,
         outputRoot: testDir,
         dryRun: true,
       });
@@ -158,6 +181,13 @@ describe("DirFeatureProcessor", () => {
 
       expect(count).toBe(2);
       expect(removeDirectory).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        "[DRY RUN] Would delete directory: /path/to/orphan1",
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        "[DRY RUN] Would delete directory: /path/to/orphan2",
+      );
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("kept"));
     });
 
     it("should not remove any dirs when existing is empty", async () => {
@@ -190,6 +220,38 @@ describe("DirFeatureProcessor", () => {
       });
       expect(ensureDir).toHaveBeenCalledTimes(2);
       expect(writeFileContent).toHaveBeenCalledTimes(2);
+    });
+
+    it("should strip control characters from the dry-run write log", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir, dryRun: true });
+
+      // Dry-run output is what a user reads to see what a run would do, and the
+      // name comes from a `.rulesync/**` file `rulesync fetch` may have supplied.
+      const otherFile: AiDirFile = {
+        relativeFilePathToDirPath: "\u001b[2K\r-extra.txt",
+        fileBuffer: Buffer.from("other content"),
+      };
+      const dirs = [
+        createMockDirWithFiles({
+          dirPath: "/path/to/\u001b[2K\r-dir1",
+          mainFileBody: "body1",
+          otherFiles: [otherFile],
+        }),
+      ];
+
+      await processor.writeAiDirs(dirs);
+
+      expect(logger.info).toHaveBeenCalledWith(
+        "[DRY RUN] Would create directory: /path/to/[2K-dir1",
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        `[DRY RUN] Would write: ${join("/path/to/[2K-dir1", "SKILL.md")}`,
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        `[DRY RUN] Would write: ${join("/path/to/[2K-dir1", "[2K-extra.txt")}`,
+      );
     });
 
     it("should skip unchanged dirs and return 0", async () => {

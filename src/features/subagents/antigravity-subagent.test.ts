@@ -80,6 +80,42 @@ describe("Antigravity custom agents", () => {
         expect(subagent.getFileContent()).toContain("name: planner");
       });
 
+      it("rejects a scalar tool section instead of spreading it into index keys", () => {
+        // `Object.assign` would spread a string into `'0': a, '1': b, ...`, and
+        // the loose schema would carry that straight into the shared file. The
+        // guard lives in the block every Antigravity target shares, so it has to
+        // hold for the native writers too, not only for the simulated one.
+        const rulesyncSubagent = new RulesyncSubagent({
+          relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+          relativeFilePath: "scalar-section.md",
+          frontmatter: {
+            targets: ["*"],
+            name: "scalar-section",
+            description: "Scalar section description",
+            [key]: "abc",
+          } as never,
+          body: "Scalar section body.",
+        });
+
+        expect(() =>
+          SubagentClass.fromRulesyncSubagent({
+            relativeDirPath: PROJECT_DIR,
+            rulesyncSubagent,
+          }),
+        ).toThrow(`'${key}' must be a table of frontmatter keys`);
+      });
+
+      it("fills in the required description without a leading space when name is empty", () => {
+        const subagent = SubagentClass.fromRulesyncSubagent({
+          relativeDirPath: PROJECT_DIR,
+          rulesyncSubagent: buildRulesyncSubagent({ name: "", description: "" }),
+        }) as AntigravitySharedSubagent;
+
+        // Antigravity refuses to load an agent without a description, so the
+        // fallback has to be a real string -- `" subagent"` is not one.
+        expect(subagent.getFrontmatter().description).toBe("subagent");
+      });
+
       it("carries the documented typed fields and unknown future keys through the tool section", () => {
         const subagent = SubagentClass.fromRulesyncSubagent({
           relativeDirPath: PROJECT_DIR,

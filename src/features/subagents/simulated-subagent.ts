@@ -14,7 +14,12 @@ import {
   ToolSubagentFromRulesyncSubagentParams,
 } from "./tool-subagent.js";
 
-export const SimulatedSubagentFrontmatterSchema = z.object({
+/**
+ * `looseObject` because a simulated writer may share its output path with a
+ * native target that has a richer frontmatter model: parsing a file read from
+ * such a path must not drop the keys that target owns.
+ */
+export const SimulatedSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.optional(z.string()),
 });
@@ -24,13 +29,19 @@ export type SimulatedSubagentFrontmatter = z.infer<typeof SimulatedSubagentFront
 export type SimulatedSubagentParams = {
   frontmatter: SimulatedSubagentFrontmatter;
   body: string;
+  /**
+   * Pre-rendered file content, for subclasses that write to a path another
+   * (native) target also writes and therefore have to match that target's
+   * serialization byte for byte. Defaults to the plain frontmatter rendering.
+   */
+  fileContent?: string;
 } & Omit<AiFileParams, "fileContent">;
 
 export abstract class SimulatedSubagent extends ToolSubagent {
   private readonly frontmatter: SimulatedSubagentFrontmatter;
   private readonly body: string;
 
-  constructor({ frontmatter, body, ...rest }: SimulatedSubagentParams) {
+  constructor({ frontmatter, body, fileContent, ...rest }: SimulatedSubagentParams) {
     if (rest.validate) {
       const result = SimulatedSubagentFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
@@ -42,7 +53,7 @@ export abstract class SimulatedSubagent extends ToolSubagent {
 
     super({
       ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
+      fileContent: fileContent ?? stringifyFrontmatter(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
@@ -123,6 +134,9 @@ export abstract class SimulatedSubagent extends ToolSubagent {
       relativeFilePath: basename(relativeFilePath),
       frontmatter: result.data,
       body: content.trim(),
+      // The bytes on disk, not a re-render of them: a simulated writer may share
+      // its path with a native target whose serialization differs.
+      fileContent,
       validate,
     };
   }

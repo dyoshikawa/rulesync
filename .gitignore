@@ -246,6 +246,7 @@ rulesync.local.jsonc
 **/.junie/memories/
 **/.gooseignore
 **/.goose/recipes/subagents/
+**/.agents/subagents/
 **/.junie/allowlist.json
 **/.agents/skills/
 **/.rovodev/prompts.yml
@@ -354,7 +355,6 @@ rulesync.local.jsonc
 **/.rovodev/skills/
 **/.takt/facets/knowledge/
 **/.vibe/skills/
-**/.agents/subagents/
 **/.agents/agents/
 **/.augment/agents/
 **/.claude/agents/

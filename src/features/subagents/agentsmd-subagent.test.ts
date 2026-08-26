@@ -6,6 +6,7 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
+import { AntigravityCliSubagent } from "./antigravity-cli-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagentFrontmatter } from "./simulated-subagent.js";
 
@@ -42,10 +43,20 @@ Body content`;
   });
 
   describe("getSettablePaths", () => {
+    it("should resolve to the same directory the native Antigravity targets write", () => {
+      // The two constants are declared separately, in the file each vendor's
+      // paths live in. Only their being equal makes the shared-path contract
+      // hold, so pin it here rather than leaving a divergence to surface as a
+      // mysteriously duplicated subagent file.
+      expect(AgentsmdSubagent.getSettablePaths().relativeDirPath).toBe(
+        AntigravityCliSubagent.getSettablePaths().relativeDirPath,
+      );
+    });
+
     it("should return correct paths for agentsmd subagents", () => {
       const paths = AgentsmdSubagent.getSettablePaths();
       expect(paths).toEqual({
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
       });
     });
   });
@@ -54,7 +65,7 @@ Body content`;
     it("should create instance with valid markdown content", () => {
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agentsmd Agent",
@@ -77,7 +88,7 @@ Body content`;
     it("should create instance with empty name and description", () => {
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "",
@@ -97,7 +108,7 @@ Body content`;
     it("should create instance without validation when validate is false", () => {
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -115,7 +126,7 @@ Body content`;
         () =>
           new AgentsmdSubagent({
             outputRoot: testDir,
-            relativeDirPath: ".agents/subagents",
+            relativeDirPath: ".agents/agents",
             relativeFilePath: "invalid-agent.md",
             frontmatter: {
               // Missing required fields
@@ -131,7 +142,7 @@ Body content`;
     it("should return the body content", () => {
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -149,7 +160,7 @@ Body content`;
     it("should return frontmatter with name and description", () => {
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agentsmd Agent",
@@ -171,7 +182,7 @@ Body content`;
     it("should throw error as it is a simulated file", () => {
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "test-agent.md",
         frontmatter: {
           name: "Test Agent",
@@ -204,7 +215,7 @@ Body content`;
 
       const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         rulesyncSubagent,
         validate: true,
       }) as AgentsmdSubagent;
@@ -216,7 +227,7 @@ Body content`;
         description: "Test description from rulesync",
       });
       expect(agentsmdSubagent.getRelativeFilePath()).toBe("test-agent.md");
-      expect(agentsmdSubagent.getRelativeDirPath()).toBe(".agents/subagents");
+      expect(agentsmdSubagent.getRelativeDirPath()).toBe(".agents/agents");
     });
 
     it("should handle RulesyncSubagent with different file extensions", () => {
@@ -235,7 +246,7 @@ Body content`;
 
       const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         rulesyncSubagent,
         validate: true,
       }) as AgentsmdSubagent;
@@ -243,7 +254,7 @@ Body content`;
       expect(agentsmdSubagent.getRelativeFilePath()).toBe("complex-agent.txt");
     });
 
-    it("should handle empty name and description", () => {
+    it("should fill in the description Antigravity requires when it is empty", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -259,21 +270,241 @@ Body content`;
 
       const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
+        rulesyncSubagent,
+        validate: true,
+      }) as AgentsmdSubagent;
+
+      // `.agents/agents/` is shared with the native Antigravity targets, which
+      // refuse to load an agent without a description, so the same generated
+      // fallback applies here -- without the leading space an empty `name`
+      // would otherwise leave in it.
+      expect(agentsmdSubagent.getFrontmatter()).toEqual({
+        name: "",
+        description: "subagent",
+      });
+    });
+
+    it("should emit the same file the native Antigravity target writes to the shared path", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "shared-agent.md",
+        frontmatter: {
+          targets: ["*"],
+          name: "shared-agent",
+          description: "Shared agent description",
+          "antigravity-ide": { model: "flash" },
+          "antigravity-cli": { tools: ["read"], commandExecutionPolicy: "sandbox" },
+        },
+        body: "Shared agent body.",
+        validate: true,
+      });
+
+      const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".agents/agents",
+        rulesyncSubagent,
+        validate: true,
+      });
+      const antigravitySubagent = AntigravityCliSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".agents/agents",
+        rulesyncSubagent,
+        validate: true,
+      });
+
+      // Both targets write `.agents/agents/shared-agent.md`, so whichever runs
+      // last the file on disk has to be the same.
+      expect(agentsmdSubagent.getRelativeDirPath()).toBe(antigravitySubagent.getRelativeDirPath());
+      expect(agentsmdSubagent.getFileContent()).toBe(antigravitySubagent.getFileContent());
+      expect(agentsmdSubagent.getFileContent()).toContain("model: flash");
+      expect(agentsmdSubagent.getFileContent()).toContain("commandExecutionPolicy: sandbox");
+    });
+
+    it("should emit plain name/description frontmatter when no Antigravity section is authored", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "plain-agent.md",
+        frontmatter: {
+          targets: ["agentsmd"],
+          name: "plain-agent",
+          description: "Plain agent description",
+        },
+        body: "Plain agent body.",
+        validate: true,
+      });
+
+      const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".agents/agents",
+        rulesyncSubagent,
+        validate: true,
+      });
+
+      expect(agentsmdSubagent.getFileContent()).toBe(
+        [
+          "---",
+          "name: plain-agent",
+          "description: Plain agent description",
+          "---",
+          "Plain agent body.",
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("should read the shared Antigravity sections even for an agentsmd-only subagent", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "scoped-agent.md",
+        frontmatter: {
+          targets: ["agentsmd"],
+          name: "scoped-agent",
+          description: "Scoped agent description",
+          "antigravity-cli": { model: "pro" },
+        },
+        body: "Scoped agent body.",
+        validate: true,
+      });
+
+      const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".agents/agents",
+        rulesyncSubagent,
+        validate: true,
+      });
+
+      // The file is shared, so the block belongs to the path rather than to the
+      // target list the canonical subagent happens to name.
+      expect(agentsmdSubagent.getFileContent()).toContain("model: pro");
+    });
+
+    it("should reject an invalid Antigravity block instead of writing a reduced file", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "broken-agent.md",
+        frontmatter: {
+          targets: ["agentsmd"],
+          name: "broken-agent",
+          description: "Broken agent description",
+          "antigravity-cli": { tools: "not-an-array" },
+        },
+        body: "Broken agent body.",
+        validate: true,
+      });
+
+      // Same file, same diagnostics: dropping the block and writing a plain file
+      // would silently degrade the file the native targets own.
+      expect(() =>
+        AgentsmdSubagent.fromRulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: ".agents/agents",
+          rulesyncSubagent,
+          validate: true,
+        }),
+      ).toThrow("Invalid agentsmd subagent frontmatter");
+    });
+
+    it("should reject a scalar Antigravity section instead of spreading it into index keys", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "scalar-section.md",
+        frontmatter: {
+          targets: ["agentsmd"],
+          name: "scalar-section",
+          description: "Scalar section description",
+          "antigravity-cli": "abc" as never,
+        },
+        body: "Scalar section body.",
+        // `validate: true` on purpose: `antigravity-cli` is not a declared key
+        // of the loose canonical schema, so a hand-authored file carrying
+        // `antigravity-cli: abc` passes validation and reaches this guard.
+        validate: true,
+      });
+
+      // `Object.assign` spreads a string into `'0': a, '1': b, '2': c`, which a
+      // loose schema would carry straight into the generated file.
+      expect(() =>
+        AgentsmdSubagent.fromRulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: ".agents/agents",
+          rulesyncSubagent,
+          validate: true,
+        }),
+      ).toThrow("'antigravity-cli' must be a table of frontmatter keys");
+    });
+
+    it("should treat a valueless Antigravity section as unspecified rather than junk", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "null-section.md",
+        frontmatter: {
+          targets: ["agentsmd"],
+          name: "null-section",
+          description: "Null section description",
+          // A key written with no value (`antigravity-cli:`) parses to `null`.
+          // Every other target absorbs that; rejecting it here would break
+          // configurations that generated fine before the shared block existed.
+          // `parseFrontmatter` drops nullish keys, so this shape reaches the
+          // guard only when the frontmatter is built programmatically -- hence
+          // `validate: false` below.
+          "antigravity-cli": null as never,
+        },
+        body: "Null section body.",
+        validate: false,
+      });
+
+      const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".agents/agents",
         rulesyncSubagent,
         validate: true,
       }) as AgentsmdSubagent;
 
       expect(agentsmdSubagent.getFrontmatter()).toEqual({
-        name: "",
-        description: "",
+        name: "null-section",
+        description: "Null section description",
       });
     });
   });
 
   describe("fromFile", () => {
+    it("should preserve the bytes a native writer of the shared path produced", async () => {
+      const nativeContent = [
+        "---",
+        "name: native-agent",
+        "description: Written by an Antigravity target",
+        "model: pro",
+        "commandExecutionPolicy: sandbox",
+        "---",
+        "",
+        "Native agent body.",
+        "",
+      ].join("\n");
+      await writeFileContent(join(testDir, ".agents", "agents", "native-agent.md"), nativeContent);
+
+      const subagent = await AgentsmdSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "native-agent.md",
+        validate: true,
+      });
+
+      expect(subagent.getFileContent()).toBe(nativeContent);
+      expect(subagent.getFrontmatter()).toMatchObject({
+        name: "native-agent",
+        model: "pro",
+        commandExecutionPolicy: "sandbox",
+      });
+    });
+
     it("should load AgentsmdSubagent from file", async () => {
-      const subagentsDir = join(testDir, ".agents", "subagents");
+      const subagentsDir = join(testDir, ".agents", "agents");
       const filePath = join(subagentsDir, "test-file-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
@@ -296,7 +527,7 @@ Body content`;
     });
 
     it("should handle file path with subdirectories", async () => {
-      const subagentsDir = join(testDir, ".agents", "subagents", "subdir");
+      const subagentsDir = join(testDir, ".agents", "agents", "subdir");
       const filePath = join(subagentsDir, "nested-agent.md");
 
       await writeFileContent(filePath, validMarkdownContent);
@@ -321,7 +552,7 @@ Body content`;
     });
 
     it("should throw error when file contains invalid frontmatter", async () => {
-      const subagentsDir = join(testDir, ".agents", "subagents");
+      const subagentsDir = join(testDir, ".agents", "agents");
       const filePath = join(subagentsDir, "invalid-agent.md");
 
       await writeFileContent(filePath, invalidMarkdownContent);
@@ -336,7 +567,7 @@ Body content`;
     });
 
     it("should handle file without frontmatter", async () => {
-      const subagentsDir = join(testDir, ".agents", "subagents");
+      const subagentsDir = join(testDir, ".agents", "agents");
       const filePath = join(subagentsDir, "no-frontmatter.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
@@ -355,7 +586,7 @@ Body content`;
     it("should return success for valid frontmatter", () => {
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "valid-agent.md",
         frontmatter: {
           name: "Valid Agent",
@@ -373,7 +604,7 @@ Body content`;
     it("should handle frontmatter with additional properties", () => {
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "agent-with-extras.md",
         frontmatter: {
           name: "Agent",
@@ -395,7 +626,7 @@ Body content`;
     it("should handle empty body content", () => {
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "empty-body.md",
         frontmatter: {
           name: "Empty Body Agent",
@@ -418,7 +649,7 @@ Body content`;
 
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "special-char.md",
         frontmatter: {
           name: "Special Agent",
@@ -439,7 +670,7 @@ Body content`;
 
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "long-content.md",
         frontmatter: {
           name: "Long Agent",
@@ -456,7 +687,7 @@ Body content`;
     it("should handle multi-line name and description", () => {
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "multiline-fields.md",
         frontmatter: {
           name: "Multi-line\nAgent Name",
@@ -477,7 +708,7 @@ Body content`;
 
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "windows-lines.md",
         frontmatter: {
           name: "Windows Agent",
@@ -562,7 +793,7 @@ Body content`;
     it("should properly inherit from SimulatedSubagent", () => {
       const subagent = new AgentsmdSubagent({
         outputRoot: testDir,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",
@@ -574,7 +805,7 @@ Body content`;
 
       // Check that it's an instance of parent classes
       expect(subagent).toBeInstanceOf(AgentsmdSubagent);
-      expect(subagent.getRelativeDirPath()).toBe(".agents/subagents");
+      expect(subagent.getRelativeDirPath()).toBe(".agents/agents");
       expect(subagent.getRelativeFilePath()).toBe("test.md");
     });
 
@@ -582,7 +813,7 @@ Body content`;
       const customOutputRoot = "/custom/base/dir";
       const subagent = new AgentsmdSubagent({
         outputRoot: customOutputRoot,
-        relativeDirPath: ".agents/subagents",
+        relativeDirPath: ".agents/agents",
         relativeFilePath: "test.md",
         frontmatter: {
           name: "Test",
