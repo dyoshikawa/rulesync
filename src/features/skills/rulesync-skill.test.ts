@@ -258,6 +258,44 @@ describe("RulesyncSkill", () => {
       expect(result.error).toBeDefined();
       expect(result.error?.message).toContain("Invalid frontmatter");
     });
+
+    it.each([
+      ["current directory", "."],
+      ["parent directory", ".."],
+      ["empty", ""],
+      ["POSIX separator", "nested/skill"],
+      ["Windows separator", "nested\\skill"],
+      ["trailing dot", "skill."],
+      ["trailing space", "skill "],
+    ])("should reject a %s name, naming the skill's path", (_, name) => {
+      // Targets that use `name` verbatim as a directory name would otherwise
+      // write outside their own skill directory, or claim a path that differs
+      // from the directory Windows actually creates.
+      const skill = new RulesyncSkill({
+        dirName: "pinned",
+        frontmatter: { name, description: "Description" } as RulesyncSkillFrontmatterInput,
+        body: "Test body",
+        otherFiles: [],
+        validate: false,
+      });
+
+      const result = skill.validate();
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain("Invalid frontmatter");
+      expect(result.error?.message).toContain("pinned");
+    });
+
+    it("should accept a name that merely starts with a dot", () => {
+      const skill = new RulesyncSkill({
+        dirName: "hidden",
+        frontmatter: { name: ".hidden-skill", description: "Description" },
+        body: "Test body",
+        otherFiles: [],
+        validate: false,
+      });
+
+      expect(skill.validate().success).toBe(true);
+    });
   });
 
   describe("getSettablePaths", () => {

@@ -10,8 +10,37 @@ import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 
+/**
+ * Several targets use a skill's `name` verbatim as the directory name they write
+ * (`roo`, `rovodev`, `junie`, `cline`, `takt`), and `rulesync fetch` can pull a
+ * skill from a third-party repository. `AiDir` rejects the unsafe names as a last
+ * resort, but it reports only the name; checking here means the error names the
+ * offending skill's path instead.
+ *
+ * Rejected: names that `path.join` normalizes away (`"."`, `".."`, `""`), names
+ * carrying a path separator, and names whose last character Windows strips from
+ * a path component — a trailing dot or space would make the directory on disk
+ * differ from the path the run claims, which turns it into an orphan.
+ */
+function isUnsafeSkillDirName(name: string): boolean {
+  return (
+    name === "" ||
+    name === "." ||
+    name === ".." ||
+    name.includes("/") ||
+    name.includes("\\") ||
+    name.endsWith(".") ||
+    name.endsWith(" ")
+  );
+}
+
 const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
-  name: z.string(),
+  name: z.string().check(
+    z.refine((name) => !isUnsafeSkillDirName(name), {
+      message:
+        'name is used as a directory name: it may not be empty, "." or "..", contain a path separator, or end with a dot or a space',
+    }),
+  ),
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
   // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli, factorydroid).
