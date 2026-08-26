@@ -1315,6 +1315,13 @@ Example:
 }
 ```
 
+**Rejected pattern keys.** Two kinds of pattern are refused when the source file is read, rather than being carried into generated configs:
+
+- A **blank pattern** (empty, or only whitespace). It is a prefix of every command and a substring of every path, so a tool that honors it grants or denies everything, while a tool that filters it — Roo Code keeps only entries passing `cmd.trim().length > 0` — ignores it entirely. Rather than let each target decide, Rulesync rejects it on the source file.
+- A pattern named `__proto__`, `constructor`, or `prototype`. Rulesync strips these from every source document it parses, because assigning them would reach the prototype chain instead of the object, so such an entry could never reach a generated file. Rulesync now names the offending path instead of dropping it in silence.
+
+Importing is not affected by the first rule: a blank pattern found in a tool's own config is discarded during `rulesync import`, since the tool did not honor it either and keeping it would write a source file the next `generate` refuses.
+
 ### Tool-scoped permission blocks (`{toolname}.permission`)
 
 The shared `permission` block applies to every targeted tool. To scope rules to a single tool, add a tool-scoped `{toolname}` block with a `permission` record of the same shape — mirroring `{toolname}.hooks` in `.rulesync/hooks.jsonc` and `{toolname}.mcpServers` in `.rulesync/mcp.jsonc`:

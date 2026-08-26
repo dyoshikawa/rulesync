@@ -14,6 +14,7 @@ import {
   RulesyncPermissions,
   type RulesyncPermissionsFromFileParams,
   type RulesyncPermissionsParams,
+  withoutBlankPermissionPatterns,
 } from "./rulesync-permissions.js";
 
 const makeInstance = (json: Record<string, unknown>) =>
@@ -182,6 +183,87 @@ describe("RulesyncPermissions", () => {
   });
 
   describe("validate", () => {
+    // A pattern named after a prototype member is removed by the parser before
+    // the schema can see it, so it used to produce neither an error nor an
+    // entry in any generated file. These pin the report that replaced that
+    // silence.
+    it("should reject a permission pattern named after a prototype member", () => {
+      const instance = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        // Written as raw text: a `__proto__` key in an object literal sets the
+        // prototype instead of becoming a property, so it would never survive
+        // JSON.stringify to reach the parser under test.
+        fileContent: '{"permission": {"bash": {"__proto__": "deny", "git *": "allow"}}}',
+        validate: false,
+      });
+
+      const result = instance.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain("permission.bash.__proto__");
+      expect(result.error?.message).toContain(
+        join(RULESYNC_RELATIVE_DIR_PATH, RULESYNC_PERMISSIONS_FILE_NAME),
+      );
+      expect(result.error?.message).toContain("rename them");
+    });
+
+    it("should list every dropped key rather than only the first", () => {
+      const instance = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: '{"permission": {"bash": {"__proto__": "deny", "constructor": "allow"}}}',
+        validate: false,
+      });
+
+      const result = instance.validate();
+
+      expect(result.error?.message).toContain("permission.bash.__proto__");
+      expect(result.error?.message).toContain("permission.bash.constructor");
+    });
+
+    it("should throw from the constructor when validation is enabled", () => {
+      expect(
+        () =>
+          new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent: '{"permission": {"bash": {"__proto__": "deny"}}}',
+            validate: true,
+          }),
+      ).toThrow("permission.bash.__proto__");
+    });
+
+    it.each([
+      ["an empty pattern", ""],
+      ["a whitespace-only pattern", "   "],
+    ])("should reject %s", (_label, pattern) => {
+      const instance = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { bash: { [pattern]: "allow" } } }),
+        validate: false,
+      });
+
+      const result = instance.validate();
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject a blank pattern in a tool-scoped permission block", () => {
+      const instance = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {},
+          claudecode: { permission: { bash: { "": "allow" } } },
+        }),
+        validate: false,
+      });
+
+      expect(instance.validate().success).toBe(false);
+    });
+
     it("should return successful validation result for valid config", () => {
       const instance = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -570,6 +652,44 @@ describe("RulesyncPermissions", () => {
       };
 
       expect(params).toBeDefined();
+    });
+  });
+
+  describe("withoutBlankPermissionPatterns", () => {
+    it("should drop a blank pattern so the imported file passes validation", () => {
+      const fileContent = withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({
+          permission: { bash: { "": "allow", "git *": "allow" } },
+        }),
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({ permission: { bash: { "git *": "allow" } } });
+      expect(
+        new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent,
+          validate: false,
+        }).validate().success,
+      ).toBe(true);
+    });
+
+    it("should return the content unchanged when no pattern is blank", () => {
+      const fileContent = JSON.stringify({ permission: { bash: { "git *": "allow" } } });
+
+      expect(withoutBlankPermissionPatterns({ fileContent })).toBe(fileContent);
+    });
+
+    it("should return the content unchanged when there is no permission block", () => {
+      const fileContent = JSON.stringify({ claudecode: { defaultMode: "plan" } });
+
+      expect(withoutBlankPermissionPatterns({ fileContent })).toBe(fileContent);
+    });
+
+    it("should leave a category whose value is not a rules map alone", () => {
+      const fileContent = JSON.stringify({ permission: { bash: "allow" } });
+
+      expect(withoutBlankPermissionPatterns({ fileContent })).toBe(fileContent);
     });
   });
 });

@@ -13,7 +13,7 @@ import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
-import { parseJsonc } from "../../utils/jsonc.js";
+import { parseJsonc, parseJsoncReportingDroppedKeys } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   getRulesyncSourceCandidates,
@@ -32,13 +32,24 @@ export type RulesyncPermissionsSettablePaths = RulesyncSourceSettablePaths;
 
 export class RulesyncPermissions extends RulesyncFile {
   private readonly json: PermissionsConfig;
+  /**
+   * Prototype-pollution keys the parser removed. They are dropped before the
+   * schema ever sees them, so without this record a pattern such as
+   * `"__proto__": "deny"` would produce neither an error nor an entry in any
+   * generated file — the one failure mode a permissions source must not have.
+   */
+  private readonly droppedKeys: readonly string[];
 
   constructor(params: RulesyncPermissionsParams) {
     super({ ...params });
 
     // Sources may be authored as JSONC (`permissions.jsonc`); plain JSON is
     // valid JSONC, so both variants parse through the same strict parser.
-    this.json = parseJsonc(this.fileContent) as PermissionsConfig;
+    const { value, droppedKeys } = parseJsoncReportingDroppedKeys({
+      content: this.fileContent,
+    });
+    this.json = value as PermissionsConfig;
+    this.droppedKeys = droppedKeys;
     if (params.validate) {
       const result = this.validate();
       if (!result.success) {
@@ -63,6 +74,16 @@ export class RulesyncPermissions extends RulesyncFile {
   }
 
   validate(): ValidationResult {
+    if (this.droppedKeys.length > 0) {
+      return {
+        success: false,
+        error: new Error(
+          `${join(this.relativeDirPath, this.relativeFilePath)} uses ${this.droppedKeys.join(", ")} as ${this.droppedKeys.length === 1 ? "a key" : "keys"}. ` +
+            `Rulesync removes __proto__, constructor and prototype from every source document it parses, because assigning them would reach the prototype chain instead of the object. ` +
+            `They are therefore never written to any tool's config — rename them rather than leaving entries that silently do nothing.`,
+        ),
+      };
+    }
     const result = RulesyncPermissionsFileSchema.safeParse(this.json);
     if (!result.success) {
       return { success: false, error: result.error };
@@ -169,6 +190,52 @@ export class RulesyncPermissions extends RulesyncFile {
       fileContent: JSON.stringify(merged, null, 2),
     });
   }
+}
+
+/**
+ * Drop blank permission patterns from a canonical document produced by import.
+ *
+ * The canonical schema rejects a blank pattern outright, and every tool that
+ * has one in its own config already ignores it (Roo Code, for instance, keeps
+ * only entries passing `cmd.trim().length > 0`). Reproducing one in
+ * `.rulesync/permissions.jsonc` would therefore write a source file that the
+ * very next `generate` refuses, over a value the tool never honored — so
+ * import removes it instead.
+ *
+ * Only the shared `permission` block is walked. Tool-scoped
+ * `{toolname}.permission` blocks are authored by hand rather than produced by
+ * import, and several of them (OpenCode, Kilo, Vibe) hold tool-native shapes
+ * this filter has no business reaching into.
+ */
+export function withoutBlankPermissionPatterns({ fileContent }: { fileContent: string }): string {
+  const parsed: unknown = parseJsonc(fileContent);
+  if (!isRecord(parsed) || !isRecord(parsed.permission)) {
+    return fileContent;
+  }
+
+  let removed = false;
+  const permission: Record<string, unknown> = {};
+  for (const [category, rules] of Object.entries(parsed.permission)) {
+    if (!isRecord(rules)) {
+      permission[category] = rules;
+      continue;
+    }
+    const kept = Object.fromEntries(
+      Object.entries(rules).filter(([pattern]) => {
+        if (pattern.trim().length > 0) {
+          return true;
+        }
+        removed = true;
+        return false;
+      }),
+    );
+    permission[category] = kept;
+  }
+
+  if (!removed) {
+    return fileContent;
+  }
+  return JSON.stringify({ ...parsed, permission }, null, 2);
 }
 
 /**

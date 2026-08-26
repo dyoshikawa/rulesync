@@ -10,6 +10,22 @@ export const PermissionActionSchema = z.enum(["allow", "ask", "deny"]);
 export type PermissionAction = z.infer<typeof PermissionActionSchema>;
 
 /**
+ * A single permission pattern key.
+ *
+ * A blank pattern (empty, or only whitespace) has no defensible meaning: it is
+ * a prefix of every command and a substring of every path, so a target that
+ * honors it grants or denies everything, while a target that filters it — Roo
+ * Code drops entries failing `cmd.trim().length > 0` before the auto-approval
+ * decision reads the list — silently ignores it. Rather than let each target
+ * decide, reject it here so the mistake surfaces once, on the source file.
+ */
+const PermissionPatternSchema = z.string().check(
+  z.refine((pattern) => pattern.trim().length > 0, {
+    message: "Permission pattern must not be blank",
+  }),
+);
+
+/**
  * Permission rules for a single tool category.
  * Keys are glob patterns matching tool input (commands, file paths, etc.).
  * Values are the permission action to apply when the pattern matches.
@@ -17,7 +33,7 @@ export type PermissionAction = z.infer<typeof PermissionActionSchema>;
  * @example
  * { "*": "ask", "git *": "allow", "rm *": "deny" }
  */
-const PermissionRulesSchema = z.record(z.string(), PermissionActionSchema);
+const PermissionRulesSchema = z.record(PermissionPatternSchema, PermissionActionSchema);
 
 /**
  * Tool-scoped canonical `permission` block: the same shape as the shared

@@ -24,7 +24,7 @@ import {
   parseSharedConfig,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
-import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { RulesyncPermissions, withoutBlankPermissionPatterns } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -439,16 +439,18 @@ export class KimiCodePermissions extends ToolPermissions {
       }),
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify(
-        {
-          permission,
-          ...(Object.keys(toolOverride).length > 0 && {
-            "kimi-code": toolOverride,
-          }),
-        },
-        null,
-        2,
-      ),
+      fileContent: withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify(
+          {
+            permission,
+            ...(Object.keys(toolOverride).length > 0 && {
+              "kimi-code": toolOverride,
+            }),
+          },
+          null,
+          2,
+        ),
+      }),
     });
   }
 

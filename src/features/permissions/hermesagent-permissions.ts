@@ -29,7 +29,7 @@ import {
   parseSharedConfig,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
-import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { RulesyncPermissions, withoutBlankPermissionPatterns } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -295,7 +295,9 @@ export class HermesagentPermissions extends ToolPermissions {
       }),
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify(imported, null, 2),
+      fileContent: withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify(imported, null, 2),
+      }),
     });
   }
 
