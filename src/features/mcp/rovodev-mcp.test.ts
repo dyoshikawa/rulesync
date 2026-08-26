@@ -930,6 +930,13 @@ describe("RovodevMcp", () => {
       ).toBe(true);
     });
 
+    // `$HOME/.rovodev/mcp_config.json` is deliberately absent from this list,
+    // and its removal is a decision rather than a regression: the environment
+    // variable spellings are no longer recognized as naming a known file at
+    // all (see the `$HOME` test below), so this one falls to the generic
+    // "aimed somewhere else" warning. It still warns — only the "this is
+    // Atlassian's other default, and here is what it holds" context is lost,
+    // which is not worth a sixth case in an already six-way decision.
     it.each([
       ["the tilde spelling", "~/.rovodev/mcp_config.json"],
       ["an already-expanded absolute path", "<HOME>/.rovodev/mcp_config.json"],
