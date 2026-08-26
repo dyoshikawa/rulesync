@@ -12,7 +12,7 @@ import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 
 /**
  * Several targets use a skill's `name` verbatim as the directory name they write
- * (`roo`, `rovodev`, `junie`, `cline`, `takt`), and `rulesync fetch` can pull a
+ * (`roo`, `rovodev`, `junie`, `cline`), and `rulesync fetch` can pull a
  * skill from a third-party repository. `AiDir` also rejects the names that
  * `path.join` normalizes away, but it reports only the name, and it does not
  * reject the Windows-stripped spellings below; checking here catches the whole
