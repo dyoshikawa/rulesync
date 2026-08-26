@@ -118,6 +118,15 @@ The `generate` command reads source files from one or more rulesync source trees
 | `--delete`                  | Delete existing generated files before writing                                                                                                                                                                                                                                                                                                                                            | From `rulesync.jsonc` |
 | `--watch, -w`               | Keep running and regenerate whenever rulesync source files change                                                                                                                                                                                                                                                                                                                         | `false`               |
 
+> **Note on `--delete` and shared output directories:** Several targets write
+> into one directory on purpose — `.agents/agents/`, `.agents/skills/`, and the
+> rest of the cross-vendor roots. The orphan sweep runs only after every target
+> and every feature in the run has written, and it skips any path the run itself
+> produced, so one target never deletes a sibling's freshly written file and an
+> already-synchronized tree stays a no-op under `--check`. What is swept is
+> unchanged: a file in a generated directory that no `.rulesync/` source
+> produces.
+
 ### Examples
 
 ```bash

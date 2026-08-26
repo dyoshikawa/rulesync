@@ -728,6 +728,17 @@ export abstract class AiDir {
       throw new Error(`Directory name cannot contain path separators: dirName="${dirName}"`);
     }
 
+    // Security check: reject names that `path.join` normalizes away. `"."` collapses
+    // the directory onto its parent root and `".."` onto that root's parent, neither
+    // of which trips the traversal guard in `getDirPath()` because both stay inside
+    // `outputRoot`. Several tools take this name straight from a skill's frontmatter
+    // `name`, so it is attacker-influenced input, and a collapsed directory both
+    // writes `SKILL.md` outside its own directory and claims an over-broad tree
+    // during the `--delete` orphan sweep.
+    if (dirName === "" || dirName === "." || dirName === "..") {
+      throw new Error(`Directory name cannot be empty, ".", or "..": dirName="${dirName}"`);
+    }
+
     this.outputRoot = outputRoot;
     this.relativeDirPath = relativeDirPath;
     this.dirName = dirName;
@@ -750,6 +761,24 @@ export abstract class AiDir {
 
   getDirName(): string {
     return this.dirName;
+  }
+
+  /**
+   * True when {@link getDirPath} really is this instance's own directory, so
+   * everything under it belongs to this instance.
+   *
+   * The `--delete` orphan sweep uses this to decide whether it may claim the
+   * whole tree. Subclasses that flatten into a shared root instead of nesting
+   * under `dirName` (`TaktSkill`) return false here, because claiming that root
+   * as a tree would exempt every sibling in it from the sweep.
+   *
+   * The comparison is structural rather than a name match on the last segment:
+   * a takt skill named after its own facet root (`.takt/facets/knowledge` and a
+   * skill called `knowledge`) ends on the same segment without ever nesting
+   * inside it.
+   */
+  ownsDirTree(): boolean {
+    return this.getDirPath() === path.join(this.outputRoot, this.relativeDirPath, this.dirName);
   }
 
   getDirPath(): string {

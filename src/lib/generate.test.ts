@@ -409,8 +409,9 @@ describe("generate", () => {
 
       await generate({ logger, config: mockConfig as never });
 
-      // removeOrphanAiFiles is called with both lists, the actual filtering happens inside
-      expect(mockProcessor.removeOrphanAiFiles).toHaveBeenCalledWith(existingFiles, generatedFiles);
+      // The run-scoped sweep plan already claimed this path when it was written, so
+      // the existing file never reaches the processor's own orphan comparison.
+      expect(mockProcessor.removeOrphanAiFiles).toHaveBeenCalledWith([], generatedFiles);
       // Verify writeAiFiles was called first (files are generated before orphan removal)
       const writeCall = mockProcessor.writeAiFiles.mock.invocationCallOrder[0] ?? 0;
       const removeCall = mockProcessor.removeOrphanAiFiles.mock.invocationCallOrder[0] ?? 0;
@@ -616,6 +617,109 @@ describe("generate", () => {
     });
   });
 
+  describe("shared output directories", () => {
+    /**
+     * A fake `.agents/agents/` that several targets write into, so the sweep is
+     * exercised against state the *run* produced rather than against each
+     * processor's own expectation of it.
+     */
+    const mountSharedDirectory = (params: { initialFilePaths: string[] }) => {
+      const disk = new Set(params.initialFilePaths);
+      const createProcessorForTarget = ({ toolTarget }: { toolTarget: string }) => {
+        const generated = [createMockAiFile(`/repo/.agents/agents/${toolTarget}.md`, "body")];
+        return {
+          loadToolFiles: vi
+            .fn()
+            .mockImplementation(async () => [...disk].map((p) => createMockAiFile(p, "body"))),
+          removeAiFiles: vi.fn().mockResolvedValue(undefined),
+          removeOrphanAiFiles: vi
+            .fn()
+            .mockImplementation(
+              async (existing: ReturnType<typeof createMockAiFile>[], keep: typeof generated) => {
+                const kept = new Set(keep.map((f) => f.getFilePath()));
+                const orphans = existing.filter((f) => !kept.has(f.getFilePath()));
+                for (const orphan of orphans) disk.delete(orphan.getFilePath());
+                return orphans.length;
+              },
+            ),
+          loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generated),
+          // Counts only what actually changed on the fake disk, so an
+          // already-synchronized tree reports no diff -- exactly what
+          // `generate --check` keys on.
+          writeAiFiles: vi.fn().mockImplementation(async () => {
+            const written = generated.filter((file) => !disk.has(file.getFilePath()));
+            for (const file of written) disk.add(file.getFilePath());
+            return { count: written.length, paths: [] };
+          }),
+        };
+      };
+
+      mockConfig.getFeatures.mockReturnValue(["subagents"]);
+      mockConfig.getDelete.mockReturnValue(true);
+      mockConfig.getTargets.mockReturnValue(["antigravity-cli", "antigravity-ide"]);
+      mockConfig.getConfigFileTargets.mockReturnValue(["antigravity-cli", "antigravity-ide"]);
+      vi.mocked(SubagentsProcessor.getToolTargets).mockReturnValue([
+        "antigravity-cli",
+        "antigravity-ide",
+      ]);
+      vi.mocked(SubagentsProcessor).mockImplementation(function ({
+        toolTarget,
+      }: {
+        toolTarget: string;
+      }) {
+        return createProcessorForTarget({ toolTarget }) as unknown as SubagentsProcessor;
+      } as never);
+
+      return disk;
+    };
+
+    it("should keep a file a sibling target wrote into the same directory", async () => {
+      const disk = mountSharedDirectory({ initialFilePaths: [] });
+
+      await generate({ logger, config: mockConfig as never });
+
+      // Without a run-scoped claim on the written paths, whichever target swept
+      // last would delete the other's file and only one would survive.
+      expect([...disk].toSorted()).toEqual([
+        "/repo/.agents/agents/antigravity-cli.md",
+        "/repo/.agents/agents/antigravity-ide.md",
+      ]);
+    });
+
+    it("should still delete a genuine orphan from the shared directory", async () => {
+      const disk = mountSharedDirectory({
+        initialFilePaths: ["/repo/.agents/agents/left-over.md"],
+      });
+
+      await generate({ logger, config: mockConfig as never });
+
+      expect(disk.has("/repo/.agents/agents/left-over.md")).toBe(false);
+    });
+
+    it("should report no diff for an already-synchronized shared directory", async () => {
+      // The first target's sweep would otherwise run before the second target
+      // has written, delete its file, and have it immediately rewritten -- a
+      // delete/rewrite churn that makes `generate --check` report a permanently
+      // out-of-date tree. Holding every sweep back until the last step has
+      // written is what keeps this stable.
+      const disk = mountSharedDirectory({
+        initialFilePaths: [
+          "/repo/.agents/agents/antigravity-cli.md",
+          "/repo/.agents/agents/antigravity-ide.md",
+        ],
+      });
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect([...disk].toSorted()).toEqual([
+        "/repo/.agents/agents/antigravity-cli.md",
+        "/repo/.agents/agents/antigravity-ide.md",
+      ]);
+      expect(result.hasDiff).toBe(false);
+    });
+  });
+
   describe("skills feature", () => {
     it("should generate skills when feature is enabled", async () => {
       mockConfig.getFeatures.mockReturnValue(["skills"]);
@@ -624,7 +728,15 @@ describe("generate", () => {
         loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
         removeAiDirs: vi.fn().mockResolvedValue(undefined),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
-        convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([{ dir: "skill" }]),
+        convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([
+          {
+            dir: "skill",
+            getDirPath: () => "/path/to/skill",
+            ownsDirTree: () => true,
+            getMainFile: () => undefined,
+            getOtherFiles: () => [],
+          },
+        ]),
         writeAiDirs: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
       };
       vi.mocked(SkillsProcessor).mockImplementation(function () {
@@ -684,8 +796,24 @@ describe("generate", () => {
       mockConfig.getFeatures.mockReturnValue(["skills"]);
       mockConfig.getDelete.mockReturnValue(true);
 
-      const existingDirs = [{ dir: "existing-skill", getDirPath: () => "/path/to/existing" }];
-      const generatedDirs = [{ dir: "generated-skill", getDirPath: () => "/path/to/generated" }];
+      const existingDirs = [
+        {
+          dir: "existing-skill",
+          getDirPath: () => "/path/to/existing",
+          ownsDirTree: () => true,
+          getMainFile: () => undefined,
+          getOtherFiles: () => [],
+        },
+      ];
+      const generatedDirs = [
+        {
+          dir: "generated-skill",
+          getDirPath: () => "/path/to/generated",
+          ownsDirTree: () => true,
+          getMainFile: () => undefined,
+          getOtherFiles: () => [],
+        },
+      ];
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue(existingDirs),
         removeOrphanAiDirs: vi.fn().mockResolvedValue(0),
