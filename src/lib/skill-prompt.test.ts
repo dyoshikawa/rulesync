@@ -15,8 +15,8 @@ vi.mock("@inquirer/checkbox", () => ({
 }));
 
 describe("promptSkillSelection", () => {
-  it("should check all skills when no skills are preselected", async () => {
-    checkboxMock.mockResolvedValue(["skill-a", "skill-b"]);
+  it("should check no skills when none are preselected", async () => {
+    checkboxMock.mockResolvedValue([]);
 
     const selected = await promptSkillSelection({
       availableSkills: ["skill-a", "skill-b"],
@@ -24,13 +24,14 @@ describe("promptSkillSelection", () => {
     });
 
     expect(checkboxMock).toHaveBeenCalledWith({
-      message: "Select skills to fetch",
+      message: "Select skills to fetch (press <a> to select all)",
       choices: [
-        { name: "skill-a", value: "skill-a", checked: true },
-        { name: "skill-b", value: "skill-b", checked: true },
+        { name: "skill-a", value: "skill-a", checked: false },
+        { name: "skill-b", value: "skill-b", checked: false },
       ],
+      shortcuts: { all: "a", invert: "i" },
     });
-    expect(selected).toEqual(["skill-a", "skill-b"]);
+    expect(selected).toEqual([]);
   });
 
   it("should check only preselected skills when provided", async () => {
@@ -42,13 +43,28 @@ describe("promptSkillSelection", () => {
     });
 
     expect(checkboxMock).toHaveBeenCalledWith({
-      message: "Select skills to fetch",
+      message: "Select skills to fetch (press <a> to select all)",
       choices: [
         { name: "skill-a", value: "skill-a", checked: false },
         { name: "skill-b", value: "skill-b", checked: true },
       ],
+      shortcuts: { all: "a", invert: "i" },
     });
     expect(selected).toEqual(["skill-b"]);
+  });
+
+  it("should offer a select-all shortcut so nothing-checked is not a dead end", async () => {
+    checkboxMock.mockResolvedValue(["skill-a", "skill-b"]);
+
+    await promptSkillSelection({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+    });
+
+    const call = checkboxMock.mock.calls[0]?.[0];
+    expect(call.shortcuts.all).toBe("a");
+    expect(call.shortcuts.invert).toBe("i");
+    expect(call.message).toContain("<a> to select all");
   });
 
   it("should convert ExitPromptError (Ctrl+C) into SkillSelectionCancelledError", async () => {

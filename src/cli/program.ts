@@ -149,7 +149,7 @@ export function createProgram(): Command {
     )
     .option(
       "-i, --interactive",
-      "Interactively select which skills to fetch via a checkbox prompt (requires the skills feature)",
+      "Interactively select which skills to fetch via a checkbox prompt; nothing is selected initially, press <a> to select all (requires the skills feature)",
     )
     .option("--token <token>", "Git provider token for private repositories")
     .option("-V, --verbose", "Verbose output")

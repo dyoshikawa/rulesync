@@ -338,6 +338,8 @@ rulesync fetch anthropics/skills
 rulesync fetch anthropics/skills --skills pdf,docx
 
 # Interactively select which skills to fetch (checkbox prompt)
+# Nothing is checked when the prompt opens: press <space> to select the
+# highlighted skill, <a> to select all, <i> to invert, and <enter> to confirm.
 rulesync fetch anthropics/skills --interactive
 
 # Interactively select skills with some pre-checked
