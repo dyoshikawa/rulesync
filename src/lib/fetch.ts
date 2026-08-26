@@ -424,28 +424,32 @@ async function applySkillSelection(params: {
  */
 function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, string>): string {
   const displays = [...droppedUnsafeNames.values()];
-  const quoted = displays
-    .filter((display) => display !== "")
+  // Deduplicated, because two raw names can strip down to the same text and
+  // listing it twice reads as a rendering bug. The count above stays keyed on
+  // the raw names, so it still says how many directories were dropped.
+  const shown = [...new Set(displays.filter((display) => display !== ""))]
     .toSorted()
-    // Quoted by the serializer rather than by hand: a stripped name is still
-    // remote text, and one containing `", "` would otherwise forge a separator
-    // and make a single skipped directory read as two.
-    .map((display) => JSON.stringify(display));
+    .map((display) => JSON.stringify(display))
+    .join(", ");
   const unprintable = displays.filter((display) => display === "").length;
-  const described = [
-    ...(quoted.length > 0 ? [quoted.join(", ")] : []),
-    ...(unprintable > 0 ? [`${unprintable} with nothing left once they are removed`] : []),
-  ].join(", plus ");
 
-  const subject =
-    droppedUnsafeNames.size === 1
-      ? "one skill directory whose name contains"
-      : `${droppedUnsafeNames.size} skill directories whose names contain`;
+  const plural = droppedUnsafeNames.size !== 1;
+  const lead =
+    `Skipping ${plural ? `${droppedUnsafeNames.size} skill directories whose names contain` : "one skill directory whose name contains"} ` +
+    `control characters. Such a name cannot be listed truthfully, so it is never offered for ` +
+    `selection.`;
+
+  if (shown === "") {
+    return (
+      `${lead} Nothing is left of ${plural ? "those names" : "the name"} once the control ` +
+      `characters are removed, so there is nothing to show here.`
+    );
+  }
 
   return (
-    `Skipping ${subject} control characters. Such a name cannot be listed truthfully, so it ` +
-    `is never offered for selection. Shown here with the control characters removed, which is ` +
-    `why a name may look like one you did select: ${described}.`
+    `${lead} Shown here with the control characters removed, which is why a name may look ` +
+    `like one you did select: ${shown}` +
+    `${unprintable > 0 ? `, plus ${unprintable} with nothing left once they are removed` : ""}.`
   );
 }
 

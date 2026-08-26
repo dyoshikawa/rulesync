@@ -1432,12 +1432,13 @@ describe("fetchFiles with skill selection", () => {
       preselectedSkills: [],
     });
     expect(summary.files).toEqual([]);
-    // Nothing is left of the name to print, so it is counted instead.
+    // Nothing is left of the name to print, so the warning says so rather than
+    // trailing off after a "shown here" that shows nothing.
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("Skipping one skill directory whose name contains control"),
     );
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("1 with nothing left once they are removed"),
+      expect.stringContaining("Nothing is left of the name once the control characters"),
     );
   });
 
@@ -1536,7 +1537,7 @@ describe("fetchFiles with skill selection", () => {
       expect.stringContaining("Skipping 2 skill directories whose names contain control"),
     );
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("2 with nothing left once they are removed"),
+      expect.stringContaining("Nothing is left of those names once the control characters"),
     );
   });
 
