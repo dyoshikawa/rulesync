@@ -40,6 +40,11 @@ function asStringArray(value: unknown): string[] {
   return value.filter((entry): entry is string => typeof entry === "string");
 }
 
+export type RooPermissionsParams = AiFileParams & {
+  /** See {@link RooPermissions.shouldSkipCreationWhenPayloadEmpty}. */
+  ownsCommandKeys?: boolean | undefined;
+};
+
 /**
  * Permissions generator for Roo Code, and the shared implementation for its
  * continuation fork (see {@link file://./zoocode-permissions.ts}).
@@ -86,11 +91,36 @@ export class RooPermissions extends ToolPermissions {
     return "Roo Code";
   }
 
-  constructor(params: AiFileParams) {
+  /**
+   * Whether this instance was produced from a canonical config that states the
+   * `bash` category, i.e. one where rulesync owns the two command keys. Only
+   * such an instance may create the settings file out of nothing; see
+   * {@link shouldSkipCreationWhenPayloadEmpty}.
+   */
+  private readonly ownsCommandKeys: boolean;
+
+  constructor({ ownsCommandKeys = false, ...params }: RooPermissionsParams) {
     super({
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
+    this.ownsCommandKeys = ownsCommandKeys;
+  }
+
+  /**
+   * An empty allow list is not an empty payload here — `[]` is precisely what
+   * overrides the contributed `["git log", "git diff", "git show"]` default, so
+   * a canonical config whose `bash` category grants nothing has to materialize
+   * the file even when it did not exist. Skipping creation would leave those
+   * three commands auto-approved and make the outcome depend on whether the
+   * workspace happened to have a `.vscode/settings.json` already.
+   *
+   * When the category is not stated rulesync owns neither key, the patch is
+   * `{}`, and the shared default applies again: no `.vscode/settings.json` is
+   * conjured for a user who never asked for one.
+   */
+  override shouldSkipCreationWhenPayloadEmpty(): boolean {
+    return this.ownsCommandKeys ? false : super.shouldSkipCreationWhenPayloadEmpty();
   }
 
   /**
@@ -141,9 +171,9 @@ export class RooPermissions extends ToolPermissions {
     // A canonical config that states no `bash` category leaves both keys
     // exactly as the user left them — adopting rulesync for other tools must
     // not wipe hand-authored command lists. Once the category IS stated,
-    // rulesync owns both keys and writes both, empty lists included; see
-    // `buildVscodeCommandLists` for why an empty list is written rather than
-    // retracted.
+    // rulesync owns both keys: the allow list is always written, `[]` included,
+    // while an empty deny list retracts its key (a `undefined` patch value).
+    // See `buildVscodeCommandLists` for why the two differ.
     const patch: Record<string, unknown> = {};
     if (rules !== undefined) {
       const { allowed, denied } = buildVscodeCommandLists({
@@ -159,6 +189,7 @@ export class RooPermissions extends ToolPermissions {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
+      ownsCommandKeys: rules !== undefined,
       fileContent: applySharedConfigPatch({
         fileKey: sharedConfigFileKey(paths),
         feature: "permissions",
