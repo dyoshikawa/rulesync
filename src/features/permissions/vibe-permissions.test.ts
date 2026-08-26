@@ -1213,6 +1213,69 @@ describe("VibePermissions", () => {
     expect(second.tools.powershell.denylist).toEqual(["curl *", "nc *", "wget *"]);
   });
 
+  it("should keep fanning bash out after a per-shell sensitive_patterns entry is written", async () => {
+    // The `vibe.permission` pass addresses each shell by name, so its output must
+    // not read back as a hand-authored decision that stands the fan-out down.
+    await ensureDir(join(testDir, ".vibe"));
+
+    const generate = async (rules: Record<string, string>) => {
+      const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { bash: rules },
+            vibe: { permission: { git_bash: { sensitive_patterns: ["curl"] } } },
+          }),
+        }),
+      });
+      await writeFileContent(
+        join(testDir, ".vibe", "config.toml"),
+        vibePermissions.getFileContent(),
+      );
+      return smolToml.parse(vibePermissions.getFileContent()) as any;
+    };
+
+    const first = await generate({ "*": "allow" });
+    expect(first.tools.git_bash.permission).toBe("always");
+    expect(first.tools.git_bash.sensitive_patterns).toEqual(["curl"]);
+    expect(first.tools.bash.sensitive_patterns).toBeUndefined();
+
+    // Tightening the base permission must still reach every shell.
+    const second = await generate({ "*": "deny" });
+    expect(second.tools.git_bash.permission).toBe("never");
+    expect(second.tools.powershell.permission).toBe("never");
+    expect(second.disabled_tools).toEqual(["bash", "git_bash", "powershell"]);
+    expect(second.tools.git_bash.sensitive_patterns).toEqual(["curl"]);
+  });
+
+  it("should not fan an existing bash permission out to shells the file never configures when the category expresses nothing", async () => {
+    // A pattern-level `ask` states no permission Vibe can read, so it must not
+    // broaden the Windows shells to whatever [tools.bash] already allows.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.bash]", 'permission = "always"', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "rm *": "ask" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.bash.permission).toBe("always");
+    expect(parsed.tools.git_bash).toBeUndefined();
+    expect(parsed.tools.powershell).toBeUndefined();
+  });
+
   it("should fan an existing bash base permission out to the shells", async () => {
     await ensureDir(join(testDir, ".vibe"));
     await writeFileContent(

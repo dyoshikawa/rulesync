@@ -85,23 +85,30 @@ const VIBE_SHELL_ALIAS_TOOL_NAMES = ["git_bash", "powershell"];
 /** The canonical category (and Vibe tool name) the aliases above fan out from. */
 const VIBE_SHELL_CATEGORY = "bash";
 
-/**
- * The `[tools.<name>]` keys the fan-out writes, and therefore the only ones that
- * decide whether an alias table is a decision made outside the `bash` category.
- * The legacy `allow`/`deny` spellings count because rulesync deletes them.
- */
 const VIBE_LEGACY_KEY_ALIASES: Record<string, string> = {
   allow: "allowlist",
   deny: "denylist",
 };
 
-const VIBE_FAN_OUT_MANAGED_KEYS = [
+/**
+ * The `[tools.<name>]` keys the `bash` fan-out mirrors, and therefore the only
+ * ones that decide whether an alias table is a decision made outside the `bash`
+ * category. The legacy `allow`/`deny` spellings count because rulesync deletes
+ * them.
+ *
+ * `sensitive_patterns` is deliberately absent: it is written by the separate
+ * `vibe.permission` pass, which addresses each shell by name, so a
+ * `vibe.permission.git_bash` entry legitimately leaves that shell holding
+ * patterns `[tools.bash]` does not have. Counting it here would read rulesync's
+ * own output as an outside decision and freeze the fan-out, and mirroring it
+ * would overwrite the per-shell patterns the author asked for.
+ */
+const VIBE_FAN_OUT_PERMISSION_KEYS = [
   "permission",
   "allowlist",
   "denylist",
   "allow",
   "deny",
-  "sensitive_patterns",
 ] as const;
 
 /** Canonical per-tool MCP category prefix: `mcp__<server>__<tool>`. */
@@ -509,7 +516,15 @@ function applyCategoryRules({
     logger,
   });
 
-  // The fan-out must leave every shell holding the SAME managed state as the
+  // A category that expresses nothing Vibe can read (only pattern-level `ask`,
+  // or no rules at all) states no permission, so it must not push `[tools.bash]`'s
+  // existing one onto shells the file never configured — that would broaden them
+  // to whatever `bash` happens to allow, silently and in the dangerous direction.
+  if (!expressesVibePermission(rules)) {
+    return;
+  }
+
+  // The fan-out must leave every shell holding the SAME permission state as the
   // primary table, so mirror it rather than merging each alias with its own
   // previous contents. Merging diverges the very first time `[tools.bash]`
   // carries an entry the aliases lack — which rulesync's own output does as soon
@@ -519,22 +534,20 @@ function applyCategoryRules({
   // `resolveFanOutShellAliases` has already excluded any alias that states a
   // decision of its own: what is left either matches `bash` or says nothing.
   for (const aliasToolName of aliasToolNames) {
-    mirrorFanOutState({ tools, primaryToolName, aliasToolName, enabledTools, disabledTools });
+    mirrorFanOutState({ tools, primaryToolName, aliasToolName, disabledTools });
   }
 }
 
-/** Copy the primary tool's managed state onto one fan-out alias. */
+/** Copy the primary tool's permission state onto one fan-out alias. */
 function mirrorFanOutState({
   tools,
   primaryToolName,
   aliasToolName,
-  enabledTools,
   disabledTools,
 }: {
   tools: Record<string, VibeToolConfig>;
   primaryToolName: string;
   aliasToolName: string;
-  enabledTools: Set<string>;
   disabledTools: Set<string>;
 }): void {
   const primaryTool: Record<string, unknown> = readVibeToolConfig({
@@ -545,7 +558,7 @@ function mirrorFanOutState({
     tools,
     vibeToolName: aliasToolName,
   });
-  for (const key of VIBE_FAN_OUT_MANAGED_KEYS) {
+  for (const key of VIBE_FAN_OUT_PERMISSION_KEYS) {
     const value = primaryTool[key];
     if (value === undefined) {
       delete nextTool[key];
@@ -554,13 +567,16 @@ function mirrorFanOutState({
     }
   }
 
+  // `disabled_tools` membership is part of that shared state and is mirrored even
+  // when the category itself did not state a base permission: the three shells are
+  // one decision, and leaving the alias out would re-diverge them and stand the
+  // fan-out down on the next generate. (`enabled_tools` needs no handling here —
+  // `clearStaleToolFilters` already removed every name this category resolves to,
+  // and warned about it.)
   if (disabledTools.has(primaryToolName)) {
     disabledTools.add(aliasToolName);
   } else {
     disabledTools.delete(aliasToolName);
-  }
-  if (!enabledTools.has(primaryToolName)) {
-    enabledTools.delete(aliasToolName);
   }
 
   // Unmanaged keys the alias already had (a `timeout`, an editor setting) are
@@ -876,7 +892,7 @@ function resolveFanOutShellAliases({
     // The legacy `allow`/`deny` spellings mean exactly what `allowlist`/
     // `denylist` mean, so normalize before comparing: `[tools.bash] allow` next
     // to `[tools.git_bash] allowlist` is the same decision, not a divergence.
-    const managed = VIBE_FAN_OUT_MANAGED_KEYS.flatMap((key) =>
+    const managed = VIBE_FAN_OUT_PERMISSION_KEYS.flatMap((key) =>
       Object.hasOwn(table, key)
         ? [[VIBE_LEGACY_KEY_ALIASES[key] ?? key, table[key as keyof VibeToolConfig]] as const]
         : [],
@@ -891,8 +907,9 @@ function resolveFanOutShellAliases({
     });
   };
 
-  // A table that carries nothing rulesync manages — absent, empty, or holding
-  // only unmanaged keys — states no permission decision, so there is none to
+  // A table that states no permission — absent, empty, or holding only keys this
+  // comparison leaves out (an editor setting, or the `sensitive_patterns` the
+  // `vibe.permission` pass owns and addresses per shell) — has no decision to
   // preserve.
   const noDecision = JSON.stringify({ managed: [], disabled: false });
   const bashState = describe(VIBE_SHELL_CATEGORY);
