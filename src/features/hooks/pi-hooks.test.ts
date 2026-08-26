@@ -26,6 +26,68 @@ function buildRulesyncHooks({
   });
 }
 
+type PiHandler = (event?: unknown, ctx?: unknown) => Promise<unknown>;
+
+/**
+ * Write the generated extension out and load it, so the runtime tests below
+ * exercise the emitted module itself rather than a re-implementation of it.
+ */
+async function loadPiExtension({
+  testDir,
+  config,
+}: {
+  testDir: string;
+  config: Record<string, unknown>;
+}): Promise<{ registeredEvents: string[]; handlerFor: (piEvent: string) => PiHandler }> {
+  const piHooks = PiHooks.fromRulesyncHooks({
+    outputRoot: testDir,
+    rulesyncHooks: buildRulesyncHooks({ testDir, config }),
+    validate: false,
+  });
+
+  const extensionsDir = join(testDir, ".pi", "extensions");
+  await ensureDir(extensionsDir);
+  const filePath = join(extensionsDir, "rulesync-hooks.ts");
+  await writeFileContent(filePath, piHooks.getFileContent());
+
+  const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
+  const on = vi.fn();
+  mod.default({ on });
+  return {
+    registeredEvents: on.mock.calls.map(([event]) => event),
+    handlerFor: (piEvent) => on.mock.calls.find(([event]) => event === piEvent)?.[1],
+  };
+}
+
+/** Load the `input` handler generated for a single `beforeSubmitPrompt` command. */
+async function loadPromptGate({
+  testDir,
+  command,
+}: {
+  testDir: string;
+  command: string;
+}): Promise<PiHandler> {
+  const { handlerFor } = await loadPiExtension({
+    testDir,
+    config: { version: 1, hooks: { beforeSubmitPrompt: [{ type: "command", command }] } },
+  });
+  return handlerFor("input");
+}
+
+function userPrompt({ source = "interactive" }: { source?: string } = {}) {
+  return { text: "hi", source };
+}
+
+function uiContext({
+  notify,
+  hasUI = true,
+}: {
+  notify: ReturnType<typeof vi.fn>;
+  hasUI?: boolean;
+}) {
+  return { hasUI, ui: { notify } };
+}
+
 describe("PiHooks", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -407,317 +469,165 @@ describe("PiHooks", () => {
     });
 
     it("should generate a loadable TypeScript module that registers the mapped events", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          sessionStart: [{ type: "command", command: 'echo "hi" `date` ${HOME}' }],
-          preToolUse: [
-            { type: "command", command: "lint.sh", matcher: "Write|Edit" },
-            { type: "command", command: "audit.sh" },
-          ],
-          stop: [{ command: "done.sh" }],
+      const { registeredEvents, handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            sessionStart: [{ type: "command", command: 'echo "hi" `date` ${HOME}' }],
+            preToolUse: [
+              { type: "command", command: "lint.sh", matcher: "Write|Edit" },
+              { type: "command", command: "audit.sh" },
+            ],
+            stop: [{ command: "done.sh" }],
+          },
         },
-      };
-      const piHooks = PiHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
-        validate: false,
       });
 
-      const extensionsDir = join(testDir, ".pi", "extensions");
-      await ensureDir(extensionsDir);
-      const filePath = join(extensionsDir, "rulesync-hooks.ts");
-      await writeFileContent(filePath, piHooks.getFileContent());
-
-      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
-      const on = vi.fn();
-      mod.default({ on });
-      expect(on.mock.calls.map(([event]) => event)).toEqual([
-        "session_start",
-        "tool_call",
-        "agent_end",
-      ]);
-      expect(on).toHaveBeenCalledWith("session_start", expect.any(Function));
+      expect(registeredEvents).toEqual(["session_start", "tool_call", "agent_end"]);
+      expect(handlerFor("session_start")).toBeTypeOf("function");
     });
 
     it("should generate an input handler that skips the agent when the command fails", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          beforeSubmitPrompt: [{ type: "command", command: "exit 3" }],
-        },
-      };
-      const piHooks = PiHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
-        validate: false,
-      });
-
-      const extensionsDir = join(testDir, ".pi", "extensions");
-      await ensureDir(extensionsDir);
-      const filePath = join(extensionsDir, "rulesync-hooks.ts");
-      await writeFileContent(filePath, piHooks.getFileContent());
-
-      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
-      const on = vi.fn();
-      mod.default({ on });
-      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
-      expect(handler).toBeTypeOf("function");
+      const gate = await loadPromptGate({ testDir, command: "exit 3" });
+      expect(gate).toBeTypeOf("function");
 
       const notify = vi.fn();
-      expect(
-        await handler({ text: "hi", source: "interactive" }, { hasUI: true, ui: { notify } }),
-      ).toEqual({
-        action: "handled",
-      });
+      expect(await gate(userPrompt(), uiContext({ notify }))).toEqual({ action: "handled" });
       expect(notify).toHaveBeenCalledWith(expect.stringContaining("3"), "error");
     });
 
     it("should still cancel the prompt without a UI channel", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          beforeSubmitPrompt: [{ type: "command", command: "exit 3" }],
-        },
-      };
-      const piHooks = PiHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
-        validate: false,
-      });
-
-      const extensionsDir = join(testDir, ".pi", "extensions");
-      await ensureDir(extensionsDir);
-      const filePath = join(extensionsDir, "rulesync-hooks.ts");
-      await writeFileContent(filePath, piHooks.getFileContent());
-
-      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
-      const on = vi.fn();
-      mod.default({ on });
-      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
+      const gate = await loadPromptGate({ testDir, command: "exit 3" });
 
       // `ctx.ui.notify` is a no-op in print (`-p`) and JSON modes, so the
       // reason falls back to stderr rather than vanishing.
       const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
       const notify = vi.fn();
-      expect(
-        await handler({ text: "hi", source: "interactive" }, { hasUI: false, ui: { notify } }),
-      ).toEqual({ action: "handled" });
+      expect(await gate(userPrompt(), uiContext({ notify, hasUI: false }))).toEqual({
+        action: "handled",
+      });
       expect(notify).not.toHaveBeenCalled();
       expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("3"));
     });
 
     it("should cancel the prompt even when the UI channel throws", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          beforeSubmitPrompt: [{ type: "command", command: "exit 3" }],
-        },
-      };
-      const piHooks = PiHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
-        validate: false,
-      });
-
-      const extensionsDir = join(testDir, ".pi", "extensions");
-      await ensureDir(extensionsDir);
-      const filePath = join(extensionsDir, "rulesync-hooks.ts");
-      await writeFileContent(filePath, piHooks.getFileContent());
-
-      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
-      const on = vi.fn();
-      mod.default({ on });
-      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
+      const gate = await loadPromptGate({ testDir, command: "exit 3" });
 
       // A throwing notify must not turn the gate fail-open.
       const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
       const notify = vi.fn(() => {
         throw new Error("rpc channel closed");
       });
-      expect(
-        await handler({ text: "hi", source: "interactive" }, { hasUI: true, ui: { notify } }),
-      ).toEqual({ action: "handled" });
+      expect(await gate(userPrompt(), uiContext({ notify }))).toEqual({ action: "handled" });
       expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("3"));
     });
 
     it("should not cancel prompts injected by another extension", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          beforeSubmitPrompt: [{ type: "command", command: "exit 3" }],
-        },
-      };
-      const piHooks = PiHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
-        validate: false,
-      });
-
-      const extensionsDir = join(testDir, ".pi", "extensions");
-      await ensureDir(extensionsDir);
-      const filePath = join(extensionsDir, "rulesync-hooks.ts");
-      await writeFileContent(filePath, piHooks.getFileContent());
-
-      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
-      const on = vi.fn();
-      mod.default({ on });
-      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
+      const gate = await loadPromptGate({ testDir, command: "exit 3" });
 
       // The canonical event covers prompts the user submits; `sendUserMessage`
       // traffic from another extension is not a user prompt.
       const notify = vi.fn();
-      expect(
-        await handler({ text: "hi", source: "extension" }, { hasUI: true, ui: { notify } }),
-      ).toEqual({ action: "continue" });
+      expect(await gate(userPrompt({ source: "extension" }), uiContext({ notify }))).toEqual({
+        action: "continue",
+      });
       expect(notify).not.toHaveBeenCalled();
     });
 
     it("should strip terminal escape sequences from the reported reason", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          beforeSubmitPrompt: [
-            { type: "command", command: "printf '\\033[31m%s\\033[0m' denied >&2; exit 1" },
-          ],
-        },
-      };
-      const piHooks = PiHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
-        validate: false,
+      const gate = await loadPromptGate({
+        testDir,
+        command: "printf '\\033[31m%s\\033[0m' denied >&2; exit 1",
       });
 
-      const extensionsDir = join(testDir, ".pi", "extensions");
-      await ensureDir(extensionsDir);
-      const filePath = join(extensionsDir, "rulesync-hooks.ts");
-      await writeFileContent(filePath, piHooks.getFileContent());
-
-      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
-      const on = vi.fn();
-      mod.default({ on });
-      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
-
       const notify = vi.fn();
-      await handler({ text: "hi", source: "interactive" }, { hasUI: true, ui: { notify } });
+      await gate(userPrompt(), uiContext({ notify }));
       // Hook output can relay third-party text into a terminal or an RPC
       // client, so control sequences are dropped before it is reported.
       expect(notify).toHaveBeenCalledWith("denied", "error");
     });
 
     it("should strip C1 controls and bidi overrides and fold carriage returns", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          beforeSubmitPrompt: [
-            // "a", 8-bit CSI (U+009B), "b", RIGHT-TO-LEFT OVERRIDE (U+202E),
-            // "c", CR, "d" -- none of which may reach the terminal intact.
-            { type: "command", command: "printf 'a\\302\\233b\\342\\200\\256c\\rd' >&2; exit 1" },
-          ],
-        },
-      };
-      const piHooks = PiHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
-        validate: false,
+      const gate = await loadPromptGate({
+        testDir,
+        // "a", 8-bit CSI (U+009B), "b", RIGHT-TO-LEFT OVERRIDE (U+202E), "c",
+        // CR, "d" -- none of which may reach the terminal intact.
+        command: "printf 'a\\302\\233b\\342\\200\\256c\\rd' >&2; exit 1",
       });
 
-      const extensionsDir = join(testDir, ".pi", "extensions");
-      await ensureDir(extensionsDir);
-      const filePath = join(extensionsDir, "rulesync-hooks.ts");
-      await writeFileContent(filePath, piHooks.getFileContent());
-
-      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
-      const on = vi.fn();
-      mod.default({ on });
-      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
-
       const notify = vi.fn();
-      await handler({ text: "hi", source: "interactive" }, { hasUI: true, ui: { notify } });
+      await gate(userPrompt(), uiContext({ notify }));
       expect(notify).toHaveBeenCalledWith("abc\nd", "error");
     });
 
     it("should report a fallback reason when nothing survives sanitization", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          beforeSubmitPrompt: [
-            { type: "command", command: "printf '\\033[0m\\033[1m' >&2; exit 1" },
-          ],
-        },
-      };
-      const piHooks = PiHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
-        validate: false,
+      const gate = await loadPromptGate({
+        testDir,
+        command: "printf '\\033[0m\\033[1m' >&2; exit 1",
       });
-
-      const extensionsDir = join(testDir, ".pi", "extensions");
-      await ensureDir(extensionsDir);
-      const filePath = join(extensionsDir, "rulesync-hooks.ts");
-      await writeFileContent(filePath, piHooks.getFileContent());
-
-      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
-      const on = vi.fn();
-      mod.default({ on });
-      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
 
       const notify = vi.fn();
       // The prompt is still cancelled, so the user must not be left without a
       // reason just because the command only emitted escape sequences.
-      expect(
-        await handler({ text: "hi", source: "interactive" }, { hasUI: true, ui: { notify } }),
-      ).toEqual({ action: "handled" });
+      expect(await gate(userPrompt(), uiContext({ notify }))).toEqual({ action: "handled" });
       expect(notify).toHaveBeenCalledWith("Hook command failed.", "error");
     });
 
-    it("should bound the text the sanitizing patterns scan", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          beforeSubmitPrompt: [{ type: "command", command: "exit 1" }],
-        },
-      };
-      const piHooks = PiHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
-        validate: false,
+    it("should cap a long reason and mark it as truncated", async () => {
+      const gate = await loadPromptGate({
+        testDir,
+        command: "awk 'BEGIN { for (i = 0; i < 9000; i++) printf \"z\" }' >&2; exit 1",
       });
 
-      const content = piHooks.getFileContent();
-      // A hook command can emit up to `exec`'s full maxBuffer. Slicing first,
-      // and bounding the OSC body instead of letting it run to end-of-string,
-      // keeps sanitization linear rather than quadratic in the output size.
-      expect(content).toContain(".slice(0, MAX_RAW_REASON_LENGTH)");
-      expect(content).toContain("[^\\u0007\\u001b]{0,256}");
+      const notify = vi.fn();
+      await gate(userPrompt(), uiContext({ notify }));
+      const [reason] = notify.mock.calls[0] ?? [];
+      expect(reason).toHaveLength(2003);
+      expect(reason.endsWith("...")).toBe(true);
+    });
+
+    it("should sanitize a large adversarial reason without stalling", async () => {
+      // Every `ESC ]` here is unterminated, which is the shape that made the
+      // previous end-of-string OSC scan quadratic. Slicing the raw text before
+      // sanitizing, and bounding the OSC body, keeps this linear.
+      const gate = await loadPromptGate({
+        testDir,
+        command: "awk 'BEGIN { for (i = 0; i < 60000; i++) printf \"%c]\", 27 }' >&2; exit 1",
+      });
+
+      const notify = vi.fn();
+      const startedAt = Date.now();
+      expect(await gate(userPrompt(), uiContext({ notify }))).toEqual({ action: "handled" });
+      expect(Date.now() - startedAt).toBeLessThan(5000);
+    });
+
+    it("should block a tool call with the same sanitized reason", async () => {
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { type: "command", command: "printf '\\033[31m%s\\033[0m' nope >&2; exit 1" },
+            ],
+          },
+        },
+      });
+
+      // `tool_call` shares `toBlockReason`, so the tool gate must report the
+      // same sanitized text the prompt gate does.
+      expect(await handlerFor("tool_call")({ toolName: "Bash" })).toEqual({
+        block: true,
+        reason: "nope",
+      });
     });
 
     it("should generate an input handler that continues when the command succeeds", async () => {
-      const config = {
-        version: 1,
-        hooks: {
-          beforeSubmitPrompt: [{ type: "command", command: "exit 0" }],
-        },
-      };
-      const piHooks = PiHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
-        validate: false,
-      });
+      const gate = await loadPromptGate({ testDir, command: "exit 0" });
 
-      const extensionsDir = join(testDir, ".pi", "extensions");
-      await ensureDir(extensionsDir);
-      const filePath = join(extensionsDir, "rulesync-hooks.ts");
-      await writeFileContent(filePath, piHooks.getFileContent());
-
-      const mod = await tsImport(pathToFileURL(filePath).href, import.meta.url);
-      const on = vi.fn();
-      mod.default({ on });
-      const handler = on.mock.calls.find(([event]) => event === "input")?.[1];
       const notify = vi.fn();
-      expect(
-        await handler({ text: "hi", source: "interactive" }, { hasUI: true, ui: { notify } }),
-      ).toEqual({ action: "continue" });
+      expect(await gate(userPrompt(), uiContext({ notify }))).toEqual({ action: "continue" });
       expect(notify).not.toHaveBeenCalled();
     });
   });

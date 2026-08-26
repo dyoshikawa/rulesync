@@ -72,10 +72,16 @@ const FAILURE_LINES_BY_MODE: Record<BlockingMode, readonly string[]> = {
  * repaint or reorder what the user is shown, and carriage returns are folded
  * into newlines so it cannot overwrite an already printed line.
  *
+ * The stripped set mirrors `CONTROL_CHARACTERS_PATTERN` in
+ * `src/utils/control-characters.ts`, minus the tab and newline this text is
+ * allowed to keep.
+ *
  * The raw text is sliced before those patterns run. A hook command may emit up
  * to `exec`'s full `maxBuffer`, and scanning a megabyte of unterminated escape
- * introducers is quadratic work that would stall the gate; only the leading
- * text survives truncation anyway.
+ * introducers is quadratic work that would stall the gate. The window is four
+ * times the reported length so ordinary output still truncates on content
+ * rather than on the window; a reason buried past it is reported as the
+ * generic fallback instead.
  */
 const BLOCK_REASON_HELPER_LINES = [
   "const MAX_BLOCK_REASON_LENGTH = 2000;",
@@ -99,7 +105,7 @@ const BLOCK_REASON_HELPER_LINES = [
   '    .replace(/\\u001b\\[[0-9;?]*[\\u0020-\\u002f]*[\\u0040-\\u007e]/g, "")',
   '    .replace(/\\u001b\\][^\\u0007\\u001b]{0,256}(?:\\u0007|\\u001b\\\\)/g, "")',
   "    .replace(",
-  "      /[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f-\\u009f\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069]/g,",
+  "      /[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f-\\u009f\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069\\u2028\\u2029]/g,",
   '      "",',
   "    )",
   "    .trim();",
