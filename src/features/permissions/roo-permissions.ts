@@ -23,6 +23,7 @@ import {
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
+import { buildVscodeCommandLists } from "./vscode-command-lists.js";
 
 /**
  * The canonical category Roo Code's command lists correspond to. Roo Code gates
@@ -40,41 +41,8 @@ function asStringArray(value: unknown): string[] {
 }
 
 /**
- * Split one canonical category's rules into Roo Code's two command lists.
- *
- * Roo Code matches these entries as command **prefixes** and resolves a command
- * that matches both lists by the longer match: it auto-approves only when the
- * allowed prefix is strictly longer than the denied one, and auto-denies when
- * the denied prefix is longer or equal. `ask` is represented by listing the
- * pattern in neither list, which leaves Roo Code's default approval prompt in
- * charge.
- *
- * Each list is `undefined` when it would be empty, so the key is retracted from
- * the settings file rather than written as an empty array — an empty
- * `allowedCommands` and an absent one mean the same thing to Roo Code, and the
- * absent form leaves no rulesync residue behind.
- */
-function buildCommandLists(rules: Record<string, PermissionAction>): {
-  allowed: string[] | undefined;
-  denied: string[] | undefined;
-} {
-  const allowed: string[] = [];
-  const denied: string[] = [];
-  for (const [pattern, action] of Object.entries(rules)) {
-    if (action === "allow") {
-      allowed.push(pattern);
-    } else if (action === "deny") {
-      denied.push(pattern);
-    }
-  }
-  return {
-    allowed: allowed.length > 0 ? allowed : undefined,
-    denied: denied.length > 0 ? denied : undefined,
-  };
-}
-
-/**
- * Permissions generator for Roo Code.
+ * Permissions generator for Roo Code, and the shared implementation for its
+ * continuation fork (see {@link file://./zoocode-permissions.ts}).
  *
  * Roo Code has no policy file in its `.roo/` tree: the committable command
  * allow/deny lists are VS Code workspace settings
@@ -88,17 +56,36 @@ function buildCommandLists(rules: Record<string, PermissionAction>): {
  * Only project scope is modeled: VS Code's user-scope `settings.json` lives at
  * a platform-dependent path outside rulesync's home-relative global model.
  *
- * This is a separate adapter from `ZoocodePermissions` rather than a shared
- * one, because the two lineages spell the same settings differently: the
- * `roo-cline.*` namespace here is what the archived Roo Code releases read,
- * while the continuation project renamed it to `zoo-code.*` in v3.74.0.
- * Emitting the other lineage's keys would write settings the targeted
- * extension never reads.
+ * The two lineages spell the same settings differently — the `roo-cline.*`
+ * namespace here is what the archived Roo Code releases read, while the
+ * continuation project renamed it to `zoo-code.*` in v3.74.0 — so the subclass
+ * overrides nothing but the three name hooks below. Emitting the other
+ * lineage's keys would write settings the targeted extension never reads, and
+ * a project that enables both targets gets all four keys in one file.
  *
  * @see https://github.com/RooCodeInc/Roo-Code/blob/v3.54.0/src/package.json
  * @see https://github.com/RooCodeInc/Roo-Code/blob/v3.54.0/src/core/auto-approval/commands.ts
+ * @see https://github.com/RooCodeInc/Roo-Code/blob/v3.54.0/src/core/webview/ClineProvider.ts
  */
 export class RooPermissions extends ToolPermissions {
+  /**
+   * The settings key holding the auto-approval allowlist. Overridden by the
+   * fork, whose namespace differs.
+   */
+  protected static getAllowedCommandsKey(): string {
+    return ROO_ALLOWED_COMMANDS_KEY;
+  }
+
+  /** The settings key holding the auto-denial list. */
+  protected static getDeniedCommandsKey(): string {
+    return ROO_DENIED_COMMANDS_KEY;
+  }
+
+  /** Tool name used in parse errors and generate-time warnings. */
+  protected static getToolLabel(): string {
+    return "Roo Code";
+  }
+
   constructor(params: AiFileParams) {
     super({
       ...params,
@@ -127,10 +114,10 @@ export class RooPermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     validate = true,
   }: ToolPermissionsFromFileParams): Promise<RooPermissions> {
-    const paths = RooPermissions.getSettablePaths();
+    const paths = this.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "{}";
-    return new RooPermissions({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -142,8 +129,9 @@ export class RooPermissions extends ToolPermissions {
   static async fromRulesyncPermissions({
     outputRoot = process.cwd(),
     rulesyncPermissions,
+    logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<RooPermissions> {
-    const paths = RooPermissions.getSettablePaths();
+    const paths = this.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     // Read without initializing so this stays side-effect-free under
     // `--dry-run`/`--check`; the actual write happens later in `writeAiFiles`.
@@ -152,17 +140,22 @@ export class RooPermissions extends ToolPermissions {
     const rules = rulesyncPermissions.getJson().permission[COMMAND_CATEGORY];
     // A canonical config that states no `bash` category leaves both keys
     // exactly as the user left them — adopting rulesync for other tools must
-    // not wipe hand-authored Roo Code command lists. A category that IS stated
-    // but yields nothing (all `ask`) still retracts the keys, since rulesync
-    // owns them once it manages the category.
+    // not wipe hand-authored command lists. Once the category IS stated,
+    // rulesync owns both keys and writes both, empty lists included; see
+    // `buildVscodeCommandLists` for why an empty list is written rather than
+    // retracted.
     const patch: Record<string, unknown> = {};
     if (rules !== undefined) {
-      const { allowed, denied } = buildCommandLists(rules);
-      patch[ROO_ALLOWED_COMMANDS_KEY] = allowed;
-      patch[ROO_DENIED_COMMANDS_KEY] = denied;
+      const { allowed, denied } = buildVscodeCommandLists({
+        rules,
+        toolLabel: this.getToolLabel(),
+        logger,
+      });
+      patch[this.getAllowedCommandsKey()] = allowed;
+      patch[this.getDeniedCommandsKey()] = denied;
     }
 
-    return new RooPermissions({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -178,6 +171,7 @@ export class RooPermissions extends ToolPermissions {
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
+    const constructor = this.constructor as typeof RooPermissions;
     let settings: Record<string, unknown>;
     try {
       // VS Code settings.json is JSONC (comments / trailing commas allowed).
@@ -193,20 +187,20 @@ export class RooPermissions extends ToolPermissions {
       });
     } catch (error) {
       throw new Error(
-        `Failed to parse Roo Code VS Code settings in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
+        `Failed to parse ${constructor.getToolLabel()} VS Code settings in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
         { cause: error },
       );
     }
 
     const rules: Record<string, PermissionAction> = {};
-    for (const pattern of asStringArray(settings[ROO_ALLOWED_COMMANDS_KEY])) {
+    for (const pattern of asStringArray(settings[constructor.getAllowedCommandsKey()])) {
       rules[pattern] = "allow";
     }
     // Applied second so a pattern listed in both lists imports as `deny`,
-    // matching Roo Code's own precedence: with identical prefixes the denied
-    // match is not shorter than the allowed one, and auto-approval requires a
-    // strictly longer allowed match.
-    for (const pattern of asStringArray(settings[ROO_DENIED_COMMANDS_KEY])) {
+    // matching the extension's own precedence: with identical prefixes the
+    // denied match is not shorter than the allowed one, and auto-approval
+    // requires a strictly longer allowed match.
+    for (const pattern of asStringArray(settings[constructor.getDeniedCommandsKey()])) {
       rules[pattern] = "deny";
     }
 
@@ -229,7 +223,7 @@ export class RooPermissions extends ToolPermissions {
     relativeDirPath,
     relativeFilePath,
   }: ToolPermissionsForDeletionParams): RooPermissions {
-    return new RooPermissions({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

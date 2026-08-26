@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RooPermissions } from "./roo-permissions.js";
@@ -71,7 +72,12 @@ describe("RooPermissions", () => {
       });
     });
 
-    it("retracts a list that would be empty rather than writing []", async () => {
+    // Retracting instead would not be a no-op: Roo Code reads the *effective*
+    // configuration value, and `roo-cline.allowedCommands` is contributed with
+    // the default ["git log", "git diff", "git show"], so an absent key
+    // re-grants those three auto-approvals. `[]` overrides them at workspace
+    // scope and makes `isAutoApprovedSingleCommand` short-circuit.
+    it("writes empty lists rather than retracting the keys", async () => {
       await writeSettings(testDir, { [ALLOWED_KEY]: ["git "], [DENIED_KEY]: ["rm -rf"] });
 
       const permissions = await RooPermissions.fromRulesyncPermissions({
@@ -79,7 +85,25 @@ describe("RooPermissions", () => {
         rulesyncPermissions: createRulesyncPermissions({ bash: { "npm ": "ask" } }),
       });
 
-      expect(JSON.parse(permissions.getFileContent())).toEqual({});
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        [ALLOWED_KEY]: [],
+        [DENIED_KEY]: [],
+      });
+    });
+
+    // Without the empty allow list, Roo Code's contributed default would make
+    // `git log` auto-approve despite the explicit `git ` deny, because the
+    // default entry "git log" is a longer prefix match than "git ".
+    it("does not let the contributed git defaults survive a deny-only category", async () => {
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ bash: { "git ": "deny" } }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        [ALLOWED_KEY]: [],
+        [DENIED_KEY]: ["git "],
+      });
     });
 
     it("preserves unrelated editor settings and the Copilot keys sharing the file", async () => {
@@ -97,6 +121,7 @@ describe("RooPermissions", () => {
         "editor.tabSize": 2,
         "chat.tools.terminal.autoApprove": { "git status": true },
         [ALLOWED_KEY]: ["git "],
+        [DENIED_KEY]: [],
       });
     });
 
@@ -123,6 +148,64 @@ describe("RooPermissions", () => {
         [ALLOWED_KEY]: ["git "],
         [DENIED_KEY]: ["rm -rf"],
       });
+    });
+
+    // The canonical `bash` category is glob-shaped for most targets
+    // (claudecode writes `Bash(rm -rf *)`), but Roo Code compares entries with
+    // `startsWith` and only treats a bare "*" as a wildcard. That mismatch
+    // fails open on the deny side, so the author has to be told.
+    it("warns that a glob-shaped deny is matched as a literal prefix", async () => {
+      const logger = createMockLogger();
+
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "*": "allow", "rm -rf *": "deny" },
+        }),
+        logger,
+      });
+
+      // The pattern is passed through unchanged: rewriting a security setting
+      // on the author's behalf would be a silent change of meaning.
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        [ALLOWED_KEY]: ["*"],
+        [DENIED_KEY]: ["rm -rf *"],
+      });
+      const warning = logger.warn.mock.calls.map(([message]) => String(message)).join("\n");
+      expect(warning).toContain("Roo Code");
+      expect(warning).toContain('deny pattern "rm -rf *"');
+      expect(warning).toContain('"rm -rf "');
+    });
+
+    it("warns about a glob-shaped allow without flagging a bare wildcard", async () => {
+      const logger = createMockLogger();
+
+      await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "*": "allow", "npm run test:*": "allow" },
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const warning = String(logger.warn.mock.calls[0]?.[0]);
+      expect(warning).toContain('allow pattern "npm run test:*"');
+      expect(warning).not.toContain('"*",');
+    });
+
+    it("does not warn about literal prefixes", async () => {
+      const logger = createMockLogger();
+
+      await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "git ": "allow", "*": "allow", "rm -rf ": "deny" },
+        }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("leaves hand-authored command lists untouched when no bash category is stated", async () => {

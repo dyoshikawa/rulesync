@@ -630,12 +630,17 @@ web_search_request = true
   it("should generate zoocode permissions into .vscode/settings.json", async () => {
     const testDir = getTestDir();
 
-    // A pre-existing unrelated setting and a Copilot-owned key in the same file
-    // must both survive: the two targets share `.vscode/settings.json`.
+    // A pre-existing unrelated setting, a Copilot-owned key and the archived
+    // Roo lineage's own pair must all survive: the three targets share
+    // `.vscode/settings.json` and own disjoint keys in it.
     await writeFileContent(
       join(testDir, ".vscode", "settings.json"),
       JSON.stringify(
-        { "editor.tabSize": 2, "chat.tools.terminal.autoApprove": { "git status": true } },
+        {
+          "editor.tabSize": 2,
+          "chat.tools.terminal.autoApprove": { "git status": true },
+          "roo-cline.allowedCommands": ["npm run "],
+        },
         null,
         2,
       ),
@@ -662,6 +667,7 @@ web_search_request = true
     const generated = JSON.parse(await readFileContent(join(testDir, ".vscode", "settings.json")));
     expect(generated["zoo-code.allowedCommands"]).toEqual(["git "]);
     expect(generated["zoo-code.deniedCommands"]).toEqual(["rm -rf"]);
+    expect(generated["roo-cline.allowedCommands"]).toEqual(["npm run "]);
     expect(generated["editor.tabSize"]).toBe(2);
     expect(generated["chat.tools.terminal.autoApprove"]).toEqual({ "git status": true });
   });
