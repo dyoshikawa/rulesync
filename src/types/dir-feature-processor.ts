@@ -5,6 +5,7 @@ import {
   companionFileContentsEquivalent,
   fileContentsEquivalent,
 } from "../utils/content-equivalence.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 import {
   addTrailingNewline,
   ensureDir,
@@ -204,11 +205,12 @@ export abstract class DirFeatureProcessor {
 
     for (const aiDir of orphanDirs) {
       const dirPath = aiDir.getDirPath();
+      const loggedPath = stripControlCharacters(dirPath);
       if (this.dryRun) {
-        this.logger.info(`[DRY RUN] Would delete directory: ${dirPath}`);
+        this.logger.info(`[DRY RUN] Would delete directory: ${loggedPath}`);
       } else {
         await removeDirectory(dirPath);
-        this.logger.info(`Deleted directory: ${dirPath}`);
+        this.logger.info(`Deleted directory: ${loggedPath}`);
       }
     }
 

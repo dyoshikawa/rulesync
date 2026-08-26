@@ -158,14 +158,18 @@ export abstract class FeatureProcessor {
 
     for (const aiFile of orphanFiles) {
       const filePath = aiFile.getFilePath();
+      // The path is an on-disk name rulesync did not choose, so it is stripped
+      // like every other untrusted string this file logs: a name carrying
+      // `\x1b[2K\r` would otherwise rewrite the line and hide what was deleted.
+      const loggedPath = stripControlCharacters(filePath);
       if (this.dryRun) {
-        this.logger.info(`[DRY RUN] Would delete: ${filePath}`);
+        this.logger.info(`[DRY RUN] Would delete: ${loggedPath}`);
       } else {
         await removeFile(filePath);
         // Symmetric with the dry-run line above: a real `--delete` run reported
         // nothing at all, so a file swept from a directory rulesync shares with
         // another vendor disappeared without a trace.
-        this.logger.info(`Deleted: ${filePath}`);
+        this.logger.info(`Deleted: ${loggedPath}`);
       }
     }
 

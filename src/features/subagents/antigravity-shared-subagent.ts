@@ -12,6 +12,7 @@ import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -87,10 +88,23 @@ export function toAntigravitySubagentFrontmatter({
   toolTarget: ToolTarget;
 }): AntigravitySubagentFrontmatter {
   const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-  const mergedSection = Object.assign(
-    {},
-    ...sectionKeys.map((key) => rulesyncFrontmatter[key] ?? {}),
-  ) as Record<string, unknown>;
+  const sections = sectionKeys.map((key) => ({ key, value: rulesyncFrontmatter[key] }));
+  // A scalar section would be spread into index keys by `Object.assign`
+  // (`"abc"` becoming `'0': a, '1': b, '2': c`) and, the schema being loose,
+  // reach the generated file as junk frontmatter. Reject it instead, on the same
+  // fail-closed path an invalid section value takes below.
+  const invalidSection = sections.find(({ value }) => value !== undefined && !isPlainObject(value));
+  if (invalidSection) {
+    throw new Error(
+      `Invalid ${toolTarget} subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ` +
+        `'${invalidSection.key}' must be a table of frontmatter keys.`,
+    );
+  }
+
+  const mergedSection = Object.assign({}, ...sections.map(({ value }) => value ?? {})) as Record<
+    string,
+    unknown
+  >;
   const { name: _name, description: _description, ...toolSection } = mergedSection;
 
   const rawFrontmatter = {

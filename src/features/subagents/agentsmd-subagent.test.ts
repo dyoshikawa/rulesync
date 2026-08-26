@@ -397,6 +397,33 @@ Body content`;
         }),
       ).toThrow("Invalid agentsmd subagent frontmatter");
     });
+
+    it("should reject a scalar Antigravity section instead of spreading it into index keys", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "scalar-section.md",
+        frontmatter: {
+          targets: ["agentsmd"],
+          name: "scalar-section",
+          description: "Scalar section description",
+          "antigravity-cli": "abc" as never,
+        },
+        body: "Scalar section body.",
+        validate: false,
+      });
+
+      // `Object.assign` spreads a string into `'0': a, '1': b, '2': c`, which a
+      // loose schema would carry straight into the generated file.
+      expect(() =>
+        AgentsmdSubagent.fromRulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: ".agents/agents",
+          rulesyncSubagent,
+          validate: true,
+        }),
+      ).toThrow("'antigravity-cli' must be a table of frontmatter keys");
+    });
   });
 
   describe("fromFile", () => {
