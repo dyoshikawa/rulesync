@@ -1358,9 +1358,11 @@ describe("VibePermissions", () => {
     ).toHaveLength(1);
   });
 
-  it("should keep a shell's own sensitive_patterns out of the bash override fan-out", async () => {
+  it("should merge the bash override patterns into a shell's own sensitive_patterns", async () => {
     // Those patterns are the author's only defense once the base permission
-    // becomes ALWAYS, so the fan-out must not overwrite them in silence.
+    // becomes ALWAYS, so the fan-out must not overwrite them. Dropping the
+    // override's patterns instead would strand a newly added guard on one shell,
+    // so the two lists are merged: `sensitive_patterns` only escalates to ASK.
     const logger = createMockLogger();
     await ensureDir(join(testDir, ".vibe"));
     await writeFileContent(
@@ -1391,14 +1393,155 @@ describe("VibePermissions", () => {
 
     expect(parsed.tools.bash.sensitive_patterns).toEqual(["curl *"]);
     expect(parsed.tools.git_bash.sensitive_patterns).toEqual(["curl *"]);
-    expect(parsed.tools.powershell.sensitive_patterns).toEqual(["sudo *"]);
-    // The base permission still reaches it; only the patterns are preserved.
+    expect(parsed.tools.powershell.sensitive_patterns).toEqual(["curl *", "sudo *"]);
+    // The base permission still reaches it; only the patterns are merged.
     expect(parsed.tools.powershell.permission).toBe("always");
     expect(
       logger.warn.mock.calls.filter((call) =>
-        String(call[0]).includes("existing Vibe sensitive_patterns for powershell"),
+        String(call[0]).includes("sensitive_patterns of powershell"),
       ),
     ).toHaveLength(1);
+  });
+
+  it("should merge the bash deny patterns into a shell the fan-out stood down from", async () => {
+    // Standing down keeps the shell from being broadened, but a deny must still
+    // reach it: Vibe resolves a denylist match before the allowlist and before
+    // the configured permission, so the extra entries can only restrict it.
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.powershell]", 'permission = "always"', 'allowlist = ["git *"]', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "rm -rf *": "deny" } },
+        }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.bash.denylist).toEqual(["rm -rf *"]);
+    expect(parsed.tools.git_bash.denylist).toEqual(["rm -rf *"]);
+    // The stood-down shell keeps its own base permission and allowlist, and
+    // gains the deny.
+    expect(parsed.tools.powershell.denylist).toEqual(["rm -rf *"]);
+    expect(parsed.tools.powershell.permission).toBe("always");
+    expect(parsed.tools.powershell.allowlist).toEqual(["git *"]);
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Only the 'bash' deny patterns are merged into it"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("should keep merging the same bash deny into a stood-down shell on regeneration", async () => {
+    // The merged deny changes the shell's state, so the stand-down comparison
+    // must still reach the same verdict on the next generate.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.powershell]", 'permission = "always"', 'deny = ["curl *"]', ""].join("\n"),
+    );
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: { bash: { "rm -rf *": "deny" } } }),
+    });
+
+    const first = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), first.getFileContent());
+    const second = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    expect(second.getFileContent()).toBe(first.getFileContent());
+    const parsed = smolToml.parse(second.getFileContent()) as any;
+    // The legacy `deny` spelling Vibe never consults is folded into the key it
+    // does consult, so both patterns are actually enforced.
+    expect(parsed.tools.powershell.denylist).toEqual(["curl *", "rm -rf *"]);
+    expect(parsed.tools.powershell.deny).toBeUndefined();
+    expect(parsed.tools.powershell.permission).toBe("always");
+  });
+
+  it("should treat an empty shell sensitive_patterns as no patterns of its own", async () => {
+    // `sensitive_patterns = []` is the absent key spelled out — Vibe's own
+    // config dump writes it that way — so it must not leave the shell holding an
+    // ALWAYS permission with no escalation at all.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        "[tools.bash]",
+        'sensitive_patterns = ["rm *"]',
+        "[tools.git_bash]",
+        "sensitive_patterns = []",
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "allow" } },
+          vibe: { permission: { bash: { sensitive_patterns: ["curl *"] } } },
+        }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.git_bash.permission).toBe("always");
+    expect(parsed.tools.git_bash.sensitive_patterns).toEqual(["curl *"]);
+  });
+
+  it("should not report a stand-down for a shell that has its own category", async () => {
+    // The claim resolver gives that category the table, so the 'bash' category
+    // never touches it — reporting an overwrite would describe a deny reaching a
+    // shell it never reaches.
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.powershell]", 'permission = "never"', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "deny" }, powershell: { "*": "allow" } },
+        }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.powershell.permission).toBe("always");
+    expect(parsed.disabled_tools).toEqual(["bash", "git_bash"]);
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Overwriting the existing Vibe permission for powershell"),
+      ),
+    ).toHaveLength(0);
   });
 
   it("should overwrite a loosely configured shell when the bash category denies everything", async () => {
