@@ -221,15 +221,20 @@ export class VibePermissions extends ToolPermissions {
     // stale enabled/disabled filters for those tools before reapplying the
     // current state. Filters for tools rulesync does not configure are kept as-is
     // (e.g. a user-defined `enabled_tools` entry for a Vibe-only tool).
-    const removedEnabledTools: string[] = [];
-    for (const category of Object.keys(permission)) {
-      for (const vibeToolName of resolveNames(category) ?? []) {
-        if (enabledTools.delete(vibeToolName)) {
-          removedEnabledTools.push(vibeToolName);
-        }
-        disabledTools.delete(vibeToolName);
-      }
-    }
+    //
+    // `disabled_tools` is the exception: that filter IS a base permission, and
+    // only a category with a `*` rule states one. Clearing it for a category
+    // holding pattern rules alone would silently promote a disabled tool to
+    // "enabled, with a denylist" — the dangerous direction. (`enabled_tools`
+    // needs no such guard: rulesync no longer writes it at all, so every entry
+    // is legacy output being migrated away, and the removal is warned about
+    // below.)
+    const removedEnabledTools = clearStaleToolFilters({
+      permission,
+      resolveNames,
+      enabledTools,
+      disabledTools,
+    });
 
     for (const [category, rules] of Object.entries(permission)) {
       const vibeToolNames = resolveNames(category);
@@ -390,6 +395,38 @@ export class VibePermissions extends ToolPermissions {
 }
 
 /**
+ * Drop the stale `enabled_tools` / `disabled_tools` entries of every tool
+ * rulesync is about to configure, so the current state is reapplied cleanly.
+ * Returns the `enabled_tools` entries that were removed, which the caller warns
+ * about because that key is an exclusive allowlist.
+ */
+function clearStaleToolFilters({
+  permission,
+  resolveNames,
+  enabledTools,
+  disabledTools,
+}: {
+  permission: PermissionsConfig["permission"];
+  resolveNames: (category: string) => string[] | undefined;
+  enabledTools: Set<string>;
+  disabledTools: Set<string>;
+}): string[] {
+  const removedEnabledTools: string[] = [];
+  for (const [category, rules] of Object.entries(permission)) {
+    const statesBasePermission = Object.hasOwn(rules, "*");
+    for (const vibeToolName of resolveNames(category) ?? []) {
+      if (enabledTools.delete(vibeToolName)) {
+        removedEnabledTools.push(vibeToolName);
+      }
+      if (statesBasePermission) {
+        disabledTools.delete(vibeToolName);
+      }
+    }
+  }
+  return removedEnabledTools;
+}
+
+/**
  * Apply the Vibe-scoped override's per-tool `sensitive_patterns` (patterns that
  * escalate to ASK even when the base permission is ALWAYS). rulesync owns this
  * list for any category the override names: a present list is set, an empty
@@ -457,17 +494,81 @@ function applyCategoryRules({
   disabledTools: Set<string>;
   logger?: Logger;
 }): void {
-  for (const vibeToolName of vibeToolNames) {
-    applyCategoryRulesToTool({
-      vibeToolName,
-      category,
-      rules,
-      tools,
-      enabledTools,
-      disabledTools,
-      logger,
-    });
+  const [primaryToolName, ...aliasToolNames] = vibeToolNames;
+  if (primaryToolName === undefined) {
+    return;
   }
+
+  applyCategoryRulesToTool({
+    vibeToolName: primaryToolName,
+    category,
+    rules,
+    tools,
+    enabledTools,
+    disabledTools,
+    logger,
+  });
+
+  // The fan-out must leave every shell holding the SAME managed state as the
+  // primary table, so mirror it rather than merging each alias with its own
+  // previous contents. Merging diverges the very first time `[tools.bash]`
+  // carries an entry the aliases lack — which rulesync's own output does as soon
+  // as a hand-authored `denylist` is merged into `bash` — and that divergence
+  // then stands the fan-out down forever, silently stranding every later `bash`
+  // deny on POSIX only. Mirroring is safe precisely because
+  // `resolveFanOutShellAliases` has already excluded any alias that states a
+  // decision of its own: what is left either matches `bash` or says nothing.
+  for (const aliasToolName of aliasToolNames) {
+    mirrorFanOutState({ tools, primaryToolName, aliasToolName, enabledTools, disabledTools });
+  }
+}
+
+/** Copy the primary tool's managed state onto one fan-out alias. */
+function mirrorFanOutState({
+  tools,
+  primaryToolName,
+  aliasToolName,
+  enabledTools,
+  disabledTools,
+}: {
+  tools: Record<string, VibeToolConfig>;
+  primaryToolName: string;
+  aliasToolName: string;
+  enabledTools: Set<string>;
+  disabledTools: Set<string>;
+}): void {
+  const primaryTool: Record<string, unknown> = readVibeToolConfig({
+    tools,
+    vibeToolName: primaryToolName,
+  });
+  const nextTool: Record<string, unknown> = readVibeToolConfig({
+    tools,
+    vibeToolName: aliasToolName,
+  });
+  for (const key of VIBE_FAN_OUT_MANAGED_KEYS) {
+    const value = primaryTool[key];
+    if (value === undefined) {
+      delete nextTool[key];
+    } else {
+      nextTool[key] = Array.isArray(value) ? [...value] : value;
+    }
+  }
+
+  if (disabledTools.has(primaryToolName)) {
+    disabledTools.add(aliasToolName);
+  } else {
+    disabledTools.delete(aliasToolName);
+  }
+  if (!enabledTools.has(primaryToolName)) {
+    enabledTools.delete(aliasToolName);
+  }
+
+  // Unmanaged keys the alias already had (a `timeout`, an editor setting) are
+  // kept; a table left with nothing at all is not created.
+  if (Object.keys(nextTool).length === 0 && !Object.hasOwn(tools, aliasToolName)) {
+    return;
+  }
+  tools[aliasToolName] = nextTool;
 }
 
 /** Write one canonical category's rules into a single `[tools.<name>]` table. */
@@ -617,6 +718,15 @@ function createVibeToolNameResolver({
         continue;
       }
       claimedBy.set(vibeToolName, category);
+      if (
+        VIBE_SHELL_ALIAS_TOOL_NAMES.includes(vibeToolName) &&
+        categories.includes(VIBE_SHELL_CATEGORY)
+      ) {
+        logger?.warn(
+          `The '${category}' category writes [tools.${vibeToolName}], which is one of Vibe's ` +
+            `Windows managed shells, so the 'bash' category is no longer fanned out to it.`,
+        );
+      }
     }
   }
 
@@ -939,7 +1049,9 @@ function ensurePermission(
   if (existing) {
     return existing;
   }
-  const created: Record<string, PermissionAction> = {};
+  // Null-prototype so a `denylist = ["__proto__"]` entry imports as a real rule
+  // instead of a silently-dropped assignment to the object's prototype.
+  const created: Record<string, PermissionAction> = Object.create(null);
   // `defineProperty` rather than assignment so a `[tools.__proto__]` table on
   // disk becomes a real (if useless) own category, instead of reaching the
   // prototype of the imported permission block and mutating it.

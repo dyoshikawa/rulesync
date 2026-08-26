@@ -1176,6 +1176,149 @@ describe("VibePermissions", () => {
     ).toBe(true);
   });
 
+  it("should keep fanning bash out after an existing bash-only denylist is merged in", async () => {
+    // Merging each alias with its own previous contents diverged them from
+    // [tools.bash] on the first generate and froze the fan-out on the second,
+    // stranding every later bash deny on POSIX.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.bash]", 'denylist = ["curl *"]', ""].join("\n"),
+    );
+
+    const generate = async (patterns: Record<string, string>) => {
+      const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({ permission: { bash: patterns } }),
+        }),
+      });
+      await writeFileContent(
+        join(testDir, ".vibe", "config.toml"),
+        vibePermissions.getFileContent(),
+      );
+      return smolToml.parse(vibePermissions.getFileContent()) as any;
+    };
+
+    const first = await generate({ "wget *": "deny" });
+    expect(first.tools.git_bash.denylist).toEqual(["curl *", "wget *"]);
+    expect(first.tools.powershell.denylist).toEqual(["curl *", "wget *"]);
+
+    const second = await generate({ "wget *": "deny", "nc *": "deny" });
+    expect(second.tools.bash.denylist).toEqual(["curl *", "nc *", "wget *"]);
+    expect(second.tools.git_bash.denylist).toEqual(["curl *", "nc *", "wget *"]);
+    expect(second.tools.powershell.denylist).toEqual(["curl *", "nc *", "wget *"]);
+  });
+
+  it("should fan an existing bash base permission out to the shells", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.bash]", 'permission = "never"', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "curl *": "deny" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.git_bash.permission).toBe("never");
+    expect(parsed.tools.powershell.permission).toBe("never");
+  });
+
+  it("should not clear disabled_tools for a category that states no base permission", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["bash", "powershell"]', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "curl *": "deny" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.disabled_tools).toContain("bash");
+    expect(parsed.disabled_tools).toContain("powershell");
+    expect(parsed.disabled_tools).toContain("git_bash");
+  });
+
+  it("should still clear disabled_tools for a wildcard allow", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["bash"]', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "allow" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.disabled_tools ?? []).not.toContain("bash");
+    expect(parsed.tools.bash.permission).toBe("always");
+  });
+
+  it("should warn when another category takes a Windows shell out of the bash fan-out", async () => {
+    const logger = createMockLogger();
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "deny" }, mcp__git__bash: { "*": "allow" } },
+        }),
+      }),
+      logger,
+    });
+
+    expect(
+      logger.warn.mock.calls.some(([message]) =>
+        String(message).includes("no longer fanned out to it"),
+      ),
+    ).toBe(true);
+  });
+
+  it("should import a __proto__ denylist entry without polluting the prototype", async () => {
+    // `ensurePermission` builds a null-prototype record so the entry lands as a
+    // real own key; the shared-config gateway then strips it on the way out.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.bash]", 'denylist = ["__proto__", "sudo"]', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const rules = vibePermissions.toRulesyncPermissions().getJson().permission.bash ?? {};
+
+    expect(rules.sudo).toBe("deny");
+    expect(Object.getPrototypeOf({})).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).sudo).toBeUndefined();
+  });
+
   it("should not touch phantom tool names for unmapped categories in the override or cleanup", async () => {
     const logger = createMockLogger();
     await ensureDir(join(testDir, ".vibe"));
