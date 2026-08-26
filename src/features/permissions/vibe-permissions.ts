@@ -286,7 +286,7 @@ export class VibePermissions extends ToolPermissions {
       });
     }
 
-    applyStandDownShellDenies({ shellRules, tools, standDownShells, disabledTools });
+    applyStandDownShellDenies({ shellRules, tools, standDownShells, disabledTools, logger });
     warnOnStrandedShellPatterns({
       diskShellPatterns,
       shellAliases,
@@ -1074,8 +1074,8 @@ function resolveFanOutShellAliases({
     // asks for is in force — but of the two ways to be wrong about it, deleting
     // the key is the one the author cannot recover from. Treat it as a decision
     // and stand the fan-out down.
-    const malformed = (["allow", "allowlist", "deny", "denylist"] as const).filter(
-      (key) => table[key] !== undefined && !Array.isArray(table[key]),
+    const malformed = (["allow", "allowlist", "deny", "denylist"] as const).flatMap((key) =>
+      table[key] !== undefined && !Array.isArray(table[key]) ? [[key, table[key]] as const] : [],
     );
     return {
       managed: [
@@ -1184,11 +1184,13 @@ function applyStandDownShellDenies({
   tools,
   standDownShells,
   disabledTools,
+  logger,
 }: {
   shellRules: Record<string, PermissionAction>;
   tools: Record<string, VibeToolConfig>;
   standDownShells: readonly string[];
   disabledTools: ReadonlySet<string>;
+  logger?: Logger;
 }): void {
   const denyPatterns = Object.entries(shellRules)
     .filter(([pattern, action]) => pattern !== "*" && action === "deny")
@@ -1206,6 +1208,21 @@ function applyStandDownShellDenies({
       continue;
     }
     const nextTool = readVibeToolConfig({ tools, vibeToolName });
+    // A deny key that is not a list reads as no patterns, so the merge below
+    // would silently replace it rather than add to it — the one direction the
+    // author cannot recover from, and the same reason `resolveFanOutShellAliases`
+    // counts such a key as a decision. Leave the table alone and say so.
+    const malformed = (["deny", "denylist"] as const).filter(
+      (key) => nextTool[key] !== undefined && !Array.isArray(nextTool[key]),
+    );
+    if (malformed.length > 0) {
+      logger?.warn(
+        `Not merging the 'bash' deny patterns into [tools.${vibeToolName}], because its ` +
+          `${malformed.join(" and ")} is not a list and merging would replace it. Vibe reads ` +
+          `these as arrays, so spell it as one to have the deny reach this shell.`,
+      );
+      continue;
+    }
     // The legacy `deny` spelling is tolerated upstream but never consulted, so
     // fold it into the canonical key instead of leaving the shell with two lists.
     const deny = new Set([

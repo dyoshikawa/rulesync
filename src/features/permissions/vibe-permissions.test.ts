@@ -1960,6 +1960,35 @@ describe("VibePermissions", () => {
     ).toHaveLength(0);
   });
 
+  it("should not replace a denylist that is not spelled as a list when merging a bash deny", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.git_bash]", 'denylist = "rm -rf *"', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "sudo *": "deny" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.git_bash.denylist).toBe("rm -rf *");
+    expect(parsed.tools.bash.denylist).toEqual(["sudo *"]);
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Not merging the 'bash' deny patterns into [tools.git_bash]"),
+      ),
+    ).toHaveLength(1);
+  });
+
   it("should overwrite a loosely configured shell when the bash category denies everything", async () => {
     // Standing down protects a shell from being broadened. A wildcard deny can
     // only restrict, so letting the stand-down win there would strand the deny.
