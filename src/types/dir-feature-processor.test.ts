@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,6 +31,7 @@ vi.mock("../utils/file.js", async () => {
 function createMockDir(dirPath: string, ownsDirTree = true): AiDir {
   return {
     getDirPath: () => dirPath,
+    getDirName: () => basename(dirPath),
     getMainFile: () => undefined,
     getOtherFiles: () => [],
     getRelativePathFromCwd: () => dirPath,
@@ -209,6 +210,22 @@ describe("DirFeatureProcessor", () => {
       expect(count).toBe(0);
       expect(removeDirectory).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining(sharedRoot));
+    });
+
+    it("should still sweep a real orphan alongside a shared-root candidate", async () => {
+      // The guard has to work per candidate. Stopping the whole sweep the moment
+      // one flat-file tool appears in the list would silently turn `--delete`
+      // off for everything else in the same run.
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir("/path/to/.takt/facets/knowledge", false), createMockDir("/path/to/orphan")],
+        [],
+      );
+
+      expect(count).toBe(1);
+      expect(removeDirectory).toHaveBeenCalledTimes(1);
+      expect(removeDirectory).toHaveBeenCalledWith("/path/to/orphan");
     });
 
     it("should not remove a shared root even in dry-run mode", async () => {

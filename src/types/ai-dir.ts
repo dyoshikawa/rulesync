@@ -772,6 +772,12 @@ export abstract class AiDir {
    * under `dirName` (`TaktSkill`) return false here, because claiming that root
    * as a tree would exempt every sibling in it from the sweep.
    *
+   * Returning false also removes the instance from the sweep entirely: a
+   * directory it does not own must never be deleted on its behalf, and it has
+   * no directory of its own left to delete. Overriding `getDirPath()` for any
+   * other reason — normalizing a path, say — therefore silently disables
+   * deletion for that tool unless this method is kept in agreement with it.
+   *
    * The comparison is structural rather than a name match on the last segment:
    * a takt skill named after its own facet root (`.takt/facets/knowledge` and a
    * skill called `knowledge`) ends on the same segment without ever nesting
