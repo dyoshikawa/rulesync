@@ -102,6 +102,12 @@ async function processFeatureGeneration<T extends AiFile>(params: {
     sweepPlan.defer({
       sweep: async () => {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
+        // Claimed paths are dropped before the processor sees them. A processor
+        // that reads `existingFiles` for something other than the orphan
+        // comparison (`CommandsProcessor` checks it for the hermesagent
+        // ownership marker) therefore sees the unclaimed remainder — which is
+        // equivalent today, because a path this run claims is a path that
+        // processor also lists in `generatedFiles`.
         const orphanCount = await processor.removeOrphanAiFiles(
           sweepPlan.rejectClaimed({
             items: existingToolFiles,

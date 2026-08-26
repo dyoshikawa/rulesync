@@ -728,6 +728,17 @@ export abstract class AiDir {
       throw new Error(`Directory name cannot contain path separators: dirName="${dirName}"`);
     }
 
+    // Security check: reject names that `path.join` normalizes away. `"."` collapses
+    // the directory onto its parent root and `".."` onto that root's parent, neither
+    // of which trips the traversal guard in `getDirPath()` because both stay inside
+    // `outputRoot`. Several tools take this name straight from a skill's frontmatter
+    // `name`, so it is attacker-influenced input, and a collapsed directory both
+    // writes `SKILL.md` outside its own directory and claims an over-broad tree
+    // during the `--delete` orphan sweep.
+    if (dirName === "" || dirName === "." || dirName === "..") {
+      throw new Error(`Directory name cannot be empty, ".", or "..": dirName="${dirName}"`);
+    }
+
     this.outputRoot = outputRoot;
     this.relativeDirPath = relativeDirPath;
     this.dirName = dirName;

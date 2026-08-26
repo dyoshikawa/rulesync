@@ -143,6 +143,19 @@ describe("createOrphanSweepPlan", () => {
       ).toBe(false);
     });
 
+    it("should not claim the whole filesystem when handed a root path", () => {
+      // `AiDir` rejects the names that could collapse a tree root this far, but a
+      // claimed root would silence every sweep in the run, so the plan refuses to
+      // widen a root path into a tree.
+      const plan = createOrphanSweepPlan();
+      const root = resolve("/");
+
+      plan.registerGeneratedTree({ paths: [root] });
+
+      expect(plan.isGenerated({ path: root })).toBe(true);
+      expect(plan.isGenerated({ path: join(root, "anything", "at", "all.md") })).toBe(false);
+    });
+
     it("should not claim the ancestors of a registered tree", () => {
       const plan = createOrphanSweepPlan();
 

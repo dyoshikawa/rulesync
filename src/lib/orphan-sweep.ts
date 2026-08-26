@@ -28,8 +28,10 @@ import { dirname, resolve } from "node:path";
  * deliberately *not* applied: case folding (a separate, filesystem-dependent
  * concern) and symlink resolution (`resolve` is purely lexical, so two output
  * roots that reach one directory through different symlinks still hash apart).
- * Both only ever cost a claim, never invent one, so the worst case is the
- * pre-existing behavior rather than a deletion this plan caused.
+ * Neither can invent a claim, only miss one — but a missed claim is not free:
+ * with the sweeps deferred, both writers of such a directory now sweep after
+ * both have written, so a spelling this plan cannot match loses the accidental
+ * protection that write/sweep interleaving used to give one of them.
  */
 export type OrphanSweepPlan = {
   /** Record paths this run writes, so no later sweep treats them as orphans. */
@@ -81,7 +83,14 @@ export function createOrphanSweepPlan(): OrphanSweepPlan {
       for (const path of paths) {
         const resolved = resolve(path);
         generatedPaths.add(resolved);
-        generatedTrees.add(resolved);
+        // Defense in depth against a tree root that collapsed onto something far
+        // broader than one generated directory: claiming a filesystem root would
+        // silence every sweep in the run. `AiDir` rejects the names that can
+        // collapse that far, so this only ever fires on a future regression —
+        // claim the path itself, never the tree.
+        if (dirname(resolved) !== resolved) {
+          generatedTrees.add(resolved);
+        }
       }
     },
     isGenerated({ path }) {
