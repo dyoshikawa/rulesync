@@ -203,7 +203,25 @@ export abstract class DirFeatureProcessor {
    */
   async removeOrphanAiDirs(existingDirs: AiDir[], generatedDirs: AiDir[]): Promise<number> {
     const generatedPaths = new Set(generatedDirs.map((d) => d.getDirPath()));
-    const orphanDirs = existingDirs.filter((d) => !generatedPaths.has(d.getDirPath()));
+    const orphanDirs = existingDirs.filter((d) => {
+      // A candidate whose `getDirPath()` is not its own directory cannot be an
+      // orphan of itself: `TaktSkill` drops `dirName` and reports the shared
+      // root every takt skill flattens into, so deleting it would take every
+      // sibling in that root — including hand-authored files — with it. That is
+      // exactly what happened when a run generated no takt skill and nothing
+      // claimed the root (#2777). Such a tool has no per-skill directory to
+      // sweep in the first place, so skipping it loses no reachable deletion:
+      // with at least one skill generated the root is always claimed, and with
+      // none it must not be touched.
+      if (!d.ownsDirTree()) {
+        this.logger.debug(
+          `Skipping orphan sweep for ${stripControlCharacters(d.getDirPath())}: ` +
+            `it is a shared root rather than a directory of its own`,
+        );
+        return false;
+      }
+      return !generatedPaths.has(d.getDirPath());
+    });
 
     for (const aiDir of orphanDirs) {
       const dirPath = aiDir.getDirPath();

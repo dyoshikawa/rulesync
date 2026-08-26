@@ -10,7 +10,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, readFileBuffer, writeFileContent } from "../../utils/file.js";
+import { directoryExists, ensureDir, readFileBuffer, writeFileContent } from "../../utils/file.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { JunieSkill } from "./junie-skill.js";
@@ -1521,6 +1521,31 @@ Content that would fail parsing`;
       expect(dirsToDelete).toHaveLength(2);
       const roots = dirsToDelete.map((d) => (d as RovodevSkill).getRelativeDirPath()).toSorted();
       expect(roots).toEqual([join(".agents", "skills"), join(".rovodev", "skills")]);
+    });
+
+    it("should not delete the shared takt facet root when no takt skill is generated", async () => {
+      // Regression test for #2777. `TaktSkill` emits flat files under
+      // `.takt/facets/knowledge`, so `getDirPath()` returns that shared root for
+      // every enumerated candidate. Sweeping the root when the run generated no
+      // takt skill deleted it outright, along with anything the user had put
+      // there by hand.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "takt",
+      });
+
+      const knowledgeDir = join(testDir, ".takt", "facets", "knowledge");
+      const handAuthoredDir = join(knowledgeDir, "my-notes");
+      await ensureDir(handAuthoredDir);
+      await writeFileContent(join(handAuthoredDir, "notes.md"), "hand-authored");
+
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+      const removedCount = await processor.removeOrphanAiDirs(dirsToDelete, []);
+
+      expect(removedCount).toBe(0);
+      expect(await directoryExists(knowledgeDir)).toBe(true);
+      expect(await directoryExists(handAuthoredDir)).toBe(true);
     });
 
     it("should never list an importOnlySkillRoots skill for deletion", async () => {
