@@ -74,12 +74,16 @@ const VIBE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
  * Windows ones publish `git_bash` and `powershell`. A canonical `bash` rule
  * written only to `[tools.bash]` is silently inert on Windows, which is the
  * dangerous direction for a deny, so the canonical category is fanned out to
- * all three tables. An alias the author configured explicitly (as its own
- * category, see {@link resolveVibeToolName}) is left to that entry.
+ * all three tables. An alias the author configured explicitly — as its own
+ * category (see {@link resolveVibeToolNames}) or as a diverging entry already in
+ * the config file (see {@link resolveFanOutShellAliases}) — is left alone.
  * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/tools/builtins/git_bash.py
  * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/tools/builtins/windows_shell.py
  */
 const VIBE_SHELL_ALIAS_TOOL_NAMES = ["git_bash", "powershell"];
+
+/** Canonical per-tool MCP category prefix: `mcp__<server>__<tool>`. */
+const MCP_CANONICAL_PREFIX = "mcp__";
 
 /**
  * Canonical rulesync permission categories that carry a cross-tool meaning (see
@@ -162,19 +166,30 @@ export class VibePermissions extends ToolPermissions {
     const config = parseVibeConfig(existingContent);
 
     const permission = rulesyncPermissions.getJson().permission;
+    const vibeOverride = rulesyncPermissions.getJson().vibe;
 
     const tools = toVibeToolsRecord(config.tools);
     const enabledTools = new Set(toStringArray(config.enabled_tools));
     const disabledTools = new Set(toStringArray(config.disabled_tools));
 
+    // Both loops below must agree on which shell aliases the fan-out may claim,
+    // so the sibling set spans the shared block AND the Vibe override: naming
+    // `powershell` in either one takes it out of `bash`'s fan-out.
+    const siblingCategories = new Set([
+      ...Object.keys(permission),
+      ...Object.keys(vibeOverride?.permission ?? {}),
+    ]);
+    const shellAliases = resolveFanOutShellAliases({ config, logger });
+    const resolveNames = (category: string): string[] | undefined =>
+      resolveVibeToolNames({ category, siblingCategories, shellAliases });
+
     // rulesync is the source of truth for every tool it configures, so drop any
     // stale enabled/disabled filters for those tools before reapplying the
     // current state. Filters for tools rulesync does not configure are kept as-is
     // (e.g. a user-defined `enabled_tools` entry for a Vibe-only tool).
-    const siblingCategories = Object.keys(permission);
     const removedEnabledTools: string[] = [];
-    for (const category of siblingCategories) {
-      for (const vibeToolName of resolveVibeToolNames({ category, siblingCategories }) ?? []) {
+    for (const category of Object.keys(permission)) {
+      for (const vibeToolName of resolveNames(category) ?? []) {
         if (enabledTools.delete(vibeToolName)) {
           removedEnabledTools.push(vibeToolName);
         }
@@ -183,17 +198,18 @@ export class VibePermissions extends ToolPermissions {
     }
 
     for (const [category, rules] of Object.entries(permission)) {
-      const vibeToolNames = resolveVibeToolNames({ category, siblingCategories });
+      const vibeToolNames = resolveNames(category);
       if (vibeToolNames === undefined) {
         const ruleCount = Object.keys(rules).length;
         if (ruleCount > 0) {
           logger?.warn(
-            `Vibe has no builtin tool for the '${category}' category; skipping ${ruleCount} ` +
+            `Vibe has no tool table for the '${category}' category; skipping ${ruleCount} ` +
               `rule(s) instead of emitting an inert [tools.${category}] table.`,
           );
         }
         continue;
       }
+      warnOnLookalikeToolName({ category, vibeToolNames, logger });
       applyCategoryRules({
         vibeToolNames,
         category,
@@ -205,8 +221,7 @@ export class VibePermissions extends ToolPermissions {
       });
     }
 
-    const vibeOverride = rulesyncPermissions.getJson().vibe;
-    applyVibeSensitivePatterns(tools, vibeOverride, logger);
+    applyVibeSensitivePatterns({ tools, vibeOverride, resolveNames, logger });
 
     // `enabled_tools` is exclusive, so removing an entry changes semantics for
     // every OTHER tool too: an emptied list activates all tools, while a
@@ -341,25 +356,29 @@ export class VibePermissions extends ToolPermissions {
  * list for any category the override names: a present list is set, an empty
  * one clears it. Categories not named keep whatever the existing file had.
  */
-function applyVibeSensitivePatterns(
-  tools: Record<string, VibeToolConfig>,
-  vibeOverride: VibePermissionsOverride | undefined,
-  logger?: Logger,
-): void {
-  const overridePermission = vibeOverride?.permission ?? {};
-  const siblingCategories = Object.keys(overridePermission);
-  for (const [category, toolOverride] of Object.entries(overridePermission)) {
-    const vibeToolNames = resolveVibeToolNames({ category, siblingCategories });
+function applyVibeSensitivePatterns({
+  tools,
+  vibeOverride,
+  resolveNames,
+  logger,
+}: {
+  tools: Record<string, VibeToolConfig>;
+  vibeOverride: VibePermissionsOverride | undefined;
+  resolveNames: (category: string) => string[] | undefined;
+  logger?: Logger;
+}): void {
+  for (const [category, toolOverride] of Object.entries(vibeOverride?.permission ?? {})) {
+    const vibeToolNames = resolveNames(category);
     if (vibeToolNames === undefined) {
       logger?.warn(
-        `Vibe has no builtin tool for the '${category}' category; skipping its ` +
+        `Vibe has no tool table for the '${category}' category; skipping its ` +
           `vibe.permission.${category}.sensitive_patterns override.`,
       );
       continue;
     }
     const patterns = toStringArray(toolOverride.sensitive_patterns);
     for (const vibeToolName of vibeToolNames) {
-      const nextTool = toVibeToolConfig(tools[vibeToolName]);
+      const nextTool = readVibeToolConfig({ tools, vibeToolName });
       if (patterns.length > 0) {
         nextTool.sensitive_patterns = [...patterns].toSorted();
       } else {
@@ -423,7 +442,7 @@ function applyCategoryRulesToTool({
   disabledTools: Set<string>;
   logger?: Logger;
 }): void {
-  const existingTool = toVibeToolConfig(tools[vibeToolName]);
+  const existingTool = readVibeToolConfig({ tools, vibeToolName });
   const nextTool: VibeToolConfig = { ...existingTool };
   const allow = new Set(toStringArray(existingTool.allow ?? existingTool.allowlist));
   const deny = new Set(toStringArray(existingTool.deny ?? existingTool.denylist));
@@ -471,6 +490,13 @@ function applyCategoryRulesToTool({
   if (deny.size > 0) {
     nextTool.denylist = [...deny].toSorted();
   }
+
+  // A category with no expressible rule (`{}`, or only skipped `ask` patterns)
+  // has nothing to say about the tool. Emitting `[tools.<name>]` for it would be
+  // noise, and the fan-out would multiply that noise across all three shells.
+  if (Object.keys(nextTool).length === 0 && !Object.hasOwn(tools, vibeToolName)) {
+    return;
+  }
   tools[vibeToolName] = nextTool;
 }
 
@@ -517,25 +543,39 @@ function parseVibeConfig(fileContent: string): VibeConfig {
  * rename to, so the caller skips it with a warning (the grokcli adapter's
  * pattern).
  *
- * Every other name is taken at face value as a Vibe tool name and written to
- * `[tools.<name>]`. That is how MCP tools are reachable: their published name
- * is `<server>_<tool>`, and Vibe's tool manager looks the table up by tool
- * name without restricting it to builtins.
+ * A canonical MCP category (`mcp__<server>__<tool>`) is translated to Vibe's own
+ * published MCP name, `<server>_<tool>` — see {@link toVibeMcpToolName}. Every
+ * other name is taken at face value as a Vibe tool name and written to
+ * `[tools.<name>]`, because Vibe's tool manager looks the table up by tool name
+ * without restricting it to builtins.
  */
 function resolveVibeToolNames({
   category,
   siblingCategories,
+  shellAliases,
 }: {
   category: string;
-  siblingCategories: Iterable<string>;
+  siblingCategories: ReadonlySet<string>;
+  shellAliases: readonly string[];
 }): string[] | undefined {
-  // Vibe's config has per-tool tables only; there is no all-tools table for a
-  // bare `"*"` category to land in.
+  // Vibe's config has per-tool tables only, so there is no all-tools table for a
+  // bare `"*"` category. `disabled_tools` does match glob patterns (`name_matches`
+  // in `vibe/core/utils/matching.py`), but an entry there removes the tool from
+  // the registry outright rather than acting as a default the sibling
+  // `[tools.<name>]` tables can override, so `disabled_tools = ["*"]` would
+  // silently swallow every `allow` authored next to the wildcard.
+  // @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/tools/manager.py
   if (category === "*") {
     return undefined;
   }
 
-  const builtin = CANONICAL_TO_VIBE_TOOL_NAMES[category];
+  if (category.startsWith(MCP_CANONICAL_PREFIX)) {
+    return toVibeMcpToolName(category);
+  }
+
+  const builtin = Object.hasOwn(CANONICAL_TO_VIBE_TOOL_NAMES, category)
+    ? CANONICAL_TO_VIBE_TOOL_NAMES[category]
+    : undefined;
   if (builtin === undefined) {
     return CANONICAL_PERMISSION_CATEGORIES.has(category) ? undefined : [category];
   }
@@ -546,24 +586,145 @@ function resolveVibeToolNames({
 
   // An alias the author addressed directly wins over the fan-out; its own
   // category writes that table.
-  const explicit = new Set(siblingCategories);
-  return [builtin, ...VIBE_SHELL_ALIAS_TOOL_NAMES.filter((name) => !explicit.has(name))];
+  return [builtin, ...shellAliases.filter((name) => !siblingCategories.has(name))];
+}
+
+/**
+ * Vibe publishes an MCP tool as `f"{alias}_{remote.name}"`, where the alias is
+ * the server's name — so rulesync's canonical `mcp__github__create_issue`
+ * addresses `[tools.github_create_issue]`. Writing the canonical spelling
+ * verbatim would produce a table Vibe never looks up: an inert deny, the
+ * dangerous direction.
+ *
+ * Only the FIRST separator is split, matching the `zed-permissions.ts` and
+ * `cursor-permissions.ts` precedent: upstream concatenates the two names without
+ * escaping either, so a tool called `create__issue` is legitimately
+ * `github_create__issue`.
+ *
+ * A server-scoped category (`mcp__github`, no tool part) resolves to
+ * `undefined`: Vibe has no server-level permission table, only per-tool ones.
+ *
+ * The translation is one-way. Vibe's name carries no `mcp` marker and its
+ * separator is the same `_` that appears inside server and tool names, so import
+ * cannot tell `github_create_issue` from a builtin-shaped name and keeps it
+ * as-is. Regenerating from that imported name writes the same table, so the
+ * emitted config still round-trips.
+ * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/mcp/tools.py
+ */
+function toVibeMcpToolName(category: string): string[] | undefined {
+  const [server, ...toolParts] = category.slice(MCP_CANONICAL_PREFIX.length).split("__");
+  if (!server || toolParts.length === 0) {
+    return undefined;
+  }
+  return [`${server}_${toolParts.join("__")}`];
+}
+
+/**
+ * The Windows managed-shell tables `bash`'s fan-out may claim: those the existing
+ * config file says nothing about, plus those whose state is identical to
+ * `bash`'s and therefore a previous fan-out coming back.
+ *
+ * An alias the file already mentions *differently* — its own `[tools.<name>]`
+ * table, or its own `enabled_tools`/`disabled_tools` membership — is a decision
+ * the author made by hand. Overwriting it would broaden a hand-authored
+ * `permission = "never"` into whatever the canonical `bash` category says, so it
+ * is left untouched instead and keeps round-tripping as its own category.
+ */
+function resolveFanOutShellAliases({
+  config,
+  logger,
+}: {
+  config: VibeConfig;
+  logger?: Logger;
+}): string[] {
+  const tools = toVibeToolsRecord(config.tools);
+  const enabledTools = new Set(toStringArray(config.enabled_tools));
+  const disabledTools = new Set(toStringArray(config.disabled_tools));
+  const isMentioned = (name: string): boolean =>
+    Object.hasOwn(tools, name) || enabledTools.has(name) || disabledTools.has(name);
+  const describe = (name: string): string =>
+    JSON.stringify({
+      table: Object.hasOwn(tools, name)
+        ? Object.entries(tools[name] ?? {}).toSorted(([a], [b]) => a.localeCompare(b))
+        : null,
+      enabled: enabledTools.has(name),
+      disabled: disabledTools.has(name),
+    });
+
+  const bashState = describe("bash");
+  const fanOutTargets = VIBE_SHELL_ALIAS_TOOL_NAMES.filter(
+    (name) => !isMentioned(name) || describe(name) === bashState,
+  );
+  const preserved = VIBE_SHELL_ALIAS_TOOL_NAMES.filter((name) => !fanOutTargets.includes(name));
+  if (preserved.length > 0) {
+    logger?.info(
+      `Keeping the existing Vibe configuration for ${preserved.join(", ")} instead of fanning ` +
+        `the 'bash' category out to it, because it already differs from [tools.bash] on disk.`,
+    );
+  }
+  return fanOutTargets;
+}
+
+/**
+ * A non-canonical category is written verbatim as a Vibe tool name, which is how
+ * MCP tools stay reachable — but it also means a misspelled builtin becomes an
+ * inert table. Case is the one class of typo that can be detected without
+ * guessing, so flag it rather than emitting `[tools.Bash]` silently.
+ */
+function warnOnLookalikeToolName({
+  category,
+  vibeToolNames,
+  logger,
+}: {
+  category: string;
+  vibeToolNames: string[];
+  logger?: Logger;
+}): void {
+  for (const vibeToolName of vibeToolNames) {
+    if (Object.hasOwn(VIBE_TO_CANONICAL_TOOL_NAMES, vibeToolName)) {
+      continue;
+    }
+    const lowercased = vibeToolName.toLowerCase();
+    if (lowercased !== vibeToolName && Object.hasOwn(VIBE_TO_CANONICAL_TOOL_NAMES, lowercased)) {
+      logger?.warn(
+        `The '${category}' category is written to [tools.${vibeToolName}], but Vibe's tool names ` +
+          `are lowercase. Did you mean '${VIBE_TO_CANONICAL_TOOL_NAMES[lowercased]}'?`,
+      );
+    }
+  }
 }
 
 function toCanonicalToolName(vibeToolName: string): string {
-  return VIBE_TO_CANONICAL_TOOL_NAMES[vibeToolName] ?? vibeToolName;
+  return Object.hasOwn(VIBE_TO_CANONICAL_TOOL_NAMES, vibeToolName)
+    ? (VIBE_TO_CANONICAL_TOOL_NAMES[vibeToolName] ?? vibeToolName)
+    : vibeToolName;
+}
+
+/**
+ * Read one tool's table. Null-prototype based so a `__proto__` tool name is a
+ * plain own property here rather than an assignment that silently swaps the
+ * record's prototype (and so a lookup for `toString` misses instead of
+ * returning a function).
+ */
+function readVibeToolConfig({
+  tools,
+  vibeToolName,
+}: {
+  tools: Record<string, VibeToolConfig>;
+  vibeToolName: string;
+}): VibeToolConfig {
+  return toVibeToolConfig(Object.hasOwn(tools, vibeToolName) ? tools[vibeToolName] : undefined);
 }
 
 function toVibeToolsRecord(value: unknown): Record<string, VibeToolConfig> {
+  const record: Record<string, VibeToolConfig> = Object.create(null);
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
+    return record;
   }
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([toolName, config]) => [
-      toolName,
-      toVibeToolConfig(config),
-    ]),
-  );
+  for (const [toolName, config] of Object.entries(value as Record<string, unknown>)) {
+    record[toolName] = toVibeToolConfig(config);
+  }
+  return record;
 }
 
 function toVibeToolConfig(value: unknown): VibeToolConfig {
@@ -616,12 +777,20 @@ function ensurePermission(
   permission: PermissionsConfig["permission"],
   category: string,
 ): Record<string, PermissionAction> {
-  const existing = permission[category];
+  const existing = Object.hasOwn(permission, category) ? permission[category] : undefined;
   if (existing) {
     return existing;
   }
   const created: Record<string, PermissionAction> = {};
-  permission[category] = created;
+  // `defineProperty` rather than assignment so a `[tools.__proto__]` table on
+  // disk becomes a real (if useless) category instead of silently
+  // the imported permission block.
+  Object.defineProperty(permission, category, {
+    value: created,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
   return created;
 }
 

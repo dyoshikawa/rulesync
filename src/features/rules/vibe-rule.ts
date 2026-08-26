@@ -2,11 +2,7 @@ import { join } from "node:path";
 
 import { AGENTSMD_RULE_FILE_NAME } from "../../constants/agentsmd-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { readFileContent, toPosixPath } from "../../utils/file.js";
-import {
-  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
-  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
-} from "./nested-scan-exclusions.js";
+import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -66,17 +62,7 @@ export class VibeRule extends ToolRule {
    * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/config/harness_files/_harness_manager.py
    */
   static getNestedFilePatterns({ outputRoot }: { outputRoot: string }): ToolRuleNestedFilePatterns {
-    const root = toPosixPath(outputRoot);
-    return {
-      include: [`${root}/**/${AGENTSMD_RULE_FILE_NAME}`],
-      ignore: [
-        // Enumerated separately as the root rule.
-        `${root}/${AGENTSMD_RULE_FILE_NAME}`,
-        `${root}/**/.*/**`,
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
-      ],
-    };
+    return this.buildNestedFilePatterns({ outputRoot, fileName: AGENTSMD_RULE_FILE_NAME });
   }
 
   /**
@@ -84,14 +70,7 @@ export class VibeRule extends ToolRule {
    * (project or global).
    */
   private getSubprojectPath(): string | undefined {
-    if (this.isRoot()) {
-      return undefined;
-    }
-    const relativeDirPath = toPosixPath(this.getRelativeDirPath());
-    if (relativeDirPath === "." || relativeDirPath === "" || relativeDirPath.startsWith(".")) {
-      return undefined;
-    }
-    return relativeDirPath;
+    return this.getNestedSubprojectPath({ fileName: AGENTSMD_RULE_FILE_NAME });
   }
 
   static async fromFile({

@@ -8,6 +8,11 @@ import {
 import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
+import { toPosixPath } from "../../utils/file.js";
+import {
+  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
+  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
+} from "./nested-scan-exclusions.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
 export type ToolRuleParams = AiFileParams & {
@@ -259,6 +264,53 @@ export abstract class ToolRule extends ToolFile {
     }
 
     return params;
+  }
+
+  /**
+   * Patterns for the per-directory instruction files of a target that walks the
+   * directory tree to find them (the AGENTS.md standard's nested discovery, and
+   * the vendor-specific variants that copy it). The project root file is
+   * excluded because it is enumerated separately as the root rule.
+   *
+   * Import-only. The matches are hand-authored files anywhere in the tree rather
+   * than files under a rulesync-owned directory, so enumerating them for
+   * `--delete` would sweep away work rulesync never wrote.
+   */
+  protected static buildNestedFilePatterns({
+    outputRoot,
+    fileName,
+  }: {
+    outputRoot: string;
+    fileName: string;
+  }): ToolRuleNestedFilePatterns {
+    const root = toPosixPath(outputRoot);
+    return {
+      include: [`${root}/**/${fileName}`],
+      ignore: [
+        // Enumerated separately as the root rule.
+        `${root}/${fileName}`,
+        `${root}/**/.*/**`,
+        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
+        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
+      ],
+    };
+  }
+
+  /**
+   * The subproject directory a nested per-directory file scopes, or `undefined`
+   * when this rule is not one: the project or global root file, a file inside a
+   * tool-owned dot directory, or — when `fileName` is given — a modular file
+   * that merely shares a directory with the nested ones.
+   */
+  protected getNestedSubprojectPath({ fileName }: { fileName?: string } = {}): string | undefined {
+    if (this.isRoot() || (fileName !== undefined && this.getRelativeFilePath() !== fileName)) {
+      return undefined;
+    }
+    const relativeDirPath = toPosixPath(this.getRelativeDirPath());
+    if (relativeDirPath === "." || relativeDirPath === "" || relativeDirPath.startsWith(".")) {
+      return undefined;
+    }
+    return relativeDirPath;
   }
 
   /**

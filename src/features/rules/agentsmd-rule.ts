@@ -7,10 +7,6 @@ import {
 } from "../../constants/agentsmd-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
-import {
-  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
-  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
-} from "./nested-scan-exclusions.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -76,17 +72,7 @@ export class AgentsMdRule extends ToolRule {
    * @see https://agents.md/
    */
   static getNestedFilePatterns({ outputRoot }: { outputRoot: string }): ToolRuleNestedFilePatterns {
-    const root = toPosixPath(outputRoot);
-    return {
-      include: [`${root}/**/${AGENTSMD_RULE_FILE_NAME}`],
-      ignore: [
-        // Enumerated separately as the root rule.
-        `${root}/${AGENTSMD_RULE_FILE_NAME}`,
-        `${root}/**/.*/**`,
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
-      ],
-    };
+    return this.buildNestedFilePatterns({ outputRoot, fileName: AGENTSMD_RULE_FILE_NAME });
   }
 
   /**
@@ -94,14 +80,7 @@ export class AgentsMdRule extends ToolRule {
    * root file and for the modular `.agents/memories/` files.
    */
   getSubprojectPath(): string | undefined {
-    if (this.isRoot() || this.getRelativeFilePath() !== AGENTSMD_RULE_FILE_NAME) {
-      return undefined;
-    }
-    const relativeDirPath = toPosixPath(this.getRelativeDirPath());
-    if (relativeDirPath === "." || relativeDirPath === "" || relativeDirPath.startsWith(".")) {
-      return undefined;
-    }
-    return relativeDirPath;
+    return this.getNestedSubprojectPath({ fileName: AGENTSMD_RULE_FILE_NAME });
   }
 
   static async fromFile({

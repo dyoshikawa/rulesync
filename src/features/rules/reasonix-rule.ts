@@ -3,11 +3,7 @@ import { join } from "node:path";
 import { REASONIX_GLOBAL_DIR, REASONIX_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { readFileContent, toPosixPath } from "../../utils/file.js";
-import {
-  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
-  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
-} from "./nested-scan-exclusions.js";
+import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -75,17 +71,7 @@ export class ReasonixRule extends ToolRule {
    * @see https://github.com/esengine/DeepSeek-Reasonix/blob/v1.18.0/docs/SESSION_MEMORY_RETRIEVAL.md
    */
   static getNestedFilePatterns({ outputRoot }: { outputRoot: string }): ToolRuleNestedFilePatterns {
-    const root = toPosixPath(outputRoot);
-    return {
-      include: [`${root}/**/${REASONIX_RULE_FILE_NAME}`],
-      ignore: [
-        // Enumerated separately as the root rule.
-        `${root}/${REASONIX_RULE_FILE_NAME}`,
-        `${root}/**/.*/**`,
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
-      ],
-    };
+    return this.buildNestedFilePatterns({ outputRoot, fileName: REASONIX_RULE_FILE_NAME });
   }
 
   /**
@@ -93,14 +79,7 @@ export class ReasonixRule extends ToolRule {
    * file (project or global).
    */
   private getSubprojectPath(): string | undefined {
-    if (this.isRoot()) {
-      return undefined;
-    }
-    const relativeDirPath = toPosixPath(this.getRelativeDirPath());
-    if (relativeDirPath === "." || relativeDirPath === "" || relativeDirPath.startsWith(".")) {
-      return undefined;
-    }
-    return relativeDirPath;
+    return this.getNestedSubprojectPath({ fileName: REASONIX_RULE_FILE_NAME });
   }
 
   static async fromFile({
