@@ -1388,6 +1388,94 @@ describe("fetchFiles with skill selection", () => {
     expect(relativePaths).toEqual(["skills/README.md", "skills/skill-a/SKILL.md"]);
   });
 
+  it("should not fetch a skill directory whose name is invisible once stripped", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              { name: "\u200e", path: "skills/\u200e", type: "dir" },
+            ],
+          );
+        }
+        if (path === "skills/\u200e") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/\u200e/SKILL.md",
+              type: "file",
+              sha: "eee",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    // The directory is never offered, so selecting nothing must write nothing.
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+    });
+    expect(summary.files).toEqual([]);
+  });
+
+  it("should not let a skill that only displays as another one ride along with it", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              { name: "skill\u200e-a", path: "skills/skill\u200e-a", type: "dir" },
+            ],
+          );
+        }
+        if (path === "skills/skill\u200e-a") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/skill\u200e-a/SKILL.md",
+              type: "file",
+              sha: "ddd",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue(["skill-a"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    const relativePaths = summary.files.map((f) => f.relativePath).toSorted();
+    expect(relativePaths).toEqual(["skills/skill-a/SKILL.md"]);
+  });
+
   it("should warn and fetch nothing when interactive is used but no skills exist", async () => {
     isInteractiveTerminalMock.mockReturnValue(true);
     mockClientInstance.listDirectory.mockImplementation(() => {

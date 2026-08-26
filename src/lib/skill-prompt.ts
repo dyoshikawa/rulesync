@@ -15,9 +15,10 @@ export class SkillSelectionCancelledError extends Error {
  * Key bindings offered by the checkbox prompt, pinned rather than left to the
  * library default. Nothing is checked when the prompt opens, so `a` is the
  * shortcut that makes "fetch everything" a single keystroke and `i` covers the
- * inverse "everything except these" flow. Both are listed in the prompt's own
- * help line, and spelling them out here keeps the bindings stable across
- * `@inquirer/checkbox` upgrades.
+ * inverse "everything except these" flow. `a` toggles: it checks everything
+ * while anything is unchecked, and clears the list once all of it is checked.
+ * Both keys are listed in the prompt's own help line, and spelling them out
+ * here keeps the binding visible next to the empty default it exists for.
  */
 const SKILL_PROMPT_SHORTCUTS = {
   all: "a",
@@ -43,7 +44,7 @@ export async function promptSkillSelection(params: {
 
   try {
     return await checkbox({
-      message: `Select skills to fetch (press <${SKILL_PROMPT_SHORTCUTS.all}> to select all)`,
+      message: `Select skills to fetch (press <${SKILL_PROMPT_SHORTCUTS.all}> to select/deselect all)`,
       choices: availableSkills.map((name) => ({
         name,
         value: name,

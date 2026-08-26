@@ -315,17 +315,17 @@ rulesync fetch owner/repo@ref:path   # Both ref and path
 
 ### Options
 
-| Option                  | Description                                                                                                                                                  | Default                          |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
-| `--target, -t <target>` | Target format to interpret files as (e.g., 'rulesync', 'claudecode')                                                                                         | `rulesync`                       |
-| `--features <features>` | Comma-separated features to fetch (rules, commands, subagents, skills, ignore, mcp, hooks, permissions, checks)                                              | `skills`                         |
-| `--output <dir>`        | Output directory relative to project root                                                                                                                    | `.rulesync`                      |
-| `--conflict <strategy>` | Conflict resolution: `overwrite` or `skip`                                                                                                                   | `overwrite`                      |
-| `--ref <ref>`           | Git ref (branch/tag/commit) to fetch from                                                                                                                    | Default branch                   |
-| `--path <path>`         | Subdirectory in the repository                                                                                                                               | `.` (root)                       |
-| `--skills <skills>`     | Comma-separated skill names to fetch (requires the skills feature)                                                                                           | All skills                       |
-| `--interactive, -i`     | Interactively select skills to fetch via a checkbox prompt; nothing is selected initially, press `<a>` to select all (requires the skills feature and a TTY) | Disabled                         |
-| `--token <token>`       | Git provider token for private repositories                                                                                                                  | `GITHUB_TOKEN` or `GH_TOKEN` env |
+| Option                  | Description                                                                                                                                                           | Default                          |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `--target, -t <target>` | Target format to interpret files as (e.g., 'rulesync', 'claudecode')                                                                                                  | `rulesync`                       |
+| `--features <features>` | Comma-separated features to fetch (rules, commands, subagents, skills, ignore, mcp, hooks, permissions, checks)                                                       | `skills`                         |
+| `--output <dir>`        | Output directory relative to project root                                                                                                                             | `.rulesync`                      |
+| `--conflict <strategy>` | Conflict resolution: `overwrite` or `skip`                                                                                                                            | `overwrite`                      |
+| `--ref <ref>`           | Git ref (branch/tag/commit) to fetch from                                                                                                                             | Default branch                   |
+| `--path <path>`         | Subdirectory in the repository                                                                                                                                        | `.` (root)                       |
+| `--skills <skills>`     | Comma-separated skill names to fetch (requires the skills feature)                                                                                                    | All skills                       |
+| `--interactive, -i`     | Interactively select skills to fetch via a checkbox prompt; nothing is selected initially, press `<a>` to select/deselect all (requires the skills feature and a TTY) | Disabled                         |
+| `--token <token>`       | Git provider token for private repositories                                                                                                                           | `GITHUB_TOKEN` or `GH_TOKEN` env |
 
 ### Examples
 
@@ -339,7 +339,7 @@ rulesync fetch anthropics/skills --skills pdf,docx
 
 # Interactively select which skills to fetch (checkbox prompt)
 # Nothing is checked when the prompt opens: press <space> to select the
-# highlighted skill, <a> to select all, <i> to invert, and <enter> to confirm.
+# highlighted skill, <a> to select/deselect all, <i> to invert, and <enter> to confirm.
 rulesync fetch anthropics/skills --interactive
 
 # Interactively select skills with some pre-checked

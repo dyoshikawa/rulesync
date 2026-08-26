@@ -27,7 +27,7 @@ describe("promptSkillSelection", () => {
     });
 
     expect(checkboxMock).toHaveBeenCalledWith({
-      message: "Select skills to fetch (press <a> to select all)",
+      message: "Select skills to fetch (press <a> to select/deselect all)",
       choices: [
         { name: "skill-a", value: "skill-a", checked: false },
         { name: "skill-b", value: "skill-b", checked: false },
@@ -46,7 +46,7 @@ describe("promptSkillSelection", () => {
     });
 
     expect(checkboxMock).toHaveBeenCalledWith({
-      message: "Select skills to fetch (press <a> to select all)",
+      message: "Select skills to fetch (press <a> to select/deselect all)",
       choices: [
         { name: "skill-a", value: "skill-a", checked: false },
         { name: "skill-b", value: "skill-b", checked: true },
