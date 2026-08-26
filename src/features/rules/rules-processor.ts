@@ -855,11 +855,17 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       class: VibeRule,
       meta: {
         // Vibe loads project AGENTS.md from the trusted working tree and
-        // user-level AGENTS.md from ~/.vibe/AGENTS.md. It does not have a
-        // native non-root rule directory.
+        // user-level AGENTS.md from ~/.vibe/AGENTS.md. It has no modular
+        // non-root instruction directory, so topic rules fold into the root
+        // file (mirrors reasonix/codexcli) — except directory-scoped rules
+        // (`agentsmd.subprojectPath`), which Vibe's harness manager loads by
+        // walking the directories above the file being read, and which are
+        // emitted as nested `<dir>/AGENTS.md` files (imported back via
+        // `getNestedFilePatterns`).
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],

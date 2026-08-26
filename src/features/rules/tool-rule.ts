@@ -8,6 +8,11 @@ import {
 import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
+import { toPosixPath } from "../../utils/file.js";
+import {
+  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
+  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
+} from "./nested-scan-exclusions.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
 export type ToolRuleParams = AiFileParams & {
@@ -259,6 +264,95 @@ export abstract class ToolRule extends ToolFile {
     }
 
     return params;
+  }
+
+  /**
+   * Patterns for the per-directory instruction files of a target that walks the
+   * directory tree to find them (the AGENTS.md standard's nested discovery, and
+   * the vendor-specific variants that copy it). The project root file is
+   * excluded because it is enumerated separately as the root rule.
+   *
+   * Import-only. The matches are hand-authored files anywhere in the tree rather
+   * than files under a rulesync-owned directory, so enumerating them for
+   * `--delete` would sweep away work rulesync never wrote.
+   */
+  protected static buildNestedFilePatterns({
+    outputRoot,
+    fileName,
+  }: {
+    outputRoot: string;
+    fileName: string;
+  }): ToolRuleNestedFilePatterns {
+    const root = toPosixPath(outputRoot);
+    return {
+      include: [`${root}/**/${fileName}`],
+      ignore: [
+        // Enumerated separately as the root rule.
+        `${root}/${fileName}`,
+        `${root}/**/.*/**`,
+        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
+        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
+      ],
+    };
+  }
+
+  /**
+   * The subproject directory a nested per-directory file scopes, or `undefined`
+   * when this rule is not one: the project or global root file, a file inside a
+   * tool-owned dot directory, or — when `fileName` is given — a modular file
+   * that merely shares a directory with the nested ones.
+   */
+  protected getNestedSubprojectPath({ fileName }: { fileName?: string } = {}): string | undefined {
+    if (this.isRoot() || (fileName !== undefined && this.getRelativeFilePath() !== fileName)) {
+      return undefined;
+    }
+    const relativeDirPath = toPosixPath(this.getRelativeDirPath());
+    if (relativeDirPath === "." || relativeDirPath === "" || relativeDirPath.startsWith(".")) {
+      return undefined;
+    }
+    return relativeDirPath;
+  }
+
+  /**
+   * The rulesync rule for a nested `AGENTS.md` — the AGENTS.md standard's own
+   * per-directory file, which several targets read from the same path.
+   *
+   * Every nested file has the same name, so the rulesync file is named after
+   * the directory it scopes and carries `agentsmd.subprojectPath` to send it
+   * back there on the next generate. A subproject that would claim the
+   * reserved root-rule name gets a suffix instead: overwriting `overview.md`
+   * would drop the root rule entirely, and the next `--delete` would then
+   * remove the root `AGENTS.md` along with it. Compared case-insensitively:
+   * on a case-insensitive filesystem an `Overview/` subproject would otherwise
+   * still land on the root rule's file.
+   *
+   * Shared rather than per-target so that importing the same file through two
+   * targets that both read it produces one rulesync rule, not two copies under
+   * different names.
+   */
+  protected toRulesyncRuleNestedAgentsmd({
+    subprojectPath,
+  }: {
+    subprojectPath: string;
+  }): RulesyncRule {
+    const slug = subprojectPath.replaceAll("/", "-");
+    const derivedName = `${slug}.md`;
+    return new RulesyncRule({
+      outputRoot: process.cwd(),
+      relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+      relativeFilePath:
+        derivedName.toLowerCase() === RULESYNC_OVERVIEW_FILE_NAME.toLowerCase()
+          ? `${slug}-agents.md`
+          : derivedName,
+      frontmatter: {
+        root: false,
+        targets: ["*"],
+        description: this.getDescription(),
+        globs: [`${subprojectPath}/**/*`],
+        agentsmd: { subprojectPath },
+      },
+      body: this.getFileContent(),
+    });
   }
 
   abstract toRulesyncRule(): RulesyncRule;
