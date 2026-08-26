@@ -247,7 +247,7 @@ You are the planner. Analyze files and create a plan.
     },
   );
 
-  it.each([{ target: "agentsmd", outputPath: join(".agents", "subagents", "planner.md") }])(
+  it.each([{ target: "agentsmd", outputPath: join(".agents", "agents", "planner.md") }])(
     "should generate $target simulated subagents",
     async ({ target, outputPath }) => {
       const testDir = getTestDir();
