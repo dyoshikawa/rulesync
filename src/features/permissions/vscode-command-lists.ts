@@ -21,7 +21,9 @@ const REGEX_LITERAL = /^\/\^(.*)\/[a-z]*$/;
  * matching, so such a pattern cannot match a parsed subcommand at all. No
  * sound prefix can be derived either — the prefix common to `npm run (build|
  * test)` is `npm run `, which denies every script rather than the two named —
- * so these are reported as inert instead of widened.
+ * so these are reported as inert instead of widened. Tested before any prefix
+ * is derived, so `npm run (build|test)`, `^npm run (build|test)` and
+ * `/^npm run (build|test)/` all reach that same answer.
  */
 const ALTERNATION = /[()|]/;
 
@@ -74,17 +76,21 @@ function classifyPattern(pattern: string): PatternShape {
   if (pattern === "*") {
     return { kind: "literal" };
   }
-  const regexBody = REGEX_LITERAL.exec(pattern)?.[1];
+  // A leading anchor is regex syntax wherever it appears, so the rest is read
+  // as a regex whether or not the pattern also carries the `/…/` delimiters.
+  const regexBody =
+    REGEX_LITERAL.exec(pattern)?.[1] ?? (pattern.startsWith("^") ? pattern.slice(1) : undefined);
+  const body = regexBody ?? pattern;
+  // Checked before any prefix is derived, and against the regex body rather
+  // than the whole pattern, so that all three spellings of an alternation reach
+  // the same answer. `REGEX_METACHARACTERS` includes `(`, so deriving first
+  // would cut `/^npm run (build|test)/` down to the common prefix `npm run `
+  // that the inert tier exists to avoid.
+  if (ALTERNATION.test(body)) {
+    return { kind: "matcher", prefix: undefined };
+  }
   if (regexBody !== undefined) {
     return { kind: "matcher", prefix: firstPrefix(regexBody, REGEX_METACHARACTERS) };
-  }
-  if (pattern.startsWith("^")) {
-    // A leading anchor is regex syntax wherever it appears, so read the rest as
-    // a regex too.
-    return { kind: "matcher", prefix: firstPrefix(pattern.slice(1), REGEX_METACHARACTERS) };
-  }
-  if (ALTERNATION.test(pattern)) {
-    return { kind: "matcher", prefix: undefined };
   }
   if (pattern.includes("*")) {
     return { kind: "matcher", prefix: firstPrefix(pattern, /\*/) };
@@ -206,9 +212,9 @@ export function buildVscodeCommandLists({
       `${toolLabel}: deny ${pluralize(count, "pattern", "patterns")} ` +
         `${formatAdditions(widenedDenies)} — glob or regex syntax compared as literal command ` +
         `prefix text, so ${pluralize(count, "it cannot match on its", "they cannot match on their")} ` +
-        `own. The literal prefix each one pins down has been added alongside it so the deny takes ` +
-        `effect. Each added prefix denies at least everything its pattern named, so review it if ` +
-        `that is wider than you intended.`,
+        `own. ${pluralize(count, "The literal prefix it pins down has", "The literal prefix each one pins down has")} ` +
+        `been added alongside it so the deny takes effect. Each added prefix denies at least ` +
+        `everything its pattern named, so review it if that is wider than you intended.`,
     );
   }
   if (inertDenies.length > 0) {
@@ -227,15 +233,19 @@ export function buildVscodeCommandLists({
   // equal-length match, so the allow entry stops approving anything — the safe
   // direction, but not obviously what was written.
   const allowedSet = new Set(allowed);
-  const shadowedAllows = widenedDenies
-    .map(({ prefix }) => prefix)
-    .filter((prefix) => allowedSet.has(prefix));
+  // Deduplicated before it is counted: two matcher denies can pin down the same
+  // prefix, and the message names each shadowed allow entry once.
+  const shadowedAllows = [
+    ...new Set(
+      widenedDenies.map(({ prefix }) => prefix).filter((prefix) => allowedSet.has(prefix)),
+    ),
+  ];
   if (shadowedAllows.length > 0) {
     const count = shadowedAllows.length;
     warnWithFallback(
       logger,
       `${toolLabel}: the added deny ${pluralize(count, "prefix", "prefixes")} ` +
-        `${formatPatterns([...new Set(shadowedAllows)])} also ${pluralize(count, "appears", "appear")} ` +
+        `${formatPatterns(shadowedAllows)} also ${pluralize(count, "appears", "appear")} ` +
         `in the allow list. A denied match of equal length wins over an allowed one, so ` +
         `${pluralize(count, "that allow entry", "those allow entries")} no longer ` +
         `${pluralize(count, "approves", "approve")} anything.`,

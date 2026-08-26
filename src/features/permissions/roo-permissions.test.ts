@@ -266,24 +266,28 @@ describe("RooPermissions", () => {
     // Alternation names alternatives, not a prefix. `npm run ` is the text they
     // share, but denying it would deny every script rather than the two written,
     // so it is reported as inert instead of widened.
-    it("reports an alternation as inert rather than widening it", async () => {
-      const logger = createMockLogger();
+    // Every spelling has to reach the same answer. Reading the regex forms
+    // first would cut them at the `(` and add the common prefix `npm run `,
+    // which denies every script rather than the two the author named.
+    it.each(["npm run (build|test)", "/^npm run (build|test)/", "^npm run (build|test)"])(
+      "reports the alternation %s as inert rather than widening it",
+      async (pattern) => {
+        const logger = createMockLogger();
 
-      const permissions = await RooPermissions.fromRulesyncPermissions({
-        outputRoot: testDir,
-        rulesyncPermissions: createRulesyncPermissions({
-          bash: { "npm run (build|test)": "deny" },
-        }),
-        logger,
-      });
+        const permissions = await RooPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: createRulesyncPermissions({
+            bash: { [pattern]: "deny" },
+          }),
+          logger,
+        });
 
-      expect(JSON.parse(permissions.getFileContent())[DENIED_KEY]).toEqual([
-        "npm run (build|test)",
-      ]);
-      const warning = String(logger.warn.mock.calls[0]?.[0]);
-      expect(warning).toContain("will never match");
-      expect(warning).toContain("one entry per alternative");
-    });
+        expect(JSON.parse(permissions.getFileContent())[DENIED_KEY]).toEqual([pattern]);
+        const warning = String(logger.warn.mock.calls[0]?.[0]);
+        expect(warning).toContain("will never match");
+        expect(warning).toContain("one entry per alternative");
+      },
+    );
 
     // `mergeCommandLists` filters entries on `cmd.trim().length > 0`, so a
     // whitespace-only prefix would be dropped by the extension while rulesync
