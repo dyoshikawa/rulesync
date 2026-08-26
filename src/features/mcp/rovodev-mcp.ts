@@ -431,19 +431,22 @@ function pointerLabels(global: boolean): {
  * reference documents. It is not overwritten — it may well hold the user's
  * servers — but this is the user the pointer exists for, so the message says
  * what to change and what changing it would cost.
+ *
+ * Global-only by construction, not by the caller's discipline: the default it
+ * reports and the file `describeDisplacedGlobalServers` opens are both under
+ * the home directory, so taking a scope flag would let a future caller read a
+ * repo-relative `.rovodev/mcp_config.json` and label it `~/...`.
  */
 async function warnAtDocumentedDefault({
   existing,
-  global,
   outputRoot,
   logger,
 }: {
   existing: unknown;
-  global: boolean;
   outputRoot: string;
   logger?: Logger;
 }): Promise<void> {
-  const { pointer, configLabel, mcpLabel } = pointerLabels(global);
+  const { pointer, configLabel, mcpLabel } = pointerLabels(true);
   const displaced = await describeDisplacedGlobalServers({ outputRoot });
   logger?.warn(
     `Rovo Dev MCP: leaving mcp.mcpConfigPath as ${JSON.stringify(existing)} in ${configLabel}. ` +
@@ -544,7 +547,7 @@ async function applyMcpConfigPointer({
   // chose, so it gets a message that says what to do rather than the generic
   // "you aimed this somewhere else".
   if (global && namesFile(ROVODEV_ALTERNATE_MCP_FILE_NAME)) {
-    await warnAtDocumentedDefault({ existing, global, outputRoot, logger });
+    await warnAtDocumentedDefault({ existing, outputRoot, logger });
     return false;
   }
 
