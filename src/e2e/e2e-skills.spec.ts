@@ -533,6 +533,81 @@ This is the fallback skill body content.`;
     expect(await readFileContent(sharedSkillPath)).toContain("User-owned shared skill");
   });
 
+  it("should keep both targets' skills when they share the .agents/skills root", async () => {
+    // `agentsskills` and `replit` write into one directory, so a per-target
+    // orphan sweep sees the sibling's freshly written skill as a leftover and
+    // deletes the whole directory.
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "spec-only", "SKILL.md"),
+      [
+        "---",
+        'targets: ["agentsskills"]',
+        "name: spec-only",
+        'description: "Spec only skill"',
+        "---",
+        "Spec body.",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "replit-only", "SKILL.md"),
+      [
+        "---",
+        'targets: ["replit"]',
+        "name: replit-only",
+        'description: "Replit only skill"',
+        "---",
+        "Replit body.",
+      ].join("\n"),
+    );
+
+    await runGenerate({
+      target: "agentsskills,replit",
+      features: "skills",
+      deleteFiles: true,
+    });
+
+    expect(
+      await readFileContent(join(testDir, ".agents", "skills", "spec-only", "SKILL.md")),
+    ).toContain("Spec body.");
+    expect(
+      await readFileContent(join(testDir, ".agents", "skills", "replit-only", "SKILL.md")),
+    ).toContain("Replit body.");
+
+    // A second run must be a no-op: the delete/rewrite churn a per-target sweep
+    // causes is what makes `--check` report a permanently out-of-date tree.
+    await expect(
+      runGenerate({
+        target: "agentsskills,replit",
+        features: "skills",
+        deleteFiles: true,
+        check: true,
+        env: { NODE_ENV: "e2e" },
+      }),
+    ).resolves.toMatchObject({ stdout: expect.stringContaining("All files are up to date") });
+  });
+
+  it("should still delete a genuine orphan from the shared .agents/skills root", async () => {
+    const testDir = getTestDir();
+    const orphanPath = join(testDir, ".agents", "skills", "left-over", "SKILL.md");
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "SKILL.md"),
+      ["---", "name: review", 'description: "Review"', "---", "Review body."].join("\n"),
+    );
+    await writeFileContent(
+      orphanPath,
+      ["---", "name: left-over", 'description: "Left over"', "---", "Left over body."].join("\n"),
+    );
+
+    await runGenerate({
+      target: "agentsskills",
+      features: "skills",
+      deleteFiles: true,
+    });
+
+    expect(await fileExists(orphanPath)).toBe(false);
+  });
+
   it("should reject a symlinked Kimi managed skills root during deletion", async () => {
     const testDir = getTestDir();
     const protectedDir = join(testDir, "protected-skills");

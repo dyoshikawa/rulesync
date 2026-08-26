@@ -92,17 +92,21 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   allPaths.push(...writeResult.paths);
   if (writeResult.count > 0) hasDiff = true;
 
-  // Registered even when the write was a no-op (unchanged content) or a dry run:
-  // what protects a path from a sibling target's sweep is that this run owns it,
-  // not that these particular bytes were flushed.
-  sweepPlan.registerGenerated({ paths: filesToCheck.map((f) => f.getFilePath()) });
+  // Registered even when the write was a no-op (unchanged content), a dry run, or
+  // skipped for root-file ownership: what protects a path from a sibling target's
+  // sweep is that this run owns it, not that these particular bytes were flushed.
+  // `toolFiles` rather than `filesToCheck` for exactly that reason.
+  sweepPlan.registerGenerated({ paths: toolFiles.map((f) => f.getFilePath()) });
 
   if (config.getDelete()) {
     sweepPlan.defer({
       sweep: async () => {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
         const orphanCount = await processor.removeOrphanAiFiles(
-          existingToolFiles.filter((f) => !sweepPlan.isGenerated({ path: f.getFilePath() })),
+          sweepPlan.rejectClaimed({
+            items: existingToolFiles,
+            getPath: (f) => f.getFilePath(),
+          }),
           toolFiles,
         );
         return orphanCount > 0;
@@ -130,14 +134,22 @@ async function processDirFeatureGeneration(params: {
   allPaths.push(...writeResult.paths);
   if (writeResult.count > 0) hasDiff = true;
 
-  sweepPlan.registerGenerated({ paths: toolDirs.map((d) => d.getDirPath()) });
+  // As whole trees: a directory feature owns everything it writes underneath the
+  // directory, and a *file* feature's sweep can now enumerate that directory
+  // (deferring the sweeps means every sweep runs after the skills step has
+  // written), so claiming the directory path alone would leave `SKILL.md` and
+  // its companions looking like orphans.
+  sweepPlan.registerGeneratedTree({ paths: toolDirs.map((d) => d.getDirPath()) });
 
   if (config.getDelete()) {
     sweepPlan.defer({
       sweep: async () => {
         const existingToolDirs = await processor.loadToolDirsToDelete();
         const orphanCount = await processor.removeOrphanAiDirs(
-          existingToolDirs.filter((d) => !sweepPlan.isGenerated({ path: d.getDirPath() })),
+          sweepPlan.rejectClaimed({
+            items: existingToolDirs,
+            getPath: (d) => d.getDirPath(),
+          }),
           toolDirs,
         );
         return orphanCount > 0;
@@ -164,11 +176,9 @@ async function processEmptyFeatureGeneration(params: {
       sweep: async () => {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
 
-        const filesToDelete = existingToolFiles.filter(
-          (f) =>
-            !sweepPlan.isGenerated({ path: f.getFilePath() }) &&
-            !skipFilePaths?.has(f.getRelativePathFromCwd()),
-        );
+        const filesToDelete = sweepPlan
+          .rejectClaimed({ items: existingToolFiles, getPath: (f) => f.getFilePath() })
+          .filter((f) => !skipFilePaths?.has(f.getRelativePathFromCwd()));
 
         const orphanCount = await processor.removeOrphanAiFiles(filesToDelete, []);
         return orphanCount > 0;
@@ -687,7 +697,9 @@ export async function generate(params: {
 
   // Deletion runs only now, once every step has written: a sweep that ran inline
   // would remove files a later step is about to write, which is both destructive
-  // for shared output directories and a permanent `--check` diff.
+  // for shared output directories and a permanent `--check` diff. A step that
+  // throws therefore skips every sweep rather than leaving a half-swept tree,
+  // which is the safer of the two failure modes for a destructive operation.
   const sweepHasDiff = await sweepPlan.run();
 
   const activationResult = await activateHermesProjectPlugins({
