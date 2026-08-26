@@ -43,6 +43,16 @@ Body content`;
   });
 
   describe("getSettablePaths", () => {
+    it("should resolve to the same directory the native Antigravity targets write", () => {
+      // The two constants are declared separately, in the file each vendor's
+      // paths live in. Only their being equal makes the shared-path contract
+      // hold, so pin it here rather than leaving a divergence to surface as a
+      // mysteriously duplicated subagent file.
+      expect(AgentsmdSubagent.getSettablePaths().relativeDirPath).toBe(
+        AntigravityCliSubagent.getSettablePaths().relativeDirPath,
+      );
+    });
+
     it("should return correct paths for agentsmd subagents", () => {
       const paths = AgentsmdSubagent.getSettablePaths();
       expect(paths).toEqual({
@@ -267,10 +277,11 @@ Body content`;
 
       // `.agents/agents/` is shared with the native Antigravity targets, which
       // refuse to load an agent without a description, so the same generated
-      // fallback applies here.
+      // fallback applies here -- without the leading space an empty `name`
+      // would otherwise leave in it.
       expect(agentsmdSubagent.getFrontmatter()).toEqual({
         name: "",
-        description: " subagent",
+        description: "subagent",
       });
     });
 

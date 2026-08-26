@@ -278,6 +278,74 @@ Body content`;
     });
   });
 
+  describe("shared output path", () => {
+    it("should keep the pre-rendered fileContent instead of re-rendering the frontmatter", () => {
+      // A simulated writer that shares its path with a native target has to
+      // match that target's serialization byte for byte, so `fileContent` wins
+      // over the plain frontmatter rendering.
+      const preRendered = "---\nname: Test Agent\ntools: []\n---\n\nShared bytes.\n";
+
+      const subagent = new TestSimulatedSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".test/agents",
+        relativeFilePath: "test.md",
+        frontmatter: { name: "Test Agent", description: "Test agent description" },
+        body: "Shared bytes.",
+        fileContent: preRendered,
+      });
+
+      expect(subagent.getFileContent()).toBe(preRendered);
+    });
+
+    it("should preserve frontmatter keys a native target owns", () => {
+      // `looseObject`, not `object`: parsing a file read from a shared path must
+      // not drop the keys the native writer of that path owns.
+      const result = SimulatedSubagentFrontmatterSchema.safeParse({
+        name: "Test Agent",
+        description: "Test agent description",
+        tools: ["read"],
+        commandExecutionPolicy: "sandbox",
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual({
+          name: "Test Agent",
+          description: "Test agent description",
+          tools: ["read"],
+          commandExecutionPolicy: "sandbox",
+        });
+      }
+    });
+
+    it("should carry the bytes on disk through fromFile rather than re-rendering them", async () => {
+      // The file may have been written by the native target that owns this
+      // path; reading it back must not silently reshape it.
+      const nativeContent = `---
+name: Test Agent
+description: Test agent description
+tools:
+  - read
+---
+
+Native body.
+`;
+      await writeFileContent(join(testDir, ".test/agents/native.md"), nativeContent);
+
+      const subagent = await TestSimulatedSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "native.md",
+      });
+
+      expect(subagent.getFileContent()).toBe(nativeContent);
+      expect(subagent.getFrontmatter()).toEqual({
+        name: "Test Agent",
+        description: "Test agent description",
+        tools: ["read"],
+      });
+    });
+  });
+
   describe("SimulatedSubagentFrontmatterSchema", () => {
     it("should validate correct frontmatter", () => {
       const validFrontmatter: SimulatedSubagentFrontmatter = {

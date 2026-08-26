@@ -77,6 +77,12 @@ export type AntigravitySharedSubagentParams = {
  *
  * `sectionKeys` are the rulesync frontmatter sections to merge, in increasing
  * precedence order; `toolTarget` only names the writer in the error message.
+ *
+ * The `Antigravity` in the name is deliberate rather than vendor-neutral: unlike
+ * `.agents/skills/`, which has a published cross-vendor spec that
+ * `toSpecConformantAgentSkillFields` is named after, `.agents/agents/` has no
+ * spec of its own. The frontmatter written here *is* Antigravity's schema, and
+ * `agentsmd` emits it precisely because it has no format of its own to emit.
  */
 export function toAntigravitySubagentFrontmatter({
   rulesyncSubagent,
@@ -111,8 +117,9 @@ export function toAntigravitySubagentFrontmatter({
     name: rulesyncFrontmatter.name,
     // Antigravity refuses to load an agent without a description, so a
     // canonical file that omits it gets a minimal generated one rather than
-    // an inert output file.
-    description: rulesyncFrontmatter.description || `${rulesyncFrontmatter.name} subagent`,
+    // an inert output file. Trimmed because an empty `name` would otherwise
+    // leave a leading space in the generated description.
+    description: rulesyncFrontmatter.description || `${rulesyncFrontmatter.name} subagent`.trim(),
     ...toolSection,
   };
 
