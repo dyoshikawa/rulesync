@@ -9,6 +9,8 @@ import { ZoocodePermissions } from "./zoocode-permissions.js";
 
 const ALLOWED_KEY = "zoo-code.allowedCommands";
 const DENIED_KEY = "zoo-code.deniedCommands";
+const ROO_ALLOWED_KEY = "roo-cline.allowedCommands";
+const ROO_DENIED_KEY = "roo-cline.deniedCommands";
 
 function createRulesyncPermissions(permission: Record<string, Record<string, string>>) {
   return new RulesyncPermissions({
@@ -24,6 +26,13 @@ async function writeSettings(testDir: string, settings: Record<string, unknown>)
   await writeFileContent(join(testDir, ".vscode", "settings.json"), JSON.stringify(settings));
 }
 
+/**
+ * `ZoocodePermissions` extends `RooPermissions` and changes nothing but the two
+ * setting keys and the tool label, because the fork changed nothing else. The
+ * shared behavior — prefix semantics, empty-list writes, glob warnings, JSONC
+ * merging, fail-closed parsing — is covered once in `roo-permissions.test.ts`;
+ * what is asserted here is the part that must NOT be inherited: the namespace.
+ */
 describe("ZoocodePermissions", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -57,7 +66,7 @@ describe("ZoocodePermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
-    it("splits bash allow/deny into the two command lists and omits ask", async () => {
+    it("writes the zoo-code keys, not the archived lineage's roo-cline pair", async () => {
       const permissions = await ZoocodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: createRulesyncPermissions({
@@ -71,32 +80,29 @@ describe("ZoocodePermissions", () => {
       });
     });
 
-    it("retracts a list that would be empty rather than writing []", async () => {
-      await writeSettings(testDir, { [ALLOWED_KEY]: ["git "], [DENIED_KEY]: ["rm -rf"] });
-
-      const permissions = await ZoocodePermissions.fromRulesyncPermissions({
-        outputRoot: testDir,
-        rulesyncPermissions: createRulesyncPermissions({ bash: { "npm ": "ask" } }),
-      });
-
-      expect(JSON.parse(permissions.getFileContent())).toEqual({});
-    });
-
-    it("preserves unrelated editor settings and the Copilot keys sharing the file", async () => {
+    // The mirror of the roo adapter's case. `ownedKeys` for
+    // `.vscode/settings.json` is the union of every target's permissions keys,
+    // and the gateway's guard is per-file-per-feature rather than per-target,
+    // so nothing but this assertion stops one lineage from clobbering the
+    // other's lists in a project that enables both.
+    it("leaves the Roo lineage's own command keys alone", async () => {
       await writeSettings(testDir, {
-        "editor.tabSize": 2,
-        "chat.tools.terminal.autoApprove": { "git status": true },
+        [ROO_ALLOWED_KEY]: ["npm run "],
+        [ROO_DENIED_KEY]: ["curl "],
       });
 
       const permissions = await ZoocodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
-        rulesyncPermissions: createRulesyncPermissions({ bash: { "git ": "allow" } }),
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "git ": "allow", "rm -rf": "deny" },
+        }),
       });
 
       expect(JSON.parse(permissions.getFileContent())).toEqual({
-        "editor.tabSize": 2,
-        "chat.tools.terminal.autoApprove": { "git status": true },
+        [ROO_ALLOWED_KEY]: ["npm run "],
+        [ROO_DENIED_KEY]: ["curl "],
         [ALLOWED_KEY]: ["git "],
+        [DENIED_KEY]: ["rm -rf"],
       });
     });
 
@@ -116,9 +122,10 @@ describe("ZoocodePermissions", () => {
   });
 
   describe("toRulesyncPermissions", () => {
-    it("imports both lists into the bash category", async () => {
+    it("imports the zoo-code keys and ignores the roo-cline pair", async () => {
       await writeSettings(testDir, {
         "editor.tabSize": 2,
+        [ROO_ALLOWED_KEY]: ["curl "],
         [ALLOWED_KEY]: ["git ", "npm run "],
         [DENIED_KEY]: ["rm -rf"],
       });
@@ -132,35 +139,7 @@ describe("ZoocodePermissions", () => {
       });
     });
 
-    it("imports a pattern present in both lists as deny", async () => {
-      await writeSettings(testDir, {
-        [ALLOWED_KEY]: ["git "],
-        [DENIED_KEY]: ["git "],
-      });
-
-      const permissions = await ZoocodePermissions.fromFile({ outputRoot: testDir });
-
-      expect(JSON.parse(permissions.toRulesyncPermissions().getFileContent())).toEqual({
-        permission: { bash: { "git ": "deny" } },
-      });
-    });
-
-    it("ignores non-string entries and a missing file", async () => {
-      await writeSettings(testDir, { [ALLOWED_KEY]: ["git ", 42, null] });
-
-      const permissions = await ZoocodePermissions.fromFile({ outputRoot: testDir });
-
-      expect(JSON.parse(permissions.toRulesyncPermissions().getFileContent())).toEqual({
-        permission: { bash: { "git ": "allow" } },
-      });
-
-      const empty = await ZoocodePermissions.fromFile({ outputRoot: join(testDir, "absent") });
-      expect(JSON.parse(empty.toRulesyncPermissions().getFileContent())).toEqual({
-        permission: {},
-      });
-    });
-
-    it("fails closed on a settings file it cannot parse", async () => {
+    it("names Zoo Code, not Roo Code, when the settings file cannot be parsed", async () => {
       await ensureDir(join(testDir, ".vscode"));
       await writeFileContent(join(testDir, ".vscode", "settings.json"), "{ not json");
 

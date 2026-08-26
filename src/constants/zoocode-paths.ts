@@ -8,14 +8,15 @@
  * `.vscode/settings.json` — and `ClineProvider.mergeCommandLists()` unions the
  * workspace values into the effective auto-approval lists.
  *
- * The `zoo-code.*` namespace is Zoo-era (the v3.74.0 rebrand); the archived Roo
- * Code lineage spelled the same settings `roo-cline.*`, so this surface is
- * deliberately not shared with the `roo` target.
+ * Only the key names live here. The file location is shared with the archived
+ * Roo lineage and comes from `roo-paths.ts`, since `ZoocodePermissions` extends
+ * `RooPermissions`. The `zoo-code.*` namespace itself is Zoo-era (the v3.74.0
+ * rebrand); the archived Roo Code lineage spelled the same settings
+ * `roo-cline.*`, so the keys are deliberately not shared with the `roo` target,
+ * which has its own pair in `roo-paths.ts`.
  *
  * @see https://github.com/Zoo-Code-Org/Zoo-Code/blob/main/src/package.json
  * @see https://github.com/Zoo-Code-Org/Zoo-Code/blob/main/src/core/webview/ClineProvider.ts
  */
-export const ZOOCODE_VSCODE_SETTINGS_DIR = ".vscode";
-export const ZOOCODE_VSCODE_SETTINGS_FILE_NAME = "settings.json";
 export const ZOOCODE_ALLOWED_COMMANDS_KEY = "zoo-code.allowedCommands";
 export const ZOOCODE_DENIED_COMMANDS_KEY = "zoo-code.deniedCommands";
