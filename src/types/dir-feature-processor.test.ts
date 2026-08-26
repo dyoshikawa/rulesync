@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
@@ -218,6 +220,38 @@ describe("DirFeatureProcessor", () => {
       });
       expect(ensureDir).toHaveBeenCalledTimes(2);
       expect(writeFileContent).toHaveBeenCalledTimes(2);
+    });
+
+    it("should strip control characters from the dry-run write log", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir, dryRun: true });
+
+      // Dry-run output is what a user reads to see what a run would do, and the
+      // name comes from a `.rulesync/**` file `rulesync fetch` may have supplied.
+      const otherFile: AiDirFile = {
+        relativeFilePathToDirPath: "\u001b[2K\r-extra.txt",
+        fileBuffer: Buffer.from("other content"),
+      };
+      const dirs = [
+        createMockDirWithFiles({
+          dirPath: "/path/to/\u001b[2K\r-dir1",
+          mainFileBody: "body1",
+          otherFiles: [otherFile],
+        }),
+      ];
+
+      await processor.writeAiDirs(dirs);
+
+      expect(logger.info).toHaveBeenCalledWith(
+        "[DRY RUN] Would create directory: /path/to/[2K-dir1",
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        `[DRY RUN] Would write: ${join("/path/to/[2K-dir1", "SKILL.md")}`,
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        `[DRY RUN] Would write: ${join("/path/to/[2K-dir1", "[2K-extra.txt")}`,
+      );
     });
 
     it("should skip unchanged dirs and return 0", async () => {

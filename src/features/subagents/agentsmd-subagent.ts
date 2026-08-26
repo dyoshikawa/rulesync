@@ -40,7 +40,10 @@ export class AgentsmdSubagent extends SimulatedSubagent {
   static async fromFile(params: ToolSubagentFromFileParams): Promise<AgentsmdSubagent> {
     // `fromFileDefault` carries the raw bytes through, so a file another writer
     // of this shared path produced is not silently re-rendered into the
-    // simulated shape when it is read back.
+    // simulated shape when it is read back. Nothing depends on that yet --
+    // `toRulesyncSubagent` throws for a simulated file, so the import path drops
+    // these instances before the bytes are used. It is an invariant held in
+    // advance of that method, not a protection currently in force.
     const baseParams = await this.fromFileDefault(params);
     return new AgentsmdSubagent(baseParams);
   }

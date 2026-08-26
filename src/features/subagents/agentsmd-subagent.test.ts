@@ -421,7 +421,10 @@ Body content`;
           "antigravity-cli": "abc" as never,
         },
         body: "Scalar section body.",
-        validate: false,
+        // `validate: true` on purpose: `antigravity-cli` is not a declared key
+        // of the loose canonical schema, so a hand-authored file carrying
+        // `antigravity-cli: abc` passes validation and reaches this guard.
+        validate: true,
       });
 
       // `Object.assign` spreads a string into `'0': a, '1': b, '2': c`, which a
@@ -448,6 +451,9 @@ Body content`;
           // A key written with no value (`antigravity-cli:`) parses to `null`.
           // Every other target absorbs that; rejecting it here would break
           // configurations that generated fine before the shared block existed.
+          // `parseFrontmatter` drops nullish keys, so this shape reaches the
+          // guard only when the frontmatter is built programmatically -- hence
+          // `validate: false` below.
           "antigravity-cli": null as never,
         },
         body: "Null section body.",
