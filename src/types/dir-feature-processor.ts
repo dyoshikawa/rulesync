@@ -208,6 +208,7 @@ export abstract class DirFeatureProcessor {
         this.logger.info(`[DRY RUN] Would delete directory: ${dirPath}`);
       } else {
         await removeDirectory(dirPath);
+        this.logger.info(`Deleted directory: ${dirPath}`);
       }
     }
 

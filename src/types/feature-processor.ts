@@ -162,6 +162,10 @@ export abstract class FeatureProcessor {
         this.logger.info(`[DRY RUN] Would delete: ${filePath}`);
       } else {
         await removeFile(filePath);
+        // Symmetric with the dry-run line above: a real `--delete` run reported
+        // nothing at all, so a file swept from a directory rulesync shares with
+        // another vendor disappeared without a trace.
+        this.logger.info(`Deleted: ${filePath}`);
       }
     }
 
