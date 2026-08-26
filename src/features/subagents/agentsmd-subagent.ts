@@ -48,7 +48,10 @@ export class AgentsmdSubagent extends SimulatedSubagent {
   static fromRulesyncSubagent(params: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const defaults = this.fromRulesyncSubagentDefault(params);
     // Same shared block, same serialization as the native targets that own this
-    // path, so the two writers cannot disagree about the file.
+    // path, so the two writers cannot disagree about the file. This also means an
+    // invalid Antigravity block fails generation here, the same file and the same
+    // diagnostics a native target would have reported for it -- silently writing a
+    // reduced file instead is exactly the degradation the shared block prevents.
     const frontmatter = toAntigravitySubagentFrontmatter({
       rulesyncSubagent: params.rulesyncSubagent,
       sectionKeys: ANTIGRAVITY_SHARED_SUBAGENT_SECTION_KEYS,

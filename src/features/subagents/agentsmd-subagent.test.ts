@@ -370,6 +370,33 @@ Body content`;
       // target list the canonical subagent happens to name.
       expect(agentsmdSubagent.getFileContent()).toContain("model: pro");
     });
+
+    it("should reject an invalid Antigravity block instead of writing a reduced file", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "broken-agent.md",
+        frontmatter: {
+          targets: ["agentsmd"],
+          name: "broken-agent",
+          description: "Broken agent description",
+          "antigravity-cli": { tools: "not-an-array" },
+        },
+        body: "Broken agent body.",
+        validate: true,
+      });
+
+      // Same file, same diagnostics: dropping the block and writing a plain file
+      // would silently degrade the file the native targets own.
+      expect(() =>
+        AgentsmdSubagent.fromRulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: ".agents/agents",
+          rulesyncSubagent,
+          validate: true,
+        }),
+      ).toThrow("Invalid agentsmd subagent frontmatter");
+    });
   });
 
   describe("fromFile", () => {
