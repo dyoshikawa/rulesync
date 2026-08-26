@@ -728,7 +728,7 @@ describe("VibePermissions", () => {
     expect(parsed.tools.bash.permission).toBe("always");
     expect(parsed.tools.git_bash.permission).toBe("always");
     expect(parsed.tools.powershell.permission).toBe("never");
-    expect(logger.info.mock.calls.some(([message]) => String(message).includes("powershell"))).toBe(
+    expect(logger.warn.mock.calls.some(([message]) => String(message).includes("powershell"))).toBe(
       true,
     );
   });
@@ -853,6 +853,149 @@ describe("VibePermissions", () => {
     expect(parsed.tools.toString.permission).toBe("never");
     expect(parsed.disabled_tools).toEqual(["toString"]);
     expect(Object.hasOwn(Object.prototype, "*")).toBe(false);
+  });
+
+  it("should keep fanning bash out when [tools.bash] carries unmanaged keys", async () => {
+    // rulesync copies unmanaged keys over for `bash` but never for the aliases,
+    // so its own previous output must not read as a hand-authored divergence.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        "[tools.bash]",
+        "timeout = 120",
+        'permission = "always"',
+        "[tools.git_bash]",
+        'permission = "always"',
+        "[tools.powershell]",
+        'permission = "always"',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "deny" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.bash.permission).toBe("never");
+    expect(parsed.tools.bash.timeout).toBe(120);
+    expect(parsed.tools.git_bash.permission).toBe("never");
+    expect(parsed.tools.powershell.permission).toBe("never");
+  });
+
+  it("should still fan bash out to a shell that only has a sensitive_patterns override", async () => {
+    // `vibe.permission` can carry `sensitive_patterns` and nothing else, so it
+    // must not take a shell out of the fan-out and leave it with no permission.
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "deny" } },
+          vibe: { permission: { powershell: { sensitive_patterns: ["rm -rf"] } } },
+        }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.powershell.permission).toBe("never");
+    expect(parsed.tools.powershell.sensitive_patterns).toEqual(["rm -rf"]);
+    expect(parsed.tools.git_bash.permission).toBe("never");
+  });
+
+  it("should fan bash out over an existing empty shell table", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.powershell]", ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "deny" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.powershell.permission).toBe("never");
+  });
+
+  it("should skip wildcard MCP categories instead of writing an inert table", async () => {
+    const logger = createMockLogger();
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {
+            "mcp__github__*": { "*": "deny" },
+            "mcp__*__create_issue": { "*": "deny" },
+          },
+        }),
+      }),
+      logger,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools?.["github_*"]).toBeUndefined();
+    expect(vibePermissions.getFileContent()).not.toContain("github_");
+    expect(
+      logger.warn.mock.calls.some(([message]) => String(message).includes("mcp__github__*")),
+    ).toBe(true);
+  });
+
+  it("should let a translated MCP name claim a shell alias ahead of the fan-out", async () => {
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {
+            bash: { "*": "allow" },
+            mcp__git__bash: { "*": "deny" },
+          },
+        }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.bash.permission).toBe("always");
+    expect(parsed.tools.powershell.permission).toBe("always");
+    expect(parsed.tools.git_bash.permission).toBe("never");
+  });
+
+  it("should not emit a bare table for an override that only clears sensitive_patterns", async () => {
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {},
+          vibe: { permission: { web_fetch: { sensitive_patterns: [] } } },
+        }),
+      }),
+    });
+
+    expect(vibePermissions.getFileContent()).not.toContain("web_fetch");
   });
 
   it("should not touch phantom tool names for unmapped categories in the override or cleanup", async () => {
