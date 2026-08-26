@@ -68,24 +68,25 @@ const FAILURE_LINES_BY_MODE: Record<BlockingMode, readonly string[]> = {
  * The chosen text is sanitized because a hook command's output can relay
  * third-party content (linter output, matched file lines) into a terminal or,
  * in RPC mode, into an external client. Escape sequences, C1 and other control
- * characters, and bidirectional overrides are stripped so the reason cannot
- * repaint or reorder what the user is shown, and carriage returns are folded
- * into newlines so it cannot overwrite an already printed line.
+ * characters, and format characters such as bidirectional overrides and
+ * zero-width joiners are stripped so the reason cannot repaint or reorder what
+ * the user is shown, and carriage returns are folded into newlines so it cannot
+ * overwrite an already printed line. The format-character pass is a superset of
+ * the bidi controls listed in `CONTROL_CHARACTERS_PATTERN`
+ * (`src/utils/control-characters.ts`): a blocked-hook reason is short
+ * diagnostic text, so dropping every `Cf` character is safer than enumerating
+ * the harmful ones and missing `U+061C`, `U+FEFF`, or a future addition.
  *
- * The stripped set mirrors `CONTROL_CHARACTERS_PATTERN` in
- * `src/utils/control-characters.ts`, minus the tab and newline this text is
- * allowed to keep.
- *
- * The raw text is sliced before those patterns run. A hook command may emit up
- * to `exec`'s full `maxBuffer`, and scanning a megabyte of unterminated escape
- * introducers is quadratic work that would stall the gate. The window is four
- * times the reported length so ordinary output still truncates on content
- * rather than on the window; a reason buried past it is reported as the
- * generic fallback instead.
+ * Sanitization runs before truncation so a reason that begins with a progress
+ * banner is still reported by its content. The raw text is only sliced to a
+ * generous backstop first: a hook command may emit up to `exec`'s full
+ * `maxBuffer`, and the slice bounds the work even if a later edit reintroduces
+ * a pattern that is not linear. A slice that actually fired is reported as
+ * truncated, so the text is never silently cut.
  */
 const BLOCK_REASON_HELPER_LINES = [
   "const MAX_BLOCK_REASON_LENGTH = 2000;",
-  "const MAX_RAW_REASON_LENGTH = MAX_BLOCK_REASON_LENGTH * 4;",
+  "const MAX_SCANNED_REASON_LENGTH = 128_000;",
   "",
   "function toBlockReason(error: unknown): string {",
   "  const result = error as { stdout?: unknown; stderr?: unknown; code?: unknown } | null;",
@@ -99,21 +100,20 @@ const BLOCK_REASON_HELPER_LINES = [
   "      : error instanceof Error",
   "        ? error.message",
   "        : String(error));",
-  "  const sanitized = raw",
-  "    .slice(0, MAX_RAW_REASON_LENGTH)",
+  "  const scanned = raw.slice(0, MAX_SCANNED_REASON_LENGTH);",
+  "  const sanitized = scanned",
   '    .replace(/\\r\\n?/g, "\\n")',
   '    .replace(/\\u001b\\[[0-9;?]*[\\u0020-\\u002f]*[\\u0040-\\u007e]/g, "")',
   '    .replace(/\\u001b\\][^\\u0007\\u001b]{0,256}(?:\\u0007|\\u001b\\\\)/g, "")',
-  "    .replace(",
-  "      /[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f-\\u009f\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069\\u2028\\u2029]/g,",
-  '      "",',
-  "    )",
+  '    .replace(/[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f-\\u009f]/g, "")',
+  '    .replace(/[\\p{Cf}\\p{Zl}\\p{Zp}]/gu, "")',
   "    .trim();",
-  "  const bounded =",
-  "    sanitized.length > MAX_BLOCK_REASON_LENGTH",
-  "      ? `${sanitized.slice(0, MAX_BLOCK_REASON_LENGTH)}...`",
-  "      : sanitized;",
-  '  return bounded || "Hook command failed.";',
+  '  if (!sanitized) return "Hook command failed.";',
+  "  const truncated =",
+  "    sanitized.length > MAX_BLOCK_REASON_LENGTH || scanned.length < raw.length;",
+  "  return truncated",
+  "    ? `${sanitized.slice(0, MAX_BLOCK_REASON_LENGTH)}...`",
+  "    : sanitized;",
   "}",
 ];
 

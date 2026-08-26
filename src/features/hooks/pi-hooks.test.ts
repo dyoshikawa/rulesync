@@ -574,6 +574,19 @@ describe("PiHooks", () => {
       expect(notify).toHaveBeenCalledWith("Hook command failed.", "error");
     });
 
+    it("should report a fallback reason when only zero-width characters remain", async () => {
+      const gate = await loadPromptGate({
+        testDir,
+        // ZERO WIDTH SPACE and BYTE ORDER MARK survive `trim()`, so a reason
+        // built only from them would otherwise be reported as empty text.
+        command: "printf '\\342\\200\\213\\357\\273\\277' >&2; exit 1",
+      });
+
+      const notify = vi.fn();
+      expect(await gate(userPrompt(), uiContext({ notify }))).toEqual({ action: "handled" });
+      expect(notify).toHaveBeenCalledWith("Hook command failed.", "error");
+    });
+
     it("should cap a long reason and mark it as truncated", async () => {
       const gate = await loadPromptGate({
         testDir,
@@ -589,8 +602,8 @@ describe("PiHooks", () => {
 
     it("should sanitize a large adversarial reason without stalling", async () => {
       // Every `ESC ]` here is unterminated, which is the shape that made the
-      // previous end-of-string OSC scan quadratic. Slicing the raw text before
-      // sanitizing, and bounding the OSC body, keeps this linear.
+      // previous end-of-string OSC scan quadratic. Bounding the OSC body keeps
+      // it linear, and the scan backstop caps the work regardless.
       const gate = await loadPromptGate({
         testDir,
         command: "awk 'BEGIN { for (i = 0; i < 60000; i++) printf \"%c]\", 27 }' >&2; exit 1",
@@ -621,6 +634,21 @@ describe("PiHooks", () => {
         block: true,
         reason: "nope",
       });
+    });
+
+    it("should report a reason that starts with a long escape banner", async () => {
+      const gate = await loadPromptGate({
+        testDir,
+        // A progress banner can easily outrun the reported length, so the text
+        // is sanitized before it is truncated -- otherwise the real message
+        // would be cut away and the reason would read as a bare fallback.
+        command:
+          'awk \'BEGIN { for (i = 0; i < 4000; i++) printf "%c[2K", 27; printf "real failure" }\' >&2; exit 1',
+      });
+
+      const notify = vi.fn();
+      await gate(userPrompt(), uiContext({ notify }));
+      expect(notify).toHaveBeenCalledWith("real failure", "error");
     });
 
     it("should generate an input handler that continues when the command succeeds", async () => {
