@@ -81,6 +81,16 @@ export const McpServerSchema = z.looseObject({
   // canonical `disabledTools`, which then also reaches the other targets that
   // support it. Authoring `disabledTools` directly makes that scope explicit.
   kiroAutoBlock: z.optional(z.array(z.string())),
+  // Muse Code-specific: `required` (Muse Code's default) aborts the whole run
+  // when the server fails to start, `optional` makes Muse Code skip it with a
+  // warning. Emitted as `mode` by `musecode-mcp.ts` and stripped by
+  // `RulesyncMcp.getMcpServers()` so it does not leak into other tools' output,
+  // like `envVars`. The two documented values are spelled out instead of being
+  // kept a loose string (the `experimentalEnvironment` treatment): `mode` is what
+  // decides abort-vs-skip, so a value Muse Code does not recognize is the one
+  // case where naming the file that holds the typo beats passing it along.
+  // https://dev.meta.ai/docs/muse-code/extending.md
+  musecodeMode: z.optional(z.enum(["required", "optional"])),
   headers: z.optional(z.record(z.string(), z.string())),
   /**
    * The canonical per-server tool allowlist.
