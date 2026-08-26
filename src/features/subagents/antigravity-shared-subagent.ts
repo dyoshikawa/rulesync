@@ -98,8 +98,12 @@ export function toAntigravitySubagentFrontmatter({
   // A scalar section would be spread into index keys by `Object.assign`
   // (`"abc"` becoming `'0': a, '1': b, '2': c`) and, the schema being loose,
   // reach the generated file as junk frontmatter. Reject it instead, on the same
-  // fail-closed path an invalid section value takes below.
-  const invalidSection = sections.find(({ value }) => value !== undefined && !isPlainObject(value));
+  // fail-closed path an invalid section value takes below. `null` -- what a key
+  // written with no value parses to -- is "unspecified", not junk, and keeps
+  // being absorbed by the `?? {}` below, as it is for every other target.
+  const invalidSection = sections.find(
+    ({ value }) => value !== undefined && value !== null && !isPlainObject(value),
+  );
   if (invalidSection) {
     throw new Error(
       `Invalid ${toolTarget} subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ` +

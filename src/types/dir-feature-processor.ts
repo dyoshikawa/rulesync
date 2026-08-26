@@ -154,14 +154,16 @@ export abstract class DirFeatureProcessor {
 
       const relativeDir = aiDir.getRelativePathFromCwd();
       if (this.dryRun) {
-        this.logger.info(`[DRY RUN] Would create directory: ${dirPath}`);
+        this.logger.info(`[DRY RUN] Would create directory: ${stripControlCharacters(dirPath)}`);
         if (mainFile) {
-          this.logger.info(`[DRY RUN] Would write: ${join(dirPath, mainFile.name)}`);
+          this.logger.info(
+            `[DRY RUN] Would write: ${stripControlCharacters(join(dirPath, mainFile.name))}`,
+          );
           changedPaths.push(join(relativeDir, mainFile.name));
         }
         for (const file of otherFiles) {
           this.logger.info(
-            `[DRY RUN] Would write: ${join(dirPath, file.relativeFilePathToDirPath)}`,
+            `[DRY RUN] Would write: ${stripControlCharacters(join(dirPath, file.relativeFilePathToDirPath))}`,
           );
           changedPaths.push(join(relativeDir, file.relativeFilePathToDirPath));
         }

@@ -128,7 +128,7 @@ export abstract class FeatureProcessor {
       }
 
       if (this.dryRun) {
-        this.logger.info(`[DRY RUN] Would write: ${filePath}`);
+        this.logger.info(`[DRY RUN] Would write: ${stripControlCharacters(filePath)}`);
       } else {
         await writeFileContent(filePath, contentWithNewline);
         if (fileMode !== undefined) {

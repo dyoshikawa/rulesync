@@ -435,6 +435,37 @@ Body content`;
         }),
       ).toThrow("'antigravity-cli' must be a table of frontmatter keys");
     });
+
+    it("should treat a valueless Antigravity section as unspecified rather than junk", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "null-section.md",
+        frontmatter: {
+          targets: ["agentsmd"],
+          name: "null-section",
+          description: "Null section description",
+          // A key written with no value (`antigravity-cli:`) parses to `null`.
+          // Every other target absorbs that; rejecting it here would break
+          // configurations that generated fine before the shared block existed.
+          "antigravity-cli": null as never,
+        },
+        body: "Null section body.",
+        validate: false,
+      });
+
+      const agentsmdSubagent = AgentsmdSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ".agents/agents",
+        rulesyncSubagent,
+        validate: true,
+      }) as AgentsmdSubagent;
+
+      expect(agentsmdSubagent.getFrontmatter()).toEqual({
+        name: "null-section",
+        description: "Null section description",
+      });
+    });
   });
 
   describe("fromFile", () => {
