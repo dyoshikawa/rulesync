@@ -1714,6 +1714,132 @@ describe("VibePermissions", () => {
     expect(vibePermissions.getFileContent()).not.toContain("[tools]");
   });
 
+  it("should keep the enforced denylist of a stood-down shell that also spells a legacy deny", async () => {
+    // Vibe reads `denylist` and never `deny`, so preferring the legacy key here
+    // would drop the restriction the file actually enforces.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        "[tools.powershell]",
+        'permission = "always"',
+        'deny = ["legacy"]',
+        'denylist = ["REAL-SECRET *"]',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "ask", "rm -rf /": "deny" } },
+        }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.powershell.permission).toBe("always");
+    expect(parsed.tools.powershell.deny).toBeUndefined();
+    expect(parsed.tools.powershell.denylist).toEqual(["REAL-SECRET *", "legacy", "rm -rf /"]);
+  });
+
+  it("should not invent a table for a shell that only exists as a disabled_tools entry", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["powershell"]', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "ask", "rm -rf /": "deny" } },
+        }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.powershell).toBeUndefined();
+    expect(parsed.disabled_tools).toEqual(["powershell"]);
+  });
+
+  it("should keep a disabled tool disabled when its own table permits it", async () => {
+    // Vibe applies `disabled_tools` last and unconditionally, so the table's
+    // permission must not import as the tool's real state.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        'disabled_tools = ["read_file"]',
+        "[tools.read_file]",
+        'permission = "always"',
+        'allowlist = ["src/*"]',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission.read["*"]).toBe("deny");
+
+    const regenerated = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(imported),
+      }),
+    });
+    const parsed = smolToml.parse(regenerated.getFileContent()) as any;
+
+    expect(parsed.disabled_tools).toContain("read_file");
+    expect(parsed.tools.read_file.permission).toBe("never");
+  });
+
+  it("should say nothing is merged when an empty override meets a shell's own patterns", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.git_bash]", 'sensitive_patterns = ["own *"]', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "allow" } },
+          vibe: { permission: { bash: { sensitive_patterns: [] } } },
+        }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.git_bash.sensitive_patterns).toEqual(["own *"]);
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Keeping the existing Vibe sensitive_patterns of git_bash"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      logger.warn.mock.calls.filter((call) => String(call[0]).includes("rather than replacing")),
+    ).toHaveLength(0);
+  });
+
   it("should overwrite a loosely configured shell when the bash category denies everything", async () => {
     // Standing down protects a shell from being broadened. A wildcard deny can
     // only restrict, so letting the stand-down win there would strand the deny.

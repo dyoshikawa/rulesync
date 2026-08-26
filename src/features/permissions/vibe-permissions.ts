@@ -281,7 +281,7 @@ export class VibePermissions extends ToolPermissions {
       });
     }
 
-    applyStandDownShellDenies({ shellRules, tools, standDownShells });
+    applyStandDownShellDenies({ shellRules, tools, standDownShells, disabledTools });
     warnOnStrandedShellPatterns({
       diskShellPatterns,
       shellAliases,
@@ -346,15 +346,24 @@ export class VibePermissions extends ToolPermissions {
     // as `"*": "allow"` misrepresented it. It is lifted verbatim into the
     // `vibe` override below instead, so the narrowing round-trips honestly.
     const enabledToolsList = toStringArray(this.toml.enabled_tools);
-    for (const tool of toStringArray(this.toml.disabled_tools)) {
-      ensurePermission(permission, toCanonicalToolName(tool))["*"] = "deny";
+    const disabledCategories = new Set(
+      toStringArray(this.toml.disabled_tools).map((tool) => toCanonicalToolName(tool)),
+    );
+    for (const category of disabledCategories) {
+      ensurePermission(permission, category)["*"] = "deny";
     }
 
     for (const [vibeToolName, toolConfig] of Object.entries(toVibeToolsRecord(this.toml.tools))) {
       const category = toCanonicalToolName(vibeToolName);
       const rules = ensurePermission(permission, category);
       const action = fromVibePermission(toolConfig.permission);
-      if (action !== undefined) {
+      // `disabled_tools` is applied last and unconditionally upstream, so a tool
+      // listed there is unavailable no matter what its table says. Letting the
+      // table's `permission` win here would import that contradiction as a mere
+      // `ask` (or even `always` plus an allowlist) and the next generate would
+      // drop the filter entirely — a silent broadening of what the file already
+      // forbids. The deny wins instead; drop the contradiction, not the guard.
+      if (action !== undefined && !disabledCategories.has(category)) {
         rules["*"] = action;
       }
       for (const pattern of readVibeToolPatterns({ toolConfig, kind: "allow" })) {
@@ -528,12 +537,20 @@ function applyVibeSensitivePatterns({
       return existing.length > 0 && !arePatternListsEqual(existing, primaryPatterns);
     });
     if (divergingAliases.length > 0) {
+      // An empty override list clears the patterns everywhere else, but a
+      // diverging alias keeps its own — there is nothing to merge into it, so say
+      // that instead of announcing a merge that does not happen.
       logger?.warn(
-        `Merging vibe.permission.${category}.sensitive_patterns into the existing Vibe ` +
-          `sensitive_patterns of ${divergingAliases.join(", ")} rather than replacing them, ` +
-          `because the existing config.toml already sets different patterns for that shell. ` +
-          `Author vibe.permission.${divergingAliases.join(", ")}.sensitive_patterns to own its ` +
-          `list outright.`,
+        patterns.length === 0
+          ? `Keeping the existing Vibe sensitive_patterns of ${divergingAliases.join(", ")} ` +
+              `even though vibe.permission.${category}.sensitive_patterns is empty, because an ` +
+              `empty list clears only the patterns this override owns and that shell authored ` +
+              `its own. Delete them from config.toml to clear them.`
+          : `Merging vibe.permission.${category}.sensitive_patterns into the existing Vibe ` +
+              `sensitive_patterns of ${divergingAliases.join(", ")} rather than replacing them, ` +
+              `because the existing config.toml already sets different patterns for that shell. ` +
+              `Author vibe.permission.${divergingAliases.join(", ")}.sensitive_patterns to own ` +
+              `its list outright.`,
       );
     }
 
@@ -1124,10 +1141,12 @@ function applyStandDownShellDenies({
   shellRules,
   tools,
   standDownShells,
+  disabledTools,
 }: {
   shellRules: Record<string, PermissionAction>;
   tools: Record<string, VibeToolConfig>;
   standDownShells: readonly string[];
+  disabledTools: ReadonlySet<string>;
 }): void {
   const denyPatterns = Object.entries(shellRules)
     .filter(([pattern, action]) => pattern !== "*" && action === "deny")
@@ -1137,6 +1156,13 @@ function applyStandDownShellDenies({
   }
 
   for (const vibeToolName of standDownShells) {
+    // A shell that only exists as a `disabled_tools` entry is off the registry
+    // entirely, so a denylist for it would be inert. Writing one would invent a
+    // table the user never authored and, on the next import, materialize it as a
+    // category of its own.
+    if (!Object.hasOwn(tools, vibeToolName) && disabledTools.has(vibeToolName)) {
+      continue;
+    }
     const nextTool = readVibeToolConfig({ tools, vibeToolName });
     // The legacy `deny` spelling is tolerated upstream but never consulted, so
     // fold it into the canonical key instead of leaving the shell with two lists.
