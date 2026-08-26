@@ -264,7 +264,7 @@ type CollectedFile = {
  */
 type SkillPathClass =
   | { kind: "non-skill" }
-  | { kind: "unsafe-name"; display: string }
+  | { kind: "unsafe-name"; raw: string; display: string }
   | { kind: "skill"; name: string };
 
 const NON_SKILL_PATH: SkillPathClass = { kind: "non-skill" };
@@ -294,7 +294,7 @@ function classifySkillPath(relativePath: string): SkillPathClass {
   }
   const display = stripControlCharacters(name);
   if (display !== name) {
-    return { kind: "unsafe-name", display };
+    return { kind: "unsafe-name", raw: name, display };
   }
   return { kind: "skill", name };
 }
@@ -387,7 +387,7 @@ async function applySkillSelection(params: {
   }
 
   const selectedSet = new Set(selectedSkills);
-  const droppedUnsafeNames = new Set<string>();
+  const droppedUnsafeNames = new Map<string, string>();
   const selected = files.filter((file) => {
     const skill = classifySkillPath(file.relativePath);
     if (skill.kind === "non-skill") {
@@ -397,30 +397,53 @@ async function applySkillSelection(params: {
     // cannot have been selected. Dropping it keeps the guarantee the selection
     // makes: only skills the user saw and picked are written.
     if (skill.kind === "unsafe-name") {
-      droppedUnsafeNames.add(skill.display);
+      // Keyed by the raw name so two directories that both strip down to
+      // nothing still count as two.
+      droppedUnsafeNames.set(skill.raw, skill.display);
       return false;
     }
     return selectedSet.has(skill.name);
   });
 
   if (droppedUnsafeNames.size > 0) {
-    // The names are quoted, and one that strips down to nothing is labelled
-    // rather than printed, because the stripped form is exactly what made the
-    // directory unsafe: it can be empty, or identical to a real skill the user
-    // did fetch. Without the quotes the warning would read as if that real
-    // skill had been skipped.
-    const labels = [...droppedUnsafeNames]
-      .toSorted()
-      .map((display) => (display === "" ? "(nothing but control characters)" : `"${display}"`));
-    logger.warn(
-      `Skipping ${labels.length} skill director${labels.length === 1 ? "y" : "ies"} whose name ` +
-        `contains control characters. Such a name cannot be listed truthfully, so it is never ` +
-        `offered for selection. Written here with the control characters removed, which is why ` +
-        `a name may look like one you did select: ${labels.join(", ")}.`,
-    );
+    logger.warn(formatDroppedSkillsWarning(droppedUnsafeNames));
   }
 
   return selected;
+}
+
+/**
+ * Describe the skill directories dropped for having control characters in their
+ * name, keyed raw name to stripped name.
+ *
+ * The stripped form is all there is to show — the raw name is unprintable, which
+ * is the whole reason the directory was dropped — and it can be empty or read
+ * exactly like a skill the user did fetch. So a name that survives stripping is
+ * quoted, to mark it as the sanitized form rather than a claim about what was
+ * skipped, and a name that does not survive is counted instead of printed.
+ */
+function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, string>): string {
+  const displays = [...droppedUnsafeNames.values()];
+  const quoted = displays
+    .filter((display) => display !== "")
+    .toSorted()
+    .map((display) => `"${display}"`);
+  const unprintable = displays.filter((display) => display === "").length;
+  const described = [
+    ...(quoted.length > 0 ? [quoted.join(", ")] : []),
+    ...(unprintable > 0 ? [`${unprintable} with nothing left once they are removed`] : []),
+  ].join(", plus ");
+
+  const subject =
+    droppedUnsafeNames.size === 1
+      ? "one skill directory whose name contains"
+      : `${droppedUnsafeNames.size} skill directories whose names contain`;
+
+  return (
+    `Skipping ${subject} control characters. Such a name cannot be listed truthfully, so it ` +
+    `is never offered for selection. Shown here with the control characters removed, which is ` +
+    `why a name may look like one you did select: ${described}.`
+  );
 }
 
 /**
