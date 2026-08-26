@@ -12,6 +12,20 @@ export class SkillSelectionCancelledError extends Error {
 }
 
 /**
+ * Key bindings offered by the checkbox prompt, pinned rather than left to the
+ * library default. Nothing is checked when the prompt opens, so `a` is the
+ * shortcut that makes "fetch everything" a single keystroke and `i` covers the
+ * inverse "everything except these" flow. `a` toggles: it checks everything
+ * while anything is unchecked, and clears the list once all of it is checked.
+ * Both keys are listed in the prompt's own help line, and spelling them out
+ * here keeps the binding visible next to the empty default it exists for.
+ */
+const SKILL_PROMPT_SHORTCUTS = {
+  all: "a",
+  invert: "i",
+} as const;
+
+/**
  * Prompt the user to select skills via an interactive checkbox prompt.
  *
  * Extracted into its own module so tests can mock the prompt without
@@ -19,7 +33,7 @@ export class SkillSelectionCancelledError extends Error {
  *
  * @param availableSkills - Skill names discovered in the source repository
  * @param preselectedSkills - Skill names to pre-check (from --skills); when
- *   empty, all skills start checked
+ *   empty, every skill starts unchecked and the user opts in
  * @returns The skill names the user selected
  */
 export async function promptSkillSelection(params: {
@@ -30,12 +44,16 @@ export async function promptSkillSelection(params: {
 
   try {
     return await checkbox({
-      message: "Select skills to fetch",
+      message: `Select skills to fetch (press <${SKILL_PROMPT_SHORTCUTS.all}> to select/deselect all)`,
       choices: availableSkills.map((name) => ({
         name,
         value: name,
-        checked: preselectedSkills.length === 0 || preselectedSkills.includes(name),
+        // Start from nothing selected. Fetching writes files into the user's
+        // project, so an unattended <enter> should fetch nothing rather than
+        // every skill the source repository happens to publish.
+        checked: preselectedSkills.includes(name),
       })),
+      shortcuts: SKILL_PROMPT_SHORTCUTS,
     });
   } catch (error) {
     // @inquirer prompts reject with ExitPromptError when the user presses

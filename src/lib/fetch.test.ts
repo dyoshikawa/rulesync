@@ -1388,6 +1388,159 @@ describe("fetchFiles with skill selection", () => {
     expect(relativePaths).toEqual(["skills/README.md", "skills/skill-a/SKILL.md"]);
   });
 
+  it("should not fetch a skill directory whose name is invisible once stripped", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              { name: "\u200e", path: "skills/\u200e", type: "dir" },
+            ],
+          );
+        }
+        if (path === "skills/\u200e") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/\u200e/SKILL.md",
+              type: "file",
+              sha: "eee",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    // The directory is never offered, so selecting nothing must write nothing.
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+    });
+    expect(summary.files).toEqual([]);
+    // Nothing is left of the name to print, so the warning says so rather than
+    // trailing off after a "shown here" that shows nothing.
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Skipping one skill directory whose name contains control"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Nothing is left of the name once the control characters"),
+    );
+  });
+
+  it("should not let a skill that only displays as another one ride along with it", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              { name: "skill\u200e-a", path: "skills/skill\u200e-a", type: "dir" },
+            ],
+          );
+        }
+        if (path === "skills/skill\u200e-a") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/skill\u200e-a/SKILL.md",
+              type: "file",
+              sha: "ddd",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue(["skill-a"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    const relativePaths = summary.files.map((f) => f.relativePath).toSorted();
+    expect(relativePaths).toEqual(["skills/skill-a/SKILL.md"]);
+    // The stripped name reads exactly like the skill that WAS fetched, so the
+    // warning has to quote it rather than assert that "skill-a" was skipped.
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('you did select: "skill-a".'));
+  });
+
+  it("should count two indistinguishable unsafe names as two skipped directories", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    const unsafeDirs = ["skills/\u200e", "skills/\u200f"];
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              ...unsafeDirs.map((dirPath) => ({
+                name: dirPath.slice("skills/".length),
+                path: dirPath,
+                type: "dir",
+              })),
+            ],
+          );
+        }
+        if (unsafeDirs.includes(path)) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `${path}/SKILL.md`,
+              type: "file",
+              sha: "ccc",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(summary.files).toEqual([]);
+    // Both strip down to the same empty string, so counting them by their
+    // stripped form would report one directory instead of two.
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Skipping 2 skill directories whose names contain control"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Nothing is left of those names once the control characters"),
+    );
+  });
+
   it("should warn and fetch nothing when interactive is used but no skills exist", async () => {
     isInteractiveTerminalMock.mockReturnValue(true);
     mockClientInstance.listDirectory.mockImplementation(() => {

@@ -15,8 +15,11 @@ vi.mock("@inquirer/checkbox", () => ({
 }));
 
 describe("promptSkillSelection", () => {
-  it("should check all skills when no skills are preselected", async () => {
-    checkboxMock.mockResolvedValue(["skill-a", "skill-b"]);
+  // The `shortcuts` assertions below are the point of this test as much as the
+  // unchecked boxes are: starting from an empty selection is only reasonable
+  // because <a> makes "fetch everything" one keystroke away.
+  it("should check no skills when none are preselected", async () => {
+    checkboxMock.mockResolvedValue([]);
 
     const selected = await promptSkillSelection({
       availableSkills: ["skill-a", "skill-b"],
@@ -24,13 +27,14 @@ describe("promptSkillSelection", () => {
     });
 
     expect(checkboxMock).toHaveBeenCalledWith({
-      message: "Select skills to fetch",
+      message: "Select skills to fetch (press <a> to select/deselect all)",
       choices: [
-        { name: "skill-a", value: "skill-a", checked: true },
-        { name: "skill-b", value: "skill-b", checked: true },
+        { name: "skill-a", value: "skill-a", checked: false },
+        { name: "skill-b", value: "skill-b", checked: false },
       ],
+      shortcuts: { all: "a", invert: "i" },
     });
-    expect(selected).toEqual(["skill-a", "skill-b"]);
+    expect(selected).toEqual([]);
   });
 
   it("should check only preselected skills when provided", async () => {
@@ -42,11 +46,12 @@ describe("promptSkillSelection", () => {
     });
 
     expect(checkboxMock).toHaveBeenCalledWith({
-      message: "Select skills to fetch",
+      message: "Select skills to fetch (press <a> to select/deselect all)",
       choices: [
         { name: "skill-a", value: "skill-a", checked: false },
         { name: "skill-b", value: "skill-b", checked: true },
       ],
+      shortcuts: { all: "a", invert: "i" },
     });
     expect(selected).toEqual(["skill-b"]);
   });

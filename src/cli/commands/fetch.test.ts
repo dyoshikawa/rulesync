@@ -164,7 +164,7 @@ describe("fetchCommand", () => {
       vi.mocked(fetchFiles).mockRejectedValue(new SkillSelectionCancelledError());
 
       await expect(fetchCommand(mockLogger, { source: "owner/repo" })).resolves.toBeUndefined();
-      expect(mockLogger.warn).toHaveBeenCalledWith("Fetch cancelled: no skills were selected.");
+      expect(mockLogger.warn).toHaveBeenCalledWith("Fetch cancelled by the user.");
     });
 
     it("should handle generic errors", async () => {

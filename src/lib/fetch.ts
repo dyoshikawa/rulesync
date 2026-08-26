@@ -252,23 +252,51 @@ type CollectedFile = {
 };
 
 /**
- * Extract the skill name from a relative path under the skills directory.
- * Returns undefined for paths outside skills/ and for flat files directly
- * under skills/ (skills are directory-based, e.g. skills/<name>/SKILL.md).
- * Control characters are stripped so remote-controlled names cannot smuggle
- * terminal escape sequences into prompts or error messages.
+ * How a collected file relates to the skills directory.
+ *
+ * - `non-skill` — outside skills/, or a flat file directly under it. Skills are
+ *   directory-based (skills/<name>/SKILL.md), so such a file belongs to no
+ *   skill and selection does not apply to it.
+ * - `unsafe-name` — under a skills/ directory whose name does not survive
+ *   control-character stripping. It cannot be offered honestly, so it is never
+ *   selectable.
+ * - `skill` — belongs to the named skill.
  */
-function getSkillName(relativePath: string): string | undefined {
+type SkillPathClass =
+  | { kind: "non-skill" }
+  | { kind: "unsafe-name"; raw: string; display: string }
+  | { kind: "skill"; name: string };
+
+const NON_SKILL_PATH: SkillPathClass = { kind: "non-skill" };
+
+/**
+ * Classify a collected file's path relative to the skills directory.
+ *
+ * A directory name is only usable when it is already free of control
+ * characters. Stripping them for display and then matching on the stripped
+ * form would let a remote repository publish `skills/<U+200E>/` — invisible in
+ * the prompt — or `skills/go<U+200E>od/`, which displays as an existing skill
+ * and would ride along with it. Names like that are reported as `unsafe-name`
+ * so callers can leave them out instead of writing a skill the user never saw.
+ */
+function classifySkillPath(relativePath: string): SkillPathClass {
   const posixPath = toPosixPath(relativePath);
   if (!posixPath.startsWith("skills/")) {
-    return undefined;
+    return NON_SKILL_PATH;
   }
   const segments = posixPath.split("/");
   if (segments.length < 3) {
-    return undefined;
+    return NON_SKILL_PATH;
   }
-  const name = segments[1] === undefined ? undefined : stripControlCharacters(segments[1]);
-  return name === undefined || name === "" ? undefined : name;
+  const name = segments[1];
+  if (name === undefined || name === "") {
+    return NON_SKILL_PATH;
+  }
+  const display = stripControlCharacters(name);
+  if (display !== name) {
+    return { kind: "unsafe-name", raw: name, display };
+  }
+  return { kind: "skill", name };
 }
 
 /**
@@ -277,9 +305,9 @@ function getSkillName(relativePath: string): string | undefined {
 function listAvailableSkills(files: CollectedFile[]): string[] {
   const names = new Set<string>();
   for (const file of files) {
-    const name = getSkillName(file.relativePath);
-    if (name !== undefined) {
-      names.add(name);
+    const skill = classifySkillPath(file.relativePath);
+    if (skill.kind === "skill") {
+      names.add(skill.name);
     }
   }
   return [...names].toSorted();
@@ -359,13 +387,70 @@ async function applySkillSelection(params: {
   }
 
   const selectedSet = new Set(selectedSkills);
-  return files.filter((file) => {
-    const name = getSkillName(file.relativePath);
-    if (name === undefined) {
+  const droppedUnsafeNames = new Map<string, string>();
+  const selected = files.filter((file) => {
+    const skill = classifySkillPath(file.relativePath);
+    if (skill.kind === "non-skill") {
       return true;
     }
-    return selectedSet.has(name);
+    // A name the prompt could not show truthfully was never on offer, so it
+    // cannot have been selected. Dropping it keeps the guarantee the selection
+    // makes: only skills the user saw and picked are written.
+    if (skill.kind === "unsafe-name") {
+      // Keyed by the raw name so two directories that both strip down to
+      // nothing still count as two.
+      droppedUnsafeNames.set(skill.raw, skill.display);
+      return false;
+    }
+    return selectedSet.has(skill.name);
   });
+
+  if (droppedUnsafeNames.size > 0) {
+    logger.warn(formatDroppedSkillsWarning(droppedUnsafeNames));
+  }
+
+  return selected;
+}
+
+/**
+ * Describe the skill directories dropped for having control characters in their
+ * name, keyed raw name to stripped name.
+ *
+ * The stripped form is all there is to show — the raw name is unprintable, which
+ * is the whole reason the directory was dropped — and it can be empty or read
+ * exactly like a skill the user did fetch. So a name that survives stripping is
+ * quoted, to mark it as the sanitized form rather than a claim about what was
+ * skipped, and a name that does not survive is counted instead of printed.
+ */
+function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, string>): string {
+  const displays = [...droppedUnsafeNames.values()];
+  // Deduplicated, because two raw names can strip down to the same text and
+  // listing it twice reads as a rendering bug. The count above stays keyed on
+  // the raw names, so it still says how many directories were dropped.
+  const shown = [...new Set(displays.filter((display) => display !== ""))]
+    .toSorted()
+    .map((display) => JSON.stringify(display))
+    .join(", ");
+  const unprintable = displays.filter((display) => display === "").length;
+
+  const plural = droppedUnsafeNames.size !== 1;
+  const lead =
+    `Skipping ${plural ? `${droppedUnsafeNames.size} skill directories whose names contain` : "one skill directory whose name contains"} ` +
+    `control characters. Such a name cannot be listed truthfully, so it is never offered for ` +
+    `selection.`;
+
+  if (shown === "") {
+    return (
+      `${lead} Nothing is left of ${plural ? "those names" : "the name"} once the control ` +
+      `characters are removed, so there is nothing to show here.`
+    );
+  }
+
+  return (
+    `${lead} Shown here with the control characters removed, which is why a name may look ` +
+    `like one you did select: ${shown}` +
+    `${unprintable > 0 ? `, plus ${unprintable} with nothing left once they are removed` : ""}.`
+  );
 }
 
 /**
