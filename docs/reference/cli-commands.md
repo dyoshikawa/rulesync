@@ -383,6 +383,8 @@ Fetched from anthropics/skills@main:
 Summary: 1 overwritten, 1 deleted
 ```
 
+Rulesync also warns separately whenever a run deleted anything, so the one part of the command that cannot be undone is not left to be spotted among the rest of the summary.
+
 > [!WARNING]
 > Pruning removes **any** file in a fetched skill directory that the remote does not have — including one you added yourself. That is what "mirror the remote" means. Keep your own material outside the skill directories you fetch, or pass `--no-prune`.
 >
@@ -396,6 +398,7 @@ The scope is deliberately narrow:
 - Symbolic links are unlinked, never followed: a link inside a skill directory can only ever lose the link itself, never whatever it points at. A skill directory that is **itself** a symbolic link is not pruned at all, since deleting through it would reach outside the output directory; Rulesync warns and leaves it alone.
 - A local file that the filesystem holds as the same file as one just fetched — a second name for it on a case-insensitive or Unicode-normalizing filesystem, or a hard link — is kept, even though the remote list does not carry that name.
 - Nothing more than 15 directories below the skill directory is pruned, which is as deep as a fetch itself reaches. Rulesync warns and leaves anything deeper alone.
+- A skill directory whose name ends in a dot or a space is not pruned. Some systems drop those characters when resolving a path, so the directory that name reads as may not be the directory it opens.
 - A skill whose remote listing came back incomplete — GitHub caps a directory listing at 1,000 entries, and entries such as symlinks and submodules cannot be fetched — is not pruned either. Rulesync warns instead, because a local file that upstream still ships cannot be told apart from one it dropped.
 - `--conflict skip` disables pruning. That flag says to leave existing local files alone, and it also means the local copies are not this run's output, so they cannot be judged against the remote list.
 - `--target <tool>` never prunes, because that conversion path does not fetch skills at all.

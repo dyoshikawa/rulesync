@@ -689,7 +689,7 @@ async function pruneDirectory(params: {
       }
       await rm(entryPath, { force: true });
       deleted.push({ relativePath: entryRelativePath, status: "deleted" });
-      logger.debug(`Deleted stale skill entry: ${entryRelativePath}`);
+      logger.debug(`Deleted stale skill entry: ${stripControlCharacters(entryRelativePath)}`);
       continue;
     }
 
@@ -727,7 +727,7 @@ async function pruneDirectory(params: {
         throw error;
       }
       deleted.push({ relativePath: `${entryRelativePath}/`, status: "deleted" });
-      logger.debug(`Removed stale skill directory: ${entryRelativePath}`);
+      logger.debug(`Removed stale skill directory: ${stripControlCharacters(entryRelativePath)}`);
       continue;
     }
 
@@ -747,7 +747,7 @@ async function pruneDirectory(params: {
 
     await rm(entryPath, { force: true });
     deleted.push({ relativePath: entryRelativePath, status: "deleted" });
-    logger.debug(`Deleted stale skill file: ${entryRelativePath}`);
+    logger.debug(`Deleted stale skill file: ${stripControlCharacters(entryRelativePath)}`);
   }
 
   return survivors > 0 ? "kept" : "emptied";
@@ -865,6 +865,21 @@ async function pruneStaleSkillFiles(params: {
       continue;
     }
 
+    // Windows drops a trailing dot or space when it resolves a path, so a
+    // remote `skills/my-docs.` is the existing `skills/my-docs` there. The write
+    // and the prune would agree with each other and disagree with the summary,
+    // which would then name a directory other than the one it emptied. Nothing
+    // reaches outside the output directory either way, but a deletion record
+    // that names the wrong directory is not one worth keeping.
+    if (/[.\s]$/.test(skillDir)) {
+      logger.warn(
+        `Not pruning ${stripControlCharacters(skillDir)}: its name ends in a dot or a space, ` +
+          `which some systems drop when resolving a path, so it may not be the directory this ` +
+          `name reads as. Remove unwanted files by hand.`,
+      );
+      continue;
+    }
+
     // A cheap re-assertion of the guard the writes went through: the directory
     // name comes from the remote repository. It is lexical only, which is why
     // the link check below has to follow it.
@@ -878,6 +893,19 @@ async function pruneStaleSkillFiles(params: {
       deleted,
       logger,
     });
+  }
+
+  if (deleted.length > 0) {
+    // Every deletion is already listed in the summary, but the summary is a
+    // wall of mostly-good news and this is the part that cannot be undone. It
+    // also names the flag that turns it off, since the caller who is surprised
+    // by it is exactly the caller who did not know there was one.
+    logger.warn(
+      `Deleted ${deleted.length} local ${deleted.length === 1 ? "path" : "paths"} inside the ` +
+        `skill ${skillDirs.size === 1 ? "directory" : "directories"} this fetch wrote, because ` +
+        `the remote skill no longer has ${deleted.length === 1 ? "it" : "them"}. They are listed ` +
+        `in the summary below. Pass --no-prune to keep local files instead.`,
+    );
   }
 
   return deleted;
@@ -1544,7 +1572,11 @@ export function formatFetchSummary(summary: FetchSummary): string {
   for (const file of summary.files) {
     const icon = fetchStatusIcon(file.status);
     const statusText = fetchStatusText(file.status);
-    lines.push(`  ${icon} ${file.relativePath} ${statusText}`);
+    // A deleted path is a local name read back off the disk, so unlike a
+    // fetched one it never went through the checks on a remote path. An escape
+    // sequence in it could rewrite or erase the lines around it, and the lines
+    // around it are the record of what this command deleted.
+    lines.push(`  ${icon} ${stripControlCharacters(file.relativePath)} ${statusText}`);
   }
 
   const parts: string[] = [];

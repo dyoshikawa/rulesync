@@ -2424,6 +2424,91 @@ describe("fetchFiles skill pruning", () => {
     },
   );
 
+  it("should warn about the deletions on top of listing them", async () => {
+    mockSkillRepository();
+    await writeFileContent(join(skillsRoot, "skill-a", "reference.md"), "# Stale");
+
+    await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Deleted 1 local path inside the skill directories this fetch wrote"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("--no-prune"));
+  });
+
+  it("should not warn about deletions when there were none", async () => {
+    mockSkillRepository();
+
+    await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("Deleted "));
+  });
+
+  it("should not prune a skill directory whose name ends in a dot", async () => {
+    // Windows resolves `skills/dotted.` to `skills/dotted`, so the prune would
+    // empty one directory while the summary named another.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "dotted.",
+              path: "skills/dotted.",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/dotted.") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/dotted./SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const stale = join(skillsRoot, "dotted.", "reference.md");
+    await writeFileContent(stale, "# Stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(stale)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("its name ends in a dot or a space"),
+    );
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "should not let a deleted file's name rewrite the summary",
+    async () => {
+      mockSkillRepository();
+      // A local name, read back off the disk, never went through the checks a
+      // remote path does — so the record of the deletion must not be able to
+      // erase the line it is printed on.
+      const stale = join(skillsRoot, "skill-a", "sneaky\u001b[2K-file.md");
+      await writeFileContent(stale, "# Stale");
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.deleted).toBe(1);
+      expect(formatFetchSummary(summary)).not.toContain("\u001b");
+      expect(formatFetchSummary(summary)).toContain("sneaky[2K-file.md");
+    },
+  );
+
   it("should not prune below the depth a fetch can reach", async () => {
     mockSkillRepository();
     // One level past the ceiling the remote walk stops at, so nothing this deep
