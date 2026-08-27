@@ -6,7 +6,7 @@ import { stripControlCharacters } from "../utils/control-characters.js";
 import {
   addTrailingNewline,
   applyFileMode,
-  fileExists,
+  fileExistsStrict,
   restoreMissingExecutableBit,
   readFileContentOrNull,
   removeFile,
@@ -16,10 +16,11 @@ import type { Logger } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { AiFile } from "./ai-file.js";
 import { RulesyncFile } from "./rulesync-file.js";
+import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolFile } from "./tool-file.js";
 import { ToolTarget } from "./tool-targets.js";
 
-export abstract class FeatureProcessor {
+export abstract class FeatureProcessor extends RulesyncSourceConsumer {
   protected readonly outputRoot: string;
   /**
    * Ordered, non-empty list of rulesync source-tree directories. Each entry
@@ -37,7 +38,6 @@ export abstract class FeatureProcessor {
   protected readonly inputRoots: readonly [string, ...string[]];
   protected readonly dryRun: boolean;
   protected readonly logger: Logger;
-
   constructor({
     outputRoot = process.cwd(),
     inputRoots,
@@ -49,6 +49,8 @@ export abstract class FeatureProcessor {
     dryRun?: boolean;
     logger: Logger;
   }) {
+    super();
+
     this.outputRoot = outputRoot;
 
     this.inputRoots =
@@ -231,7 +233,7 @@ export async function pickLastRootWithFile({
 
   for (const root of inputRoots) {
     for (const relativePath of relativePaths) {
-      if (await fileExists(join(root, relativePath))) {
+      if (await fileExistsStrict(join(root, relativePath))) {
         winner = root;
         rootsWithFile.push(root);
         break;

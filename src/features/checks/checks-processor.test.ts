@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,7 +9,7 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { writeFileContent } from "../../utils/file.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ConsoleLogger } from "../../utils/logger.js";
 import { AmpCheck } from "./amp-check.js";
 import { ChecksProcessor } from "./checks-processor.js";
@@ -130,5 +131,46 @@ Look for issues.
     });
 
     expect(await processor.loadRulesyncFiles()).toEqual([]);
+  });
+
+  // Windows needs elevated rights to create symlinks, so this one is POSIX-only.
+  it.skipIf(process.platform === "win32")(
+    "should record a source load failure for a check file that cannot be read",
+    async () => {
+      await ensureDir(join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH));
+      await symlink(
+        join(testDir, "gone.md"),
+        join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "broken.md"),
+      );
+
+      const processor = new ChecksProcessor({
+        outputRoot: testDir,
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        toolTarget: "amp",
+        logger,
+      });
+
+      // Unreadable is not unparseable: skipping it would let the orphan sweep
+      // delete a check the run merely could not read.
+      expect(await processor.loadRulesyncFiles()).toEqual([]);
+      expect(processor.hasRulesyncSourceLoadFailure()).toBe(true);
+    },
+  );
+
+  it("should not record a source load failure for a check file that will not parse", async () => {
+    await writeFileContent(
+      join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "notes.md"),
+      "just some notes, no frontmatter",
+    );
+
+    const processor = new ChecksProcessor({
+      outputRoot: testDir,
+      inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+      toolTarget: "amp",
+      logger,
+    });
+
+    expect(await processor.loadRulesyncFiles()).toEqual([]);
+    expect(processor.hasRulesyncSourceLoadFailure()).toBe(false);
   });
 });

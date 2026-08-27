@@ -22,6 +22,7 @@ import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
   directoryExists,
+  directoryExistsStrict,
   findFilesByGlobs,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -667,7 +668,10 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const curatedDirPath = join(sourceTree, CURATED_SKILLS_FEATURE_SUBDIR);
     let curatedSkills: RulesyncSkill[] = [];
 
-    if (await directoryExists(curatedDirPath)) {
+    // Strict for the same reason as the local skills directory above: a
+    // curated tree that cannot be resolved must not read as "no curated
+    // skills".
+    if (await directoryExistsStrict(curatedDirPath)) {
       const curatedDirPaths = await findFilesByGlobs(join(curatedDirPath, "*"), { type: "dir" });
       const curatedDirNames = curatedDirPaths.map((path) => basename(path));
 

@@ -21,6 +21,7 @@ import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import {
   checkPathTraversal,
+  directoryExistsStrict,
   findFilesByGlobs,
   readFileContentOrNull,
   toPosixPath,
@@ -778,7 +779,12 @@ export class CommandsProcessor extends FeatureProcessor {
     const treeName = basename(sourceTree);
     const treeCommandsDirPath = join(treeName, COMMANDS_FEATURE_SUBDIR);
     const basePath = join(sourceTree, COMMANDS_FEATURE_SUBDIR);
-    const rulesyncCommandPaths = await findFilesByGlobs(join(basePath, "**", "*.md"));
+    // Strict for the same reason as the rules loader: a source directory whose
+    // symlink no longer resolves must not glob to nothing and read as "every
+    // command was deleted".
+    const rulesyncCommandPaths = (await directoryExistsStrict(basePath))
+      ? await findFilesByGlobs(join(basePath, "**", "*.md"))
+      : [];
 
     return await Promise.all(
       rulesyncCommandPaths.map((path) =>

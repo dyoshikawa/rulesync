@@ -39,6 +39,7 @@ import type { ToolFile } from "../../types/tool-file.js";
 import { hooksProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
+import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
 import { AmpHooks } from "./amp-hooks.js";
@@ -788,15 +789,15 @@ export class HooksProcessor extends FeatureProcessor {
     const relativePaths = getRulesyncSourceCandidates({ paths }).map(
       (candidate) => candidate.relativeFilePath,
     );
-    const winningRoot = await pickLastRootWithFile({
-      inputRoots: this.inputRoots,
-      relativePaths,
-      logger: this.logger,
-      artifactName: "The hooks file",
-    });
-    const sourceTree = winningRoot ?? this.inputRoots[0];
-
     try {
+      const winningRoot = await pickLastRootWithFile({
+        inputRoots: this.inputRoots,
+        relativePaths,
+        logger: this.logger,
+        artifactName: "The hooks file",
+      });
+      const sourceTree = winningRoot ?? this.inputRoots[0];
+
       return [
         await RulesyncHooks.fromFile({
           outputRoot: dirname(sourceTree),
@@ -805,9 +806,10 @@ export class HooksProcessor extends FeatureProcessor {
         }),
       ];
     } catch (error) {
-      this.logger.error(
-        `Failed to load Rulesync hooks file (${RULESYNC_HOOKS_RELATIVE_FILE_PATH}): ${formatError(error)}`,
-      );
+      this.reportRulesyncSourceLoadError({
+        message: `Failed to load Rulesync hooks file (${RULESYNC_HOOKS_RELATIVE_FILE_PATH})`,
+        error,
+      });
       return [];
     }
   }
@@ -853,7 +855,10 @@ export class HooksProcessor extends FeatureProcessor {
       return [toolHooks];
     } catch (error) {
       const msg = `Failed to load hooks files for tool target: ${this.toolTarget}: ${formatError(error)}`;
-      if (error instanceof Error && error.message.includes("no such file or directory")) {
+      // The tool's own config simply not being there yet is the normal first
+      // run, so it stays at debug. Matching on `code` rather than on the
+      // message keeps a wrapped or localized error from being read as absence.
+      if (isFileNotFoundError(error)) {
         this.logger.debug(msg);
       } else {
         this.logger.error(msg);

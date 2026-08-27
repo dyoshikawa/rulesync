@@ -18,12 +18,13 @@ import {
 import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { fileExists, readFileContent } from "../../utils/file.js";
+import { fileExistsStrict, readFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import {
   getRulesyncSourceCandidates,
+  RulesyncSourceNotFoundError,
   type RulesyncSourceSettablePaths,
 } from "../../utils/rulesync-source-path.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -166,7 +167,7 @@ async function findFirstExistingCandidate({
     const candidateDirPath = overrideDirPath ?? candidate.relativeDirPath;
     const filePath = join(outputRoot, candidateDirPath, candidate.relativeFilePath);
 
-    if (await fileExists(filePath)) {
+    if (await fileExistsStrict(filePath)) {
       return {
         filePath,
         candidate: {
@@ -354,9 +355,11 @@ export class RulesyncMcp extends RulesyncFile {
    * anchored at the root that supplied it rather than at the primary root's
    * recommended path.
    *
-   * When no root supplies any candidate, this falls back to reading the
-   * primary root's recommended path so the underlying file-not-found error
-   * matches the single-root behavior of `fromFile`.
+   * When no root supplies any candidate, this raises
+   * `RulesyncSourceNotFoundError` against the primary root's recommended path,
+   * matching the single-root behavior of `fromFile`. Absence is deliberately
+   * never reported as a bare `ENOENT`, which callers cannot tell apart from a
+   * read that was supposed to succeed.
    */
   static async fromRoots({
     inputRoots,
@@ -502,7 +505,7 @@ export class RulesyncMcp extends RulesyncFile {
       const candidateDirPath = overrideDirPath ?? candidate.relativeDirPath;
       const filePath = join(outputRoot, candidateDirPath, candidate.relativeFilePath);
 
-      if (!(await fileExists(filePath))) {
+      if (!(await fileExistsStrict(filePath))) {
         continue;
       }
 
@@ -531,15 +534,12 @@ export class RulesyncMcp extends RulesyncFile {
 
     const fallbackDirPath = overrideDirPath ?? paths.recommended.relativeDirPath;
     const recommendedPath = join(outputRoot, fallbackDirPath, paths.recommended.relativeFilePath);
-    const fileContent = await readFileContent(recommendedPath);
 
-    return new RulesyncMcp({
-      outputRoot,
-      relativeDirPath: fallbackDirPath,
-      relativeFilePath: paths.recommended.relativeFilePath,
-      fileContent,
-      validate,
-    });
+    // Every candidate was ruled out, so absence is reported as itself rather
+    // than as whatever `readFileContent` would have raised. A bare `ENOENT`
+    // here reads the same as one thrown from deep inside a read that was
+    // supposed to succeed, and callers have to tell those two apart.
+    throw new RulesyncSourceNotFoundError(`No ${recommendedPath} found.`);
   }
 
   getMcpServers(): McpServers {

@@ -19,7 +19,9 @@ import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
   directoryExists,
+  directoryExistsStrict,
   findFilesByGlobs,
+  isFileSystemError,
   listDirectoryFiles,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -630,7 +632,10 @@ export class SubagentsProcessor extends FeatureProcessor {
     const treeSubagentsDirPath = join(treeName, SUBAGENTS_FEATURE_SUBDIR);
     const subagentsDir = join(sourceTree, SUBAGENTS_FEATURE_SUBDIR);
 
-    const dirExists = await directoryExists(subagentsDir);
+    // Strict: a source directory symlinked at a tree that is missing must not
+    // read as "this feature has no sources", which would let `--delete` sweep
+    // away everything generated from it.
+    const dirExists = await directoryExistsStrict(subagentsDir);
     if (!dirExists) {
       this.logger.debug(`Rulesync subagents directory not found: ${subagentsDir}`);
       return [];
@@ -662,6 +667,23 @@ export class SubagentsProcessor extends FeatureProcessor {
         rulesyncSubagents.push(rulesyncSubagent);
         this.logger.debug(`Successfully loaded subagent: ${mdFile}`);
       } catch (error) {
+        // A file that could not be read at all is a different matter from one
+        // that would not parse: it says nothing about whether the subagent is
+        // still wanted, so letting the sweep run on it would delete output this
+        // run simply could not load.
+        if (isFileSystemError(error)) {
+          this.reportRulesyncSourceLoadError({
+            message: `Failed to read subagent file ${filepath}`,
+            error,
+          });
+          continue;
+        }
+
+        // Deliberately a warning, not a source-load failure. `subagents/` is a
+        // directory users also keep ordinary Markdown in (a README, notes), and
+        // failing the run on those would both break every later `generate` and
+        // freeze this feature's orphan sweep, so a subagent deleted from the
+        // source would never be removed from the tool tree.
         this.logger.warn(`Failed to load subagent file ${filepath}: ${formatError(error)}`);
         continue;
       }

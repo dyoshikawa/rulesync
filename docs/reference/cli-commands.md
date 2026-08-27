@@ -135,6 +135,39 @@ The `generate` command reads source files from one or more rulesync source trees
 > ones. A generated file there whose `.rulesync/skills/` source you later delete
 > stays behind, so remove it yourself. See [Takt](../tools/takt.md).
 
+> **Note on unreadable sources:** This applies to the single-file features —
+> `mcp`, `hooks`, `permissions`, and `ignore` — each of which is generated from
+> one `.rulesync/` file. When that file exists but cannot be read — malformed
+> JSON/JSONC, or content the schema rejects — the problem is reported as an
+> error, the feature produces no output, and `generate` exits non-zero, naming
+> the affected features. Every other feature in the run still executes first, so
+> one bad file does not hide the rest of the errors. Because that feature's
+> output could not be regenerated, `--delete` also skips its orphan sweep,
+> leaving the previously generated files in place rather than deleting
+> configuration the run was unable to rewrite. Under `--watch` the failure is
+> reported and the watcher keeps running, so saving a corrected source
+> regenerates as usual.
+>
+> A source file that is simply absent is not an error: that feature just has
+> nothing to generate, and the run succeeds — it is still logged, but it does
+> not fail the run. Only genuine absence counts; a path that cannot even be
+> checked (a permission error, a symlink loop, a symlink whose target is gone)
+> is treated as unreadable, not as missing.
+>
+> The directory-based features handle an unparseable source file differently,
+> and not uniformly. `subagents` and `checks` report it as a warning and skip
+> that file, because their directories hold free-form Markdown that users also
+> keep notes and READMEs in; the rest of the directory still generates and the
+> run succeeds. `rules`, `commands`, and `skills` do not: an invalid frontmatter
+> there aborts `generate` with that error and a non-zero exit, without the
+> per-feature isolation described above.
+>
+> A source entry that exists but cannot be _read_ is never treated as deleted
+> for any of them, warn-and-skip features included: a `.rulesync/` file or
+> directory whose symbolic link no longer resolves, or an input root that
+> cannot be resolved, stops the run rather than letting `--delete` sweep away
+> what it was supposed to generate.
+
 ### Examples
 
 ```bash

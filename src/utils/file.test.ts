@@ -16,13 +16,18 @@ import {
   checkPathTraversal,
   createPathResolver,
   directoryExists,
+  directoryExistsStrict,
   ensureDir,
   filterOutPathsInGitIgnoredDirectories,
   fileExists,
+  fileExistsStrict,
   findFiles,
   findFilesByGlobs,
   findRuleFiles,
   getHomeDirectory,
+  isFileNotFoundError,
+  isFileSystemError,
+  isPresentButUnresolvable,
   listDirectoryFiles,
   readFileBufferOrNull,
   readFileContent,
@@ -461,6 +466,31 @@ describe("file utilities", () => {
 
       it("should return true for directory", async () => {
         expect(await fileExists(testDir)).toBe(true);
+      });
+    });
+
+    describe("isFileNotFoundError", () => {
+      it("should recognize an ENOENT error", async () => {
+        const error = await readFileContent(join(testDir, "nonexistent.txt")).catch(
+          (caught: unknown) => caught,
+        );
+
+        expect(isFileNotFoundError(error)).toBe(true);
+      });
+
+      it("should recognize an ENOENT error wrapped as a cause", () => {
+        const enoent = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+
+        expect(isFileNotFoundError(new Error("failed to read", { cause: enoent }))).toBe(true);
+      });
+
+      it("should reject errors that are not about a missing path", () => {
+        expect(isFileNotFoundError(new Error("invalid schema"))).toBe(false);
+        expect(isFileNotFoundError(Object.assign(new Error("denied"), { code: "EACCES" }))).toBe(
+          false,
+        );
+        expect(isFileNotFoundError("ENOENT")).toBe(false);
+        expect(isFileNotFoundError(undefined)).toBe(false);
       });
     });
   });
@@ -1222,5 +1252,123 @@ describe("file utilities", () => {
         }),
       ).toThrow("Path traversal detected");
     });
+  });
+
+  describe("fileExistsStrict", () => {
+    it("should return true for an existing file", async () => {
+      const filepath = join(testDir, "present.md");
+      await writeFileContent(filepath, "content");
+
+      expect(await fileExistsStrict(filepath)).toBe(true);
+    });
+
+    it("should return false for a path that is genuinely absent", async () => {
+      expect(await fileExistsStrict(join(testDir, "absent.md"))).toBe(false);
+    });
+
+    it("should throw when the path cannot be inspected at all", async () => {
+      // A directory used as a parent component makes `stat` fail with ENOTDIR
+      // rather than ENOENT, which is the "we cannot tell" case this guards.
+      const filepath = join(testDir, "file.md");
+      await writeFileContent(filepath, "content");
+
+      await expect(fileExistsStrict(join(filepath, "child.md"))).rejects.toThrow();
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "should throw for a symlink whose target does not exist",
+      async () => {
+        const linkPath = join(testDir, "link.md");
+        await symlink(join(testDir, "gone.md"), linkPath);
+
+        await expect(fileExistsStrict(linkPath)).rejects.toThrow(
+          "is a symbolic link whose target does not exist",
+        );
+      },
+    );
+  });
+
+  describe("isPresentButUnresolvable", () => {
+    it("should return false for a path that is genuinely absent", async () => {
+      expect(await isPresentButUnresolvable(join(testDir, "absent"))).toBe(false);
+    });
+
+    it("should return false for a path that resolves", async () => {
+      const dirPath = join(testDir, "present");
+      await ensureDir(dirPath);
+
+      expect(await isPresentButUnresolvable(dirPath)).toBe(false);
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "should return true for a symlink whose target does not exist",
+      async () => {
+        const linkPath = join(testDir, "shared");
+        await symlink(join(testDir, "gone"), linkPath);
+
+        expect(await isPresentButUnresolvable(linkPath)).toBe(true);
+      },
+    );
+  });
+
+  describe("isFileSystemError", () => {
+    it("should recognize an errno-carrying error", () => {
+      expect(isFileSystemError(Object.assign(new Error("denied"), { code: "EACCES" }))).toBe(true);
+    });
+
+    it("should recognize an errno buried in the cause chain", () => {
+      const cause = Object.assign(new Error("loop"), { code: "ELOOP" });
+
+      expect(isFileSystemError(new Error("could not load", { cause }))).toBe(true);
+    });
+
+    it("should not treat a parse failure as a filesystem failure", () => {
+      // The whole point of the split: an unparseable file is skipped, an
+      // unreadable one fails the run.
+      expect(isFileSystemError(new Error("Invalid frontmatter in a.md"))).toBe(false);
+    });
+
+    it("should not treat a non-errno code as a filesystem failure", () => {
+      expect(isFileSystemError(Object.assign(new Error("nope"), { code: "invalid_value" }))).toBe(
+        false,
+      );
+    });
+  });
+
+  describe("directoryExistsStrict", () => {
+    it("should return true for an existing directory", async () => {
+      const dirPath = join(testDir, "present");
+      await ensureDir(dirPath);
+
+      expect(await directoryExistsStrict(dirPath)).toBe(true);
+    });
+
+    it("should return false for a path that is genuinely absent", async () => {
+      expect(await directoryExistsStrict(join(testDir, "absent"))).toBe(false);
+    });
+
+    it("should throw for an existing path that is not a directory", async () => {
+      const filepath = join(testDir, "file.md");
+      await writeFileContent(filepath, "content");
+
+      // Answering `false` here would put a misconfigured source path back in
+      // the same bucket as an empty source tree, which is what the strict
+      // variant exists to separate.
+      await expect(directoryExistsStrict(filepath)).rejects.toThrow(
+        "exists but is not a directory",
+      );
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "should throw for a directory symlink whose target does not exist",
+      async () => {
+        const linkPath = join(testDir, "shared");
+        await symlink(join(testDir, "gone"), linkPath);
+
+        await expect(directoryExistsStrict(linkPath)).rejects.toThrow(
+          "is a symbolic link whose target does not exist",
+        );
+      },
+    );
   });
 });

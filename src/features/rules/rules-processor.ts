@@ -26,6 +26,7 @@ import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
   checkPathTraversal,
+  directoryExistsStrict,
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
   readFileContent,
@@ -1660,9 +1661,18 @@ As this project's AI coding tool, you must follow the additional conventions bel
     const rulesyncOutputRoot = join(sourceTree, RULES_FEATURE_SUBDIR);
     const curatedOutputRoot = join(sourceTree, CURATED_RULES_FEATURE_SUBDIR);
 
+    // Strict: a source directory symlinked at a tree that no longer resolves
+    // would otherwise glob to nothing, which reads as "every rule was deleted"
+    // — `--delete` then removes what it could not regenerate and the run still
+    // reports success.
+    const [rulesDirExists, curatedDirExists] = await Promise.all([
+      directoryExistsStrict(rulesyncOutputRoot),
+      directoryExistsStrict(curatedOutputRoot),
+    ]);
+
     const [discoveredFiles, discoveredCuratedFiles] = await Promise.all([
-      findFilesByGlobs(join(rulesyncOutputRoot, "**", "*.md")),
-      findFilesByGlobs(join(curatedOutputRoot, "**", "*.md")),
+      rulesDirExists ? findFilesByGlobs(join(rulesyncOutputRoot, "**", "*.md")) : [],
+      curatedDirExists ? findFilesByGlobs(join(curatedOutputRoot, "**", "*.md")) : [],
     ]);
 
     const files = [...new Set([...discoveredFiles, ...discoveredCuratedFiles])];

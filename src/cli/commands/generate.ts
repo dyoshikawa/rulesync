@@ -1,6 +1,11 @@
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import type { Config } from "../../config/config.js";
-import { generate, inspectInputRoots, type GenerateResult } from "../../lib/generate.js";
+import {
+  formatSourceLoadFailure,
+  generate,
+  inspectInputRoots,
+  type GenerateResult,
+} from "../../lib/generate.js";
 import {
   buildConfigFilePaths,
   buildWatchTargets,
@@ -17,6 +22,19 @@ export type GenerateOptions = ConfigResolverResolveParams & {
   /** Keep running and regenerate whenever a rulesync source file changes. */
   watch?: boolean;
 };
+
+/**
+ * Raised when at least one `.rulesync/` source file exists but could not be
+ * read. It is its own type so `--watch` can tell it apart from a configuration
+ * error: a malformed source is an edit the user is about to correct, and the
+ * watcher should stay up for that correction.
+ */
+export class SourceLoadFailedError extends CLIError {
+  constructor({ message, features }: { message: string; features: readonly string[] }) {
+    super(message, ErrorCodes.GENERATION_FAILED, 1, { sourceLoadFailedFeatures: [...features] });
+    this.name = "SourceLoadFailedError";
+  }
+}
 
 /**
  * Log feature generation result with appropriate prefix based on dry run mode.
@@ -194,6 +212,18 @@ async function generateOnce(
     logger.captureData("skills", result.skills ?? []);
   }
 
+  // A source file that failed to load was already reported as an error, but
+  // every counter above reads zero for it — the same as "nothing to do". Fail
+  // here so a caller that only sees the exit code is not told the generated
+  // configs are current when they were never written.
+  const sourceLoadFailureMessage = formatSourceLoadFailure(result);
+  if (sourceLoadFailureMessage !== undefined) {
+    throw new SourceLoadFailedError({
+      message: sourceLoadFailureMessage,
+      features: result.sourceLoadFailedFeatures,
+    });
+  }
+
   // Check mode must fail even when the change is delete-only and no files are written.
   if (check) {
     if (result.hasDiff) {
@@ -270,7 +300,19 @@ async function generateWatchCommand(logger: Logger, options: GenerateOptions): P
   // Run once before watching so a missing primary source tree (or any other
   // configuration error) fails fast. Missing optional overlays remain watch
   // targets and attach if they are created later.
-  await generateOnce(logger, options, { resolvedConfig: config });
+  try {
+    await generateOnce(logger, options, { resolvedConfig: config });
+  } catch (error) {
+    // A source file that cannot be read is a bad edit, not a broken setup, and
+    // saving the fix is exactly what the watcher is here for. Report it and
+    // keep going, the same way the scheduler's `onError` does for every later
+    // run. Anything else still fails fast.
+    if (!(error instanceof SourceLoadFailedError)) {
+      throw error;
+    }
+    logger.error(`Generation failed: ${formatError(error)}`);
+    logger.info("Still watching for changes...");
+  }
 
   const targets = buildWatchTargets({ inputRoots, configFilePath });
 

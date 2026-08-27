@@ -16,10 +16,11 @@ import {
 import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types/rulesync-file.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
-import { fileExists, readFileContent } from "../../utils/file.js";
+import { fileExistsStrict, readFileContent } from "../../utils/file.js";
 import { parseJsonc, parseJsoncReportingDroppedKeys } from "../../utils/jsonc.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import {
+  RulesyncSourceNotFoundError,
   getRulesyncSourceCandidates,
   type RulesyncSourceSettablePaths,
 } from "../../utils/rulesync-source-path.js";
@@ -112,7 +113,7 @@ export class RulesyncPermissions extends RulesyncFile {
       const candidateDirPath = overrideDirPath ?? candidate.relativeDirPath;
       const filePath = join(outputRoot, candidateDirPath, candidate.relativeFilePath);
 
-      if (!(await fileExists(filePath))) {
+      if (!(await fileExistsStrict(filePath))) {
         continue;
       }
 
@@ -127,7 +128,7 @@ export class RulesyncPermissions extends RulesyncFile {
       });
     }
 
-    throw new Error(
+    throw new RulesyncSourceNotFoundError(
       `No ${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH} or ${RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH} found.`,
     );
   }

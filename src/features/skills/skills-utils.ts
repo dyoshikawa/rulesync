@@ -4,7 +4,7 @@ import {
   CURATED_SKILLS_FEATURE_SUBDIR,
   SKILLS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
-import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
+import { directoryExistsStrict, findFilesByGlobs } from "../../utils/file.js";
 
 /**
  * Returns the set of local skill directory names (excluding `.curated`)
@@ -15,7 +15,10 @@ export async function getLocalSkillDirNames(sourceTree: string): Promise<Set<str
   const skillsDir = join(sourceTree, SKILLS_FEATURE_SUBDIR);
   const names = new Set<string>();
 
-  if (!(await directoryExists(skillsDir))) {
+  // Strict: a source tree symlinked at a directory that no longer resolves
+  // would otherwise enumerate to nothing, which reads as "every skill was
+  // deleted" — `--delete` then removes what it could not regenerate.
+  if (!(await directoryExistsStrict(skillsDir))) {
     return names;
   }
 

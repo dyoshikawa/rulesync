@@ -38,6 +38,9 @@ vi.mock("../../utils/file.js", async (importOriginal) => {
   return {
     ...actual,
     findFilesByGlobs: vi.fn(),
+    // The loader only globs once the source directory is known to be readable,
+    // and these tests drive the glob result directly.
+    directoryExistsStrict: vi.fn().mockResolvedValue(true),
   };
 });
 // Mock RulesyncCommand after importing it

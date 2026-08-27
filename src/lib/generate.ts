@@ -35,7 +35,12 @@ import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
-import { directoryExists, fileExists, toPosixPath } from "../utils/file.js";
+import {
+  directoryExists,
+  fileExists,
+  isPresentButUnresolvable,
+  toPosixPath,
+} from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
@@ -67,7 +72,37 @@ export type GenerateResult = {
   activationPaths: string[];
   skills: RulesyncSkill[];
   hasDiff: boolean;
+  /**
+   * True when at least one `.rulesync/` source file could not be read. The
+   * counts above cannot express it: a feature whose source failed to load
+   * reports zero written files, exactly like a feature that had nothing to do.
+   */
+  sourceLoadFailed: boolean;
+  /**
+   * The features whose source could not be read, in run order. Empty exactly
+   * when `sourceLoadFailed` is false.
+   */
+  sourceLoadFailedFeatures: GenerationStepId[];
 };
+
+/**
+ * The message to report when a run left some `.rulesync/` source unread, or
+ * `undefined` when every source loaded.
+ *
+ * Both entry points need to fail on this and neither should word it its own
+ * way, so the check and the sentence live together: callers branch on the
+ * return value rather than on the flag, which is also why there is no "no
+ * features" case to phrase — the list is non-empty whenever this returns.
+ */
+export function formatSourceLoadFailure(
+  result: Pick<GenerateResult, "sourceLoadFailed" | "sourceLoadFailedFeatures">,
+): string | undefined {
+  if (!result.sourceLoadFailed || result.sourceLoadFailedFeatures.length === 0) {
+    return undefined;
+  }
+
+  return `Some .rulesync source files could not be loaded, so ${result.sourceLoadFailedFeatures.join(", ")} could not be fully generated.`;
+}
 
 async function processFeatureGeneration<T extends AiFile>(params: {
   config: Config;
@@ -98,7 +133,10 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   // `toolFiles` rather than `filesToCheck` for exactly that reason.
   sweepPlan.registerGenerated({ paths: toolFiles.map((f) => f.getFilePath()) });
 
-  if (config.getDelete()) {
+  // A processor whose source failed to load has an incomplete picture of what
+  // the run should produce, so the sweep cannot tell an orphan from a file
+  // whose source it simply could not read. Leave the tree alone.
+  if (config.getDelete() && !processor.hasRulesyncSourceLoadFailure()) {
     sweepPlan.defer({
       sweep: async () => {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
@@ -120,7 +158,12 @@ async function processFeatureGeneration<T extends AiFile>(params: {
     });
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return {
+    count: totalCount,
+    paths: allPaths,
+    hasDiff,
+    sourceLoadFailed: processor.hasRulesyncSourceLoadFailure(),
+  };
 }
 
 async function processDirFeatureGeneration(params: {
@@ -168,7 +211,10 @@ async function processDirFeatureGeneration(params: {
     }),
   });
 
-  if (config.getDelete()) {
+  // A processor whose source failed to load has an incomplete picture of what
+  // the run should produce, so the sweep cannot tell an orphan from a file
+  // whose source it simply could not read. Leave the tree alone.
+  if (config.getDelete() && !processor.hasRulesyncSourceLoadFailure()) {
     sweepPlan.defer({
       sweep: async () => {
         const existingToolDirs = await processor.loadToolDirsToDelete();
@@ -184,7 +230,12 @@ async function processDirFeatureGeneration(params: {
     });
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return {
+    count: totalCount,
+    paths: allPaths,
+    hasDiff,
+    sourceLoadFailed: processor.hasRulesyncSourceLoadFailure(),
+  };
 }
 
 // Handle special case for empty rulesync files
@@ -198,7 +249,10 @@ async function processEmptyFeatureGeneration(params: {
 
   const totalCount = 0;
 
-  if (config.getDelete()) {
+  // A processor whose source failed to load claims no files, so the sweep would
+  // read every generated file as an orphan and delete configuration the run was
+  // never able to regenerate. "Could not be read" is not "no longer wanted".
+  if (config.getDelete() && !processor.hasRulesyncSourceLoadFailure()) {
     sweepPlan.defer({
       sweep: async () => {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
@@ -213,7 +267,12 @@ async function processEmptyFeatureGeneration(params: {
     });
   }
 
-  return { count: totalCount, paths: [], hasDiff: false };
+  return {
+    count: totalCount,
+    paths: [],
+    hasDiff: false,
+    sourceLoadFailed: processor.hasRulesyncSourceLoadFailure(),
+  };
 }
 
 /**
@@ -294,23 +353,45 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
   const missing: string[] = [];
   const invalidOverlays: string[] = [];
   const nonDirectories = new Set<string>();
+  const unresolvable: string[] = [];
 
   for (const [index, root] of inputRoots.entries()) {
     if (await directoryExists(root)) {
       existing.push(root);
-    } else {
-      missing.push(root);
-
-      // A path that exists but is not a directory is a different mistake than
-      // a path that is simply absent, so it gets its own wording below.
-      if (await fileExists(root)) {
-        nonDirectories.add(root);
-
-        if (index > 0) {
-          invalidOverlays.push(root);
-        }
-      }
+      continue;
     }
+
+    missing.push(root);
+
+    // A path that exists but is not a directory is a different mistake than
+    // a path that is simply absent, so it gets its own wording below.
+    if (await fileExists(root)) {
+      nonDirectories.add(root);
+
+      if (index > 0) {
+        invalidOverlays.push(root);
+      }
+
+      continue;
+    }
+
+    // An overlay root is allowed to be absent, so one that leads nowhere used
+    // to pass as "not configured here". Every source under it then loaded as
+    // nothing, and `--delete` swept away what that root had generated while the
+    // run still exited 0.
+    if (await isPresentButUnresolvable(root)) {
+      unresolvable.push(root);
+    }
+  }
+
+  const unresolvableRoot = unresolvable[0];
+
+  if (unresolvableRoot !== undefined) {
+    return {
+      existing,
+      missing,
+      message: `Configured input root '${stripControlCharacters(unresolvableRoot)}' exists but could not be resolved. A symbolic link whose target is missing is the usual cause.`,
+    };
   }
 
   const primaryRoot = inputRoots[0];
@@ -364,7 +445,7 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
   };
 }
 
-type GenerationStepId =
+export type GenerationStepId =
   | "ignore"
   | "mcp"
   | "commands"
@@ -750,6 +831,14 @@ export async function generate(params: {
   const hasDiff =
     sweepHasDiff || activationResult.hasDiff || orderedSteps.some((step) => get(step.id).hasDiff);
 
+  // A step that could not read its source wrote nothing, which is counted the
+  // same as "there was nothing to write". Carry the distinction out so the
+  // caller can refuse to report success, and name the features so the caller
+  // does not have to re-read the log to find out which ones.
+  const sourceLoadFailedFeatures = orderedSteps
+    .filter((step) => get(step.id).sourceLoadFailed)
+    .map((step) => step.id);
+
   return {
     rulesCount: get("rules").count,
     rulesPaths: get("rules").paths,
@@ -773,6 +862,8 @@ export async function generate(params: {
     activationPaths: activationResult.paths,
     skills: skillsResult.skills,
     hasDiff,
+    sourceLoadFailed: sourceLoadFailedFeatures.length > 0,
+    sourceLoadFailedFeatures,
   };
 }
 
@@ -838,6 +929,7 @@ async function generateRulesCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedTargets = RulesProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedTargets);
@@ -898,10 +990,11 @@ async function generateRulesCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateIgnoreCore(params: {
@@ -923,6 +1016,7 @@ async function generateIgnoreCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   for (const toolTarget of intersection(config.getTargets(), supportedIgnoreTargets)) {
     // Check if ignore feature is enabled for this specific target
@@ -961,6 +1055,7 @@ async function generateIgnoreCore(params: {
         totalCount += result.count;
         allPaths.push(...result.paths);
         if (result.hasDiff) hasDiff = true;
+        if (result.sourceLoadFailed) sourceLoadFailed = true;
       } catch (error) {
         // Ignore files are what keep secrets out of AI tools' reach — a
         // silently-skipped ignore generation is the same fail-open bug the
@@ -973,7 +1068,7 @@ async function generateIgnoreCore(params: {
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateMcpCore(params: {
@@ -986,6 +1081,7 @@ async function generateMcpCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedMcpTargets = McpProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedMcpTargets);
@@ -1027,10 +1123,11 @@ async function generateMcpCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateCommandsCore(params: {
@@ -1043,6 +1140,7 @@ async function generateCommandsCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedCommandsTargets = CommandsProcessor.getToolTargets({
     global: config.getGlobal(),
@@ -1090,10 +1188,11 @@ async function generateCommandsCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateSubagentsCore(params: {
@@ -1106,6 +1205,7 @@ async function generateSubagentsCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedSubagentsTargets = SubagentsProcessor.getToolTargets({
     global: config.getGlobal(),
@@ -1151,10 +1251,11 @@ async function generateSubagentsCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateSkillsCore(params: {
@@ -1167,6 +1268,7 @@ async function generateSkillsCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
   const allSkills: RulesyncSkill[] = [];
 
   const supportedSkillsTargets = SkillsProcessor.getToolTargets({
@@ -1222,10 +1324,11 @@ async function generateSkillsCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, skills: allSkills, hasDiff };
+  return { count: totalCount, paths: allPaths, skills: allSkills, hasDiff, sourceLoadFailed };
 }
 
 async function generateHooksCore(params: {
@@ -1238,6 +1341,7 @@ async function generateHooksCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedHooksTargets = HooksProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedHooksTargets);
@@ -1279,10 +1383,11 @@ async function generateHooksCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generatePermissionsCore(params: {
@@ -1305,6 +1410,7 @@ async function generatePermissionsCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   for (const toolTarget of intersection(config.getTargets(), supportedPermissionsTargets)) {
     for (const outputRoot of config.getOutputRoots(toolTarget)) {
@@ -1337,6 +1443,7 @@ async function generatePermissionsCore(params: {
         totalCount += result.count;
         allPaths.push(...result.paths);
         if (result.hasDiff) hasDiff = true;
+        if (result.sourceLoadFailed) sourceLoadFailed = true;
       } catch (error) {
         // A malformed shared config (e.g. .vibe/config.toml) must fail the run
         // the same way the MCP feature does — swallowing it reported
@@ -1350,7 +1457,7 @@ async function generatePermissionsCore(params: {
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateChecksCore(params: {
@@ -1363,6 +1470,7 @@ async function generateChecksCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedChecksTargets = ChecksProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedChecksTargets);
@@ -1404,8 +1512,9 @@ async function generateChecksCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }

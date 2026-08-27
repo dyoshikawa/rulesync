@@ -19,9 +19,10 @@ import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import type { Logger } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
+import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolTarget } from "./tool-targets.js";
 
-export abstract class DirFeatureProcessor {
+export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
   protected readonly outputRoot: string;
   /**
    * Ordered, non-empty list of rulesync source-tree directories. Each entry
@@ -40,7 +41,6 @@ export abstract class DirFeatureProcessor {
   protected readonly dryRun: boolean;
   protected readonly avoidBlockScalars: boolean;
   protected readonly logger: Logger;
-
   constructor({
     outputRoot = process.cwd(),
     inputRoots,
@@ -54,6 +54,8 @@ export abstract class DirFeatureProcessor {
     avoidBlockScalars?: boolean;
     logger: Logger;
   }) {
+    super();
+
     this.outputRoot = outputRoot;
 
     this.inputRoots =

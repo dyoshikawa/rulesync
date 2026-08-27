@@ -10,6 +10,7 @@ import { ToolFile } from "../../types/tool-file.js";
 import { ignoreProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
+import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
 import { AiassistantIgnore } from "./aiassistant-ignore.js";
@@ -161,23 +162,23 @@ export class IgnoreProcessor extends FeatureProcessor {
    * an ignore file wins entirely (whole-file replacement — no line-level
    * merge in this slice; see the "Deliberately out of scope" section of
    * the inputRoots plan for context). If no root has the file, fall back
-   * to the primary root's path so the underlying `RulesyncIgnore.fromFile`
-   * surfaces the same missing-file error it would in the single-root case.
+   * to the primary root's path so `RulesyncIgnore.fromFile` raises the same
+   * `RulesyncSourceNotFoundError` it would in the single-root case.
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     const paths = RulesyncIgnore.getSettablePaths();
     const relativePaths = getRulesyncSourceCandidates({ paths })
       .filter((candidate) => candidate.relativeDirPath === paths.recommended.relativeDirPath)
       .map((candidate) => candidate.relativeFilePath);
-    const winningRoot = await pickLastRootWithFile({
-      inputRoots: this.inputRoots,
-      relativePaths,
-      logger: this.logger,
-      artifactName: "The ignore file (.aiignore)",
-    });
-    const sourceTree = winningRoot ?? this.inputRoots[0];
-
     try {
+      const winningRoot = await pickLastRootWithFile({
+        inputRoots: this.inputRoots,
+        relativePaths,
+        logger: this.logger,
+        artifactName: "The ignore file (.aiignore)",
+      });
+      const sourceTree = winningRoot ?? this.inputRoots[0];
+
       return [
         await RulesyncIgnore.fromFile({
           outputRoot: dirname(sourceTree),
@@ -185,9 +186,10 @@ export class IgnoreProcessor extends FeatureProcessor {
         }),
       ];
     } catch (error) {
-      this.logger.error(
-        `Failed to load rulesync ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,
-      );
+      this.reportRulesyncSourceLoadError({
+        message: `Failed to load rulesync ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH})`,
+        error,
+      });
       return [];
     }
   }
@@ -233,7 +235,10 @@ export class IgnoreProcessor extends FeatureProcessor {
       return toolIgnores;
     } catch (error) {
       const errorMessage = `Failed to load tool files for ${this.toolTarget}: ${formatError(error)}`;
-      if (error instanceof Error && error.message.includes("no such file or directory")) {
+      // The tool's own config simply not being there yet is the normal first
+      // run, so it stays at debug. Matching on `code` rather than on the
+      // message keeps a wrapped or localized error from being read as absence.
+      if (isFileNotFoundError(error)) {
         this.logger.debug(errorMessage);
       } else {
         this.logger.error(errorMessage);
