@@ -781,6 +781,20 @@ describe("RulesyncPermissions", () => {
       expect(JSON.parse(fileContent)).toEqual({ permission: { read: { "src/**": "allow" } } });
     });
 
+    it("should drop a category the filter emptied in a tool-scoped block", () => {
+      const fileContent = withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({
+          permission: { bash: { "npm *": "allow" } },
+          opencode: { permission: { external_directory: { "  ": "deny" } } },
+        }),
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({
+        permission: { bash: { "npm *": "allow" } },
+        opencode: { permission: {} },
+      });
+    });
+
     it("should keep a category that was already empty", () => {
       // Nothing here was dropped from it, so it is not this filter's to remove.
       const fileContent = withoutBlankPermissionPatterns({

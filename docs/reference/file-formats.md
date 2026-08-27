@@ -1322,6 +1322,8 @@ Example:
 
 Importing removes a blank pattern rather than reproducing it: keeping one would write a source file the very next `generate` refuses. This applies to the shared `permission` block and to tool-scoped `{toolname}.permission` blocks alike, since importing OpenCode or Kilo routes their tool-only categories into the tool-scoped block. Every removal is reported in a warning naming how many patterns were dropped from each block, because dropping one can widen what the imported configuration allows — a blanket blank pattern may have been the only entry denying anything.
 
+When removing a blank pattern leaves a category with no rules at all, the category itself is removed rather than left as an empty object. An empty category means "Rulesync manages this category and it has no rules", which makes the next `generate` delete the entries the tool's own config already had; removing the category leaves them alone.
+
 ### Tool-scoped permission blocks (`{toolname}.permission`)
 
 The shared `permission` block applies to every targeted tool. To scope rules to a single tool, add a tool-scoped `{toolname}` block with a `permission` record of the same shape — mirroring `{toolname}.hooks` in `.rulesync/hooks.jsonc` and `{toolname}.mcpServers` in `.rulesync/mcp.jsonc`:

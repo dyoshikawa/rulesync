@@ -238,10 +238,14 @@ function stripBlankPermissionPatterns(config: Record<string, unknown>): {
         }
         kept[pattern] = action;
       }
-      // A category emptied by the filter is dropped rather than kept as `{}`,
-      // which would otherwise be written straight back into the tool's own
-      // config on the next generate. A category that arrived empty stays,
-      // since nothing here changed it.
+      // A category emptied by the filter is dropped rather than kept as `{}`.
+      // An empty category reads as "rulesync manages this category and it has
+      // no rules", so generate would delete the entries the tool's own config
+      // already had. In a tool-scoped block this does trade one reading for
+      // another — an absent category inherits the shared block instead of
+      // overriding it with nothing — but the alternative destroys rules the
+      // user wrote by hand, so it is the one taken here. A category that
+      // arrived empty stays, since nothing here changed it.
       if (Object.keys(kept).length === 0 && Object.keys(rules).length > 0) {
         continue;
       }
