@@ -362,11 +362,40 @@ rulesync fetch owner/repo@ref:path   # Both ref and path
 | `--features <features>` | Comma-separated features to fetch (rules, commands, subagents, skills, ignore, mcp, hooks, permissions, checks)                                                       | `skills`                         |
 | `--output <dir>`        | Output directory relative to project root                                                                                                                             | `.rulesync`                      |
 | `--conflict <strategy>` | Conflict resolution: `overwrite` or `skip`                                                                                                                            | `overwrite`                      |
+| `--no-prune`            | Keep local files inside a fetched skill directory that the remote skill no longer has                                                                                 | Pruning is on                    |
 | `--ref <ref>`           | Git ref (branch/tag/commit) to fetch from                                                                                                                             | Default branch                   |
 | `--path <path>`         | Subdirectory in the repository                                                                                                                                        | `.` (root)                       |
 | `--skills <skills>`     | Comma-separated skill names to fetch (requires the skills feature)                                                                                                    | All skills                       |
 | `--interactive, -i`     | Interactively select skills to fetch via a checkbox prompt; nothing is selected initially, press `<a>` to select/deselect all (requires the skills feature and a TTY) | Disabled                         |
 | `--token <token>`       | Git provider token for private repositories                                                                                                                           | `GITHUB_TOKEN` or `GH_TOKEN` env |
+
+### Pruning Fetched Skill Directories
+
+A skill is a directory (`skills/<name>/SKILL.md` plus its supporting files), not a single file. When the upstream skill drops or renames a file, an additive fetch would leave the old local copy in place, and the directory would become a mixture of the current upstream files and orphaned leftovers. Agents read whatever is in the directory, so a stale reference or an outdated script keeps steering them long after upstream removed it.
+
+**The remote skill is therefore the source of truth: by default, `fetch` deletes files inside the skill directories it fetched that the remote does not have.** Every deletion is listed in the summary, so the destructive part of the command is never silent:
+
+```text
+Fetched from anthropics/skills@main:
+  ✓ skills/pdf/SKILL.md (overwritten)
+  ✗ skills/pdf/reference.md (deleted - no longer in the remote skill)
+
+Summary: 1 overwritten, 1 deleted
+```
+
+> [!WARNING]
+> Pruning removes **any** file in a fetched skill directory that the remote does not have — including one you added yourself. That is what "mirror the remote" means. Keep your own material outside the skill directories you fetch, or pass `--no-prune`.
+
+The scope is deliberately narrow:
+
+- Only the `skills/<name>/` directories fetched in **this** run are pruned. A skill left out by `--skills` or `--interactive` is untouched.
+- Other features (`rules/`, `commands/`, `subagents/`, …) are never pruned — the issue only exists for directory-based skills.
+- Directories left empty by pruning are removed as well.
+- Symbolic links are unlinked, never followed: a link inside a skill directory can only ever lose the link itself, never whatever it points at.
+- `--conflict skip` disables pruning. That flag says to leave existing local files alone, and it also means the local copies are not this run's output, so they cannot be judged against the remote list.
+- `--target <tool>` never prunes, because that conversion path does not fetch skills at all.
+
+Pass `--no-prune` to get the old purely additive behavior.
 
 ### Examples
 
@@ -401,6 +430,9 @@ GITHUB_TOKEN=$(gh auth token) rulesync fetch owner/private-repo
 
 # Preserve existing files (skip conflicts)
 rulesync fetch owner/repo --conflict skip
+
+# Keep local files a fetched skill no longer has upstream
+rulesync fetch anthropics/skills --no-prune
 
 # Fetch from a monorepo subdirectory
 rulesync fetch owner/repo:packages/my-package

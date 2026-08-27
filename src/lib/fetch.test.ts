@@ -1,10 +1,17 @@
+import { symlink } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import {
+  directoryExists,
+  ensureDir,
+  fileExists,
+  readFileContent,
+  writeFileContent,
+} from "../utils/file.js";
 import { fetchFiles, formatFetchSummary } from "./fetch.js";
 import { parseSource } from "./source-parser.js";
 
@@ -2063,6 +2070,236 @@ Review the current changes and provide feedback.
   });
 });
 
+describe("fetchFiles skill pruning", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let skillsRoot: string;
+
+  /**
+   * A repository with one skill whose only remaining file is SKILL.md, plus a
+   * second skill so selection can leave one of them alone.
+   */
+  function mockSkillRepository(): void {
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "skill-a",
+              path: "skills/skill-a",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+            {
+              name: "skill-b",
+              path: "skills/skill-b",
+              type: "dir",
+              sha: "bbb",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/skill-a") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/skill-a/SKILL.md",
+              type: "file",
+              sha: "ccc",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        if (path === "skills/skill-b") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/skill-b/SKILL.md",
+              type: "file",
+              sha: "ddd",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+  }
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+    skillsRoot = join(testDir, ".rulesync", "skills");
+
+    mockClientInstance = {
+      validateRepository: vi.fn().mockResolvedValue(true),
+      getDefaultBranch: vi.fn().mockResolvedValue("main"),
+      listDirectory: vi.fn(),
+      getFileContent: vi.fn(),
+    };
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("should delete a local file the remote skill no longer has", async () => {
+    mockSkillRepository();
+    await writeFileContent(join(skillsRoot, "skill-a", "reference.md"), "# Stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(1);
+    expect(summary.files).toContainEqual({
+      relativePath: "skills/skill-a/reference.md",
+      status: "deleted",
+    });
+    expect(await fileExists(join(skillsRoot, "skill-a", "reference.md"))).toBe(false);
+    expect(await fileExists(join(skillsRoot, "skill-a", "SKILL.md"))).toBe(true);
+  });
+
+  it("should remove a directory that pruning emptied", async () => {
+    mockSkillRepository();
+    await writeFileContent(join(skillsRoot, "skill-a", "scripts", "run.sh"), "echo stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.files).toContainEqual({
+      relativePath: "skills/skill-a/scripts/run.sh",
+      status: "deleted",
+    });
+    expect(await directoryExists(join(skillsRoot, "skill-a", "scripts"))).toBe(false);
+  });
+
+  it("should leave a skill that was not selected untouched", async () => {
+    mockSkillRepository();
+    await writeFileContent(join(skillsRoot, "skill-b", "reference.md"), "# Mine");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { skills: ["skill-a"] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(join(skillsRoot, "skill-b", "reference.md"))).toBe(true);
+  });
+
+  it("should leave non-skill features untouched", async () => {
+    mockSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "overview.md",
+              path: "rules/overview.md",
+              type: "file",
+              sha: "eee",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+    const staleRule = join(testDir, ".rulesync", "rules", "stale.md");
+    await writeFileContent(staleRule, "# Stale rule");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { features: ["rules", "skills"] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(staleRule)).toBe(true);
+  });
+
+  it("should keep stale files when pruning is turned off", async () => {
+    mockSkillRepository();
+    const stale = join(skillsRoot, "skill-a", "reference.md");
+    await writeFileContent(stale, "# Stale");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { prune: false },
+      outputRoot: testDir,
+    });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(stale)).toBe(true);
+  });
+
+  it("should keep stale files when --conflict skip was given", async () => {
+    mockSkillRepository();
+    const stale = join(skillsRoot, "skill-a", "reference.md");
+    await writeFileContent(stale, "# Stale");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { conflict: "skip" },
+      outputRoot: testDir,
+    });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(stale)).toBe(true);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "should unlink a stale symbolic link without touching what it points at",
+    async () => {
+      mockSkillRepository();
+      const outsideFile = join(testDir, "outside.md");
+      await writeFileContent(outsideFile, "# Outside");
+      await ensureDir(join(skillsRoot, "skill-a"));
+      await symlink(outsideFile, join(skillsRoot, "skill-a", "linked.md"));
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.files).toContainEqual({
+        relativePath: "skills/skill-a/linked.md",
+        status: "deleted",
+      });
+      expect(await fileExists(join(skillsRoot, "skill-a", "linked.md"))).toBe(false);
+      expect(await fileExists(outsideFile)).toBe(true);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "should not walk into a symbolically linked directory outside the output tree",
+    async () => {
+      mockSkillRepository();
+      const outsideDir = join(testDir, "outside");
+      await writeFileContent(join(outsideDir, "keep.md"), "# Outside");
+      await ensureDir(join(skillsRoot, "skill-a"));
+      await symlink(outsideDir, join(skillsRoot, "skill-a", "linked"));
+
+      await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      // The link itself is stale, so it goes; the directory it named does not.
+      expect(await fileExists(join(skillsRoot, "skill-a", "linked"))).toBe(false);
+      expect(await fileExists(join(outsideDir, "keep.md"))).toBe(true);
+    },
+  );
+});
+
 describe("formatFetchSummary", () => {
   it("should format summary correctly", () => {
     const summary = {
@@ -2076,6 +2313,7 @@ describe("formatFetchSummary", () => {
       created: 1,
       overwritten: 1,
       skipped: 1,
+      deleted: 0,
     };
 
     const output = formatFetchSummary(summary);
@@ -2089,6 +2327,29 @@ describe("formatFetchSummary", () => {
     expect(output).toContain("1 skipped");
   });
 
+  it("should format deleted files distinctly from written ones", () => {
+    const summary = {
+      source: "owner/repo",
+      ref: "main",
+      files: [
+        { relativePath: "skills/foo/SKILL.md", status: "created" as const },
+        { relativePath: "skills/foo/reference.md", status: "deleted" as const },
+      ],
+      created: 1,
+      overwritten: 0,
+      skipped: 0,
+      deleted: 1,
+    };
+
+    const output = formatFetchSummary(summary);
+
+    expect(output).toContain(
+      "\u2717 skills/foo/reference.md (deleted - no longer in the remote skill)",
+    );
+    expect(output).toContain("\u2713 skills/foo/SKILL.md (created)");
+    expect(output).toContain("1 created, 1 deleted");
+  });
+
   it("should format empty summary correctly", () => {
     const summary = {
       source: "owner/repo",
@@ -2097,6 +2358,7 @@ describe("formatFetchSummary", () => {
       created: 0,
       overwritten: 0,
       skipped: 0,
+      deleted: 0,
     };
 
     const output = formatFetchSummary(summary);

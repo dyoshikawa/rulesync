@@ -49,6 +49,7 @@ const FetchOptionsSchema = z.looseObject({
   path: z.optional(z.string()),
   output: z.optional(z.string()),
   conflict: z.optional(ConflictStrategySchema),
+  prune: z.optional(z.boolean()),
   skills: z.optional(z.array(z.string())),
   interactive: z.optional(z.boolean()),
   token: z.optional(z.string()),
@@ -60,7 +61,7 @@ export type FetchOptions = z.infer<typeof FetchOptionsSchema>;
 /**
  * Result status for a single file fetch operation
  */
-const FetchFileStatusSchema = z.enum(["created", "overwritten", "skipped"]);
+const FetchFileStatusSchema = z.enum(["created", "overwritten", "skipped", "deleted"]);
 type FetchFileStatus = z.infer<typeof FetchFileStatusSchema>;
 
 /**
@@ -81,6 +82,7 @@ export type FetchSummary = {
   created: number;
   overwritten: number;
   skipped: number;
+  deleted: number;
 };
 
 /**

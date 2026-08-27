@@ -8,7 +8,7 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
-import { fileExists, readFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import { useTestDirectory } from "./e2e-helper.js";
 
 const REMOTE_RULE_PATH = posix.join("rules", "overview.md");
@@ -159,5 +159,47 @@ describe("E2E: fetch", () => {
       created: [REMOTE_SKILL_PATH],
       totalFetched: 1,
     });
+  });
+
+  it("should delete a stale file inside a fetched skill and keep it with --no-prune", async () => {
+    const testDir = getTestDir();
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const stalePath = join(
+      testDir,
+      RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      "test-skill",
+      "reference.md",
+    );
+    const staleRelativePath = posix.join(REMOTE_SKILL_DIR_PATH, "reference.md");
+
+    await writeFileContent(stalePath, "# Dropped upstream\n");
+    await createProgram().parseAsync(["node", "rulesync", "--json", "fetch", "owner/repo"]);
+    const prunedOutput = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0])) as {
+      data: { created: string[]; deleted: string[] };
+    };
+
+    expect(prunedOutput.data).toMatchObject({ deleted: [staleRelativePath] });
+    expect(await fileExists(stalePath)).toBe(false);
+    expect(
+      await readFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", SKILL_FILE_NAME),
+      ),
+    ).toBe("# Test Skill\n");
+
+    await writeFileContent(stalePath, "# Dropped upstream\n");
+    await createProgram().parseAsync([
+      "node",
+      "rulesync",
+      "--json",
+      "fetch",
+      "owner/repo",
+      "--no-prune",
+    ]);
+    const keptOutput = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0])) as {
+      data: { deleted: string[] };
+    };
+
+    expect(keptOutput.data).toMatchObject({ deleted: [] });
+    expect(await fileExists(stalePath)).toBe(true);
   });
 });

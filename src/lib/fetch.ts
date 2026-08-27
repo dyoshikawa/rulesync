@@ -1,3 +1,4 @@
+import { readdir, rm, rmdir } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
@@ -39,6 +40,7 @@ import {
   checkPathTraversal,
   createTempDirectory,
   fileExists,
+  isFileNotFoundError,
   removeTempDirectory,
   toPosixPath,
   writeFileContent,
@@ -454,6 +456,184 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
 }
 
 /**
+ * Whether any file this run fetched sits at or under the given path.
+ */
+function hasFetchedDescendant(fetchedPaths: ReadonlySet<string>, relativePath: string): boolean {
+  if (fetchedPaths.has(relativePath)) {
+    return true;
+  }
+  const prefix = `${relativePath}/`;
+  for (const fetchedPath of fetchedPaths) {
+    if (fetchedPath.startsWith(prefix)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Walk one directory, deleting every entry the remote no longer has.
+ *
+ * Returns whether anything survived, so the caller can drop a directory that
+ * pruning emptied.
+ */
+async function pruneDirectory(params: {
+  outputBasePath: string;
+  relativeDirPath: string;
+  fetchedPaths: ReadonlySet<string>;
+  deleted: FetchFileResult[];
+  logger: Logger;
+}): Promise<boolean> {
+  const { outputBasePath, relativeDirPath, fetchedPaths, deleted, logger } = params;
+  const dirPath = join(outputBasePath, relativeDirPath);
+
+  let entries;
+  try {
+    entries = await readdir(dirPath, { withFileTypes: true });
+  } catch (error) {
+    // Nothing local under this skill yet — every file was created a moment ago,
+    // so there is nothing that could have gone stale.
+    if (isFileNotFoundError(error)) {
+      return false;
+    }
+    throw error;
+  }
+
+  let survivors = 0;
+
+  for (const entry of entries) {
+    const entryRelativePath = posix.join(relativeDirPath, entry.name);
+    const entryPath = join(dirPath, entry.name);
+
+    // `readdir` reports link entries as links rather than as what they point
+    // at, so a symbolic link here is unlinked, never walked and never resolved:
+    // one aimed outside the output directory can only ever lose the link.
+    if (entry.isSymbolicLink()) {
+      // A link the fetch wrote through still stands for a remote file, and its
+      // target is somewhere this prune has no business walking, so it is left
+      // exactly as it is — including anything stale behind it.
+      if (hasFetchedDescendant(fetchedPaths, entryRelativePath)) {
+        survivors++;
+        continue;
+      }
+      await rm(entryPath);
+      deleted.push({ relativePath: entryRelativePath, status: "deleted" });
+      logger.debug(`Deleted stale skill entry: ${entryRelativePath}`);
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      const kept = await pruneDirectory({
+        outputBasePath,
+        relativeDirPath: entryRelativePath,
+        fetchedPaths,
+        deleted,
+        logger,
+      });
+      if (kept) {
+        survivors++;
+        continue;
+      }
+      // Emptied by the prune, so it is a leftover of the same stale files. It
+      // is reported as one entry rather than as a file, since removing it
+      // deletes nothing that was not already counted above.
+      await rmdir(entryPath);
+      logger.debug(`Removed emptied skill directory: ${entryRelativePath}`);
+      continue;
+    }
+
+    if (fetchedPaths.has(entryRelativePath)) {
+      survivors++;
+      continue;
+    }
+
+    await rm(entryPath);
+    deleted.push({ relativePath: entryRelativePath, status: "deleted" });
+    logger.debug(`Deleted stale skill file: ${entryRelativePath}`);
+  }
+
+  return survivors > 0;
+}
+
+/**
+ * Run the skill prune when the options ask for it.
+ *
+ * `--conflict skip` says to leave existing local files alone, so pruning them
+ * would contradict the flag the user just passed. It also skipped writing them,
+ * which means the local copies are not this run's output and cannot be judged
+ * against the remote list.
+ */
+async function maybePruneStaleSkillFiles(params: {
+  prune: boolean;
+  conflictStrategy: ConflictStrategy;
+  outputBasePath: string;
+  fetchedFiles: CollectedFile[];
+  logger: Logger;
+}): Promise<FetchFileResult[]> {
+  const { prune, conflictStrategy, outputBasePath, fetchedFiles, logger } = params;
+
+  if (!prune) {
+    logger.debug("Skipping the skill prune: --no-prune was given.");
+    return [];
+  }
+
+  if (conflictStrategy === "skip") {
+    logger.debug("Skipping the skill prune: --conflict skip keeps existing local files.");
+    return [];
+  }
+
+  return pruneStaleSkillFiles({ outputBasePath, fetchedFiles, logger });
+}
+
+/**
+ * Delete local files inside the skill directories this run fetched that the
+ * remote does not have.
+ *
+ * A skill is a directory, not a single file, so an additive fetch leaves a
+ * mixture: the files upstream still ships, plus the ones it renamed or dropped.
+ * Agents read whatever is in the directory, so an orphaned reference keeps
+ * steering them long after upstream removed it — which is why the remote skill
+ * is treated as the source of truth here.
+ *
+ * Only the `skills/<name>/` directories this run actually wrote are walked. A
+ * skill left out by `--skills` or `--interactive`, the other features, and
+ * everything else under the output directory are never touched.
+ */
+async function pruneStaleSkillFiles(params: {
+  outputBasePath: string;
+  fetchedFiles: CollectedFile[];
+  logger: Logger;
+}): Promise<FetchFileResult[]> {
+  const { outputBasePath, fetchedFiles, logger } = params;
+
+  const fetchedPaths = new Set(fetchedFiles.map((file) => toPosixPath(file.relativePath)));
+  const skillDirs = new Set<string>();
+  for (const file of fetchedFiles) {
+    const skill = classifySkillPath(file.relativePath);
+    if (skill.kind === "skill") {
+      skillDirs.add(`skills/${skill.name}`);
+    }
+  }
+
+  const deleted: FetchFileResult[] = [];
+  for (const skillDir of [...skillDirs].toSorted()) {
+    // The same guard the writes go through. The directory name comes from the
+    // remote repository, so it is not trusted to stay inside the output root
+    // just because the write that created it did.
+    checkPathTraversal({ relativePath: skillDir, intendedRootDir: outputBasePath });
+    await pruneDirectory({
+      outputBasePath,
+      relativeDirPath: skillDir,
+      fetchedPaths,
+      deleted,
+      logger,
+    });
+  }
+
+  return deleted;
+}
+
+/**
  * Type guard for error objects with statusCode
  */
 function hasStatusCode(error: unknown): error is { statusCode: number } {
@@ -515,6 +695,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   const resolvedPath = toPosixPath(options.path ?? parsed.path ?? ".");
   const outputDir = options.output ?? RULESYNC_RELATIVE_DIR_PATH;
   const conflictStrategy: ConflictStrategy = options.conflict ?? "overwrite";
+  const prune = options.prune ?? true;
   const enabledFeatures = resolveFeatures(options.features);
   const target: FetchTarget = options.target ?? "rulesync";
   const requestedSkills = options.skills ?? [];
@@ -595,6 +776,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
       created: 0,
       overwritten: 0,
       skipped: 0,
+      deleted: 0,
     };
   }
 
@@ -615,7 +797,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   // Note: Promise.all fails fast - if any promise rejects, others continue running but
   // may have already written files. This behavior is consistent with sequential execution,
   // but the window for partial writes is larger with parallel execution.
-  const results = await Promise.all(
+  const writeResults = await Promise.all(
     filesToFetch.map(async ({ remotePath, relativePath }) => {
       const localPath = join(outputBasePath, relativePath);
       const exists = await fileExists(localPath);
@@ -636,6 +818,16 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     }),
   );
 
+  const pruneResults = await maybePruneStaleSkillFiles({
+    prune,
+    conflictStrategy,
+    outputBasePath,
+    fetchedFiles: filesToFetch,
+    logger,
+  });
+
+  const results = [...writeResults, ...pruneResults];
+
   // Calculate summary
   const summary: FetchSummary = {
     source: `${parsed.owner}/${parsed.repo}`,
@@ -644,6 +836,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     created: results.filter((r) => r.status === "created").length,
     overwritten: results.filter((r) => r.status === "overwritten").length,
     skipped: results.filter((r) => r.status === "skipped").length,
+    deleted: results.filter((r) => r.status === "deleted").length,
   };
 
   return summary;
@@ -822,6 +1015,7 @@ async function fetchAndConvertToolFiles(params: {
         created: 0,
         overwritten: 0,
         skipped: 0,
+        deleted: 0,
       };
     }
 
@@ -878,6 +1072,10 @@ async function fetchAndConvertToolFiles(params: {
       created: results.filter((r) => r.status === "created").length,
       overwritten: results.filter((r) => r.status === "overwritten").length,
       skipped: results.filter((r) => r.status === "skipped").length,
+      // Skills are the only directory-based feature, and `convertFetchedFilesToRulesync`
+      // does not convert them at all, so this path never writes a skill directory
+      // there would be anything to prune.
+      deleted: 0,
     };
   } finally {
     // Clean up temp directory
@@ -1023,6 +1221,32 @@ function mapToToolPath(
   return relativePath;
 }
 
+function fetchStatusIcon(status: FetchFileResult["status"]): string {
+  switch (status) {
+    case "skipped":
+      return "-";
+    // Deliberately not the same mark as a write: a deletion is the one part of a
+    // fetch that destroys local work, so it must not read as another file added.
+    case "deleted":
+      return "\u2717";
+    default:
+      return "\u2713";
+  }
+}
+
+function fetchStatusText(status: FetchFileResult["status"]): string {
+  switch (status) {
+    case "created":
+      return "(created)";
+    case "overwritten":
+      return "(overwritten)";
+    case "skipped":
+      return "(skipped - already exists)";
+    case "deleted":
+      return "(deleted - no longer in the remote skill)";
+  }
+}
+
 /**
  * Format fetch summary for display
  */
@@ -1032,13 +1256,8 @@ export function formatFetchSummary(summary: FetchSummary): string {
   lines.push(`Fetched from ${summary.source}@${summary.ref}:`);
 
   for (const file of summary.files) {
-    const icon = file.status === "skipped" ? "-" : "\u2713";
-    const statusText =
-      file.status === "created"
-        ? "(created)"
-        : file.status === "overwritten"
-          ? "(overwritten)"
-          : "(skipped - already exists)";
+    const icon = fetchStatusIcon(file.status);
+    const statusText = fetchStatusText(file.status);
     lines.push(`  ${icon} ${file.relativePath} ${statusText}`);
   }
 
@@ -1046,6 +1265,7 @@ export function formatFetchSummary(summary: FetchSummary): string {
   if (summary.created > 0) parts.push(`${summary.created} created`);
   if (summary.overwritten > 0) parts.push(`${summary.overwritten} overwritten`);
   if (summary.skipped > 0) parts.push(`${summary.skipped} skipped`);
+  if (summary.deleted > 0) parts.push(`${summary.deleted} deleted`);
 
   lines.push("");
   const summaryText = parts.length > 0 ? parts.join(", ") : "no files";
