@@ -10,6 +10,7 @@ import type { ToolFile } from "../../types/tool-file.js";
 import { permissionsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
+import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
 import { AmpPermissions } from "./amp-permissions.js";
@@ -565,6 +566,13 @@ export class PermissionsProcessor extends FeatureProcessor {
       this.logger.error(
         `Failed to load Rulesync permissions file (${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       );
+      // A source that is simply absent is not a failure: the feature just has
+      // no file here, and `winningRoot` is undefined precisely in that case.
+      // Anything else means the file exists but could not be read or parsed,
+      // which must not be reported as a clean run.
+      if (winningRoot !== undefined && !isFileNotFoundError(error)) {
+        this.recordRulesyncSourceLoadFailure();
+      }
       return [];
     }
   }

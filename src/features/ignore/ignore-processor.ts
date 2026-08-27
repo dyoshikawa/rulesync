@@ -10,6 +10,7 @@ import { ToolFile } from "../../types/tool-file.js";
 import { ignoreProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
+import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
 import { AiassistantIgnore } from "./aiassistant-ignore.js";
@@ -188,6 +189,13 @@ export class IgnoreProcessor extends FeatureProcessor {
       this.logger.error(
         `Failed to load rulesync ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       );
+      // A source that is simply absent is not a failure: the feature just has
+      // no file here, and `winningRoot` is undefined precisely in that case.
+      // Anything else means the file exists but could not be read or parsed,
+      // which must not be reported as a clean run.
+      if (winningRoot !== undefined && !isFileNotFoundError(error)) {
+        this.recordRulesyncSourceLoadFailure();
+      }
       return [];
     }
   }

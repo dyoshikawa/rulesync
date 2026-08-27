@@ -61,6 +61,7 @@ const mockGenerateResult: GenerateResult = {
   activationPaths: [],
   skills: [],
   hasDiff: false,
+  sourceLoadFailed: false,
 };
 
 const mockImportResult: ImportResult = {

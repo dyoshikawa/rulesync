@@ -203,6 +203,7 @@ const makeRulesyncSkill = (name: string) =>
 const createMockProcessorWith = (writeAiFiles: ReturnType<typeof vi.fn>) => ({
   loadToolFiles: vi.fn().mockResolvedValue([]),
   removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+  hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
   loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
   convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
   writeAiFiles,
@@ -268,6 +269,7 @@ describe("generate", () => {
       loadToolFiles: vi.fn().mockResolvedValue([]),
       removeAiFiles: vi.fn().mockResolvedValue(undefined),
       removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+      hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
       loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
       convertRulesyncFilesToToolFiles: vi
         .fn()
@@ -374,6 +376,7 @@ describe("generate", () => {
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generatedFiles),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
@@ -399,6 +402,7 @@ describe("generate", () => {
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generatedFiles),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
@@ -496,6 +500,7 @@ describe("generate", () => {
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeAiFiles: vi.fn().mockResolvedValue(undefined),
+        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
         loadRulesyncFiles: vi.fn().mockResolvedValue([]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
@@ -642,6 +647,7 @@ describe("generate", () => {
                 return orphans.length;
               },
             ),
+          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generated),
           // Counts only what actually changed on the fake disk, so an
@@ -1131,6 +1137,7 @@ describe("generate", () => {
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -1155,6 +1162,7 @@ describe("generate", () => {
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -1179,6 +1187,7 @@ describe("generate", () => {
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -1202,6 +1211,7 @@ describe("generate", () => {
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -1225,6 +1235,7 @@ describe("generate", () => {
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -1250,6 +1261,7 @@ describe("generate", () => {
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(1),
+        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(generatedFiles),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
@@ -1398,6 +1410,7 @@ describe("generate", () => {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
           loadRulesyncFiles: vi.fn().mockResolvedValue([makeRulesyncSubagent(params.subagentName)]),
           convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
           writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),

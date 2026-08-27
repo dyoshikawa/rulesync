@@ -67,6 +67,12 @@ export type GenerateResult = {
   activationPaths: string[];
   skills: RulesyncSkill[];
   hasDiff: boolean;
+  /**
+   * True when at least one `.rulesync/` source file could not be read. The
+   * counts above cannot express it: a feature whose source failed to load
+   * reports zero written files, exactly like a feature that had nothing to do.
+   */
+  sourceLoadFailed: boolean;
 };
 
 async function processFeatureGeneration<T extends AiFile>(params: {
@@ -750,6 +756,11 @@ export async function generate(params: {
   const hasDiff =
     sweepHasDiff || activationResult.hasDiff || orderedSteps.some((step) => get(step.id).hasDiff);
 
+  // A step that could not read its source wrote nothing, which is counted the
+  // same as "there was nothing to write". Carry the distinction out so the
+  // caller can refuse to report success.
+  const sourceLoadFailed = orderedSteps.some((step) => get(step.id).sourceLoadFailed === true);
+
   return {
     rulesCount: get("rules").count,
     rulesPaths: get("rules").paths,
@@ -773,6 +784,7 @@ export async function generate(params: {
     activationPaths: activationResult.paths,
     skills: skillsResult.skills,
     hasDiff,
+    sourceLoadFailed,
   };
 }
 
@@ -923,6 +935,7 @@ async function generateIgnoreCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   for (const toolTarget of intersection(config.getTargets(), supportedIgnoreTargets)) {
     // Check if ignore feature is enabled for this specific target
@@ -951,6 +964,9 @@ async function generateIgnoreCore(params: {
         });
 
         const rulesyncFiles = await processor.loadRulesyncFiles();
+        if (processor.hasRulesyncSourceLoadFailure()) {
+          sourceLoadFailed = true;
+        }
         const result = await processFeatureWithRulesyncFiles({
           config,
           processor,
@@ -973,7 +989,7 @@ async function generateIgnoreCore(params: {
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateMcpCore(params: {
@@ -986,6 +1002,7 @@ async function generateMcpCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedMcpTargets = McpProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedMcpTargets);
@@ -1017,6 +1034,9 @@ async function generateMcpCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
+      if (processor.hasRulesyncSourceLoadFailure()) {
+        sourceLoadFailed = true;
+      }
       const result = await processFeatureWithRulesyncFiles({
         config,
         processor,
@@ -1030,7 +1050,7 @@ async function generateMcpCore(params: {
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateCommandsCore(params: {
@@ -1238,6 +1258,7 @@ async function generateHooksCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedHooksTargets = HooksProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedHooksTargets);
@@ -1269,6 +1290,9 @@ async function generateHooksCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
+      if (processor.hasRulesyncSourceLoadFailure()) {
+        sourceLoadFailed = true;
+      }
       const result = await processFeatureWithRulesyncFiles({
         config,
         processor,
@@ -1282,7 +1306,7 @@ async function generateHooksCore(params: {
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generatePermissionsCore(params: {
@@ -1305,6 +1329,7 @@ async function generatePermissionsCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   for (const toolTarget of intersection(config.getTargets(), supportedPermissionsTargets)) {
     for (const outputRoot of config.getOutputRoots(toolTarget)) {
@@ -1327,6 +1352,9 @@ async function generatePermissionsCore(params: {
         });
 
         const rulesyncFiles = await processor.loadRulesyncFiles();
+        if (processor.hasRulesyncSourceLoadFailure()) {
+          sourceLoadFailed = true;
+        }
         const result = await processFeatureWithRulesyncFiles({
           config,
           processor,
@@ -1350,7 +1378,7 @@ async function generatePermissionsCore(params: {
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateChecksCore(params: {

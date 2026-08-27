@@ -191,7 +191,19 @@ async function generateOnce(
     logger.captureData("features", featureResults);
     logger.captureData("totalFiles", totalGenerated);
     logger.captureData("hasDiff", result.hasDiff);
+    logger.captureData("sourceLoadFailed", result.sourceLoadFailed);
     logger.captureData("skills", result.skills ?? []);
+  }
+
+  // A source file that failed to load was already reported as an error, but
+  // every counter above reads zero for it — the same as "nothing to do". Fail
+  // here so a caller that only sees the exit code is not told the generated
+  // configs are current when they were never written.
+  if (result.sourceLoadFailed) {
+    throw new CLIError(
+      "Some .rulesync source files could not be loaded (see the errors above), so nothing was generated for them.",
+      ErrorCodes.GENERATION_FAILED,
+    );
   }
 
   // Check mode must fail even when the change is delete-only and no files are written.

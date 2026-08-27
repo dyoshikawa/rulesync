@@ -135,6 +135,14 @@ The `generate` command reads source files from one or more rulesync source trees
 > ones. A generated file there whose `.rulesync/skills/` source you later delete
 > stays behind, so remove it yourself. See [Takt](../tools/takt.md).
 
+> **Note on unreadable sources:** A `.rulesync/` source file that exists but
+> cannot be read — malformed JSON/JSONC, or content the schema rejects — is
+> reported as an error and produces no output for that feature, and `generate`
+> then exits non-zero. Every other feature in the run still executes first, so
+> one bad file does not hide the rest of the errors. A source file that is simply
+> absent is not an error: that feature just has nothing to generate, and the run
+> succeeds — it is still logged, but it does not fail the run.
+
 ### Examples
 
 ```bash

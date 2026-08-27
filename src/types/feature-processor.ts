@@ -60,6 +60,22 @@ export abstract class FeatureProcessor {
     this.logger = logger;
   }
 
+  /**
+   * Set when a `.rulesync/` source could not be read at all. The processor
+   * still returns no files so the rest of the run continues, but generate must
+   * not report success afterwards: "nothing was written" and "nothing needed
+   * writing" are indistinguishable to a scripted caller otherwise.
+   */
+  private rulesyncSourceLoadFailed = false;
+
+  protected recordRulesyncSourceLoadFailure(): void {
+    this.rulesyncSourceLoadFailed = true;
+  }
+
+  hasRulesyncSourceLoadFailure(): boolean {
+    return this.rulesyncSourceLoadFailed;
+  }
+
   abstract loadRulesyncFiles(): Promise<RulesyncFile[]>;
 
   abstract loadToolFiles(params?: { forDeletion?: boolean }): Promise<ToolFile[]>;

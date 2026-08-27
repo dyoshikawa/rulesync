@@ -23,6 +23,7 @@ import {
   findFilesByGlobs,
   findRuleFiles,
   getHomeDirectory,
+  isFileNotFoundError,
   listDirectoryFiles,
   readFileBufferOrNull,
   readFileContent,
@@ -461,6 +462,31 @@ describe("file utilities", () => {
 
       it("should return true for directory", async () => {
         expect(await fileExists(testDir)).toBe(true);
+      });
+    });
+
+    describe("isFileNotFoundError", () => {
+      it("should recognize an ENOENT error", async () => {
+        const error = await readFileContent(join(testDir, "nonexistent.txt")).catch(
+          (caught: unknown) => caught,
+        );
+
+        expect(isFileNotFoundError(error)).toBe(true);
+      });
+
+      it("should recognize an ENOENT error wrapped as a cause", () => {
+        const enoent = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+
+        expect(isFileNotFoundError(new Error("failed to read", { cause: enoent }))).toBe(true);
+      });
+
+      it("should reject errors that are not about a missing path", () => {
+        expect(isFileNotFoundError(new Error("invalid schema"))).toBe(false);
+        expect(isFileNotFoundError(Object.assign(new Error("denied"), { code: "EACCES" }))).toBe(
+          false,
+        );
+        expect(isFileNotFoundError("ENOENT")).toBe(false);
+        expect(isFileNotFoundError(undefined)).toBe(false);
       });
     });
   });

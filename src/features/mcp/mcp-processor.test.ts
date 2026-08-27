@@ -197,6 +197,36 @@ describe("McpProcessor", () => {
 
       expect(files).toHaveLength(0);
     });
+
+    it("should not flag a source load failure when the file is simply absent", async () => {
+      vi.mocked(RulesyncMcp.fromRoots).mockRejectedValue(
+        Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" }),
+      );
+
+      const processor = new McpProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "copilot",
+      });
+
+      await processor.loadRulesyncFiles();
+
+      expect(processor.hasRulesyncSourceLoadFailure()).toBe(false);
+    });
+
+    it("should flag a source load failure when the file exists but cannot be parsed", async () => {
+      vi.mocked(RulesyncMcp.fromRoots).mockRejectedValue(new Error("Invalid transport type"));
+
+      const processor = new McpProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "copilot",
+      });
+
+      await processor.loadRulesyncFiles();
+
+      expect(processor.hasRulesyncSourceLoadFailure()).toBe(true);
+    });
   });
 
   describe("loadToolFiles", () => {

@@ -381,6 +381,25 @@ export async function writeFileBuffer(filepath: string, buffer: Buffer): Promise
   await writeFile(filepath, buffer);
 }
 
+/**
+ * Whether an error means the path simply does not exist.
+ *
+ * Loading a `.rulesync/` source treats an absent file as "this feature has no
+ * source here", which is ordinary; every other failure means the file is there
+ * but could not be read or parsed. The `cause` chain is followed so a wrapped
+ * error is still recognized.
+ */
+export function isFileNotFoundError(error: unknown): boolean {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    if ("code" in current && current.code === "ENOENT") {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
 export async function fileExists(filepath: string): Promise<boolean> {
   try {
     await stat(filepath);
