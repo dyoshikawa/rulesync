@@ -698,6 +698,87 @@ export async function findFilesByGlobs(
   return representatives.toSorted();
 }
 
+/**
+ * The immediate subdirectory names of `dirPath`, spelled the way the filesystem
+ * spells them.
+ *
+ * A `*` glob cannot stand in for this. Globby reads a backslash as a path
+ * separator, so a directory literally named `back\\slash` comes back as
+ * `.../back/slash`, and the name recovered from that — `slash` — belongs to a
+ * directory that does not exist. Whatever the caller does next with the name
+ * then quietly misses the real directory: loading it, or sweeping it as an
+ * orphan. Windows is not affected, since a backslash cannot appear in a name
+ * there, which is what makes the glob look correct everywhere it is tested.
+ */
+async function listEntryNames(params: {
+  dirPath: string;
+  kind: "dir" | "file";
+  followSymbolicLinks: boolean;
+}): Promise<string[]> {
+  const { dirPath, kind, followSymbolicLinks } = params;
+  const matches = (stats: { isDirectory: () => boolean; isFile: () => boolean }): boolean =>
+    kind === "dir" ? stats.isDirectory() : stats.isFile();
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  const names = await Promise.all(
+    entries.map(async (entry) => {
+      if (matches(entry)) {
+        return entry.name;
+      }
+      // `readdir` reports a link as a link and never as what it stands for, so
+      // a link is the one entry kind that needs a second look — and only when
+      // the caller follows links at all.
+      if (!followSymbolicLinks || !entry.isSymbolicLink()) {
+        return undefined;
+      }
+      // A link that leads nowhere is not an entry to report.
+      const target = await stat(join(dirPath, entry.name)).catch(() => undefined);
+      return target !== undefined && matches(target) ? entry.name : undefined;
+    }),
+  );
+  // Sorted for the same reason `findFilesByGlobs` sorts: the order entries come
+  // off the filesystem in is not one a caller should have to depend on.
+  return names.filter((name) => name !== undefined).toSorted();
+}
+
+/**
+ * The immediate subdirectory names of `dirPath`, spelled the way the filesystem
+ * spells them.
+ *
+ * A `*` glob cannot stand in for this. Globby reads a backslash as a path
+ * separator, so a directory literally named `back\\slash` comes back as
+ * `.../back/slash`, and the name recovered from that — `slash` — belongs to a
+ * directory that does not exist. Whatever the caller does next with the name
+ * then quietly misses the real directory: loading it, or sweeping it as an
+ * orphan. Windows is not affected, since a backslash cannot appear in a name
+ * there, which is what makes the glob look correct everywhere it is tested.
+ */
+export async function listSubdirectoryNames(
+  dirPath: string,
+  options: { followSymbolicLinks?: boolean } = {},
+): Promise<string[]> {
+  return await listEntryNames({
+    dirPath,
+    kind: "dir",
+    followSymbolicLinks: options.followSymbolicLinks ?? true,
+  });
+}
+
+/**
+ * The immediate file names of `dirPath`, spelled the way the filesystem spells
+ * them. The counterpart of {@link listSubdirectoryNames}, and the same reason
+ * to prefer it over a `*` glob applies.
+ */
+export async function listFileNames(
+  dirPath: string,
+  options: { followSymbolicLinks?: boolean } = {},
+): Promise<string[]> {
+  return await listEntryNames({
+    dirPath,
+    kind: "file",
+    followSymbolicLinks: options.followSymbolicLinks ?? true,
+  });
+}
+
 export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {
   const rulesDir = join(aiRulesDir, "rules");
   return findFiles(rulesDir, ".md");

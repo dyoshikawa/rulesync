@@ -23,7 +23,8 @@ import {
   assertWritablePathInsideRoot,
   directoryExists,
   directoryExistsStrict,
-  findFilesByGlobs,
+  listFileNames,
+  listSubdirectoryNames,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
@@ -547,6 +548,21 @@ export const skillsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.
   return factory?.meta.supportsGlobal ?? false;
 });
 
+/**
+ * Whether a directory on disk can be addressed by its name.
+ *
+ * `AiDir` refuses a name holding a path separator, and rightly so: most tools
+ * take that name from a skill's frontmatter, and a repository written on one
+ * platform is read on the other, where a backslash is a separator. POSIX still
+ * lets a directory be *created* with a backslash in its name, so such a
+ * directory can sit in a skills root that nothing here can name — it is
+ * reported rather than passed on, since the alternative is a candidate built
+ * from a name that belongs to no directory at all.
+ */
+function isAddressableDirName(dirName: string): boolean {
+  return !dirName.includes("/") && !dirName.includes("\\");
+}
+
 export class SkillsProcessor extends DirFeatureProcessor {
   private readonly toolTarget: SkillsProcessorToolTarget;
   private readonly global: boolean;
@@ -648,7 +664,10 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const treeName = basename(sourceTree);
     const treeSkillsDirPath = join(treeName, SKILLS_FEATURE_SUBDIR);
     const treeCuratedSkillsDirPath = join(treeName, CURATED_SKILLS_FEATURE_SUBDIR);
-    const localDirNames = [...(await getLocalSkillDirNames(sourceTree))];
+    const localDirNames = this.keepAddressableDirNames(
+      [...(await getLocalSkillDirNames(sourceTree))],
+      treeSkillsDirPath,
+    );
 
     const localSkills = await Promise.all(
       localDirNames.map((dirName) =>
@@ -672,8 +691,10 @@ export class SkillsProcessor extends DirFeatureProcessor {
     // curated tree that cannot be resolved must not read as "no curated
     // skills".
     if (await directoryExistsStrict(curatedDirPath)) {
-      const curatedDirPaths = await findFilesByGlobs(join(curatedDirPath, "*"), { type: "dir" });
-      const curatedDirNames = curatedDirPaths.map((path) => basename(path));
+      const curatedDirNames = this.keepAddressableDirNames(
+        await listSubdirectoryNames(curatedDirPath),
+        treeCuratedSkillsDirPath,
+      );
 
       const nonConflicting = curatedDirNames.filter((name) => {
         const spellings = localSkillNamesByIdentity.get(caseFoldIdentity(name));
@@ -815,10 +836,12 @@ export class SkillsProcessor extends DirFeatureProcessor {
       if (!(await directoryExists(skillsDirPath))) {
         continue;
       }
-      const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), { type: "dir" });
       const ownedDirNames: string[] = [];
-      for (const dirPath of dirPaths) {
-        const dirName = basename(dirPath);
+      const candidateDirNames = this.keepAddressableDirNames(
+        await listSubdirectoryNames(skillsDirPath),
+        relativeDirPath,
+      );
+      for (const dirName of candidateDirNames) {
         // Directories owned by another feature (see the `isDirOwned` factory
         // hook) are skipped so e.g. a Reasonix subagent profile is not
         // imported as a regular skill.
@@ -874,21 +897,19 @@ export class SkillsProcessor extends DirFeatureProcessor {
       }
       const fromFlatFile = factory.class.fromFlatFile;
       const directoryStems = new Set(ownedDirNames);
-      const flatFilePaths = (
-        await findFilesByGlobs(join(skillsDirPath, "*.md"), {
-          type: "file",
-        })
-      ).filter((filePath) => !directoryStems.has(basename(filePath, ".md")));
+      const flatFileNames = (await listFileNames(skillsDirPath)).filter(
+        (fileName) => fileName.endsWith(".md") && !directoryStems.has(basename(fileName, ".md")),
+      );
       const flatSkills = (
         await Promise.all(
-          flatFilePaths.map(async (filePath) => {
-            const sourcePath = join(relativeDirPath, basename(filePath));
+          flatFileNames.map(async (fileName) => {
+            const sourcePath = join(relativeDirPath, fileName);
             try {
               return {
                 skill: await fromFlatFile({
                   outputRoot: rootOutputRoot,
                   relativeDirPath,
-                  relativeFilePath: basename(filePath),
+                  relativeFilePath: fileName,
                   global: this.global,
                 }),
                 sourcePath,
@@ -917,6 +938,24 @@ export class SkillsProcessor extends DirFeatureProcessor {
     return toolSkills;
   }
 
+  /**
+   * Drop the directory names nothing here can address, reporting each one. See
+   * {@link isAddressableDirName} for why such a directory can exist at all.
+   */
+  private keepAddressableDirNames(dirNames: string[], relativeDirPath: string): string[] {
+    return dirNames.filter((dirName) => {
+      if (isAddressableDirName(dirName)) {
+        return true;
+      }
+      this.logger.warn(
+        `Skipping ${join(relativeDirPath, dirName)}: a skill directory name cannot contain a path ` +
+          `separator, so this directory is neither generated from nor swept as an orphan. Rename ` +
+          `or remove it by hand.`,
+      );
+      return false;
+    });
+  }
+
   async loadToolDirsToDelete(): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
     const paths = factory.class.getSettablePaths({ global: this.global });
@@ -932,16 +971,15 @@ export class SkillsProcessor extends DirFeatureProcessor {
         rootPath: this.outputRoot,
         targetPath: skillsDirPath,
       });
-      const dirPaths = await findFilesByGlobs(join(skillsDirPath, "*"), {
-        type: "dir",
-        followSymbolicLinks: false,
-      });
-      for (const dirPath of dirPaths) {
+      const dirNames = this.keepAddressableDirNames(
+        await listSubdirectoryNames(skillsDirPath, { followSymbolicLinks: false }),
+        root,
+      );
+      for (const dirName of dirNames) {
         await assertWritablePathInsideRoot({
           rootPath: skillsDirPath,
-          targetPath: dirPath,
+          targetPath: join(skillsDirPath, dirName),
         });
-        const dirName = basename(dirPath);
         // Directories owned by another feature (see the `isDirOwned` factory
         // hook) must never be deleted as orphan skills — e.g. a Reasonix
         // subagent profile generated into the shared `.reasonix/skills/`, or

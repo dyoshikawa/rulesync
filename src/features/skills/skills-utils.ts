@@ -4,7 +4,7 @@ import {
   CURATED_SKILLS_FEATURE_SUBDIR,
   SKILLS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
-import { directoryExistsStrict, findFilesByGlobs } from "../../utils/file.js";
+import { directoryExistsStrict, listSubdirectoryNames } from "../../utils/file.js";
 
 /**
  * Returns the set of local skill directory names (excluding `.curated`)
@@ -22,9 +22,7 @@ export async function getLocalSkillDirNames(sourceTree: string): Promise<Set<str
     return names;
   }
 
-  const dirPaths = await findFilesByGlobs(join(skillsDir, "*"), { type: "dir" });
-  for (const dirPath of dirPaths) {
-    const name = basename(dirPath);
+  for (const name of await listSubdirectoryNames(skillsDir)) {
     // Skip the .curated directory itself
     if (name === basename(CURATED_SKILLS_FEATURE_SUBDIR)) continue;
     names.add(name);

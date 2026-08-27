@@ -29,6 +29,8 @@ import {
   isFileSystemError,
   isPresentButUnresolvable,
   listDirectoryFiles,
+  listFileNames,
+  listSubdirectoryNames,
   readFileBufferOrNull,
   readFileContent,
   readJsonFile,
@@ -543,6 +545,53 @@ describe("file utilities", () => {
       it("should return empty array for non-existent directory", async () => {
         const files = await findFiles(join(testDir, "nonexistent"));
         expect(files).toEqual([]);
+      });
+    });
+
+    describe("listSubdirectoryNames and listFileNames", () => {
+      it("should keep a name containing a backslash, which a glob rewrites", async () => {
+        // The bug this exists for: globby reads the backslash as a separator and
+        // returns `<root>/back/slash`, whose basename names nothing on disk.
+        await ensureDir(join(testDir, "back\\slash"));
+        await ensureDir(join(testDir, "plain"));
+        await writeFileContent(join(testDir, "back\\slash.md"), "content");
+
+        expect(await listSubdirectoryNames(testDir)).toEqual(["back\\slash", "plain"]);
+        expect(await listFileNames(testDir)).toEqual(["back\\slash.md"]);
+      });
+
+      it("should follow a symbolic link to a directory by default", async () => {
+        const shared = join(testDir, "outside", "shared");
+        await ensureDir(shared);
+        const root = join(testDir, "root");
+        await ensureDir(root);
+        await symlink(shared, join(root, "linked"));
+
+        expect(await listSubdirectoryNames(root)).toEqual(["linked"]);
+      });
+
+      it("should leave a symbolic link out when told not to follow", async () => {
+        const shared = join(testDir, "outside", "shared");
+        await ensureDir(shared);
+        const root = join(testDir, "root");
+        await ensureDir(root);
+        await symlink(shared, join(root, "linked"));
+        await ensureDir(join(root, "real"));
+
+        expect(await listSubdirectoryNames(root, { followSymbolicLinks: false })).toEqual(["real"]);
+      });
+
+      it("should leave out a link that leads nowhere", async () => {
+        const root = join(testDir, "root");
+        await ensureDir(root);
+        await symlink(join(testDir, "gone"), join(root, "dangling"));
+
+        expect(await listSubdirectoryNames(root)).toEqual([]);
+        expect(await listFileNames(root)).toEqual([]);
+      });
+
+      it("should reject a directory it cannot read", async () => {
+        await expect(listSubdirectoryNames(join(testDir, "missing"))).rejects.toThrow();
       });
     });
 

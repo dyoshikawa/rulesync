@@ -1460,6 +1460,32 @@ Test skill content`;
       expect(dirsToDelete[0]?.getDirName()).toBe("test-skill");
     });
 
+    it("should report a skill directory whose name contains a backslash", async () => {
+      // A `*` glob rewrites the backslash into a separator, so the candidate it
+      // used to yield was `<root>/slash` — a directory that does not exist. The
+      // real one cannot be swept either, since a directory name may not hold a
+      // separator, so the run says so instead of quietly building a candidate
+      // for nothing. The skill beside it is still swept.
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const skillsDir = join(testDir, ".claude", "skills");
+      const frontmatter = "---\nname: a-skill\ndescription: Test skill\n---\nContent";
+      await writeFileContent(join(skillsDir, "back\\slash", "SKILL.md"), frontmatter);
+      await writeFileContent(join(skillsDir, "plain", "SKILL.md"), frontmatter);
+
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete.map((dir) => dir.getDirName())).toEqual(["plain"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("a skill directory name cannot contain a path separator"),
+      );
+    });
+
     it("should succeed even when SKILL.md has broken frontmatter", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
