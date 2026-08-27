@@ -1,4 +1,4 @@
-import { readdir, rm, rmdir } from "node:fs/promises";
+import { lstat, readdir, rm, rmdir } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
@@ -254,6 +254,15 @@ type CollectedFile = {
 };
 
 /**
+ * Everything one collection pass learned about the remote: the files it found,
+ * and the directories it could not enumerate in full.
+ */
+type CollectedFeatureFiles = {
+  files: CollectedFile[];
+  incompleteRemoteDirs: Set<string>;
+};
+
+/**
  * How a collected file relates to the skills directory.
  *
  * - `non-skill` — outside skills/, or a flat file directly under it. Skills are
@@ -456,20 +465,30 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
 }
 
 /**
- * Whether any file this run fetched sits at or under the given path.
+ * Whether the set holds `root` itself or anything beneath it. Both sides are
+ * POSIX paths, so a plain prefix comparison is enough.
  */
-function hasFetchedDescendant(fetchedPaths: ReadonlySet<string>, relativePath: string): boolean {
-  if (fetchedPaths.has(relativePath)) {
+function hasPathAtOrUnder(paths: ReadonlySet<string>, root: string): boolean {
+  if (paths.has(root)) {
     return true;
   }
-  const prefix = `${relativePath}/`;
-  for (const fetchedPath of fetchedPaths) {
-    if (fetchedPath.startsWith(prefix)) {
+  const prefix = `${root}/`;
+  for (const path of paths) {
+    if (path.startsWith(prefix)) {
       return true;
     }
   }
   return false;
 }
+
+/**
+ * What a prune pass left behind in one directory.
+ *
+ * `missing` and `emptied` are kept apart so the caller only removes a directory
+ * it has just emptied itself, and never one that disappeared underneath the
+ * walk.
+ */
+type PruneOutcome = "missing" | "kept" | "emptied";
 
 /**
  * Walk one directory, deleting every entry the remote no longer has.
@@ -483,7 +502,7 @@ async function pruneDirectory(params: {
   fetchedPaths: ReadonlySet<string>;
   deleted: FetchFileResult[];
   logger: Logger;
-}): Promise<boolean> {
+}): Promise<PruneOutcome> {
   const { outputBasePath, relativeDirPath, fetchedPaths, deleted, logger } = params;
   const dirPath = join(outputBasePath, relativeDirPath);
 
@@ -494,7 +513,7 @@ async function pruneDirectory(params: {
     // Nothing local under this skill yet — every file was created a moment ago,
     // so there is nothing that could have gone stale.
     if (isFileNotFoundError(error)) {
-      return false;
+      return "missing";
     }
     throw error;
   }
@@ -512,33 +531,39 @@ async function pruneDirectory(params: {
       // A link the fetch wrote through still stands for a remote file, and its
       // target is somewhere this prune has no business walking, so it is left
       // exactly as it is — including anything stale behind it.
-      if (hasFetchedDescendant(fetchedPaths, entryRelativePath)) {
+      if (hasPathAtOrUnder(fetchedPaths, entryRelativePath)) {
         survivors++;
         continue;
       }
-      await rm(entryPath);
+      await rm(entryPath, { force: true });
       deleted.push({ relativePath: entryRelativePath, status: "deleted" });
       logger.debug(`Deleted stale skill entry: ${entryRelativePath}`);
       continue;
     }
 
     if (entry.isDirectory()) {
-      const kept = await pruneDirectory({
+      const outcome = await pruneDirectory({
         outputBasePath,
         relativeDirPath: entryRelativePath,
         fetchedPaths,
         deleted,
         logger,
       });
-      if (kept) {
+      if (outcome === "kept") {
         survivors++;
         continue;
       }
-      // Emptied by the prune, so it is a leftover of the same stale files. It
-      // is reported as one entry rather than as a file, since removing it
-      // deletes nothing that was not already counted above.
+      if (outcome === "missing") {
+        // It vanished between the two reads. Nothing is left to remove, and
+        // nothing was removed here, so it is not reported either.
+        continue;
+      }
+      // The remote skill has no directory here any more, so the directory goes
+      // too. It is reported under its own name, with a trailing slash, because
+      // removing it deletes a local path in its own right.
       await rmdir(entryPath);
-      logger.debug(`Removed emptied skill directory: ${entryRelativePath}`);
+      deleted.push({ relativePath: `${entryRelativePath}/`, status: "deleted" });
+      logger.debug(`Removed stale skill directory: ${entryRelativePath}`);
       continue;
     }
 
@@ -547,12 +572,12 @@ async function pruneDirectory(params: {
       continue;
     }
 
-    await rm(entryPath);
+    await rm(entryPath, { force: true });
     deleted.push({ relativePath: entryRelativePath, status: "deleted" });
     logger.debug(`Deleted stale skill file: ${entryRelativePath}`);
   }
 
-  return survivors > 0;
+  return survivors > 0 ? "kept" : "emptied";
 }
 
 /**
@@ -568,9 +593,11 @@ async function maybePruneStaleSkillFiles(params: {
   conflictStrategy: ConflictStrategy;
   outputBasePath: string;
   fetchedFiles: CollectedFile[];
+  incompleteRemoteDirs: ReadonlySet<string>;
   logger: Logger;
 }): Promise<FetchFileResult[]> {
-  const { prune, conflictStrategy, outputBasePath, fetchedFiles, logger } = params;
+  const { prune, conflictStrategy, outputBasePath, fetchedFiles, incompleteRemoteDirs, logger } =
+    params;
 
   if (!prune) {
     logger.debug("Skipping the skill prune: --no-prune was given.");
@@ -582,7 +609,24 @@ async function maybePruneStaleSkillFiles(params: {
     return [];
   }
 
-  return pruneStaleSkillFiles({ outputBasePath, fetchedFiles, logger });
+  return pruneStaleSkillFiles({ outputBasePath, fetchedFiles, incompleteRemoteDirs, logger });
+}
+
+/**
+ * The remote path of the skill directory a fetched file belongs to.
+ *
+ * A collected file's `relativePath` is its `remotePath` with the fetch's base
+ * path cut off the front, so the base path is recovered by removing that suffix
+ * and put back in front of the skill directory.
+ */
+function remoteSkillDirPath(params: { file: CollectedFile; localSkillDir: string }): string {
+  const { file, localSkillDir } = params;
+  const remotePath = toPosixPath(file.remotePath);
+  const relativePath = toPosixPath(file.relativePath);
+  const basePrefix = remotePath.endsWith(relativePath)
+    ? remotePath.slice(0, remotePath.length - relativePath.length)
+    : "";
+  return `${basePrefix}${localSkillDir}`;
 }
 
 /**
@@ -602,25 +646,59 @@ async function maybePruneStaleSkillFiles(params: {
 async function pruneStaleSkillFiles(params: {
   outputBasePath: string;
   fetchedFiles: CollectedFile[];
+  incompleteRemoteDirs: ReadonlySet<string>;
   logger: Logger;
 }): Promise<FetchFileResult[]> {
-  const { outputBasePath, fetchedFiles, logger } = params;
+  const { outputBasePath, fetchedFiles, incompleteRemoteDirs, logger } = params;
 
   const fetchedPaths = new Set(fetchedFiles.map((file) => toPosixPath(file.relativePath)));
-  const skillDirs = new Set<string>();
+  // Local skill directory -> the remote directory it was fetched from, so an
+  // incomplete listing can be matched back to the skill it would misjudge.
+  const skillDirs = new Map<string, string>();
   for (const file of fetchedFiles) {
     const skill = classifySkillPath(file.relativePath);
-    if (skill.kind === "skill") {
-      skillDirs.add(`skills/${skill.name}`);
+    if (skill.kind !== "skill") {
+      continue;
+    }
+    const localSkillDir = `skills/${skill.name}`;
+    if (!skillDirs.has(localSkillDir)) {
+      skillDirs.set(localSkillDir, remoteSkillDirPath({ file, localSkillDir }));
     }
   }
 
   const deleted: FetchFileResult[] = [];
-  for (const skillDir of [...skillDirs].toSorted()) {
-    // The same guard the writes go through. The directory name comes from the
-    // remote repository, so it is not trusted to stay inside the output root
-    // just because the write that created it did.
+  for (const [skillDir, remoteDir] of [...skillDirs].toSorted(([a], [b]) => (a < b ? -1 : 1))) {
+    // Deleting is only safe while the fetched file list is the whole remote
+    // skill. Once GitHub has truncated a listing, or it held an entry kind the
+    // walk cannot fetch, a local file that is still upstream is indistinguishable
+    // from one upstream dropped — so nothing here is judged stale.
+    if (hasPathAtOrUnder(incompleteRemoteDirs, remoteDir)) {
+      logger.warn(
+        `Not pruning ${skillDir}: the remote listing for it came back incomplete, so a stale ` +
+          `local file cannot be told apart from one the listing left out. Remove unwanted files ` +
+          `by hand.`,
+      );
+      continue;
+    }
+
+    // A cheap re-assertion of the guard the writes went through: the directory
+    // name comes from the remote repository. It is lexical only, which is why
+    // the link check below has to follow it.
     checkPathTraversal({ relativePath: skillDir, intendedRootDir: outputBasePath });
+
+    // `readdir` resolves the path it is handed, unlike the entries it reports,
+    // so a skill directory that is itself a symbolic link would have this walk
+    // deleting files wherever the link points. Rulesync deliberately follows
+    // symlinked skills when generating, so such a directory is ordinary here —
+    // it is left alone rather than emptied.
+    if (await isSymbolicLink(join(outputBasePath, skillDir))) {
+      logger.warn(
+        `Not pruning ${skillDir}: it is a symbolic link, and its target is outside what this ` +
+          `fetch may delete from. Remove unwanted files by hand.`,
+      );
+      continue;
+    }
+
     await pruneDirectory({
       outputBasePath,
       relativeDirPath: skillDir,
@@ -631,6 +709,21 @@ async function pruneStaleSkillFiles(params: {
   }
 
   return deleted;
+}
+
+/**
+ * Whether the path is a symbolic link, without following it. A path that is not
+ * there at all is not a link.
+ */
+async function isSymbolicLink(path: string): Promise<boolean> {
+  try {
+    return (await lstat(path)).isSymbolicLink();
+  } catch (error) {
+    if (isFileNotFoundError(error)) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -656,6 +749,14 @@ function isNotFoundError(error: unknown): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * A summary for a run that matched nothing, so had nothing to write or prune.
+ */
+function emptyFetchSummary(params: { source: string; ref: string }): FetchSummary {
+  const { source, ref } = params;
+  return { source, ref, files: [], created: 0, overwritten: 0, skipped: 0, deleted: 0 };
 }
 
 /**
@@ -749,7 +850,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   const semaphore = new Semaphore(FETCH_CONCURRENCY_LIMIT);
 
   // Collect all files to fetch from feature directories directly
-  const collectedFiles = await collectFeatureFiles({
+  const { files: collectedFiles, incompleteRemoteDirs } = await collectFeatureFiles({
     client,
     owner: parsed.owner,
     repo: parsed.repo,
@@ -769,15 +870,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
 
   if (filesToFetch.length === 0) {
     logger.warn(`No files found matching enabled features: ${enabledFeatures.join(", ")}`);
-    return {
-      source: `${parsed.owner}/${parsed.repo}`,
-      ref,
-      files: [],
-      created: 0,
-      overwritten: 0,
-      skipped: 0,
-      deleted: 0,
-    };
+    return emptyFetchSummary({ source: `${parsed.owner}/${parsed.repo}`, ref });
   }
 
   // Process files in parallel with concurrency control
@@ -823,6 +916,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     conflictStrategy,
     outputBasePath,
     fetchedFiles: filesToFetch,
+    incompleteRemoteDirs,
     logger,
   });
 
@@ -854,8 +948,13 @@ async function collectFeatureFiles(params: {
   enabledFeatures: Feature[];
   semaphore: Semaphore;
   logger: Logger;
-}): Promise<Array<{ remotePath: string; relativePath: string; size: number }>> {
+}): Promise<CollectedFeatureFiles> {
   const { client, owner, repo, basePath, ref, enabledFeatures, semaphore, logger } = params;
+
+  // Remote directories GitHub did not enumerate in full. Fetching is unaffected
+  // — whatever was listed is still fetched — but pruning is not, so the paths
+  // travel with the files.
+  const incompleteRemoteDirs = new Set<string>();
 
   // Cache directory listing results to avoid duplicate API calls
   // File-based features (ignore, mcp, hooks) all list the same basePath directory
@@ -913,6 +1012,9 @@ async function collectFeatureFiles(params: {
             path: fullPath,
             ref,
             semaphore,
+            onIncompleteDirectory: (remoteDirPath) => {
+              incompleteRemoteDirs.add(remoteDirPath);
+            },
           });
 
           for (const file of dirFiles) {
@@ -943,7 +1045,7 @@ async function collectFeatureFiles(params: {
     }),
   );
 
-  return results.flat();
+  return { files: results.flat(), incompleteRemoteDirs };
 }
 
 /**
@@ -988,7 +1090,7 @@ async function fetchAndConvertToolFiles(params: {
   try {
     // Collect files using rulesync feature paths (rules/, commands/, etc.)
     // External repos use these paths directly without tool-specific prefixes
-    const collectedFiles = await collectFeatureFiles({
+    const { files: collectedFiles } = await collectFeatureFiles({
       client,
       owner: parsed.owner,
       repo: parsed.repo,
@@ -1008,15 +1110,7 @@ async function fetchAndConvertToolFiles(params: {
 
     if (filesToFetch.length === 0) {
       logger.warn(`No files found matching enabled features: ${enabledFeatures.join(", ")}`);
-      return {
-        source: `${parsed.owner}/${parsed.repo}`,
-        ref,
-        files: [],
-        created: 0,
-        overwritten: 0,
-        skipped: 0,
-        deleted: 0,
-      };
+      return emptyFetchSummary({ source: `${parsed.owner}/${parsed.repo}`, ref });
     }
 
     // Validate file sizes first

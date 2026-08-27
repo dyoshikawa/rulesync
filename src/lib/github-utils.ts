@@ -6,6 +6,13 @@ import type { GitHubClient } from "./github-client.js";
 const MAX_RECURSION_DEPTH = 15;
 
 /**
+ * GitHub's Contents API returns at most 1,000 entries for a directory and says
+ * nothing about the ones it left out.
+ * https://docs.github.com/en/rest/repos/contents#get-repository-content
+ */
+const GITHUB_CONTENTS_DIRECTORY_LIMIT = 1000;
+
+/**
  * Execute an async function with semaphore-controlled concurrency.
  * Ensures the semaphore permit is always released, even if the function throws.
  */
@@ -29,8 +36,16 @@ export async function listDirectoryRecursive(params: {
   ref?: string;
   depth?: number;
   semaphore: Semaphore;
+  /**
+   * Called with the path of a directory whose listing is known to be missing
+   * entries. A caller that only consumes the files it got back can ignore this;
+   * a caller that treats the result as the remote directory's complete content
+   * must not, because the missing entries are indistinguishable from entries
+   * the remote never had.
+   */
+  onIncompleteDirectory?: (remoteDirPath: string) => void;
 }): Promise<GitHubFileEntry[]> {
-  const { client, owner, repo, path, ref, depth = 0, semaphore } = params;
+  const { client, owner, repo, path, ref, depth = 0, semaphore, onIncompleteDirectory } = params;
 
   if (depth > MAX_RECURSION_DEPTH) {
     throw new Error(
@@ -45,13 +60,24 @@ export async function listDirectoryRecursive(params: {
 
   const files: GitHubFileEntry[] = [];
   const directories: GitHubFileEntry[] = [];
+  // Symlinks and submodules are the entry kinds this walk has no counterpart
+  // for, so they are dropped rather than descended into.
+  let dropped = false;
 
   for (const entry of entries) {
     if (entry.type === "file") {
       files.push(entry);
     } else if (entry.type === "dir") {
       directories.push(entry);
+    } else {
+      dropped = true;
     }
+  }
+
+  // A full page is the only sign the API gives that it truncated the listing,
+  // so it is treated as truncated whenever it comes back at the cap.
+  if (dropped || entries.length >= GITHUB_CONTENTS_DIRECTORY_LIMIT) {
+    onIncompleteDirectory?.(path);
   }
 
   const subResults = await Promise.all(
@@ -64,6 +90,7 @@ export async function listDirectoryRecursive(params: {
         ref,
         depth: depth + 1,
         semaphore,
+        onIncompleteDirectory,
       }),
     ),
   );

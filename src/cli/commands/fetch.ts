@@ -50,7 +50,7 @@ export async function fetchCommand(logger: Logger, options: FetchCommandOptions)
     logger.success(output);
 
     // Exit with appropriate code
-    if (summary.created + summary.overwritten + summary.skipped + summary.deleted === 0) {
+    if (summary.created + summary.overwritten + summary.skipped === 0) {
       logger.warn("No files were fetched.");
     }
   } catch (error) {
