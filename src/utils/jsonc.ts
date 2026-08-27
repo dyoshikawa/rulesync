@@ -29,11 +29,14 @@ function deepSanitize(value: unknown): unknown {
  * Collect the paths of every prototype-pollution key in the document, walking
  * the syntax tree rather than the parsed value.
  *
- * The parsed value cannot answer this question. `obj["__proto__"] = "deny"` is
- * discarded by the engine outright, and `obj["__proto__"] = {...}` replaces the
- * prototype instead of adding an own property — either way the key is already
- * gone by the time {@link deepSanitize} could look for it. Only the source text
- * still knows the user wrote it.
+ * The parsed value cannot answer this question for `__proto__`:
+ * `obj["__proto__"] = "deny"` is discarded by the engine outright, and
+ * `obj["__proto__"] = {...}` replaces the prototype instead of adding an own
+ * property — either way the key is already gone by the time
+ * {@link deepSanitize} could look for it, and only the source text still knows
+ * the user wrote it. `constructor` and `prototype` do become own properties and
+ * could be found in the parsed value, but they are collected here too so all
+ * three keys are answered the same way.
  *
  * A pollution key's subtree is not descended into, matching
  * {@link deepSanitize}, which drops the whole value along with the key.

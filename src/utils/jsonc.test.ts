@@ -87,6 +87,15 @@ describe("parseJsoncReportingDroppedKeys", () => {
     expect(droppedKeys).toEqual(["hooks[1].prototype"]);
   });
 
+  it("should not descend into a pollution key's subtree", () => {
+    // `deepSanitize` drops the whole value along with the key, so reporting a
+    // nested path under one would name an entry that was never separately lost.
+    expect(
+      parseJsoncReportingDroppedKeys({ content: '{"a": {"__proto__": {"__proto__": 1}}}' })
+        .droppedKeys,
+    ).toEqual(["a.__proto__"]);
+  });
+
   it("should report a duplicated pollution key only once", () => {
     // Two properties in the syntax tree, but one dropped entry to the reader.
     expect(

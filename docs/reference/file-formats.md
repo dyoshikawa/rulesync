@@ -1320,7 +1320,7 @@ Example:
 - A **blank pattern** (empty, or only whitespace). It is a prefix of every command and a substring of every path, so a tool that honors it grants or denies everything, while a tool that filters it — Roo Code keeps only entries passing `cmd.trim().length > 0` — ignores it entirely. Rather than let each target decide, Rulesync rejects it on the source file.
 - A pattern named `__proto__`, `constructor`, or `prototype`. Rulesync strips these from every source document it parses, because assigning them would reach the prototype chain instead of the object, so such an entry could never reach a generated file. Rulesync now names the offending path instead of dropping it in silence.
 
-Importing is not affected by the first rule: a blank pattern found in a tool's own config is discarded during `rulesync import`, since the tool did not honor it either and keeping it would write a source file the next `generate` refuses. The discarded entries are reported in a warning naming how many were dropped from each category, so an import never quietly changes what the permissions allow.
+Importing removes a blank pattern rather than reproducing it: keeping one would write a source file the very next `generate` refuses. This applies to the shared `permission` block and to tool-scoped `{toolname}.permission` blocks alike, since importing OpenCode or Kilo routes their tool-only categories into the tool-scoped block. Every removal is reported in a warning naming how many patterns were dropped from each block, because dropping one can widen what the imported configuration allows — a blanket blank pattern may have been the only entry denying anything.
 
 ### Tool-scoped permission blocks (`{toolname}.permission`)
 

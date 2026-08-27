@@ -709,8 +709,8 @@ describe("RulesyncPermissions", () => {
 
       expect(logger.warn).toHaveBeenCalledTimes(1);
       const message = logger.warn.mock.calls[0]?.[0];
-      expect(message).toContain('2 in "bash"');
-      expect(message).toContain('1 in "read"');
+      expect(message).toContain('2 in "permission.bash"');
+      expect(message).toContain('1 in "permission.read"');
     });
 
     it("should not warn when nothing was dropped", () => {
@@ -722,6 +722,62 @@ describe("RulesyncPermissions", () => {
       });
 
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should drop a blank pattern from a tool-scoped permission block", () => {
+      // OpenCode and Kilo route their tool-only categories into the tool-scoped
+      // block verbatim on import, so a blank pattern in the user's own config
+      // lands here rather than in the shared block.
+      const logger = createMockLogger();
+
+      const fileContent = withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          opencode: { permission: { external_directory: { "": "deny", "/tmp/**": "allow" } } },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({
+        permission: { bash: { "git *": "allow" } },
+        opencode: { permission: { external_directory: { "/tmp/**": "allow" } } },
+      });
+      expect(logger.warn.mock.calls[0]?.[0]).toContain(
+        '1 in "opencode.permission.external_directory"',
+      );
+      expect(
+        new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent,
+          validate: false,
+        }).validate().success,
+      ).toBe(true);
+    });
+
+    it("should leave tool-native shapes in a tool-scoped block untouched", () => {
+      // A bare action string has no pattern key to inspect, Vibe's
+      // `sensitive_patterns` object carries none, and `sandbox` is not a
+      // permission block at all.
+      const fileContent = JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+        opencode: { permission: { external_directory: "deny" } },
+        vibe: { permission: { bash: { sensitive_patterns: ["rm *"] } } },
+        kilo: { sandbox: { enabled: true } },
+      });
+
+      expect(withoutBlankPermissionPatterns({ fileContent })).toBe(fileContent);
+    });
+
+    it("should label the shared block in the warning", () => {
+      const logger = createMockLogger();
+
+      withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({ permission: { bash: { "": "allow" } } }),
+        logger,
+      });
+
+      expect(logger.warn.mock.calls[0]?.[0]).toContain('1 in "permission.bash"');
     });
 
     it("should warn through the shared fallback logger when no logger is supplied", () => {

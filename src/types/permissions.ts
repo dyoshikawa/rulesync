@@ -19,8 +19,12 @@ export type PermissionAction = z.infer<typeof PermissionActionSchema>;
  * decision reads the list — silently ignores it. Rather than let each target
  * decide, reject it here so the mistake surfaces once, on the source file.
  */
+export function isBlankPermissionPattern(pattern: string): boolean {
+  return pattern.trim().length === 0;
+}
+
 const PermissionPatternSchema = z.string().check(
-  z.refine((pattern) => pattern.trim().length > 0, {
+  z.refine((pattern) => !isBlankPermissionPattern(pattern), {
     message: "Permission pattern must not be blank",
   }),
 );

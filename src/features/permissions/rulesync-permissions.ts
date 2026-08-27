@@ -8,7 +8,11 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
-import { type PermissionsConfig, RulesyncPermissionsFileSchema } from "../../types/permissions.js";
+import {
+  isBlankPermissionPattern,
+  type PermissionsConfig,
+  RulesyncPermissionsFileSchema,
+} from "../../types/permissions.js";
 import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types/rulesync-file.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
@@ -193,30 +197,99 @@ export class RulesyncPermissions extends RulesyncFile {
 }
 
 /**
- * Drop blank permission patterns from a canonical document produced by import.
+ * Strip every blank permission pattern from an already-parsed canonical
+ * document, reporting how many were dropped from each block.
  *
- * The canonical schema rejects a blank pattern outright, and every tool that
- * has one in its own config already ignores it (Roo Code, for instance, keeps
- * only entries passing `cmd.trim().length > 0`). Reproducing one in
- * `.rulesync/permissions.jsonc` would therefore write a source file that the
- * very next `generate` refuses, over a value the tool never honored — so
- * import removes it instead.
+ * Both the shared `permission` block and every tool-scoped
+ * `{toolname}.permission` block are walked, because import produces both:
+ * OpenCode and Kilo route their tool-only categories into the tool-scoped block
+ * verbatim, so a blank pattern in the user's own config lands there. A category
+ * whose value is not a rules map is left exactly as it is, which is what keeps
+ * the tool-native shapes intact — OpenCode's and Kilo's bare action strings
+ * (`"external_directory": "deny"`) have no pattern key to inspect, Vibe's
+ * `sensitive_patterns` objects carry no blank key, and Kilo's `sandbox` is not a
+ * `permission` block at all.
+ */
+function stripBlankPermissionPatterns(config: Record<string, unknown>): {
+  config: Record<string, unknown>;
+  removed: Map<string, number>;
+} {
+  const removed = new Map<string, number>();
+
+  const filterBlock = (
+    block: Record<string, unknown>,
+    blockPath: string,
+  ): Record<string, unknown> => {
+    const filtered: Record<string, unknown> = {};
+    for (const [category, rules] of Object.entries(block)) {
+      if (!isRecord(rules)) {
+        filtered[category] = rules;
+        continue;
+      }
+      const kept: Record<string, unknown> = {};
+      for (const [pattern, action] of Object.entries(rules)) {
+        if (isBlankPermissionPattern(pattern)) {
+          const path = `${blockPath}.${category}`;
+          removed.set(path, (removed.get(path) ?? 0) + 1);
+          continue;
+        }
+        kept[pattern] = action;
+      }
+      filtered[category] = kept;
+    }
+    return filtered;
+  };
+
+  const next: Record<string, unknown> = { ...config };
+  if (isRecord(config.permission)) {
+    next.permission = filterBlock(config.permission, "permission");
+  }
+  for (const [key, value] of Object.entries(config)) {
+    if (key === "permission" || !isRecord(value) || !isRecord(value.permission)) {
+      continue;
+    }
+    next[key] = { ...value, permission: filterBlock(value.permission, `${key}.permission`) };
+  }
+
+  return { config: next, removed };
+}
+
+/**
+ * Report the dropped patterns.
  *
- * Only the shared `permission` block is walked. Tool-scoped
- * `{toolname}.permission` blocks are authored by hand rather than produced by
- * import, and several of them (OpenCode, Kilo, Vibe) hold tool-native shapes
- * this filter has no business reaching into.
- *
- * Every removal is reported. Dropping an entry silently is the failure mode a
- * permissions source must not have: a blanket `"": false` in a tool's own
- * config reads as "approve nothing by default", and removing it while keeping
- * the narrower `true` entries beside it leaves an import that grants more than
- * the file it came from. The value was never honored either way, but the user
- * has to be told it is gone.
+ * Dropping an entry silently is the failure mode a permissions source must not
+ * have. A blanket blank pattern can read as "deny everything by default";
+ * removing it while keeping the narrower entries beside it leaves an import that
+ * grants more than the configuration it came from. The value was not portable
+ * either way, but the user has to be told it is gone.
  *
  * `logger` is optional because the import direction (`toRulesyncPermissions`)
  * takes no logger parameter; the shared `fallbackLogger` is configured from the
  * CLI flags and the resolved config, so `silent` is still honored.
+ */
+function warnAboutDroppedPatterns({
+  removed,
+  logger,
+}: {
+  removed: Map<string, number>;
+  logger?: Logger;
+}): void {
+  const summary = [...removed.entries()].map(([path, count]) => `${count} in "${path}"`).join(", ");
+  warnWithFallback(
+    logger,
+    `Dropped blank permission patterns while reading a tool's permission configuration (${summary}). An empty or whitespace-only pattern matches everything, and tools disagree on what it means — some apply it to every command, others ignore it entirely — so it is not carried into the rulesync permissions config. If one of them was a blanket deny, what was read now allows more than the configuration it came from; re-add it with a real pattern.`,
+  );
+}
+
+/**
+ * Drop blank permission patterns from a canonical document produced by import.
+ *
+ * The canonical schema rejects a blank pattern outright, and every tool that
+ * has one in its own config already treats it as something other than a real
+ * pattern (Roo Code, for instance, keeps only entries passing
+ * `cmd.trim().length > 0`). Reproducing one in `.rulesync/permissions.jsonc`
+ * would therefore write a source file that the very next `generate` refuses —
+ * so it is removed here instead, and reported.
  */
 export function withoutBlankPermissionPatterns({
   fileContent,
@@ -226,40 +299,38 @@ export function withoutBlankPermissionPatterns({
   logger?: Logger;
 }): string {
   const parsed: unknown = parseJsonc(fileContent);
-  if (!isRecord(parsed) || !isRecord(parsed.permission)) {
+  if (!isRecord(parsed)) {
     return fileContent;
   }
 
-  const removedCounts = new Map<string, number>();
-  const permission: Record<string, unknown> = {};
-  for (const [category, rules] of Object.entries(parsed.permission)) {
-    if (!isRecord(rules)) {
-      permission[category] = rules;
-      continue;
-    }
-    const kept = Object.fromEntries(
-      Object.entries(rules).filter(([pattern]) => {
-        if (pattern.trim().length > 0) {
-          return true;
-        }
-        removedCounts.set(category, (removedCounts.get(category) ?? 0) + 1);
-        return false;
-      }),
-    );
-    permission[category] = kept;
-  }
-
-  if (removedCounts.size === 0) {
+  const { config, removed } = stripBlankPermissionPatterns(parsed);
+  if (removed.size === 0) {
     return fileContent;
   }
-  const summary = [...removedCounts.entries()]
-    .map(([category, count]) => `${count} in "${category}"`)
-    .join(", ");
-  warnWithFallback(
-    logger,
-    `Dropped blank permission patterns while importing (${summary}). A pattern that is empty or only whitespace is not written to ${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH}, because it matches everything and the tools that see one ignore it. If those entries were meant to apply to specific commands or paths, add them back with a real pattern.`,
-  );
-  return JSON.stringify({ ...parsed, permission }, null, 2);
+  warnAboutDroppedPatterns({ removed, logger });
+  return JSON.stringify(config, null, 2);
+}
+
+/**
+ * The same filter over an already-parsed document, for callers that validate a
+ * canonical block before it is ever serialized. Hermes Agent stores its
+ * rulesync provenance inside its own config and parses it back on import; left
+ * unfiltered, one blank pattern would fail `safeParse` and discard the entire
+ * provenance block without a word.
+ */
+export function withoutBlankPermissionPatternsIn({
+  config,
+  logger,
+}: {
+  config: Record<string, unknown>;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const { config: filtered, removed } = stripBlankPermissionPatterns(config);
+  if (removed.size === 0) {
+    return config;
+  }
+  warnAboutDroppedPatterns({ removed, logger });
+  return filtered;
 }
 
 /**

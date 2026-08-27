@@ -260,6 +260,31 @@ describe("OpencodePermissions", () => {
     expect(rulesync.opencode).toBeUndefined();
   });
 
+  it("should drop blank patterns from the OpenCode-scoped override block on import", async () => {
+    // The override block is built from the user's config verbatim, so a blank
+    // pattern reaches it. Left there it would write a source file the next
+    // `generate` refuses.
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({
+        permission: {
+          bash: { "": "allow", "git *": "allow" },
+          external_directory: { "  ": "deny", "/tmp/**": "allow" },
+        },
+      }),
+    );
+
+    const imported = (
+      await OpencodePermissions.fromFile({ outputRoot: testDir })
+    ).toRulesyncPermissions();
+
+    expect(imported.getJson().permission.bash).toEqual({ "git *": "allow" });
+    expect(imported.getJson().opencode).toEqual({
+      permission: { external_directory: { "/tmp/**": "allow" } },
+    });
+    expect(imported.validate().success).toBe(true);
+  });
+
   it("should translate the canonical `agent` category into OpenCode's `task` key on export (issue #2230)", async () => {
     await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ model: "x" }));
     const rulesyncPermissions = new RulesyncPermissions({
