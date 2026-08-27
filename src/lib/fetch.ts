@@ -965,10 +965,18 @@ async function pruneStaleSkillFiles(params: {
       // The files are already written; only the tidying up failed. A directory
       // this run cannot read or delete from — no permission to it, a disk that
       // gave out — costs this one skill its prune, and the run reports what it
-      // could not do rather than throwing the fetch away over it. The message is
-      // stripped as well: a filesystem error carries the local path it failed on.
+      // could not do rather than throwing the fetch away over it. Only a
+      // filesystem error is absorbed: anything else is a defect in the walk, and
+      // one that turned into a warning would take a skipped prune with it
+      // quietly. The message is stripped too, since a filesystem error carries
+      // the local path it failed on.
+      if (!isFileSystemError(error)) {
+        throw error;
+      }
+      // "Stopped partway", not "did not prune": entries deleted before the
+      // failure are already recorded, and the summary lists them.
       logger.warn(
-        `Not pruning ${stripControlCharacters(skillDir)}: it could not be read or cleaned up. ` +
+        `Stopped partway through pruning ${stripControlCharacters(skillDir)}. ` +
           `${stripControlCharacters(formatError(error))}`,
       );
     }
@@ -1001,6 +1009,15 @@ function isSymbolicLinkLoopError(error: unknown): boolean {
 /**
  * Whether removing the directory failed because something is still in it.
  */
+/**
+ * Whether the error came from the filesystem rather than from the walk itself.
+ * Node stamps every `fs` rejection with a `code`, so its presence is what tells
+ * an I/O failure apart from a programming error raised in the same call.
+ */
+function isFileSystemError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && typeof error.code === "string";
+}
+
 function isDirectoryNotEmptyError(error: unknown): boolean {
   return (
     typeof error === "object" &&
