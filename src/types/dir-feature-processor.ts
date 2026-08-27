@@ -19,9 +19,10 @@ import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import type { Logger } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
+import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolTarget } from "./tool-targets.js";
 
-export abstract class DirFeatureProcessor {
+export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
   protected readonly outputRoot: string;
   /**
    * Ordered, non-empty list of rulesync source-tree directories. Each entry
@@ -40,15 +41,6 @@ export abstract class DirFeatureProcessor {
   protected readonly dryRun: boolean;
   protected readonly avoidBlockScalars: boolean;
   protected readonly logger: Logger;
-  /**
-   * Set when a `.rulesync/` source could not be read at all. The processor
-   * still returns no files so the rest of the run continues, but generate must
-   * not report success afterwards: "nothing was written" and "nothing needed
-   * writing" are indistinguishable to a scripted caller otherwise, and the
-   * orphan sweep would read the missing output as no longer wanted.
-   */
-  private rulesyncSourceLoadFailed = false;
-
   constructor({
     outputRoot = process.cwd(),
     inputRoots,
@@ -62,6 +54,8 @@ export abstract class DirFeatureProcessor {
     avoidBlockScalars?: boolean;
     logger: Logger;
   }) {
+    super();
+
     this.outputRoot = outputRoot;
 
     this.inputRoots =
@@ -72,14 +66,6 @@ export abstract class DirFeatureProcessor {
     this.dryRun = dryRun;
     this.avoidBlockScalars = avoidBlockScalars;
     this.logger = logger;
-  }
-
-  protected recordRulesyncSourceLoadFailure(): void {
-    this.rulesyncSourceLoadFailed = true;
-  }
-
-  hasRulesyncSourceLoadFailure(): boolean {
-    return this.rulesyncSourceLoadFailed;
   }
 
   abstract loadRulesyncDirs(): Promise<AiDir[]>;

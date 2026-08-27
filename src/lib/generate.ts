@@ -77,8 +77,27 @@ export type GenerateResult = {
    * The features whose source could not be read, in run order. Empty exactly
    * when `sourceLoadFailed` is false.
    */
-  sourceLoadFailedFeatures: string[];
+  sourceLoadFailedFeatures: GenerationStepId[];
 };
+
+/**
+ * The message to report when a run left some `.rulesync/` source unread, or
+ * `undefined` when every source loaded.
+ *
+ * Both entry points need to fail on this and neither should word it its own
+ * way, so the check and the sentence live together: callers branch on the
+ * return value rather than on the flag, which is also why there is no "no
+ * features" case to phrase — the list is non-empty whenever this returns.
+ */
+export function formatSourceLoadFailure(
+  result: Pick<GenerateResult, "sourceLoadFailed" | "sourceLoadFailedFeatures">,
+): string | undefined {
+  if (!result.sourceLoadFailed || result.sourceLoadFailedFeatures.length === 0) {
+    return undefined;
+  }
+
+  return `Some .rulesync source files could not be loaded, so ${result.sourceLoadFailedFeatures.join(", ")} could not be fully generated. Each failure was reported individually.`;
+}
 
 async function processFeatureGeneration<T extends AiFile>(params: {
   config: Config;
@@ -399,7 +418,7 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
   };
 }
 
-type GenerationStepId =
+export type GenerationStepId =
   | "ignore"
   | "mcp"
   | "commands"

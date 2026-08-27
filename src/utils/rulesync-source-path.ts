@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { assertWritablePathInsideRoot, fileExists, isFileNotFoundError } from "./file.js";
+import { assertWritablePathInsideRoot, fileExists } from "./file.js";
 
 /**
  * No `.rulesync/` source file exists for a feature at any of its candidate
@@ -21,12 +21,15 @@ export class RulesyncSourceNotFoundError extends Error {
 /**
  * Whether a load failure means the source was absent rather than unreadable.
  *
- * Both shapes count: the explicit {@link RulesyncSourceNotFoundError} raised
- * once every candidate has been ruled out, and a bare `ENOENT` from a loader
- * that reads its recommended path directly.
+ * Only {@link RulesyncSourceNotFoundError} counts, and every loader raises it
+ * deliberately once each candidate path has been ruled out. A bare `ENOENT` is
+ * not accepted here on purpose: by the time a loader is reading, it has already
+ * established that the file is there, so an `ENOENT` from that read means the
+ * source went away mid-run or something in the read path is broken — neither of
+ * which should be reported as "this feature simply has no source".
  */
 export function isRulesyncSourceMissing(error: unknown): boolean {
-  return error instanceof RulesyncSourceNotFoundError || isFileNotFoundError(error);
+  return error instanceof RulesyncSourceNotFoundError;
 }
 
 export type RulesyncSourcePath = {

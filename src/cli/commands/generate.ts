@@ -1,6 +1,11 @@
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import type { Config } from "../../config/config.js";
-import { generate, inspectInputRoots, type GenerateResult } from "../../lib/generate.js";
+import {
+  formatSourceLoadFailure,
+  generate,
+  inspectInputRoots,
+  type GenerateResult,
+} from "../../lib/generate.js";
 import {
   buildConfigFilePaths,
   buildWatchTargets,
@@ -25,15 +30,8 @@ export type GenerateOptions = ConfigResolverResolveParams & {
  * watcher should stay up for that correction.
  */
 export class SourceLoadFailedError extends CLIError {
-  constructor(features: readonly string[]) {
-    super(
-      `Some .rulesync source files could not be loaded (see the errors above), so nothing was generated for ${
-        features.length > 0 ? features.join(", ") : "them"
-      }.`,
-      ErrorCodes.GENERATION_FAILED,
-      1,
-      { sourceLoadFailedFeatures: [...features] },
-    );
+  constructor({ message, features }: { message: string; features: readonly string[] }) {
+    super(message, ErrorCodes.GENERATION_FAILED, 1, { sourceLoadFailedFeatures: [...features] });
     this.name = "SourceLoadFailedError";
   }
 }
@@ -218,8 +216,12 @@ async function generateOnce(
   // every counter above reads zero for it — the same as "nothing to do". Fail
   // here so a caller that only sees the exit code is not told the generated
   // configs are current when they were never written.
-  if (result.sourceLoadFailed) {
-    throw new SourceLoadFailedError(result.sourceLoadFailedFeatures);
+  const sourceLoadFailureMessage = formatSourceLoadFailure(result);
+  if (sourceLoadFailureMessage !== undefined) {
+    throw new SourceLoadFailedError({
+      message: sourceLoadFailureMessage,
+      features: result.sourceLoadFailedFeatures,
+    });
   }
 
   // Check mode must fail even when the change is delete-only and no files are written.

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
   RULES_FEATURE_SUBDIR,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -41,6 +42,23 @@ describe("MCP Generate Tools", () => {
       const result = await executeGenerate();
 
       expect(result.success).toBe(true);
+    });
+
+    it("should report failure when a rulesync source cannot be loaded", async () => {
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+      // `type` is constrained to a known transport list, so this source exists
+      // but cannot be turned into a config. Every count still reads zero, which
+      // is why the result has to be judged on the flag rather than the counts.
+      await writeFileContent(
+        join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+        JSON.stringify({ mcpServers: { "test-server": { command: "echo", type: "bogus" } } }),
+      );
+
+      const result = await executeGenerate({ features: ["mcp"], targets: ["cursor"] });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("could not be loaded");
+      expect(result.error).toContain("mcp");
     });
 
     it("should resolve configured inputRoots before generation", async () => {

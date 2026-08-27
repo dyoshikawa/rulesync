@@ -6,6 +6,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { RulesyncSourceNotFoundError } from "../../utils/rulesync-source-path.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -200,7 +201,7 @@ describe("McpProcessor", () => {
 
     it("should not flag a source load failure when the file is simply absent", async () => {
       vi.mocked(RulesyncMcp.fromRoots).mockRejectedValue(
-        Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" }),
+        new RulesyncSourceNotFoundError("No .rulesync/mcp.jsonc found."),
       );
 
       const processor = new McpProcessor({
@@ -212,6 +213,26 @@ describe("McpProcessor", () => {
       await processor.loadRulesyncFiles();
 
       expect(processor.hasRulesyncSourceLoadFailure()).toBe(false);
+    });
+
+    it("should flag a source load failure on a bare ENOENT from the read itself", async () => {
+      // The loader reports genuine absence with `RulesyncSourceNotFoundError`,
+      // so an `ENOENT` that escapes it comes from a read that had already
+      // established the file was there — the source went away mid-run, or the
+      // read path is broken. Either way it is not "this feature has no source".
+      vi.mocked(RulesyncMcp.fromRoots).mockRejectedValue(
+        Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" }),
+      );
+
+      const processor = new McpProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "copilot",
+      });
+
+      await processor.loadRulesyncFiles();
+
+      expect(processor.hasRulesyncSourceLoadFailure()).toBe(true);
     });
 
     it("should flag a source load failure when the file exists but cannot be parsed", async () => {

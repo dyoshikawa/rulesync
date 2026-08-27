@@ -16,10 +16,11 @@ import type { Logger } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { AiFile } from "./ai-file.js";
 import { RulesyncFile } from "./rulesync-file.js";
+import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolFile } from "./tool-file.js";
 import { ToolTarget } from "./tool-targets.js";
 
-export abstract class FeatureProcessor {
+export abstract class FeatureProcessor extends RulesyncSourceConsumer {
   protected readonly outputRoot: string;
   /**
    * Ordered, non-empty list of rulesync source-tree directories. Each entry
@@ -37,15 +38,6 @@ export abstract class FeatureProcessor {
   protected readonly inputRoots: readonly [string, ...string[]];
   protected readonly dryRun: boolean;
   protected readonly logger: Logger;
-  /**
-   * Set when a `.rulesync/` source could not be read at all. The processor
-   * still returns no files so the rest of the run continues, but generate must
-   * not report success afterwards: "nothing was written" and "nothing needed
-   * writing" are indistinguishable to a scripted caller otherwise, and the
-   * orphan sweep would read the missing output as no longer wanted.
-   */
-  private rulesyncSourceLoadFailed = false;
-
   constructor({
     outputRoot = process.cwd(),
     inputRoots,
@@ -57,6 +49,8 @@ export abstract class FeatureProcessor {
     dryRun?: boolean;
     logger: Logger;
   }) {
+    super();
+
     this.outputRoot = outputRoot;
 
     this.inputRoots =
@@ -66,14 +60,6 @@ export abstract class FeatureProcessor {
 
     this.dryRun = dryRun;
     this.logger = logger;
-  }
-
-  protected recordRulesyncSourceLoadFailure(): void {
-    this.rulesyncSourceLoadFailed = true;
-  }
-
-  hasRulesyncSourceLoadFailure(): boolean {
-    return this.rulesyncSourceLoadFailed;
   }
 
   abstract loadRulesyncFiles(): Promise<RulesyncFile[]>;

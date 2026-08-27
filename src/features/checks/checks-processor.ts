@@ -299,11 +299,10 @@ export class ChecksProcessor extends FeatureProcessor {
         rulesyncChecks.push(rulesyncCheck);
         this.logger.debug(`Successfully loaded check: ${mdFile}`);
       } catch (error) {
-        // The file was listed in the checks directory, so it exists and could
-        // not be parsed. The run keeps going so the remaining checks are still
-        // reported, but it must not finish as a success.
-        this.recordRulesyncSourceLoadFailure();
-        this.logger.error(`Failed to load check file ${filepath}: ${formatError(error)}`);
+        // A warning rather than a source-load failure, for the same reason as
+        // the subagents loader: `checks/` holds free-form Markdown too, and
+        // failing here would freeze this feature's orphan sweep.
+        this.logger.warn(`Failed to load check file ${filepath}: ${formatError(error)}`);
         continue;
       }
     }

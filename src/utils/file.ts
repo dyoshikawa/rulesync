@@ -420,10 +420,24 @@ export async function fileExistsStrict(filepath: string): Promise<boolean> {
     await stat(filepath);
     return true;
   } catch (error) {
-    if (isFileNotFoundError(error)) {
+    if (!isFileNotFoundError(error)) {
+      throw error;
+    }
+
+    // `stat` follows symlinks, so a link whose target is gone reports ENOENT
+    // even though the entry itself is right there. Answering "absent" for it
+    // would silently drop a source that the docs actively encourage pointing
+    // at a shared tree by symlink — exactly the case where the target can go
+    // missing. `lstat` looks at the link itself and settles which it is.
+    try {
+      await lstat(filepath);
+    } catch {
       return false;
     }
-    throw error;
+
+    throw new Error(`${filepath} is a symbolic link whose target does not exist.`, {
+      cause: error,
+    });
   }
 }
 

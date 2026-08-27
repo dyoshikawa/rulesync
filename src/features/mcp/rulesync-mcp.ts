@@ -24,6 +24,7 @@ import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import {
   getRulesyncSourceCandidates,
+  RulesyncSourceNotFoundError,
   type RulesyncSourceSettablePaths,
 } from "../../utils/rulesync-source-path.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -531,15 +532,12 @@ export class RulesyncMcp extends RulesyncFile {
 
     const fallbackDirPath = overrideDirPath ?? paths.recommended.relativeDirPath;
     const recommendedPath = join(outputRoot, fallbackDirPath, paths.recommended.relativeFilePath);
-    const fileContent = await readFileContent(recommendedPath);
 
-    return new RulesyncMcp({
-      outputRoot,
-      relativeDirPath: fallbackDirPath,
-      relativeFilePath: paths.recommended.relativeFilePath,
-      fileContent,
-      validate,
-    });
+    // Every candidate was ruled out, so absence is reported as itself rather
+    // than as whatever `readFileContent` would have raised. A bare `ENOENT`
+    // here reads the same as one thrown from deep inside a read that was
+    // supposed to succeed, and callers have to tell those two apart.
+    throw new RulesyncSourceNotFoundError(`No ${recommendedPath} found.`);
   }
 
   getMcpServers(): McpServers {

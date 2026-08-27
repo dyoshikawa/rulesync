@@ -2,7 +2,12 @@ import { z } from "zod/mini";
 
 import { ConfigResolver } from "../config/config-resolver.js";
 import { Config } from "../config/config.js";
-import { generate, inspectInputRoots, type GenerateResult } from "../lib/generate.js";
+import {
+  formatSourceLoadFailure,
+  generate,
+  inspectInputRoots,
+  type GenerateResult,
+} from "../lib/generate.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
@@ -83,6 +88,14 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
 
     const logger = new ConsoleLogger({ verbose: false, silent: true });
     const generateResult = await generate({ config, logger });
+
+    // A source that could not be read writes nothing, and every count in the
+    // result reads zero for it — the same shape as a run that had nothing to
+    // do. Reporting that as success would tell the agent its edit was applied.
+    const sourceLoadFailureMessage = formatSourceLoadFailure(generateResult);
+    if (sourceLoadFailureMessage !== undefined) {
+      throw new Error(sourceLoadFailureMessage);
+    }
 
     return buildSuccessResponse({ generateResult, config });
   } catch (error) {

@@ -19,6 +19,7 @@ import {
   ensureDir,
   filterOutPathsInGitIgnoredDirectories,
   fileExists,
+  fileExistsStrict,
   findFiles,
   findFilesByGlobs,
   findRuleFiles,
@@ -1248,5 +1249,39 @@ describe("file utilities", () => {
         }),
       ).toThrow("Path traversal detected");
     });
+  });
+
+  describe("fileExistsStrict", () => {
+    it("should return true for an existing file", async () => {
+      const filepath = join(testDir, "present.md");
+      await writeFileContent(filepath, "content");
+
+      expect(await fileExistsStrict(filepath)).toBe(true);
+    });
+
+    it("should return false for a path that is genuinely absent", async () => {
+      expect(await fileExistsStrict(join(testDir, "absent.md"))).toBe(false);
+    });
+
+    it("should throw when the path cannot be inspected at all", async () => {
+      // A directory used as a parent component makes `stat` fail with ENOTDIR
+      // rather than ENOENT, which is the "we cannot tell" case this guards.
+      const filepath = join(testDir, "file.md");
+      await writeFileContent(filepath, "content");
+
+      await expect(fileExistsStrict(join(filepath, "child.md"))).rejects.toThrow();
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "should throw for a symlink whose target does not exist",
+      async () => {
+        const linkPath = join(testDir, "link.md");
+        await symlink(join(testDir, "gone.md"), linkPath);
+
+        await expect(fileExistsStrict(linkPath)).rejects.toThrow(
+          "is a symbolic link whose target does not exist",
+        );
+      },
+    );
   });
 });

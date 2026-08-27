@@ -5,11 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
-  RULESYNC_CHECKS_RELATIVE_DIR_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
-  RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { fileExists, writeFileContent } from "../utils/file.js";
 import { runGenerate, useTestDirectory } from "./e2e-helper.js";
@@ -66,22 +64,6 @@ describe("E2E: generate exit code for sources that fail to load", () => {
       // Actions are limited to allow / ask / deny.
       content: JSON.stringify({ permission: { bash: { "npm *": "maybe" } } }),
       outputPath: join(".cursor", "cli.json"),
-    },
-    {
-      feature: "subagents",
-      target: "claudecode",
-      sourcePath: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "broken.md"),
-      // `name` must be a string.
-      content: "---\nname: 123\n---\n\nBody.\n",
-      outputPath: join(".claude", "agents", "broken.md"),
-    },
-    {
-      feature: "checks",
-      target: "amp",
-      sourcePath: join(RULESYNC_CHECKS_RELATIVE_DIR_PATH, "broken.md"),
-      // `severity` is limited to low / medium / high / critical.
-      content: "---\nseverity: catastrophic\n---\n\nBody.\n",
-      outputPath: join(".agents", "checks", "broken.md"),
     },
   ])(
     "should exit non-zero without reporting success when the $feature source fails validation",
@@ -145,6 +127,26 @@ describe("E2E: generate exit code for sources that fail to load", () => {
       // ENOENT. Treating that as "the file is absent" would silently generate
       // nothing and report success.
       await symlink(sourcePath, sourcePath);
+
+      const failure = await runGenerateExpectingFailure({ target: "cursor", features: "mcp" });
+
+      expect(failure?.code).toBe(1);
+      expect(failure?.stdout).not.toContain(SUCCESS_MARKER);
+    },
+  );
+
+  // Windows needs elevated rights to create symlinks, so this one is POSIX-only.
+  it.skipIf(process.platform === "win32")(
+    "should exit non-zero when the source is a symlink whose target is gone",
+    async () => {
+      const testDir = getTestDir();
+      const sourcePath = join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH);
+      await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+      // The docs recommend symlinking `.rulesync/` sources at a shared tree, so
+      // a link left pointing at a deleted target is a realistic state. `stat`
+      // follows the link and reports ENOENT, which looks exactly like absence —
+      // and reading that as "no source here" would silently generate nothing.
+      await symlink(join(testDir, "shared", "mcp.jsonc"), sourcePath);
 
       const failure = await runGenerateExpectingFailure({ target: "cursor", features: "mcp" });
 

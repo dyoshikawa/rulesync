@@ -662,11 +662,12 @@ export class SubagentsProcessor extends FeatureProcessor {
         rulesyncSubagents.push(rulesyncSubagent);
         this.logger.debug(`Successfully loaded subagent: ${mdFile}`);
       } catch (error) {
-        // The file was listed in the subagents directory, so it exists and
-        // could not be parsed. The run keeps going so the remaining subagents
-        // are still reported, but it must not finish as a success.
-        this.recordRulesyncSourceLoadFailure();
-        this.logger.error(`Failed to load subagent file ${filepath}: ${formatError(error)}`);
+        // Deliberately a warning, not a source-load failure. `subagents/` is a
+        // directory users also keep ordinary Markdown in (a README, notes), and
+        // failing the run on those would both break every later `generate` and
+        // freeze this feature's orphan sweep, so a subagent deleted from the
+        // source would never be removed from the tool tree.
+        this.logger.warn(`Failed to load subagent file ${filepath}: ${formatError(error)}`);
         continue;
       }
     }
