@@ -397,13 +397,19 @@ The scope is deliberately narrow:
 - Directories the remote skill no longer has are removed as well, and are listed in the summary under their own name with a trailing slash.
 - Symbolic links are unlinked, never followed: a link inside a skill directory can only ever lose the link itself, never whatever it points at. A skill directory that is **itself** a symbolic link is not pruned at all, since deleting through it would reach outside the output directory; Rulesync warns and leaves it alone.
 - A local file that the filesystem holds as the same file as one just fetched — a second name for it on a case-insensitive or Unicode-normalizing filesystem, or a hard link — is kept, even though the remote list does not carry that name.
-- Nothing more than 15 directories below the skill directory is pruned, which is as deep as a fetch itself reaches. Rulesync warns and leaves anything deeper alone.
+- Nothing more than 15 directories below the skill directory is pruned. That is a limit on the local walk, deep enough that a fetched tree stays well inside it; Rulesync warns and leaves anything deeper alone.
 - A skill directory whose name ends in a dot or a space is not pruned. Some systems drop those characters when resolving a path, so the directory that name reads as may not be the directory it opens.
 - A skill whose remote listing came back incomplete — GitHub caps a directory listing at 1,000 entries, and entries such as symlinks and submodules cannot be fetched — is not pruned either. Rulesync warns instead, because a local file that upstream still ships cannot be told apart from one it dropped.
 - `--conflict skip` disables pruning. That flag says to leave existing local files alone, and it also means the local copies are not this run's output, so they cannot be judged against the remote list.
 - `--target <tool>` never prunes, because that conversion path does not fetch skills at all.
 
 Pass `--no-prune` to get the old purely additive behavior.
+
+#### Remote Paths Containing a Backslash
+
+A backslash is an ordinary character in a filename on Linux and macOS, and a directory separator on Windows. A remote file whose path contains one therefore names one file on some systems and a nested path on others, so `fetch` skips it and warns rather than picking an interpretation. The rest of the fetch continues normally.
+
+Because the skipped file is still part of the remote skill, the skill directory it came from is not pruned in that run either — a local copy of a file the remote still ships would otherwise be indistinguishable from one it dropped.
 
 ### Examples
 
