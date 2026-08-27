@@ -1007,9 +1007,6 @@ function isSymbolicLinkLoopError(error: unknown): boolean {
 }
 
 /**
- * Whether removing the directory failed because something is still in it.
- */
-/**
  * Whether the error came from the filesystem rather than from the walk itself.
  * Node stamps every `fs` rejection with a `code`, so its presence is what tells
  * an I/O failure apart from a programming error raised in the same call.
@@ -1018,6 +1015,9 @@ function isFileSystemError(error: unknown): boolean {
   return error instanceof Error && "code" in error && typeof error.code === "string";
 }
 
+/**
+ * Whether removing the directory failed because something is still in it.
+ */
 function isDirectoryNotEmptyError(error: unknown): boolean {
   return (
     typeof error === "object" &&
