@@ -18,6 +18,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { kebabCase } from "es-toolkit";
 import { globbySync, isGitIgnoredSync } from "globby";
 
+import { mapWithConcurrency } from "./concurrency.js";
 import { formatError } from "./error.js";
 import { isEnvTest } from "./vitest.js";
 
@@ -698,46 +699,107 @@ export async function findFilesByGlobs(
   return representatives.toSorted();
 }
 
+/** How many entries are read back from disk at once while classifying a directory. */
+const ENTRY_CLASSIFY_CONCURRENCY = 32;
+
 /**
- * The immediate subdirectory names of `dirPath`, spelled the way the filesystem
- * spells them.
+ * The entry names of `dirPath` that are of `kind`, deduplicated and sorted.
  *
- * A `*` glob cannot stand in for this. Globby reads a backslash as a path
- * separator, so a directory literally named `back\\slash` comes back as
- * `.../back/slash`, and the name recovered from that — `slash` — belongs to a
- * directory that does not exist. Whatever the caller does next with the name
- * then quietly misses the real directory: loading it, or sweeping it as an
- * orphan. Windows is not affected, since a backslash cannot appear in a name
- * there, which is what makes the glob look correct everywhere it is tested.
+ * The shared implementation behind {@link listSubdirectoryNames} and
+ * {@link listFileNames}; see the former for why these read the directory
+ * rather than glob it.
  */
 async function listEntryNames(params: {
   dirPath: string;
   kind: "dir" | "file";
   followSymbolicLinks: boolean;
+  includeHidden: boolean;
 }): Promise<string[]> {
-  const { dirPath, kind, followSymbolicLinks } = params;
+  const { dirPath, kind, followSymbolicLinks, includeHidden } = params;
   const matches = (stats: { isDirectory: () => boolean; isFile: () => boolean }): boolean =>
     kind === "dir" ? stats.isDirectory() : stats.isFile();
   const entries = await readdir(dirPath, { withFileTypes: true });
-  const names = await Promise.all(
-    entries.map(async (entry) => {
+  // Hidden entries are left out by default, matching the `dot: false` the glob
+  // this replaced ran with. It is not cosmetic: the deletion sweep takes every
+  // directory it is handed, so a `.git` or `.venv` beside the skills would be
+  // removed by a change that only meant to spell names correctly.
+  const visible = includeHidden
+    ? entries
+    : entries.filter((entry) => !isHiddenPathSegment(entry.name));
+  const classified = await mapWithConcurrency({
+    items: visible,
+    limit: ENTRY_CLASSIFY_CONCURRENCY,
+    mapper: async (entry): Promise<string | undefined> => {
       if (matches(entry)) {
         return entry.name;
       }
+      if (entry.isDirectory() || entry.isFile()) {
+        return undefined;
+      }
       // `readdir` reports a link as a link and never as what it stands for, so
       // a link is the one entry kind that needs a second look — and only when
-      // the caller follows links at all.
-      if (!followSymbolicLinks || !entry.isSymbolicLink()) {
+      // the caller follows links at all. An entry of no kind at all needs the
+      // same second look: a filesystem that does not fill in the entry type
+      // (some network and FUSE mounts) reports every predicate as false, and
+      // taking that at face value would empty the directory.
+      const kindUnknown = !entry.isSymbolicLink();
+      if (!kindUnknown && !followSymbolicLinks) {
         return undefined;
       }
       // A link that leads nowhere is not an entry to report.
-      const target = await stat(join(dirPath, entry.name)).catch(() => undefined);
+      const readStats = kindUnknown && !followSymbolicLinks ? lstat : stat;
+      const target = await readStats(join(dirPath, entry.name)).catch(() => undefined);
       return target !== undefined && matches(target) ? entry.name : undefined;
+    },
+  });
+  const names = classified.filter((name) => name !== undefined).toSorted();
+  return followSymbolicLinks ? await dedupeNamesByFileIdentity({ dirPath, names }) : names;
+}
+
+/**
+ * Collapse the names that lead to one and the same entry onto a single name.
+ *
+ * `findFilesByGlobs` does this for the paths it returns, and dropping it here
+ * would change what a caller sees: a directory link named `aaa` beside the
+ * directory `zzz` it stands for is one skill, and reporting both would import
+ * it twice. The real name wins over a link to it, for the reason spelled out
+ * in {@link chooseRepresentative}. `names` arrives sorted, so ties are stable.
+ */
+async function dedupeNamesByFileIdentity(params: {
+  dirPath: string;
+  names: string[];
+}): Promise<string[]> {
+  const { dirPath, names } = params;
+  const identities = await mapWithConcurrency({
+    items: names,
+    limit: ENTRY_CLASSIFY_CONCURRENCY,
+    mapper: async (name) => await realFileIdentity(join(dirPath, name)),
+  });
+  const namesByIdentity = new Map<string, string[]>();
+  for (const [index, name] of names.entries()) {
+    const identity = identities[index];
+    if (identity === undefined) {
+      continue;
+    }
+    const group = namesByIdentity.get(identity);
+    if (group === undefined) {
+      namesByIdentity.set(identity, [name]);
+    } else {
+      group.push(name);
+    }
+  }
+  const representatives = [...namesByIdentity.entries()].map(([identity, group]) =>
+    group.reduce((best, candidate) => {
+      if (toPosixPath(join(dirPath, best)) === identity) {
+        return best;
+      }
+      if (toPosixPath(join(dirPath, candidate)) === identity) {
+        return candidate;
+      }
+      return isHiddenPathSegment(best) && !isHiddenPathSegment(candidate) ? candidate : best;
     }),
   );
-  // Sorted for the same reason `findFilesByGlobs` sorts: the order entries come
-  // off the filesystem in is not one a caller should have to depend on.
-  return names.filter((name) => name !== undefined).toSorted();
+  return representatives.toSorted();
 }
 
 /**
@@ -751,15 +813,19 @@ async function listEntryNames(params: {
  * then quietly misses the real directory: loading it, or sweeping it as an
  * orphan. Windows is not affected, since a backslash cannot appear in a name
  * there, which is what makes the glob look correct everywhere it is tested.
+ *
+ * Rejects if the directory cannot be read, so a root that is there but
+ * unreadable is never mistaken for an empty one.
  */
 export async function listSubdirectoryNames(
   dirPath: string,
-  options: { followSymbolicLinks?: boolean } = {},
+  options: { followSymbolicLinks?: boolean; includeHidden?: boolean } = {},
 ): Promise<string[]> {
   return await listEntryNames({
     dirPath,
     kind: "dir",
     followSymbolicLinks: options.followSymbolicLinks ?? true,
+    includeHidden: options.includeHidden ?? false,
   });
 }
 
@@ -770,12 +836,13 @@ export async function listSubdirectoryNames(
  */
 export async function listFileNames(
   dirPath: string,
-  options: { followSymbolicLinks?: boolean } = {},
+  options: { followSymbolicLinks?: boolean; includeHidden?: boolean } = {},
 ): Promise<string[]> {
   return await listEntryNames({
     dirPath,
     kind: "file",
     followSymbolicLinks: options.followSymbolicLinks ?? true,
+    includeHidden: options.includeHidden ?? false,
   });
 }
 

@@ -590,6 +590,57 @@ describe("file utilities", () => {
         expect(await listFileNames(root)).toEqual([]);
       });
 
+      it("should follow a symbolic link to a file by default and not when told not to", async () => {
+        const root = join(testDir, "root");
+        await writeFileContent(join(testDir, "outside", "shared.md"), "content");
+        await writeFileContent(join(root, "real.md"), "content");
+        await symlink(join(testDir, "outside", "shared.md"), join(root, "linked.md"));
+
+        expect(await listFileNames(root)).toEqual(["linked.md", "real.md"]);
+        expect(await listFileNames(root, { followSymbolicLinks: false })).toEqual(["real.md"]);
+      });
+
+      it("should leave hidden entries out unless asked for them", async () => {
+        // The glob these replaced ran with `dot: false`. Callers sweep what they
+        // are given, so a `.git` beside the entries must not appear by default.
+        const root = join(testDir, "root");
+        await ensureDir(join(root, ".git"));
+        await ensureDir(join(root, "plain"));
+        await writeFileContent(join(root, ".hidden.md"), "content");
+        await writeFileContent(join(root, "plain.md"), "content");
+
+        expect(await listSubdirectoryNames(root)).toEqual(["plain"]);
+        expect(await listFileNames(root)).toEqual(["plain.md"]);
+        expect(await listSubdirectoryNames(root, { includeHidden: true })).toEqual([
+          ".git",
+          "plain",
+        ]);
+        expect(await listFileNames(root, { includeHidden: true })).toEqual([
+          ".hidden.md",
+          "plain.md",
+        ]);
+      });
+
+      it("should report a directory once when a link beside it stands for it", async () => {
+        // `findFilesByGlobs` collapses the paths that resolve to one entry, and a
+        // caller that lost that would read the same skill twice. The real name
+        // wins over the link, so the entry keeps the name it is stored under.
+        const root = join(testDir, "root");
+        await ensureDir(join(root, "zzz"));
+        await symlink(join(root, "zzz"), join(root, "aaa"));
+
+        expect(await listSubdirectoryNames(root)).toEqual(["zzz"]);
+      });
+
+      it("should keep a link whose target is not among the entries", async () => {
+        const root = join(testDir, "root");
+        await ensureDir(join(root, "real"));
+        await ensureDir(join(testDir, "outside", "shared"));
+        await symlink(join(testDir, "outside", "shared"), join(root, "linked"));
+
+        expect(await listSubdirectoryNames(root)).toEqual(["linked", "real"]);
+      });
+
       it("should reject a directory it cannot read", async () => {
         await expect(listSubdirectoryNames(join(testDir, "missing"))).rejects.toThrow();
       });

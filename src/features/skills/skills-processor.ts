@@ -18,6 +18,7 @@ import {
 } from "../../types/feature-processor.js";
 import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
@@ -27,6 +28,7 @@ import {
   listSubdirectoryNames,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { warnOnceWithFallback } from "../../utils/logger.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { AiassistantSkill } from "./aiassistant-skill.js";
@@ -947,10 +949,15 @@ export class SkillsProcessor extends DirFeatureProcessor {
       if (isAddressableDirName(dirName)) {
         return true;
       }
-      this.logger.warn(
-        `Skipping ${join(relativeDirPath, dirName)}: a skill directory name cannot contain a path ` +
-          `separator, so this directory is neither generated from nor swept as an orphan. Rename ` +
-          `or remove it by hand.`,
+      // Once per run, not once per tool target: the message names a directory
+      // on disk, and every enabled target enumerates that same directory.
+      // Quoted and stripped like every other message naming a path that came
+      // off disk — the name is chosen by whoever wrote the repository.
+      warnOnceWithFallback(
+        this.logger,
+        `Skipping ${JSON.stringify(stripControlCharacters(join(relativeDirPath, dirName)))}: a ` +
+          `skill directory name cannot contain a path separator, so this directory is neither ` +
+          `generated from nor swept as an orphan. Rename or remove it by hand.`,
       );
       return false;
     });
