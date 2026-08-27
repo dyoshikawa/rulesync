@@ -42,6 +42,7 @@ describe("fetchCommand", () => {
         created: 2,
         overwritten: 0,
         skipped: 0,
+        deleted: 0,
       };
 
       vi.mocked(fetchFiles).mockResolvedValue(mockSummary);
@@ -78,6 +79,7 @@ describe("fetchCommand", () => {
         created: 0,
         overwritten: 0,
         skipped: 0,
+        deleted: 0,
       };
 
       vi.mocked(fetchFiles).mockResolvedValue(mockSummary);
@@ -122,6 +124,7 @@ describe("fetchCommand", () => {
         created: 0,
         overwritten: 0,
         skipped: 0,
+        deleted: 0,
       };
 
       vi.mocked(fetchFiles).mockResolvedValue(mockSummary);

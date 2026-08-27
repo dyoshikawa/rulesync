@@ -1,10 +1,17 @@
+import { link, lstat, symlink } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import {
+  directoryExists,
+  ensureDir,
+  fileExists,
+  readFileContent,
+  writeFileContent,
+} from "../utils/file.js";
 import { fetchFiles, formatFetchSummary } from "./fetch.js";
 import { parseSource } from "./source-parser.js";
 
@@ -719,6 +726,7 @@ describe("fetchFiles", () => {
       "repo",
       "rules",
       "develop",
+      expect.anything(),
     );
   });
 
@@ -847,7 +855,9 @@ describe("fetchFiles", () => {
         options: { features: ["rules"] },
         outputRoot: testDir,
       }),
-    ).rejects.toThrow("Path traversal detected");
+      // A `..` segment is turned away while the remote listing is still being
+      // collected, before anything is written or pruned.
+    ).rejects.toThrow(/Unsafe path in the remote repository/);
   });
 
   it("should reject output directory path traversal attempts", async () => {
@@ -2063,6 +2073,810 @@ Review the current changes and provide feedback.
   });
 });
 
+describe("fetchFiles skill pruning", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  let skillsRoot: string;
+
+  /**
+   * A repository with one skill whose only remaining file is SKILL.md, plus a
+   * second skill so selection can leave one of them alone.
+   */
+  function mockSkillRepository(): void {
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "skill-a",
+              path: "skills/skill-a",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+            {
+              name: "skill-b",
+              path: "skills/skill-b",
+              type: "dir",
+              sha: "bbb",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/skill-a") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/skill-a/SKILL.md",
+              type: "file",
+              sha: "ccc",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        if (path === "skills/skill-b") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/skill-b/SKILL.md",
+              type: "file",
+              sha: "ddd",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+  }
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+    skillsRoot = join(testDir, ".rulesync", "skills");
+
+    mockClientInstance = {
+      validateRepository: vi.fn().mockResolvedValue(true),
+      getDefaultBranch: vi.fn().mockResolvedValue("main"),
+      listDirectory: vi.fn(),
+      getFileContent: vi.fn(),
+    };
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("should delete a local file the remote skill no longer has", async () => {
+    mockSkillRepository();
+    await writeFileContent(join(skillsRoot, "skill-a", "reference.md"), "# Stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(1);
+    expect(summary.files).toContainEqual({
+      relativePath: "skills/skill-a/reference.md",
+      status: "deleted",
+    });
+    expect(await fileExists(join(skillsRoot, "skill-a", "reference.md"))).toBe(false);
+    expect(await fileExists(join(skillsRoot, "skill-a", "SKILL.md"))).toBe(true);
+  });
+
+  it("should remove a directory that pruning emptied and report it", async () => {
+    mockSkillRepository();
+    await writeFileContent(join(skillsRoot, "skill-a", "scripts", "run.sh"), "echo stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.files).toContainEqual({
+      relativePath: "skills/skill-a/scripts/run.sh",
+      status: "deleted",
+    });
+    expect(summary.files).toContainEqual({
+      relativePath: "skills/skill-a/scripts/",
+      status: "deleted",
+    });
+    expect(summary.deleted).toBe(2);
+    expect(await directoryExists(join(skillsRoot, "skill-a", "scripts"))).toBe(false);
+  });
+
+  it("should report a stale directory that was already empty", async () => {
+    mockSkillRepository();
+    await ensureDir(join(skillsRoot, "skill-a", "scripts"));
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.files).toContainEqual({
+      relativePath: "skills/skill-a/scripts/",
+      status: "deleted",
+    });
+    expect(summary.deleted).toBe(1);
+    expect(await directoryExists(join(skillsRoot, "skill-a", "scripts"))).toBe(false);
+  });
+
+  it("should keep a nested directory that still has a fetched file under it", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "skill-a",
+              path: "skills/skill-a",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/skill-a") {
+          return Promise.resolve([
+            {
+              name: "scripts",
+              path: "skills/skill-a/scripts",
+              type: "dir",
+              sha: "bbb",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/skill-a/scripts") {
+          return Promise.resolve([
+            {
+              name: "run.sh",
+              path: "skills/skill-a/scripts/run.sh",
+              type: "file",
+              sha: "ccc",
+              size: 10,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("echo hi");
+    await writeFileContent(join(skillsRoot, "skill-a", "scripts", "old.sh"), "echo stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.files).toContainEqual({
+      relativePath: "skills/skill-a/scripts/old.sh",
+      status: "deleted",
+    });
+    expect(summary.deleted).toBe(1);
+    expect(await directoryExists(join(skillsRoot, "skill-a", "scripts"))).toBe(true);
+    expect(await fileExists(join(skillsRoot, "skill-a", "scripts", "run.sh"))).toBe(true);
+  });
+
+  it("should not prune a skill whose remote listing was incomplete", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "skill-a",
+              path: "skills/skill-a",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/skill-a") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/skill-a/SKILL.md",
+              type: "file",
+              sha: "ccc",
+              size: 100,
+              download_url: "https://example.com",
+            },
+            // An entry kind the walk cannot fetch, so the listing it produces is
+            // not the whole remote skill.
+            {
+              name: "shared",
+              path: "skills/skill-a/shared",
+              type: "symlink",
+              sha: "ddd",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const stale = join(skillsRoot, "skill-a", "reference.md");
+    await writeFileContent(stale, "# Stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(stale)).toBe(true);
+  });
+
+  it("should skip a remote path whose backslash makes the skill directory ambiguous", async () => {
+    // `skills/.\evil/SKILL.md` is written as a directory literally called
+    // `.\evil`, but reads back as the skill `.`, whose directory is the whole
+    // of `skills/` — so the prune would empty every skill on disk.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: ".\\evil",
+              path: "skills/.\\evil",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/.\\evil") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/.\\evil/SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const mine = join(skillsRoot, "alpha", "SKILL.md");
+    await writeFileContent(mine, "# Mine");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.created).toBe(0);
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(mine)).toBe(true);
+  });
+
+  it("should skip a remote path whose backslash targets another skill", async () => {
+    // `skills/victim\evil/` is written as its own directory, but reads back as
+    // the skill `victim`, whose local directory this run never wrote.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "victim\\evil",
+              path: "skills/victim\\evil",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/victim\\evil") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/victim\\evil/SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const victim = join(skillsRoot, "victim", "notes.md");
+    await writeFileContent(victim, "# Mine");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.created).toBe(0);
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(victim)).toBe(true);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "should keep a local name the fetched file also answers to",
+    async () => {
+      // A hard link is the portable stand-in for what a case-insensitive or
+      // NFD-normalizing filesystem does on its own: two names, one file. The
+      // fetch writes through `SKILL.md`, so `alias.md` is the file it just
+      // wrote and must survive a prune that only knows the remote spelling.
+      mockSkillRepository();
+      const fetched = join(skillsRoot, "skill-a", "SKILL.md");
+      const alias = join(skillsRoot, "skill-a", "alias.md");
+      await writeFileContent(fetched, "# Local");
+      await link(fetched, alias);
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.deleted).toBe(0);
+      expect(await fileExists(alias)).toBe(true);
+    },
+  );
+
+  it("should not prune a skill a backslash path was dropped from", async () => {
+    // The dropped file is still upstream; it just cannot be written under a
+    // name every system reads the same way. Pruning against a list it is
+    // missing from would delete the local copy of a file the remote still has.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "skill-a",
+              path: "skills/skill-a",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/skill-a") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/skill-a/SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+            {
+              name: "notes\\draft.md",
+              path: "skills/skill-a/notes\\draft.md",
+              type: "file",
+              sha: "ccc",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const stillUpstream = join(skillsRoot, "skill-a", "notes\\draft.md");
+    await writeFileContent(stillUpstream, "# Kept");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(stillUpstream)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("the remote listing for it came back incomplete"),
+    );
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "should keep a symbolic link standing in for a directory the fetch wrote through",
+    async () => {
+      // The write resolves through the link, so the fetched file lands behind
+      // it. Unlinking it would orphan what this run just fetched.
+      // The link is kept here by its name matching a fetched path. The identity
+      // clause that also keeps it — the link resolving to a directory this run
+      // wrote through under a different local spelling — only comes into play on
+      // a case-insensitive or normalizing filesystem, which cannot be staged
+      // here, so this test does not pin that half.
+      mockSkillRepository();
+      const shared = join(testDir, "shared", "scripts");
+      await ensureDir(shared);
+      await ensureDir(join(skillsRoot, "skill-a"));
+      await symlink(shared, join(skillsRoot, "skill-a", "scripts"));
+
+      mockClientInstance.listDirectory.mockImplementation(
+        (_owner: string, _repo: string, path: string) => {
+          if (path === "skills") {
+            return Promise.resolve([
+              {
+                name: "skill-a",
+                path: "skills/skill-a",
+                type: "dir",
+                sha: "aaa",
+                size: 0,
+                download_url: null,
+              },
+            ]);
+          }
+          if (path === "skills/skill-a") {
+            return Promise.resolve([
+              {
+                name: "scripts",
+                path: "skills/skill-a/scripts",
+                type: "dir",
+                sha: "bbb",
+                size: 0,
+                download_url: null,
+              },
+            ]);
+          }
+          if (path === "skills/skill-a/scripts") {
+            return Promise.resolve([
+              {
+                name: "run.py",
+                path: "skills/skill-a/scripts/run.py",
+                type: "file",
+                sha: "ccc",
+                size: 10,
+                download_url: "https://example.com",
+              },
+            ]);
+          }
+          const error = new Error("Not found");
+          Object.assign(error, { statusCode: 404 });
+          return Promise.reject(error);
+        },
+      );
+      mockClientInstance.getFileContent.mockResolvedValue("print()");
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.deleted).toBe(0);
+      expect(await fileExists(join(shared, "run.py"))).toBe(true);
+      // `lstat`, not `fileExists`: the latter follows the link and would pass
+      // just as well had the link been replaced by a real directory.
+      expect((await lstat(join(skillsRoot, "skill-a", "scripts"))).isSymbolicLink()).toBe(true);
+    },
+  );
+
+  it("should warn about the deletions on top of listing them", async () => {
+    mockSkillRepository();
+    await writeFileContent(join(skillsRoot, "skill-a", "reference.md"), "# Stale");
+
+    await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Deleted 1 local path inside the skill directories this fetch wrote"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("--no-prune"));
+  });
+
+  it("should not warn about deletions when there were none", async () => {
+    mockSkillRepository();
+
+    await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("Deleted "));
+  });
+
+  it("should not prune a skill directory named like a Windows short name", async () => {
+    // `REPORT~1` opens whatever long name it stands for on a volume that
+    // generates short names, so it may not be the directory it reads as.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "REPORT~1",
+              path: "skills/REPORT~1",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/REPORT~1") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/REPORT~1/SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const stale = join(skillsRoot, "REPORT~1", "reference.md");
+    await writeFileContent(stale, "# Stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(stale)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("its name is one some systems resolve to a different directory"),
+    );
+  });
+
+  it("should prune a skill directory whose name only contains a tilde", async () => {
+    // `~2` in the middle of a name is not the short-name shape, so the guard
+    // above it must not claim this directory.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "data~2parser",
+              path: "skills/data~2parser",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/data~2parser") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/data~2parser/SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const stale = join(skillsRoot, "data~2parser", "reference.md");
+    await writeFileContent(stale, "# Stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(1);
+    expect(await fileExists(stale)).toBe(false);
+  });
+
+  it("should not prune a skill directory whose name ends in a dot", async () => {
+    // Windows resolves `skills/dotted.` to `skills/dotted`, so the prune would
+    // empty one directory while the summary named another.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "dotted.",
+              path: "skills/dotted.",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/dotted.") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/dotted./SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const stale = join(skillsRoot, "dotted.", "reference.md");
+    await writeFileContent(stale, "# Stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(stale)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("its name is one some systems resolve to a different directory"),
+    );
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "should not let a deleted file's name rewrite the summary",
+    async () => {
+      mockSkillRepository();
+      // A local name, read back off the disk, never went through the checks a
+      // remote path does — so the record of the deletion must not be able to
+      // erase the line it is printed on.
+      const stale = join(skillsRoot, "skill-a", "sneaky\u001b[2K-file.md");
+      await writeFileContent(stale, "# Stale");
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.deleted).toBe(1);
+      expect(formatFetchSummary(summary)).not.toContain("\u001b");
+      expect(formatFetchSummary(summary)).toContain("sneaky[2K-file.md");
+    },
+  );
+
+  it("should not prune below the depth a fetch can reach", async () => {
+    mockSkillRepository();
+    // One level past the ceiling the remote walk stops at, so nothing this deep
+    // could have been fetched and nothing this deep may be deleted.
+    const tooDeep = join(skillsRoot, "skill-a", ...Array.from({ length: 16 }, (_, i) => `d${i}`));
+    const buried = join(tooDeep, "reference.md");
+    await writeFileContent(buried, "# Buried");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(buried)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Not pruning below"));
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "should not prune a skill directory that is itself a symbolic link",
+    async () => {
+      mockSkillRepository();
+      const sharedSkill = join(testDir, "shared", "skill-a");
+      await writeFileContent(join(sharedSkill, "reference.md"), "# Shared");
+      await ensureDir(skillsRoot);
+      await symlink(sharedSkill, join(skillsRoot, "skill-a"));
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.deleted).toBe(0);
+      expect(await fileExists(join(sharedSkill, "reference.md"))).toBe(true);
+    },
+  );
+
+  it("should leave a skill that was not selected untouched", async () => {
+    mockSkillRepository();
+    await writeFileContent(join(skillsRoot, "skill-b", "reference.md"), "# Mine");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { skills: ["skill-a"] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(join(skillsRoot, "skill-b", "reference.md"))).toBe(true);
+  });
+
+  it("should leave non-skill features untouched", async () => {
+    mockSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "overview.md",
+              path: "rules/overview.md",
+              type: "file",
+              sha: "eee",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+    const staleRule = join(testDir, ".rulesync", "rules", "stale.md");
+    await writeFileContent(staleRule, "# Stale rule");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { features: ["rules", "skills"] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(staleRule)).toBe(true);
+  });
+
+  it("should keep stale files when pruning is turned off", async () => {
+    mockSkillRepository();
+    const stale = join(skillsRoot, "skill-a", "reference.md");
+    await writeFileContent(stale, "# Stale");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { prune: false },
+      outputRoot: testDir,
+    });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(stale)).toBe(true);
+  });
+
+  it("should keep stale files when --conflict skip was given", async () => {
+    mockSkillRepository();
+    const stale = join(skillsRoot, "skill-a", "reference.md");
+    await writeFileContent(stale, "# Stale");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { conflict: "skip" },
+      outputRoot: testDir,
+    });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(stale)).toBe(true);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "should unlink a stale symbolic link without touching what it points at",
+    async () => {
+      mockSkillRepository();
+      const outsideFile = join(testDir, "outside.md");
+      await writeFileContent(outsideFile, "# Outside");
+      await ensureDir(join(skillsRoot, "skill-a"));
+      await symlink(outsideFile, join(skillsRoot, "skill-a", "linked.md"));
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.files).toContainEqual({
+        relativePath: "skills/skill-a/linked.md",
+        status: "deleted",
+      });
+      expect(await fileExists(join(skillsRoot, "skill-a", "linked.md"))).toBe(false);
+      expect(await fileExists(outsideFile)).toBe(true);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "should not walk into a symbolically linked directory outside the output tree",
+    async () => {
+      mockSkillRepository();
+      const outsideDir = join(testDir, "outside");
+      await writeFileContent(join(outsideDir, "keep.md"), "# Outside");
+      await ensureDir(join(skillsRoot, "skill-a"));
+      await symlink(outsideDir, join(skillsRoot, "skill-a", "linked"));
+
+      await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      // The link itself is stale, so it goes; the directory it named does not.
+      expect(await fileExists(join(skillsRoot, "skill-a", "linked"))).toBe(false);
+      expect(await fileExists(join(outsideDir, "keep.md"))).toBe(true);
+    },
+  );
+});
+
 describe("formatFetchSummary", () => {
   it("should format summary correctly", () => {
     const summary = {
@@ -2076,6 +2890,7 @@ describe("formatFetchSummary", () => {
       created: 1,
       overwritten: 1,
       skipped: 1,
+      deleted: 0,
     };
 
     const output = formatFetchSummary(summary);
@@ -2089,6 +2904,29 @@ describe("formatFetchSummary", () => {
     expect(output).toContain("1 skipped");
   });
 
+  it("should format deleted files distinctly from written ones", () => {
+    const summary = {
+      source: "owner/repo",
+      ref: "main",
+      files: [
+        { relativePath: "skills/foo/SKILL.md", status: "created" as const },
+        { relativePath: "skills/foo/reference.md", status: "deleted" as const },
+      ],
+      created: 1,
+      overwritten: 0,
+      skipped: 0,
+      deleted: 1,
+    };
+
+    const output = formatFetchSummary(summary);
+
+    expect(output).toContain(
+      "\u2717 skills/foo/reference.md (deleted - no longer in the remote skill)",
+    );
+    expect(output).toContain("\u2713 skills/foo/SKILL.md (created)");
+    expect(output).toContain("1 created, 1 deleted");
+  });
+
   it("should format empty summary correctly", () => {
     const summary = {
       source: "owner/repo",
@@ -2097,6 +2935,7 @@ describe("formatFetchSummary", () => {
       created: 0,
       overwritten: 0,
       skipped: 0,
+      deleted: 0,
     };
 
     const output = formatFetchSummary(summary);

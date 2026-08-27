@@ -143,6 +143,10 @@ export function createProgram(): Command {
       "Conflict resolution strategy: skip, overwrite (default: overwrite)",
     )
     .option(
+      "--no-prune",
+      "Keep local files inside a fetched skill directory that the remote skill no longer has (they are deleted by default)",
+    )
+    .option(
       "--skills <skills>",
       "Comma-separated list of skill names to fetch (requires the skills feature)",
       parseCommaSeparatedList,

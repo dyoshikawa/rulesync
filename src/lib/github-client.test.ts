@@ -143,6 +143,87 @@ describe("GitHubClient", () => {
       expect(entries[1]?.type).toBe("dir");
     });
 
+    it("should report a listing the API capped", async () => {
+      // The API caps a directory listing at 1,000 entries and says nothing
+      // about the ones it left out, so a full page is the only sign of it.
+      const mockContents = Array.from({ length: 1000 }, (_, index) => ({
+        name: `file${index}.md`,
+        path: `rules/file${index}.md`,
+        sha: "abc",
+        size: 100,
+        type: "file",
+        download_url: "https://example.com",
+      }));
+
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(mockContents), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const onIncompleteListing = vi.fn();
+      const client = new GitHubClient();
+      const entries = await client.listDirectory("owner", "repo", "rules", "main", {
+        onIncompleteListing,
+      });
+
+      expect(entries).toHaveLength(1000);
+      expect(onIncompleteListing).toHaveBeenCalledTimes(1);
+    });
+
+    it("should report a listing an unparsable entry was dropped from", async () => {
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              name: "file1.md",
+              path: "rules/file1.md",
+              sha: "abc",
+              size: 100,
+              type: "file",
+              download_url: "https://example.com",
+            },
+            { name: "mystery", path: "rules/mystery", type: 42 },
+          ]),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+      const onIncompleteListing = vi.fn();
+      const client = new GitHubClient();
+      const entries = await client.listDirectory("owner", "repo", "rules", "main", {
+        onIncompleteListing,
+      });
+
+      expect(entries).toHaveLength(1);
+      expect(onIncompleteListing).toHaveBeenCalledTimes(1);
+    });
+
+    it("should not report a listing that came back whole", async () => {
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              name: "file1.md",
+              path: "rules/file1.md",
+              sha: "abc",
+              size: 100,
+              type: "file",
+              download_url: "https://example.com",
+            },
+          ]),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+      const onIncompleteListing = vi.fn();
+      const client = new GitHubClient();
+      await client.listDirectory("owner", "repo", "rules", "main", { onIncompleteListing });
+
+      expect(onIncompleteListing).not.toHaveBeenCalled();
+    });
+
     it("should throw error when path is a file", async () => {
       vi.spyOn(global, "fetch").mockResolvedValueOnce(
         new Response(JSON.stringify({ name: "file.md", type: "file" }), {

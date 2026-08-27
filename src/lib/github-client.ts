@@ -18,6 +18,13 @@ import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
 
 /**
+ * GitHub's Contents API returns at most 1,000 entries for a directory and says
+ * nothing about the ones it left out.
+ * https://docs.github.com/en/rest/repos/contents#get-repository-content
+ */
+export const GITHUB_CONTENTS_DIRECTORY_LIMIT = 1000;
+
+/**
  * Error class for GitHub API errors
  */
 export class GitHubClientError extends Error {
@@ -111,6 +118,17 @@ export class GitHubClient {
     repo: string,
     path: string,
     ref?: string,
+    options?: {
+      /**
+       * Called when the returned entries are known to be fewer than what the
+       * directory holds, either because the API capped the page or because an
+       * item did not parse. A caller that only consumes the entries it got back
+       * can ignore this; one that treats them as the directory's complete
+       * content must not, because what is missing here is indistinguishable
+       * from what the directory never had.
+       */
+      onIncompleteListing?: () => void;
+    },
   ): Promise<GitHubFileEntry[]> {
     try {
       const { data } = await this.octokit.repos.getContent({
@@ -131,6 +149,12 @@ export class GitHubClient {
         if (parsed.success) {
           entries.push(parsed.data);
         }
+      }
+      // The cap is reported against what the API returned, not against what
+      // survived parsing: a single unparsable item in a capped page would
+      // otherwise bring the count under the cap and hide the truncation.
+      if (data.length >= GITHUB_CONTENTS_DIRECTORY_LIMIT || entries.length !== data.length) {
+        options?.onIncompleteListing?.();
       }
       return entries;
     } catch (error) {

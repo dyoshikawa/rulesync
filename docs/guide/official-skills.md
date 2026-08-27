@@ -15,3 +15,5 @@ rulesync fetch dyoshikawa/rulesync --interactive
 ```
 
 This will install the Rulesync documentation skill to your project.
+
+Re-fetching mirrors the remote skill: a file the upstream skill no longer ships is deleted from the local skill directory, and every deletion is listed in the fetch summary. Pass `--no-prune` to keep such files. See [Pruning Fetched Skill Directories](../reference/cli-commands.md#pruning-fetched-skill-directories).

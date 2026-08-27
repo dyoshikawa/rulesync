@@ -32,12 +32,16 @@ export async function fetchCommand(logger: Logger, options: FetchCommandOptions)
       const skippedFiles = summary.files
         .filter((f) => f.status === "skipped")
         .map((f) => f.relativePath);
+      const deletedFiles = summary.files
+        .filter((f) => f.status === "deleted")
+        .map((f) => f.relativePath);
 
       logger.captureData("source", source);
       logger.captureData("path", fetchOptions.path);
       logger.captureData("created", createdFiles);
       logger.captureData("overwritten", overwrittenFiles);
       logger.captureData("skipped", skippedFiles);
+      logger.captureData("deleted", deletedFiles);
       logger.captureData("totalFetched", summary.created + summary.overwritten + summary.skipped);
     }
 
@@ -46,7 +50,7 @@ export async function fetchCommand(logger: Logger, options: FetchCommandOptions)
     logger.success(output);
 
     // Exit with appropriate code
-    if (summary.created + summary.overwritten === 0 && summary.skipped === 0) {
+    if (summary.created + summary.overwritten + summary.skipped === 0) {
       logger.warn("No files were fetched.");
     }
   } catch (error) {
