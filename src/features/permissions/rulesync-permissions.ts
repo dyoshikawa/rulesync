@@ -14,7 +14,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseJsonc, parseJsoncReportingDroppedKeys } from "../../utils/jsonc.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import {
   getRulesyncSourceCandidates,
   type RulesyncSourceSettablePaths,
@@ -206,14 +206,31 @@ export class RulesyncPermissions extends RulesyncFile {
  * `{toolname}.permission` blocks are authored by hand rather than produced by
  * import, and several of them (OpenCode, Kilo, Vibe) hold tool-native shapes
  * this filter has no business reaching into.
+ *
+ * Every removal is reported. Dropping an entry silently is the failure mode a
+ * permissions source must not have: a blanket `"": false` in a tool's own
+ * config reads as "approve nothing by default", and removing it while keeping
+ * the narrower `true` entries beside it leaves an import that grants more than
+ * the file it came from. The value was never honored either way, but the user
+ * has to be told it is gone.
+ *
+ * `logger` is optional because the import direction (`toRulesyncPermissions`)
+ * takes no logger parameter; the shared `fallbackLogger` is configured from the
+ * CLI flags and the resolved config, so `silent` is still honored.
  */
-export function withoutBlankPermissionPatterns({ fileContent }: { fileContent: string }): string {
+export function withoutBlankPermissionPatterns({
+  fileContent,
+  logger,
+}: {
+  fileContent: string;
+  logger?: Logger;
+}): string {
   const parsed: unknown = parseJsonc(fileContent);
   if (!isRecord(parsed) || !isRecord(parsed.permission)) {
     return fileContent;
   }
 
-  let removed = false;
+  const removedCounts = new Map<string, number>();
   const permission: Record<string, unknown> = {};
   for (const [category, rules] of Object.entries(parsed.permission)) {
     if (!isRecord(rules)) {
@@ -225,16 +242,23 @@ export function withoutBlankPermissionPatterns({ fileContent }: { fileContent: s
         if (pattern.trim().length > 0) {
           return true;
         }
-        removed = true;
+        removedCounts.set(category, (removedCounts.get(category) ?? 0) + 1);
         return false;
       }),
     );
     permission[category] = kept;
   }
 
-  if (!removed) {
+  if (removedCounts.size === 0) {
     return fileContent;
   }
+  const summary = [...removedCounts.entries()]
+    .map(([category, count]) => `${count} in "${category}"`)
+    .join(", ");
+  warnWithFallback(
+    logger,
+    `Dropped blank permission patterns while importing (${summary}). A pattern that is empty or only whitespace is not written to ${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH}, because it matches everything and the tools that see one ignore it. If those entries were meant to apply to specific commands or paths, add them back with a real pattern.`,
+  );
   return JSON.stringify({ ...parsed, permission }, null, 2);
 }
 

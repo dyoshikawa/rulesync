@@ -87,6 +87,13 @@ describe("parseJsoncReportingDroppedKeys", () => {
     expect(droppedKeys).toEqual(["hooks[1].prototype"]);
   });
 
+  it("should report a duplicated pollution key only once", () => {
+    // Two properties in the syntax tree, but one dropped entry to the reader.
+    expect(
+      parseJsoncReportingDroppedKeys({ content: '{"__proto__": 1, "__proto__": 2}' }).droppedKeys,
+    ).toEqual(["__proto__"]);
+  });
+
   it("should throw SyntaxError for invalid content", () => {
     expect(() => parseJsoncReportingDroppedKeys({ content: "{ invalid json }" })).toThrow(
       SyntaxError,

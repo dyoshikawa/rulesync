@@ -7,9 +7,11 @@ import {
   RULESYNC_PERMISSIONS_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import {
   RulesyncPermissions,
   type RulesyncPermissionsFromFileParams,
@@ -690,6 +692,48 @@ describe("RulesyncPermissions", () => {
       const fileContent = JSON.stringify({ permission: { bash: "allow" } });
 
       expect(withoutBlankPermissionPatterns({ fileContent })).toBe(fileContent);
+    });
+
+    it("should warn with the count per category for every dropped pattern", () => {
+      const logger = createMockLogger();
+
+      withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({
+          permission: {
+            bash: { "": "allow", "   ": "deny", "git *": "allow" },
+            read: { "\t": "allow" },
+          },
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const message = logger.warn.mock.calls[0]?.[0];
+      expect(message).toContain('2 in "bash"');
+      expect(message).toContain('1 in "read"');
+    });
+
+    it("should not warn when nothing was dropped", () => {
+      const logger = createMockLogger();
+
+      withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should warn through the shared fallback logger when no logger is supplied", () => {
+      // The import direction (`toRulesyncPermissions`) takes no logger
+      // parameter, so this is the path every real caller uses today.
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({ permission: { bash: { "": "allow" } } }),
+      });
+
+      expect(warn).toHaveBeenCalledTimes(1);
     });
   });
 });

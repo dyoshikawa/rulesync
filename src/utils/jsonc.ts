@@ -82,7 +82,29 @@ function collectPollutionKeyPaths({
  * `JSON.parse` on files that may contain comments or trailing commas.
  */
 export function parseJsonc(content: string): unknown {
-  return parseJsoncReportingDroppedKeys({ content }).value;
+  return deepSanitize(parseStrict(content));
+}
+
+/**
+ * The strict parse shared by both entry points. Kept separate from the syntax
+ * tree walk so the many callers that never look at `droppedKeys` do not pay
+ * for building a second representation of the document.
+ */
+function parseStrict(content: string): unknown {
+  const errors: ParseError[] = [];
+  const result: unknown = parse(content, errors, {
+    allowTrailingComma: true,
+    disallowComments: false,
+  });
+  if (errors.length > 0) {
+    const details = errors
+      .map((e) => `${printParseErrorCode(e.error)} at offset ${e.offset}`)
+      .join(", ");
+    // SyntaxError keeps parity with JSON.parse, which callers historically
+    // relied on for malformed-content handling.
+    throw new SyntaxError(`Failed to parse JSONC content: ${details}`);
+  }
+  return result;
 }
 
 /**
@@ -98,23 +120,13 @@ export function parseJsoncReportingDroppedKeys({ content }: { content: string })
   value: unknown;
   droppedKeys: string[];
 } {
-  const errors: ParseError[] = [];
-  const result: unknown = parse(content, errors, {
-    allowTrailingComma: true,
-    disallowComments: false,
-  });
-  if (errors.length > 0) {
-    const details = errors
-      .map((e) => `${printParseErrorCode(e.error)} at offset ${e.offset}`)
-      .join(", ");
-    // SyntaxError keeps parity with JSON.parse, which callers historically
-    // relied on for malformed-content handling.
-    throw new SyntaxError(`Failed to parse JSONC content: ${details}`);
-  }
-  const droppedKeys: string[] = [];
+  const result = parseStrict(content);
+  const found: string[] = [];
   const tree = parseTree(content, [], { allowTrailingComma: true, disallowComments: false });
   if (tree !== undefined) {
-    collectPollutionKeyPaths({ node: tree, path: "", found: droppedKeys });
+    collectPollutionKeyPaths({ node: tree, path: "", found });
   }
-  return { value: deepSanitize(result), droppedKeys };
+  // A duplicated key (`{"__proto__": 1, "__proto__": 2}`) is two properties in
+  // the syntax tree but one dropped entry to the reader, so report the path once.
+  return { value: deepSanitize(result), droppedKeys: [...new Set(found)] };
 }
