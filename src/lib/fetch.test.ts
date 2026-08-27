@@ -2564,6 +2564,50 @@ describe("fetchFiles skill pruning", () => {
     expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("Deleted "));
   });
 
+  it("should not prune a skill directory named like a Windows short name", async () => {
+    // `REPORT~1` opens whatever long name it stands for on a volume that
+    // generates short names, so it may not be the directory it reads as.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "REPORT~1",
+              path: "skills/REPORT~1",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/REPORT~1") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/REPORT~1/SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const stale = join(skillsRoot, "REPORT~1", "reference.md");
+    await writeFileContent(stale, "# Stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(stale)).toBe(true);
+  });
+
   it("should not prune a skill directory whose name ends in a dot", async () => {
     // Windows resolves `skills/dotted.` to `skills/dotted`, so the prune would
     // empty one directory while the summary named another.
@@ -2607,7 +2651,7 @@ describe("fetchFiles skill pruning", () => {
     expect(summary.deleted).toBe(0);
     expect(await fileExists(stale)).toBe(true);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("its name ends in a dot or a space"),
+      expect.stringContaining("its name is one some systems resolve to a different directory"),
     );
   });
 

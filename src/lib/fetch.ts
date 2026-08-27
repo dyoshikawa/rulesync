@@ -36,6 +36,7 @@ import type {
 } from "../types/fetch.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
+import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
   createTempDirectory,
@@ -702,8 +703,8 @@ async function pruneDirectory(params: {
   // directory swapped for a link between the two reads.
   if (await isSymbolicLink(dirPath)) {
     logger.warn(
-      `Not pruning ${relativeDirPath}: it is a symbolic link, and its target is outside what ` +
-        `this fetch may delete from. Remove unwanted files by hand.`,
+      `Not pruning ${stripControlCharacters(relativeDirPath)}: it is a symbolic link, and its ` +
+        `target is outside what this fetch may delete from. Remove unwanted files by hand.`,
     );
     return "kept";
   }
@@ -927,11 +928,14 @@ async function pruneStaleSkillFiles(params: {
     // which would then name a directory other than the one it emptied. Nothing
     // reaches outside the output directory either way, but a deletion record
     // that names the wrong directory is not one worth keeping.
-    if (/[.\s]$/.test(skillDir)) {
+    // A name in the `NAME~1` shape is the same class of problem: on a Windows
+    // volume that generates short names, it opens whatever long name it stands
+    // for.
+    if (/[.\s]$/.test(skillDir) || /~\d/.test(skillDir)) {
       logger.warn(
-        `Not pruning ${stripControlCharacters(skillDir)}: its name ends in a dot or a space, ` +
-          `which some systems drop when resolving a path, so it may not be the directory this ` +
-          `name reads as. Remove unwanted files by hand.`,
+        `Not pruning ${stripControlCharacters(skillDir)}: its name is one some systems resolve ` +
+          `to a different directory, so it may not be the directory this name reads as. Remove ` +
+          `unwanted files by hand.`,
       );
       continue;
     }
@@ -941,14 +945,25 @@ async function pruneStaleSkillFiles(params: {
     // the link check below has to follow it.
     checkPathTraversal({ relativePath: skillDir, intendedRootDir: outputBasePath });
 
-    await pruneDirectory({
-      outputBasePath,
-      relativeDirPath: skillDir,
-      fetchedPaths,
-      fetchedIds,
-      deleted,
-      logger,
-    });
+    try {
+      await pruneDirectory({
+        outputBasePath,
+        relativeDirPath: skillDir,
+        fetchedPaths,
+        fetchedIds,
+        deleted,
+        logger,
+      });
+    } catch (error) {
+      // The files are already written; only the tidying up failed. A directory
+      // that cannot be read — no permission to it, a disk that gave out — costs
+      // this one skill its prune, and the run reports what it could not do
+      // rather than throwing the fetch away over it.
+      logger.warn(
+        `Not pruning ${stripControlCharacters(skillDir)}: it could not be read. ` +
+          `${formatError(error)}`,
+      );
+    }
   }
 
   if (deleted.length > 0) {
