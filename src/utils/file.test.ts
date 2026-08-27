@@ -16,6 +16,7 @@ import {
   checkPathTraversal,
   createPathResolver,
   directoryExists,
+  directoryExistsStrict,
   ensureDir,
   filterOutPathsInGitIgnoredDirectories,
   fileExists,
@@ -1279,6 +1280,38 @@ describe("file utilities", () => {
         await symlink(join(testDir, "gone.md"), linkPath);
 
         await expect(fileExistsStrict(linkPath)).rejects.toThrow(
+          "is a symbolic link whose target does not exist",
+        );
+      },
+    );
+  });
+
+  describe("directoryExistsStrict", () => {
+    it("should return true for an existing directory", async () => {
+      const dirPath = join(testDir, "present");
+      await ensureDir(dirPath);
+
+      expect(await directoryExistsStrict(dirPath)).toBe(true);
+    });
+
+    it("should return false for a path that is genuinely absent", async () => {
+      expect(await directoryExistsStrict(join(testDir, "absent"))).toBe(false);
+    });
+
+    it("should return false for an existing path that is not a directory", async () => {
+      const filepath = join(testDir, "file.md");
+      await writeFileContent(filepath, "content");
+
+      expect(await directoryExistsStrict(filepath)).toBe(false);
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "should throw for a directory symlink whose target does not exist",
+      async () => {
+        const linkPath = join(testDir, "shared");
+        await symlink(join(testDir, "gone"), linkPath);
+
+        await expect(directoryExistsStrict(linkPath)).rejects.toThrow(
           "is a symbolic link whose target does not exist",
         );
       },

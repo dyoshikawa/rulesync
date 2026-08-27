@@ -16,6 +16,28 @@ import { calculateTotalCount } from "../utils/result.js";
 import { type McpResultCounts } from "./types.js";
 
 /**
+ * A logger that keeps what it reports as errors.
+ *
+ * Over stdio MCP the server's own stderr does not reach the calling agent, so
+ * a failure that is only logged is a failure the agent cannot act on. Holding
+ * the messages lets the tool answer with the specific reason a source could not
+ * be read — which file, and what was wrong with it — rather than just the fact
+ * that something was.
+ */
+class CollectingLogger extends ConsoleLogger {
+  private readonly errors: string[] = [];
+
+  override error(message: string | Error, code?: string, ...args: unknown[]): void {
+    this.errors.push(message instanceof Error ? message.message : message);
+    super.error(message, code, ...args);
+  }
+
+  getErrors(): readonly string[] {
+    return this.errors;
+  }
+}
+
+/**
  * Schema for generate options
  * Excluded parameters:
  * - outputRoots: Always use [process.cwd()] in MCP context
@@ -86,7 +108,7 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
       throw new Error(inputRootInspection.message);
     }
 
-    const logger = new ConsoleLogger({ verbose: false, silent: true });
+    const logger = new CollectingLogger({ verbose: false, silent: true });
     const generateResult = await generate({ config, logger });
 
     // A source that could not be read writes nothing, and every count in the
@@ -94,7 +116,7 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
     // do. Reporting that as success would tell the agent its edit was applied.
     const sourceLoadFailureMessage = formatSourceLoadFailure(generateResult);
     if (sourceLoadFailureMessage !== undefined) {
-      throw new Error(sourceLoadFailureMessage);
+      throw new Error([sourceLoadFailureMessage, ...logger.getErrors()].join("\n"));
     }
 
     return buildSuccessResponse({ generateResult, config });

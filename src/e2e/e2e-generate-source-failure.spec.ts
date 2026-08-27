@@ -1,4 +1,4 @@
-import { mkdir, symlink } from "node:fs/promises";
+import { mkdir, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { fileExists, writeFileContent } from "../utils/file.js";
 import { runGenerate, useTestDirectory } from "./e2e-helper.js";
@@ -112,6 +113,7 @@ describe("E2E: generate exit code for sources that fail to load", () => {
     const failure = await runGenerateExpectingFailure({ target: "cursor", features: "ignore" });
 
     expect(failure?.code).toBe(1);
+    expect(failure?.stderr).toContain("could not be loaded");
     expect(failure?.stdout).not.toContain(SUCCESS_MARKER);
     expect(await fileExists(join(testDir, ".cursorignore"))).toBe(false);
   });
@@ -152,6 +154,48 @@ describe("E2E: generate exit code for sources that fail to load", () => {
 
       expect(failure?.code).toBe(1);
       expect(failure?.stdout).not.toContain(SUCCESS_MARKER);
+    },
+  );
+
+  // Windows needs elevated rights to create symlinks, so this one is POSIX-only.
+  it.skipIf(process.platform === "win32")(
+    "should keep generated rules when the source directory symlink no longer resolves",
+    async () => {
+      const testDir = getTestDir();
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+      const outputPath = join(testDir, ".claude", "rules", "ok.md");
+      await writeFileContent(
+        join(rulesDir, "ok.md"),
+        [
+          "---",
+          'targets: ["*"]',
+          'description: "ok"',
+          'globs: ["**/*"]',
+          "---",
+          "",
+          "ok rule",
+        ].join("\n"),
+      );
+
+      await runGenerate({ target: "claudecode", features: "rules", env: { NODE_ENV: "e2e" } });
+      expect(await fileExists(outputPath)).toBe(true);
+
+      // A source tree shared by symlink is a documented layout, so a checkout
+      // where that tree is missing is a real state. Globbing it yields nothing,
+      // which is indistinguishable from "every rule was deleted" — and sweeping
+      // on that would remove the rules this run could not regenerate.
+      await rm(rulesDir, { recursive: true });
+      await symlink(join(testDir, "shared-rules"), rulesDir);
+
+      const failure = await runGenerateExpectingFailure({
+        target: "claudecode",
+        features: "rules",
+        deleteFiles: true,
+      });
+
+      expect(failure?.code).toBe(1);
+      expect(failure?.stdout).not.toContain(SUCCESS_MARKER);
+      expect(await fileExists(outputPath)).toBe(true);
     },
   );
 

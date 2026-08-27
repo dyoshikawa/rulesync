@@ -19,6 +19,7 @@ import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
   directoryExists,
+  directoryExistsStrict,
   findFilesByGlobs,
   listDirectoryFiles,
 } from "../../utils/file.js";
@@ -630,7 +631,10 @@ export class SubagentsProcessor extends FeatureProcessor {
     const treeSubagentsDirPath = join(treeName, SUBAGENTS_FEATURE_SUBDIR);
     const subagentsDir = join(sourceTree, SUBAGENTS_FEATURE_SUBDIR);
 
-    const dirExists = await directoryExists(subagentsDir);
+    // Strict: a source directory symlinked at a tree that is missing must not
+    // read as "this feature has no sources", which would let `--delete` sweep
+    // away everything generated from it.
+    const dirExists = await directoryExistsStrict(subagentsDir);
     if (!dirExists) {
       this.logger.debug(`Rulesync subagents directory not found: ${subagentsDir}`);
       return [];

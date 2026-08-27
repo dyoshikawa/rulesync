@@ -56,9 +56,14 @@ vi.mock("./github-client.js", () => ({
 
 vi.mock("../utils/file.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../utils/file.js")>();
+  // The strict variant answers the same question and only differs by throwing
+  // on an unreadable path, so both exports share one mock and every existing
+  // `vi.mocked(directoryExists)` setup keeps covering both call sites.
+  const directoryExistsMock = vi.fn();
   return {
     ...actual,
-    directoryExists: vi.fn(),
+    directoryExists: directoryExistsMock,
+    directoryExistsStrict: directoryExistsMock,
     fileExists: vi.fn(),
     findFilesByGlobs: vi.fn(),
     readFileContent: vi.fn(),

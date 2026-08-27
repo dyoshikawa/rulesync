@@ -154,11 +154,18 @@ The `generate` command reads source files from one or more rulesync source trees
 > checked (a permission error, a symlink loop, a symlink whose target is gone)
 > is treated as unreadable, not as missing.
 >
-> The directory-based features — `rules`, `commands`, `subagents`, `skills`, and
-> `checks` — behave differently on purpose. Their source directories hold
-> free-form Markdown that users also keep notes and READMEs in, so a file that
-> fails to parse is reported as a warning and skipped, and the rest of the
-> directory still generates. Those features do not fail the run.
+> The directory-based features handle an unparseable source file differently,
+> and not uniformly. `subagents`, `checks`, and `skills` report it as a warning
+> and skip that file, because their directories hold free-form Markdown that
+> users also keep notes and READMEs in; the rest of the directory still
+> generates and the run succeeds. `rules` and `commands` do not: an invalid
+> frontmatter there aborts `generate` with that error and a non-zero exit,
+> without the per-feature isolation described above.
+>
+> A source entry that exists but cannot be read is never treated as deleted for
+> any of them: a `.rulesync/` file or directory whose symbolic link no longer
+> resolves stops the run rather than letting `--delete` sweep away what it was
+> supposed to generate.
 
 ### Examples
 

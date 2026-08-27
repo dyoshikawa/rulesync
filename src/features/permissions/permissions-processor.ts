@@ -10,11 +10,9 @@ import type { ToolFile } from "../../types/tool-file.js";
 import { permissionsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
+import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import {
-  getRulesyncSourceCandidates,
-  isRulesyncSourceMissing,
-} from "../../utils/rulesync-source-path.js";
+import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
 import { AmpPermissions } from "./amp-permissions.js";
 import { AntigravityCliPermissions } from "./antigravity-cli-permissions.js";
 import { AntigravityIdePermissions } from "./antigravity-ide-permissions.js";
@@ -565,15 +563,11 @@ export class PermissionsProcessor extends FeatureProcessor {
         }),
       ];
     } catch (error) {
-      this.logger.error(
-        `Failed to load Rulesync permissions file (${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH}): ${formatError(error)}`,
-      );
-      // A source that is simply absent is not a failure: the feature just has
-      // no file here. Anything else means the source exists and could not be
-      // read or parsed, which must not be reported as a clean run.
-      if (!isRulesyncSourceMissing(error)) {
-        this.recordRulesyncSourceLoadFailure();
-      }
+      this.reportRulesyncSourceLoadError({
+        logger: this.logger,
+        message: `Failed to load Rulesync permissions file (${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH})`,
+        error,
+      });
       return [];
     }
   }
@@ -607,7 +601,10 @@ export class PermissionsProcessor extends FeatureProcessor {
       return [toolPermissions];
     } catch (error) {
       const msg = `Failed to load permissions files for tool target: ${this.toolTarget}: ${formatError(error)}`;
-      if (error instanceof Error && error.message.includes("no such file or directory")) {
+      // The tool's own config simply not being there yet is the normal first
+      // run, so it stays at debug. Matching on `code` rather than on the
+      // message keeps a wrapped or localized error from being read as absence.
+      if (isFileNotFoundError(error)) {
         this.logger.debug(msg);
       } else {
         this.logger.error(msg);

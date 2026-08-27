@@ -95,9 +95,13 @@ describe("HooksProcessor", () => {
       const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
       const files = await processor.loadRulesyncFiles();
       expect(files).toHaveLength(0);
-      expect(logger.error).toHaveBeenCalledWith(
+      // Absence is the ordinary state for a project with no hooks, so it stays
+      // at debug and does not flag the run as having failed to load a source.
+      expect(logger.debug).toHaveBeenCalledWith(
         expect.stringContaining("Failed to load Rulesync hooks file"),
       );
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(processor.hasRulesyncSourceLoadFailure()).toBe(false);
     });
 
     it("should load rulesync files from cwd even when outputRoot is different (global mode)", async () => {

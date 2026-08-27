@@ -13,7 +13,7 @@ import { ToolFile } from "../../types/tool-file.js";
 import { checksProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { directoryExists, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
+import { directoryExistsStrict, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AmpCheck } from "./amp-check.js";
 import { AugmentcodeCheck } from "./augmentcode-check.js";
@@ -266,7 +266,10 @@ export class ChecksProcessor extends FeatureProcessor {
     const treeName = basename(sourceTree);
     const treeChecksDirPath = join(treeName, CHECKS_FEATURE_SUBDIR);
     const checksDir = join(sourceTree, CHECKS_FEATURE_SUBDIR);
-    const dirExists = await directoryExists(checksDir);
+    // Strict: a source directory symlinked at a tree that is missing must not
+    // read as "this feature has no sources", which would let `--delete` sweep
+    // away everything generated from it.
+    const dirExists = await directoryExistsStrict(checksDir);
 
     if (!dirExists) {
       this.logger.debug(`Rulesync checks directory not found: ${checksDir}`);

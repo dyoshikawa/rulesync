@@ -441,6 +441,37 @@ export async function fileExistsStrict(filepath: string): Promise<boolean> {
   }
 }
 
+/**
+ * Whether the directory exists, treating anything other than plain absence as
+ * an error — the {@link fileExistsStrict} contract, for a directory.
+ *
+ * A source-tree directory that is a symbolic link into a shared tree is a
+ * documented layout, and a checkout where that tree is missing answers `false`
+ * from {@link directoryExists}. The feature then loads no sources at all, which
+ * reads as "there is nothing here" and lets `--delete` sweep away the configs
+ * the run could not regenerate.
+ */
+export async function directoryExistsStrict(dirPath: string): Promise<boolean> {
+  try {
+    const stats = await stat(dirPath);
+    return stats.isDirectory();
+  } catch (error) {
+    if (!isFileNotFoundError(error)) {
+      throw error;
+    }
+
+    try {
+      await lstat(dirPath);
+    } catch {
+      return false;
+    }
+
+    throw new Error(`${dirPath} is a symbolic link whose target does not exist.`, {
+      cause: error,
+    });
+  }
+}
+
 export async function fileExists(filepath: string): Promise<boolean> {
   try {
     await stat(filepath);

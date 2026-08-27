@@ -96,7 +96,7 @@ export function formatSourceLoadFailure(
     return undefined;
   }
 
-  return `Some .rulesync source files could not be loaded, so ${result.sourceLoadFailedFeatures.join(", ")} could not be fully generated. Each failure was reported individually.`;
+  return `Some .rulesync source files could not be loaded, so ${result.sourceLoadFailedFeatures.join(", ")} could not be fully generated.`;
 }
 
 async function processFeatureGeneration<T extends AiFile>(params: {
