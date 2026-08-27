@@ -755,7 +755,6 @@ export class McpProcessor extends FeatureProcessor {
       return [await RulesyncMcp.fromRoots({ inputRoots: this.inputRoots, logger: this.logger })];
     } catch (error) {
       this.reportRulesyncSourceLoadError({
-        logger: this.logger,
         message: `Failed to load a Rulesync MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH})`,
         error,
       });

@@ -807,7 +807,6 @@ export class HooksProcessor extends FeatureProcessor {
       ];
     } catch (error) {
       this.reportRulesyncSourceLoadError({
-        logger: this.logger,
         message: `Failed to load Rulesync hooks file (${RULESYNC_HOOKS_RELATIVE_FILE_PATH})`,
         error,
       });

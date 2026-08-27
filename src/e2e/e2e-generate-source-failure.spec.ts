@@ -9,6 +9,7 @@ import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { fileExists, writeFileContent } from "../utils/file.js";
 import { runGenerate, useTestDirectory } from "./e2e-helper.js";
@@ -21,6 +22,7 @@ async function runGenerateExpectingFailure(params: {
   target: string;
   features: string;
   deleteFiles?: boolean;
+  inputRoots?: string[];
 }): Promise<RunFailure | undefined> {
   try {
     await runGenerate({ ...params, env: { NODE_ENV: "e2e" } });
@@ -190,6 +192,88 @@ describe("E2E: generate exit code for sources that fail to load", () => {
       const failure = await runGenerateExpectingFailure({
         target: "claudecode",
         features: "rules",
+        deleteFiles: true,
+      });
+
+      expect(failure?.code).toBe(1);
+      expect(failure?.stdout).not.toContain(SUCCESS_MARKER);
+      expect(await fileExists(outputPath)).toBe(true);
+    },
+  );
+
+  // Windows needs elevated rights to create symlinks, so this one is POSIX-only.
+  it.skipIf(process.platform === "win32")(
+    "should keep generated subagents when a source file symlink no longer resolves",
+    async () => {
+      const testDir = getTestDir();
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      const outputPath = join(testDir, ".claude", "agents", "ok.md");
+      await writeFileContent(
+        join(subagentsDir, "ok.md"),
+        ["---", "name: ok", 'description: "ok"', 'targets: ["*"]', "---", "", "ok agent"].join(
+          "\n",
+        ),
+      );
+
+      await runGenerate({ target: "claudecode", features: "subagents", env: { NODE_ENV: "e2e" } });
+      expect(await fileExists(outputPath)).toBe(true);
+
+      // `subagents/` holds free-form Markdown, so a file that will not parse is
+      // warned about and skipped. One that cannot be read at all says nothing
+      // about whether the subagent is still wanted, and skipping it would let
+      // the orphan sweep delete what this run could not load.
+      await rm(join(subagentsDir, "ok.md"));
+      await symlink(join(testDir, "shared", "ok.md"), join(subagentsDir, "ok.md"));
+
+      const failure = await runGenerateExpectingFailure({
+        target: "claudecode",
+        features: "subagents",
+        deleteFiles: true,
+      });
+
+      expect(failure?.code).toBe(1);
+      expect(failure?.stdout).not.toContain(SUCCESS_MARKER);
+      expect(await fileExists(outputPath)).toBe(true);
+    },
+  );
+
+  // Windows needs elevated rights to create symlinks, so this one is POSIX-only.
+  it.skipIf(process.platform === "win32")(
+    "should stop the run when an overlay input root no longer resolves",
+    async () => {
+      const testDir = getTestDir();
+      const primaryRoot = join(testDir, ".rulesync");
+      const overlayRoot = join(testDir, ".rulesync.local");
+      const sharedRoot = join(testDir, "shared-root");
+      const outputPath = join(testDir, ".claude", "rules", "overlay.md");
+      const frontmatter = ["---", 'targets: ["*"]', 'description: "ok"', 'globs: ["**/*"]', "---"];
+      await writeFileContent(
+        join(primaryRoot, "rules", "base.md"),
+        [...frontmatter, "", "base rule"].join("\n"),
+      );
+      await writeFileContent(
+        join(sharedRoot, "rules", "overlay.md"),
+        [...frontmatter, "", "overlay rule"].join("\n"),
+      );
+      await symlink(sharedRoot, overlayRoot);
+
+      await runGenerate({
+        target: "claudecode",
+        features: "rules",
+        inputRoots: [primaryRoot, overlayRoot],
+        env: { NODE_ENV: "e2e" },
+      });
+      expect(await fileExists(outputPath)).toBe(true);
+
+      // An overlay root is allowed to be absent, so one left pointing at a tree
+      // that has gone away used to read as "not configured here" — and the
+      // sweep then removed everything that root had generated.
+      await rm(sharedRoot, { recursive: true });
+
+      const failure = await runGenerateExpectingFailure({
+        target: "claudecode",
+        features: "rules",
+        inputRoots: [primaryRoot, overlayRoot],
         deleteFiles: true,
       });
 

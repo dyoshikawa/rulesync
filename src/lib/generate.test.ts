@@ -15,7 +15,12 @@ import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { mockProcessorBase } from "../test-utils/mock-feature-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
-import { directoryExists, fileExists, readFileContentOrNull } from "../utils/file.js";
+import {
+  directoryExists,
+  fileExists,
+  isPresentButUnresolvable,
+  readFileContentOrNull,
+} from "../utils/file.js";
 import {
   generate,
   GENERATION_STEP_GRAPH,
@@ -48,6 +53,7 @@ vi.mock("../utils/file.js", async (importOriginal) => {
     ...actual,
     directoryExists: vi.fn(),
     fileExists: vi.fn(),
+    isPresentButUnresolvable: vi.fn(),
     readFileContentOrNull: vi.fn(),
     addTrailingNewline: actual.addTrailingNewline,
   };
@@ -143,6 +149,22 @@ describe("inspectInputRoots", () => {
       missing: ["/team/.rulesync", "/personal/.rulesync"],
       message: undefined,
     });
+  });
+
+  it("should stop the run when an optional overlay root cannot be resolved", async () => {
+    vi.mocked(directoryExists).mockImplementation(async (path) => path === "/project/.rulesync");
+    // A symlink into a tree that has been moved away answers `false` from both
+    // probes, so without this it read as "no overlay configured here" and
+    // `--delete` swept away everything that root had generated.
+    vi.mocked(isPresentButUnresolvable).mockImplementation(
+      async (path) => path === "/project/.rulesync.local",
+    );
+
+    const result = await inspectInputRoots(["/project/.rulesync", "/project/.rulesync.local"]);
+
+    expect(result.message).toBe(
+      "Configured input root '/project/.rulesync.local' exists but could not be resolved. A symbolic link whose target is missing is the usual cause.",
+    );
   });
 
   it("should reject an optional overlay path that exists but is not a directory", async () => {

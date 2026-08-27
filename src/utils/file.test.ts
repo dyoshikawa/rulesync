@@ -26,6 +26,8 @@ import {
   findRuleFiles,
   getHomeDirectory,
   isFileNotFoundError,
+  isFileSystemError,
+  isPresentButUnresolvable,
   listDirectoryFiles,
   readFileBufferOrNull,
   readFileContent,
@@ -1286,6 +1288,53 @@ describe("file utilities", () => {
     );
   });
 
+  describe("isPresentButUnresolvable", () => {
+    it("should return false for a path that is genuinely absent", async () => {
+      expect(await isPresentButUnresolvable(join(testDir, "absent"))).toBe(false);
+    });
+
+    it("should return false for a path that resolves", async () => {
+      const dirPath = join(testDir, "present");
+      await ensureDir(dirPath);
+
+      expect(await isPresentButUnresolvable(dirPath)).toBe(false);
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "should return true for a symlink whose target does not exist",
+      async () => {
+        const linkPath = join(testDir, "shared");
+        await symlink(join(testDir, "gone"), linkPath);
+
+        expect(await isPresentButUnresolvable(linkPath)).toBe(true);
+      },
+    );
+  });
+
+  describe("isFileSystemError", () => {
+    it("should recognize an errno-carrying error", () => {
+      expect(isFileSystemError(Object.assign(new Error("denied"), { code: "EACCES" }))).toBe(true);
+    });
+
+    it("should recognize an errno buried in the cause chain", () => {
+      const cause = Object.assign(new Error("loop"), { code: "ELOOP" });
+
+      expect(isFileSystemError(new Error("could not load", { cause }))).toBe(true);
+    });
+
+    it("should not treat a parse failure as a filesystem failure", () => {
+      // The whole point of the split: an unparseable file is skipped, an
+      // unreadable one fails the run.
+      expect(isFileSystemError(new Error("Invalid frontmatter in a.md"))).toBe(false);
+    });
+
+    it("should not treat a non-errno code as a filesystem failure", () => {
+      expect(isFileSystemError(Object.assign(new Error("nope"), { code: "invalid_value" }))).toBe(
+        false,
+      );
+    });
+  });
+
   describe("directoryExistsStrict", () => {
     it("should return true for an existing directory", async () => {
       const dirPath = join(testDir, "present");
@@ -1298,11 +1347,16 @@ describe("file utilities", () => {
       expect(await directoryExistsStrict(join(testDir, "absent"))).toBe(false);
     });
 
-    it("should return false for an existing path that is not a directory", async () => {
+    it("should throw for an existing path that is not a directory", async () => {
       const filepath = join(testDir, "file.md");
       await writeFileContent(filepath, "content");
 
-      expect(await directoryExistsStrict(filepath)).toBe(false);
+      // Answering `false` here would put a misconfigured source path back in
+      // the same bucket as an empty source tree, which is what the strict
+      // variant exists to separate.
+      await expect(directoryExistsStrict(filepath)).rejects.toThrow(
+        "exists but is not a directory",
+      );
     });
 
     it.skipIf(process.platform === "win32")(

@@ -1,3 +1,4 @@
+import type { Stats } from "node:fs";
 import {
   chmod,
   cp,
@@ -389,13 +390,13 @@ export async function writeFileBuffer(filepath: string, buffer: Buffer): Promise
  * but could not be read or parsed. The `cause` chain is followed so a wrapped
  * error is still recognized.
  */
-export function isFileNotFoundError(error: unknown): boolean {
+function someErrorInChain(error: unknown, predicate: (candidate: Error) => boolean): boolean {
   // A `cause` may point back at an error already visited (nothing forbids a
   // cycle), so walking the chain has to keep track of where it has been.
   const seen = new Set<unknown>();
   let current: unknown = error;
   while (current instanceof Error && !seen.has(current)) {
-    if ("code" in current && current.code === "ENOENT") {
+    if (predicate(current)) {
       return true;
     }
     seen.add(current);
@@ -404,21 +405,51 @@ export function isFileNotFoundError(error: unknown): boolean {
   return false;
 }
 
+export function isFileNotFoundError(error: unknown): boolean {
+  return someErrorInChain(error, (candidate) => "code" in candidate && candidate.code === "ENOENT");
+}
+
 /**
- * Whether the path exists, treating any failure other than "it does not
- * exist" as an error rather than as absence.
- *
- * {@link fileExists} answers `false` for every `stat` failure, so a file that
- * is present but cannot be examined — a symlink loop, a directory the process
- * may not traverse — is indistinguishable from one that was never there. When
- * absence is what decides whether a failure is reported, that difference
- * matters: mistaking an unreadable source for a missing one silently drops the
- * rules it was supposed to contain.
+ * `errno` codes are the whole alphabet-soup family, so they are recognized by
+ * shape rather than enumerated: any new one a future Node release surfaces has
+ * to be treated as an I/O failure too.
  */
-export async function fileExistsStrict(filepath: string): Promise<boolean> {
+const ERRNO_CODE_PATTERN = /^E[A-Z0-9]+$/;
+
+/**
+ * Whether the failure came from the filesystem rather than from making sense of
+ * what was read.
+ *
+ * A loader that deliberately skips a file it cannot parse still has to stop for
+ * one it could not read at all. "This Markdown is not a subagent" is a decision
+ * about that one file; "this entry is there and unreadable" says nothing about
+ * what the source holds, so skipping it lets `--delete` remove output the run
+ * was never able to regenerate.
+ */
+export function isFileSystemError(error: unknown): boolean {
+  return someErrorInChain(
+    error,
+    (candidate) =>
+      "code" in candidate &&
+      typeof candidate.code === "string" &&
+      ERRNO_CODE_PATTERN.test(candidate.code),
+  );
+}
+
+/**
+ * `stat` the path, separating plain absence from every other outcome.
+ *
+ * Answers `undefined` only when nothing is there at all. {@link fileExists} and
+ * {@link directoryExists} answer `false` for every `stat` failure, so a path
+ * that is present but cannot be examined — a symlink loop, a directory the
+ * process may not traverse — is indistinguishable from one that was never
+ * there. When absence is what decides whether a failure is reported, that
+ * difference matters: mistaking an unreadable source for a missing one silently
+ * drops the rules it was supposed to contain.
+ */
+async function statStrict(path: string): Promise<Stats | undefined> {
   try {
-    await stat(filepath);
-    return true;
+    return await stat(path);
   } catch (error) {
     if (!isFileNotFoundError(error)) {
       throw error;
@@ -430,15 +461,46 @@ export async function fileExistsStrict(filepath: string): Promise<boolean> {
     // at a shared tree by symlink — exactly the case where the target can go
     // missing. `lstat` looks at the link itself and settles which it is.
     try {
-      await lstat(filepath);
+      await lstat(path);
     } catch {
-      return false;
+      return undefined;
     }
 
-    throw new Error(`${filepath} is a symbolic link whose target does not exist.`, {
+    throw new Error(`${path} is a symbolic link whose target does not exist.`, {
       cause: error,
     });
   }
+}
+
+/**
+ * Whether something is at the path but cannot be resolved.
+ *
+ * `stat` follows symlinks, so a link into a tree that has been moved away
+ * answers `false` from both {@link fileExists} and {@link directoryExists} —
+ * the same answer as a path that was never configured. `lstat` looks at the
+ * entry itself, which is what separates "there is nothing here" from "there is
+ * something here that leads nowhere".
+ */
+export async function isPresentButUnresolvable(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return false;
+  } catch {
+    try {
+      await lstat(path);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * Whether the path exists, treating any failure other than "it does not exist"
+ * as an error rather than as absence.
+ */
+export async function fileExistsStrict(filepath: string): Promise<boolean> {
+  return (await statStrict(filepath)) !== undefined;
 }
 
 /**
@@ -449,27 +511,22 @@ export async function fileExistsStrict(filepath: string): Promise<boolean> {
  * documented layout, and a checkout where that tree is missing answers `false`
  * from {@link directoryExists}. The feature then loads no sources at all, which
  * reads as "there is nothing here" and lets `--delete` sweep away the configs
- * the run could not regenerate.
+ * the run could not regenerate. A path occupied by something that is not a
+ * directory is reported for the same reason: it is a misconfiguration, not an
+ * empty source tree.
  */
 export async function directoryExistsStrict(dirPath: string): Promise<boolean> {
-  try {
-    const stats = await stat(dirPath);
-    return stats.isDirectory();
-  } catch (error) {
-    if (!isFileNotFoundError(error)) {
-      throw error;
-    }
+  const stats = await statStrict(dirPath);
 
-    try {
-      await lstat(dirPath);
-    } catch {
-      return false;
-    }
-
-    throw new Error(`${dirPath} is a symbolic link whose target does not exist.`, {
-      cause: error,
-    });
+  if (stats === undefined) {
+    return false;
   }
+
+  if (!stats.isDirectory()) {
+    throw new Error(`${dirPath} exists but is not a directory.`);
+  }
+
+  return true;
 }
 
 export async function fileExists(filepath: string): Promise<boolean> {

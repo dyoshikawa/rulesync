@@ -13,7 +13,12 @@ import { ToolFile } from "../../types/tool-file.js";
 import { checksProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { directoryExistsStrict, findFilesByGlobs, listDirectoryFiles } from "../../utils/file.js";
+import {
+  directoryExistsStrict,
+  findFilesByGlobs,
+  isFileSystemError,
+  listDirectoryFiles,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AmpCheck } from "./amp-check.js";
 import { AugmentcodeCheck } from "./augmentcode-check.js";
@@ -302,6 +307,15 @@ export class ChecksProcessor extends FeatureProcessor {
         rulesyncChecks.push(rulesyncCheck);
         this.logger.debug(`Successfully loaded check: ${mdFile}`);
       } catch (error) {
+        // Unreadable is not unparseable, exactly as in the subagents loader.
+        if (isFileSystemError(error)) {
+          this.reportRulesyncSourceLoadError({
+            message: `Failed to read check file ${filepath}`,
+            error,
+          });
+          continue;
+        }
+
         // A warning rather than a source-load failure, for the same reason as
         // the subagents loader: `checks/` holds free-form Markdown too, and
         // failing here would freeze this feature's orphan sweep.

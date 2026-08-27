@@ -355,9 +355,11 @@ export class RulesyncMcp extends RulesyncFile {
    * anchored at the root that supplied it rather than at the primary root's
    * recommended path.
    *
-   * When no root supplies any candidate, this falls back to reading the
-   * primary root's recommended path so the underlying file-not-found error
-   * matches the single-root behavior of `fromFile`.
+   * When no root supplies any candidate, this raises
+   * `RulesyncSourceNotFoundError` against the primary root's recommended path,
+   * matching the single-root behavior of `fromFile`. Absence is deliberately
+   * never reported as a bare `ENOENT`, which callers cannot tell apart from a
+   * read that was supposed to succeed.
    */
   static async fromRoots({
     inputRoots,

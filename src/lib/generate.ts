@@ -35,7 +35,12 @@ import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
-import { directoryExists, fileExists, toPosixPath } from "../utils/file.js";
+import {
+  directoryExists,
+  fileExists,
+  isPresentButUnresolvable,
+  toPosixPath,
+} from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
@@ -348,23 +353,45 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
   const missing: string[] = [];
   const invalidOverlays: string[] = [];
   const nonDirectories = new Set<string>();
+  const unresolvable: string[] = [];
 
   for (const [index, root] of inputRoots.entries()) {
     if (await directoryExists(root)) {
       existing.push(root);
-    } else {
-      missing.push(root);
-
-      // A path that exists but is not a directory is a different mistake than
-      // a path that is simply absent, so it gets its own wording below.
-      if (await fileExists(root)) {
-        nonDirectories.add(root);
-
-        if (index > 0) {
-          invalidOverlays.push(root);
-        }
-      }
+      continue;
     }
+
+    missing.push(root);
+
+    // A path that exists but is not a directory is a different mistake than
+    // a path that is simply absent, so it gets its own wording below.
+    if (await fileExists(root)) {
+      nonDirectories.add(root);
+
+      if (index > 0) {
+        invalidOverlays.push(root);
+      }
+
+      continue;
+    }
+
+    // An overlay root is allowed to be absent, so one that leads nowhere used
+    // to pass as "not configured here". Every source under it then loaded as
+    // nothing, and `--delete` swept away what that root had generated while the
+    // run still exited 0.
+    if (await isPresentButUnresolvable(root)) {
+      unresolvable.push(root);
+    }
+  }
+
+  const unresolvableRoot = unresolvable[0];
+
+  if (unresolvableRoot !== undefined) {
+    return {
+      existing,
+      missing,
+      message: `Configured input root '${stripControlCharacters(unresolvableRoot)}' exists but could not be resolved. A symbolic link whose target is missing is the usual cause.`,
+    };
   }
 
   const primaryRoot = inputRoots[0];

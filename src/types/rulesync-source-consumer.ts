@@ -1,3 +1,4 @@
+import { ErrorCodes } from "../types/json-output.js";
 import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
 import { isRulesyncSourceMissing } from "../utils/rulesync-source-path.js";
@@ -12,6 +13,12 @@ import { isRulesyncSourceMissing } from "../utils/rulesync-source-path.js";
  * means.
  */
 export abstract class RulesyncSourceConsumer {
+  /**
+   * Declared here so {@link reportRulesyncSourceLoadError} cannot be handed a
+   * different logger than the one the processor reports everything else on.
+   */
+  protected abstract readonly logger: Logger;
+
   /**
    * Set when a `.rulesync/` source could not be read at all. The processor
    * still returns no files so the rest of the run continues, but generate must
@@ -37,22 +44,23 @@ export abstract class RulesyncSourceConsumer {
    * get a clean exit.
    */
   protected reportRulesyncSourceLoadError({
-    logger,
     message,
     error,
   }: {
-    logger: Logger;
     message: string;
     error: unknown;
   }): void {
     const detail = `${message}: ${formatError(error)}`;
 
     if (isRulesyncSourceMissing(error)) {
-      logger.debug(detail);
+      this.logger.debug(detail);
       return;
     }
 
-    logger.error(detail);
+    // Tagged so a caller that has to relay the reason — the MCP server builds
+    // its failure response out of these — can pick them out of the run's other
+    // error lines instead of forwarding everything that was ever logged.
+    this.logger.error(detail, ErrorCodes.SOURCE_LOAD_FAILED);
     this.recordRulesyncSourceLoadFailure();
   }
 

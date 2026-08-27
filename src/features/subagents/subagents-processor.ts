@@ -21,6 +21,7 @@ import {
   directoryExists,
   directoryExistsStrict,
   findFilesByGlobs,
+  isFileSystemError,
   listDirectoryFiles,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -666,6 +667,18 @@ export class SubagentsProcessor extends FeatureProcessor {
         rulesyncSubagents.push(rulesyncSubagent);
         this.logger.debug(`Successfully loaded subagent: ${mdFile}`);
       } catch (error) {
+        // A file that could not be read at all is a different matter from one
+        // that would not parse: it says nothing about whether the subagent is
+        // still wanted, so letting the sweep run on it would delete output this
+        // run simply could not load.
+        if (isFileSystemError(error)) {
+          this.reportRulesyncSourceLoadError({
+            message: `Failed to read subagent file ${filepath}`,
+            error,
+          });
+          continue;
+        }
+
         // Deliberately a warning, not a source-load failure. `subagents/` is a
         // directory users also keep ordinary Markdown in (a README, notes), and
         // failing the run on those would both break every later `generate` and

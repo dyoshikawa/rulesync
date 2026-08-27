@@ -564,7 +564,6 @@ export class PermissionsProcessor extends FeatureProcessor {
       ];
     } catch (error) {
       this.reportRulesyncSourceLoadError({
-        logger: this.logger,
         message: `Failed to load Rulesync permissions file (${RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH})`,
         error,
       });

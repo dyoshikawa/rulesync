@@ -162,8 +162,8 @@ export class IgnoreProcessor extends FeatureProcessor {
    * an ignore file wins entirely (whole-file replacement — no line-level
    * merge in this slice; see the "Deliberately out of scope" section of
    * the inputRoots plan for context). If no root has the file, fall back
-   * to the primary root's path so the underlying `RulesyncIgnore.fromFile`
-   * surfaces the same missing-file error it would in the single-root case.
+   * to the primary root's path so `RulesyncIgnore.fromFile` raises the same
+   * `RulesyncSourceNotFoundError` it would in the single-root case.
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
     const paths = RulesyncIgnore.getSettablePaths();
@@ -187,7 +187,6 @@ export class IgnoreProcessor extends FeatureProcessor {
       ];
     } catch (error) {
       this.reportRulesyncSourceLoadError({
-        logger: this.logger,
         message: `Failed to load rulesync ignore file (${RULESYNC_AIIGNORE_RELATIVE_FILE_PATH})`,
         error,
       });

@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -595,6 +596,34 @@ Second agent content`;
         .map((file) => (file as RulesyncSubagent).getFrontmatter().name)
         .toSorted();
       expect(names).toEqual(["agent-1", "agent-2"]);
+    });
+
+    // Windows needs elevated rights to create symlinks, so this one is POSIX-only.
+    it.skipIf(process.platform === "win32")(
+      "should record a source load failure for a subagent file that cannot be read",
+      async () => {
+        const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+        await ensureDir(subagentsDir);
+        await symlink(join(testDir, "gone.md"), join(subagentsDir, "broken.md"));
+
+        const rulesyncFiles = await processor.loadRulesyncFiles();
+
+        // Skipping this file the way an unparseable one is skipped would let
+        // the orphan sweep delete a subagent the run merely could not read.
+        expect(rulesyncFiles).toEqual([]);
+        expect(processor.hasRulesyncSourceLoadFailure()).toBe(true);
+      },
+    );
+
+    it("should not record a source load failure for a subagent file that will not parse", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(subagentsDir);
+      await writeFileContent(join(subagentsDir, "notes.md"), "just some notes, no frontmatter");
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+
+      expect(rulesyncFiles).toEqual([]);
+      expect(processor.hasRulesyncSourceLoadFailure()).toBe(false);
     });
 
     it("should skip invalid subagent files and continue loading valid ones", async () => {

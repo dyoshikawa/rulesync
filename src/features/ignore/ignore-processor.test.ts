@@ -10,6 +10,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { ErrorCodes } from "../../types/json-output.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
@@ -143,6 +144,7 @@ describe("IgnoreProcessor", () => {
       expect(files).toHaveLength(0);
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining("Failed to load rulesync ignore file"),
+        ErrorCodes.SOURCE_LOAD_FAILED,
       );
     });
 

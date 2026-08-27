@@ -9,6 +9,7 @@ import {
   type GenerateResult,
 } from "../lib/generate.js";
 import { type RulesyncFeatures } from "../types/features.js";
+import { ErrorCodes } from "../types/json-output.js";
 import { type RulesyncTargets } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
 import { ConsoleLogger } from "../utils/logger.js";
@@ -24,11 +25,22 @@ import { type McpResultCounts } from "./types.js";
  * be read — which file, and what was wrong with it — rather than just the fact
  * that something was.
  */
+/**
+ * Keeps the reasons a `.rulesync/` source would not load, so the failure this
+ * tool reports can name them.
+ *
+ * Only the tagged lines are kept. Collecting every `error()` would fold in
+ * whatever else the run happened to log — one line per target for an unrelated
+ * tool config, say — and the agent reading the response would have to guess
+ * which of them explains the failure.
+ */
 class CollectingLogger extends ConsoleLogger {
   private readonly errors: string[] = [];
 
   override error(message: string | Error, code?: string, ...args: unknown[]): void {
-    this.errors.push(message instanceof Error ? message.message : message);
+    if (code === ErrorCodes.SOURCE_LOAD_FAILED) {
+      this.errors.push(message instanceof Error ? message.message : message);
+    }
     super.error(message, code, ...args);
   }
 
