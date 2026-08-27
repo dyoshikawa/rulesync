@@ -385,6 +385,8 @@ Summary: 1 overwritten, 1 deleted
 
 > [!WARNING]
 > Pruning removes **any** file in a fetched skill directory that the remote does not have — including one you added yourself. That is what "mirror the remote" means. Keep your own material outside the skill directories you fetch, or pass `--no-prune`.
+>
+> This applies to whatever `--output` points at. `--output .` makes the fetched skill directories your project's own `skills/`, so a fetch there prunes the skills you maintain by hand. Fetch into the default `.rulesync/` unless you really mean to mirror a remote repository into your project root.
 
 The scope is deliberately narrow:
 

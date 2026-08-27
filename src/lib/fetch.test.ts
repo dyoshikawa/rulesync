@@ -854,7 +854,9 @@ describe("fetchFiles", () => {
         options: { features: ["rules"] },
         outputRoot: testDir,
       }),
-    ).rejects.toThrow("Path traversal detected");
+      // A `..` segment is turned away while the remote listing is still being
+      // collected, before anything is written or pruned.
+    ).rejects.toThrow(/Unsafe path in the remote repository|Path traversal detected/);
   });
 
   it("should reject output directory path traversal attempts", async () => {
@@ -2308,6 +2310,95 @@ describe("fetchFiles skill pruning", () => {
 
     expect(summary.deleted).toBe(0);
     expect(await fileExists(stale)).toBe(true);
+  });
+
+  it("should refuse a remote path whose backslash makes the skill directory ambiguous", async () => {
+    // `skills/.\evil/SKILL.md` is written as a directory literally called
+    // `.\evil`, but reads back as the skill `.`, whose directory is the whole
+    // of `skills/` — so the prune would empty every skill on disk.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: ".\\evil",
+              path: "skills/.\\evil",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/.\\evil") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/.\\evil/SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const mine = join(skillsRoot, "alpha", "SKILL.md");
+    await writeFileContent(mine, "# Mine");
+
+    await expect(fetchFiles({ logger, source: "owner/repo", outputRoot: testDir })).rejects.toThrow(
+      /Unsafe path in the remote repository/,
+    );
+    expect(await fileExists(mine)).toBe(true);
+  });
+
+  it("should refuse a remote path whose backslash targets another skill", async () => {
+    // `skills/victim\evil/` is written as its own directory, but reads back as
+    // the skill `victim`, whose local directory this run never wrote.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "victim\\evil",
+              path: "skills/victim\\evil",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/victim\\evil") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/victim\\evil/SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const victim = join(skillsRoot, "victim", "notes.md");
+    await writeFileContent(victim, "# Mine");
+
+    await expect(fetchFiles({ logger, source: "owner/repo", outputRoot: testDir })).rejects.toThrow(
+      /Unsafe path in the remote repository/,
+    );
+    expect(await fileExists(victim)).toBe(true);
   });
 
   it.skipIf(process.platform === "win32")(
