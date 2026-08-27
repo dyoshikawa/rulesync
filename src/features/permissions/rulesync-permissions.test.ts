@@ -7,13 +7,16 @@ import {
   RULESYNC_PERMISSIONS_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import {
   RulesyncPermissions,
   type RulesyncPermissionsFromFileParams,
   type RulesyncPermissionsParams,
+  withoutBlankPermissionPatterns,
 } from "./rulesync-permissions.js";
 
 const makeInstance = (json: Record<string, unknown>) =>
@@ -182,6 +185,87 @@ describe("RulesyncPermissions", () => {
   });
 
   describe("validate", () => {
+    // A pattern named after a prototype member is removed by the parser before
+    // the schema can see it, so it used to produce neither an error nor an
+    // entry in any generated file. These pin the report that replaced that
+    // silence.
+    it("should reject a permission pattern named after a prototype member", () => {
+      const instance = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        // Written as raw text: a `__proto__` key in an object literal sets the
+        // prototype instead of becoming a property, so it would never survive
+        // JSON.stringify to reach the parser under test.
+        fileContent: '{"permission": {"bash": {"__proto__": "deny", "git *": "allow"}}}',
+        validate: false,
+      });
+
+      const result = instance.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain("permission.bash.__proto__");
+      expect(result.error?.message).toContain(
+        join(RULESYNC_RELATIVE_DIR_PATH, RULESYNC_PERMISSIONS_FILE_NAME),
+      );
+      expect(result.error?.message).toContain("rename them");
+    });
+
+    it("should list every dropped key rather than only the first", () => {
+      const instance = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: '{"permission": {"bash": {"__proto__": "deny", "constructor": "allow"}}}',
+        validate: false,
+      });
+
+      const result = instance.validate();
+
+      expect(result.error?.message).toContain("permission.bash.__proto__");
+      expect(result.error?.message).toContain("permission.bash.constructor");
+    });
+
+    it("should throw from the constructor when validation is enabled", () => {
+      expect(
+        () =>
+          new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent: '{"permission": {"bash": {"__proto__": "deny"}}}',
+            validate: true,
+          }),
+      ).toThrow("permission.bash.__proto__");
+    });
+
+    it.each([
+      ["an empty pattern", ""],
+      ["a whitespace-only pattern", "   "],
+    ])("should reject %s", (_label, pattern) => {
+      const instance = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { bash: { [pattern]: "allow" } } }),
+        validate: false,
+      });
+
+      const result = instance.validate();
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject a blank pattern in a tool-scoped permission block", () => {
+      const instance = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {},
+          claudecode: { permission: { bash: { "": "allow" } } },
+        }),
+        validate: false,
+      });
+
+      expect(instance.validate().success).toBe(false);
+    });
+
     it("should return successful validation result for valid config", () => {
       const instance = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -570,6 +654,177 @@ describe("RulesyncPermissions", () => {
       };
 
       expect(params).toBeDefined();
+    });
+  });
+
+  describe("withoutBlankPermissionPatterns", () => {
+    it("should drop a blank pattern so the imported file passes validation", () => {
+      const fileContent = withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({
+          permission: { bash: { "": "allow", "git *": "allow" } },
+        }),
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({ permission: { bash: { "git *": "allow" } } });
+      expect(
+        new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent,
+          validate: false,
+        }).validate().success,
+      ).toBe(true);
+    });
+
+    it("should return the content unchanged when no pattern is blank", () => {
+      const fileContent = JSON.stringify({ permission: { bash: { "git *": "allow" } } });
+
+      expect(withoutBlankPermissionPatterns({ fileContent })).toBe(fileContent);
+    });
+
+    it("should return the content unchanged when there is no permission block", () => {
+      const fileContent = JSON.stringify({ claudecode: { defaultMode: "plan" } });
+
+      expect(withoutBlankPermissionPatterns({ fileContent })).toBe(fileContent);
+    });
+
+    it("should leave a category whose value is not a rules map alone", () => {
+      const fileContent = JSON.stringify({ permission: { bash: "allow" } });
+
+      expect(withoutBlankPermissionPatterns({ fileContent })).toBe(fileContent);
+    });
+
+    it("should warn with the count per category for every dropped pattern", () => {
+      const logger = createMockLogger();
+
+      withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({
+          permission: {
+            bash: { "": "allow", "   ": "deny", "git *": "allow" },
+            read: { "\t": "allow" },
+          },
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const message = logger.warn.mock.calls[0]?.[0];
+      expect(message).toContain('2 in "permission.bash"');
+      expect(message).toContain('1 in "permission.read"');
+    });
+
+    it("should not warn when nothing was dropped", () => {
+      const logger = createMockLogger();
+
+      withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should drop a blank pattern from a tool-scoped permission block", () => {
+      // OpenCode and Kilo route their tool-only categories into the tool-scoped
+      // block verbatim on import, so a blank pattern in the user's own config
+      // lands here rather than in the shared block.
+      const logger = createMockLogger();
+
+      const fileContent = withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          opencode: { permission: { external_directory: { "": "deny", "/tmp/**": "allow" } } },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({
+        permission: { bash: { "git *": "allow" } },
+        opencode: { permission: { external_directory: { "/tmp/**": "allow" } } },
+      });
+      expect(logger.warn.mock.calls[0]?.[0]).toContain(
+        '1 in "opencode.permission.external_directory"',
+      );
+      expect(
+        new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent,
+          validate: false,
+        }).validate().success,
+      ).toBe(true);
+    });
+
+    it("should leave tool-native shapes in a tool-scoped block untouched", () => {
+      // A bare action string has no pattern key to inspect, Vibe's
+      // `sensitive_patterns` object carries none, and `sandbox` is not a
+      // permission block at all.
+      const fileContent = JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+        opencode: { permission: { external_directory: "deny" } },
+        vibe: { permission: { bash: { sensitive_patterns: ["rm *"] } } },
+        kilo: { sandbox: { enabled: true } },
+      });
+
+      expect(withoutBlankPermissionPatterns({ fileContent })).toBe(fileContent);
+    });
+
+    it("should drop a category the filter emptied", () => {
+      // Writing back `{"bash": {}}` would put an empty category into the tool's
+      // own config on the next generate.
+      const fileContent = withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({
+          permission: { bash: { "": "allow" }, read: { "src/**": "allow" } },
+        }),
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({ permission: { read: { "src/**": "allow" } } });
+    });
+
+    it("should drop a category the filter emptied in a tool-scoped block", () => {
+      const fileContent = withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({
+          permission: { bash: { "npm *": "allow" } },
+          opencode: { permission: { external_directory: { "  ": "deny" } } },
+        }),
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({
+        permission: { bash: { "npm *": "allow" } },
+        opencode: { permission: {} },
+      });
+    });
+
+    it("should keep a category that was already empty", () => {
+      // Nothing here was dropped from it, so it is not this filter's to remove.
+      const fileContent = withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({ permission: { bash: { "": "allow" }, read: {} } }),
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({ permission: { read: {} } });
+    });
+
+    it("should label the shared block in the warning", () => {
+      const logger = createMockLogger();
+
+      withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({ permission: { bash: { "": "allow" } } }),
+        logger,
+      });
+
+      expect(logger.warn.mock.calls[0]?.[0]).toContain('1 in "permission.bash"');
+    });
+
+    it("should warn through the shared fallback logger when no logger is supplied", () => {
+      // The import direction (`toRulesyncPermissions`) takes no logger
+      // parameter, so this is the path every real caller uses today.
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({ permission: { bash: { "": "allow" } } }),
+      });
+
+      expect(warn).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -5,7 +5,7 @@ import {
 import type { AiFileFromFileParams, AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import type { Logger } from "../../utils/logger.js";
-import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { RulesyncPermissions, withoutBlankPermissionPatterns } from "./rulesync-permissions.js";
 
 export type ToolPermissionsFromRulesyncPermissionsParams = Omit<
   AiFileParams,
@@ -61,7 +61,7 @@ export abstract class ToolPermissions extends ToolFile {
       outputRoot: this.outputRoot,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent,
+      fileContent: withoutBlankPermissionPatterns({ fileContent }),
     });
   }
 

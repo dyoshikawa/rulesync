@@ -1,4 +1,4 @@
-import { type ParseError, parse, printParseErrorCode } from "jsonc-parser";
+import { type Node, type ParseError, parse, parseTree, printParseErrorCode } from "jsonc-parser";
 
 import { PROTOTYPE_POLLUTION_KEYS } from "./prototype-pollution.js";
 
@@ -26,6 +26,56 @@ function deepSanitize(value: unknown): unknown {
 }
 
 /**
+ * Collect the paths of every prototype-pollution key in the document, walking
+ * the syntax tree rather than the parsed value.
+ *
+ * The parsed value cannot answer this question for `__proto__`:
+ * `obj["__proto__"] = "deny"` is discarded by the engine outright, and
+ * `obj["__proto__"] = {...}` replaces the prototype instead of adding an own
+ * property — either way the key is already gone by the time
+ * {@link deepSanitize} could look for it, and only the source text still knows
+ * the user wrote it. `constructor` and `prototype` do become own properties and
+ * could be found in the parsed value, but they are collected here too so all
+ * three keys are answered the same way.
+ *
+ * A pollution key's subtree is not descended into, matching
+ * {@link deepSanitize}, which drops the whole value along with the key.
+ */
+function collectPollutionKeyPaths({
+  node,
+  path,
+  found,
+}: {
+  node: Node;
+  path: string;
+  found: string[];
+}): void {
+  if (node.type === "array") {
+    for (const [index, child] of (node.children ?? []).entries()) {
+      collectPollutionKeyPaths({ node: child, path: `${path}[${index}]`, found });
+    }
+    return;
+  }
+  if (node.type !== "object") {
+    return;
+  }
+  for (const property of node.children ?? []) {
+    const [keyNode, valueNode] = property.children ?? [];
+    if (typeof keyNode?.value !== "string") {
+      continue;
+    }
+    const keyPath = path === "" ? keyNode.value : `${path}.${keyNode.value}`;
+    if (PROTOTYPE_POLLUTION_KEYS.has(keyNode.value)) {
+      found.push(keyPath);
+      continue;
+    }
+    if (valueNode !== undefined) {
+      collectPollutionKeyPaths({ node: valueNode, path: keyPath, found });
+    }
+  }
+}
+
+/**
  * Parse a JSONC (JSON with Comments) document strictly.
  *
  * Unlike `jsonc-parser`'s bare `parse` (which silently tolerates syntax
@@ -35,6 +85,15 @@ function deepSanitize(value: unknown): unknown {
  * `JSON.parse` on files that may contain comments or trailing commas.
  */
 export function parseJsonc(content: string): unknown {
+  return deepSanitize(parseStrict(content));
+}
+
+/**
+ * The strict parse shared by both entry points. Kept separate from the syntax
+ * tree walk so the many callers that never look at `droppedKeys` do not pay
+ * for building a second representation of the document.
+ */
+function parseStrict(content: string): unknown {
   const errors: ParseError[] = [];
   const result: unknown = parse(content, errors, {
     allowTrailingComma: true,
@@ -48,5 +107,29 @@ export function parseJsonc(content: string): unknown {
     // relied on for malformed-content handling.
     throw new SyntaxError(`Failed to parse JSONC content: ${details}`);
   }
-  return deepSanitize(result);
+  return result;
+}
+
+/**
+ * The same parse as {@link parseJsonc}, additionally reporting which
+ * prototype-pollution keys were removed, as dotted paths
+ * (`permission.bash.__proto__`).
+ *
+ * The parse itself is identical — the paths only let a caller tell the user
+ * about entries that vanished, which they would otherwise have to notice by
+ * comparing their source file against the generated output.
+ */
+export function parseJsoncReportingDroppedKeys({ content }: { content: string }): {
+  value: unknown;
+  droppedKeys: string[];
+} {
+  const result = parseStrict(content);
+  const found: string[] = [];
+  const tree = parseTree(content, [], { allowTrailingComma: true, disallowComments: false });
+  if (tree !== undefined) {
+    collectPollutionKeyPaths({ node: tree, path: "", found });
+  }
+  // A duplicated key (`{"__proto__": 1, "__proto__": 2}`) is two properties in
+  // the syntax tree but one dropped entry to the reader, so report the path once.
+  return { value: deepSanitize(result), droppedKeys: [...new Set(found)] };
 }

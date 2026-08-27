@@ -29,7 +29,11 @@ import {
   parseSharedConfig,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
-import { RulesyncPermissions } from "./rulesync-permissions.js";
+import {
+  RulesyncPermissions,
+  withoutBlankPermissionPatterns,
+  withoutBlankPermissionPatternsIn,
+} from "./rulesync-permissions.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -252,7 +256,15 @@ export class HermesagentPermissions extends ToolPermissions {
   toRulesyncPermissions(): RulesyncPermissions {
     const config = parseSharedConfig({ format: "yaml", fileContent: this.getFileContent() });
     const permissionsRoot = isRecord(config.permissions) ? config.permissions : {};
-    const parsedProvenance = RulesyncPermissionsFileSchema.safeParse(permissionsRoot.rulesync);
+    // Filter before validating: the provenance block is a canonical document
+    // that a user may have hand-edited, and one blank pattern would fail the
+    // schema and discard every rule recorded here without a word.
+    const rawProvenance = permissionsRoot.rulesync;
+    const parsedProvenance = RulesyncPermissionsFileSchema.safeParse(
+      isRecord(rawProvenance)
+        ? withoutBlankPermissionPatternsIn({ config: rawProvenance })
+        : rawProvenance,
+    );
     const provenance: PermissionsConfig = parsedProvenance.success
       ? parsedProvenance.data
       : { permission: {} };
@@ -295,7 +307,9 @@ export class HermesagentPermissions extends ToolPermissions {
       }),
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify(imported, null, 2),
+      fileContent: withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify(imported, null, 2),
+      }),
     });
   }
 
