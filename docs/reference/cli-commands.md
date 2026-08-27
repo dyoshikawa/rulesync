@@ -138,10 +138,19 @@ The `generate` command reads source files from one or more rulesync source trees
 > **Note on unreadable sources:** A `.rulesync/` source file that exists but
 > cannot be read — malformed JSON/JSONC, or content the schema rejects — is
 > reported as an error and produces no output for that feature, and `generate`
-> then exits non-zero. Every other feature in the run still executes first, so
-> one bad file does not hide the rest of the errors. A source file that is simply
-> absent is not an error: that feature just has nothing to generate, and the run
-> succeeds — it is still logged, but it does not fail the run.
+> then exits non-zero, naming the affected features. Every other feature in the
+> run still executes first, so one bad file does not hide the rest of the
+> errors. Because that feature's output could not be regenerated, `--delete`
+> also skips its orphan sweep, leaving the previously generated files in place
+> rather than deleting configuration the run was unable to rewrite. Under
+> `--watch` the failure is reported and the watcher keeps running, so saving a
+> corrected source regenerates as usual.
+>
+> A source file that is simply absent is not an error: that feature just has
+> nothing to generate, and the run succeeds — it is still logged, but it does
+> not fail the run. Only genuine absence counts; a path that cannot even be
+> checked (a permission error, a symlink loop) is treated as unreadable, not as
+> missing.
 
 ### Examples
 

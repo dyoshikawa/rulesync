@@ -10,13 +10,14 @@ export type WriteResult = {
  * Result of feature generation, extending WriteResult with hasDiff.
  *
  * `sourceLoadFailed` marks a step whose `.rulesync/` source could not be read
- * at all — malformed content, or a schema that rejected it. Omitting it means
- * every source the step needed was read, which is why it is optional: a step
- * that has no way to fail this way says nothing.
+ * at all — malformed content, or a schema that rejected it. It is required so
+ * that a step which forgets to report it fails to compile rather than silently
+ * reading as a clean run: `count: 0` alone cannot tell "nothing to do" apart
+ * from "nothing could be read".
  */
 export type FeatureGenerateResult = WriteResult & {
   hasDiff: boolean;
-  sourceLoadFailed?: boolean;
+  sourceLoadFailed: boolean;
 };
 
 /**

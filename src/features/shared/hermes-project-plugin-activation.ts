@@ -111,7 +111,7 @@ export async function activateHermesProjectPlugins({
   logger: Logger;
 }): Promise<FeatureGenerateResult> {
   if (pluginNames.length === 0) {
-    return { count: 0, paths: [], hasDiff: false };
+    return { count: 0, paths: [], hasDiff: false, sourceLoadFailed: false };
   }
 
   const configRoot = getHermesagentHome() ?? getHomeDirectory();
@@ -146,5 +146,8 @@ export async function activateHermesProjectPlugins({
     paths.push(relativeConfigPath);
   }
 
-  return { count: paths.length, paths, hasDiff: paths.length > 0 };
+  // The activation file is derived from the plugin names the caller already
+  // resolved, not from a `.rulesync/` source of its own, so it has no way to
+  // fail this way.
+  return { count: paths.length, paths, hasDiff: paths.length > 0, sourceLoadFailed: false };
 }

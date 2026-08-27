@@ -18,7 +18,7 @@ import {
 import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { fileExists, readFileContent } from "../../utils/file.js";
+import { fileExistsStrict, readFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
@@ -166,7 +166,7 @@ async function findFirstExistingCandidate({
     const candidateDirPath = overrideDirPath ?? candidate.relativeDirPath;
     const filePath = join(outputRoot, candidateDirPath, candidate.relativeFilePath);
 
-    if (await fileExists(filePath)) {
+    if (await fileExistsStrict(filePath)) {
       return {
         filePath,
         candidate: {
@@ -502,7 +502,7 @@ export class RulesyncMcp extends RulesyncFile {
       const candidateDirPath = overrideDirPath ?? candidate.relativeDirPath;
       const filePath = join(outputRoot, candidateDirPath, candidate.relativeFilePath);
 
-      if (!(await fileExists(filePath))) {
+      if (!(await fileExistsStrict(filePath))) {
         continue;
       }
 

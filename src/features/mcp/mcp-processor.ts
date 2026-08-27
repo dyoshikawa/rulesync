@@ -7,8 +7,8 @@ import { ToolFile } from "../../types/tool-file.js";
 import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { isRulesyncSourceMissing } from "../../utils/rulesync-source-path.js";
 import { AiassistantMcp } from "./aiassistant-mcp.js";
 import { AmpMcp } from "./amp-mcp.js";
 import { AntigravityCliMcp } from "./antigravity-cli-mcp.js";
@@ -758,9 +758,9 @@ export class McpProcessor extends FeatureProcessor {
         `Failed to load a Rulesync MCP file (${RULESYNC_MCP_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       );
       // A source that is simply absent is not a failure: the feature just has
-      // no file here. Anything else means the file exists but could not be
-      // read, which must not be reported as a clean run.
-      if (!isFileNotFoundError(error)) {
+      // no file here. Anything else means the source exists and could not be
+      // read or parsed, which must not be reported as a clean run.
+      if (!isRulesyncSourceMissing(error)) {
         this.recordRulesyncSourceLoadFailure();
       }
       return [];

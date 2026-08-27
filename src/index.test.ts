@@ -62,6 +62,7 @@ const mockGenerateResult: GenerateResult = {
   skills: [],
   hasDiff: false,
   sourceLoadFailed: false,
+  sourceLoadFailedFeatures: [],
 };
 
 const mockImportResult: ImportResult = {

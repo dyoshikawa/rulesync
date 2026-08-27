@@ -73,6 +73,11 @@ export type GenerateResult = {
    * reports zero written files, exactly like a feature that had nothing to do.
    */
   sourceLoadFailed: boolean;
+  /**
+   * The features whose source could not be read, in run order. Empty exactly
+   * when `sourceLoadFailed` is false.
+   */
+  sourceLoadFailedFeatures: string[];
 };
 
 async function processFeatureGeneration<T extends AiFile>(params: {
@@ -104,7 +109,10 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   // `toolFiles` rather than `filesToCheck` for exactly that reason.
   sweepPlan.registerGenerated({ paths: toolFiles.map((f) => f.getFilePath()) });
 
-  if (config.getDelete()) {
+  // A processor whose source failed to load has an incomplete picture of what
+  // the run should produce, so the sweep cannot tell an orphan from a file
+  // whose source it simply could not read. Leave the tree alone.
+  if (config.getDelete() && !processor.hasRulesyncSourceLoadFailure()) {
     sweepPlan.defer({
       sweep: async () => {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
@@ -126,7 +134,12 @@ async function processFeatureGeneration<T extends AiFile>(params: {
     });
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return {
+    count: totalCount,
+    paths: allPaths,
+    hasDiff,
+    sourceLoadFailed: processor.hasRulesyncSourceLoadFailure(),
+  };
 }
 
 async function processDirFeatureGeneration(params: {
@@ -174,7 +187,10 @@ async function processDirFeatureGeneration(params: {
     }),
   });
 
-  if (config.getDelete()) {
+  // A processor whose source failed to load has an incomplete picture of what
+  // the run should produce, so the sweep cannot tell an orphan from a file
+  // whose source it simply could not read. Leave the tree alone.
+  if (config.getDelete() && !processor.hasRulesyncSourceLoadFailure()) {
     sweepPlan.defer({
       sweep: async () => {
         const existingToolDirs = await processor.loadToolDirsToDelete();
@@ -190,7 +206,12 @@ async function processDirFeatureGeneration(params: {
     });
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return {
+    count: totalCount,
+    paths: allPaths,
+    hasDiff,
+    sourceLoadFailed: processor.hasRulesyncSourceLoadFailure(),
+  };
 }
 
 // Handle special case for empty rulesync files
@@ -204,7 +225,10 @@ async function processEmptyFeatureGeneration(params: {
 
   const totalCount = 0;
 
-  if (config.getDelete()) {
+  // A processor whose source failed to load claims no files, so the sweep would
+  // read every generated file as an orphan and delete configuration the run was
+  // never able to regenerate. "Could not be read" is not "no longer wanted".
+  if (config.getDelete() && !processor.hasRulesyncSourceLoadFailure()) {
     sweepPlan.defer({
       sweep: async () => {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
@@ -219,7 +243,12 @@ async function processEmptyFeatureGeneration(params: {
     });
   }
 
-  return { count: totalCount, paths: [], hasDiff: false };
+  return {
+    count: totalCount,
+    paths: [],
+    hasDiff: false,
+    sourceLoadFailed: processor.hasRulesyncSourceLoadFailure(),
+  };
 }
 
 /**
@@ -758,8 +787,11 @@ export async function generate(params: {
 
   // A step that could not read its source wrote nothing, which is counted the
   // same as "there was nothing to write". Carry the distinction out so the
-  // caller can refuse to report success.
-  const sourceLoadFailed = orderedSteps.some((step) => get(step.id).sourceLoadFailed === true);
+  // caller can refuse to report success, and name the features so the caller
+  // does not have to re-read the log to find out which ones.
+  const sourceLoadFailedFeatures = orderedSteps
+    .filter((step) => get(step.id).sourceLoadFailed)
+    .map((step) => step.id);
 
   return {
     rulesCount: get("rules").count,
@@ -784,7 +816,8 @@ export async function generate(params: {
     activationPaths: activationResult.paths,
     skills: skillsResult.skills,
     hasDiff,
-    sourceLoadFailed,
+    sourceLoadFailed: sourceLoadFailedFeatures.length > 0,
+    sourceLoadFailedFeatures,
   };
 }
 
@@ -850,6 +883,7 @@ async function generateRulesCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedTargets = RulesProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedTargets);
@@ -910,10 +944,11 @@ async function generateRulesCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateIgnoreCore(params: {
@@ -964,9 +999,6 @@ async function generateIgnoreCore(params: {
         });
 
         const rulesyncFiles = await processor.loadRulesyncFiles();
-        if (processor.hasRulesyncSourceLoadFailure()) {
-          sourceLoadFailed = true;
-        }
         const result = await processFeatureWithRulesyncFiles({
           config,
           processor,
@@ -977,6 +1009,7 @@ async function generateIgnoreCore(params: {
         totalCount += result.count;
         allPaths.push(...result.paths);
         if (result.hasDiff) hasDiff = true;
+        if (result.sourceLoadFailed) sourceLoadFailed = true;
       } catch (error) {
         // Ignore files are what keep secrets out of AI tools' reach — a
         // silently-skipped ignore generation is the same fail-open bug the
@@ -1034,9 +1067,6 @@ async function generateMcpCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      if (processor.hasRulesyncSourceLoadFailure()) {
-        sourceLoadFailed = true;
-      }
       const result = await processFeatureWithRulesyncFiles({
         config,
         processor,
@@ -1047,6 +1077,7 @@ async function generateMcpCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
@@ -1063,6 +1094,7 @@ async function generateCommandsCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedCommandsTargets = CommandsProcessor.getToolTargets({
     global: config.getGlobal(),
@@ -1110,10 +1142,11 @@ async function generateCommandsCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateSubagentsCore(params: {
@@ -1126,6 +1159,7 @@ async function generateSubagentsCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedSubagentsTargets = SubagentsProcessor.getToolTargets({
     global: config.getGlobal(),
@@ -1171,10 +1205,11 @@ async function generateSubagentsCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
 
 async function generateSkillsCore(params: {
@@ -1187,6 +1222,7 @@ async function generateSkillsCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
   const allSkills: RulesyncSkill[] = [];
 
   const supportedSkillsTargets = SkillsProcessor.getToolTargets({
@@ -1242,10 +1278,11 @@ async function generateSkillsCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, skills: allSkills, hasDiff };
+  return { count: totalCount, paths: allPaths, skills: allSkills, hasDiff, sourceLoadFailed };
 }
 
 async function generateHooksCore(params: {
@@ -1290,9 +1327,6 @@ async function generateHooksCore(params: {
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
-      if (processor.hasRulesyncSourceLoadFailure()) {
-        sourceLoadFailed = true;
-      }
       const result = await processFeatureWithRulesyncFiles({
         config,
         processor,
@@ -1303,6 +1337,7 @@ async function generateHooksCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
@@ -1352,9 +1387,6 @@ async function generatePermissionsCore(params: {
         });
 
         const rulesyncFiles = await processor.loadRulesyncFiles();
-        if (processor.hasRulesyncSourceLoadFailure()) {
-          sourceLoadFailed = true;
-        }
         const result = await processFeatureWithRulesyncFiles({
           config,
           processor,
@@ -1365,6 +1397,7 @@ async function generatePermissionsCore(params: {
         totalCount += result.count;
         allPaths.push(...result.paths);
         if (result.hasDiff) hasDiff = true;
+        if (result.sourceLoadFailed) sourceLoadFailed = true;
       } catch (error) {
         // A malformed shared config (e.g. .vibe/config.toml) must fail the run
         // the same way the MCP feature does — swallowing it reported
@@ -1391,6 +1424,7 @@ async function generateChecksCore(params: {
   let totalCount = 0;
   const allPaths: string[] = [];
   let hasDiff = false;
+  let sourceLoadFailed = false;
 
   const supportedChecksTargets = ChecksProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedChecksTargets);
@@ -1432,8 +1466,9 @@ async function generateChecksCore(params: {
       totalCount += result.count;
       allPaths.push(...result.paths);
       if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
 
-  return { count: totalCount, paths: allPaths, hasDiff };
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }

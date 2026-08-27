@@ -56,6 +56,14 @@ Generates configuration files for the specified targets and features.
 | `dryRun`            | `boolean`      | `false`             | Show changes without writing files                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `check`             | `boolean`      | `false`             | Exit with code 1 if files are not up to date                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
+> **Unreadable sources do not throw here.** Unlike the CLI, which exits
+> non-zero, `generate()` resolves and reports the problem on the result:
+> `sourceLoadFailed` is `true` and `sourceLoadFailedFeatures` names the features
+> whose `.rulesync/` source could not be read. Their counts are `0`, exactly like
+> a feature that had nothing to write, so check the flag rather than the counts
+> before treating a run as successful. (Those features also keep their existing
+> generated files: `delete` skips their orphan sweep.)
+
 ## `importFromTool(options)`
 
 Imports existing tool configurations into `.rulesync/` directory.

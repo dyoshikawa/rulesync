@@ -11,9 +11,10 @@ import type { ValidationResult } from "../../types/ai-file.js";
 import { type HooksConfig, HooksConfigSchema } from "../../types/hooks.js";
 import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types/rulesync-file.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
-import { fileExists, readFileContent } from "../../utils/file.js";
+import { fileExistsStrict, readFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import {
+  RulesyncSourceNotFoundError,
   getRulesyncSourceCandidates,
   type RulesyncSourceSettablePaths,
 } from "../../utils/rulesync-source-path.js";
@@ -84,7 +85,7 @@ export class RulesyncHooks extends RulesyncFile {
       const candidateDirPath = overrideDirPath ?? candidate.relativeDirPath;
       const filePath = join(outputRoot, candidateDirPath, candidate.relativeFilePath);
 
-      if (!(await fileExists(filePath))) {
+      if (!(await fileExistsStrict(filePath))) {
         continue;
       }
 
@@ -99,7 +100,7 @@ export class RulesyncHooks extends RulesyncFile {
       });
     }
 
-    throw new Error(
+    throw new RulesyncSourceNotFoundError(
       `No ${RULESYNC_HOOKS_RELATIVE_FILE_PATH} or ${RULESYNC_HOOKS_LEGACY_RELATIVE_FILE_PATH} found.`,
     );
   }

@@ -390,14 +390,41 @@ export async function writeFileBuffer(filepath: string, buffer: Buffer): Promise
  * error is still recognized.
  */
 export function isFileNotFoundError(error: unknown): boolean {
+  // A `cause` may point back at an error already visited (nothing forbids a
+  // cycle), so walking the chain has to keep track of where it has been.
+  const seen = new Set<unknown>();
   let current: unknown = error;
-  while (current instanceof Error) {
+  while (current instanceof Error && !seen.has(current)) {
     if ("code" in current && current.code === "ENOENT") {
       return true;
     }
+    seen.add(current);
     current = current.cause;
   }
   return false;
+}
+
+/**
+ * Whether the path exists, treating any failure other than "it does not
+ * exist" as an error rather than as absence.
+ *
+ * {@link fileExists} answers `false` for every `stat` failure, so a file that
+ * is present but cannot be examined — a symlink loop, a directory the process
+ * may not traverse — is indistinguishable from one that was never there. When
+ * absence is what decides whether a failure is reported, that difference
+ * matters: mistaking an unreadable source for a missing one silently drops the
+ * rules it was supposed to contain.
+ */
+export async function fileExistsStrict(filepath: string): Promise<boolean> {
+  try {
+    await stat(filepath);
+    return true;
+  } catch (error) {
+    if (isFileNotFoundError(error)) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 export async function fileExists(filepath: string): Promise<boolean> {

@@ -7,6 +7,8 @@ import { IgnoreProcessor } from "../../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../../features/rules/rules-processor.js";
 import { SubagentsProcessor } from "../../features/subagents/subagents-processor.js";
+import { watchTargets } from "../../lib/watch.js";
+import { mockProcessorBase } from "../../test-utils/mock-feature-processor.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import { directoryExists, fileExists } from "../../utils/file.js";
@@ -21,6 +23,13 @@ vi.mock("../../features/mcp/mcp-processor.js");
 vi.mock("../../features/subagents/subagents-processor.js");
 vi.mock("../../features/commands/commands-processor.js");
 vi.mock("../../utils/file.js");
+vi.mock("../../lib/watch.js", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/watch.js")>("../../lib/watch.js");
+  return {
+    ...actual,
+    watchTargets: vi.fn().mockReturnValue({ close: vi.fn() }),
+  };
+});
 vi.mock("es-toolkit", () => ({
   intersection: vi.fn(),
 }));
@@ -74,7 +83,7 @@ describe("generateCommand", () => {
     mockProcessorInstance = {
       loadToolFiles: vi.fn().mockResolvedValue([]),
       removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-      hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+      ...mockProcessorBase(),
       loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
       convertRulesyncFilesToToolFiles: vi
         .fn()
@@ -96,7 +105,7 @@ describe("generateCommand", () => {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -108,7 +117,7 @@ describe("generateCommand", () => {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -120,7 +129,7 @@ describe("generateCommand", () => {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -132,7 +141,7 @@ describe("generateCommand", () => {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -144,7 +153,7 @@ describe("generateCommand", () => {
       return {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -264,7 +273,7 @@ describe("generateCommand", () => {
       const customMockInstance = {
         loadToolFiles: vi.fn().mockResolvedValue(oldFiles),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -367,7 +376,7 @@ describe("generateCommand", () => {
       const customMockInstance = {
         loadToolFiles: vi.fn().mockResolvedValue(oldFiles),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -628,7 +637,7 @@ describe("generateCommand", () => {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+          ...mockProcessorBase(),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi
             .fn()
@@ -651,7 +660,7 @@ describe("generateCommand", () => {
       const rulesMock = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -661,7 +670,7 @@ describe("generateCommand", () => {
       const mcpMock = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -671,7 +680,7 @@ describe("generateCommand", () => {
       const commandsMock = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -729,7 +738,7 @@ describe("generateCommand", () => {
       const customMockInstance = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -762,7 +771,7 @@ describe("generateCommand", () => {
           },
         ]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(1),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([
           {
             getFilePath: () => "/path/to/rulesync",
@@ -794,7 +803,7 @@ describe("generateCommand", () => {
       const rulesMock = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([
           {
             getFilePath: () => "/path/to/rulesync",
@@ -910,7 +919,7 @@ describe("generateCommand", () => {
           .fn()
           .mockResolvedValue([{ file: "old", getFilePath: () => "/path/to/old" }]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -1058,7 +1067,7 @@ describe("generateCommand", () => {
       const customMockInstance = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -1096,7 +1105,7 @@ describe("generateCommand", () => {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+          ...mockProcessorBase(),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi
             .fn()
@@ -1108,7 +1117,7 @@ describe("generateCommand", () => {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+          ...mockProcessorBase(),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi
             .fn()
@@ -1120,7 +1129,7 @@ describe("generateCommand", () => {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+          ...mockProcessorBase(),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi
             .fn()
@@ -1132,7 +1141,7 @@ describe("generateCommand", () => {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+          ...mockProcessorBase(),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi
             .fn()
@@ -1292,7 +1301,7 @@ describe("generateCommand", () => {
       const mockRulesProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
-        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+        ...mockProcessorBase(),
         loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
         convertRulesyncFilesToToolFiles: vi
           .fn()
@@ -1338,7 +1347,7 @@ describe("generateCommand", () => {
         return {
           loadToolFiles: loadToolFilesMock,
           removeOrphanAiFiles: removeOrphanMock,
-          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+          ...mockProcessorBase(),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi
             .fn()
@@ -1380,9 +1389,68 @@ describe("generateCommand", () => {
 
       await expect(generateCommand(mockLogger, options)).rejects.toMatchObject({
         code: ErrorCodes.GENERATION_FAILED,
-        message: expect.stringContaining("could not be loaded"),
+        // Naming the feature is what makes the exit code actionable without
+        // re-reading the whole log.
+        message: expect.stringContaining("mcp"),
+        details: { sourceLoadFailedFeatures: ["mcp"] },
       });
       expect(mockLogger.success).not.toHaveBeenCalled();
+    });
+
+    it("should not delete generated files when a rulesync source could not be loaded", async () => {
+      // The run has no idea what it should have produced, so every generated
+      // file would look like an orphan. Sweeping there deletes a working config
+      // the run had no way to rewrite.
+      mockConfig.getFeatures.mockReturnValue(["mcp"]);
+      mockConfig.getDelete.mockReturnValue(true);
+      const removeOrphanMock = vi.fn().mockResolvedValue(1);
+      vi.mocked(McpProcessor).mockImplementation(function () {
+        return {
+          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(true),
+          loadToolFiles: vi
+            .fn()
+            .mockResolvedValue([{ orphan: "file", getFilePath: () => "/path/to/orphan" }]),
+          removeOrphanAiFiles: removeOrphanMock,
+          loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+        } as any;
+      });
+
+      await expect(generateCommand(mockLogger, {})).rejects.toMatchObject({
+        code: ErrorCodes.GENERATION_FAILED,
+      });
+      expect(removeOrphanMock).not.toHaveBeenCalled();
+    });
+
+    it("should keep watching when the initial run hits a source that could not be loaded", async () => {
+      // A malformed source is an edit the user is about to correct, and saving
+      // that correction is exactly what the watcher is here for. Only genuine
+      // configuration errors should stop it before it starts.
+      mockConfig.getFeatures.mockReturnValue(["mcp"]);
+      mockConfig.getConfigFilePath = vi.fn().mockReturnValue("/test/project/rulesync.jsonc");
+      vi.mocked(McpProcessor).mockImplementation(function () {
+        return {
+          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(true),
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
+          loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+          convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([]),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+        } as any;
+      });
+
+      // The watcher blocks until it is interrupted, so stop it as soon as it
+      // is up — reaching that point at all is what this test is asserting.
+      vi.mocked(watchTargets).mockImplementation(() => {
+        setTimeout(() => process.emit("SIGINT"), 0);
+        return { close: vi.fn() } as any;
+      });
+
+      await expect(generateCommand(mockLogger, { watch: true })).resolves.toBeUndefined();
+
+      expect(vi.mocked(watchTargets)).toHaveBeenCalled();
+      expect(mockLogger.info).toHaveBeenCalledWith("Still watching for changes...");
     });
 
     it("should succeed in check mode when no diff exists and delete is enabled", async () => {
@@ -1395,7 +1463,7 @@ describe("generateCommand", () => {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeOrphanAiFiles: removeOrphanMock,
-          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+          ...mockProcessorBase(),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi
             .fn()
@@ -1423,7 +1491,7 @@ describe("generateCommand", () => {
         return {
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeOrphanAiFiles: removeOrphanMock,
-          hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(false),
+          ...mockProcessorBase(),
           loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
           convertRulesyncFilesToToolFiles: vi
             .fn()

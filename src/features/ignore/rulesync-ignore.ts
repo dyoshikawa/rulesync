@@ -7,7 +7,8 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { RulesyncFile, RulesyncFileFromFileParams } from "../../types/rulesync-file.js";
-import { fileExists, readFileContent } from "../../utils/file.js";
+import { fileExistsStrict, readFileContent } from "../../utils/file.js";
+import { RulesyncSourceNotFoundError } from "../../utils/rulesync-source-path.js";
 import type {
   RulesyncSourcePath,
   RulesyncSourceSettablePaths,
@@ -62,7 +63,7 @@ export class RulesyncIgnore extends RulesyncFile {
     const [legacy] = paths.legacy;
     const legacyPath = join(outputRoot, legacy.relativeDirPath, legacy.relativeFilePath);
 
-    if (await fileExists(recommendedPath)) {
+    if (await fileExistsStrict(recommendedPath)) {
       const fileContent = await readFileContent(recommendedPath);
       return new RulesyncIgnore({
         outputRoot,
@@ -72,7 +73,7 @@ export class RulesyncIgnore extends RulesyncFile {
       });
     }
 
-    if (await fileExists(legacyPath)) {
+    if (await fileExistsStrict(legacyPath)) {
       const fileContent = await readFileContent(legacyPath);
       return new RulesyncIgnore({
         outputRoot,
@@ -82,13 +83,8 @@ export class RulesyncIgnore extends RulesyncFile {
       });
     }
 
-    // If neither exists, try to read recommended path (will throw appropriate error)
-    const fileContent = await readFileContent(recommendedPath);
-    return new RulesyncIgnore({
-      outputRoot,
-      relativeDirPath: recommendedDirPath,
-      relativeFilePath: paths.recommended.relativeFilePath,
-      fileContent,
-    });
+    throw new RulesyncSourceNotFoundError(
+      `No ${join(recommendedDirPath, paths.recommended.relativeFilePath)} or ${join(legacy.relativeDirPath, legacy.relativeFilePath)} found.`,
+    );
   }
 }

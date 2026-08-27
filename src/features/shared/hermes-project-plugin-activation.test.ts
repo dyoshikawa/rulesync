@@ -62,6 +62,7 @@ describe("Hermes project plugin activation", () => {
         count: 1,
         paths: [".hermes/config.yaml"],
         hasDiff: true,
+        sourceLoadFailed: false,
       });
       expect(
         parseSharedConfig({
@@ -123,6 +124,7 @@ describe("Hermes project plugin activation", () => {
         count: 1,
         paths: ["config.yaml"],
         hasDiff: true,
+        sourceLoadFailed: false,
       });
       expect(await readFileContent(join(profileDir, "config.yaml"))).toContain(
         "rulesync-subagents",

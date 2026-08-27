@@ -39,9 +39,11 @@ import type { ToolFile } from "../../types/tool-file.js";
 import { hooksProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
+import {
+  getRulesyncSourceCandidates,
+  isRulesyncSourceMissing,
+} from "../../utils/rulesync-source-path.js";
 import { AmpHooks } from "./amp-hooks.js";
 import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
 import { AntigravityPluginHooks } from "./antigravity-plugin-hooks.js";
@@ -789,15 +791,15 @@ export class HooksProcessor extends FeatureProcessor {
     const relativePaths = getRulesyncSourceCandidates({ paths }).map(
       (candidate) => candidate.relativeFilePath,
     );
-    const winningRoot = await pickLastRootWithFile({
-      inputRoots: this.inputRoots,
-      relativePaths,
-      logger: this.logger,
-      artifactName: "The hooks file",
-    });
-    const sourceTree = winningRoot ?? this.inputRoots[0];
-
     try {
+      const winningRoot = await pickLastRootWithFile({
+        inputRoots: this.inputRoots,
+        relativePaths,
+        logger: this.logger,
+        artifactName: "The hooks file",
+      });
+      const sourceTree = winningRoot ?? this.inputRoots[0];
+
       return [
         await RulesyncHooks.fromFile({
           outputRoot: dirname(sourceTree),
@@ -810,10 +812,9 @@ export class HooksProcessor extends FeatureProcessor {
         `Failed to load Rulesync hooks file (${RULESYNC_HOOKS_RELATIVE_FILE_PATH}): ${formatError(error)}`,
       );
       // A source that is simply absent is not a failure: the feature just has
-      // no file here, and `winningRoot` is undefined precisely in that case.
-      // Anything else means the file exists but could not be read or parsed,
-      // which must not be reported as a clean run.
-      if (winningRoot !== undefined && !isFileNotFoundError(error)) {
+      // no file here. Anything else means the source exists and could not be
+      // read or parsed, which must not be reported as a clean run.
+      if (!isRulesyncSourceMissing(error)) {
         this.recordRulesyncSourceLoadFailure();
       }
       return [];

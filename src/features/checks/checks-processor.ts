@@ -299,7 +299,11 @@ export class ChecksProcessor extends FeatureProcessor {
         rulesyncChecks.push(rulesyncCheck);
         this.logger.debug(`Successfully loaded check: ${mdFile}`);
       } catch (error) {
-        this.logger.warn(`Failed to load check file ${filepath}: ${formatError(error)}`);
+        // The file was listed in the checks directory, so it exists and could
+        // not be parsed. The run keeps going so the remaining checks are still
+        // reported, but it must not finish as a success.
+        this.recordRulesyncSourceLoadFailure();
+        this.logger.error(`Failed to load check file ${filepath}: ${formatError(error)}`);
         continue;
       }
     }
