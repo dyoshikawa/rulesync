@@ -769,6 +769,27 @@ describe("RulesyncPermissions", () => {
       expect(withoutBlankPermissionPatterns({ fileContent })).toBe(fileContent);
     });
 
+    it("should drop a category the filter emptied", () => {
+      // Writing back `{"bash": {}}` would put an empty category into the tool's
+      // own config on the next generate.
+      const fileContent = withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({
+          permission: { bash: { "": "allow" }, read: { "src/**": "allow" } },
+        }),
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({ permission: { read: { "src/**": "allow" } } });
+    });
+
+    it("should keep a category that was already empty", () => {
+      // Nothing here was dropped from it, so it is not this filter's to remove.
+      const fileContent = withoutBlankPermissionPatterns({
+        fileContent: JSON.stringify({ permission: { bash: { "": "allow" }, read: {} } }),
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({ permission: { read: {} } });
+    });
+
     it("should label the shared block in the warning", () => {
       const logger = createMockLogger();
 

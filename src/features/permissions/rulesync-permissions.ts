@@ -216,10 +216,13 @@ function stripBlankPermissionPatterns(config: Record<string, unknown>): {
 } {
   const removed = new Map<string, number>();
 
-  const filterBlock = (
-    block: Record<string, unknown>,
-    blockPath: string,
-  ): Record<string, unknown> => {
+  const filterBlock = ({
+    block,
+    blockPath,
+  }: {
+    block: Record<string, unknown>;
+    blockPath: string;
+  }): Record<string, unknown> => {
     const filtered: Record<string, unknown> = {};
     for (const [category, rules] of Object.entries(block)) {
       if (!isRecord(rules)) {
@@ -235,6 +238,13 @@ function stripBlankPermissionPatterns(config: Record<string, unknown>): {
         }
         kept[pattern] = action;
       }
+      // A category emptied by the filter is dropped rather than kept as `{}`,
+      // which would otherwise be written straight back into the tool's own
+      // config on the next generate. A category that arrived empty stays,
+      // since nothing here changed it.
+      if (Object.keys(kept).length === 0 && Object.keys(rules).length > 0) {
+        continue;
+      }
       filtered[category] = kept;
     }
     return filtered;
@@ -242,13 +252,16 @@ function stripBlankPermissionPatterns(config: Record<string, unknown>): {
 
   const next: Record<string, unknown> = { ...config };
   if (isRecord(config.permission)) {
-    next.permission = filterBlock(config.permission, "permission");
+    next.permission = filterBlock({ block: config.permission, blockPath: "permission" });
   }
   for (const [key, value] of Object.entries(config)) {
     if (key === "permission" || !isRecord(value) || !isRecord(value.permission)) {
       continue;
     }
-    next[key] = { ...value, permission: filterBlock(value.permission, `${key}.permission`) };
+    next[key] = {
+      ...value,
+      permission: filterBlock({ block: value.permission, blockPath: `${key}.permission` }),
+    };
   }
 
   return { config: next, removed };
@@ -277,7 +290,7 @@ function warnAboutDroppedPatterns({
   const summary = [...removed.entries()].map(([path, count]) => `${count} in "${path}"`).join(", ");
   warnWithFallback(
     logger,
-    `Dropped blank permission patterns while reading a tool's permission configuration (${summary}). An empty or whitespace-only pattern matches everything, and tools disagree on what it means — some apply it to every command, others ignore it entirely — so it is not carried into the rulesync permissions config. If one of them was a blanket deny, what was read now allows more than the configuration it came from; re-add it with a real pattern.`,
+    `Dropped blank permission patterns while reading a tool's permission configuration (${summary}). An empty or whitespace-only pattern matches everything, and tools disagree on what it means — some apply it to every command, others ignore it entirely — so it is not carried into the rulesync permissions config. If one of them was a blanket deny, the imported configuration now allows more than the file it came from; re-add it with a real pattern.`,
   );
 }
 
