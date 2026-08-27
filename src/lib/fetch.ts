@@ -1,4 +1,4 @@
-import { lstat, readdir, rm, rmdir } from "node:fs/promises";
+import { lstat, readdir, rm, rmdir, stat } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
@@ -47,7 +47,7 @@ import {
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
-import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
+import { listDirectoryRecursive, MAX_RECURSION_DEPTH, withSemaphore } from "./github-utils.js";
 import { isInteractiveTerminal, promptSkillSelection } from "./skill-prompt.js";
 import { parseSource } from "./source-parser.js";
 
@@ -307,9 +307,8 @@ function classifySkillPath(relativePath: string): SkillPathClass {
     return NON_SKILL_PATH;
   }
   // Not one usable directory entry, so it names no skill and, above all, hands
-  // the prune no directory to walk. `validateRemoteRelativePath` already turns
-  // such a path away before it gets here; this keeps the function safe read on
-  // its own.
+  // the prune no directory to walk. Collection already turns such a path away
+  // before it gets here; this keeps the function safe read on its own.
   if (name === "." || name === ".." || name.includes("\\")) {
     return NON_SKILL_PATH;
   }
@@ -321,30 +320,51 @@ function classifySkillPath(relativePath: string): SkillPathClass {
 }
 
 /**
- * Refuse a remote path that does not name exactly one local file.
+ * Refuse a remote path that walks out of where it is being written.
  *
- * A remote path is POSIX, so a backslash in one is an ordinary character in a
- * name — but it is a separator once the path reaches Windows, and it is one to
- * every `toPosixPath` call in this file. A name that means one thing to the
- * writer and another to the reader must not be allowed to decide where a file
- * lands, and least of all what the skill prune deletes: `skills/.\evil/SKILL.md`
- * is written as a directory literally called `.\evil`, yet reads back as the
- * skill `.`, whose directory is the whole of `skills/`.
- *
- * `.` and `..` segments are refused for the same reason. A repository cannot
- * hold either as a path component, so nothing legitimate is turned away.
+ * A repository cannot hold a `.` or `..` path component, so a path carrying one
+ * did not come from the repository's own tree and nothing legitimate is turned
+ * away — while what it would decide is where a file lands, and above all what
+ * the skill prune deletes: `skills/./SKILL.md` reads back as the skill `.`,
+ * whose directory is the whole of `skills/`.
  */
 function validateRemoteRelativePath(relativePath: string): void {
   const segments = relativePath.split("/");
-  if (
-    relativePath.includes("\\") ||
-    segments.some((segment) => segment === "." || segment === "..")
-  ) {
+  if (segments.some((segment) => segment === "." || segment === "..")) {
     throw new Error(
       `Unsafe path in the remote repository: ${JSON.stringify(relativePath)}. A fetched path ` +
-        `must be a plain POSIX path, without backslashes or "." and ".." segments.`,
+        `must be a plain POSIX path, without "." and ".." segments.`,
     );
   }
+}
+
+/**
+ * Keep only the files whose remote path means one local path.
+ *
+ * A remote path is POSIX, so a backslash in one is an ordinary character in a
+ * name — but the local side is not always POSIX, and every layer below reads
+ * such a name differently: `skills/a\b/SKILL.md` is one file in a directory
+ * named `a\b` here and two directories deep on Windows, and the prune would be
+ * handed a directory this run never wrote. A name nobody agrees on is worth far
+ * less than the rest of the fetch, so the file is dropped and the run goes on.
+ */
+function dropAmbiguousRemotePaths(params: {
+  files: CollectedFile[];
+  logger: Logger;
+}): CollectedFile[] {
+  const { files, logger } = params;
+  const kept: CollectedFile[] = [];
+  for (const file of files) {
+    if (toPosixPath(file.relativePath) === file.relativePath) {
+      kept.push(file);
+      continue;
+    }
+    logger.warn(
+      `Skipping ${JSON.stringify(file.remotePath)}: its path contains a backslash, which names ` +
+        `one file on some systems and a directory on others.`,
+    );
+  }
+  return kept;
 }
 
 /**
@@ -519,52 +539,68 @@ function hasPathAtOrUnder(paths: ReadonlySet<string>, root: string): boolean {
 }
 
 /**
- * How deep the prune walks below a skill directory. It matches the ceiling on
- * the remote walk (`MAX_RECURSION_DEPTH` in `github-utils.ts`), because nothing
- * deeper than that could have been fetched in the first place.
+ * Identify a local path by the file it actually is, rather than by the name it
+ * is reached through.
+ *
+ * The names in the fetched list are the remote spellings, and the local
+ * filesystem may hold the same file under a different one: macOS stores a name
+ * in NFD and answers to NFC, and it — like Windows — treats two spellings that
+ * differ only in case as one file. Writing the remote `Scripts/Ref.md` onto a
+ * local `scripts/ref.md` updates that one file and leaves both names as they
+ * were, so going by name alone would delete what this run just fetched.
+ *
+ * `undefined` for a path that is not there, or that cannot be stat'ed.
  */
-const MAX_PRUNE_DEPTH = 15;
+async function fileIdentity(
+  path: string,
+  options?: { follow?: boolean },
+): Promise<string | undefined> {
+  const read = options?.follow === true ? stat : lstat;
+  const stats = await read(path).catch(() => undefined);
+  return stats === undefined ? undefined : `${stats.dev}:${stats.ino}`;
+}
 
 /**
- * Whether the entry is one of the files this run wrote into the same directory,
- * under a different name.
+ * The identity of every file this run wrote, as the filesystem sees it.
  *
- * Names are compared first and this is only reached when none matched, so the
- * question left is whether the filesystem kept a name of its own: macOS stores
- * a name in NFD and answers to NFC, and it — like Windows — treats two spellings
- * that differ only in case as one file. Identity is settled by device and inode
- * rather than by guessing at those rules per platform.
+ * Links are followed, so a file written through a symbolic link is recorded as
+ * the file the write actually landed on — which is what the prune below finds
+ * when it follows the same link.
  */
-async function isOneOfFetchedFiles(params: {
+async function collectFetchedFileIds(params: {
+  outputBasePath: string;
+  fetchedFiles: CollectedFile[];
+}): Promise<Set<string>> {
+  const { outputBasePath, fetchedFiles } = params;
+  const ids = await Promise.all(
+    fetchedFiles.map((file) =>
+      fileIdentity(join(outputBasePath, toPosixPath(file.relativePath)), { follow: true }),
+    ),
+  );
+  return new Set(ids.filter((id) => id !== undefined));
+}
+
+/**
+ * Whether the link is one the fetch wrote through, and so has to be left
+ * exactly as it is — including anything stale behind it, since its target is
+ * somewhere this prune has no business walking.
+ *
+ * It counts as written through either when the write resolved to the file
+ * behind it, or when the fetched list names the link itself or something under
+ * it.
+ */
+async function isFetchedSymbolicLink(params: {
   entryPath: string;
-  dirPath: string;
-  fetchedSiblings: ReadonlyMap<string, string[]>;
-  relativeDirPath: string;
+  entryRelativePath: string;
+  fetchedPaths: ReadonlySet<string>;
+  fetchedIds: ReadonlySet<string>;
 }): Promise<boolean> {
-  const { entryPath, dirPath, fetchedSiblings, relativeDirPath } = params;
-
-  const siblings = fetchedSiblings.get(relativeDirPath);
-  if (siblings === undefined) {
-    return false;
-  }
-
-  const entryStats = await lstat(entryPath).catch(() => undefined);
-  if (entryStats === undefined) {
-    return false;
-  }
-
-  for (const sibling of siblings) {
-    const siblingStats = await lstat(join(dirPath, sibling)).catch(() => undefined);
-    if (
-      siblingStats !== undefined &&
-      siblingStats.dev === entryStats.dev &&
-      siblingStats.ino === entryStats.ino
-    ) {
-      return true;
-    }
-  }
-
-  return false;
+  const { entryPath, entryRelativePath, fetchedPaths, fetchedIds } = params;
+  const targetId = await fileIdentity(entryPath, { follow: true });
+  return (
+    (targetId !== undefined && fetchedIds.has(targetId)) ||
+    hasPathAtOrUnder(fetchedPaths, entryRelativePath)
+  );
 }
 
 /**
@@ -586,7 +622,7 @@ async function pruneDirectory(params: {
   outputBasePath: string;
   relativeDirPath: string;
   fetchedPaths: ReadonlySet<string>;
-  fetchedSiblings: ReadonlyMap<string, string[]>;
+  fetchedIds: ReadonlySet<string>;
   deleted: FetchFileResult[];
   depth?: number;
   logger: Logger;
@@ -595,18 +631,19 @@ async function pruneDirectory(params: {
     outputBasePath,
     relativeDirPath,
     fetchedPaths,
-    fetchedSiblings,
+    fetchedIds,
     deleted,
     depth = 0,
     logger,
   } = params;
   const dirPath = join(outputBasePath, relativeDirPath);
 
-  if (depth > MAX_PRUNE_DEPTH) {
+  if (depth > MAX_RECURSION_DEPTH) {
     // The same ceiling the remote walk has, so a local tree deeper than
     // anything that could have been fetched is left alone rather than followed.
     logger.warn(
-      `Not pruning below ${relativeDirPath}: it is more than ${MAX_PRUNE_DEPTH} directories deep.`,
+      `Not pruning below ${relativeDirPath}: it is more than ${MAX_RECURSION_DEPTH} directories ` +
+        `deep, which is deeper than a fetch reaches.`,
     );
     return "kept";
   }
@@ -646,10 +683,7 @@ async function pruneDirectory(params: {
     // at, so a symbolic link here is unlinked, never walked and never resolved:
     // one aimed outside the output directory can only ever lose the link.
     if (entry.isSymbolicLink()) {
-      // A link the fetch wrote through still stands for a remote file, and its
-      // target is somewhere this prune has no business walking, so it is left
-      // exactly as it is — including anything stale behind it.
-      if (hasPathAtOrUnder(fetchedPaths, entryRelativePath)) {
+      if (await isFetchedSymbolicLink({ entryPath, entryRelativePath, fetchedPaths, fetchedIds })) {
         survivors++;
         continue;
       }
@@ -664,7 +698,7 @@ async function pruneDirectory(params: {
         outputBasePath,
         relativeDirPath: entryRelativePath,
         fetchedPaths,
-        fetchedSiblings,
+        fetchedIds,
         deleted,
         depth: depth + 1,
         logger,
@@ -681,22 +715,32 @@ async function pruneDirectory(params: {
       // The remote skill has no directory here any more, so the directory goes
       // too. It is reported under its own name, with a trailing slash, because
       // removing it deletes a local path in its own right.
-      await rmdir(entryPath);
+      try {
+        await rmdir(entryPath);
+      } catch (error) {
+        // Something appeared in it, or it went away, between emptying it and
+        // removing it. Either way there is nothing here left to report.
+        if (isFileNotFoundError(error) || isDirectoryNotEmptyError(error)) {
+          survivors++;
+          continue;
+        }
+        throw error;
+      }
       deleted.push({ relativePath: `${entryRelativePath}/`, status: "deleted" });
       logger.debug(`Removed stale skill directory: ${entryRelativePath}`);
       continue;
     }
 
+    // The name is checked first because it settles the ordinary case without
+    // touching the disk; identity covers the spellings the filesystem keeps to
+    // itself, including the ones in the directory names on the way here.
     if (fetchedPaths.has(entryRelativePath)) {
       survivors++;
       continue;
     }
 
-    // The name did not match, which on a case-insensitive or normalizing
-    // filesystem does not mean the file did not. Writing the remote `Ref.md`
-    // over a local `ref.md` updates that one file and leaves it named `ref.md`,
-    // so going by name alone would delete what this run just fetched.
-    if (await isOneOfFetchedFiles({ entryPath, dirPath, fetchedSiblings, relativeDirPath })) {
+    const entryId = await fileIdentity(entryPath);
+    if (entryId !== undefined && fetchedIds.has(entryId)) {
       survivors++;
       continue;
     }
@@ -747,14 +791,23 @@ async function maybePruneStaleSkillFiles(params: {
  * A collected file's `relativePath` is its `remotePath` with the fetch's base
  * path cut off the front, so the base path is recovered by removing that suffix
  * and put back in front of the skill directory.
+ *
+ * `undefined` when the two paths do not line up that way after all. The result
+ * is only ever used to look the directory up among the ones whose listing came
+ * back incomplete, so a guess here would be a guess about whether deleting is
+ * safe — and the caller answers that with "no".
  */
-function remoteSkillDirPath(params: { file: CollectedFile; localSkillDir: string }): string {
+function remoteSkillDirPath(params: {
+  file: CollectedFile;
+  localSkillDir: string;
+}): string | undefined {
   const { file, localSkillDir } = params;
   const remotePath = toPosixPath(file.remotePath);
   const relativePath = toPosixPath(file.relativePath);
-  const basePrefix = remotePath.endsWith(relativePath)
-    ? remotePath.slice(0, remotePath.length - relativePath.length)
-    : "";
+  if (!remotePath.endsWith(relativePath)) {
+    return undefined;
+  }
+  const basePrefix = remotePath.slice(0, remotePath.length - relativePath.length);
   return `${basePrefix}${localSkillDir}`;
 }
 
@@ -781,21 +834,11 @@ async function pruneStaleSkillFiles(params: {
   const { outputBasePath, fetchedFiles, incompleteRemoteDirs, logger } = params;
 
   const fetchedPaths = new Set(fetchedFiles.map((file) => toPosixPath(file.relativePath)));
-  // The names this run wrote, grouped by the directory they went into, so a
-  // deletion candidate only has to be weighed against the files beside it.
-  const fetchedSiblings = new Map<string, string[]>();
-  for (const path of fetchedPaths) {
-    const dir = posix.dirname(path);
-    const names = fetchedSiblings.get(dir);
-    if (names === undefined) {
-      fetchedSiblings.set(dir, [posix.basename(path)]);
-    } else {
-      names.push(posix.basename(path));
-    }
-  }
+  const fetchedIds = await collectFetchedFileIds({ outputBasePath, fetchedFiles });
   // Local skill directory -> the remote directory it was fetched from, so an
   // incomplete listing can be matched back to the skill it would misjudge.
-  const skillDirs = new Map<string, string>();
+  // `undefined` where that directory could not be worked out.
+  const skillDirs = new Map<string, string | undefined>();
   for (const file of fetchedFiles) {
     const skill = classifySkillPath(file.relativePath);
     if (skill.kind !== "skill") {
@@ -813,7 +856,7 @@ async function pruneStaleSkillFiles(params: {
     // skill. Once GitHub has truncated a listing, or it held an entry kind the
     // walk cannot fetch, a local file that is still upstream is indistinguishable
     // from one upstream dropped — so nothing here is judged stale.
-    if (hasPathAtOrUnder(incompleteRemoteDirs, remoteDir)) {
+    if (remoteDir === undefined || hasPathAtOrUnder(incompleteRemoteDirs, remoteDir)) {
       logger.warn(
         `Not pruning ${skillDir}: the remote listing for it came back incomplete, so a stale ` +
           `local file cannot be told apart from one the listing left out. Remove unwanted files ` +
@@ -831,13 +874,25 @@ async function pruneStaleSkillFiles(params: {
       outputBasePath,
       relativeDirPath: skillDir,
       fetchedPaths,
-      fetchedSiblings,
+      fetchedIds,
       deleted,
       logger,
     });
   }
 
   return deleted;
+}
+
+/**
+ * Whether removing the directory failed because something is still in it.
+ */
+function isDirectoryNotEmptyError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error.code === "ENOTEMPTY" || error.code === "EEXIST")
+  );
 }
 
 /**
@@ -1177,7 +1232,7 @@ async function collectFeatureFiles(params: {
     }),
   );
 
-  const files = results.flat();
+  const files = dropAmbiguousRemotePaths({ files: results.flat(), logger });
   for (const file of files) {
     validateRemoteRelativePath(file.relativePath);
   }

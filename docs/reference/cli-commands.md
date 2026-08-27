@@ -394,6 +394,8 @@ The scope is deliberately narrow:
 - Other features (`rules/`, `commands/`, `subagents/`, …) are never pruned — the issue only exists for directory-based skills.
 - Directories the remote skill no longer has are removed as well, and are listed in the summary under their own name with a trailing slash.
 - Symbolic links are unlinked, never followed: a link inside a skill directory can only ever lose the link itself, never whatever it points at. A skill directory that is **itself** a symbolic link is not pruned at all, since deleting through it would reach outside the output directory; Rulesync warns and leaves it alone.
+- A local file that the filesystem holds as the same file as one just fetched — a second name for it on a case-insensitive or Unicode-normalizing filesystem, or a hard link — is kept, even though the remote list does not carry that name.
+- Nothing more than 15 directories below the skill directory is pruned, which is as deep as a fetch itself reaches. Rulesync warns and leaves anything deeper alone.
 - A skill whose remote listing came back incomplete — GitHub caps a directory listing at 1,000 entries, and entries such as symlinks and submodules cannot be fetched — is not pruned either. Rulesync warns instead, because a local file that upstream still ships cannot be told apart from one it dropped.
 - `--conflict skip` disables pruning. That flag says to leave existing local files alone, and it also means the local copies are not this run's output, so they cannot be judged against the remote list.
 - `--target <tool>` never prunes, because that conversion path does not fetch skills at all.

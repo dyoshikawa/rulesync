@@ -1,4 +1,4 @@
-import { symlink } from "node:fs/promises";
+import { link, symlink } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -726,6 +726,7 @@ describe("fetchFiles", () => {
       "repo",
       "rules",
       "develop",
+      expect.anything(),
     );
   });
 
@@ -856,7 +857,7 @@ describe("fetchFiles", () => {
       }),
       // A `..` segment is turned away while the remote listing is still being
       // collected, before anything is written or pruned.
-    ).rejects.toThrow(/Unsafe path in the remote repository|Path traversal detected/);
+    ).rejects.toThrow(/Unsafe path in the remote repository/);
   });
 
   it("should reject output directory path traversal attempts", async () => {
@@ -2312,7 +2313,7 @@ describe("fetchFiles skill pruning", () => {
     expect(await fileExists(stale)).toBe(true);
   });
 
-  it("should refuse a remote path whose backslash makes the skill directory ambiguous", async () => {
+  it("should skip a remote path whose backslash makes the skill directory ambiguous", async () => {
     // `skills/.\evil/SKILL.md` is written as a directory literally called
     // `.\evil`, but reads back as the skill `.`, whose directory is the whole
     // of `skills/` — so the prune would empty every skill on disk.
@@ -2351,13 +2352,14 @@ describe("fetchFiles skill pruning", () => {
     const mine = join(skillsRoot, "alpha", "SKILL.md");
     await writeFileContent(mine, "# Mine");
 
-    await expect(fetchFiles({ logger, source: "owner/repo", outputRoot: testDir })).rejects.toThrow(
-      /Unsafe path in the remote repository/,
-    );
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.created).toBe(0);
+    expect(summary.deleted).toBe(0);
     expect(await fileExists(mine)).toBe(true);
   });
 
-  it("should refuse a remote path whose backslash targets another skill", async () => {
+  it("should skip a remote path whose backslash targets another skill", async () => {
     // `skills/victim\evil/` is written as its own directory, but reads back as
     // the skill `victim`, whose local directory this run never wrote.
     mockClientInstance.listDirectory.mockImplementation(
@@ -2395,10 +2397,46 @@ describe("fetchFiles skill pruning", () => {
     const victim = join(skillsRoot, "victim", "notes.md");
     await writeFileContent(victim, "# Mine");
 
-    await expect(fetchFiles({ logger, source: "owner/repo", outputRoot: testDir })).rejects.toThrow(
-      /Unsafe path in the remote repository/,
-    );
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.created).toBe(0);
+    expect(summary.deleted).toBe(0);
     expect(await fileExists(victim)).toBe(true);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "should keep a local name the fetched file also answers to",
+    async () => {
+      // A hard link is the portable stand-in for what a case-insensitive or
+      // NFD-normalizing filesystem does on its own: two names, one file. The
+      // fetch writes through `SKILL.md`, so `alias.md` is the file it just
+      // wrote and must survive a prune that only knows the remote spelling.
+      mockSkillRepository();
+      const fetched = join(skillsRoot, "skill-a", "SKILL.md");
+      const alias = join(skillsRoot, "skill-a", "alias.md");
+      await writeFileContent(fetched, "# Local");
+      await link(fetched, alias);
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.deleted).toBe(0);
+      expect(await fileExists(alias)).toBe(true);
+    },
+  );
+
+  it("should not prune below the depth a fetch can reach", async () => {
+    mockSkillRepository();
+    // One level past the ceiling the remote walk stops at, so nothing this deep
+    // could have been fetched and nothing this deep may be deleted.
+    const tooDeep = join(skillsRoot, "skill-a", ...Array.from({ length: 16 }, (_, i) => `d${i}`));
+    const buried = join(tooDeep, "reference.md");
+    await writeFileContent(buried, "# Buried");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(buried)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Not pruning below"));
   });
 
   it.skipIf(process.platform === "win32")(

@@ -3,14 +3,12 @@ import { Semaphore } from "es-toolkit/promise";
 import type { GitHubFileEntry } from "../types/fetch.js";
 import type { GitHubClient } from "./github-client.js";
 
-const MAX_RECURSION_DEPTH = 15;
-
 /**
- * GitHub's Contents API returns at most 1,000 entries for a directory and says
- * nothing about the ones it left out.
- * https://docs.github.com/en/rest/repos/contents#get-repository-content
+ * How many directory levels below the requested path the walk descends.
+ * Exported so a consumer that walks the fetched tree locally can stop at the
+ * same place, rather than below anything that could have been fetched.
  */
-const GITHUB_CONTENTS_DIRECTORY_LIMIT = 1000;
+export const MAX_RECURSION_DEPTH = 15;
 
 /**
  * Execute an async function with semaphore-controlled concurrency.
@@ -53,16 +51,22 @@ export async function listDirectoryRecursive(params: {
     );
   }
 
+  // Symlinks and submodules are the entry kinds this walk has no counterpart
+  // for, so they are dropped rather than descended into. The client reports the
+  // entries it dropped itself — a capped page, or an item that did not parse.
+  let dropped = false;
+
   // Semaphore is released here before recursive Promise.all below to avoid deadlock
   const entries = await withSemaphore(semaphore, () =>
-    client.listDirectory(owner, repo, path, ref),
+    client.listDirectory(owner, repo, path, ref, {
+      onIncompleteListing: () => {
+        dropped = true;
+      },
+    }),
   );
 
   const files: GitHubFileEntry[] = [];
   const directories: GitHubFileEntry[] = [];
-  // Symlinks and submodules are the entry kinds this walk has no counterpart
-  // for, so they are dropped rather than descended into.
-  let dropped = false;
 
   for (const entry of entries) {
     if (entry.type === "file") {
@@ -74,9 +78,7 @@ export async function listDirectoryRecursive(params: {
     }
   }
 
-  // A full page is the only sign the API gives that it truncated the listing,
-  // so it is treated as truncated whenever it comes back at the cap.
-  if (dropped || entries.length >= GITHUB_CONTENTS_DIRECTORY_LIMIT) {
+  if (dropped) {
     onIncompleteDirectory?.(path);
   }
 
