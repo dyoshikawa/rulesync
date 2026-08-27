@@ -1,4 +1,4 @@
-import { link, symlink } from "node:fs/promises";
+import { link, lstat, symlink } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -2485,6 +2485,11 @@ describe("fetchFiles skill pruning", () => {
     async () => {
       // The write resolves through the link, so the fetched file lands behind
       // it. Unlinking it would orphan what this run just fetched.
+      // The link is kept here by its name matching a fetched path. The identity
+      // clause that also keeps it — the link resolving to a directory this run
+      // wrote through under a different local spelling — only comes into play on
+      // a case-insensitive or normalizing filesystem, which cannot be staged
+      // here, so this test does not pin that half.
       mockSkillRepository();
       const shared = join(testDir, "shared", "scripts");
       await ensureDir(shared);
@@ -2540,7 +2545,9 @@ describe("fetchFiles skill pruning", () => {
 
       expect(summary.deleted).toBe(0);
       expect(await fileExists(join(shared, "run.py"))).toBe(true);
-      expect(await fileExists(join(skillsRoot, "skill-a", "scripts"))).toBe(true);
+      // `lstat`, not `fileExists`: the latter follows the link and would pass
+      // just as well had the link been replaced by a real directory.
+      expect((await lstat(join(skillsRoot, "skill-a", "scripts"))).isSymbolicLink()).toBe(true);
     },
   );
 
@@ -2606,6 +2613,53 @@ describe("fetchFiles skill pruning", () => {
 
     expect(summary.deleted).toBe(0);
     expect(await fileExists(stale)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("its name is one some systems resolve to a different directory"),
+    );
+  });
+
+  it("should prune a skill directory whose name only contains a tilde", async () => {
+    // `~2` in the middle of a name is not the short-name shape, so the guard
+    // above it must not claim this directory.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "data~2parser",
+              path: "skills/data~2parser",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/data~2parser") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/data~2parser/SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const stale = join(skillsRoot, "data~2parser", "reference.md");
+    await writeFileContent(stale, "# Stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(1);
+    expect(await fileExists(stale)).toBe(false);
   });
 
   it("should not prune a skill directory whose name ends in a dot", async () => {

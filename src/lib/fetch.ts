@@ -928,10 +928,17 @@ async function pruneStaleSkillFiles(params: {
     // which would then name a directory other than the one it emptied. Nothing
     // reaches outside the output directory either way, but a deletion record
     // that names the wrong directory is not one worth keeping.
-    // A name in the `NAME~1` shape is the same class of problem: on a Windows
-    // volume that generates short names, it opens whatever long name it stands
-    // for.
-    if (/[.\s]$/.test(skillDir) || /~\d/.test(skillDir)) {
+    // A name ending in the `NAME~1` shape is the same class of problem: on a
+    // Windows volume that generates short names, it opens whatever long name it
+    // stands for. The shape only means that at the end of a name, so `data~2parser`
+    // is an ordinary name and is pruned. The guard is not gated on the platform:
+    // the same repository is checked out on several of them, and a name that is
+    // ambiguous on any one of them is one this tool would rather leave alone
+    // everywhere than prune differently depending on where it runs.
+    // Only the skill root is guarded. A remote `skills/a/bar./x.md` writes into
+    // `bar` on Windows and the prune walks `bar`, which is safe because every
+    // file the fetch wrote there is matched by identity rather than by name.
+    if (/[.\s]$/.test(skillDir) || /~\d+(?:\.[^.]*)?$/.test(skillDir)) {
       logger.warn(
         `Not pruning ${stripControlCharacters(skillDir)}: its name is one some systems resolve ` +
           `to a different directory, so it may not be the directory this name reads as. Remove ` +
@@ -956,12 +963,13 @@ async function pruneStaleSkillFiles(params: {
       });
     } catch (error) {
       // The files are already written; only the tidying up failed. A directory
-      // that cannot be read — no permission to it, a disk that gave out — costs
-      // this one skill its prune, and the run reports what it could not do
-      // rather than throwing the fetch away over it.
+      // this run cannot read or delete from — no permission to it, a disk that
+      // gave out — costs this one skill its prune, and the run reports what it
+      // could not do rather than throwing the fetch away over it. The message is
+      // stripped as well: a filesystem error carries the local path it failed on.
       logger.warn(
-        `Not pruning ${stripControlCharacters(skillDir)}: it could not be read. ` +
-          `${formatError(error)}`,
+        `Not pruning ${stripControlCharacters(skillDir)}: it could not be read or cleaned up. ` +
+          `${stripControlCharacters(formatError(error))}`,
       );
     }
   }
@@ -1187,7 +1195,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
       const exists = await fileExists(localPath);
 
       if (exists && conflictStrategy === "skip") {
-        logger.debug(`Skipping existing file: ${relativePath}`);
+        logger.debug(`Skipping existing file: ${stripControlCharacters(relativePath)}`);
         return { relativePath, status: "skipped" as const };
       }
 
@@ -1197,7 +1205,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
       await writeFileContent(localPath, content);
 
       const status = exists ? ("overwritten" as const) : ("created" as const);
-      logger.debug(`Wrote: ${relativePath} (${status})`);
+      logger.debug(`Wrote: ${stripControlCharacters(relativePath)} (${status})`);
       return { relativePath, status };
     }),
   );
