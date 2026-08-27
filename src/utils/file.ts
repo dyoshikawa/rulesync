@@ -702,6 +702,9 @@ export async function findFilesByGlobs(
 /** How many entries are read back from disk at once while classifying a directory. */
 const ENTRY_CLASSIFY_CONCURRENCY = 32;
 
+/** An entry of the requested kind, and whether the name reaches it through a link. */
+type ClassifiedEntry = { name: string; isLink: boolean };
+
 /**
  * The entry names of `dirPath` that are of `kind`, deduplicated and sorted.
  *
@@ -729,31 +732,44 @@ async function listEntryNames(params: {
   const classified = await mapWithConcurrency({
     items: visible,
     limit: ENTRY_CLASSIFY_CONCURRENCY,
-    mapper: async (entry): Promise<string | undefined> => {
+    mapper: async (entry): Promise<ClassifiedEntry | undefined> => {
       if (matches(entry)) {
-        return entry.name;
+        return { name: entry.name, isLink: false };
       }
       if (entry.isDirectory() || entry.isFile()) {
         return undefined;
       }
       // `readdir` reports a link as a link and never as what it stands for, so
-      // a link is the one entry kind that needs a second look — and only when
-      // the caller follows links at all. An entry of no kind at all needs the
-      // same second look: a filesystem that does not fill in the entry type
-      // (some network and FUSE mounts) reports every predicate as false, and
-      // taking that at face value would empty the directory.
-      const kindUnknown = !entry.isSymbolicLink();
-      if (!kindUnknown && !followSymbolicLinks) {
+      // a link is the one entry kind that needs a second look. An entry of no
+      // kind at all needs the same one: a filesystem that does not fill the
+      // entry type in (some network and FUSE mounts) reports every predicate as
+      // false, and taking that at face value would empty the directory.
+      const entryPath = join(dirPath, entry.name);
+      const entryStats = entry.isSymbolicLink()
+        ? undefined
+        : await lstat(entryPath).catch(() => undefined);
+      if (entryStats !== undefined) {
+        return matches(entryStats) ? { name: entry.name, isLink: false } : undefined;
+      }
+      if (!followSymbolicLinks) {
         return undefined;
       }
       // A link that leads nowhere is not an entry to report.
-      const readStats = kindUnknown && !followSymbolicLinks ? lstat : stat;
-      const target = await readStats(join(dirPath, entry.name)).catch(() => undefined);
-      return target !== undefined && matches(target) ? entry.name : undefined;
+      const target = await stat(entryPath).catch(() => undefined);
+      return target !== undefined && matches(target)
+        ? { name: entry.name, isLink: true }
+        : undefined;
     },
   });
-  const names = classified.filter((name) => name !== undefined).toSorted();
-  return followSymbolicLinks ? await dedupeNamesByFileIdentity({ dirPath, names }) : names;
+  const found = classified
+    .filter((entry) => entry !== undefined)
+    // Sorted for the same reason `findFilesByGlobs` sorts: the order entries
+    // come off the filesystem in is not one a caller should have to depend on.
+    .toSorted((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+  if (!found.some((entry) => entry.isLink)) {
+    return found.map((entry) => entry.name);
+  }
+  return await dedupeNamesByFileIdentity({ dirPath, entries: found });
 }
 
 /**
@@ -762,42 +778,50 @@ async function listEntryNames(params: {
  * `findFilesByGlobs` does this for the paths it returns, and dropping it here
  * would change what a caller sees: a directory link named `aaa` beside the
  * directory `zzz` it stands for is one skill, and reporting both would import
- * it twice. The real name wins over a link to it, for the reason spelled out
- * in {@link chooseRepresentative}. `names` arrives sorted, so ties are stable.
+ * it twice. The name that reaches the entry directly wins, for the reason
+ * spelled out in {@link chooseRepresentative} — but decided from the entry
+ * itself rather than by comparing paths, since the path a caller passes in may
+ * be relative or lead through a link of its own, and neither spelling equals
+ * the real path `realpath` returns. `entries` arrives sorted, so ties are
+ * stable.
  */
 async function dedupeNamesByFileIdentity(params: {
   dirPath: string;
-  names: string[];
+  entries: readonly ClassifiedEntry[];
 }): Promise<string[]> {
-  const { dirPath, names } = params;
+  const { dirPath, entries } = params;
   const identities = await mapWithConcurrency({
-    items: names,
+    items: entries,
     limit: ENTRY_CLASSIFY_CONCURRENCY,
-    mapper: async (name) => await realFileIdentity(join(dirPath, name)),
+    mapper: async (entry) => await realFileIdentity(join(dirPath, entry.name)),
   });
-  const namesByIdentity = new Map<string, string[]>();
-  for (const [index, name] of names.entries()) {
-    const identity = identities[index];
-    if (identity === undefined) {
-      continue;
-    }
-    const group = namesByIdentity.get(identity);
+  const entriesByIdentity = new Map<string, ClassifiedEntry[]>();
+  for (const [index, entry] of entries.entries()) {
+    // An identity that could not be read falls back to the literal path, so the
+    // entry stands on its own rather than being dropped from the listing.
+    const identity = identities[index] ?? toPosixPath(join(dirPath, entry.name));
+    const group = entriesByIdentity.get(identity);
     if (group === undefined) {
-      namesByIdentity.set(identity, [name]);
+      entriesByIdentity.set(identity, [entry]);
     } else {
-      group.push(name);
+      group.push(entry);
     }
   }
-  const representatives = [...namesByIdentity.entries()].map(([identity, group]) =>
-    group.reduce((best, candidate) => {
-      if (toPosixPath(join(dirPath, best)) === identity) {
-        return best;
-      }
-      if (toPosixPath(join(dirPath, candidate)) === identity) {
-        return candidate;
-      }
-      return isHiddenPathSegment(best) && !isHiddenPathSegment(candidate) ? candidate : best;
-    }),
+  const representatives = [...entriesByIdentity.values()].map(
+    (group) =>
+      group.reduce((best, candidate) => {
+        if (!best.isLink) {
+          return best;
+        }
+        if (!candidate.isLink) {
+          return candidate;
+        }
+        // Only links left: the named one represents the entry rather than a
+        // hidden alias, which a hidden-entry rule may then drop.
+        return isHiddenPathSegment(best.name) && !isHiddenPathSegment(candidate.name)
+          ? candidate
+          : best;
+      }).name,
   );
   return representatives.toSorted();
 }

@@ -1243,6 +1243,56 @@ Broken YAML`,
       );
     });
 
+    it("should skip a flat-file skill whose name contains a backslash", async () => {
+      // The name a flat skill carries is its file name minus the extension, and
+      // it reaches `AiDir` like a directory name does. Reporting it keeps one
+      // file from failing the import of the whole root.
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "kimi-code",
+      });
+      const interopDir = join(testDir, ".agents", "skills");
+      const flatSkill = "---\nname: flat\ndescription: A conformant flat skill\n---\nBody";
+      await writeFileContent(join(interopDir, "good-flat.md"), flatSkill);
+      await writeFileContent(join(interopDir, "back\\slash.md"), flatSkill);
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("a skill name cannot contain a path separator"),
+      );
+    });
+
+    it("should report a skill directory it cannot name once per run", async () => {
+      // A processor is built per enabled tool target, and each one enumerates
+      // the same directory. A message naming that directory would otherwise be
+      // printed once per target.
+      const logger = createMockLogger();
+      const skillsDir = join(testDir, ".claude", "skills");
+      const frontmatter = "---\nname: plain\ndescription: Test skill\n---\nContent";
+      await writeFileContent(join(skillsDir, "back\\slash", "SKILL.md"), frontmatter);
+
+      await new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      }).loadToolDirs();
+      await new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      }).loadToolDirs();
+
+      expect(
+        logger.warn.mock.calls.filter(([message]) =>
+          String(message).includes("a skill directory name cannot contain a path separator"),
+        ),
+      ).toHaveLength(1);
+    });
+
     it("should import skills from nested .claude/skills directories (v2.1.178)", async () => {
       const logger = createMockLogger();
       const processor = new SkillsProcessor({

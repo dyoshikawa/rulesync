@@ -10,12 +10,13 @@ import {
   RulesyncSkillFrontmatterSchema,
 } from "../features/skills/rulesync-skill.js";
 import { AiDirFile } from "../types/ai-dir.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
   directoryExists,
   ensureDir,
-  findFilesByGlobs,
+  listSubdirectoryNames,
   removeDirectory,
   writeFileBuffer,
   writeFileContent,
@@ -130,13 +131,13 @@ async function listSkills(): Promise<
   const skillsDir = join(process.cwd(), RULESYNC_SKILLS_RELATIVE_DIR_PATH);
 
   try {
-    // Find all skill directories (directories containing SKILL.md)
-    const skillDirPaths = await findFilesByGlobs(join(skillsDir, "*"), { type: "dir" });
+    // Find all skill directories (directories containing SKILL.md). Read rather
+    // than globbed, so a name holding a backslash is the name on disk and not
+    // the two-segment path a glob rewrites it into.
+    const dirNames = await listSubdirectoryNames(skillsDir);
 
     const skills = await Promise.all(
-      skillDirPaths.map(async (dirPath) => {
-        const dirName = basename(dirPath);
-        if (!dirName) return null;
+      dirNames.map(async (dirName) => {
         try {
           // Read the skill using RulesyncSkill
           const skill = await RulesyncSkill.fromDir({
@@ -150,7 +151,9 @@ async function listSkills(): Promise<
             frontmatter,
           };
         } catch (error) {
-          logger.error(`Failed to read skill directory ${dirName}: ${formatError(error)}`);
+          logger.error(
+            `Failed to read skill directory ${stripControlCharacters(dirName)}: ${formatError(error)}`,
+          );
           return null;
         }
       }),

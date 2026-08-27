@@ -899,8 +899,11 @@ export class SkillsProcessor extends DirFeatureProcessor {
       }
       const fromFlatFile = factory.class.fromFlatFile;
       const directoryStems = new Set(ownedDirNames);
-      const flatFileNames = (await listFileNames(skillsDirPath)).filter(
-        (fileName) => fileName.endsWith(".md") && !directoryStems.has(basename(fileName, ".md")),
+      const flatFileNames = this.keepAddressableFileNames(
+        (await listFileNames(skillsDirPath)).filter(
+          (fileName) => fileName.endsWith(".md") && !directoryStems.has(basename(fileName, ".md")),
+        ),
+        relativeDirPath,
       );
       const flatSkills = (
         await Promise.all(
@@ -952,12 +955,35 @@ export class SkillsProcessor extends DirFeatureProcessor {
       // Once per run, not once per tool target: the message names a directory
       // on disk, and every enabled target enumerates that same directory.
       // Quoted and stripped like every other message naming a path that came
-      // off disk — the name is chosen by whoever wrote the repository.
+      // off disk — the name is chosen by whoever wrote the repository. The
+      // quoting doubles the backslash the message is about, which is what
+      // reading a quoted string means.
       warnOnceWithFallback(
         this.logger,
         `Skipping ${JSON.stringify(stripControlCharacters(join(relativeDirPath, dirName)))}: a ` +
           `skill directory name cannot contain a path separator, so this directory is neither ` +
           `generated from nor swept as an orphan. Rename or remove it by hand.`,
+      );
+      return false;
+    });
+  }
+
+  /**
+   * The flat-file counterpart of {@link keepAddressableDirNames}. A flat skill
+   * is named by its file name minus the extension, and that name reaches
+   * `AiDir` too — on POSIX, `back\\slash.md` would hand it a name it refuses,
+   * failing the import of a whole root over one file.
+   */
+  private keepAddressableFileNames(fileNames: string[], relativeDirPath: string): string[] {
+    return fileNames.filter((fileName) => {
+      if (isAddressableDirName(basename(fileName, ".md"))) {
+        return true;
+      }
+      warnOnceWithFallback(
+        this.logger,
+        `Skipping ${JSON.stringify(stripControlCharacters(join(relativeDirPath, fileName)))}: a ` +
+          `skill name cannot contain a path separator, so this file is not imported. Rename it ` +
+          `by hand.`,
       );
       return false;
     });

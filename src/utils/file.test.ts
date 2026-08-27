@@ -1,5 +1,5 @@
 import { realpath, symlink } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -630,6 +630,30 @@ describe("file utilities", () => {
         await symlink(join(root, "zzz"), join(root, "aaa"));
 
         expect(await listSubdirectoryNames(root)).toEqual(["zzz"]);
+      });
+
+      it("should report the real name even when the directory is not reached directly", async () => {
+        // Deciding which name is the real one by comparing the path against
+        // what `realpath` returns only holds when the caller passes an already
+        // resolved absolute path. A relative path — the shape `outputRoot: "."`
+        // produces — and a path leading through a link of its own must pick the
+        // same name, or `import` reads the entry under its alias and the sweep
+        // then treats the real one as an orphan.
+        const root = join(testDir, "root");
+        await ensureDir(join(root, "zzz"));
+        await symlink(join(root, "zzz"), join(root, "aaa"));
+        await symlink(root, join(testDir, "via-link"));
+
+        expect(await listSubdirectoryNames(relative(process.cwd(), root))).toEqual(["zzz"]);
+        expect(await listSubdirectoryNames(join(testDir, "via-link"))).toEqual(["zzz"]);
+      });
+
+      it("should report a file once when a link beside it stands for it", async () => {
+        const root = join(testDir, "root");
+        await writeFileContent(join(root, "zzz.md"), "content");
+        await symlink(join(root, "zzz.md"), join(root, "aaa.md"));
+
+        expect(await listFileNames(root)).toEqual(["zzz.md"]);
       });
 
       it("should keep a link whose target is not among the entries", async () => {
