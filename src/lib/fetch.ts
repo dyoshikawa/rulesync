@@ -81,7 +81,10 @@ function isToolTarget(target: FetchTarget): target is ToolTarget {
 function validateFileSize(relativePath: string, size: number): void {
   if (size > MAX_FILE_SIZE) {
     throw new GitHubClientError(
-      `File "${relativePath}" exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
+      // The path comes from the remote repository, and this message is read in
+      // a terminal, so it is quoted and stripped like every other remote path
+      // this command prints.
+      `File ${JSON.stringify(stripControlCharacters(relativePath))} exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
     );
   }
 }
@@ -275,11 +278,16 @@ type CollectedFeatureFiles = {
  * - `skill` — belongs to the named skill.
  */
 type SkillPathClass =
-  | { kind: "non-skill" }
-  | { kind: "unsafe-name"; raw: string; display: string }
-  | { kind: "skill"; name: string };
+  | { readonly kind: "non-skill" }
+  | { readonly kind: "unsafe-name"; readonly raw: string; readonly display: string }
+  | { readonly kind: "skill"; readonly name: string };
 
-const NON_SKILL_PATH: SkillPathClass = { kind: "non-skill" };
+/**
+ * The one `non-skill` verdict, shared by every caller that reaches it. It is
+ * frozen because it is shared: a verdict is a value, and one handed out this
+ * many times must not be something a later caller can edit for the rest.
+ */
+const NON_SKILL_PATH: SkillPathClass = Object.freeze({ kind: "non-skill" });
 
 /**
  * Classify a collected file's path relative to the skills directory.
@@ -1465,7 +1473,7 @@ async function fetchAndConvertToolFiles(params: {
           client.getFileContent(parsed.owner, parsed.repo, remotePath, ref),
         );
         await writeFileContent(localPath, content);
-        logger.debug(`Fetched to temp: ${toolRelativePath}`);
+        logger.debug(`Fetched to temp: ${stripControlCharacters(toolRelativePath)}`);
       }),
     );
 

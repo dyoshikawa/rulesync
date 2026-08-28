@@ -56,6 +56,33 @@ describe("promptSkillSelection", () => {
     expect(selected).toEqual(["skill-b"]);
   });
 
+  it("should mark entries that cannot be told apart on sight", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // "skill" spelled with a Cyrillic U+0441 for the leading s: a different
+    // directory that the terminal draws exactly like the Latin one.
+    const lookalike = "\u0441kill";
+
+    await promptSkillSelection({
+      availableSkills: ["skill", lookalike],
+      preselectedSkills: [],
+    });
+
+    // The value is still the real name, so a checked box writes the directory
+    // it names and not its lookalike; only the label carries the warning.
+    expect(checkboxMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        choices: [
+          { name: "skill", value: "skill", checked: false },
+          {
+            name: `${lookalike}  [!] mixes Cyrillic and Latin characters`,
+            value: lookalike,
+            checked: false,
+          },
+        ],
+      }),
+    );
+  });
+
   it("should convert ExitPromptError (Ctrl+C) into SkillSelectionCancelledError", async () => {
     const exitError = new Error("User force closed the prompt");
     exitError.name = "ExitPromptError";

@@ -411,6 +411,27 @@ A backslash is an ordinary character in a filename on Linux and macOS, and a dir
 
 Because the skipped file is still part of the remote skill, the skill directory it came from is not pruned in that run either — a local copy of a file the remote still ships would otherwise be indistinguishable from one it dropped.
 
+#### Skill Names That Look Alike
+
+A repository can publish two skill directories whose names a terminal draws the same way — `skill` spelled with a Cyrillic `с`, or the fullwidth `ｓｋｉｌｌ` beside the plain one. Each is still a separate entry with its own name, so a selection writes exactly the directories that were checked; the risk is only that the two entries cannot be told apart by sight.
+
+The interactive prompt therefore marks such an entry with `[!]` and the reason:
+
+```text
+? Select skills to fetch (press <a> to select/deselect all)
+ ◯ pdf
+ ◯ сkill  [!] mixes Cyrillic and Latin characters
+ ◯ skill
+```
+
+An entry is marked when another entry on the list normalizes to the same name (NFKC, compared case-insensitively), or when its own name mixes scripts in a way an ordinary name does not — Japanese, Korean and Chinese names, which mix scripts by nature and often carry Latin, are not marked. The mark is display-only: it never removes a skill from the list, and a skill written in a single script that has no lookalike on the list is not marked, so it is a hint to look closer rather than a guarantee.
+
+#### Remote Paths in Rulesync's Output
+
+Path names come from the remote repository, so every one that Rulesync prints — the fetch summary, warnings, and debug lines — has its control characters stripped first. A crafted path cannot forge or erase the lines around it, which is what makes the record of what was written and deleted worth reading.
+
+The `--json` output is the exception: it carries each path exactly as the repository spells it, because a machine consumer needs the real name to act on it. Anything that renders a value out of that JSON into a terminal has to strip it itself.
+
 ### Examples
 
 ```bash

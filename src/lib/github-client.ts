@@ -14,6 +14,7 @@ import {
   GitHubReleaseSchema,
   GitHubRepoInfoSchema,
 } from "../types/fetch.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
 
@@ -222,7 +223,9 @@ export class GitHubClient {
 
       if (parsed.data.size > MAX_FILE_SIZE) {
         throw new GitHubClientError(
-          `File "${path}" exceeds maximum size limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+          // `path` names a file in the remote repository, so it is stripped
+          // and quoted before it reaches a terminal.
+          `File ${JSON.stringify(stripControlCharacters(path))} exceeds maximum size limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
         );
       }
 

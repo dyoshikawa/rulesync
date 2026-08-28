@@ -1,5 +1,7 @@
 import checkbox from "@inquirer/checkbox";
 
+import { describeConfusableNames } from "../utils/confusable-names.js";
+
 /**
  * Thrown when the user cancels the interactive skill selection (e.g. Ctrl+C).
  * Callers should treat this as a graceful cancel, not a failure.
@@ -26,6 +28,15 @@ const SKILL_PROMPT_SHORTCUTS = {
 } as const;
 
 /**
+ * Label one skill in the prompt, appending the reason it may be mistaken for
+ * another entry when there is one.
+ */
+function formatSkillChoiceLabel(params: { name: string; note: string | undefined }): string {
+  const { name, note } = params;
+  return note === undefined ? name : `${name}  [!] ${note}`;
+}
+
+/**
  * Prompt the user to select skills via an interactive checkbox prompt.
  *
  * Extracted into its own module so tests can mock the prompt without
@@ -41,12 +52,17 @@ export async function promptSkillSelection(params: {
   preselectedSkills: string[];
 }): Promise<string[]> {
   const { availableSkills, preselectedSkills } = params;
+  const confusableNotes = describeConfusableNames(availableSkills);
 
   try {
     return await checkbox({
       message: `Select skills to fetch (press <${SKILL_PROMPT_SHORTCUTS.all}> to select/deselect all)`,
       choices: availableSkills.map((name) => ({
-        name,
+        // The label is the only thing the user judges a skill by, and two names
+        // can be drawn identically. The note says so where that is the case;
+        // `value` stays the real name, so what is written is still exactly what
+        // was checked.
+        name: formatSkillChoiceLabel({ name, note: confusableNotes.get(name) }),
         value: name,
         // Start from nothing selected. Fetching writes files into the user's
         // project, so an unattended <enter> should fetch nothing rather than

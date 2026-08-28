@@ -905,6 +905,39 @@ describe("fetchFiles", () => {
     ).rejects.toThrow("exceeds maximum size limit");
   });
 
+  it("should not let an oversized file's name rewrite the error it is reported in", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string) => {
+        if (path === "rules") {
+          return Promise.resolve([
+            {
+              name: "large\u001b[2K.md",
+              path: "rules/large\u001b[2K.md",
+              type: "file",
+              sha: "abc",
+              size: 11 * 1024 * 1024,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    // The path is the remote repository's to choose, and the message is read in
+    // a terminal, so an escape sequence in it must not survive.
+    await expect(
+      fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { features: ["rules"] },
+        outputRoot: testDir,
+      }),
+    ).rejects.toThrow(/"rules\/large\[2K\.md" exceeds maximum size limit/);
+  });
+
   it("should throw error when directory recursion exceeds maximum depth", async () => {
     // Create a mock that returns a nested directory at every level
     let callCount = 0;
