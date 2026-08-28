@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { escapeRegExp } from "es-toolkit";
 import * as smolToml from "smol-toml";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
@@ -10,7 +11,7 @@ import type {
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+import { fallbackLogger, type Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -35,6 +36,12 @@ type VibeConfig = Record<string, unknown> & {
   disabled_tools?: string[];
   tools?: Record<string, VibeToolConfig>;
 };
+
+// Shared fallback logger used by the importing direction (toRulesyncPermissions), where the
+// instance method has no `logger` parameter. The exporting direction (fromRulesyncPermissions)
+// forwards the caller-supplied logger explicitly. Unlike a private ConsoleLogger instance,
+// `fallbackLogger` is configured from CLI flags and the resolved config, so `silent` is honored.
+const moduleLogger: Logger = fallbackLogger;
 
 /**
  * Vibe's builtin tool names are the snake_case of each tool class
@@ -287,6 +294,7 @@ export class VibePermissions extends ToolPermissions {
     }
 
     applyStandDownShellDenies({ shellRules, tools, standDownShells, disabledTools, logger });
+    warnOnGlobDisabledTools({ tools, disabledTools, logger });
     warnOnStrandedShellPatterns({
       diskShellPatterns,
       shellAliases,
@@ -357,30 +365,38 @@ export class VibePermissions extends ToolPermissions {
     // glob over the RAW tool name, so `disabled_tools = ["read"]` matches nothing
     // — reading it as the `read` category and letting it silence
     // `[tools.read_file]` would disable a tool upstream leaves running.
-    const disabledToolNames = new Set(toStringArray(this.toml.disabled_tools));
+    const disabledToolEntries = toStringArray(this.toml.disabled_tools);
     // The entry is still imported as a deny for its canonical category even when
     // no builtin bears that raw name, because rulesync cannot see Vibe's registry:
     // `disabled_tools = ["read"]` matches no builtin, but an MCP server is free to
     // publish a tool called exactly that, and denying something already off is
-    // harmless where dropping a real deny is not. Silencing a `[tools.<name>]`
-    // table is the opposite case — there the name IS known, so it is matched
-    // exactly rather than through the category.
-    for (const tool of disabledToolNames) {
+    // harmless where dropping a real deny is not. A glob entry is carried out
+    // verbatim for the same reason — as a category named `read_*`, which regenerates
+    // the same `disabled_tools` entry and so keeps the glob's reach over the tools
+    // rulesync cannot enumerate. The tables the glob is KNOWN to silence are denied
+    // beside it, below: those names the file does state.
+    for (const tool of disabledToolEntries) {
       ensurePermission(permission, toCanonicalToolName(tool))["*"] = "deny";
     }
+    const disablesToolName = createVibeDisabledToolMatcher(disabledToolEntries);
 
     for (const [vibeToolName, toolConfig] of Object.entries(toVibeToolsRecord(this.toml.tools))) {
       const category = toCanonicalToolName(vibeToolName);
       // `disabled_tools` is applied last and unconditionally upstream, so a tool
-      // listed there is unavailable no matter what its table says. Letting the
+      // this filter reaches — by name or by glob, see `createVibeDisabledToolMatcher`
+      // — is unavailable no matter what its table says. Letting the
       // table win here would import that contradiction as a mere `ask` (or even
       // `always` plus an allowlist) and the next generate would drop the filter
       // entirely — a silent broadening of what the file already forbids. The deny
       // wins instead; drop the contradiction, not the guard. The patterns go with
       // it: they are just as inert upstream, and importing one as an `allow` would
       // carry a hole through a tool the file switched off into every OTHER tool's
-      // generated config, where nothing is switched off.
-      if (disabledToolNames.has(vibeToolName)) {
+      // generated config, where nothing is switched off. The category is denied here
+      // rather than left to the loop above, because a glob entry carries out under
+      // its own literal name (`read_*`) and would leave the table it silences
+      // (`read_file` → the `read` category) with no deny at all.
+      if (disablesToolName(vibeToolName)) {
+        ensurePermission(permission, category)["*"] = "deny";
         continue;
       }
       const rules = ensurePermission(permission, category);
@@ -403,6 +419,8 @@ export class VibePermissions extends ToolPermissions {
         vibeOverridePermission[category] = { sensitive_patterns: sensitivePatterns };
       }
     }
+
+    warnOnUnresolvableDisabledTools({ entries: disabledToolEntries, tools: this.toml.tools });
 
     // Drop categories that ended up with no rules (e.g. a Vibe tool that carries
     // only `sensitive_patterns`, which routes into the `vibe` override) so the
@@ -696,10 +714,13 @@ function mirrorFanOutState({
   // dropping the guard that came with it. Fill it in; never overwrite.
   const primaryPatterns = primaryTool.sensitive_patterns;
   if (nextTool.sensitive_patterns === undefined && Array.isArray(primaryPatterns)) {
-    // Sorted like every list rulesync emits, so an unsorted hand-authored guard
-    // does not produce one throwaway diff on the next generate. A non-array value
-    // is left behind rather than replicated onto two more tables.
-    nextTool.sensitive_patterns = [...primaryPatterns].toSorted();
+    // Copied in the order it was authored rather than sorted. Rulesync sorts the
+    // lists it owns, but this one belongs to `[tools.bash]`, which is left in
+    // authored order because reordering a key rulesync does not write is a diff
+    // for nothing. Sorting only the copy made the two spellings of one guard
+    // differ, which reads as a divergence between the shells and is not one. A
+    // non-array value is left behind rather than replicated onto two more tables.
+    nextTool.sensitive_patterns = [...primaryPatterns];
   }
 
   // `disabled_tools` membership is part of that shared state and is mirrored even
@@ -1025,40 +1046,23 @@ function toVibeMcpToolName(category: string): string[] | undefined {
 }
 
 /**
- * The Windows managed-shell tables `bash`'s fan-out may claim: those the existing
- * config file says nothing about, plus those whose state is identical to
- * `bash`'s and therefore a previous fan-out coming back.
+ * Sort the Windows managed-shell tables into the ones `bash`'s fan-out may write
+ * and the ones it has to stand down from, before any of that is reported.
  *
- * An alias the file already configures *differently* is a decision someone made
- * outside this category. Overwriting it would broaden a `permission = "never"`
- * into whatever the canonical `bash` category says, so it is left untouched
- * instead and keeps round-tripping as its own category.
- *
- * Only the keys the fan-out itself writes take part in that comparison.
- * `applyCategoryRules` carries unmanaged keys (a `timeout`, an editor setting)
- * over for `bash` but never copies them to the aliases, so comparing whole
- * tables would make rulesync's OWN output look hand-authored from the second
- * generate onward and freeze the fan-out permanently — a `bash` deny would stop
- * reaching the Windows shells.
+ * The two questions are separate on purpose. What a table already says is read
+ * from the file alone; what to tell the user about it depends on what the `bash`
+ * category has to spread, which the caller knows and this does not.
  */
-function resolveFanOutShellAliases({
-  config,
-  fanOut,
-  tightening,
+function classifyFanOutShellCandidates({
+  tools,
+  disabledTools,
   claimedShells,
-  logger,
 }: {
-  config: VibeConfig;
-  /** What the `bash` category has to spread: a permission, only `sensitive_patterns`, or nothing. */
-  fanOut: VibeShellFanOutKind;
-  /** Whether that permission denies every pattern, and so can only restrict. */
-  tightening: boolean;
+  tools: Record<string, VibeToolConfig>;
+  disabledTools: ReadonlySet<string>;
   /** Shells another category writes by name; neither claimed nor reported here. */
   claimedShells: ReadonlySet<string>;
-  logger?: Logger;
-}): { aliases: string[]; standDown: string[] } {
-  const tools = toVibeToolsRecord(config.tools);
-  const disabledTools = new Set(toStringArray(config.disabled_tools));
+}): { candidates: string[]; fanOutTargets: string[]; preserved: string[] } {
   // A table states a decision through its base permission and its allow/deny
   // patterns, plus `disabled_tools` membership. `enabled_tools` membership is
   // deliberately NOT part of it: that key is an exclusive registry filter, not a
@@ -1115,6 +1119,52 @@ function resolveFanOutShellAliases({
   // "the 'bash' permission does NOT apply" while the shared block has no `bash`
   // category points at a permission the file never authored.
   const preserved = candidates.filter((name) => !fanOutTargets.includes(name));
+  return { candidates, fanOutTargets, preserved };
+}
+
+/**
+ * The Windows managed-shell tables `bash`'s fan-out may claim: those the existing
+ * config file says nothing about, plus those whose state is identical to
+ * `bash`'s and therefore a previous fan-out coming back.
+ *
+ * An alias the file already configures *differently* is a decision someone made
+ * outside this category. Overwriting it would broaden a `permission = "never"`
+ * into whatever the canonical `bash` category says, so it is left untouched
+ * instead and keeps round-tripping as its own category.
+ *
+ * Only the keys the fan-out itself writes take part in that comparison.
+ * `applyCategoryRules` carries unmanaged keys (a `timeout`, an editor setting)
+ * over for `bash` but never copies them to the aliases, so comparing whole
+ * tables would make rulesync's OWN output look hand-authored from the second
+ * generate onward and freeze the fan-out permanently — a `bash` deny would stop
+ * reaching the Windows shells.
+ */
+function resolveFanOutShellAliases({
+  config,
+  fanOut,
+  tightening,
+  denyPatterns,
+  claimedShells,
+  logger,
+}: {
+  config: VibeConfig;
+  /** What the `bash` category has to spread: a permission, only `sensitive_patterns`, or nothing. */
+  fanOut: VibeShellFanOutKind;
+  /** Whether that permission denies every pattern, and so can only restrict. */
+  tightening: boolean;
+  /** The category's own deny patterns, which a stand-down still merges into a shell. */
+  denyPatterns: readonly string[];
+  /** Shells another category writes by name; neither claimed nor reported here. */
+  claimedShells: ReadonlySet<string>;
+  logger?: Logger;
+}): { aliases: string[]; standDown: string[] } {
+  const tools = toVibeToolsRecord(config.tools);
+  const disabledTools = new Set(toStringArray(config.disabled_tools));
+  const { candidates, fanOutTargets, preserved } = classifyFanOutShellCandidates({
+    tools,
+    disabledTools,
+    claimedShells,
+  });
   if (preserved.length === 0 || fanOut === "none") {
     return { aliases: fanOutTargets, standDown: preserved };
   }
@@ -1152,13 +1202,32 @@ function resolveFanOutShellAliases({
   const offRegistry = preserved.filter(
     (name) => !Object.hasOwn(tools, name) && disabledTools.has(name),
   );
-  const merged = preserved.filter((name) => !offRegistry.includes(name));
+  // Promise the merge only where it actually happens. It does not when the
+  // category has no deny patterns to spread, and it does not when the shell
+  // spells its own deny key as a scalar — `applyStandDownShellDenies` leaves such
+  // a table alone and says so, which left the two warnings contradicting each
+  // other about the same shell.
+  const onRegistry = preserved.filter((name) => !offRegistry.includes(name));
+  const merged = onRegistry.filter(
+    (name) =>
+      denyPatterns.length > 0 &&
+      malformedDenyKeysOf(readVibeToolConfig({ tools, vibeToolName: name })).length === 0,
+  );
+  const untouched = onRegistry.filter((name) => !merged.includes(name));
   if (merged.length > 0) {
     logger?.warn(
       `Keeping the existing Vibe permission for ${merged.join(", ")} instead of fanning the ` +
         `'bash' category out to it, because the existing config.toml already configures that ` +
         `shell differently from 'bash'. Only the 'bash' deny patterns are merged into it; its ` +
         `base permission and allow patterns are NOT changed.`,
+    );
+  }
+  if (untouched.length > 0) {
+    logger?.warn(
+      `Keeping the existing Vibe permission for ${untouched.join(", ")} instead of fanning the ` +
+        `'bash' category out to it, because the existing config.toml already configures that ` +
+        `shell differently from 'bash'. Nothing from the category reaches it: its base ` +
+        `permission, allow patterns and deny patterns all stay as authored.`,
     );
   }
   if (offRegistry.length > 0) {
@@ -1170,6 +1239,32 @@ function resolveFanOutShellAliases({
     );
   }
   return { aliases: fanOutTargets, standDown: preserved };
+}
+
+/**
+ * The `bash` category's own deny patterns — the pattern rules only, since the
+ * `*` rule is the base permission and is spread by the fan-out rather than
+ * merged.
+ */
+function shellDenyPatternsOf(shellRules: Record<string, PermissionAction>): string[] {
+  return Object.entries(shellRules)
+    .filter(([pattern, action]) => pattern !== "*" && action === "deny")
+    .map(([pattern]) => pattern);
+}
+
+/**
+ * The deny keys a table spells as something other than a list.
+ *
+ * Such a key reads as no patterns at all, so merging into it would replace what
+ * the author wrote rather than add to it — the one direction they cannot
+ * recover from. Both the decision to leave the table alone and the warning that
+ * announces a merge read this, so that the two cannot disagree about the same
+ * shell.
+ */
+function malformedDenyKeysOf(toolConfig: VibeToolConfig): string[] {
+  return (["deny", "denylist"] as const).filter(
+    (key) => toolConfig[key] !== undefined && !Array.isArray(toolConfig[key]),
+  );
 }
 
 /**
@@ -1199,9 +1294,7 @@ function applyStandDownShellDenies({
   disabledTools: ReadonlySet<string>;
   logger?: Logger;
 }): void {
-  const denyPatterns = Object.entries(shellRules)
-    .filter(([pattern, action]) => pattern !== "*" && action === "deny")
-    .map(([pattern]) => pattern);
+  const denyPatterns = shellDenyPatternsOf(shellRules);
   if (denyPatterns.length === 0) {
     return;
   }
@@ -1219,9 +1312,7 @@ function applyStandDownShellDenies({
     // would silently replace it rather than add to it — the one direction the
     // author cannot recover from, and the same reason `resolveFanOutShellAliases`
     // counts such a key as a decision. Leave the table alone and say so.
-    const malformed = (["deny", "denylist"] as const).filter(
-      (key) => nextTool[key] !== undefined && !Array.isArray(nextTool[key]),
-    );
+    const malformed = malformedDenyKeysOf(nextTool);
     if (malformed.length > 0) {
       logger?.warn(
         `Not merging the 'bash' deny patterns into [tools.${vibeToolName}], because its ` +
@@ -1240,6 +1331,50 @@ function applyStandDownShellDenies({
     nextTool.denylist = [...deny].toSorted();
     tools[vibeToolName] = nextTool;
   }
+}
+
+/**
+ * Warn when a glob left in `disabled_tools` silences a table rulesync just wrote
+ * a live permission into.
+ *
+ * `clearStaleToolFilters` drops the exact-name entry of every tool rulesync
+ * configures, so the file states the current decision and no contradiction
+ * survives. A glob is deliberately not dropped: `disabled_tools = ["read_*"]`
+ * also reaches tools rulesync never saw — an MCP tool registered at run time —
+ * and deleting it to un-silence `read_file` would quietly switch those back on,
+ * which is the broadening direction. The entry stays, and the contradiction is
+ * reported instead: upstream applies `disabled_tools` last and unconditionally,
+ * so the tool stays off however its table reads.
+ */
+function warnOnGlobDisabledTools({
+  tools,
+  disabledTools,
+  logger,
+}: {
+  tools: Record<string, VibeToolConfig>;
+  disabledTools: ReadonlySet<string>;
+  logger?: Logger;
+}): void {
+  const globs = [...disabledTools].filter(
+    (entry) => entry.startsWith(VIBE_REGEX_MATCHER_PREFIX) || VIBE_GLOB_METACHARACTERS.test(entry),
+  );
+  if (globs.length === 0) {
+    return;
+  }
+  const matches = createVibeDisabledToolMatcher(globs);
+  const silenced = Object.entries(tools)
+    .filter(([name, toolConfig]) => matches(name) && toolConfig.permission !== "never")
+    .map(([name]) => name);
+  if (silenced.length === 0) {
+    return;
+  }
+  logger?.warn(
+    `Vibe's disabled_tools keeps ${globs.join(", ")}, which also matches ${silenced.join(", ")} ` +
+      `— tables rulesync just wrote a live permission into. Upstream applies disabled_tools ` +
+      `last and unconditionally, so those tools stay switched off. The glob is left in place ` +
+      `because it reaches tools rulesync cannot enumerate; delete it from .vibe/config.toml, or ` +
+      `narrow it, to let the generated permission take effect.`,
+  );
 }
 
 /**
@@ -1279,6 +1414,7 @@ function resolveShellFanOutPlan({
     config,
     fanOut,
     tightening: shellRules["*"] === "deny",
+    denyPatterns: shellDenyPatternsOf(shellRules),
     claimedShells,
     logger,
   });
@@ -1297,6 +1433,12 @@ function resolveShellFanOutPlan({
  * never wrote — which claim the shell for good, so a later `vibe.permission.bash`
  * guard never reaches it again. The patterns themselves only escalate to ASK, so
  * the state is the safe direction; it is the silence that is not.
+ *
+ * The scope is deliberately the shells the fan-out actually writes. A shell that
+ * carries patterns while no `bash` category exists at all is holding a list
+ * rulesync never touched, in a file rulesync is not rewriting that part of —
+ * reporting it would be commentary on the user's own config rather than on what
+ * this generate just did, and it would fire on every unrelated run.
  */
 function warnOnStrandedShellPatterns({
   diskShellPatterns,
@@ -1406,6 +1548,164 @@ function toCanonicalToolName(vibeToolName: string): string {
   return Object.hasOwn(VIBE_TO_CANONICAL_TOOL_NAMES, vibeToolName)
     ? (VIBE_TO_CANONICAL_TOOL_NAMES[vibeToolName] ?? vibeToolName)
     : vibeToolName;
+}
+
+/**
+ * The prefix Vibe's `name_matches` reads as a regular expression rather than a
+ * glob: `re:web_.*` is matched with `re.fullmatch`, case-insensitively.
+ * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/utils/matching.py
+ */
+const VIBE_REGEX_MATCHER_PREFIX = "re:";
+
+/** The characters that make a `disabled_tools` entry a glob rather than a plain name. */
+const VIBE_GLOB_METACHARACTERS = /[*?[]/;
+
+/**
+ * Translate one fnmatch glob into a regular expression source, the way Python's
+ * `fnmatch.translate` does: `*` matches any run of characters, `?` exactly one,
+ * and `[seq]` / `[!seq]` a character class.
+ *
+ * The awkward corners are the bracket's, and they are the ones a hand-written
+ * translation gets wrong. An unterminated `[` is a literal bracket rather than
+ * the start of a class; a `]` immediately after the opening bracket (or after
+ * the negating `!`) is a literal member rather than the terminator; a `!` first
+ * means negation, while a `^` first is an ordinary caret in fnmatch and the
+ * negation in a JavaScript class, so it has to be escaped. Backslashes inside a
+ * class are literal to fnmatch and would start an escape here, so they are
+ * doubled.
+ */
+function fnmatchToRegExpSource(pattern: string): string {
+  let source = "";
+  let index = 0;
+  while (index < pattern.length) {
+    const character = pattern[index] ?? "";
+    index += 1;
+    if (character === "*") {
+      source += ".*";
+      continue;
+    }
+    if (character === "?") {
+      source += ".";
+      continue;
+    }
+    if (character !== "[") {
+      source += escapeRegExp(character);
+      continue;
+    }
+    let end = index;
+    if (pattern[end] === "!") {
+      end += 1;
+    }
+    if (pattern[end] === "]") {
+      end += 1;
+    }
+    while (end < pattern.length && pattern[end] !== "]") {
+      end += 1;
+    }
+    if (end >= pattern.length) {
+      source += "\\[";
+      continue;
+    }
+    const body = pattern.slice(index, end).replaceAll("\\", "\\\\");
+    index = end + 1;
+    if (body.startsWith("!")) {
+      source += `[^${body.slice(1)}]`;
+    } else {
+      source += `[${body.startsWith("^") ? `\\^${body.slice(1)}` : body}]`;
+    }
+  }
+  return source;
+}
+
+/**
+ * Decide, the way Vibe's tool manager does, whether a `disabled_tools` entry
+ * switches off the tool named `name`.
+ *
+ * Upstream globs the RAW tool name with `fnmatch` after lowercasing both sides,
+ * so `disabled_tools = ["read_*"]` disables `read_file` as surely as spelling it
+ * out does, and `disabled_tools` is applied last and unconditionally — after
+ * `enabled_tools`, and regardless of what `[tools.read_file]` says. Comparing
+ * names exactly here read that table as live and imported its permission and
+ * patterns as an allow, carrying a hole through a tool the file had switched off
+ * into every other tool's generated config.
+ *
+ * A `re:` entry is deliberately NOT evaluated. Python's regex dialect is not
+ * JavaScript's, and this is the one place where being wrong in either direction
+ * costs something real — a wrong match drops a table's rules, a wrong miss
+ * carries a disabled tool out as an allow — so the entry is reported instead of
+ * guessed at, and only its exact spelling is matched. A glob JavaScript refuses
+ * to compile (an inverted range such as `[z-a]`) is treated the same way.
+ * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/tools/manager.py
+ */
+function createVibeDisabledToolMatcher(entries: readonly string[]): (name: string) => boolean {
+  const matchers = entries.map((entry) => {
+    if (entry.startsWith(VIBE_REGEX_MATCHER_PREFIX) || !VIBE_GLOB_METACHARACTERS.test(entry)) {
+      return (name: string) => name === entry;
+    }
+    try {
+      const pattern = new RegExp(`^${fnmatchToRegExpSource(entry)}$`, "i");
+      return (name: string) => pattern.test(name);
+    } catch {
+      return (name: string) => name === entry;
+    }
+  });
+  return (name) => matchers.some((matches) => matches(name));
+}
+
+/**
+ * Report the `disabled_tools` entries whose reach rulesync could not work out,
+ * naming the tables that were therefore imported as authored.
+ *
+ * Silence here is the failure mode worth avoiding: a `re:` entry that visibly
+ * silences a tool upstream leaves that tool's table imported as a live allow,
+ * and nothing about the resulting `permissions.jsonc` says so. The warning is
+ * kept to the case where a table exists to be affected, so a file that merely
+ * carries a `re:` entry says nothing.
+ */
+function warnOnUnresolvableDisabledTools({
+  entries,
+  tools,
+}: {
+  entries: readonly string[];
+  tools: unknown;
+}): void {
+  const unresolvable = unresolvableDisabledToolEntries(entries);
+  const toolNames = Object.keys(toVibeToolsRecord(tools));
+  if (unresolvable.length === 0 || toolNames.length === 0) {
+    return;
+  }
+  moduleLogger.warn(
+    `Vibe's disabled_tools carries ${unresolvable.join(", ")}, which rulesync does not expand: ` +
+      `a 're:' entry is a Python regular expression and a malformed glob matches nothing here. ` +
+      `Any [tools.<name>] table it silences upstream is imported as authored, so review the ` +
+      `imported permissions for ${toolNames.join(", ")}; spell the entry as a plain name or an ` +
+      `fnmatch glob to have rulesync honor it.`,
+  );
+}
+
+/**
+ * The `disabled_tools` entries whose reach rulesync cannot work out: the `re:`
+ * regexes, and the globs that do not compile.
+ *
+ * Named separately from the matcher above so the caller can say which entries
+ * were taken literally, rather than leaving the user to discover that a table
+ * they expected to be silenced was imported as-is.
+ */
+function unresolvableDisabledToolEntries(entries: readonly string[]): string[] {
+  return entries.filter((entry) => {
+    if (entry.startsWith(VIBE_REGEX_MATCHER_PREFIX)) {
+      return true;
+    }
+    if (!VIBE_GLOB_METACHARACTERS.test(entry)) {
+      return false;
+    }
+    try {
+      void new RegExp(`^${fnmatchToRegExpSource(entry)}$`, "i");
+      return false;
+    } catch {
+      return true;
+    }
+  });
 }
 
 /**
