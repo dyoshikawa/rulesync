@@ -25,7 +25,9 @@ import { ToolTarget } from "./tool-targets.js";
 
 /**
  * Where a candidate's directory sits relative to the root it was enumerated
- * from: `inside` it, `equal` to it, or `outside` it altogether.
+ * from: `inside` it, `equal` to it, or `outside` it altogether — or
+ * `root-outside`, when that root is not even in the directory this run writes
+ * to, which says nothing about where the directory sits within it.
  *
  * Positional rather than delegated: a subclass that overrides
  * {@link AiDir.getDirPath} without keeping {@link AiDir.ownsDirTree} in
@@ -42,7 +44,7 @@ import { ToolTarget } from "./tool-targets.js";
  * that out.
  */
 function locateInOwnRoot(params: { aiDir: AiDir; dirPath: string; outputRoot: string }): {
-  verdict: "inside" | "equal" | "outside";
+  verdict: "inside" | "equal" | "outside" | "root-outside";
   root: string;
 } {
   const { aiDir, dirPath, outputRoot } = params;
@@ -51,7 +53,7 @@ function locateInOwnRoot(params: { aiDir: AiDir; dirPath: string; outputRoot: st
   // Both halves of it are values the candidate carries, and a `relativeDirPath`
   // that climbs out would otherwise make everything below it look contained.
   if (pathEscapesRoot(relative(resolve(outputRoot), resolve(root)))) {
-    return { verdict: "outside", root };
+    return { verdict: "root-outside", root };
   }
   // One `relative()` decides both questions, so the equal case cannot be
   // classified one way here and the other way in the message: on Windows the
@@ -254,6 +256,19 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       const quotedDirPath = JSON.stringify(stripControlCharacters(dirPath));
       const quotedRoot = JSON.stringify(stripControlCharacters(root));
 
+      const quotedOutputRoot = JSON.stringify(stripControlCharacters(this.outputRoot));
+      // Reported before anything about the directory's position, because a root
+      // that is not in the directory this run writes to makes that position
+      // meaningless: the directory can sit squarely inside a root that is
+      // itself somewhere else entirely.
+      if (verdict === "root-outside") {
+        this.logger.warn(
+          `Refusing to delete ${quotedDirPath}: the root ${quotedRoot} it was found in is not ` +
+            `inside ${quotedOutputRoot}, the directory this run writes to`,
+        );
+        continue;
+      }
+
       if (!aiDir.ownsDirTree()) {
         // False for two different shapes. A tool that flattens into a shared
         // root reports that root as its path: expected, and quiet, since the
@@ -265,7 +280,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
           this.logger.debug(
             `Skipping orphan sweep for ` +
               `${JSON.stringify(stripControlCharacters(aiDir.getDirName()))}: ` +
-              `${stripControlCharacters(dirPath)} is a shared root, not a directory of its own`,
+              `${quotedDirPath} is a shared root, not a directory of its own`,
           );
         } else {
           this.logger.warn(

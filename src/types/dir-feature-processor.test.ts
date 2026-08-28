@@ -272,8 +272,32 @@ describe("DirFeatureProcessor", () => {
       expect(count).toBe(0);
       expect(removeDirectory).not.toHaveBeenCalled();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Refusing to delete "/elsewhere/root/orphan"'),
+        'Refusing to delete "/elsewhere/root/orphan": the root "/elsewhere/root" it was found ' +
+          'in is not inside "/path/to", the directory this run writes to',
       );
+    });
+
+    it("should say the root is out of reach even when the candidate disowns it", async () => {
+      // A root outside the directory this run writes to is reported for its own
+      // reason: the candidate's position within that root — which is what the
+      // `ownsDirTree()` branch describes — says nothing about whether the root
+      // is one this run may delete from.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const sharedRoot = "/elsewhere/facets/knowledge";
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir(sharedRoot, false, sharedRoot)],
+        [],
+      );
+
+      expect(count).toBe(0);
+      expect(removeDirectory).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        `Refusing to delete "${sharedRoot}": the root "${sharedRoot}" it was found in is not ` +
+          'inside "/path/to", the directory this run writes to',
+      );
+      expect(logger.debug).not.toHaveBeenCalledWith(expect.stringContaining("shared root"));
     });
 
     it("should not remove any dirs when all existing dirs are in generated", async () => {
@@ -359,6 +383,10 @@ describe("DirFeatureProcessor", () => {
       expect(count).toBe(0);
       expect(removeDirectory).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining(sharedRoot));
+      expect(logger.debug).toHaveBeenCalledWith(
+        `Skipping orphan sweep for "knowledge": "${sharedRoot}" is a shared root, not a ` +
+          "directory of its own",
+      );
     });
 
     it("should still sweep a real orphan alongside a shared-root candidate", async () => {
