@@ -1924,6 +1924,46 @@ describe("fetchFiles with skill selection", () => {
     );
   });
 
+  it("should count the lookalike names it does not spell out", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    // Six pairs, each a name and the same name with a capital I for the l:
+    // twelve noted names, of which the warning spells out ten.
+    const lookalikes = Array.from({ length: 6 }, (_unused, index) => [
+      `rules-${index}`,
+      `ruIes-${index}`,
+    ]).flat();
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              ...lookalikes.map((name) => ({ name, path: `skills/${name}`, type: "dir" })),
+            ],
+          );
+        }
+        if (lookalikes.some((name) => path === `skills/${name}`)) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `${path}/SKILL.md`,
+              type: "file",
+              sha: "fff",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+
+    await fetchFiles({ logger, source: "owner/repo", options: {}, outputRoot: testDir });
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("; and 2 more"));
+  });
+
   it("should warn and fetch nothing when interactive is used but no skills exist", async () => {
     isInteractiveTerminalMock.mockReturnValue(true);
     mockClientInstance.listDirectory.mockImplementation(() => {

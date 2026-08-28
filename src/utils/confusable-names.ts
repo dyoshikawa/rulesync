@@ -170,6 +170,56 @@ const CASE_SENSITIVE_LOOKALIKES: ReadonlyMap<string, string> = new Map([
   ["|", "l"],
 ]);
 
+/**
+ * The lookalikes that hold at the case a name is written in.
+ *
+ * The table above pairs letters by shape without regard to case, because a
+ * skeleton is compared after the case is dropped: Cyrillic в is a b there, on
+ * the strength of being drawn as a B. That is the right answer for comparing
+ * two names, and the wrong one for asking whether a name is written entirely
+ * in letters read as Latin ones — by that table `нет` and `κατα` are Latin
+ * words, and an ordinary Russian or Greek name would be reported on sight.
+ *
+ * So the whole-script check is given the narrower set: the letters drawn as a
+ * lowercase Latin letter while being lowercase themselves.
+ */
+const SAME_CASE_LATIN_LOOKALIKES: ReadonlySet<string> = new Set([
+  // Cyrillic
+  "а",
+  "е",
+  "о",
+  "р",
+  "с",
+  "у",
+  "х",
+  "ѕ",
+  "і",
+  "ј",
+  "ѵ",
+  "һ",
+  "ӏ",
+  "ԁ",
+  "ԛ",
+  "ԝ",
+  "ү",
+  // Greek
+  "ι",
+  "ν",
+  "ο",
+  "ρ",
+  "υ",
+  "ϲ",
+  "ϱ",
+  "ϳ",
+  // Armenian
+  "հ",
+  "յ",
+  "ո",
+  "ս",
+  "ց",
+  "օ",
+]);
+
 /** Digits, punctuation and combining marks belong to no script of their own. */
 const NO_SCRIPT_PATTERN = /[\p{Script=Common}\p{Script=Inherited}]/u;
 
@@ -245,10 +295,6 @@ function normalizedFormOf(name: string): string {
     .trim();
 }
 
-function displayFormOf(name: string): string {
-  return normalizedFormOf(name).toLowerCase();
-}
-
 /**
  * The form of `name` a terminal draws, for callers that need to compare two
  * pieces of text the way a reader would rather than the way `===` does.
@@ -257,20 +303,36 @@ function displayFormOf(name: string): string {
  * hidden characters vanish, which compatibility forms fold together — is
  * decided here and not a second time somewhere else.
  */
-export function displayFormOfName(name: string): string {
-  return displayFormOf(name);
+export function displayFormOf(name: string): string {
+  return normalizedFormOf(name).toLowerCase();
+}
+
+/**
+ * The form two names read alike in, for callers that have to tell apart rows a
+ * reader cannot: the display form with every lookalike letter folded onto the
+ * Latin letter it is drawn as.
+ */
+export function readingFormOf(name: string): string {
+  return latinSkeletonOf(name);
 }
 
 /**
  * Every character that is drawn as a Latin letter replaced by the Latin letter
- * it is drawn as, with the case-sensitive pairs folded before the case is.
+ * it is drawn as.
+ *
+ * The case is left alone. The pairs that only hold at one case are looked up
+ * as written, and the rest are looked up in lowercase, so that folding can run
+ * before the case is dropped as well as after.
  */
 function foldLookalikes(text: string): string {
-  const cased = [...text]
-    .map((character) => CASE_SENSITIVE_LOOKALIKES.get(character) ?? character)
-    .join("")
-    .toLowerCase();
-  return [...cased].map((character) => LATIN_LOOKALIKES.get(character) ?? character).join("");
+  return [...text]
+    .map(
+      (character) =>
+        CASE_SENSITIVE_LOOKALIKES.get(character) ??
+        LATIN_LOOKALIKES.get(character.toLowerCase()) ??
+        character,
+    )
+    .join("");
 }
 
 /**
@@ -282,13 +344,14 @@ function foldLookalikes(text: string): string {
  * the mapping cut down to the tables above.
  *
  * The fold runs on both sides of the normalization, because the normalization
- * cuts both ways: it is what turns a fullwidth or circled letter into the plain
- * one, and it is also what turns U+03F2 GREEK LUNATE SIGMA SYMBOL — drawn as a
- * c — into a σ that is drawn as nothing of the sort. A fold that ran only after
- * it would lose exactly the shapes it is looking for.
+ * cuts both ways. It is what turns U+2160 ROMAN NUMERAL ONE into the capital I
+ * that is read as an l, which only the fold that runs after it can see; and it
+ * is what turns U+03F2 GREEK LUNATE SIGMA SYMBOL — drawn as a c — into a σ that
+ * is drawn as nothing of the sort, which only the fold that runs before it can.
+ * The case is dropped last, once both folds have had the case they need.
  */
 function latinSkeletonOf(name: string): string {
-  return foldLookalikes(normalizedFormOf(foldLookalikes(name)));
+  return foldLookalikes(normalizedFormOf(foldLookalikes(name))).toLowerCase();
 }
 
 /**
@@ -315,7 +378,7 @@ function scriptReadAsLatinIn(form: string): string | undefined {
     if (script === "Latin") {
       continue;
     }
-    if (!LATIN_LOOKALIKES.has(character)) {
+    if (!SAME_CASE_LATIN_LOOKALIKES.has(character)) {
       return undefined;
     }
     impostorScript ??= script;

@@ -567,6 +567,17 @@ async function applySkillSelection(params: {
 const MAX_LISTED_SKILL_NAMES = 10;
 
 /**
+ * Spell out the first of `items` and count the rest, so that the cap and the
+ * way the remainder is worded are the same in every warning that lists names.
+ */
+function formatCappedList(params: { items: string[]; separator: string }): string {
+  const { items, separator } = params;
+  const listed = items.slice(0, MAX_LISTED_SKILL_NAMES);
+  const remaining = items.length - listed.length;
+  return `${listed.join(separator)}${remaining > 0 ? `${separator}and ${remaining} more` : ""}`;
+}
+
+/**
  * Say which of the fetched skill names may be taken for another, or `undefined`
  * when none of them may be.
  *
@@ -583,11 +594,9 @@ function formatConfusableSkillsWarning(names: string[]): string | undefined {
   const described = [...notes]
     .toSorted(([a], [b]) => (a < b ? -1 : 1))
     .map(([name, note]) => `${JSON.stringify(stripControlCharacters(name))} (${note})`);
-  const listed = described.slice(0, MAX_LISTED_SKILL_NAMES);
   return (
     `Some fetched skill names may not be told apart from each other on sight: ` +
-    `${listed.join("; ")}` +
-    `${described.length > listed.length ? `; and ${described.length - listed.length} more` : ""}. ` +
+    `${formatCappedList({ items: described, separator: "; " })}. ` +
     `Check that each is the skill you meant to fetch.`
   );
 }
@@ -612,10 +621,10 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
   // listing it twice reads as a rendering bug. The count above stays keyed on
   // the raw names, so it still says how many directories were dropped.
   const printable = [...new Set(displays.filter((display) => display !== ""))].toSorted();
-  const listed = printable.slice(0, MAX_LISTED_SKILL_NAMES);
-  const shown =
-    listed.map((display) => JSON.stringify(display)).join(", ") +
-    (printable.length > listed.length ? ` and ${printable.length - listed.length} more` : "");
+  const shown = formatCappedList({
+    items: printable.map((display) => JSON.stringify(display)),
+    separator: ", ",
+  });
   const unprintable = displays.filter((display) => display === "").length;
 
   const plural = droppedUnsafeNames.size !== 1;

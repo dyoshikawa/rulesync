@@ -21,6 +21,14 @@ describe("displayWidthOf", () => {
     // The selector asks for the emoji form of the heart, which is two columns.
     ["an emoji presentation selector", "\u2764\ufe0f", 2],
     ["extended kana", "\u{1b132}", 2],
+    // Emoji drawn as pictures without being asked to, living among the
+    // ordinary symbols rather than in the emoji planes.
+    ["an emoji among the symbols", "\u2705", 2],
+    ["a black large square", "\u2b1b", 2],
+    // A symbol drawn as text unless a selector asks otherwise stays one column.
+    ["a text-presentation symbol", "\u2600", 1],
+    ["a hexagram", "\u4dc0", 2],
+    ["an angle bracket", "\u2329", 2],
     // Two marks on one letter are how a written language uses them.
     ["a letter carrying two marks", "a\u0301\u0323", 1],
   ])("should measure %s", (_label, text, expected) => {

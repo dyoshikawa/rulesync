@@ -235,6 +235,35 @@ describe("describeConfusableNames", () => {
     );
   });
 
+  it("should note a twin the compatibility normalization would have hidden", () => {
+    const twin = "another entry differs from it only by lookalike letters";
+    // U+2160 ROMAN NUMERAL ONE normalizes to a capital I, which is read as an
+    // l — a pairing only visible to a fold that runs after the normalization.
+    expect(describeConfusableNames(["list", "\u2160ist"])).toEqual(
+      new Map([
+        ["list", twin],
+        ["\u2160ist", twin],
+      ]),
+    );
+  });
+
+  it("should leave an ordinary word in a lookalike alphabet alone", () => {
+    // Every one of these is a plain Russian or Greek word. They are written in
+    // letters whose capitals are drawn like Latin ones — в for B, к for K, τ
+    // for T — which is not the same as being drawn like Latin ones as written.
+    const ordinary = ["нет", "как", "тема", "мост", "текст", "автор", "και", "κατα", "ωρα"];
+
+    expect(describeConfusableNames(ordinary)).toEqual(new Map());
+  });
+
+  it("should still report a word whose every letter is drawn as a Latin one", () => {
+    // "copy" spelled in Cyrillic: с о р у are each drawn as the Latin letter
+    // they sit beside, lowercase and all.
+    expect(describeConfusableNames(["сору"]).get("сору")).toBe(
+      "reads as Latin letters but is written in Cyrillic",
+    );
+  });
+
   it("should report an alphabet drawn like Latin that the ordinary mixtures once hid", () => {
     // "rules" with the Osage letter for the r (U+104D8). Osage is not one of
     // the everyday multi-script combinations, however unlisted it is.

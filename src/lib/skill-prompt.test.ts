@@ -216,6 +216,24 @@ describe("promptSkillSelection", () => {
     expect(choices[0]?.value).toBe(impostor);
   });
 
+  it("should number rows whose labels read alike without being the same text", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // `git` and `ɡit` (U+0261) carry the same note as each other, so the two
+    // rows are one shape from end to end. Nothing can say which is which, but
+    // the numbers say they are two rows.
+    const script = "\u0261it";
+
+    await promptSkillSelection({ availableSkills: ["git", script], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(choices[0]?.name).toMatch(/^\(1\) /u);
+    expect(choices[1]?.name).toMatch(/^\(2\) /u);
+    expect(choices[1]?.value).toBe(script);
+  });
+
   it("should keep both reasons when a name imitates the markup and reads like another", async () => {
     checkboxMock.mockResolvedValue([]);
     // Cyrillic о in the second name: it reads as the first one, and it also

@@ -1,7 +1,14 @@
 /**
  * Characters a terminal draws two columns wide: the East Asian Wide and
- * Fullwidth ranges of UAX #11, plus the emoji planes, which are drawn the same
- * way.
+ * Fullwidth ranges of UAX #11, plus the emoji, which are drawn the same way.
+ *
+ * The emoji are matched by `Emoji_Presentation`, the property for the ones
+ * drawn as pictures without being asked to be. That is what reaches the ones
+ * living among the ordinary symbols — U+2705 and U+2B50 are two columns each
+ * while U+2600, drawn as text unless a selector says otherwise, is one — and
+ * a range list would have to name them one by one. The wide symbols that are
+ * not emoji at all are named beside it: the angle brackets, the trigrams and
+ * digrams, and the hexagrams of U+4DC0–U+4DFF.
  *
  * The ranges are the standard ones rather than a lookup of the full property
  * table, which Unicode revises with every release and which is not worth
@@ -23,7 +30,7 @@
  * one.
  */
 const WIDE_CHARACTERS_PATTERN =
-  /[ᄀ-ᅟ⺀-〾ぁ-㏿㐀-䶿一-鿿ꀀ-꓏ꥠ-꥿가-힣豈-﫿︐-︙︰-﹯＀-｠￠-￦]|[\u{16fe0}-\u{16fe4}]|[\u{17000}-\u{18cff}]|[\u{1b000}-\u{1b2ff}]|[\u{1f000}-\u{1faff}]|[\u{20000}-\u{3fffd}]/u;
+  /\p{Emoji_Presentation}|[\u2329\u232a☰-☷⚊-⚏䷀-䷿]|[ᄀ-ᅟ⺀-〾ぁ-㏿㐀-䶿一-鿿ꀀ-꓏ꥠ-꥿가-힣豈-﫿︐-︙︰-﹯＀-｠￠-￦]|[\u{16fe0}-\u{16ff6}]|[\u{17000}-\u{18dff}]|[\u{1b000}-\u{1b2ff}]|[\u{1f000}-\u{1faff}]|[\u{20000}-\u{3fffd}]/u;
 
 /**
  * U+FE0F VARIATION SELECTOR-16, which takes no width of its own but asks the

@@ -1,6 +1,10 @@
 import checkbox from "@inquirer/checkbox";
 
-import { describeConfusableNames, displayFormOfName } from "../utils/confusable-names.js";
+import {
+  describeConfusableNames,
+  displayFormOf,
+  readingFormOf,
+} from "../utils/confusable-names.js";
 import { displayWidthOf, shortenToWidth } from "../utils/display-width.js";
 
 /**
@@ -128,9 +132,12 @@ function numberPrefixOf(position: number): string {
  * label was cut to fit. The number is the row's own position in the list rather
  * than a counter per collision, so no two rows can be given the same one.
  *
- * Labels are counted in the form a terminal draws them, so two that differ only
- * by a character that draws as nothing are numbered rather than left to look
- * like one row printed twice.
+ * Labels are counted in the form they are read in rather than the form they are
+ * written in, so two rows are numbered whenever a reader cannot tell them
+ * apart: one differing only by a character that draws as nothing, and equally
+ * `git` beside `ɡit`, whose notes say the same thing about each other and
+ * whose names are one shape. Numbering them does not say which is which — no
+ * note can — but it does say they are two rows and not one printed twice.
  */
 function formatSkillChoiceLabels(params: {
   names: string[];
@@ -142,7 +149,7 @@ function formatSkillChoiceLabels(params: {
   // the row explained by half of what is wrong with it.
   const noteFor = (name: string): string | undefined => {
     const reasons = [
-      PROMPT_MARKUP_PATTERN.test(displayFormOfName(name)) ? PROMPT_MARKUP_NOTE : undefined,
+      PROMPT_MARKUP_PATTERN.test(displayFormOf(name)) ? PROMPT_MARKUP_NOTE : undefined,
       notes.get(name),
     ].filter((reason) => reason !== undefined);
     return reasons.length > 0 ? reasons.join("; ") : undefined;
@@ -152,11 +159,11 @@ function formatSkillChoiceLabels(params: {
   );
   const counts = new Map<string, number>();
   for (const label of labels) {
-    const drawn = displayFormOfName(label);
+    const drawn = readingFormOf(label);
     counts.set(drawn, (counts.get(drawn) ?? 0) + 1);
   }
   return labels.map((label, index) => {
-    if ((counts.get(displayFormOfName(label)) ?? 0) < 2) {
+    if ((counts.get(readingFormOf(label)) ?? 0) < 2) {
       return label;
     }
     const prefix = numberPrefixOf(index + 1);
