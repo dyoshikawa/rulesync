@@ -1,17 +1,17 @@
 /**
  * Matches C0 controls, DEL, the C1 range (which includes the 8-bit CSI
  * introducer U+009B), the bidirectional overrides and isolates, and the Unicode
- * line and paragraph separators, and the plain LRM/RLM marks. A name or value
+ * line and paragraph separators, and the plain LRM/RLM/ALM marks. A name or value
  * copied out of an untrusted config file, a fetched repository, or a tool's own
  * settings file must never reach the terminal with these intact: they let the
  * text forge log lines, reorder what is printed around them, or inject escape
- * sequences. LRM/RLM open no bidi scope of their own, but they still reorder the
- * neutral characters beside them, so they go too — a diagnostic line is not the
+ * sequences. LRM, RLM and the Arabic letter mark open no bidi scope of their
+ * own, but they still reorder the neutral characters beside them, so they go too — a diagnostic line is not the
  * place to preserve the typography of a right-to-left name.
  */
 const CONTROL_CHARACTERS_PATTERN =
   // oxlint-disable-next-line no-control-regex
-  /[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069\u2028\u2029]/g;
+  /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069\u2028\u2029]/g;
 
 /**
  * Removes every control character from `text` so it is safe to splice into a
@@ -84,14 +84,20 @@ const ZERO_WIDTH_JOINER_PATTERN = /\u200c|\u200d/u;
 const VARIATION_SELECTOR_PATTERN = /[\u{fe00}-\u{fe0f}]|[\u{e0100}-\u{e01ef}]/u;
 
 /**
- * The characters a joiner has no work to do beside: the Latin letters, the
- * digits and the punctuation a directory name is otherwise built from.
+ * The characters a joiner has work to do beside: the scripts whose words are
+ * written with one, and the pictographs an emoji sequence is built from.
  *
- * `pdf` with a ZWNJ between the d and the f is `pdf` on screen and a different
- * directory underneath, and no script joins Latin letters that way — so a
- * joiner in that company is hiding rather than writing.
+ * A list of what may join rather than of what may not, because the two are not
+ * the same size. `pdf` with a ZWNJ between the d and the f is `pdf` on screen
+ * and a different directory underneath, and the same is true of `設定` with a
+ * ZWJ after the first character: neither Latin nor Han joins anything that way,
+ * and nor does Cyrillic, Greek, Hangul or kana. Naming the scripts that do —
+ * the Arabic family, the Indic ones, Mongolian, and the pictographs — is what
+ * keeps the exception to the names that need it, instead of handing it to every
+ * writing system that is merely not Latin.
  */
-const NON_JOINING_CONTEXT_PATTERN = /[\p{Script=Latin}\p{Nd}\p{P}\p{Z}]/u;
+const JOINING_CONTEXT_PATTERN =
+  /[\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Mongolian}\p{Script=Devanagari}\p{Script=Bengali}\p{Script=Gurmukhi}\p{Script=Gujarati}\p{Script=Oriya}\p{Script=Tamil}\p{Script=Telugu}\p{Script=Kannada}\p{Script=Malayalam}\p{Script=Sinhala}\p{Script=Myanmar}\p{Script=Khmer}\p{Script=Tibetan}\p{Script=Adlam}\p{Extended_Pictographic}]/u;
 
 /** Non-global copies, because `test` on a global regex carries state between calls. */
 const CONTROL_CHARACTER_PATTERN = new RegExp(CONTROL_CHARACTERS_PATTERN.source, "u");
@@ -104,8 +110,8 @@ const INVISIBLE_CHARACTER_PATTERN = new RegExp(INVISIBLE_CHARACTERS_PATTERN.sour
  * something to pick, and it is a narrower one than `stripHiddenCharacters`
  * answers. Every control character counts, and so does every invisible
  * character — except a joiner or variation selector standing where its own
- * script would put one, which is to say beside a character that is not a Latin
- * letter, a digit or punctuation.
+ * script would put one, which is to say beside a character from a script that
+ * is written with joiners, or beside a pictograph.
  *
  * A joiner is held to both of its neighbors, since it exists to bind two
  * characters and a name that ends in one is binding nothing: `設定` with a ZWJ
@@ -122,7 +128,7 @@ const INVISIBLE_CHARACTER_PATTERN = new RegExp(INVISIBLE_CHARACTERS_PATTERN.sour
 export function hasDeceptiveHiddenCharacters(text: string): boolean {
   const characters = [...text];
   const joinsCharacter = (neighbor: string | undefined): boolean =>
-    neighbor !== undefined && !NON_JOINING_CONTEXT_PATTERN.test(neighbor);
+    neighbor !== undefined && JOINING_CONTEXT_PATTERN.test(neighbor);
   return characters.some((character, index) => {
     if (CONTROL_CHARACTER_PATTERN.test(character)) {
       return true;

@@ -216,6 +216,24 @@ describe("promptSkillSelection", () => {
     expect(choices[0]?.value).toBe(impostor);
   });
 
+  it("should keep both reasons when a name imitates the markup and reads like another", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // Cyrillic о in the second name: it reads as the first one, and it also
+    // opens with the mark this list puts in front of its own warnings. One
+    // reason must not push the other off the row.
+    const latin = "[!] a-o";
+    const cyrillic = "[!] a-\u043e";
+
+    await promptSkillSelection({ availableSkills: [latin, cyrillic], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(choices[1]?.name).toMatch(/begins the way this list marks its own rows; another/u);
+    expect(choices[1]?.value).toBe(cyrillic);
+  });
+
   it("should convert ExitPromptError (Ctrl+C) into SkillSelectionCancelledError", async () => {
     const exitError = new Error("User force closed the prompt");
     exitError.name = "ExitPromptError";

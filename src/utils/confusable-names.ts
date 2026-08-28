@@ -81,6 +81,17 @@ const LATIN_LOOKALIKES: ReadonlyMap<string, string> = new Map([
   ["ԁ", "d"],
   ["ԛ", "q"],
   ["ԝ", "w"],
+  ["ү", "y"],
+  ["ұ", "y"],
+  ["ө", "o"],
+  ["ҽ", "e"],
+  ["ҫ", "c"],
+  ["ҭ", "t"],
+  ["ҳ", "x"],
+  ["ӽ", "x"],
+  ["ԍ", "g"],
+  ["ԃ", "d"],
+  ["ѡ", "w"],
   // Greek
   ["α", "a"],
   ["β", "b"],
@@ -98,6 +109,12 @@ const LATIN_LOOKALIKES: ReadonlyMap<string, string> = new Map([
   ["υ", "u"],
   ["χ", "x"],
   ["ω", "w"],
+  ["ϲ", "c"],
+  ["ϱ", "p"],
+  ["ϰ", "k"],
+  ["ϳ", "j"],
+  ["ϵ", "e"],
+  ["ϙ", "q"],
   // Armenian
   ["հ", "h"],
   ["յ", "j"],
@@ -105,11 +122,37 @@ const LATIN_LOOKALIKES: ReadonlyMap<string, string> = new Map([
   ["ս", "u"],
   ["ց", "g"],
   ["օ", "o"],
-  // Latin
+  // Latin, where the lookalike is a letter of the same script as the name it
+  // imitates: the phonetic alphabet and the small capitals, neither of which
+  // spells an ordinary word.
   ["ɡ", "g"],
   ["ı", "i"],
   ["ɩ", "i"],
   ["ǀ", "l"],
+  ["ɑ", "a"],
+  ["ɪ", "i"],
+  ["ɵ", "o"],
+  ["ʏ", "y"],
+  ["ᴀ", "a"],
+  ["ʙ", "b"],
+  ["ᴄ", "c"],
+  ["ᴅ", "d"],
+  ["ᴇ", "e"],
+  ["ɢ", "g"],
+  ["ʜ", "h"],
+  ["ᴊ", "j"],
+  ["ᴋ", "k"],
+  ["ʟ", "l"],
+  ["ᴍ", "m"],
+  ["ɴ", "n"],
+  ["ᴏ", "o"],
+  ["ᴘ", "p"],
+  ["ʀ", "r"],
+  ["ᴛ", "t"],
+  ["ᴜ", "u"],
+  ["ᴠ", "v"],
+  ["ᴡ", "w"],
+  ["ᴢ", "z"],
 ]);
 
 /**
@@ -219,21 +262,33 @@ export function displayFormOfName(name: string): string {
 }
 
 /**
+ * Every character that is drawn as a Latin letter replaced by the Latin letter
+ * it is drawn as, with the case-sensitive pairs folded before the case is.
+ */
+function foldLookalikes(text: string): string {
+  const cased = [...text]
+    .map((character) => CASE_SENSITIVE_LOOKALIKES.get(character) ?? character)
+    .join("")
+    .toLowerCase();
+  return [...cased].map((character) => LATIN_LOOKALIKES.get(character) ?? character).join("");
+}
+
+/**
  * The name with every character that is drawn as a Latin letter replaced by the
  * Latin letter it is drawn as.
  *
  * Two names with the same skeleton read the same on screen, whatever scripts
  * they are spelled in. This is the shape of the check UTS #39 describes, with
- * the mapping cut down to the tables above. It is given the normalized form
- * rather than the display form because the case-sensitive pairs have to be
- * folded before the case is.
+ * the mapping cut down to the tables above.
+ *
+ * The fold runs on both sides of the normalization, because the normalization
+ * cuts both ways: it is what turns a fullwidth or circled letter into the plain
+ * one, and it is also what turns U+03F2 GREEK LUNATE SIGMA SYMBOL — drawn as a
+ * c — into a σ that is drawn as nothing of the sort. A fold that ran only after
+ * it would lose exactly the shapes it is looking for.
  */
-function latinSkeletonOf(normalizedForm: string): string {
-  const cased = [...normalizedForm]
-    .map((character) => CASE_SENSITIVE_LOOKALIKES.get(character) ?? character)
-    .join("")
-    .toLowerCase();
-  return [...cased].map((character) => LATIN_LOOKALIKES.get(character) ?? character).join("");
+function latinSkeletonOf(name: string): string {
+  return foldLookalikes(normalizedFormOf(foldLookalikes(name)));
 }
 
 /**
@@ -248,10 +303,10 @@ function latinSkeletonOf(normalizedForm: string): string {
  * ordinary Russian or Greek word — whose letters are mostly not drawn as Latin
  * ones — from being reported.
  */
-function scriptReadAsLatin(displayForm: string): string | undefined {
+function scriptReadAsLatinIn(form: string): string | undefined {
   let impostorScript: string | undefined;
   let hasLetters = false;
-  for (const character of displayForm) {
+  for (const character of form) {
     const script = scriptOf(character);
     if (script === undefined) {
       continue;
@@ -266,6 +321,19 @@ function scriptReadAsLatin(displayForm: string): string | undefined {
     impostorScript ??= script;
   }
   return hasLetters ? impostorScript : undefined;
+}
+
+/**
+ * The same question asked of both forms of the name, since the normalization
+ * that folds a fullwidth letter onto the plain one also folds some lookalikes
+ * onto letters that are not lookalikes at all. A name qualifies when either
+ * form is written wholly in letters read as Latin ones.
+ */
+function scriptReadAsLatin(name: string): string | undefined {
+  return (
+    scriptReadAsLatinIn(displayFormOf(name)) ??
+    scriptReadAsLatinIn(stripHiddenCharacters(name).toLowerCase())
+  );
 }
 
 /**
@@ -324,7 +392,7 @@ export function describeConfusableNames(names: string[]): Map<string, string> {
     return {
       name,
       displayForm: normalizedForm.toLowerCase(),
-      skeleton: latinSkeletonOf(normalizedForm),
+      skeleton: latinSkeletonOf(name),
     };
   });
 
@@ -353,7 +421,7 @@ export function describeConfusableNames(names: string[]): Map<string, string> {
     // plain letter it is drawn as.
     const mixedScripts = mixedScriptsOf(entry.displayForm);
     if (mixedScripts === undefined) {
-      const impostorScript = scriptReadAsLatin(entry.displayForm);
+      const impostorScript = scriptReadAsLatin(entry.name);
       if (impostorScript !== undefined) {
         reasons.push(`reads as Latin letters but is written in ${describeScript(impostorScript)}`);
       }

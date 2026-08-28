@@ -297,6 +297,9 @@ const SKILLS_DIR_PREFIX = "skills/";
  */
 const NON_SKILL_PATH: SkillPathClass = Object.freeze({ kind: "non-skill" });
 
+/** A name with no character in it that draws anything of its own. */
+const NOTHING_DRAWN_PATTERN = /^[\s\p{M}]*$/u;
+
 /**
  * Classify a collected file's path relative to the skills directory.
  *
@@ -308,16 +311,15 @@ const NON_SKILL_PATH: SkillPathClass = Object.freeze({ kind: "non-skill" });
  * `skills/pd<U+200B>f/` is drawn exactly like `skills/pdf/`, and nothing later
  * in the prompt could tell the two apart. A name that draws as nothing but
  * blank space, or as nothing but marks with no letter to sit on, goes the same
- * way, since an empty row is no easier to pick out than an invisible one. Names like that are reported as `unsafe-name` so callers
- * can leave them out instead of writing a skill the user never saw.
+ * way, since an empty row is no easier to pick out than an invisible one. Names
+ * like that are reported as `unsafe-name` so callers can leave them out instead
+ * of writing a skill the user never saw.
  *
  * What is not turned away is a zero-width joiner or variation selector standing
  * where its own script puts one: a Persian or Indic name is written with ZWNJ
  * in it and an emoji name is a chain of ZWJ, and both are ordinary names rather
  * than disguises. `hasDeceptiveHiddenCharacters` draws that line.
  */
-const NOTHING_DRAWN_PATTERN = /^[\s\p{M}]*$/u;
-
 function classifySkillPath(relativePath: string): SkillPathClass {
   // Split on "/" alone. A remote path is POSIX, so a backslash in one is an
   // ordinary character in a name, and normalizing it to a separator first would
@@ -375,13 +377,21 @@ function validateRemoteRelativePath(relativePath: string): void {
 /**
  * Keep only the files whose remote path means one local path.
  *
- * A remote path is POSIX, so a backslash in one is an ordinary character in a
- * name — but the local side is not always POSIX, and every layer below reads
- * such a name differently: `skills/a\b/SKILL.md` is one file in a directory
- * named `a\b` here and two directories deep on Windows, and the prune would be
- * handed a directory this run never wrote. A name nobody agrees on is worth far
- * less than the rest of the fetch, so the file is dropped and the run goes on.
+ * A remote path is POSIX, so a backslash or a colon in one is an ordinary
+ * character in a name — but the local side is not always POSIX, and every layer
+ * below reads such a name differently. `skills/a\b/SKILL.md` is one file in a
+ * directory named `a\b` here and two directories deep on Windows. A colon is
+ * worse: on Windows `skills/pdf::$INDEX_ALLOCATION` is not a directory of its
+ * own at all but another way of writing `skills/pdf`, so a name carrying one
+ * reads as a skill this run never fetched while the prune, comparing names,
+ * sees two — and empties the one the user already had.
+ *
+ * A name nobody agrees on is worth far less than the rest of the fetch, so the
+ * file is dropped and the run goes on.
  */
+/** The characters a path segment means something else with on Windows. */
+const AMBIGUOUS_PATH_CHARACTERS_PATTERN = /[\\:]/u;
+
 function dropAmbiguousRemotePaths(params: {
   files: CollectedFile[];
   incompleteRemoteDirs: Set<string>;
@@ -390,7 +400,7 @@ function dropAmbiguousRemotePaths(params: {
   const { files, incompleteRemoteDirs, logger } = params;
   const kept: CollectedFile[] = [];
   for (const file of files) {
-    if (toPosixPath(file.relativePath) === file.relativePath) {
+    if (!AMBIGUOUS_PATH_CHARACTERS_PATTERN.test(file.relativePath)) {
       kept.push(file);
       continue;
     }
@@ -405,8 +415,8 @@ function dropAmbiguousRemotePaths(params: {
       // is stripped as well before it is quoted: the C1 range and the bidi
       // overrides would otherwise reach the terminal intact.
       `Skipping ${JSON.stringify(stripControlCharacters(file.remotePath))}: its path contains a ` +
-        `backslash, which names ` +
-        `one file on some systems and a directory on others.`,
+        `backslash or a colon, which names one file on some systems and a directory, or part of ` +
+        `another file, on others.`,
     );
   }
   return kept;
@@ -548,6 +558,15 @@ async function applySkillSelection(params: {
 }
 
 /**
+ * How many skill names a single warning line spells out before counting the
+ * rest, shared by every warning that lists them.
+ *
+ * How many directories a repository publishes is the repository's choice, and a
+ * warning that scrolls the screen is a warning nobody reads.
+ */
+const MAX_LISTED_SKILL_NAMES = 10;
+
+/**
  * Say which of the fetched skill names may be taken for another, or `undefined`
  * when none of them may be.
  *
@@ -564,7 +583,7 @@ function formatConfusableSkillsWarning(names: string[]): string | undefined {
   const described = [...notes]
     .toSorted(([a], [b]) => (a < b ? -1 : 1))
     .map(([name, note]) => `${JSON.stringify(stripControlCharacters(name))} (${note})`);
-  const listed = described.slice(0, MAX_LISTED_DROPPED_SKILLS);
+  const listed = described.slice(0, MAX_LISTED_SKILL_NAMES);
   return (
     `Some fetched skill names may not be told apart from each other on sight: ` +
     `${listed.join("; ")}` +
@@ -572,9 +591,6 @@ function formatConfusableSkillsWarning(names: string[]): string | undefined {
     `Check that each is the skill you meant to fetch.`
   );
 }
-
-/** How many dropped names a single warning line spells out before counting the rest. */
-const MAX_LISTED_DROPPED_SKILLS = 10;
 
 /**
  * Describe the skill directories dropped for having hidden characters in their
@@ -587,9 +603,8 @@ const MAX_LISTED_DROPPED_SKILLS = 10;
  * it can be empty or read exactly like a skill the user did fetch. So a name
  * that survives stripping is quoted, to mark it as the sanitized form rather
  * than a claim about what was skipped, and a name that does not survive is
- * counted instead of printed. The list is capped, because how many directories
- * a repository publishes is the repository's choice and a warning that scrolls
- * the screen is a warning nobody reads.
+ * counted instead of printed. The list is capped, as every list of names here
+ * is.
  */
 function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, string>): string {
   const displays = [...droppedUnsafeNames.values()];
@@ -597,7 +612,7 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
   // listing it twice reads as a rendering bug. The count above stays keyed on
   // the raw names, so it still says how many directories were dropped.
   const printable = [...new Set(displays.filter((display) => display !== ""))].toSorted();
-  const listed = printable.slice(0, MAX_LISTED_DROPPED_SKILLS);
+  const listed = printable.slice(0, MAX_LISTED_SKILL_NAMES);
   const shown =
     listed.map((display) => JSON.stringify(display)).join(", ") +
     (printable.length > listed.length ? ` and ${printable.length - listed.length} more` : "");
@@ -1087,7 +1102,10 @@ async function pruneStaleSkillFiles(params: {
     // only this way cannot both be on a filesystem that folds them, so a
     // listing that holds both says this one does not fold them; the guard is
     // not gated on that, for the reason the guard above is not gated on the
-    // platform either.
+    // platform either. That also covers the twin this same fetch wrote: a
+    // remote free to publish `pdf` and `PDF` is free to publish them so that
+    // one lands inside the other, where a prune walking the pair by name would
+    // delete files the other half of the fetch had just written.
     const skillName = skillDir.slice(SKILLS_DIR_PREFIX.length);
     const variant = localSkillNames.find(
       (entry) =>
@@ -1473,7 +1491,7 @@ async function collectFeatureFiles(params: {
           } catch (error) {
             // Only skip 404 errors (file not found), re-throw other errors
             if (isNotFoundError(error)) {
-              logger.debug(`File not found: ${fullPath}`);
+              logger.debug(`File not found: ${stripControlCharacters(fullPath)}`);
             } else {
               throw error;
             }
@@ -1513,7 +1531,7 @@ async function collectFeatureFiles(params: {
         // Check for 404 errors (feature not found)
         if (isNotFoundError(error)) {
           // Feature directory/file not found, skip silently
-          logger.debug(`Feature not found: ${fullPath}`);
+          logger.debug(`Feature not found: ${stripControlCharacters(fullPath)}`);
           return collected;
         }
         throw error;

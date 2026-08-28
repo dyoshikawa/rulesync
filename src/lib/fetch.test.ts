@@ -2777,6 +2777,53 @@ describe("fetchFiles skill pruning", () => {
     expect(await fileExists(victim)).toBe(true);
   });
 
+  it("should skip a remote path whose colon names an existing skill directory", async () => {
+    // On Windows `pdf::$INDEX_ALLOCATION` is not a directory of its own but
+    // another spelling of `pdf`, so the fetch would write into the user's own
+    // `pdf` skill while the prune, which compares names, treats it as a skill
+    // this run never wrote.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "pdf::$INDEX_ALLOCATION",
+              path: "skills/pdf::$INDEX_ALLOCATION",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/pdf::$INDEX_ALLOCATION") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/pdf::$INDEX_ALLOCATION/SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const victim = join(skillsRoot, "pdf", "notes.md");
+    await writeFileContent(victim, "# Mine");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.created).toBe(0);
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(victim)).toBe(true);
+  });
+
   it.skipIf(process.platform === "win32")(
     "should keep a local name the fetched file also answers to",
     async () => {

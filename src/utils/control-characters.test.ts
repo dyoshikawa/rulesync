@@ -89,6 +89,8 @@ describe("hasDeceptiveHiddenCharacters", () => {
     // A zero-width joiner between two emoji, which is what makes them one.
     ["an emoji sequence", "\u{1f468}\u200d\u{1f4bb}"],
     ["an emoji with a variation selector", "\u2764\ufe0f"],
+    // Devanagari writes a half form with a ZWNJ after the virama.
+    ["an Indic name written with ZWNJ", "\u0915\u094d\u200c\u0937"],
   ])("should accept %s", (_label, name) => {
     expect(hasDeceptiveHiddenCharacters(name)).toBe(false);
   });
@@ -110,6 +112,12 @@ describe("hasDeceptiveHiddenCharacters", () => {
     // beside it with an extra directory underneath.
     ["a joiner at the end of a name", "\u8a2d\u5b9a\u200d"],
     ["a joiner between a letter and a space", "\u8a2d\u200d \u5b9a"],
+    // Han joins nothing, so a joiner between two of its characters is padding
+    // for a second directory drawn exactly like the name beside it.
+    ["a joiner between Han characters", "\u8a2d\u200d\u5b9a"],
+    ["a joiner between Hangul characters", "\ud55c\u200d\uae00"],
+    ["a joiner between Cyrillic letters", "\u043f\u0440\u0430\u0432\u200d\u0438\u043b\u0430"],
+    ["a variation selector on a Han character", "\u8a2d\ufe00"],
   ])("should reject %s", (_label, name) => {
     expect(hasDeceptiveHiddenCharacters(name)).toBe(true);
   });

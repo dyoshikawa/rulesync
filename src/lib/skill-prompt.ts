@@ -137,12 +137,15 @@ function formatSkillChoiceLabels(params: {
   notes: ReadonlyMap<string, string>;
 }): string[] {
   const { names, notes } = params;
+  // Both notes when both apply: a name can read like another entry and open
+  // with the tool's own markup at once, and dropping either reason would leave
+  // the row explained by half of what is wrong with it.
   const noteFor = (name: string): string | undefined => {
-    const note = notes.get(name);
-    if (note !== undefined) {
-      return note;
-    }
-    return PROMPT_MARKUP_PATTERN.test(displayFormOfName(name)) ? PROMPT_MARKUP_NOTE : undefined;
+    const reasons = [
+      PROMPT_MARKUP_PATTERN.test(displayFormOfName(name)) ? PROMPT_MARKUP_NOTE : undefined,
+      notes.get(name),
+    ].filter((reason) => reason !== undefined);
+    return reasons.length > 0 ? reasons.join("; ") : undefined;
   };
   const labels = names.map((name) =>
     formatSkillChoiceLabel({ name, note: noteFor(name), budget: MAX_SKILL_LABEL_WIDTH }),
