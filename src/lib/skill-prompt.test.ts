@@ -154,14 +154,66 @@ describe("promptSkillSelection", () => {
 
     await promptSkillSelection({ availableSkills: [first, second], preselectedSkills: [] });
 
+    // The number leads the row, so it is not left sitting past the untrusted
+    // half of the label, and the name is cut to leave room for it.
+    const shortened = "a".repeat(67);
     expect(checkboxMock).toHaveBeenCalledWith(
       expect.objectContaining({
         choices: [
-          { name: `${shared}\u2026 (1)`, value: first, checked: false },
-          { name: `${shared}\u2026 (2)`, value: second, checked: false },
+          { name: `(1) ${shortened}\u2026`, value: first, checked: false },
+          { name: `(2) ${shortened}\u2026`, value: second, checked: false },
         ],
       }),
     );
+  });
+
+  it("should keep a numbered label within the width the prompt draws", async () => {
+    checkboxMock.mockResolvedValue([]);
+    const shared = "a".repeat(71);
+
+    await promptSkillSelection({
+      availableSkills: [`${shared}-official`, `${shared}-not-official`],
+      preselectedSkills: [],
+    });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
+    for (const choice of choices) {
+      expect(displayWidthOf(choice.name)).toBeLessThanOrEqual(72);
+    }
+  });
+
+  it("should number labels that draw the same though their names differ", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // A zero-width space is nothing on screen, so both rows read "pdf". Both
+    // are already marked as sharing a display form; the numbering is what says
+    // which marked row is which.
+    const hidden = "pd\u200bf";
+
+    await promptSkillSelection({ availableSkills: ["pdf", hidden], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(choices[0]?.name).toBe("(1) [!] another entry has the same display form \u2014 pdf");
+    expect(choices[1]?.name).toBe(
+      "(2) [!] another entry has the same display form \u2014 pd\u200bf",
+    );
+    expect(choices[1]?.value).toBe(hidden);
+  });
+
+  it("should mark a name that begins the way the prompt marks its own rows", async () => {
+    checkboxMock.mockResolvedValue([]);
+    const impostor = "[!] mixes characters from Cyrillic and Latin \u2014 pdf";
+
+    await promptSkillSelection({ availableSkills: [impostor], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(choices[0]?.name).toMatch(/^\[!\] begins the way this list marks its own rows \u2014 /u);
+    expect(choices[0]?.value).toBe(impostor);
   });
 
   it("should convert ExitPromptError (Ctrl+C) into SkillSelectionCancelledError", async () => {

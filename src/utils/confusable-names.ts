@@ -5,12 +5,14 @@ import { stripHiddenCharacters } from "./control-characters.js";
  * them is counted as `Other`, which is deliberately one bucket rather than one
  * per script.
  *
- * Two groups are named. The first is alphabets that share letter shapes with
- * Latin — Cyrillic and Greek, and the less obvious Armenian, Cherokee, Coptic,
- * Lisu and Canadian Aboriginal Syllabics, each of which UTS #39 records as
- * confusable with Latin. The list is the common cases rather than every one:
- * Osage, Vai and others belong to it and are not here, so a name built
- * from those is judged by the checks that do not depend on this list.
+ * Two groups are named. The first is the alphabets that share letter shapes
+ * with Latin: Cyrillic and Greek, and the less obvious Armenian, Cherokee,
+ * Coptic, Lisu, Canadian Aboriginal Syllabics, Osage, Deseret, Vai and
+ * Tifinagh, each of which UTS #39 records as confusable with Latin. Naming them
+ * is what keeps them out of the `Other` bucket, where a mixture with Latin
+ * counts as ordinary — `rules` with an Osage letter for the r has to be
+ * reported, while `rules` with a Thai one is a name in two writing systems and
+ * is not.
  *
  * The second group is the scripts the East Asian writing systems are built
  * from, named so that a Japanese, Korean or Chinese name is recognized as the
@@ -25,6 +27,10 @@ const SCRIPT_PATTERNS = [
   ["Coptic", /\p{Script=Coptic}/u],
   ["Lisu", /\p{Script=Lisu}/u],
   ["Canadian Aboriginal", /\p{Script=Canadian_Aboriginal}/u],
+  ["Osage", /\p{Script=Osage}/u],
+  ["Deseret", /\p{Script=Deseret}/u],
+  ["Vai", /\p{Script=Vai}/u],
+  ["Tifinagh", /\p{Script=Tifinagh}/u],
   ["Han", /\p{Script=Han}/u],
   ["Hiragana", /\p{Script=Hiragana}/u],
   ["Katakana", /\p{Script=Katakana}/u],
@@ -43,8 +49,14 @@ const SCRIPT_PATTERNS = [
  * a check built on that marks `rules` against a five-letter Greek word while
  * the two share not one letter shape.
  *
+ * The Latin letters that are drawn as other Latin letters belong here too. A
+ * name does not have to leave the alphabet to read as another one: `c0py` with
+ * a zero, `git` with the script g (U+0261) and `git` with the dotless i are all
+ * spelled in characters this project's own names are spelled in.
+ *
  * Keyed by the lowercase form, because the names are compared in their display
- * form, which is already lowercased.
+ * form, which is already lowercased. The pairs that only exist before the case
+ * is dropped — a capital I drawn as an l — are in the table below instead.
  */
 const LATIN_LOOKALIKES: ReadonlyMap<string, string> = new Map([
   // Cyrillic
@@ -93,6 +105,26 @@ const LATIN_LOOKALIKES: ReadonlyMap<string, string> = new Map([
   ["ս", "u"],
   ["ց", "g"],
   ["օ", "o"],
+  // Latin
+  ["ɡ", "g"],
+  ["ı", "i"],
+  ["ɩ", "i"],
+  ["ǀ", "l"],
+]);
+
+/**
+ * The characters a Latin letter is drawn as before the case is dropped.
+ *
+ * A capital I and a lowercase l are one shape in most terminal fonts, and so
+ * are a one and an l, and a zero and an o. Lowercasing the name destroys the
+ * pairing, since a capital I becomes the letter i rather than the l it is drawn
+ * as, so these are folded first, onto the letter the shape is read as.
+ */
+const CASE_SENSITIVE_LOOKALIKES: ReadonlyMap<string, string> = new Map([
+  ["I", "l"],
+  ["1", "l"],
+  ["0", "o"],
+  ["|", "l"],
 ]);
 
 /** Digits, punctuation and combining marks belong to no script of their own. */
@@ -164,11 +196,26 @@ const WHITESPACE_RUN_PATTERN = /\s+/gu;
  * single strip would miss one of the two. Whitespace is collapsed last, since
  * `pdf` and `pdf ` are one and the same row on screen.
  */
-function displayFormOf(name: string): string {
+function normalizedFormOf(name: string): string {
   return stripHiddenCharacters(stripHiddenCharacters(name).normalize("NFKC"))
     .replace(WHITESPACE_RUN_PATTERN, " ")
-    .trim()
-    .toLowerCase();
+    .trim();
+}
+
+function displayFormOf(name: string): string {
+  return normalizedFormOf(name).toLowerCase();
+}
+
+/**
+ * The form of `name` a terminal draws, for callers that need to compare two
+ * pieces of text the way a reader would rather than the way `===` does.
+ *
+ * Exported so that the rule for what counts as the same thing on screen — which
+ * hidden characters vanish, which compatibility forms fold together — is
+ * decided here and not a second time somewhere else.
+ */
+export function displayFormOfName(name: string): string {
+  return displayFormOf(name);
 }
 
 /**
@@ -177,10 +224,16 @@ function displayFormOf(name: string): string {
  *
  * Two names with the same skeleton read the same on screen, whatever scripts
  * they are spelled in. This is the shape of the check UTS #39 describes, with
- * the mapping cut down to the table above.
+ * the mapping cut down to the tables above. It is given the normalized form
+ * rather than the display form because the case-sensitive pairs have to be
+ * folded before the case is.
  */
-function latinSkeletonOf(displayForm: string): string {
-  return [...displayForm].map((character) => LATIN_LOOKALIKES.get(character) ?? character).join("");
+function latinSkeletonOf(normalizedForm: string): string {
+  const cased = [...normalizedForm]
+    .map((character) => CASE_SENSITIVE_LOOKALIKES.get(character) ?? character)
+    .join("")
+    .toLowerCase();
+  return [...cased].map((character) => LATIN_LOOKALIKES.get(character) ?? character).join("");
 }
 
 /**
@@ -255,10 +308,11 @@ export function mixedScriptsOf(name: string): string[] | undefined {
  * that read the same once the lookalike letters are matched up, a name spelled
  * entirely in letters that read as Latin ones, and a name that mixes scripts it
  * has no ordinary reason to. None of the four is a complete answer — the
- * lookalike table holds the common pairs rather than all of them, and a
- * hand-picked pair of unrelated-looking names from one script escapes every
- * check — so the note is a prompt to look closer, not a guarantee that unmarked
- * entries are distinct.
+ * lookalike tables hold the common pairs rather than all of them, a name
+ * written entirely in a script the tables do not map is compared against
+ * nothing, and a hand-picked pair of unrelated-looking names from one script
+ * escapes every check — so the note is a prompt to look closer, not a guarantee
+ * that unmarked entries are distinct.
  *
  * Names absent from the returned map carry no note. Duplicates in `names` are
  * folded first, so a list that repeats a name does not report that name as
@@ -266,8 +320,12 @@ export function mixedScriptsOf(name: string): string[] | undefined {
  */
 export function describeConfusableNames(names: string[]): Map<string, string> {
   const entries = [...new Set(names)].map((name) => {
-    const displayForm = displayFormOf(name);
-    return { name, displayForm, skeleton: latinSkeletonOf(displayForm) };
+    const normalizedForm = normalizedFormOf(name);
+    return {
+      name,
+      displayForm: normalizedForm.toLowerCase(),
+      skeleton: latinSkeletonOf(normalizedForm),
+    };
   });
 
   const displayFormCounts = new Map<string, number>();
@@ -280,12 +338,14 @@ export function describeConfusableNames(names: string[]): Map<string, string> {
   const notes = new Map<string, string>();
   for (const entry of entries) {
     const reasons: string[] = [];
-    const sharesDisplayForm = (displayFormCounts.get(entry.displayForm) ?? 0) > 1;
-    if (sharesDisplayForm) {
+    const sameDisplayForm = displayFormCounts.get(entry.displayForm) ?? 0;
+    if (sameDisplayForm > 1) {
       reasons.push("another entry has the same display form");
-    } else if ((skeletonCounts.get(entry.skeleton) ?? 0) > 1) {
-      // Only when the display forms differ: two entries that are already
-      // reported as the same display form do not need to be told a second time.
+    }
+    // Counted against the entries that share the display form rather than
+    // against one: three names can read alike while only two of them are the
+    // same string, and the third is the one worth naming.
+    if ((skeletonCounts.get(entry.skeleton) ?? 0) > sameDisplayForm) {
       reasons.push("another entry differs from it only by lookalike letters");
     }
     // The display form is what a reader sees, so it is what the script checks

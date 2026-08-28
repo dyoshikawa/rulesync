@@ -106,6 +106,10 @@ describe("hasDeceptiveHiddenCharacters", () => {
     // Nothing precedes it, so it joins nothing.
     ["a joiner at the start of a name", "\u200c\u062a\u062a"],
     ["a variation selector on a Latin letter", "pdf\ufe0f"],
+    // It binds the character before it to nothing, so the name is the name
+    // beside it with an extra directory underneath.
+    ["a joiner at the end of a name", "\u8a2d\u5b9a\u200d"],
+    ["a joiner between a letter and a space", "\u8a2d\u200d \u5b9a"],
   ])("should reject %s", (_label, name) => {
     expect(hasDeceptiveHiddenCharacters(name)).toBe(true);
   });

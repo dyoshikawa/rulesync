@@ -16,6 +16,13 @@ describe("displayWidthOf", () => {
     ["a zero-width space", "pd\u200bf", 3],
     // Outside the Basic Multilingual Plane, so counted per code point.
     ["an emoji", "\u{1f600}", 2],
+    // Added to Unicode after the older emoji block, and drawn just as wide.
+    ["a recently added emoji", "\u{1fa70}", 2],
+    // The selector asks for the emoji form of the heart, which is two columns.
+    ["an emoji presentation selector", "\u2764\ufe0f", 2],
+    ["extended kana", "\u{1b132}", 2],
+    // Two marks on one letter are how a written language uses them.
+    ["a letter carrying two marks", "a\u0301\u0323", 1],
   ])("should measure %s", (_label, text, expected) => {
     expect(displayWidthOf(text)).toBe(expected);
   });
@@ -43,6 +50,15 @@ describe("shortenToWidth", () => {
     const result = shortenToWidth({ text: "設定設", budget: 4 });
 
     expect(result).toBe("設…");
+  });
+
+  it("should count marks piled on one character past what a language uses", () => {
+    // A name of one letter and three hundred marks draws over the lines above
+    // and below it while measuring a single column if the marks are free.
+    expect(displayWidthOf(`a${"\u0301".repeat(300)}`)).toBe(299);
+    expect(displayWidthOf(shortenToWidth({ text: `a${"\u0301".repeat(300)}`, budget: 72 }))).toBe(
+      72,
+    );
   });
 
   it("should still mark the cut when nothing fits", () => {

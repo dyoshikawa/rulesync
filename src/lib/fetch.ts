@@ -35,6 +35,7 @@ import type {
   ParsedSource,
 } from "../types/fetch.js";
 import type { ToolTarget } from "../types/tool-targets.js";
+import { describeConfusableNames } from "../utils/confusable-names.js";
 import {
   hasDeceptiveHiddenCharacters,
   stripControlCharacters,
@@ -286,6 +287,9 @@ type SkillPathClass =
   | { readonly kind: "unsafe-name"; readonly raw: string; readonly display: string }
   | { readonly kind: "skill"; readonly name: string };
 
+/** Where a skill directory sits, under the output base path and in the remote. */
+const SKILLS_DIR_PREFIX = "skills/";
+
 /**
  * The one `non-skill` verdict, shared by every caller that reaches it. It is
  * frozen because it is shared: a verdict is a value, and one handed out this
@@ -303,8 +307,8 @@ const NON_SKILL_PATH: SkillPathClass = Object.freeze({ kind: "non-skill" });
  * would ride along with it. The zero-width characters go with the control ones:
  * `skills/pd<U+200B>f/` is drawn exactly like `skills/pdf/`, and nothing later
  * in the prompt could tell the two apart. A name that draws as nothing but
- * blank space goes the same way, since an empty row is no easier to pick out
- * than an invisible one. Names like that are reported as `unsafe-name` so callers
+ * blank space, or as nothing but marks with no letter to sit on, goes the same
+ * way, since an empty row is no easier to pick out than an invisible one. Names like that are reported as `unsafe-name` so callers
  * can leave them out instead of writing a skill the user never saw.
  *
  * What is not turned away is a zero-width joiner or variation selector standing
@@ -312,12 +316,14 @@ const NON_SKILL_PATH: SkillPathClass = Object.freeze({ kind: "non-skill" });
  * in it and an emoji name is a chain of ZWJ, and both are ordinary names rather
  * than disguises. `hasDeceptiveHiddenCharacters` draws that line.
  */
+const NOTHING_DRAWN_PATTERN = /^[\s\p{M}]*$/u;
+
 function classifySkillPath(relativePath: string): SkillPathClass {
   // Split on "/" alone. A remote path is POSIX, so a backslash in one is an
   // ordinary character in a name, and normalizing it to a separator first would
   // read `skills/other\evil/SKILL.md` as the skill `other` — handing the prune
   // below a directory this run never wrote.
-  if (!relativePath.startsWith("skills/")) {
+  if (!relativePath.startsWith(SKILLS_DIR_PREFIX)) {
     return NON_SKILL_PATH;
   }
   const segments = relativePath.split("/");
@@ -336,8 +342,11 @@ function classifySkillPath(relativePath: string): SkillPathClass {
   }
   const stripped = stripHiddenCharacters(name);
   // A name of nothing but blank space is shown as the empty string, the same as
-  // one that strips down to nothing: both draw as a row with no name on it.
-  const display = stripped.trim() === "" ? "" : stripped;
+  // one that strips down to nothing: both draw as a row with no name on it. So
+  // is a name of nothing but combining marks, which have no character of their
+  // own to sit on and draw as a smear over whatever the terminal puts beside
+  // them.
+  const display = NOTHING_DRAWN_PATTERN.test(stripped) ? "" : stripped;
   if (display === "" || hasDeceptiveHiddenCharacters(name)) {
     return { kind: "unsafe-name", raw: name, display };
   }
@@ -524,8 +533,48 @@ async function applySkillSelection(params: {
     logger.warn(formatDroppedSkillsWarning(droppedUnsafeNames));
   }
 
+  // The prompt says this in the row itself, so it is said here only when there
+  // was no prompt. Without it the whole check would live on the one path a
+  // scripted fetch never takes, and a name written to look like another would
+  // be written to disk with nothing said about it at all.
+  if (!interactive) {
+    const confusable = formatConfusableSkillsWarning(listAvailableSkills(selected));
+    if (confusable !== undefined) {
+      logger.warn(confusable);
+    }
+  }
+
   return selected;
 }
+
+/**
+ * Say which of the fetched skill names may be taken for another, or `undefined`
+ * when none of them may be.
+ *
+ * The same notes the interactive prompt puts beside a row, for the runs that
+ * have no prompt to put them beside. It changes nothing about what is fetched:
+ * a name that reads like another is still a name the user asked for, on a path
+ * where there is nobody to ask.
+ */
+function formatConfusableSkillsWarning(names: string[]): string | undefined {
+  const notes = describeConfusableNames(names);
+  if (notes.size === 0) {
+    return undefined;
+  }
+  const described = [...notes]
+    .toSorted(([a], [b]) => (a < b ? -1 : 1))
+    .map(([name, note]) => `${JSON.stringify(stripControlCharacters(name))} (${note})`);
+  const listed = described.slice(0, MAX_LISTED_DROPPED_SKILLS);
+  return (
+    `Some fetched skill names may not be told apart from each other on sight: ` +
+    `${listed.join("; ")}` +
+    `${described.length > listed.length ? `; and ${described.length - listed.length} more` : ""}. ` +
+    `Check that each is the skill you meant to fetch.`
+  );
+}
+
+/** How many dropped names a single warning line spells out before counting the rest. */
+const MAX_LISTED_DROPPED_SKILLS = 10;
 
 /**
  * Describe the skill directories dropped for having hidden characters in their
@@ -542,9 +591,6 @@ async function applySkillSelection(params: {
  * a repository publishes is the repository's choice and a warning that scrolls
  * the screen is a warning nobody reads.
  */
-/** How many dropped names a single warning line spells out before counting the rest. */
-const MAX_LISTED_DROPPED_SKILLS = 10;
-
 function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, string>): string {
   const displays = [...droppedUnsafeNames.values()];
   // Deduplicated, because two raw names can strip down to the same text and
@@ -577,8 +623,15 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
   );
 }
 
-/** Where a local skill directory sits, relative to the output base path. */
-const SKILLS_DIR_PREFIX = "skills/";
+/**
+ * The form two directory names are compared in when asking whether a filesystem
+ * might hold them as one: the case dropped, since macOS and Windows ignore it,
+ * and the composition normalized, since macOS stores a name decomposed and
+ * hands back whichever form was written first.
+ */
+function foldedDirectoryName(name: string): string {
+  return name.normalize("NFC").toLowerCase();
+}
 
 /**
  * The names the local skills directory holds, or none when it is not there.
@@ -590,7 +643,12 @@ const SKILLS_DIR_PREFIX = "skills/";
  */
 async function readSkillRootNames(outputBasePath: string): Promise<string[]> {
   try {
-    return await readdir(join(outputBasePath, SKILLS_DIR_PREFIX));
+    const entries = await readdir(join(outputBasePath, SKILLS_DIR_PREFIX), {
+      withFileTypes: true,
+    });
+    // Directories only: a skill is a directory, and a file beside them shares
+    // no name with one it could be mistaken for.
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
   } catch {
     // No skills directory, or one that cannot be read: nothing to compare
     // against, and a prune that cannot read the tree fails on its
@@ -962,7 +1020,7 @@ async function pruneStaleSkillFiles(params: {
     if (skill.kind !== "skill") {
       continue;
     }
-    const localSkillDir = `skills/${skill.name}`;
+    const localSkillDir = `${SKILLS_DIR_PREFIX}${skill.name}`;
     if (!skillDirs.has(localSkillDir)) {
       skillDirs.set(localSkillDir, remoteSkillDirPath({ file, localSkillDir }));
     }
@@ -1019,22 +1077,27 @@ async function pruneStaleSkillFiles(params: {
       continue;
     }
 
-    // The same class of problem, reached by case rather than by punctuation.
-    // macOS and Windows resolve `skills/PDF` to an existing `skills/pdf`, so a
-    // remote skill named for the case variant of a local one writes into that
-    // directory — and a prune of it would judge the local skill's own files
-    // stale and delete them. The check is on what is on disk rather than on the
-    // platform, for the reason the guard above is not gated either.
-    const caseVariant = localSkillNames.find(
+    // The same class of problem, reached by case or by how the name is spelled
+    // in Unicode rather than by punctuation. macOS and Windows resolve
+    // `skills/PDF` to an existing `skills/pdf`, and macOS resolves a name
+    // written with a combining accent to the same directory as one written with
+    // the composed letter — so a remote skill named for such a variant of a
+    // local one writes into that directory, and a prune of it would judge the
+    // local skill's own files stale and delete them. Two entries that differ
+    // only this way cannot both be on a filesystem that folds them, so a
+    // listing that holds both says this one does not fold them; the guard is
+    // not gated on that, for the reason the guard above is not gated on the
+    // platform either.
+    const skillName = skillDir.slice(SKILLS_DIR_PREFIX.length);
+    const variant = localSkillNames.find(
       (entry) =>
-        entry !== skillDir.slice(SKILLS_DIR_PREFIX.length) &&
-        entry.toLowerCase() === skillDir.slice(SKILLS_DIR_PREFIX.length).toLowerCase(),
+        entry !== skillName && foldedDirectoryName(entry) === foldedDirectoryName(skillName),
     );
-    if (caseVariant !== undefined) {
+    if (variant !== undefined) {
       logger.warn(
         `Not pruning ${stripControlCharacters(skillDir)}: ${SKILLS_DIR_PREFIX}` +
-          `${stripControlCharacters(caseVariant)} is also there and some filesystems treat the ` +
-          `two as one directory, so this name may not be the directory it reads as. Remove ` +
+          `${stripControlCharacters(variant)} is also there and differs only in ways some ` +
+          `filesystems ignore, so this name may not be the directory it reads as. Remove ` +
           `unwanted files by hand.`,
       );
       continue;

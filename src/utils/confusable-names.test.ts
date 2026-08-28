@@ -204,6 +204,62 @@ describe("describeConfusableNames", () => {
     );
   });
 
+  it("should note a twin that never leaves the Latin alphabet", () => {
+    const twin = "another entry differs from it only by lookalike letters";
+    // A digit for a letter, a capital I for an l, the script g (U+0261) and the
+    // dotless i (U+0131): four ways to spell a name in characters this project
+    // already uses, none of which changes what the name looks like.
+    expect(describeConfusableNames(["copy", "c0py"])).toEqual(
+      new Map([
+        ["copy", twin],
+        ["c0py", twin],
+      ]),
+    );
+    expect(describeConfusableNames(["rules", "ruIes"])).toEqual(
+      new Map([
+        ["rules", twin],
+        ["ruIes", twin],
+      ]),
+    );
+    expect(describeConfusableNames(["git", "\u0261it"])).toEqual(
+      new Map([
+        ["git", twin],
+        ["\u0261it", twin],
+      ]),
+    );
+    expect(describeConfusableNames(["git", "g\u0131t"])).toEqual(
+      new Map([
+        ["git", twin],
+        ["g\u0131t", twin],
+      ]),
+    );
+  });
+
+  it("should report an alphabet drawn like Latin that the ordinary mixtures once hid", () => {
+    // "rules" with the Osage letter for the r (U+104D8). Osage is not one of
+    // the everyday multi-script combinations, however unlisted it is.
+    const osage = `\u{104d8}${"rules".slice(1)}`;
+
+    expect(describeConfusableNames([osage]).get(osage)).toBe(
+      "mixes characters from Latin and Osage",
+    );
+  });
+
+  it("should name the third entry that reads like two others", () => {
+    // Two entries are the same string and a third only reads like them: the
+    // third is the one the reader has no other way to notice.
+    const notes = describeConfusableNames(["copy", "copy ", "c\u043epy"]);
+
+    expect(notes.get("copy")).toBe(
+      "another entry has the same display form; " +
+        "another entry differs from it only by lookalike letters",
+    );
+    expect(notes.get("c\u043epy")).toBe(
+      "another entry differs from it only by lookalike letters; " +
+        "mixes characters from Cyrillic and Latin",
+    );
+  });
+
   it("should not report a repeated name as colliding with itself", () => {
     expect(describeConfusableNames(["skill-a", "skill-a"])).toEqual(new Map());
   });

@@ -1,21 +1,73 @@
 /**
  * Characters a terminal draws two columns wide: the East Asian Wide and
- * Fullwidth ranges of UAX #11, plus the emoji blocks that are drawn the same
+ * Fullwidth ranges of UAX #11, plus the emoji planes, which are drawn the same
  * way.
  *
  * The ranges are the standard ones rather than a lookup of the full property
  * table, which Unicode revises with every release and which is not worth
  * carrying for the one thing it is used for here — deciding when a label is
- * long enough to wrap. Ambiguous-width characters are counted as one column,
- * which is what a terminal running a Latin font does.
+ * long enough to wrap. Where a range is coarse it is coarse in the safe
+ * direction: the whole of U+1F000–U+1FAFF is counted as wide, which overstates
+ * the few narrow symbols in it, because overstating a width shortens a label
+ * that did not need it while understating one lets a label wrap. That is also
+ * why an emoji built from a chain of joiners is counted per component: two
+ * columns each rather than the two the whole chain draws.
+ *
+ * Ambiguous-width characters are counted as one column, which is what a
+ * terminal running a Latin font does.
  */
 const WIDE_CHARACTERS_PATTERN =
-  /[ᄀ-ᅟ⺀-〾ぁ-㏿㐀-䶿一-鿿ꀀ-꓏ꥠ-꥿가-힣豈-﫿︐-︙︰-﹯＀-｠￠-￦]|[\u{17000}-\u{18aff}]|[\u{1f300}-\u{1f9ff}]|[\u{20000}-\u{3fffd}]/u;
+  /[ᄀ-ᅟ⺀-〾ぁ-㏿㐀-䶿一-鿿ꀀ-꓏ꥠ-꥿가-힣豈-﫿︐-︙︰-﹯＀-｠￠-￦]|[\u{17000}-\u{18aff}]|[\u{1b000}-\u{1b16f}]|[\u{1f000}-\u{1faff}]|[\u{20000}-\u{3fffd}]/u;
+
+/**
+ * U+FE0F VARIATION SELECTOR-16, which takes no width of its own but asks the
+ * character before it to be drawn as an emoji — that is, in two columns rather
+ * than one. Counting it as a column of its own is how that promotion is paid
+ * for without looking behind: `\u2764\ufe0f` then measures the two columns it
+ * draws rather than the one the heart alone would.
+ */
+const EMOJI_PRESENTATION_SELECTOR = "\ufe0f";
 
 /** Combining marks are drawn on top of the character before them, not beside it. */
-const ZERO_WIDTH_CHARACTERS_PATTERN = /[\p{Mn}\p{Me}\p{Cf}\p{Default_Ignorable_Code_Point}]/u;
+const COMBINING_MARK_PATTERN = /[\p{Mn}\p{Me}]/u;
 
-function widthOfCharacter(character: string): number {
+/** The characters that take no width at all, marks aside. */
+const ZERO_WIDTH_CHARACTERS_PATTERN = /[\p{Cf}\p{Default_Ignorable_Code_Point}]/u;
+
+/**
+ * How many marks a single character is allowed to carry for free.
+ *
+ * A written language stacks two or three at most — a Devanagari vowel sign and
+ * a dot below it, a Hebrew point and an accent — so the free ones cover every
+ * name that is a name. Past that the marks are not decorating a letter but
+ * piling up into the lines above and below it: a name of one letter and three
+ * hundred marks measures one column while painting over half the screen.
+ * Counting the surplus is what keeps such a name inside the budget.
+ */
+const FREE_MARKS_PER_CHARACTER = 2;
+
+/**
+ * The emoji presentation selector is a mark by category but not by effect: it
+ * promotes the character before it to its emoji form, which the terminal draws
+ * two columns wide where the plain form took one. Counting the extra column on
+ * the selector is what makes the pair add up.
+ */
+function isCombiningMark(character: string): boolean {
+  return character !== EMOJI_PRESENTATION_SELECTOR && COMBINING_MARK_PATTERN.test(character);
+}
+
+/**
+ * The width of one character, given how many marks already sit on the character
+ * before it.
+ */
+function widthInContext(params: { character: string; precedingMarks: number }): number {
+  const { character, precedingMarks } = params;
+  if (character === EMOJI_PRESENTATION_SELECTOR) {
+    return 1;
+  }
+  if (isCombiningMark(character)) {
+    return precedingMarks < FREE_MARKS_PER_CHARACTER ? 0 : 1;
+  }
   if (ZERO_WIDTH_CHARACTERS_PATTERN.test(character)) {
     return 0;
   }
@@ -31,8 +83,10 @@ function widthOfCharacter(character: string): number {
  */
 export function displayWidthOf(text: string): number {
   let width = 0;
+  let marks = 0;
   for (const character of text) {
-    width += widthOfCharacter(character);
+    width += widthInContext({ character, precedingMarks: marks });
+    marks = isCombiningMark(character) ? marks + 1 : 0;
   }
   return width;
 }
@@ -52,14 +106,16 @@ export function shortenToWidth(params: { text: string; budget: number }): string
   }
   const target = budget - 1;
   let width = 0;
+  let marks = 0;
   const kept: string[] = [];
   for (const character of text) {
-    const characterWidth = widthOfCharacter(character);
+    const characterWidth = widthInContext({ character, precedingMarks: marks });
     if (width + characterWidth > target) {
       break;
     }
     kept.push(character);
     width += characterWidth;
+    marks = isCombiningMark(character) ? marks + 1 : 0;
   }
   return `${kept.join("")}…`;
 }

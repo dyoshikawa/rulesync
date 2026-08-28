@@ -80,7 +80,8 @@ export function stripHiddenCharacters(text: string): string {
 // Written as alternatives rather than one class: a class holding a joiner and a
 // variation selector side by side is the very shape `no-misleading-character-class`
 // exists to catch, and here they are listed one by one on purpose.
-const JOINING_CHARACTERS_PATTERN = /\u200c|\u200d|[\u{fe00}-\u{fe0f}]|[\u{e0100}-\u{e01ef}]/u;
+const ZERO_WIDTH_JOINER_PATTERN = /\u200c|\u200d/u;
+const VARIATION_SELECTOR_PATTERN = /[\u{fe00}-\u{fe0f}]|[\u{e0100}-\u{e01ef}]/u;
 
 /**
  * The characters a joiner has no work to do beside: the Latin letters, the
@@ -93,7 +94,7 @@ const JOINING_CHARACTERS_PATTERN = /\u200c|\u200d|[\u{fe00}-\u{fe0f}]|[\u{e0100}
 const NON_JOINING_CONTEXT_PATTERN = /[\p{Script=Latin}\p{Nd}\p{P}\p{Z}]/u;
 
 /** Non-global copies, because `test` on a global regex carries state between calls. */
-const CONTROL_CHARACTER_PATTERN = new RegExp(CONTROL_CHARACTERS_PATTERN.source);
+const CONTROL_CHARACTER_PATTERN = new RegExp(CONTROL_CHARACTERS_PATTERN.source, "u");
 const INVISIBLE_CHARACTER_PATTERN = new RegExp(INVISIBLE_CHARACTERS_PATTERN.source, "u");
 
 /**
@@ -103,9 +104,14 @@ const INVISIBLE_CHARACTER_PATTERN = new RegExp(INVISIBLE_CHARACTERS_PATTERN.sour
  * something to pick, and it is a narrower one than `stripHiddenCharacters`
  * answers. Every control character counts, and so does every invisible
  * character — except a joiner or variation selector standing where its own
- * script would put one, which is to say next to a character that is not a Latin
- * letter, a digit or punctuation. A joiner at the very start of a name has
- * nothing to join, so it counts too.
+ * script would put one, which is to say beside a character that is not a Latin
+ * letter, a digit or punctuation.
+ *
+ * A joiner is held to both of its neighbors, since it exists to bind two
+ * characters and a name that ends in one is binding nothing: `設定` with a ZWJ
+ * after it is `設定` on screen and a second directory underneath. A variation
+ * selector is held only to the character before it, which is the one it selects
+ * a form for, and which is why an emoji name may end in one.
  *
  * The test is a heuristic in place of the CONTEXTJ joining rules of IDNA,
  * which decide the same question by the joining type of the characters around
@@ -115,6 +121,8 @@ const INVISIBLE_CHARACTER_PATTERN = new RegExp(INVISIBLE_CHARACTERS_PATTERN.sour
  */
 export function hasDeceptiveHiddenCharacters(text: string): boolean {
   const characters = [...text];
+  const joinsCharacter = (neighbor: string | undefined): boolean =>
+    neighbor !== undefined && !NON_JOINING_CONTEXT_PATTERN.test(neighbor);
   return characters.some((character, index) => {
     if (CONTROL_CHARACTER_PATTERN.test(character)) {
       return true;
@@ -122,10 +130,12 @@ export function hasDeceptiveHiddenCharacters(text: string): boolean {
     if (!INVISIBLE_CHARACTER_PATTERN.test(character)) {
       return false;
     }
-    if (!JOINING_CHARACTERS_PATTERN.test(character)) {
+    if (VARIATION_SELECTOR_PATTERN.test(character)) {
+      return !joinsCharacter(characters[index - 1]);
+    }
+    if (!ZERO_WIDTH_JOINER_PATTERN.test(character)) {
       return true;
     }
-    const previous = characters[index - 1];
-    return previous === undefined || NON_JOINING_CONTEXT_PATTERN.test(previous);
+    return !joinsCharacter(characters[index - 1]) || !joinsCharacter(characters[index + 1]);
   });
 }

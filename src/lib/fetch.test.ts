@@ -1776,6 +1776,154 @@ describe("fetchFiles with skill selection", () => {
     );
   });
 
+  it("should count the unsafe names it does not spell out", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    // Twelve directories, each named for a real word with a zero-width space in
+    // it: the warning spells out ten and says how many it did not.
+    const unsafeNames = Array.from({ length: 12 }, (_unused, index) => `pd\u200bf-${index}`);
+    const unsafeDirs = unsafeNames.map((name) => `skills/${name}`);
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              ...unsafeNames.map((name) => ({
+                name,
+                path: `skills/${name}`,
+                type: "dir",
+              })),
+            ],
+          );
+        }
+        if (unsafeDirs.includes(path)) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `${path}/SKILL.md`,
+              type: "file",
+              sha: "ddd",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("and 2 more"));
+  });
+
+  it("should skip a skill directory named with marks that have nothing to sit on", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    // A combining acute accent on its own: it survives every strip, and draws
+    // as a smear over whatever the terminal puts beside it.
+    const unsafeDir = "skills/\u0301";
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              { name: "\u0301", path: unsafeDir, type: "dir" },
+            ],
+          );
+        }
+        if (path === unsafeDir) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `${unsafeDir}/SKILL.md`,
+              type: "file",
+              sha: "eee",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Skipping one skill directory whose name contains hidden"),
+    );
+  });
+
+  it("should say which fetched names read alike when there is no prompt to say it in", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    // "copy" spelled with a zero for the o: nothing about either name is
+    // hidden, so both are fetched, and a run with no prompt has nowhere else to
+    // be told that the two read the same.
+    const lookalikes = ["copy", "c0py"];
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              ...lookalikes.map((name) => ({ name, path: `skills/${name}`, type: "dir" })),
+            ],
+          );
+        }
+        if (lookalikes.some((name) => path === `skills/${name}`)) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `${path}/SKILL.md`,
+              type: "file",
+              sha: "fff",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath)).toContain("skills/c0py/SKILL.md");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("may not be told apart from each other on sight"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("differs from it only by lookalike letters"),
+    );
+  });
+
   it("should warn and fetch nothing when interactive is used but no skills exist", async () => {
     isInteractiveTerminalMock.mockReturnValue(true);
     mockClientInstance.listDirectory.mockImplementation(() => {
@@ -2887,7 +3035,57 @@ describe("fetchFiles skill pruning", () => {
     expect(summary.deleted).toBe(0);
     expect(await fileExists(localFile)).toBe(true);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("some filesystems treat the two as one directory"),
+      expect.stringContaining("differs only in ways some filesystems ignore"),
+    );
+  });
+
+  it("should not prune a skill directory a local one differs from only in composition", async () => {
+    // macOS stores a name decomposed, so the remote `caf\u00e9` written with a
+    // combining accent lands in the existing directory written with the
+    // composed letter, exactly as a case variant would.
+    const composed = "caf\u00e9";
+    const decomposed = "cafe\u0301";
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: decomposed,
+              path: `skills/${decomposed}`,
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === `skills/${decomposed}`) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `skills/${decomposed}/SKILL.md`,
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const localFile = join(skillsRoot, composed, "SKILL.md");
+    await writeFileContent(localFile, "# Local skill");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(localFile)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("differs only in ways some filesystems ignore"),
     );
   });
 

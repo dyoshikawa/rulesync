@@ -1,6 +1,6 @@
 import checkbox from "@inquirer/checkbox";
 
-import { describeConfusableNames } from "../utils/confusable-names.js";
+import { describeConfusableNames, displayFormOfName } from "../utils/confusable-names.js";
 import { displayWidthOf, shortenToWidth } from "../utils/display-width.js";
 
 /**
@@ -69,16 +69,20 @@ const NOTE_SEPARATOR = " \u2014 ";
  *
  * The name is measured first and the note takes what is left, so a short name
  * keeps its whole note. Only a name long enough to claim the row cuts into the
- * note, and the reasons are ordered by weight, so what a cut drops is the least
- * of them — never the marker, and never the first reason.
+ * note, and the reasons are ordered by weight, so a cut takes them from the
+ * tail: the marker survives every time, and so does the beginning of the first
+ * reason.
  */
-function formatSkillChoiceLabel(params: { name: string; note: string | undefined }): string {
-  const { name, note } = params;
+function formatSkillChoiceLabel(params: {
+  name: string;
+  note: string | undefined;
+  budget: number;
+}): string {
+  const { name, note, budget } = params;
   if (note === undefined) {
-    return shortenToWidth({ text: name, budget: MAX_SKILL_LABEL_WIDTH });
+    return shortenToWidth({ text: name, budget });
   }
-  const available =
-    MAX_SKILL_LABEL_WIDTH - displayWidthOf(NOTE_MARKER) - displayWidthOf(NOTE_SEPARATOR);
+  const available = budget - displayWidthOf(NOTE_MARKER) - displayWidthOf(NOTE_SEPARATOR);
   const shownName = shortenToWidth({
     text: name,
     budget: Math.max(available - displayWidthOf(note), MIN_SHORTENED_NAME_WIDTH),
@@ -91,6 +95,24 @@ function formatSkillChoiceLabel(params: { name: string; note: string | undefined
 }
 
 /**
+ * The text a name is given a note of its own for starting with: the mark this
+ * module puts in front of a warning, and the row number it puts in front of a
+ * repeated label.
+ *
+ * Both are the prompt's own words, and a name is free to begin with either. A
+ * name that does gets a note saying so, which puts the real mark in front of it
+ * and leaves the imitation where it can be seen for what it is.
+ */
+const PROMPT_MARKUP_PATTERN = /^(?:\[!\]|\(\d+\))/u;
+
+const PROMPT_MARKUP_NOTE = "begins the way this list marks its own rows";
+
+/** The row number a repeated label is told apart by. */
+function numberPrefixOf(position: number): string {
+  return `(${position}) `;
+}
+
+/**
  * Label every skill on the list, keeping the labels distinct.
  *
  * Shortening is what makes this necessary: two names that share a long enough
@@ -99,25 +121,48 @@ function formatSkillChoiceLabel(params: { name: string; note: string | undefined
  * their own — nothing about them is confusable until the prompt truncates them
  * — so the numbering is added here, where the truncation happens, rather than
  * being asked of `describeConfusableNames`.
+ *
+ * The number goes in front, for the reason the note does: at the end it would
+ * sit past the untrusted half of the label, where a name ending in right-to-left
+ * letters can pull it out of place, and it would push the row past the width the
+ * label was cut to fit. The number is the row's own position in the list rather
+ * than a counter per collision, so no two rows can be given the same one.
+ *
+ * Labels are counted in the form a terminal draws them, so two that differ only
+ * by a character that draws as nothing are numbered rather than left to look
+ * like one row printed twice.
  */
 function formatSkillChoiceLabels(params: {
   names: string[];
   notes: ReadonlyMap<string, string>;
 }): string[] {
   const { names, notes } = params;
-  const labels = names.map((name) => formatSkillChoiceLabel({ name, note: notes.get(name) }));
+  const noteFor = (name: string): string | undefined => {
+    const note = notes.get(name);
+    if (note !== undefined) {
+      return note;
+    }
+    return PROMPT_MARKUP_PATTERN.test(displayFormOfName(name)) ? PROMPT_MARKUP_NOTE : undefined;
+  };
+  const labels = names.map((name) =>
+    formatSkillChoiceLabel({ name, note: noteFor(name), budget: MAX_SKILL_LABEL_WIDTH }),
+  );
   const counts = new Map<string, number>();
   for (const label of labels) {
-    counts.set(label, (counts.get(label) ?? 0) + 1);
+    const drawn = displayFormOfName(label);
+    counts.set(drawn, (counts.get(drawn) ?? 0) + 1);
   }
-  const numbered = new Map<string, number>();
-  return labels.map((label) => {
-    if ((counts.get(label) ?? 0) < 2) {
+  return labels.map((label, index) => {
+    if ((counts.get(displayFormOfName(label)) ?? 0) < 2) {
       return label;
     }
-    const position = (numbered.get(label) ?? 0) + 1;
-    numbered.set(label, position);
-    return `${label} (${position})`;
+    const prefix = numberPrefixOf(index + 1);
+    const name = names[index] ?? label;
+    return `${prefix}${formatSkillChoiceLabel({
+      name,
+      note: noteFor(name),
+      budget: MAX_SKILL_LABEL_WIDTH - displayWidthOf(prefix),
+    })}`;
   });
 }
 
