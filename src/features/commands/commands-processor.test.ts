@@ -966,9 +966,9 @@ describe("CommandsProcessor", () => {
       const result = await processor.loadToolFiles();
 
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
-        expect.stringContaining(join(".claude", "commands", "**", "*.md")),
+        join("**", "*.md"),
         // Loading follows symlinks; collecting deletion candidates does not.
-        { followSymbolicLinks: true },
+        { cwd: join(testDir, ".claude", "commands"), followSymbolicLinks: true },
       );
       expect(ClaudecodeCommand.fromFile).toHaveBeenCalledWith({
         outputRoot: testDir,
@@ -1200,9 +1200,9 @@ describe("CommandsProcessor", () => {
       await processor.loadToolFiles();
 
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
-        expect.stringContaining(join(".cursor", "commands", "*.md")),
+        "*.md",
         // Loading follows symlinks; collecting deletion candidates does not.
-        { followSymbolicLinks: true },
+        { cwd: join(testDir, ".cursor", "commands"), followSymbolicLinks: true },
       );
       // Should NOT contain "**" in the glob pattern
       const calledGlob = mockFindFilesByGlobs.mock.calls[0]![0] as string;
@@ -1217,9 +1217,9 @@ describe("CommandsProcessor", () => {
       await processor.loadToolFiles();
 
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
-        expect.stringContaining(join(".claude", "commands", "**", "*.md")),
+        join("**", "*.md"),
         // Loading follows symlinks; collecting deletion candidates does not.
-        { followSymbolicLinks: true },
+        { cwd: join(testDir, ".claude", "commands"), followSymbolicLinks: true },
       );
     });
   });
@@ -1333,6 +1333,29 @@ describe("CommandsProcessor", () => {
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
+    it("should load files when the output root contains glob metacharacters", async () => {
+      const literalRoot = join(testDir, "project[glob]");
+      await writeFileContent(
+        join(literalRoot, ".claude", "commands", "literal.md"),
+        "---\ndescription: Literal path\n---\n\nContent",
+      );
+
+      const literalProcessor = new CommandsProcessor({
+        logger,
+        outputRoot: literalRoot,
+        toolTarget: "claudecode",
+      });
+
+      const actualFile =
+        await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+      mockFindFilesByGlobs.mockImplementation(actualFile.findFilesByGlobs);
+
+      const toolFiles = await literalProcessor.loadToolFiles({ forDeletion: true });
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("literal.md");
+    });
+
     it("should return files with correct paths for deletion", async () => {
       processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
 

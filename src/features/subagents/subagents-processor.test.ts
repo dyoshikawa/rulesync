@@ -719,6 +719,25 @@ Body from inputRoots[0]`;
   });
 
   describe("loadToolFiles", () => {
+    it("should load files when the output root contains glob metacharacters", async () => {
+      const literalRoot = join(testDir, "project[glob]");
+      await writeFileContent(
+        join(literalRoot, ".claude", "agents", "literal.md"),
+        "---\nname: literal\ndescription: Literal path\n---\n\nContent",
+      );
+
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: literalRoot,
+        toolTarget: "claudecode",
+      });
+
+      const toolFiles = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("literal.md");
+    });
+
     it("should delegate to loadClaudecodeSubagents for claudecode target", async () => {
       const processor = new SubagentsProcessor({
         logger: createMockLogger(),

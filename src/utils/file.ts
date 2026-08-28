@@ -625,6 +625,8 @@ function chooseRepresentative(candidates: string[], identity: string): string {
 export async function findFilesByGlobs(
   globs: string | string[],
   options: {
+    /** Directory in which relative patterns are evaluated. */
+    cwd?: string;
     type?: "file" | "dir" | "all";
     followSymbolicLinks?: boolean;
     /**
@@ -674,6 +676,7 @@ export async function findFilesByGlobs(
   // path: git-client.ts (`walkDirectory`) skips symlinks entirely.
   const results = globbySync(normalizedGlobs, {
     absolute: true,
+    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
     followSymbolicLinks,
     dot,
     ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),

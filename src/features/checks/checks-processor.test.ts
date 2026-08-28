@@ -122,6 +122,26 @@ Look for issues.
     expect((rulesyncFiles[0] as RulesyncCheck).getFrontmatter().severity).toBe("medium");
   });
 
+  it("should load checks when the output root contains glob metacharacters", async () => {
+    const literalRoot = join(testDir, "project[glob]");
+    await writeFileContent(
+      join(literalRoot, AMP_CHECKS_PROJECT_DIR, "literal.md"),
+      "---\nname: literal\ndescription: Literal path\n---\n\nContent",
+    );
+
+    const processor = new ChecksProcessor({
+      outputRoot: literalRoot,
+      inputRoots: [join(literalRoot, RULESYNC_RELATIVE_DIR_PATH)],
+      toolTarget: "amp",
+      logger,
+    });
+
+    const toolFiles = await processor.loadToolFiles({ forDeletion: true });
+
+    expect(toolFiles).toHaveLength(1);
+    expect(toolFiles[0]?.getRelativeFilePath()).toBe("literal.md");
+  });
+
   it("should return an empty array when the rulesync checks directory is missing", async () => {
     const processor = new ChecksProcessor({
       outputRoot: testDir,

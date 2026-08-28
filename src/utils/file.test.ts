@@ -768,6 +768,16 @@ describe("file utilities", () => {
           expect(results).toContain(join(testDir, "file1.md"));
           expect(results).toContain(join(testDir, "nested", "file3.md"));
         });
+
+        it("should evaluate relative patterns from a literal directory path", async () => {
+          const literalRoot = join(testDir, "project[glob]");
+          const filePath = join(literalRoot, "file.md");
+          await writeFileContent(filePath, "content");
+
+          await expect(
+            findFilesByGlobs("*.md", { cwd: literalRoot, type: "file" }),
+          ).resolves.toEqual([toPosixPath(filePath)]);
+        });
       });
 
       describe("Windows path normalization", () => {
