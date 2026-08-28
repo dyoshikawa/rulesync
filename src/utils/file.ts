@@ -748,8 +748,11 @@ async function listEntryNames(params: {
       const entryStats = entry.isSymbolicLink()
         ? undefined
         : await lstat(entryPath).catch(() => undefined);
-      if (entryStats !== undefined) {
-        return matches(entryStats) ? { name: entry.name, isLink: false } : undefined;
+      const isLink = entry.isSymbolicLink() || (entryStats?.isSymbolicLink() ?? false);
+      if (!isLink) {
+        return entryStats !== undefined && matches(entryStats)
+          ? { name: entry.name, isLink: false }
+          : undefined;
       }
       if (!followSymbolicLinks) {
         return undefined;
@@ -797,8 +800,9 @@ async function dedupeNamesByFileIdentity(params: {
   });
   const entriesByIdentity = new Map<string, ClassifiedEntry[]>();
   for (const [index, entry] of entries.entries()) {
-    // An identity that could not be read falls back to the literal path, so the
-    // entry stands on its own rather than being dropped from the listing.
+    // `realFileIdentity` falls back to the literal path rather than failing, so
+    // an entry whose identity cannot be read stands on its own here instead of
+    // dropping out of the listing.
     const identity = identities[index] ?? toPosixPath(join(dirPath, entry.name));
     const group = entriesByIdentity.get(identity);
     if (group === undefined) {

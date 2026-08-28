@@ -561,7 +561,7 @@ export const skillsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.
  * reported rather than passed on, since the alternative is a candidate built
  * from a name that belongs to no directory at all.
  */
-function isAddressableDirName(dirName: string): boolean {
+function isAddressableName(dirName: string): boolean {
   return !dirName.includes("/") && !dirName.includes("\\");
 }
 
@@ -666,10 +666,11 @@ export class SkillsProcessor extends DirFeatureProcessor {
     const treeName = basename(sourceTree);
     const treeSkillsDirPath = join(treeName, SKILLS_FEATURE_SUBDIR);
     const treeCuratedSkillsDirPath = join(treeName, CURATED_SKILLS_FEATURE_SUBDIR);
-    const localDirNames = this.keepAddressableDirNames(
-      [...(await getLocalSkillDirNames(sourceTree))],
-      treeSkillsDirPath,
-    );
+    const localDirNames = this.keepAddressableNames({
+      names: [...(await getLocalSkillDirNames(sourceTree))],
+      dirPath: join(treeParent, treeSkillsDirPath),
+      kind: "directory",
+    });
 
     const localSkills = await Promise.all(
       localDirNames.map((dirName) =>
@@ -693,10 +694,11 @@ export class SkillsProcessor extends DirFeatureProcessor {
     // curated tree that cannot be resolved must not read as "no curated
     // skills".
     if (await directoryExistsStrict(curatedDirPath)) {
-      const curatedDirNames = this.keepAddressableDirNames(
-        await listSubdirectoryNames(curatedDirPath),
-        treeCuratedSkillsDirPath,
-      );
+      const curatedDirNames = this.keepAddressableNames({
+        names: await listSubdirectoryNames(curatedDirPath),
+        dirPath: curatedDirPath,
+        kind: "directory",
+      });
 
       const nonConflicting = curatedDirNames.filter((name) => {
         const spellings = localSkillNamesByIdentity.get(caseFoldIdentity(name));
@@ -839,10 +841,11 @@ export class SkillsProcessor extends DirFeatureProcessor {
         continue;
       }
       const ownedDirNames: string[] = [];
-      const candidateDirNames = this.keepAddressableDirNames(
-        await listSubdirectoryNames(skillsDirPath),
-        relativeDirPath,
-      );
+      const candidateDirNames = this.keepAddressableNames({
+        names: await listSubdirectoryNames(skillsDirPath),
+        dirPath: skillsDirPath,
+        kind: "directory",
+      });
       for (const dirName of candidateDirNames) {
         // Directories owned by another feature (see the `isDirOwned` factory
         // hook) are skipped so e.g. a Reasonix subagent profile is not
@@ -899,12 +902,13 @@ export class SkillsProcessor extends DirFeatureProcessor {
       }
       const fromFlatFile = factory.class.fromFlatFile;
       const directoryStems = new Set(ownedDirNames);
-      const flatFileNames = this.keepAddressableFileNames(
-        (await listFileNames(skillsDirPath)).filter(
+      const flatFileNames = this.keepAddressableNames({
+        names: (await listFileNames(skillsDirPath)).filter(
           (fileName) => fileName.endsWith(".md") && !directoryStems.has(basename(fileName, ".md")),
         ),
-        relativeDirPath,
-      );
+        dirPath: skillsDirPath,
+        kind: "file",
+      });
       const flatSkills = (
         await Promise.all(
           flatFileNames.map(async (fileName) => {
@@ -944,46 +948,40 @@ export class SkillsProcessor extends DirFeatureProcessor {
   }
 
   /**
-   * Drop the directory names nothing here can address, reporting each one. See
-   * {@link isAddressableDirName} for why such a directory can exist at all.
+   * Drop the names nothing here can address, reporting each one. A flat-file
+   * skill is named by its file name minus the extension, and that name reaches
+   * `AiDir` exactly as a directory name does. See {@link isAddressableName} for
+   * why such an entry can exist at all.
+   *
+   * The path reported is the one on disk rather than the name alone: the same
+   * relative root exists in both the project and the home directory, and a run
+   * that reads both would otherwise report only whichever it reached first.
    */
-  private keepAddressableDirNames(dirNames: string[], relativeDirPath: string): string[] {
-    return dirNames.filter((dirName) => {
-      if (isAddressableDirName(dirName)) {
+  private keepAddressableNames(params: {
+    names: string[];
+    dirPath: string;
+    kind: "directory" | "file";
+  }): string[] {
+    const { names, dirPath, kind } = params;
+    return names.filter((name) => {
+      if (isAddressableName(kind === "file" ? basename(name, ".md") : name)) {
         return true;
       }
-      // Once per run, not once per tool target: the message names a directory
-      // on disk, and every enabled target enumerates that same directory.
-      // Quoted and stripped like every other message naming a path that came
-      // off disk — the name is chosen by whoever wrote the repository. The
-      // quoting doubles the backslash the message is about, which is what
-      // reading a quoted string means.
+      const consequence =
+        kind === "file"
+          ? `skill name cannot contain a path separator, so this file is not imported. Rename it ` +
+            `by hand.`
+          : `skill directory name cannot contain a path separator, so this directory is neither ` +
+            `generated from nor swept as an orphan. Rename or remove it by hand.`;
+      // Once per run, not once per tool target: the message names an entry on
+      // disk, and every enabled target enumerates that same directory. Quoted
+      // and stripped like every other message naming a path that came off disk
+      // — the name is chosen by whoever wrote the repository. The quoting
+      // doubles the backslash the message is about, which is what reading a
+      // quoted string means.
       warnOnceWithFallback(
         this.logger,
-        `Skipping ${JSON.stringify(stripControlCharacters(join(relativeDirPath, dirName)))}: a ` +
-          `skill directory name cannot contain a path separator, so this directory is neither ` +
-          `generated from nor swept as an orphan. Rename or remove it by hand.`,
-      );
-      return false;
-    });
-  }
-
-  /**
-   * The flat-file counterpart of {@link keepAddressableDirNames}. A flat skill
-   * is named by its file name minus the extension, and that name reaches
-   * `AiDir` too — on POSIX, `back\\slash.md` would hand it a name it refuses,
-   * failing the import of a whole root over one file.
-   */
-  private keepAddressableFileNames(fileNames: string[], relativeDirPath: string): string[] {
-    return fileNames.filter((fileName) => {
-      if (isAddressableDirName(basename(fileName, ".md"))) {
-        return true;
-      }
-      warnOnceWithFallback(
-        this.logger,
-        `Skipping ${JSON.stringify(stripControlCharacters(join(relativeDirPath, fileName)))}: a ` +
-          `skill name cannot contain a path separator, so this file is not imported. Rename it ` +
-          `by hand.`,
+        `Skipping ${JSON.stringify(stripControlCharacters(join(dirPath, name)))}: a ${consequence}`,
       );
       return false;
     });
@@ -1004,10 +1002,11 @@ export class SkillsProcessor extends DirFeatureProcessor {
         rootPath: this.outputRoot,
         targetPath: skillsDirPath,
       });
-      const dirNames = this.keepAddressableDirNames(
-        await listSubdirectoryNames(skillsDirPath, { followSymbolicLinks: false }),
-        root,
-      );
+      const dirNames = this.keepAddressableNames({
+        names: await listSubdirectoryNames(skillsDirPath, { followSymbolicLinks: false }),
+        dirPath: skillsDirPath,
+        kind: "directory",
+      });
       for (const dirName of dirNames) {
         await assertWritablePathInsideRoot({
           rootPath: skillsDirPath,

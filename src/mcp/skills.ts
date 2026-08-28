@@ -130,6 +130,13 @@ async function listSkills(): Promise<
 
   const skillsDir = join(process.cwd(), RULESYNC_SKILLS_RELATIVE_DIR_PATH);
 
+  // A project that has not created any skill yet is the ordinary case, not a
+  // read failure: reading the directory reports that as an error, and this
+  // logger prints an error however quiet it is asked to be.
+  if (!(await directoryExists(skillsDir))) {
+    return [];
+  }
+
   try {
     // Find all skill directories (directories containing SKILL.md). Read rather
     // than globbed, so a name holding a backslash is the name on disk and not

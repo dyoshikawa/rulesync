@@ -20,6 +20,7 @@ describe("MCP Skills Tools", () => {
   afterEach(async () => {
     await cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   describe("listSkills", () => {
@@ -31,6 +32,49 @@ describe("MCP Skills Tools", () => {
       const parsed = JSON.parse(result);
 
       expect(parsed.skills).toEqual([]);
+    });
+
+    it("should say nothing when the skills directory has not been created", async () => {
+      // The ordinary state of a project that has no skills yet. Reading the
+      // directory fails, and this tool's logger prints an error however quiet
+      // it is asked to be, so the listing checks the directory exists first.
+      // Errors are held back under `NODE_ENV=test`, so this asks for the
+      // behavior a user would see.
+      vi.stubEnv("NODE_ENV", "production");
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const result = await skillTools.listSkills.execute();
+
+      expect(JSON.parse(result).skills).toEqual([]);
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it("should report the real directory name when a skill cannot be read", async () => {
+      // The glob this listing used rewrote a backslash into a path separator,
+      // so the failure it reported named `slash` — a directory that does not
+      // exist — and never mentioned the real one. Such a name cannot be carried
+      // by `AiDir` either way, so the listing skips it, but it now says which
+      // directory it means.
+      vi.stubEnv("NODE_ENV", "production");
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      const frontmatter = `---
+name: plain
+description: A plain skill
+---
+Body`;
+      await writeFileContent(join(skillsDir, "back\\slash", SKILL_FILE_NAME), frontmatter);
+      await writeFileContent(join(skillsDir, "plain", SKILL_FILE_NAME), frontmatter);
+
+      const result = await skillTools.listSkills.execute();
+      const parsed = JSON.parse(result);
+
+      expect(
+        parsed.skills.map((skill: { frontmatter: { name: string } }) => skill.frontmatter.name),
+      ).toEqual(["plain"]);
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to read skill directory back\\slash"),
+      );
     });
 
     it("should list all skills with their frontmatter", async () => {
