@@ -21,6 +21,9 @@ describe("displayWidthOf", () => {
     // The selector asks for the emoji form of the heart, which is two columns.
     ["an emoji presentation selector", "\u2764\ufe0f", 2],
     ["extended kana", "\u{1b132}", 2],
+    // The kana block between the wide planes the pattern already named: the
+    // gap between two ranges is where a padding character hides.
+    ["kana in the block between the wide planes", "\u{1aff0}", 2],
     // Emoji drawn as pictures without being asked to, living among the
     // ordinary symbols rather than in the emoji planes.
     ["an emoji among the symbols", "\u2705", 2],

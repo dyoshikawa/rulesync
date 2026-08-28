@@ -154,23 +154,28 @@ function formatSkillChoiceLabels(params: {
     ].filter((reason) => reason !== undefined);
     return reasons.length > 0 ? reasons.join("; ") : undefined;
   };
-  const labels = names.map((name) =>
-    formatSkillChoiceLabel({ name, note: noteFor(name), budget: MAX_SKILL_LABEL_WIDTH }),
+  const notesByIndex = names.map((name) => noteFor(name));
+  const labels = names.map((name, index) =>
+    formatSkillChoiceLabel({
+      name,
+      note: notesByIndex[index],
+      budget: MAX_SKILL_LABEL_WIDTH,
+    }),
   );
+  const readings = labels.map((label) => readingFormOf(label));
   const counts = new Map<string, number>();
-  for (const label of labels) {
-    const drawn = readingFormOf(label);
-    counts.set(drawn, (counts.get(drawn) ?? 0) + 1);
+  for (const reading of readings) {
+    counts.set(reading, (counts.get(reading) ?? 0) + 1);
   }
   return labels.map((label, index) => {
-    if ((counts.get(readingFormOf(label)) ?? 0) < 2) {
+    if ((counts.get(readings[index] ?? label) ?? 0) < 2) {
       return label;
     }
     const prefix = numberPrefixOf(index + 1);
     const name = names[index] ?? label;
     return `${prefix}${formatSkillChoiceLabel({
       name,
-      note: noteFor(name),
+      note: notesByIndex[index],
       budget: MAX_SKILL_LABEL_WIDTH - displayWidthOf(prefix),
     })}`;
   });

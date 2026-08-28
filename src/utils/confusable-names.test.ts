@@ -289,6 +289,29 @@ describe("describeConfusableNames", () => {
     );
   });
 
+  it("should note a twin that only replaces the hyphen", () => {
+    const twin = "another entry differs from it only by lookalike letters";
+    // Nearly every name here is kebab-case, so the separator is the one
+    // character that can be swapped without touching a letter. U+2010 HYPHEN is
+    // drawn exactly as the ASCII one, belongs to no script, and survives the
+    // compatibility normalization untouched.
+    expect(describeConfusableNames(["code-review", "code\u2010review"])).toEqual(
+      new Map([
+        ["code-review", twin],
+        ["code\u2010review", twin],
+      ]),
+    );
+  });
+
+  it("should report a name written wholly in an alphabet drawn like Latin", () => {
+    // Four Lisu letters, read as PDF. Lisu maps no letter in the tables, so
+    // neither the skeleton nor a mixture says anything about it; being written
+    // in nothing but a Latin-shaped alphabet is the whole of what is wrong.
+    expect(describeConfusableNames(["\ua4d1\ua4d3\ua4de"]).get("\ua4d1\ua4d3\ua4de")).toBe(
+      "reads as Latin letters but is written in Lisu",
+    );
+  });
+
   it("should not report a repeated name as colliding with itself", () => {
     expect(describeConfusableNames(["skill-a", "skill-a"])).toEqual(new Map());
   });

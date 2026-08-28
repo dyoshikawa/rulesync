@@ -171,6 +171,59 @@ const CASE_SENSITIVE_LOOKALIKES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
+ * The ASCII punctuation each other dash or quote is drawn as.
+ *
+ * The letters are only half of a name. Nearly every skill here is kebab-case,
+ * so the one character an attacker has to replace to leave a name looking like
+ * pure ASCII is the separator: `code\u2010review` with U+2010 HYPHEN is drawn
+ * exactly as `code-review` in the fonts a terminal uses. The letter checks
+ * cannot see it — punctuation belongs to no script, so the mixed-script check
+ * skips it, and the compatibility normalization leaves U+2010 alone — which is
+ * why the skeleton has to fold it.
+ *
+ * U+2014 EM DASH is deliberately absent. It is drawn plainly longer than a
+ * hyphen, and it is the character this tool puts between a note and a name, so
+ * folding it would let a name reach into how the prompt marks its own rows.
+ */
+const PUNCTUATION_LOOKALIKES: ReadonlyMap<string, string> = new Map([
+  ["\u2010", "-"],
+  ["\u2011", "-"],
+  ["\u2012", "-"],
+  ["\u2013", "-"],
+  ["\u2043", "-"],
+  ["\u02d7", "-"],
+  ["\u2212", "-"],
+  ["\u2796", "-"],
+  ["\u1806", "-"],
+  ["\u2018", "'"],
+  ["\u2019", "'"],
+  ["\u02bc", "'"],
+  ["\u055a", "'"],
+  ["\u2032", "'"],
+]);
+
+/**
+ * The set below, checked against the table above.
+ *
+ * Every character read as a Latin letter has to say which letter that is, since
+ * the skeleton the other check compares by is built from the same table. The
+ * two are written out separately because one is a subset of the other rather
+ * than a view of it, and a subset kept by hand drifts; failing here is how a
+ * character added to one and forgotten in the other is found at once instead of
+ * quietly turning off the whole-script check for the names that carry it.
+ */
+function sameCaseLookalikeSet(characters: readonly string[]): ReadonlySet<string> {
+  const missing = characters.filter((character) => !LATIN_LOOKALIKES.has(character));
+  if (missing.length > 0) {
+    throw new Error(
+      `Lookalike tables out of step: ${missing.join(", ")} is read as a Latin letter but has no ` +
+        `entry saying which Latin letter it is drawn as.`,
+    );
+  }
+  return new Set(characters);
+}
+
+/**
  * The lookalikes that hold at the case a name is written in.
  *
  * The table above pairs letters by shape without regard to case, because a
@@ -183,7 +236,7 @@ const CASE_SENSITIVE_LOOKALIKES: ReadonlyMap<string, string> = new Map([
  * So the whole-script check is given the narrower set: the letters drawn as a
  * lowercase Latin letter while being lowercase themselves.
  */
-const SAME_CASE_LATIN_LOOKALIKES: ReadonlySet<string> = new Set([
+const SAME_CASE_LATIN_LOOKALIKES: ReadonlySet<string> = sameCaseLookalikeSet([
   // Cyrillic
   "а",
   "е",
@@ -202,6 +255,8 @@ const SAME_CASE_LATIN_LOOKALIKES: ReadonlySet<string> = new Set([
   "ԛ",
   "ԝ",
   "ү",
+  "ԃ",
+  "ѡ",
   // Greek
   "ι",
   "ν",
@@ -218,6 +273,29 @@ const SAME_CASE_LATIN_LOOKALIKES: ReadonlySet<string> = new Set([
   "ս",
   "ց",
   "օ",
+]);
+
+/**
+ * The scripts every letter of which counts as a Latin lookalike.
+ *
+ * These are the alphabets the list above names for sharing letter shapes with
+ * Latin and nothing else: no ordinary skill name is written in Cherokee or
+ * Lisu, and the shapes are what the scripts were picked for. Mapping them
+ * letter by letter would be hundreds of entries for a table whose point is the
+ * pairs that carry the attack, so the whole script is taken instead — which is
+ * what makes `\u13a1\u13aa\u13d2\u13da`, four Cherokee letters read as RATS,
+ * a name the check can see. Cyrillic, Greek and Armenian are not here: those do
+ * spell ordinary words, which is why they are named letter by letter.
+ */
+const LATIN_SHAPED_SCRIPTS: ReadonlySet<string> = new Set([
+  "Cherokee",
+  "Coptic",
+  "Lisu",
+  "Canadian Aboriginal",
+  "Osage",
+  "Deseret",
+  "Vai",
+  "Tifinagh",
 ]);
 
 /** Digits, punctuation and combining marks belong to no script of their own. */
@@ -328,6 +406,7 @@ function foldLookalikes(text: string): string {
   return [...text]
     .map(
       (character) =>
+        PUNCTUATION_LOOKALIKES.get(character) ??
         CASE_SENSITIVE_LOOKALIKES.get(character) ??
         LATIN_LOOKALIKES.get(character.toLowerCase()) ??
         character,
@@ -378,7 +457,7 @@ function scriptReadAsLatinIn(form: string): string | undefined {
     if (script === "Latin") {
       continue;
     }
-    if (!SAME_CASE_LATIN_LOOKALIKES.has(character)) {
+    if (!LATIN_SHAPED_SCRIPTS.has(script) && !SAME_CASE_LATIN_LOOKALIKES.has(character)) {
       return undefined;
     }
     impostorScript ??= script;

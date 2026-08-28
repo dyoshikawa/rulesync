@@ -25,12 +25,12 @@
  *
  * The wide planes are taken whole rather than range by range — Tangut, Khitan,
  * Nushu and the kana supplements together are U+16FE0–U+18CFF and
- * U+1B000–U+1B2FF — because a gap between two of them is exactly the character
+ * U+1AFF0–U+1B2FF — because a gap between two of them is exactly the character
  * a name would be padded with: one that draws two columns and is counted as
  * one.
  */
 const WIDE_CHARACTERS_PATTERN =
-  /\p{Emoji_Presentation}|[\u2329\u232a☰-☷⚊-⚏䷀-䷿]|[ᄀ-ᅟ⺀-〾ぁ-㏿㐀-䶿一-鿿ꀀ-꓏ꥠ-꥿가-힣豈-﫿︐-︙︰-﹯＀-｠￠-￦]|[\u{16fe0}-\u{16ff6}]|[\u{17000}-\u{18dff}]|[\u{1b000}-\u{1b2ff}]|[\u{1f000}-\u{1faff}]|[\u{20000}-\u{3fffd}]/u;
+  /\p{Emoji_Presentation}|[\u2329\u232a☰-☷⚊-⚏䷀-䷿]|[ᄀ-ᅟ⺀-〾ぁ-㏿㐀-䶿一-鿿ꀀ-꓏ꥠ-꥿가-힣豈-﫿︐-︙︰-﹯＀-｠￠-￦]|[\u{16fe0}-\u{16ff6}]|[\u{17000}-\u{18dff}]|[\u{1aff0}-\u{1b2ff}]|[\u{1f000}-\u{1faff}]|[\u{20000}-\u{3fffd}]/u;
 
 /**
  * U+FE0F VARIATION SELECTOR-16, which takes no width of its own but asks the

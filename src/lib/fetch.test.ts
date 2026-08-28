@@ -1924,6 +1924,60 @@ describe("fetchFiles with skill selection", () => {
     );
   });
 
+  it("should judge a --skills run against every name the repository publishes", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    // The user asks for one of the two by name, as a scripted run does. The
+    // twin is what makes the requested name confusable, and it is not on the
+    // list of what was fetched — so a warning that only looked at the fetched
+    // names would find nothing to say.
+    const lookalikes = ["copy", "c0py"];
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              ...lookalikes.map((name) => ({ name, path: `skills/${name}`, type: "dir" })),
+            ],
+          );
+        }
+        if (lookalikes.some((name) => path === `skills/${name}`)) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `${path}/SKILL.md`,
+              type: "file",
+              sha: "fff",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { skills: ["c0py"] },
+      outputRoot: testDir,
+    });
+
+    const fetched = summary.files.map((file) => file.relativePath);
+    expect(fetched).toContain("skills/c0py/SKILL.md");
+    expect(fetched).not.toContain("skills/copy/SKILL.md");
+    const warning = logger.warn.mock.calls
+      .map(([message]) => String(message))
+      .find((message) => message.includes("may not be told apart from each other"));
+    expect(warning).toContain("differs from it only by lookalike letters");
+    // Only what this run writes is listed: the twin explains the note, it is
+    // not itself a name the user has to check.
+    expect(warning).toContain('"c0py"');
+    expect(warning).not.toContain('"copy"');
+  });
+
   it("should count the lookalike names it does not spell out", async () => {
     mockMultiSkillRepository();
     const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();

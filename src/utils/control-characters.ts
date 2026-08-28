@@ -119,6 +119,12 @@ const INVISIBLE_CHARACTER_PATTERN = new RegExp(INVISIBLE_CHARACTERS_PATTERN.sour
  * selector is held only to the character before it, which is the one it selects
  * a form for, and which is why an emoji name may end in one.
  *
+ * Han is not on the joining list, so an ideographic variation sequence — a Han
+ * character followed by one of U+E0100 onward — is refused along with the rest.
+ * That is the intended trade: no skill directory here is named with one, and
+ * the pair is drawn as the bare character on every terminal that has no font
+ * for the variant, which is the shape the check exists to refuse.
+ *
  * The test is a heuristic in place of the CONTEXTJ joining rules of IDNA,
  * which decide the same question by the joining type of the characters around
  * the joiner. It errs toward accepting a name written in a script that needs

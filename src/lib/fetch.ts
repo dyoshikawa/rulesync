@@ -23,6 +23,7 @@ import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
+import { caseFoldIdentity } from "../types/feature-processor.js";
 import type { Feature } from "../types/features.js";
 import { ALL_FEATURES } from "../types/features.js";
 import type { FetchTarget } from "../types/fetch-targets.js";
@@ -374,6 +375,9 @@ function validateRemoteRelativePath(relativePath: string): void {
   }
 }
 
+/** The characters a path segment means something else with on Windows. */
+const AMBIGUOUS_PATH_CHARACTERS_PATTERN = /[\\:]/u;
+
 /**
  * Keep only the files whose remote path means one local path.
  *
@@ -389,9 +393,6 @@ function validateRemoteRelativePath(relativePath: string): void {
  * A name nobody agrees on is worth far less than the rest of the fetch, so the
  * file is dropped and the run goes on.
  */
-/** The characters a path segment means something else with on Windows. */
-const AMBIGUOUS_PATH_CHARACTERS_PATTERN = /[\\:]/u;
-
 function dropAmbiguousRemotePaths(params: {
   files: CollectedFile[];
   incompleteRemoteDirs: Set<string>;
@@ -482,10 +483,10 @@ async function applySkillSelection(params: {
   // that no line of the summary can tell apart from the name it imitates.
   const selectsEverything = requestedSkills.length === 0 && !interactive;
 
+  const availableSkills = listAvailableSkills(files);
+
   let selectedSkills: string[] = [];
   if (!selectsEverything) {
-    const availableSkills = listAvailableSkills(files);
-
     if (requestedSkills.length > 0) {
       const unknownSkills = requestedSkills.filter((name) => !availableSkills.includes(name));
       if (unknownSkills.length > 0) {
@@ -548,7 +549,10 @@ async function applySkillSelection(params: {
   // scripted fetch never takes, and a name written to look like another would
   // be written to disk with nothing said about it at all.
   if (!interactive) {
-    const confusable = formatConfusableSkillsWarning(listAvailableSkills(selected));
+    const confusable = formatConfusableSkillsWarning({
+      fetched: listAvailableSkills(selected),
+      available: availableSkills,
+    });
     if (confusable !== undefined) {
       logger.warn(confusable);
     }
@@ -582,12 +586,24 @@ function formatCappedList(params: { items: string[]; separator: string }): strin
  * when none of them may be.
  *
  * The same notes the interactive prompt puts beside a row, for the runs that
- * have no prompt to put them beside. It changes nothing about what is fetched:
+ * have no prompt to put them beside — judged the way the prompt judges them,
+ * against every name the repository publishes rather than against the few a
+ * `--skills` run picked out of them. It changes nothing about what is fetched:
  * a name that reads like another is still a name the user asked for, on a path
  * where there is nobody to ask.
  */
-function formatConfusableSkillsWarning(names: string[]): string | undefined {
-  const notes = describeConfusableNames(names);
+function formatConfusableSkillsWarning(params: {
+  fetched: string[];
+  available: string[];
+}): string | undefined {
+  const { fetched, available } = params;
+  // Judged against everything the repository publishes, listed for what this
+  // run writes. A name is confusable with another name, and the other one need
+  // not have been selected: `--skills c0py` fetches one directory, and that the
+  // repository also publishes `copy` is exactly what the user has to be told.
+  const notes = new Map(
+    [...describeConfusableNames(available)].filter(([name]) => fetched.includes(name)),
+  );
   if (notes.size === 0) {
     return undefined;
   }
@@ -645,16 +661,6 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
     `like one you did select: ${shown}` +
     `${unprintable > 0 ? `, plus ${unprintable} with nothing left once they are removed` : ""}.`
   );
-}
-
-/**
- * The form two directory names are compared in when asking whether a filesystem
- * might hold them as one: the case dropped, since macOS and Windows ignore it,
- * and the composition normalized, since macOS stores a name decomposed and
- * hands back whichever form was written first.
- */
-function foldedDirectoryName(name: string): string {
-  return name.normalize("NFC").toLowerCase();
 }
 
 /**
@@ -1116,9 +1122,13 @@ async function pruneStaleSkillFiles(params: {
     // one lands inside the other, where a prune walking the pair by name would
     // delete files the other half of the fetch had just written.
     const skillName = skillDir.slice(SKILLS_DIR_PREFIX.length);
+    // `caseFoldIdentity` is the form the rest of the tool compares skill names
+    // in: the case dropped, since macOS and Windows ignore it, and the
+    // composition normalized, since macOS stores a name decomposed and hands
+    // back whichever form was written first.
+    const foldedSkillName = caseFoldIdentity(skillName);
     const variant = localSkillNames.find(
-      (entry) =>
-        entry !== skillName && foldedDirectoryName(entry) === foldedDirectoryName(skillName),
+      (entry) => entry !== skillName && caseFoldIdentity(entry) === foldedSkillName,
     );
     if (variant !== undefined) {
       logger.warn(
