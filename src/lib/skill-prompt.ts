@@ -1,6 +1,7 @@
 import checkbox from "@inquirer/checkbox";
 
 import { describeConfusableNames } from "../utils/confusable-names.js";
+import { displayWidthOf, shortenToWidth } from "../utils/display-width.js";
 
 /**
  * Thrown when the user cancels the interactive skill selection (e.g. Ctrl+C).
@@ -28,32 +29,33 @@ const SKILL_PROMPT_SHORTCUTS = {
 } as const;
 
 /**
- * How long a label the prompt draws. A directory name can be 255 bytes long,
- * which wraps across several lines of a terminal and lets a name padded with
- * spaces paint what looks like another entry underneath itself. The limit is on
- * the whole label rather than on the name alone, so a long note cannot push the
- * name onto a second line either. What is cut is only the label: the value
- * stays whole, so a shortened name still stands for the directory it names.
+ * How wide a label the prompt draws, in terminal columns.
+ *
+ * A directory name can be 255 bytes long, which wraps across several lines of a
+ * terminal and lets a name padded with spaces paint what looks like another
+ * entry underneath itself. The limit is on the whole label rather than on the
+ * name alone, so a long note cannot push the name onto a second line either.
+ * What is cut is only the label: the value stays whole, so a shortened name
+ * still stands for the directory it names.
+ *
+ * Columns rather than characters, because the two part ways precisely where an
+ * attacker would want them to: 66 ideographic spaces are 66 characters and 132
+ * columns, so a limit counted in characters would wave them through.
  */
-const MAX_SKILL_LABEL_LENGTH = 72;
+const MAX_SKILL_LABEL_WIDTH = 72;
 
 /**
  * How much of a name survives however long the note in front of it is. A name
  * cut to nothing would leave the picker choosing between rows it cannot tell
  * apart at all, which is worse than a label that wraps.
  */
-const MIN_SHORTENED_NAME_LENGTH = 16;
+const MIN_SHORTENED_NAME_WIDTH = 16;
 
-function shortenSkillName(params: { name: string; budget: number }): string {
-  const { name, budget } = params;
-  const characters = [...name];
-  if (characters.length <= budget) {
-    return name;
-  }
-  // The ellipsis is part of the budget rather than something added on top of
-  // it, so a shortened label is never longer than one that was left alone.
-  return `${characters.slice(0, Math.max(budget - 1, 1)).join("")}\u2026`;
-}
+/** Marks the label as carrying the tool's own warning rather than a name. */
+const NOTE_MARKER = "[!] ";
+
+/** Separates the note from the name; an em dash appears in no directory name. */
+const NOTE_SEPARATOR = " \u2014 ";
 
 /**
  * Label one skill in the prompt, leading with the reason it may be mistaken for
@@ -64,15 +66,28 @@ function shortenSkillName(params: { name: string; budget: number }): string {
  * it with the real note would leave the two indistinguishable; a name that ends
  * in right-to-left letters would also pull a trailing note out of place. In
  * front, the note is always the tool's own text at the start of the line.
+ *
+ * The name is measured first and the note takes what is left, so a short name
+ * keeps its whole note. Only a name long enough to claim the row cuts into the
+ * note, and the reasons are ordered by weight, so what a cut drops is the least
+ * of them — never the marker, and never the first reason.
  */
 function formatSkillChoiceLabel(params: { name: string; note: string | undefined }): string {
   const { name, note } = params;
   if (note === undefined) {
-    return shortenSkillName({ name, budget: MAX_SKILL_LABEL_LENGTH });
+    return shortenToWidth({ text: name, budget: MAX_SKILL_LABEL_WIDTH });
   }
-  const prefix = `[!] ${note} \u2014 `;
-  const budget = Math.max(MAX_SKILL_LABEL_LENGTH - [...prefix].length, MIN_SHORTENED_NAME_LENGTH);
-  return `${prefix}${shortenSkillName({ name, budget })}`;
+  const available =
+    MAX_SKILL_LABEL_WIDTH - displayWidthOf(NOTE_MARKER) - displayWidthOf(NOTE_SEPARATOR);
+  const shownName = shortenToWidth({
+    text: name,
+    budget: Math.max(available - displayWidthOf(note), MIN_SHORTENED_NAME_WIDTH),
+  });
+  const shownNote = shortenToWidth({
+    text: note,
+    budget: available - displayWidthOf(shownName),
+  });
+  return `${NOTE_MARKER}${shownNote}${NOTE_SEPARATOR}${shownName}`;
 }
 
 /**

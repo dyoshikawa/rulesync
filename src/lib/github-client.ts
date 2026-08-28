@@ -375,7 +375,10 @@ export class GitHubClient {
    * Get human-readable error message for HTTP status codes
    */
   private getErrorMessage(statusCode: number, apiError?: GitHubApiError): string {
-    const baseMessage = apiError?.message ?? `HTTP ${statusCode}`;
+    // The message comes from the API, which relays text the repository owner
+    // wrote, so it reaches the terminal stripped of anything that could forge a
+    // line around it.
+    const baseMessage = stripControlCharacters(apiError?.message ?? `HTTP ${statusCode}`);
 
     switch (statusCode) {
       case 401:

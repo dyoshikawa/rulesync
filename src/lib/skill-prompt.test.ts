@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { displayWidthOf } from "../utils/display-width.js";
 import {
   isInteractiveTerminal,
   promptSkillSelection,
@@ -58,9 +59,9 @@ describe("promptSkillSelection", () => {
 
   it("should mark entries that cannot be told apart on sight", async () => {
     checkboxMock.mockResolvedValue([]);
-    // "skill" spelled with a Cyrillic U+0441 for the leading s: a different
+    // "skill" spelled with a Cyrillic U+0455 for the leading s: a different
     // directory that the terminal draws exactly like the Latin one.
-    const lookalike = "\u0441kill";
+    const lookalike = "\u0455kill";
 
     await promptSkillSelection({
       availableSkills: ["skill", lookalike],
@@ -78,9 +79,12 @@ describe("promptSkillSelection", () => {
             checked: false,
           },
           {
+            // Both reasons apply, and together they are wider than the row, so
+            // the tail of the second is cut: the marker and the first reason
+            // are the ones a cut never reaches.
             name:
-              "[!] another entry differs from it only by lookalike letters; " +
-              `mixes characters from Cyrillic and Latin \u2014 ${lookalike}`,
+              "[!] another entry differs from it only by lookalike letters; mi\u2026 " +
+              `\u2014 ${lookalike}`,
             value: lookalike,
             checked: false,
           },
@@ -119,8 +123,25 @@ describe("promptSkillSelection", () => {
     for (const choice of choices) {
       // The budget is on the whole label, not on the name alone, so a long note
       // eats into the name rather than pushing it onto a second line.
-      expect([...choice.name].length).toBeLessThanOrEqual(72);
+      expect(displayWidthOf(choice.name)).toBeLessThanOrEqual(72);
     }
+  });
+
+  it("should measure a label in the columns it draws rather than its characters", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // 60 ideographic spaces (U+3000) are 66 characters with the padding around
+    // them and 126 columns on screen: a limit counted in characters would let
+    // this one wrap and paint a second row of its own.
+    const wide = `pdf${"\u3000".repeat(60)}pdf`;
+
+    await promptSkillSelection({ availableSkills: [wide], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBeLessThanOrEqual(72);
+    expect(choices[0]?.value).toBe(wide);
   });
 
   it("should number labels that two different names are shortened into", async () => {

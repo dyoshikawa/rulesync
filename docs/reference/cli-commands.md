@@ -399,6 +399,7 @@ The scope is deliberately narrow:
 - A skill directory Rulesync cannot read or delete from — a permission it does not hold, a disk that gave out — stops that skill's prune where it failed rather than the whole fetch. Rulesync warns, still lists whatever it had already deleted, and moves on to the next skill.
 - Nothing more than 15 directories below the skill directory is pruned. That is a limit on the local walk, deep enough that a fetched tree stays well inside it; Rulesync warns and leaves anything deeper alone.
 - A skill directory whose name ends in a dot or a space, or whose name has the `NAME~1` shape of a Windows short name, is not pruned. Some systems resolve such a name to a different directory, so the directory that name reads as may not be the directory it opens.
+- A skill directory whose name differs only in case from one already in `skills/` is not pruned either, for the same reason: macOS and Windows resolve `skills/PDF` to an existing `skills/pdf`, so pruning it would judge the local skill's own files stale.
 - A skill whose remote listing came back incomplete — GitHub caps a directory listing at 1,000 entries, and entries such as symlinks and submodules cannot be fetched — is not pruned either. Rulesync warns instead, because a local file that upstream still ships cannot be told apart from one it dropped.
 - `--conflict skip` disables pruning. That flag says to leave existing local files alone, and it also means the local copies are not this run's output, so they cannot be judged against the remote list.
 - `--target <tool>` never prunes, because that conversion path does not fetch skills at all.
@@ -413,7 +414,7 @@ Because the skipped file is still part of the remote skill, the skill directory 
 
 #### Skill Names That Look Alike
 
-A repository can publish two skill directories whose names a terminal draws the same way — `skill` spelled with a Cyrillic `с`, or the fullwidth `ｓｋｉｌｌ` beside the plain one. Each is still a separate entry with its own name, so a selection writes exactly the directories that were checked; the risk is only that the two entries cannot be told apart by sight.
+A repository can publish two skill directories whose names a terminal draws the same way — `skill` spelled with a Cyrillic `ѕ`, or the fullwidth `ｓｋｉｌｌ` beside the plain one. Each is still a separate entry with its own name, so a selection writes exactly the directories that were checked; the risk is only that the two entries cannot be told apart by sight.
 
 The interactive prompt therefore prefixes such an entry with `[!]` and the reason, ahead of the name itself:
 
@@ -421,20 +422,23 @@ The interactive prompt therefore prefixes such an entry with `[!]` and the reaso
 ? Select skills to fetch (press <a> to select/deselect all)
  ◯ pdf
  ◯ [!] another entry differs from it only by lookalike letters — skill
- ◯ [!] another entry differs from it only by lookalike letters; mixes characters from Cyrillic and Latin — сkill
+ ◯ [!] another entry differs from it only by lookalike letters; mi… — ѕkill
 ```
 
-The mark comes first so that a name — which the remote repository chooses — cannot be spelled to look like a mark of its own, or reorder one away. A label too long for a line is shortened with an ellipsis for the same reason, and two entries shortened into the same label are numbered so they stay distinct. The value behind a label is untouched, so a shortened entry still selects the skill it names.
+The mark comes first so that a name — which the remote repository chooses — cannot be spelled to look like a mark of its own, or reorder one away. A label wider than one line is shortened with an ellipsis for the same reason; the budget is measured in terminal columns, so a name of ideographic spaces cannot buy extra width by being few characters. The name is measured first and the reasons take the room that is left, which is why the second label above is cut: what a cut drops is the last reason, never the mark or the first one. Two entries shortened into the same label are numbered so they stay distinct, and the value behind a label is untouched, so a shortened entry still selects the skill it names.
 
-An entry is marked for any of three reasons:
+An entry is marked for any of four reasons:
 
-- **Another entry has the same display form.** Names are compared with their hidden characters removed, normalized (NFKC), and lowercased, so `Skill`, `skill` and the fullwidth `ｓｋｉｌｌ` all collide.
-- **Another entry differs from it only by lookalike letters.** Two names of the same length whose differing positions each hold letters of two different lookalike alphabets — `copy` beside the same word spelled entirely in Cyrillic. Neither name mixes scripts on its own, so this pair is visible only by comparing the two.
+- **Another entry has the same display form.** Names are compared with their hidden characters removed, normalized (NFKC), their whitespace collapsed, and lowercased, so `Skill`, `skill`, `skill ` and the fullwidth `ｓｋｉｌｌ` all collide.
+- **Another entry differs from it only by lookalike letters.** Two names that read the same once each character is replaced by the Latin letter it is drawn as — `copy` beside the same word spelled entirely in Cyrillic. Neither name mixes scripts on its own, so this pair is visible only by comparing the two.
+- **The name reads as Latin letters but is written in another script.** Every letter of it is drawn as a Latin one without being Latin, which is the whole-script confusable of UTS #39: `copy` spelled with four Cyrillic letters is marked even when no Latin `copy` is on the list. An ordinary Russian or Greek word is not, because only some of its letters have Latin lookalikes.
 - **The name mixes scripts.** A single name built from scripts that share letter shapes, such as `good` with a Cyrillic `о`. The alphabets treated as lookalikes are Latin, Cyrillic, Greek, Armenian, Cherokee, Coptic, Lisu and Canadian Aboriginal Syllabics, which are the ones UTS #39 records as confusable with each other. Japanese, Korean and Chinese names mix scripts by nature and routinely carry Latin, so those combinations are not marked, and neither is Latin beside a script that shares no shapes with it.
 
-The mark is display-only: it never removes a skill from the list, and a skill written in a single script with no lookalike beside it is not marked. It is a hint to look closer, not a guarantee that unmarked entries are distinct.
+The mark is display-only: it never removes a skill from the list. It is also not a complete answer — the table of lookalike letters holds the common pairs rather than every one — so treat it as a hint to look closer, not as a guarantee that unmarked entries are distinct.
 
-Names that cannot be shown honestly at all are a separate case: a skill directory whose name carries a control character or one that draws as nothing — a zero-width space, a variation selector, a Hangul filler — is dropped rather than marked, with a warning naming it in stripped form. That drop applies to every `fetch`, including a plain one with neither `--skills` nor `--interactive`, because such a directory on disk cannot be told from the plain name it imitates in any line Rulesync prints.
+Names that cannot be shown honestly at all are a separate case: a skill directory whose name carries a control character, one that draws as nothing — a zero-width space, a Hangul filler, a braille blank — or one that draws as nothing but blank space is dropped rather than marked, with a warning naming it in stripped form. That drop applies to every `fetch`, including a plain one with neither `--skills` nor `--interactive`, because such a directory on disk cannot be told from the plain name it imitates in any line Rulesync prints.
+
+A zero-width joiner or a variation selector is dropped only where it hides something. Standing next to a Latin letter, a digit or punctuation it can be nothing but padding, so `pdf` with a joiner in it is dropped. Standing where its own script puts it — a Persian or Indic name written with a zero-width non-joiner, an emoji name built from a chain of joiners — it is left alone and the name is fetched normally.
 
 #### Remote Paths in Rulesync's Output
 

@@ -67,3 +67,65 @@ export function stripInvisibleCharacters(text: string): string {
 export function stripHiddenCharacters(text: string): string {
   return stripInvisibleCharacters(stripControlCharacters(text));
 }
+
+/**
+ * The invisible characters that do a job in some scripts rather than only
+ * hiding: the two zero-width joiners and the variation selectors.
+ *
+ * A Persian or Indic name spells a word with ZWNJ (U+200C) in it, and an emoji
+ * name is a chain of ZWJ (U+200D) and variation selectors. Refusing those
+ * outright would refuse names that are written the only way their script writes
+ * them, so they are judged by where they sit rather than by what they are.
+ */
+// Written as alternatives rather than one class: a class holding a joiner and a
+// variation selector side by side is the very shape `no-misleading-character-class`
+// exists to catch, and here they are listed one by one on purpose.
+const JOINING_CHARACTERS_PATTERN = /\u200c|\u200d|[\u{fe00}-\u{fe0f}]|[\u{e0100}-\u{e01ef}]/u;
+
+/**
+ * The characters a joiner has no work to do beside: the Latin letters, the
+ * digits and the punctuation a directory name is otherwise built from.
+ *
+ * `pdf` with a ZWNJ between the d and the f is `pdf` on screen and a different
+ * directory underneath, and no script joins Latin letters that way — so a
+ * joiner in that company is hiding rather than writing.
+ */
+const NON_JOINING_CONTEXT_PATTERN = /[\p{Script=Latin}\p{Nd}\p{P}\p{Z}]/u;
+
+/** Non-global copies, because `test` on a global regex carries state between calls. */
+const CONTROL_CHARACTER_PATTERN = new RegExp(CONTROL_CHARACTERS_PATTERN.source);
+const INVISIBLE_CHARACTER_PATTERN = new RegExp(INVISIBLE_CHARACTERS_PATTERN.source, "u");
+
+/**
+ * Whether `text` carries a hidden character that is there to hide something.
+ *
+ * This is the question a name has to answer before it can be offered as
+ * something to pick, and it is a narrower one than `stripHiddenCharacters`
+ * answers. Every control character counts, and so does every invisible
+ * character — except a joiner or variation selector standing where its own
+ * script would put one, which is to say next to a character that is not a Latin
+ * letter, a digit or punctuation. A joiner at the very start of a name has
+ * nothing to join, so it counts too.
+ *
+ * The test is a heuristic in place of the CONTEXTJ joining rules of IDNA,
+ * which decide the same question by the joining type of the characters around
+ * the joiner. It errs toward accepting a name written in a script that needs
+ * these characters, and toward rejecting one that mixes them into Latin, where
+ * they can only be padding.
+ */
+export function hasDeceptiveHiddenCharacters(text: string): boolean {
+  const characters = [...text];
+  return characters.some((character, index) => {
+    if (CONTROL_CHARACTER_PATTERN.test(character)) {
+      return true;
+    }
+    if (!INVISIBLE_CHARACTER_PATTERN.test(character)) {
+      return false;
+    }
+    if (!JOINING_CHARACTERS_PATTERN.test(character)) {
+      return true;
+    }
+    const previous = characters[index - 1];
+    return previous === undefined || NON_JOINING_CONTEXT_PATTERN.test(previous);
+  });
+}

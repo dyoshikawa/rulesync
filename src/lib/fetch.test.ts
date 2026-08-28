@@ -1627,6 +1627,101 @@ describe("fetchFiles with skill selection", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"pdf"'));
   });
 
+  it("should fetch a name whose zero-width joiner is how its script is written", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    // Persian for "settings", written the way Persian writes it: a zero-width
+    // non-joiner (U+200C) between the two words. Refusing this would refuse an
+    // ordinary name rather than a disguise, so the joiner is judged by the
+    // company it keeps \u2014 here, Arabic letters rather than Latin ones.
+    const persianName = "\u062a\u0646\u0638\u06cc\u0645\u200c\u0627\u062a";
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              { name: persianName, path: `skills/${persianName}`, type: "dir" },
+            ],
+          );
+        }
+        if (path === `skills/${persianName}`) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `skills/${persianName}/SKILL.md`,
+              type: "file",
+              sha: "hhh",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((f) => f.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+      `skills/${persianName}/SKILL.md`,
+    ]);
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("hidden characters"));
+  });
+
+  it("should not fetch a skill directory whose name is nothing but blank space", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    // Every character shows something \u2014 an ideographic space shows a gap \u2014 so
+    // nothing here is hidden; the row the prompt would draw is still blank.
+    const blankName = "\u3000 ";
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              { name: blankName, path: `skills/${blankName}`, type: "dir" },
+            ],
+          );
+        }
+        if (path === `skills/${blankName}`) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `skills/${blankName}/SKILL.md`,
+              type: "file",
+              sha: "iii",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((f) => f.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("nothing to show here"));
+  });
+
   it("should count two indistinguishable unsafe names as two skipped directories", async () => {
     mockMultiSkillRepository();
     const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
@@ -2745,6 +2840,54 @@ describe("fetchFiles skill pruning", () => {
     expect(await fileExists(stale)).toBe(true);
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("its name is one some systems resolve to a different directory"),
+    );
+  });
+
+  it("should not prune a skill directory a local one differs from only in case", async () => {
+    // macOS and Windows resolve `skills/PDF` to the existing `skills/pdf`, so
+    // the write lands in the local skill's own directory and a prune of it
+    // would judge that skill's files stale.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "PDF",
+              path: "skills/PDF",
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === "skills/PDF") {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: "skills/PDF/SKILL.md",
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    const localFile = join(skillsRoot, "pdf", "SKILL.md");
+    await writeFileContent(localFile, "# Local skill");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(localFile)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("some filesystems treat the two as one directory"),
     );
   });
 

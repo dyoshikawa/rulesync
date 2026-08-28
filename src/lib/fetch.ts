@@ -35,7 +35,11 @@ import type {
   ParsedSource,
 } from "../types/fetch.js";
 import type { ToolTarget } from "../types/tool-targets.js";
-import { stripControlCharacters, stripHiddenCharacters } from "../utils/control-characters.js";
+import {
+  hasDeceptiveHiddenCharacters,
+  stripControlCharacters,
+  stripHiddenCharacters,
+} from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
@@ -298,9 +302,15 @@ const NON_SKILL_PATH: SkillPathClass = Object.freeze({ kind: "non-skill" });
  * prompt — or `skills/go<U+200E>od/`, which displays as an existing skill and
  * would ride along with it. The zero-width characters go with the control ones:
  * `skills/pd<U+200B>f/` is drawn exactly like `skills/pdf/`, and nothing later
- * in the prompt could tell the two apart. Names like that are reported as
- * `unsafe-name` so callers can leave them out instead of writing a skill the
- * user never saw.
+ * in the prompt could tell the two apart. A name that draws as nothing but
+ * blank space goes the same way, since an empty row is no easier to pick out
+ * than an invisible one. Names like that are reported as `unsafe-name` so callers
+ * can leave them out instead of writing a skill the user never saw.
+ *
+ * What is not turned away is a zero-width joiner or variation selector standing
+ * where its own script puts one: a Persian or Indic name is written with ZWNJ
+ * in it and an emoji name is a chain of ZWJ, and both are ordinary names rather
+ * than disguises. `hasDeceptiveHiddenCharacters` draws that line.
  */
 function classifySkillPath(relativePath: string): SkillPathClass {
   // Split on "/" alone. A remote path is POSIX, so a backslash in one is an
@@ -324,8 +334,11 @@ function classifySkillPath(relativePath: string): SkillPathClass {
   if (name === "." || name === ".." || name.includes("\\")) {
     return NON_SKILL_PATH;
   }
-  const display = stripHiddenCharacters(name);
-  if (display !== name) {
+  const stripped = stripHiddenCharacters(name);
+  // A name of nothing but blank space is shown as the empty string, the same as
+  // one that strips down to nothing: both draw as a row with no name on it.
+  const display = stripped.trim() === "" ? "" : stripped;
+  if (display === "" || hasDeceptiveHiddenCharacters(name)) {
     return { kind: "unsafe-name", raw: name, display };
   }
   return { kind: "skill", name };
@@ -521,20 +534,27 @@ async function applySkillSelection(params: {
  * "Hidden" covers both halves of the drop: the control characters, which forge
  * and reorder what is printed, and the zero-width ones, which show nothing at
  * all. The stripped form is all there is to show — the raw name cannot be
- * printed as it is, which is the whole reason the directory was dropped — and it can be empty or read
- * exactly like a skill the user did fetch. So a name that survives stripping is
- * quoted, to mark it as the sanitized form rather than a claim about what was
- * skipped, and a name that does not survive is counted instead of printed.
+ * printed as it is, which is the whole reason the directory was dropped — and
+ * it can be empty or read exactly like a skill the user did fetch. So a name
+ * that survives stripping is quoted, to mark it as the sanitized form rather
+ * than a claim about what was skipped, and a name that does not survive is
+ * counted instead of printed. The list is capped, because how many directories
+ * a repository publishes is the repository's choice and a warning that scrolls
+ * the screen is a warning nobody reads.
  */
+/** How many dropped names a single warning line spells out before counting the rest. */
+const MAX_LISTED_DROPPED_SKILLS = 10;
+
 function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, string>): string {
   const displays = [...droppedUnsafeNames.values()];
   // Deduplicated, because two raw names can strip down to the same text and
   // listing it twice reads as a rendering bug. The count above stays keyed on
   // the raw names, so it still says how many directories were dropped.
-  const shown = [...new Set(displays.filter((display) => display !== ""))]
-    .toSorted()
-    .map((display) => JSON.stringify(display))
-    .join(", ");
+  const printable = [...new Set(displays.filter((display) => display !== ""))].toSorted();
+  const listed = printable.slice(0, MAX_LISTED_DROPPED_SKILLS);
+  const shown =
+    listed.map((display) => JSON.stringify(display)).join(", ") +
+    (printable.length > listed.length ? ` and ${printable.length - listed.length} more` : "");
   const unprintable = displays.filter((display) => display === "").length;
 
   const plural = droppedUnsafeNames.size !== 1;
@@ -543,7 +563,7 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
     `hidden characters. Such a name cannot be shown truthfully, so it is neither offered for ` +
     `selection nor fetched.`;
 
-  if (shown === "") {
+  if (printable.length === 0) {
     return (
       `${lead} Nothing is left of ${plural ? "those names" : "the name"} once the hidden ` +
       `characters are removed, so there is nothing to show here.`
@@ -555,6 +575,28 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
     `like one you did select: ${shown}` +
     `${unprintable > 0 ? `, plus ${unprintable} with nothing left once they are removed` : ""}.`
   );
+}
+
+/** Where a local skill directory sits, relative to the output base path. */
+const SKILLS_DIR_PREFIX = "skills/";
+
+/**
+ * The names the local skills directory holds, or none when it is not there.
+ *
+ * Read once per fetch and only to compare names against each other: what is on
+ * disk is how a case-insensitive filesystem shows itself, since a write to
+ * `skills/PDF` lands in an existing `skills/pdf` and leaves the old name behind
+ * in the listing.
+ */
+async function readSkillRootNames(outputBasePath: string): Promise<string[]> {
+  try {
+    return await readdir(join(outputBasePath, SKILLS_DIR_PREFIX));
+  } catch {
+    // No skills directory, or one that cannot be read: nothing to compare
+    // against, and a prune that cannot read the tree fails on its
+    // own terms below rather than being stopped short here.
+    return [];
+  }
 }
 
 /**
@@ -926,6 +968,8 @@ async function pruneStaleSkillFiles(params: {
     }
   }
 
+  const localSkillNames = await readSkillRootNames(outputBasePath);
+
   const deleted: FetchFileResult[] = [];
   for (const [skillDir, remoteDir] of [...skillDirs].toSorted(([a], [b]) => (a < b ? -1 : 1))) {
     // Deleting is only safe while the fetched file list is the whole remote
@@ -970,6 +1014,27 @@ async function pruneStaleSkillFiles(params: {
       logger.warn(
         `Not pruning ${stripControlCharacters(skillDir)}: its name is one some systems resolve ` +
           `to a different directory, so it may not be the directory this name reads as. Remove ` +
+          `unwanted files by hand.`,
+      );
+      continue;
+    }
+
+    // The same class of problem, reached by case rather than by punctuation.
+    // macOS and Windows resolve `skills/PDF` to an existing `skills/pdf`, so a
+    // remote skill named for the case variant of a local one writes into that
+    // directory — and a prune of it would judge the local skill's own files
+    // stale and delete them. The check is on what is on disk rather than on the
+    // platform, for the reason the guard above is not gated either.
+    const caseVariant = localSkillNames.find(
+      (entry) =>
+        entry !== skillDir.slice(SKILLS_DIR_PREFIX.length) &&
+        entry.toLowerCase() === skillDir.slice(SKILLS_DIR_PREFIX.length).toLowerCase(),
+    );
+    if (caseVariant !== undefined) {
+      logger.warn(
+        `Not pruning ${stripControlCharacters(skillDir)}: ${SKILLS_DIR_PREFIX}` +
+          `${stripControlCharacters(caseVariant)} is also there and some filesystems treat the ` +
+          `two as one directory, so this name may not be the directory it reads as. Remove ` +
           `unwanted files by hand.`,
       );
       continue;

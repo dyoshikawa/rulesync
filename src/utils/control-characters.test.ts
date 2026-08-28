@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  hasDeceptiveHiddenCharacters,
   stripControlCharacters,
   stripHiddenCharacters,
   stripInvisibleCharacters,
@@ -75,5 +76,37 @@ describe("stripHiddenCharacters", () => {
 
   it("should leave a name that shows everything it contains untouched", () => {
     expect(stripHiddenCharacters("skill-a")).toBe("skill-a");
+  });
+});
+
+describe("hasDeceptiveHiddenCharacters", () => {
+  it.each([
+    ["a plain ASCII name", "skill-a"],
+    ["a Japanese name", "\u8a2d\u5b9a"],
+    // Persian for "settings": the zero-width non-joiner is how the word is
+    // written, and the letters beside it are the ones that need it.
+    ["a Persian name written with ZWNJ", "\u062a\u0646\u0638\u06cc\u0645\u200c\u0627\u062a"],
+    // A zero-width joiner between two emoji, which is what makes them one.
+    ["an emoji sequence", "\u{1f468}\u200d\u{1f4bb}"],
+    ["an emoji with a variation selector", "\u2764\ufe0f"],
+  ])("should accept %s", (_label, name) => {
+    expect(hasDeceptiveHiddenCharacters(name)).toBe(false);
+  });
+
+  it.each([
+    ["a control character", "skill\u0007a"],
+    ["a bidi override", "skill\u202ea"],
+    ["a zero-width space", "pd\u200bf"],
+    ["a Hangul filler", "pd\u3164f"],
+    ["a braille blank", "pd\u2800f"],
+    // The same joiner as above, but between Latin letters, where no script
+    // joins anything: it is padding that makes a second "pdf" directory.
+    ["a joiner between Latin letters", "pd\u200cf"],
+    ["a joiner after a digit", "pdf2\u200d0"],
+    // Nothing precedes it, so it joins nothing.
+    ["a joiner at the start of a name", "\u200c\u062a\u062a"],
+    ["a variation selector on a Latin letter", "pdf\ufe0f"],
+  ])("should reject %s", (_label, name) => {
+    expect(hasDeceptiveHiddenCharacters(name)).toBe(true);
   });
 });

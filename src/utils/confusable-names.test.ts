@@ -91,8 +91,48 @@ describe("describeConfusableNames", () => {
 
     expect(notes.get("copy")).toBe("another entry differs from it only by lookalike letters");
     expect(notes.get(CYRILLIC_COPY)).toBe(
-      "another entry differs from it only by lookalike letters",
+      "another entry differs from it only by lookalike letters; " +
+        "reads as Latin letters but is written in Cyrillic",
     );
+  });
+
+  it("should note a name written entirely in Latin lookalikes with nothing to compare it to", () => {
+    // The whole-script confusable of UTS #39: one script, so no mixture, and no
+    // Latin twin on the list, so the other two checks have nothing to see.
+    const notes = describeConfusableNames([CYRILLIC_COPY, "unrelated"]);
+
+    expect(notes.get(CYRILLIC_COPY)).toBe("reads as Latin letters but is written in Cyrillic");
+    expect(notes.has("unrelated")).toBe(false);
+  });
+
+  it("should not report an ordinary word of a script that merely has some lookalikes", () => {
+    // "\u043f\u0440\u0430\u0432\u0438\u043b\u0430" (rules, in Russian) carries Cyrillic
+    // letters that are drawn as Latin ones, but not only those, so it does not
+    // read as a Latin word.
+    expect(describeConfusableNames(["\u043f\u0440\u0430\u0432\u0438\u043b\u0430"])).toEqual(
+      new Map(),
+    );
+    // No letter shape in common with the Cyrillic word above:
+    // matching them up as twins is what a script-only rule would do.
+    expect(
+      describeConfusableNames(["\u043f\u0440\u0430\u0432\u0438\u043b\u0430", "rulesync"]),
+    ).toEqual(new Map());
+  });
+
+  it("should not call two same-length names twins when no letter shape matches", () => {
+    // "\u03bb\u03cc\u03b3\u03bf\u03c2" is Greek for "word" and is five letters,
+    // like "rules", but none of them is drawn as the Latin letter beside it.
+    expect(describeConfusableNames(["rules", "\u03bb\u03cc\u03b3\u03bf\u03c2"])).toEqual(new Map());
+  });
+
+  it("should fold whitespace differences into the display form", () => {
+    // A padded name and a plain one occupy the same row on screen once the
+    // terminal has drawn them, so they are reported as the pair they are.
+    const padded = "pdf  ";
+    const notes = describeConfusableNames(["pdf", padded]);
+
+    expect(notes.get("pdf")).toBe("another entry has the same display form");
+    expect(notes.get(padded)).toBe("another entry has the same display form");
   });
 
   it("should not note names that differ within a single script", () => {

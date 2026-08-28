@@ -5,13 +5,16 @@ import { stripHiddenCharacters } from "./control-characters.js";
  * them is counted as `Other`, which is deliberately one bucket rather than one
  * per script.
  *
- * Two groups are named. The first is the alphabets that share letter shapes
- * with Latin — Cyrillic and Greek, and the less obvious Armenian, Cherokee,
- * Coptic, Lisu and Canadian Aboriginal Syllabics, every one of which UTS #39
- * lists as confusable with Latin. The second is the scripts the East Asian
- * writing systems are built from, named so that a Japanese, Korean or Chinese
- * name is recognized as the ordinary mixture it is rather than a suspicious
- * one. Everything else shares no shapes with Latin, so one bucket holds it.
+ * Two groups are named. The first is alphabets that share letter shapes with
+ * Latin — Cyrillic and Greek, and the less obvious Armenian, Cherokee, Coptic,
+ * Lisu and Canadian Aboriginal Syllabics, each of which UTS #39 records as
+ * confusable with Latin. The list is the common cases rather than every one:
+ * Osage, Vai and others belong to it and are not here, so a name built
+ * from those is judged by the checks that do not depend on this list.
+ *
+ * The second group is the scripts the East Asian writing systems are built
+ * from, named so that a Japanese, Korean or Chinese name is recognized as the
+ * ordinary mixture it is rather than a suspicious one.
  */
 const SCRIPT_PATTERNS = [
   ["Latin", /\p{Script=Latin}/u],
@@ -30,20 +33,66 @@ const SCRIPT_PATTERNS = [
 ] as const;
 
 /**
- * The alphabets above that are drawn with the same letter shapes as each other.
- * A character swapped for one of these is the swap a homograph is built from; a
- * Han character standing where a Latin one stood is a different name, not a
- * disguised one.
+ * The Latin letter each non-Latin character is drawn as, for the characters
+ * where that is true of nearly every font.
+ *
+ * This is the confusable table of UTS #39, cut down to the pairs that carry the
+ * attack: the Cyrillic and Greek letters that spell Latin words, and the few
+ * Armenian ones that join them. Being a table rather than a rule is the point —
+ * "different script" alone says nothing about whether two names look alike, and
+ * a check built on that marks `rules` against a five-letter Greek word while
+ * the two share not one letter shape.
+ *
+ * Keyed by the lowercase form, because the names are compared in their display
+ * form, which is already lowercased.
  */
-const LOOKALIKE_SCRIPTS: ReadonlySet<string> = new Set([
-  "Latin",
-  "Cyrillic",
-  "Greek",
-  "Armenian",
-  "Cherokee",
-  "Coptic",
-  "Lisu",
-  "Canadian Aboriginal",
+const LATIN_LOOKALIKES: ReadonlyMap<string, string> = new Map([
+  // Cyrillic
+  ["а", "a"],
+  ["в", "b"],
+  ["е", "e"],
+  ["к", "k"],
+  ["м", "m"],
+  ["н", "h"],
+  ["о", "o"],
+  ["р", "p"],
+  ["с", "c"],
+  ["т", "t"],
+  ["у", "y"],
+  ["х", "x"],
+  ["ѕ", "s"],
+  ["і", "i"],
+  ["ј", "j"],
+  ["ѵ", "v"],
+  ["һ", "h"],
+  ["ӏ", "l"],
+  ["ԁ", "d"],
+  ["ԛ", "q"],
+  ["ԝ", "w"],
+  // Greek
+  ["α", "a"],
+  ["β", "b"],
+  ["γ", "y"],
+  ["ε", "e"],
+  ["ζ", "z"],
+  ["η", "n"],
+  ["ι", "i"],
+  ["κ", "k"],
+  ["μ", "u"],
+  ["ν", "v"],
+  ["ο", "o"],
+  ["ρ", "p"],
+  ["τ", "t"],
+  ["υ", "u"],
+  ["χ", "x"],
+  ["ω", "w"],
+  // Armenian
+  ["հ", "h"],
+  ["յ", "j"],
+  ["ո", "n"],
+  ["ս", "u"],
+  ["ց", "g"],
+  ["օ", "o"],
 ]);
 
 /** Digits, punctuation and combining marks belong to no script of their own. */
@@ -57,10 +106,11 @@ const OTHER_SCRIPT = "Other";
  * augmented script sets of UTS #39: Japanese, Korean and Chinese names each mix
  * several scripts by nature, and all three routinely carry Latin alongside.
  *
- * `Latin` with `Other` is ordinary too. `Other` stands only for scripts that
- * share no letter shapes with Latin — Thai, Devanagari, Hebrew and the rest —
- * because every script that does share them is named above and so never reaches
- * the bucket.
+ * `Latin` with `Other` is ordinary too. The scripts that share letter shapes
+ * with Latin are named above, so what is left in the bucket is mostly Thai,
+ * Devanagari, Hebrew and the like, which do not — and a name that mixes Latin
+ * with one of the few lookalike scripts the list above misses is still caught
+ * by the table check, which does not go through this bucket at all.
  */
 const ORDINARY_SCRIPT_SETS: readonly (readonly string[])[] = [
   ["Han", "Hiragana", "Katakana", "Latin"],
@@ -98,9 +148,12 @@ function formatScriptList(scripts: string[]): string {
   return `${described.slice(0, -1).join(", ")} and ${last}`;
 }
 
+/** Runs of whitespace, which a terminal draws as one gap however many there are. */
+const WHITESPACE_RUN_PATTERN = /\s+/gu;
+
 /**
  * The form a name is compared in: the hidden characters removed, the
- * compatibility forms folded, and the case dropped.
+ * compatibility forms folded, the whitespace collapsed, and the case dropped.
  *
  * NFKC folds the forms — fullwidth, circled, ligatures — that a terminal
  * renders as the plain characters they stand for, and lowercasing covers the
@@ -108,10 +161,58 @@ function formatScriptList(scripts: string[]): string {
  * are stripped on both sides of the normalization because it neither removes
  * them nor leaves them alone: a zero-width space survives it untouched, while
  * U+3164 HANGUL FILLER — invisible — normalizes into U+1160, invisible too. A
- * single strip would miss one of the two.
+ * single strip would miss one of the two. Whitespace is collapsed last, since
+ * `pdf` and `pdf ` are one and the same row on screen.
  */
 function displayFormOf(name: string): string {
-  return stripHiddenCharacters(stripHiddenCharacters(name).normalize("NFKC")).toLowerCase();
+  return stripHiddenCharacters(stripHiddenCharacters(name).normalize("NFKC"))
+    .replace(WHITESPACE_RUN_PATTERN, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * The name with every character that is drawn as a Latin letter replaced by the
+ * Latin letter it is drawn as.
+ *
+ * Two names with the same skeleton read the same on screen, whatever scripts
+ * they are spelled in. This is the shape of the check UTS #39 describes, with
+ * the mapping cut down to the table above.
+ */
+function latinSkeletonOf(displayForm: string): string {
+  return [...displayForm].map((character) => LATIN_LOOKALIKES.get(character) ?? character).join("");
+}
+
+/**
+ * The script a name written entirely in Latin lookalikes is really spelled in,
+ * or `undefined` when it is not such a name.
+ *
+ * This is the whole-script confusable of UTS #39, and it is the one shape that
+ * neither of the other checks can see: `copy` spelled with four Cyrillic
+ * letters is a single script, so it mixes nothing, and with no Latin twin
+ * beside it on the list there is nothing to compare it against. Every letter
+ * has to be a lookalike for the name to qualify, which is what keeps an
+ * ordinary Russian or Greek word — whose letters are mostly not drawn as Latin
+ * ones — from being reported.
+ */
+function scriptReadAsLatin(displayForm: string): string | undefined {
+  let impostorScript: string | undefined;
+  let hasLetters = false;
+  for (const character of displayForm) {
+    const script = scriptOf(character);
+    if (script === undefined) {
+      continue;
+    }
+    hasLetters = true;
+    if (script === "Latin") {
+      continue;
+    }
+    if (!LATIN_LOOKALIKES.has(character)) {
+      return undefined;
+    }
+    impostorScript ??= script;
+  }
+  return hasLetters ? impostorScript : undefined;
 }
 
 /**
@@ -142,54 +243,6 @@ export function mixedScriptsOf(name: string): string[] | undefined {
 }
 
 /**
- * Whether two names differ only by characters swapped for the characters of
- * another alphabet drawn the same way.
- *
- * This is the case the mixture check above cannot see: a name spelled entirely
- * in Cyrillic — `copy` with each of its four letters swapped for the Cyrillic
- * letter drawn the same way — is a single script, so it is not a mixture, and
- * no normalization folds it onto its Latin twin. Set against the twin it
- * imitates, though, it is unmistakable: same length, and every position the two
- * disagree on holds characters of two different lookalike alphabets.
- *
- * Both sides of every difference have to come from `LOOKALIKE_SCRIPTS`, which
- * is what keeps the check from firing on names that merely happen to be the
- * same length: `設定` and `ai` disagree everywhere and share no script, but no
- * one would take either for the other. A name that differs from another within
- * its own script (`skill-a` and `skill-b`) never matches either.
- */
-function differsOnlyByLookalikeScript(params: { left: string; right: string }): boolean {
-  const { left, right } = params;
-  const leftCharacters = [...left];
-  const rightCharacters = [...right];
-  if (leftCharacters.length !== rightCharacters.length) {
-    return false;
-  }
-  let differences = 0;
-  for (const [index, leftCharacter] of leftCharacters.entries()) {
-    const rightCharacter = rightCharacters[index];
-    // Indexing an array of the same length, so the character is always there;
-    // the check is what tells the type checker so.
-    if (rightCharacter === undefined) {
-      return false;
-    }
-    if (leftCharacter === rightCharacter) {
-      continue;
-    }
-    differences++;
-    const leftScript = scriptOf(leftCharacter);
-    const rightScript = scriptOf(rightCharacter);
-    if (leftScript === undefined || rightScript === undefined || leftScript === rightScript) {
-      return false;
-    }
-    if (!LOOKALIKE_SCRIPTS.has(leftScript) || !LOOKALIKE_SCRIPTS.has(rightScript)) {
-      return false;
-    }
-  }
-  return differences > 0;
-}
-
-/**
  * Note, per name, why it may not be told apart from another name on sight.
  *
  * This is display-only: it never removes a name from a list or changes what a
@@ -198,67 +251,57 @@ function differsOnlyByLookalikeScript(params: { left: string; right: string }): 
  * still writes exactly what was picked — the note is there so the picker can
  * tell that two entries which look identical are not.
  *
- * Three things are reported: two names that normalize to the same display form,
- * two names that differ only by the lookalike letters of another alphabet, and
- * a single name that mixes scripts it has no ordinary reason to. None of the
- * three is a complete answer — a hand-picked pair of unrelated-looking names
- * from one script escapes all of them — so the note is a prompt to look closer,
- * not a guarantee that unmarked entries are distinct.
+ * Four things are reported: two names with the same display form, two names
+ * that read the same once the lookalike letters are matched up, a name spelled
+ * entirely in letters that read as Latin ones, and a name that mixes scripts it
+ * has no ordinary reason to. None of the four is a complete answer — the
+ * lookalike table holds the common pairs rather than all of them, and a
+ * hand-picked pair of unrelated-looking names from one script escapes every
+ * check — so the note is a prompt to look closer, not a guarantee that unmarked
+ * entries are distinct.
  *
  * Names absent from the returned map carry no note. Duplicates in `names` are
  * folded first, so a list that repeats a name does not report that name as
  * colliding with itself.
  */
 export function describeConfusableNames(names: string[]): Map<string, string> {
-  const uniqueNames = [...new Set(names)];
-  const displayForms = new Map(uniqueNames.map((name) => [name, displayFormOf(name)]));
-  const displayFormOfName = (name: string): string => displayForms.get(name) ?? displayFormOf(name);
-  const sharedDisplayForms = new Set<string>();
-  const seenDisplayForms = new Set<string>();
-  for (const displayForm of displayForms.values()) {
-    if (seenDisplayForms.has(displayForm)) {
-      sharedDisplayForms.add(displayForm);
-    }
-    seenDisplayForms.add(displayForm);
-  }
+  const entries = [...new Set(names)].map((name) => {
+    const displayForm = displayFormOf(name);
+    return { name, displayForm, skeleton: latinSkeletonOf(displayForm) };
+  });
 
-  const scriptTwins = new Set<string>();
-  for (const [index, name] of uniqueNames.entries()) {
-    for (let other = index + 1; other < uniqueNames.length; other++) {
-      const otherName = uniqueNames[other];
-      if (otherName === undefined) {
-        continue;
-      }
-      // Compared in display form so that case and compatibility differences do
-      // not hide the swap: a capitalized name against an all-Cyrillic spelling
-      // of its lowercase form is the same attempt.
-      if (
-        differsOnlyByLookalikeScript({
-          left: displayFormOfName(name),
-          right: displayFormOfName(otherName),
-        })
-      ) {
-        scriptTwins.add(name);
-        scriptTwins.add(otherName);
-      }
-    }
+  const displayFormCounts = new Map<string, number>();
+  const skeletonCounts = new Map<string, number>();
+  for (const entry of entries) {
+    displayFormCounts.set(entry.displayForm, (displayFormCounts.get(entry.displayForm) ?? 0) + 1);
+    skeletonCounts.set(entry.skeleton, (skeletonCounts.get(entry.skeleton) ?? 0) + 1);
   }
 
   const notes = new Map<string, string>();
-  for (const name of uniqueNames) {
+  for (const entry of entries) {
     const reasons: string[] = [];
-    if (sharedDisplayForms.has(displayFormOfName(name))) {
+    const sharesDisplayForm = (displayFormCounts.get(entry.displayForm) ?? 0) > 1;
+    if (sharesDisplayForm) {
       reasons.push("another entry has the same display form");
-    }
-    if (scriptTwins.has(name)) {
+    } else if ((skeletonCounts.get(entry.skeleton) ?? 0) > 1) {
+      // Only when the display forms differ: two entries that are already
+      // reported as the same display form do not need to be told a second time.
       reasons.push("another entry differs from it only by lookalike letters");
     }
-    const mixedScripts = mixedScriptsOf(name);
-    if (mixedScripts !== undefined) {
+    // The display form is what a reader sees, so it is what the script checks
+    // are asked about: a circled or fullwidth letter carries the script of the
+    // plain letter it is drawn as.
+    const mixedScripts = mixedScriptsOf(entry.displayForm);
+    if (mixedScripts === undefined) {
+      const impostorScript = scriptReadAsLatin(entry.displayForm);
+      if (impostorScript !== undefined) {
+        reasons.push(`reads as Latin letters but is written in ${describeScript(impostorScript)}`);
+      }
+    } else {
       reasons.push(`mixes characters from ${formatScriptList(mixedScripts)}`);
     }
     if (reasons.length > 0) {
-      notes.set(name, reasons.join("; "));
+      notes.set(entry.name, reasons.join("; "));
     }
   }
   return notes;
