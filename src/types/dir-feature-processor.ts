@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {
@@ -21,6 +21,24 @@ import type { WriteResult } from "../utils/result.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
 import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolTarget } from "./tool-targets.js";
+
+/**
+ * Whether the directory a candidate reports really is one of the directories
+ * inside the root it was enumerated from.
+ *
+ * Deliberately structural: it asks nothing of the candidate beyond the three
+ * values it was built with, so it holds even when {@link AiDir.getDirPath} is
+ * overridden and {@link AiDir.ownsDirTree} is not kept in agreement with it.
+ * Equal paths fail it too — a candidate that reports the root is the shared
+ * root, and deleting that takes every sibling in it.
+ */
+function isInsideOwnRoot(aiDir: AiDir): boolean {
+  const root = resolve(join(aiDir.getOutputRoot(), aiDir.getRelativeDirPath()));
+  const relativeToRoot = relative(root, resolve(aiDir.getDirPath()));
+  // An absolute result means the two are on different Windows drives, and a
+  // leading `..` means the candidate climbs out of the root.
+  return relativeToRoot !== "" && !relativeToRoot.startsWith("..") && !isAbsolute(relativeToRoot);
+}
 
 export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
   protected readonly outputRoot: string;
@@ -206,6 +224,21 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
   async removeOrphanAiDirs(existingDirs: AiDir[], generatedDirs: AiDir[]): Promise<number> {
     const generatedPaths = new Set(generatedDirs.map((d) => d.getDirPath()));
     const orphanDirs = existingDirs.filter((d) => {
+      // Checked here rather than trusted from the caller: this method is public
+      // on the base class and takes any `AiDir`, so a future caller inherits the
+      // recursive deletion without the caller-side guards `SkillsProcessor`
+      // applies. What it refuses is positional — the candidate has to sit
+      // strictly below the root it was enumerated from — so a subclass that
+      // reports the root itself, or a path in another tree entirely, cannot
+      // turn a contract mismatch into a deletion the user cannot undo.
+      if (!isInsideOwnRoot(d)) {
+        this.logger.warn(
+          `Refusing to delete ${JSON.stringify(stripControlCharacters(d.getDirPath()))}: it is ` +
+            `not inside ${JSON.stringify(stripControlCharacters(join(d.getOutputRoot(), d.getRelativeDirPath())))}, ` +
+            `the directory it was found in`,
+        );
+        return false;
+      }
       // A candidate that does not own its directory tree cannot be an orphan of
       // itself: its path is a root it merely flattens into, so deleting it would
       // take every sibling in that root with it (see `AiDir.ownsDirTree`).

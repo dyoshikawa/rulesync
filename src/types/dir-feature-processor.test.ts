@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,12 +28,20 @@ vi.mock("../utils/file.js", async () => {
   };
 });
 
-function createMockDir(dirPath: string, ownsDirTree = true): AiDir {
+function createMockDir(
+  dirPath: string,
+  ownsDirTree = true,
+  // The root the directory was found in. It defaults to the parent, which is
+  // where a real `AiDir` puts it: the sweep now checks that positionally.
+  root = dirname(dirPath),
+): AiDir {
   return {
     getDirPath: () => dirPath,
     getDirName: () => basename(dirPath),
     getMainFile: () => undefined,
     getOtherFiles: () => [],
+    getOutputRoot: () => root,
+    getRelativeDirPath: () => ".",
     getRelativePathFromCwd: () => dirPath,
     ownsDirTree: () => ownsDirTree,
   } as unknown as AiDir;
@@ -134,6 +142,55 @@ describe("DirFeatureProcessor", () => {
 
       expect(count).toBe(1);
       expect(logger.info).toHaveBeenCalledWith("Deleted directory: /path/to/[2K-innocent");
+    });
+
+    it("should refuse a candidate that reports the root it was found in", async () => {
+      // What #2784 actually hit: a subclass overrode `getDirPath()` to return
+      // the shared root, so every candidate reported the same directory and the
+      // sweep deleted the root with every sibling in it. `ownsDirTree()` is the
+      // subclass's own answer, so the sweep does not take it as the last word.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir("/path/to/root", true, "/path/to/root")],
+        [],
+      );
+
+      expect(count).toBe(0);
+      expect(removeDirectory).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Refusing to delete "/path/to/root"'),
+      );
+    });
+
+    it("should refuse a candidate that climbs out of the root it was found in", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir("/path/to/elsewhere", true, "/path/to/root")],
+        [],
+      );
+
+      expect(count).toBe(0);
+      expect(removeDirectory).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Refusing to delete "/path/to/elsewhere"'),
+      );
+    });
+
+    it("should still remove a directory nested below the root it was found in", async () => {
+      // A tool that keeps its skills one level deeper is not the case above.
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir("/path/to/root/nested/orphan", true, "/path/to/root")],
+        [],
+      );
+
+      expect(count).toBe(1);
+      expect(removeDirectory).toHaveBeenCalledWith("/path/to/root/nested/orphan");
     });
 
     it("should not remove any dirs when all existing dirs are in generated", async () => {
