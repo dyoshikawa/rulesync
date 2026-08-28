@@ -32,7 +32,6 @@ const logger = createMockLogger();
 
 const createMockSkillsProcessor = () => ({
   loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
-  removeAiDirs: vi.fn().mockResolvedValue(undefined),
   ...mockProcessorBase(),
   loadRulesyncDirs: vi.fn().mockResolvedValue([]),
   convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
@@ -373,7 +372,6 @@ describe("generate", () => {
       });
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
-        removeAiDirs: vi.fn().mockResolvedValue(undefined),
         ...mockProcessorBase(),
         loadRulesyncDirs: vi.fn().mockResolvedValue([mockSkill]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
@@ -757,7 +755,6 @@ describe("generate", () => {
 
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
-        removeAiDirs: vi.fn().mockResolvedValue(undefined),
         ...mockProcessorBase(),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([
@@ -810,7 +807,6 @@ describe("generate", () => {
       });
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
-        removeAiDirs: vi.fn().mockResolvedValue(undefined),
         ...mockProcessorBase(),
         loadRulesyncDirs: vi.fn().mockResolvedValue([mockSkill]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
@@ -992,7 +988,6 @@ describe("generate", () => {
 
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
-        removeAiDirs: vi.fn().mockResolvedValue(undefined),
         ...mockProcessorBase(),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
@@ -1448,7 +1443,6 @@ describe("generate", () => {
       vi.mocked(SkillsProcessor).mockImplementation(function () {
         return {
           loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
-          removeAiDirs: vi.fn().mockResolvedValue(undefined),
           ...mockProcessorBase(),
           loadRulesyncDirs: vi.fn().mockResolvedValue([makeRulesyncSkill(params.skillName)]),
           convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),

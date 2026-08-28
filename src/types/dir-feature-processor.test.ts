@@ -31,17 +31,19 @@ vi.mock("../utils/file.js", async () => {
 function createMockDir(
   dirPath: string,
   ownsDirTree = true,
-  // The root the directory was found in. It defaults to the parent, which is
-  // where a real `AiDir` puts it: the sweep now checks that positionally.
-  root = dirname(dirPath),
+  // The root the directory was found in, as a real `AiDir` carries it: an
+  // output root plus a relative directory path. It defaults to the parent,
+  // which is where a real `AiDir` puts it — the sweep checks that positionally.
+  outputRoot = dirname(dirPath),
+  relativeDirPath = ".",
 ): AiDir {
   return {
     getDirPath: () => dirPath,
     getDirName: () => basename(dirPath),
     getMainFile: () => undefined,
     getOtherFiles: () => [],
-    getOutputRoot: () => root,
-    getRelativeDirPath: () => ".",
+    getOutputRoot: () => outputRoot,
+    getRelativeDirPath: () => relativeDirPath,
     getRelativePathFromCwd: () => dirPath,
     ownsDirTree: () => ownsDirTree,
   } as unknown as AiDir;
@@ -107,7 +109,7 @@ describe("DirFeatureProcessor", () => {
   describe("removeOrphanAiDirs", () => {
     it("should remove dirs that exist in existing but not in generated", async () => {
       const logger = createMockLogger();
-      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
       const existingDirs = [
         createMockDir("/path/to/orphan1"),
@@ -125,14 +127,14 @@ describe("DirFeatureProcessor", () => {
       expect(removeDirectory).toHaveBeenCalledWith("/path/to/orphan2");
       // Symmetric with the dry-run case below: a real `--delete` run has to
       // report the directories it removed.
-      expect(logger.info).toHaveBeenCalledWith("Deleted directory: /path/to/orphan1");
-      expect(logger.info).toHaveBeenCalledWith("Deleted directory: /path/to/orphan2");
+      expect(logger.info).toHaveBeenCalledWith('Deleted directory: "/path/to/orphan1"');
+      expect(logger.info).toHaveBeenCalledWith('Deleted directory: "/path/to/orphan2"');
       expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("kept"));
     });
 
     it("should strip control characters from the deletion log", async () => {
       const logger = createMockLogger();
-      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
       // The path is an on-disk name rulesync did not choose, so a name carrying
       // `\x1b[2K\r` must not be able to rewrite the line and hide the deletion.
@@ -141,7 +143,7 @@ describe("DirFeatureProcessor", () => {
       const count = await processor.removeOrphanAiDirs(existingDirs, []);
 
       expect(count).toBe(1);
-      expect(logger.info).toHaveBeenCalledWith("Deleted directory: /path/to/[2K-innocent");
+      expect(logger.info).toHaveBeenCalledWith('Deleted directory: "/path/to/[2K-innocent"');
     });
 
     it("should refuse a candidate that reports the root it was found in", async () => {
@@ -151,7 +153,7 @@ describe("DirFeatureProcessor", () => {
       // `ownsDirTree()` that stopped the deletion; this pins that a candidate
       // which claims the tree as its own anyway does not get through either.
       const logger = createMockLogger();
-      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
       const count = await processor.removeOrphanAiDirs(
         [createMockDir("/path/to/root", true, "/path/to/root")],
@@ -168,7 +170,7 @@ describe("DirFeatureProcessor", () => {
 
     it("should refuse a candidate that climbs out of the root it was found in", async () => {
       const logger = createMockLogger();
-      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
       const count = await processor.removeOrphanAiDirs(
         [createMockDir("/path/to/elsewhere", true, "/path/to/root")],
@@ -185,7 +187,10 @@ describe("DirFeatureProcessor", () => {
 
     it("should still remove a directory whose name merely starts with dots", async () => {
       // `..cache` is an ordinary directory name, not a climb out of the root.
-      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+      });
 
       const count = await processor.removeOrphanAiDirs(
         [createMockDir("/path/to/root/..cache", true, "/path/to/root")],
@@ -198,7 +203,10 @@ describe("DirFeatureProcessor", () => {
 
     it("should still remove a directory nested below the root it was found in", async () => {
       // A tool that keeps its skills one level deeper is not the case above.
-      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+      });
 
       const count = await processor.removeOrphanAiDirs(
         [createMockDir("/path/to/root/nested/orphan", true, "/path/to/root")],
@@ -209,8 +217,70 @@ describe("DirFeatureProcessor", () => {
       expect(removeDirectory).toHaveBeenCalledWith("/path/to/root/nested/orphan");
     });
 
+    it("should report a candidate that disowns a directory which is not the root", async () => {
+      // `ownsDirTree()` is false for two shapes: a tool that flattens into a
+      // shared root, and an override of `getDirPath()` that was never kept in
+      // agreement with it. Only the first reports the root, so calling the
+      // second a shared root would say something untrue about it.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir("/path/to/root/elsewhere", false, "/path/to/root")],
+        [],
+      );
+
+      expect(count).toBe(0);
+      expect(removeDirectory).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Refusing to delete "/path/to/root/elsewhere": it does not own that directory, and it ' +
+          'is not the shared root "/path/to/root" it was found in either',
+      );
+      expect(logger.debug).not.toHaveBeenCalledWith(expect.stringContaining("shared root, not"));
+    });
+
+    it("should build the root from both halves the candidate carries", async () => {
+      // `relativeDirPath` is part of the root, and dropping it would widen the
+      // root to the output root and let a sibling tree through.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir("/path/to/other/orphan", true, "/path/to", "root")],
+        [],
+      );
+
+      expect(count).toBe(0);
+      expect(removeDirectory).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('it is not inside "/path/to/root"'),
+      );
+    });
+
+    it("should refuse a candidate whose own root is outside the processor's", async () => {
+      // The root a candidate reports is its own claim. One that climbs out of
+      // the directory the processor writes to would otherwise vouch for
+      // everything below it.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir("/elsewhere/root/orphan", true, "/elsewhere/root")],
+        [],
+      );
+
+      expect(count).toBe(0);
+      expect(removeDirectory).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Refusing to delete "/elsewhere/root/orphan"'),
+      );
+    });
+
     it("should not remove any dirs when all existing dirs are in generated", async () => {
-      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+      });
 
       const existingDirs = [createMockDir("/path/to/dir1"), createMockDir("/path/to/dir2")];
 
@@ -223,7 +293,10 @@ describe("DirFeatureProcessor", () => {
     });
 
     it("should remove all dirs when generated is empty", async () => {
-      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+      });
 
       const existingDirs = [createMockDir("/path/to/dir1"), createMockDir("/path/to/dir2")];
 
@@ -241,7 +314,7 @@ describe("DirFeatureProcessor", () => {
       const logger = createMockLogger();
       const processor = new TestDirProcessor({
         logger,
-        outputRoot: testDir,
+        outputRoot: "/path/to",
         dryRun: true,
       });
 
@@ -258,10 +331,10 @@ describe("DirFeatureProcessor", () => {
       expect(count).toBe(2);
       expect(removeDirectory).not.toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
-        "[DRY RUN] Would delete directory: /path/to/orphan1",
+        '[DRY RUN] Would delete directory: "/path/to/orphan1"',
       );
       expect(logger.info).toHaveBeenCalledWith(
-        "[DRY RUN] Would delete directory: /path/to/orphan2",
+        '[DRY RUN] Would delete directory: "/path/to/orphan2"',
       );
       expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("kept"));
     });
@@ -273,10 +346,13 @@ describe("DirFeatureProcessor", () => {
       // skill was generated deleted the root itself, taking hand-authored files
       // in it with it.
       const logger = createMockLogger();
-      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
       const sharedRoot = "/path/to/.takt/facets/knowledge";
-      const existingDirs = [createMockDir(sharedRoot, false), createMockDir(sharedRoot, false)];
+      const existingDirs = [
+        createMockDir(sharedRoot, false, sharedRoot),
+        createMockDir(sharedRoot, false, sharedRoot),
+      ];
 
       const count = await processor.removeOrphanAiDirs(existingDirs, []);
 
@@ -289,10 +365,20 @@ describe("DirFeatureProcessor", () => {
       // The guard has to work per candidate. Stopping the whole sweep the moment
       // one flat-file tool appears in the list would silently turn `--delete`
       // off for everything else in the same run.
-      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+      });
 
       const count = await processor.removeOrphanAiDirs(
-        [createMockDir("/path/to/.takt/facets/knowledge", false), createMockDir("/path/to/orphan")],
+        [
+          createMockDir(
+            "/path/to/.takt/facets/knowledge",
+            false,
+            "/path/to/.takt/facets/knowledge",
+          ),
+          createMockDir("/path/to/orphan"),
+        ],
         [],
       );
 
@@ -307,12 +393,18 @@ describe("DirFeatureProcessor", () => {
       const logger = createMockLogger();
       const processor = new TestDirProcessor({
         logger,
-        outputRoot: testDir,
+        outputRoot: "/path/to",
         dryRun: true,
       });
 
       const count = await processor.removeOrphanAiDirs(
-        [createMockDir("/path/to/.takt/facets/knowledge", false)],
+        [
+          createMockDir(
+            "/path/to/.takt/facets/knowledge",
+            false,
+            "/path/to/.takt/facets/knowledge",
+          ),
+        ],
         [],
       );
 
@@ -321,7 +413,10 @@ describe("DirFeatureProcessor", () => {
     });
 
     it("should not remove any dirs when existing is empty", async () => {
-      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+      });
 
       const existingDirs: AiDir[] = [];
       const generatedDirs = [createMockDir("/path/to/dir1")];
@@ -578,20 +673,6 @@ describe("DirFeatureProcessor", () => {
       });
       expect(ensureDir).not.toHaveBeenCalled();
       expect(writeFileContent).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("removeAiDirs", () => {
-    it("should remove all dirs", async () => {
-      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
-
-      const dirs = [createMockDir("/path/to/dir1"), createMockDir("/path/to/dir2")];
-
-      await processor.removeAiDirs(dirs);
-
-      expect(removeDirectory).toHaveBeenCalledTimes(2);
-      expect(removeDirectory).toHaveBeenCalledWith("/path/to/dir1");
-      expect(removeDirectory).toHaveBeenCalledWith("/path/to/dir2");
     });
   });
 });
