@@ -787,6 +787,39 @@ export abstract class AiDir {
     return this.getDirPath() === path.join(this.outputRoot, this.relativeDirPath, this.dirName);
   }
 
+  /**
+   * The one file this entry flattens into under the shared root, for a subclass
+   * that writes a flat `<name>.md` instead of owning a directory of its own
+   * ({@link ownsDirTree}). `undefined` for an entry that owns its directory —
+   * the tree is what stands for it then — and for one that carries no main
+   * file or names it through a path separator, since neither leaves a single
+   * file directly under the root to name.
+   *
+   * The `--delete` orphan sweep is keyed on this for the flattened tools: they
+   * contribute no directory of their own to sweep, so this file is the only
+   * thing a run can claim, or remove, on their behalf.
+   */
+  getFlatFilePath(): string | undefined {
+    if (this.ownsDirTree()) {
+      return undefined;
+    }
+    const mainFile = this.getMainFile();
+    if (mainFile === undefined) {
+      return undefined;
+    }
+    // The same names `dirName` is rejected for, checked the same way and for
+    // the same reason: a name with a separator in it lands the file somewhere
+    // other than directly under the root, and `"."` or `".."` collapses onto
+    // the root itself or its parent without ever tripping a traversal check.
+    // Both separators, on every platform — a backslash is a legal character in
+    // a POSIX name, but a name carrying one is a path once it reaches Windows.
+    const name = mainFile.name;
+    if (name === "" || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
+      return undefined;
+    }
+    return path.join(this.getDirPath(), name);
+  }
+
   getDirPath(): string {
     const fullPath = path.join(this.outputRoot, this.relativeDirPath, this.dirName);
 

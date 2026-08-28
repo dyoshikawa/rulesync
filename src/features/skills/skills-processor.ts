@@ -965,8 +965,8 @@ export class SkillsProcessor extends DirFeatureProcessor {
       }
       const consequence =
         kind === "file"
-          ? `skill name cannot contain a path separator, so this file is not imported. Rename it ` +
-            `by hand.`
+          ? `skill name cannot contain a path separator, so this file is neither imported nor ` +
+            `swept as an orphan. Rename it by hand.`
           : `skill directory name cannot contain a path separator, so this directory is neither ` +
             `generated from nor swept as an orphan. Rename or remove it by hand.`;
       // Once per run, not once per tool target: the message names an entry on
@@ -1035,6 +1035,90 @@ export class SkillsProcessor extends DirFeatureProcessor {
 
     this.logger.debug(
       `Successfully loaded ${toolSkills.length} skills for deletion under ${roots.join(", ")}`,
+    );
+    return toolSkills;
+  }
+
+  /**
+   * The flat `<name>.md` skill files to consider for deletion, for a tool that
+   * writes one file per skill into a shared facet root (TAKT's
+   * `.takt/facets/knowledge/`) instead of a directory per skill. Those files
+   * are invisible to {@link loadToolDirsToDelete}, which enumerates
+   * subdirectories — of which such a tool creates none.
+   *
+   * A directory-based tool contributes nothing here. The candidate built for
+   * one of its `.md` files reports a directory of its own rather than that
+   * file, and is dropped by the check below: a stray Markdown file next to its
+   * skill directories is not a skill of its, and must not be swept as one.
+   */
+  override async loadToolFlatFilesToDelete(): Promise<AiDir[]> {
+    const factory = this.getFactory(this.toolTarget);
+    const paths = factory.class.getSettablePaths({ global: this.global });
+    const roots = toolSkillSearchRoots(paths);
+
+    const toolSkills: AiDir[] = [];
+    for (const root of roots) {
+      const skillsDirPath = join(this.outputRoot, root);
+      if (!(await directoryExists(skillsDirPath))) {
+        continue;
+      }
+      await assertWritablePathInsideRoot({
+        rootPath: this.outputRoot,
+        targetPath: skillsDirPath,
+      });
+      const fileNames = this.keepAddressableNames({
+        // Symbolic links are left out, as they are for the directory half of
+        // the sweep: a link that happens to share a generated file's name is
+        // not that file, and removing it deletes something rulesync never
+        // wrote there.
+        names: await listFileNames(skillsDirPath, {
+          nameFilter: (name) => name.endsWith(".md"),
+          followSymbolicLinks: false,
+        }),
+        dirPath: skillsDirPath,
+        kind: "file",
+      });
+      for (const fileName of fileNames) {
+        const filePath = join(skillsDirPath, fileName);
+        await assertWritablePathInsideRoot({
+          rootPath: skillsDirPath,
+          targetPath: filePath,
+        });
+        const toolSkill = factory.class.forDeletion({
+          outputRoot: this.outputRoot,
+          relativeDirPath: root,
+          dirName: basename(fileName, ".md"),
+          global: this.global,
+        });
+        // The candidate has to name back the very file it was built from.
+        // That is false for a directory-based tool (it names a directory
+        // instead, and `getFlatFilePath()` returns nothing), and false for a
+        // flat one whose file name is not the stem plus `.md` — in which case
+        // the file it does name is not the one enumerated here, and sweeping
+        // it would delete an unrelated entry.
+        if (toolSkill.getFlatFilePath() !== filePath) {
+          continue;
+        }
+        // Same ownership hook as the directory half: a file another feature
+        // generated into a shared root must never be swept as an orphan skill.
+        if (
+          factory.class.isDirOwned &&
+          !(await factory.class.isDirOwned({
+            outputRoot: this.outputRoot,
+            relativeDirPath: root,
+            dirName: basename(fileName, ".md"),
+            inputRoots: this.inputRoots,
+          }))
+        ) {
+          continue;
+        }
+        toolSkills.push(toolSkill);
+      }
+    }
+
+    this.logger.debug(
+      `Successfully loaded ${toolSkills.length} flat skill files for deletion under ` +
+        `${roots.join(", ")}`,
     );
     return toolSkills;
   }

@@ -8,9 +8,16 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { TAKT_SKILLS_DIR_PATH } from "../../constants/takt-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { directoryExists, ensureDir, readFileBuffer, writeFileContent } from "../../utils/file.js";
+import {
+  directoryExists,
+  ensureDir,
+  fileExists,
+  readFileBuffer,
+  writeFileContent,
+} from "../../utils/file.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { JunieSkill } from "./junie-skill.js";
@@ -22,6 +29,7 @@ import {
   SkillsProcessorToolTargetSchema,
   skillsProcessorToolTargetsGlobal,
 } from "./skills-processor.js";
+import { TaktSkill } from "./takt-skill.js";
 
 /**
  * Write a directory-form skill whose frontmatter `name` matches its directory
@@ -1736,6 +1744,59 @@ Content that would fail parsing`;
         expect.stringContaining("is a shared root, not a directory of its own"),
       );
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should sweep the flat takt knowledge files no source produces", async () => {
+      // Regression test for #2785. The shared facet root gets no per-skill
+      // directory, so the directory sweep above finds nothing to remove and a
+      // renamed skill left its old file behind forever.
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({ logger, outputRoot: testDir, toolTarget: "takt" });
+
+      const knowledgeDir = join(testDir, TAKT_SKILLS_DIR_PATH);
+      await ensureDir(knowledgeDir);
+      await writeFileContent(join(knowledgeDir, "runbook.md"), "the old name");
+      await writeFileContent(join(knowledgeDir, "renamed.md"), "the new name");
+      const handAuthoredDir = join(knowledgeDir, "my-notes");
+      await ensureDir(handAuthoredDir);
+      await writeFileContent(join(handAuthoredDir, "notes.md"), "hand-authored");
+
+      const generated = new TaktSkill({
+        outputRoot: testDir,
+        relativeDirPath: TAKT_SKILLS_DIR_PATH,
+        dirName: "renamed",
+        fileName: "renamed.md",
+        body: "the new name",
+      });
+
+      const filesToDelete = await processor.loadToolFlatFilesToDelete();
+      const removedCount = await processor.removeOrphanFlatFiles(filesToDelete, [generated]);
+
+      expect(removedCount).toBe(1);
+      expect(await fileExists(join(knowledgeDir, "runbook.md"))).toBe(false);
+      expect(await fileExists(join(knowledgeDir, "renamed.md"))).toBe(true);
+      // The root itself and anything nested in it are not this sweep's to take.
+      expect(await directoryExists(knowledgeDir)).toBe(true);
+      expect(await fileExists(join(handAuthoredDir, "notes.md"))).toBe(true);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should never list a directory-based tool's stray markdown file for deletion", async () => {
+      // Only a tool that flattens into a shared root writes a bare `<name>.md`
+      // there. For every other tool a Markdown file beside its skill
+      // directories is something else entirely, and sweeping it would delete a
+      // file rulesync never wrote.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const skillsDir = join(testDir, ".claude", "skills");
+      await ensureDir(join(skillsDir, "own-skill"));
+      await writeFileContent(join(skillsDir, "own-skill", "SKILL.md"), "x");
+      await writeFileContent(join(skillsDir, "README.md"), "not a skill");
+
+      expect(await processor.loadToolFlatFilesToDelete()).toEqual([]);
     });
 
     it("should never list an importOnlySkillRoots skill for deletion", async () => {

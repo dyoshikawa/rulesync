@@ -218,14 +218,31 @@ async function processDirFeatureGeneration(params: {
     sweepPlan.defer({
       sweep: async () => {
         const existingToolDirs = await processor.loadToolDirsToDelete();
-        const orphanCount = await processor.removeOrphanAiDirs(
+        const orphanDirCount = await processor.removeOrphanAiDirs(
           sweepPlan.rejectClaimed({
             items: existingToolDirs,
             getPath: (d) => d.getDirPath(),
           }),
           toolDirs,
         );
-        return orphanCount > 0;
+
+        // The other half of the sweep, for a tool that flattens into a shared
+        // root: it contributes no directory of its own for the pass above to
+        // remove, so the file it writes is what stands for it. Claims are
+        // keyed on that same file path, registered by name just above.
+        const existingFlatFiles = await processor.loadToolFlatFilesToDelete();
+        const orphanFileCount = await processor.removeOrphanFlatFiles(
+          sweepPlan.rejectClaimed({
+            items: existingFlatFiles,
+            // The directory stands in for a candidate that names no file, so
+            // the key is always a real path. Nothing is lost by it: such a
+            // candidate is not deletable, and the sweep reports it.
+            getPath: (d) => d.getFlatFilePath() ?? d.getDirPath(),
+          }),
+          toolDirs,
+        );
+
+        return orphanDirCount + orphanFileCount > 0;
       },
     });
   }

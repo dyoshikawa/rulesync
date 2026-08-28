@@ -64,9 +64,11 @@ Both project mode (`.takt/facets/...`, `.takt/config.yaml`) and global mode (`~/
 
 ## `--delete` and `.takt/facets/knowledge/`
 
-Skills are written as flat files sharing one facet root instead of each getting a directory of its own, so `generate --delete` has no per-skill directory to sweep and never deletes anything under `.takt/facets/knowledge/` (or `~/.takt/facets/knowledge/` in global mode). That is deliberate: the root also holds whatever you have authored there by hand, and sweeping it would take those files too. The other facets are unaffected — rules, commands, and subagents each get their own directory and are swept normally.
+Skills are written as flat files sharing one facet root instead of each getting a directory of its own, so `generate --delete` sweeps `.takt/facets/knowledge/` (or `~/.takt/facets/knowledge/` in global mode) by file name rather than by directory: a `.md` file directly under the root that no `.rulesync/skills/` source produces is deleted. That is what makes a renamed or deleted skill stop being served to TAKT. The other facets are unaffected — rules, commands, and subagents each get their own directory and are swept normally.
 
-The trade-off is that a knowledge file whose `.rulesync/skills/` source you later delete or rename is not cleaned up for you — delete the stale `.md` file yourself.
+The root itself is never deleted, and neither is anything nested inside it: a subdirectory under `.takt/facets/knowledge/` is left alone, files and all.
+
+A hand-authored `.md` placed **directly** in the facet root is another matter. It is indistinguishable from a generated one, so `--delete` sweeps it — the same as for `policies/`, `instructions/`, and `personas/`, which the rules, commands, and subagents features own outright. Keep hand-authored knowledge in a subdirectory (for example `.takt/facets/knowledge/my-notes/`) to put it out of the sweep's reach.
 
 ## Importing existing TAKT files into rulesync
 

@@ -9,6 +9,7 @@ import {
   readFileBufferOrNull,
   readFileContentOrNull,
   removeDirectory,
+  removeFile,
   writeFileBuffer,
   writeFileContent,
 } from "../utils/file.js";
@@ -22,6 +23,7 @@ vi.mock("../utils/file.js", async () => {
     readFileContentOrNull: vi.fn().mockResolvedValue(null),
     readFileBufferOrNull: vi.fn().mockResolvedValue(null),
     removeDirectory: vi.fn(),
+    removeFile: vi.fn(),
     ensureDir: vi.fn(),
     writeFileContent: vi.fn(),
     writeFileBuffer: vi.fn(),
@@ -51,6 +53,42 @@ function createMockDir({
     getRelativeDirPath: () => relativeDirPath,
     getRelativePathFromCwd: () => dirPath,
     ownsDirTree: () => ownsDirTree,
+  } as unknown as AiDir;
+}
+
+/**
+ * A candidate for a tool that flattens into a shared root: it owns no
+ * directory of its own, reports that root as its directory, and stands for one
+ * file directly inside it — the shape `TaktSkill` has.
+ */
+function createMockFlatDir({
+  root,
+  fileName,
+  outputRoot = dirname(root),
+  relativeDirPath = basename(root),
+  dirPath = root,
+  flatFilePath,
+}: {
+  root: string;
+  fileName: string;
+  outputRoot?: string;
+  relativeDirPath?: string;
+  /** What the candidate reports as its directory; the shared root itself, normally. */
+  dirPath?: string;
+  /** Overrides the file the candidate names; `null` for one that names none. */
+  flatFilePath?: string | null;
+}): AiDir {
+  return {
+    getDirPath: () => dirPath,
+    getDirName: () => basename(fileName, ".md"),
+    getFlatFilePath: () =>
+      flatFilePath === null ? undefined : (flatFilePath ?? join(dirPath, fileName)),
+    getMainFile: () => ({ name: fileName, body: "", frontmatter: {} }),
+    getOtherFiles: () => [],
+    getOutputRoot: () => outputRoot,
+    getRelativeDirPath: () => relativeDirPath,
+    getRelativePathFromCwd: () => join(relativeDirPath, fileName),
+    ownsDirTree: () => false,
   } as unknown as AiDir;
 }
 
@@ -526,6 +564,128 @@ describe("DirFeatureProcessor", () => {
       await processor.removeOrphanAiDirs(existingDirs, generatedDirs);
 
       expect(removeDirectory).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("removeOrphanFlatFiles", () => {
+    const root = "/path/to/.takt/facets/knowledge";
+
+    it("should remove a flat file no source produces and keep the generated one", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanFlatFiles(
+        [
+          createMockFlatDir({ root, fileName: "stale.md" }),
+          createMockFlatDir({ root, fileName: "kept.md" }),
+        ],
+        [createMockFlatDir({ root, fileName: "kept.md" })],
+      );
+
+      expect(count).toBe(1);
+      expect(removeFile).toHaveBeenCalledExactlyOnceWith(join(root, "stale.md"));
+      expect(logger.info).toHaveBeenCalledWith(
+        `Deleted file: ${JSON.stringify(join(root, "stale.md"))}`,
+      );
+      // The root itself, and everything else in it, is left alone.
+      expect(removeDirectory).not.toHaveBeenCalled();
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should delete a file two candidates report once", async () => {
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+      });
+
+      const count = await processor.removeOrphanFlatFiles(
+        [
+          createMockFlatDir({ root, fileName: "stale.md" }),
+          createMockFlatDir({ root, fileName: "stale.md" }),
+        ],
+        [],
+      );
+
+      expect(count).toBe(1);
+      expect(removeFile).toHaveBeenCalledExactlyOnceWith(join(root, "stale.md"));
+    });
+
+    it("should report a deletion without making it on a dry run", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to", dryRun: true });
+
+      const count = await processor.removeOrphanFlatFiles(
+        [createMockFlatDir({ root, fileName: "stale.md" })],
+        [],
+      );
+
+      expect(count).toBe(1);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        `[DRY RUN] Would delete file: ${JSON.stringify(join(root, "stale.md"))}`,
+      );
+    });
+
+    it("should refuse a candidate that names no file", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanFlatFiles(
+        [createMockFlatDir({ root, fileName: "stale.md", flatFilePath: null })],
+        [],
+      );
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("names no file directly under the root it was found in"),
+      );
+    });
+
+    it("should refuse a candidate whose root is outside the directory this run writes to", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanFlatFiles(
+        [createMockFlatDir({ root: "/elsewhere/knowledge", fileName: "stale.md" })],
+        [],
+      );
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('is not inside "/path/to", the directory this run writes to'),
+      );
+    });
+
+    it("should refuse a candidate reporting a directory other than the root it was found in", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanFlatFiles(
+        // A `getDirPath()` override this sweep was never told about: the file
+        // it names is not the one the root was enumerated for.
+        [createMockFlatDir({ root, fileName: "stale.md", dirPath: join(root, "nested") })],
+        [],
+      );
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("it is not directly inside"),
+      );
+    });
+
+    it("should sweep nothing when there are no candidates", async () => {
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+      });
+
+      expect(
+        await processor.removeOrphanFlatFiles([], [createMockFlatDir({ root, fileName: "a.md" })]),
+      ).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
     });
   });
 

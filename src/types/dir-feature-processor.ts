@@ -13,6 +13,7 @@ import {
   readFileBufferOrNull,
   readFileContentOrNull,
   removeDirectory,
+  removeFile,
   writeFileBuffer,
   writeFileContent,
 } from "../utils/file.js";
@@ -116,6 +117,20 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
   abstract loadToolDirs(): Promise<AiDir[]>;
 
   abstract loadToolDirsToDelete(): Promise<AiDir[]>;
+
+  /**
+   * The flat files to consider for deletion: the `<name>.md` a tool that
+   * flattens into a shared root writes for each entry, instead of a directory
+   * of its own (`TaktSkill`). Every candidate returned must report that file
+   * from {@link AiDir.getFlatFilePath}.
+   *
+   * A directory feature whose tools all own their directories has none, which
+   * is why the default is empty: the directory half of the sweep already covers
+   * everything such a tool writes.
+   */
+  async loadToolFlatFilesToDelete(): Promise<AiDir[]> {
+    return [];
+  }
 
   abstract convertRulesyncDirsToToolDirs(rulesyncDirs: AiDir[]): Promise<AiDir[]>;
 
@@ -323,6 +338,86 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       } else {
         await removeDirectory(dirPath);
         this.logger.info(`Deleted directory: ${loggedPath}`);
+      }
+    }
+
+    return orphanPaths.size;
+  }
+
+  /**
+   * Remove the orphan files of a tool that flattens into a shared root: the
+   * `<name>.md` files under that root which no source in this run produces.
+   *
+   * The directory sweep above cannot see them. Such a tool owns no directory of
+   * its own — the root it writes into is shared, and deleting that takes every
+   * sibling in it, hand-authored files included — so the file each entry writes
+   * is the only thing there is to sweep. Anything else under the root is left
+   * alone: a subdirectory, and any file the enumeration did not hand over.
+   */
+  async removeOrphanFlatFiles(existingFlatFiles: AiDir[], generatedDirs: AiDir[]): Promise<number> {
+    const generatedPaths = new Set(
+      generatedDirs.map((d) => d.getFlatFilePath()).filter((p) => p !== undefined),
+    );
+    // A set, for the same reason the directory sweep uses one: two candidates
+    // that report the same file delete it once and are counted once.
+    const orphanPaths = new Set<string>();
+    const quotedOutputRoot = JSON.stringify(stripControlCharacters(this.outputRoot));
+
+    for (const aiDir of existingFlatFiles) {
+      // Read once and delete that one value, as in the directory sweep: both
+      // this and `getDirPath()` below are methods a subclass supplies, and a
+      // second call could answer differently from the one that was checked.
+      const filePath = aiDir.getFlatFilePath();
+      const quotedDirName = JSON.stringify(stripControlCharacters(aiDir.getDirName()));
+      if (filePath === undefined) {
+        this.logger.warn(
+          `Refusing to sweep ${quotedDirName}: it owns a directory of its own, or names no file ` +
+            `directly under the root it was found in`,
+        );
+        continue;
+      }
+
+      const dirPath = aiDir.getDirPath();
+      const { verdict, root } = locateInOwnRoot({ aiDir, dirPath, outputRoot: this.outputRoot });
+      // Quoted for the same reason the directory sweep quotes: the last segment
+      // of the path is a name that came off disk.
+      const quotedFilePath = JSON.stringify(stripControlCharacters(filePath));
+      const quotedRoot = JSON.stringify(stripControlCharacters(root));
+
+      if (verdict === "root-outside") {
+        this.logger.warn(
+          `Refusing to delete ${quotedFilePath}: the root ${quotedRoot} it was found in is not ` +
+            `inside ${quotedOutputRoot}, the directory this run writes to`,
+        );
+        continue;
+      }
+
+      // The file has to sit directly in the root the candidate was enumerated
+      // from, and `getFlatFilePath()` builds it by joining a single name onto
+      // `getDirPath()` — so that path being the root is the whole of the check.
+      // A candidate that reports anything else has a `getDirPath()` override
+      // this sweep was never told about, and the file it names is somewhere
+      // other than where the enumeration looked.
+      if (verdict !== "equal") {
+        this.logger.warn(
+          `Refusing to delete ${quotedFilePath}: it is not directly inside ${quotedRoot}, the ` +
+            `shared root it was found in`,
+        );
+        continue;
+      }
+
+      if (!generatedPaths.has(filePath)) {
+        orphanPaths.add(filePath);
+      }
+    }
+
+    for (const filePath of orphanPaths) {
+      const loggedPath = JSON.stringify(stripControlCharacters(filePath));
+      if (this.dryRun) {
+        this.logger.info(`[DRY RUN] Would delete file: ${loggedPath}`);
+      } else {
+        await removeFile(filePath);
+        this.logger.info(`Deleted file: ${loggedPath}`);
       }
     }
 
