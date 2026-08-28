@@ -1,6 +1,5 @@
 import { join } from "node:path";
 
-import { escapeRegExp } from "es-toolkit";
 import * as smolToml from "smol-toml";
 
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
@@ -9,6 +8,7 @@ import type {
   PermissionsConfig,
   VibePermissionsOverride,
 } from "../../types/permissions.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
@@ -396,7 +396,17 @@ export class VibePermissions extends ToolPermissions {
       // its own literal name (`read_*`) and would leave the table it silences
       // (`read_file` → the `read` category) with no deny at all.
       if (disablesToolName(vibeToolName)) {
-        ensurePermission(permission, category)["*"] = "deny";
+        const denied = ensurePermission(permission, category);
+        denied["*"] = "deny";
+        // The table's deny patterns come across even though its allow patterns
+        // do not, because a category can be shared: `read_file` and a bare
+        // `read` MCP table both canonicalize to `read`, and the later table's
+        // own base permission overwrites the blanket deny written here. Dropping
+        // the patterns with it would lose a deny the file states outright, which
+        // is the broadening direction; keeping only the denies loses nothing.
+        for (const pattern of readVibeToolPatterns({ toolConfig, kind: "deny" })) {
+          denied[pattern] = "deny";
+        }
         continue;
       }
       const rules = ensurePermission(permission, category);
@@ -1355,26 +1365,49 @@ function warnOnGlobDisabledTools({
   disabledTools: ReadonlySet<string>;
   logger?: Logger;
 }): void {
-  const globs = [...disabledTools].filter(
-    (entry) => entry.startsWith(VIBE_REGEX_MATCHER_PREFIX) || VIBE_GLOB_METACHARACTERS.test(entry),
-  );
-  if (globs.length === 0) {
-    return;
-  }
-  const matches = createVibeDisabledToolMatcher(globs);
-  const silenced = Object.entries(tools)
-    .filter(([name, toolConfig]) => matches(name) && toolConfig.permission !== "never")
+  const live = Object.entries(tools)
+    .filter(([, toolConfig]) => toolConfig.permission !== "never")
     .map(([name]) => name);
-  if (silenced.length === 0) {
+  if (live.length === 0) {
     return;
   }
-  logger?.warn(
-    `Vibe's disabled_tools keeps ${globs.join(", ")}, which also matches ${silenced.join(", ")} ` +
-      `— tables rulesync just wrote a live permission into. Upstream applies disabled_tools ` +
-      `last and unconditionally, so those tools stay switched off. The glob is left in place ` +
-      `because it reaches tools rulesync cannot enumerate; delete it from .vibe/config.toml, or ` +
-      `narrow it, to let the generated permission take effect.`,
-  );
+  const entries = [...disabledTools];
+  // Only the globs that actually reach a live table are named. Listing every
+  // glob in the file would read as though each of them silenced the tools the
+  // line goes on to name, which is the opposite of what the warning is for.
+  const hits = classifyDisabledToolEntries(
+    entries.filter(
+      (entry) =>
+        !entry.startsWith(VIBE_REGEX_MATCHER_PREFIX) && VIBE_GLOB_METACHARACTERS.test(entry),
+    ),
+  )
+    .map(({ entry, matches }) => ({ entry, silenced: live.filter(matches) }))
+    .filter(({ silenced }) => silenced.length > 0);
+  if (hits.length > 0) {
+    const silenced = [...new Set(hits.flatMap(({ silenced: names }) => names))];
+    logger?.warn(
+      `Vibe's disabled_tools keeps ${displayVibeEntries(hits.map(({ entry }) => entry))}, which ` +
+        `also matches ${displayVibeEntries(silenced)} — tables rulesync just wrote a live ` +
+        `permission into. Upstream applies disabled_tools last and unconditionally, so those ` +
+        `tools stay switched off. The glob is left in place because it reaches tools rulesync ` +
+        `cannot enumerate; delete it from .vibe/config.toml, or narrow it, to let the generated ` +
+        `permission take effect.`,
+    );
+  }
+  // A `re:` entry is reported on its own, because rulesync does not evaluate one
+  // (see `classifyDisabledToolEntries`) and so cannot say which tables it
+  // reaches. Folding it into the line above would name it beside tables another
+  // entry's glob matched, claiming a reach that was never worked out.
+  const regexes = entries.filter((entry) => entry.startsWith(VIBE_REGEX_MATCHER_PREFIX));
+  if (regexes.length > 0) {
+    logger?.warn(
+      `Vibe's disabled_tools keeps ${displayVibeEntries(regexes)}, which rulesync does not ` +
+        `evaluate: a 're:' entry is a Python regular expression, not a glob. Check by hand ` +
+        `whether it matches ${displayVibeEntries(live)} — tables rulesync just wrote a live ` +
+        `permission into. Upstream applies disabled_tools last and unconditionally, so any tool ` +
+        `it reaches stays switched off however its table reads.`,
+    );
+  }
 }
 
 /**
@@ -1561,65 +1594,226 @@ const VIBE_REGEX_MATCHER_PREFIX = "re:";
 const VIBE_GLOB_METACHARACTERS = /[*?[]/;
 
 /**
- * Translate one fnmatch glob into a regular expression source, the way Python's
- * `fnmatch.translate` does: `*` matches any run of characters, `?` exactly one,
- * and `[seq]` / `[!seq]` a character class.
+ * How long a `disabled_tools` glob may be before rulesync stops trying to work
+ * out its reach.
+ *
+ * Matching a glob against a name costs the product of their lengths, and both
+ * come from the same third-party config file: a checked-in `.vibe/config.toml`
+ * carrying a kilobyte-long entry beside a kilobyte-long `[tools.<name>]` table
+ * would otherwise buy itself a million comparisons per pair. A tool name is
+ * short in every registry Vibe reads, so an entry this long is not spelling one
+ * — it is reported as unresolvable, which imports the tables it names as
+ * authored and says so, rather than being matched.
+ */
+const MAX_VIBE_GLOB_LENGTH = 256;
+
+/**
+ * One step of an fnmatch glob: a literal character, `?`, `*`, or a `[seq]` /
+ * `[!seq]` class reduced to the code point ranges it admits.
+ */
+type VibeGlobToken =
+  | { readonly kind: "literal"; readonly character: string }
+  | { readonly kind: "any" }
+  | { readonly kind: "star" }
+  | {
+      readonly kind: "class";
+      readonly negated: boolean;
+      readonly ranges: readonly (readonly [number, number])[];
+    };
+
+/**
+ * The members of a `[seq]` class, as code point ranges.
+ *
+ * A range whose ends are the wrong way round is dropped rather than refused,
+ * which is what Python's `fnmatch.translate` does before it hands the class to
+ * `re`. Dropping the only range leaves a class admitting nothing: `[z-a]` then
+ * matches no character at all and `[!z-a]` matches every one, exactly as
+ * upstream's `(?!)` and `.` do.
+ */
+function parseVibeGlobClass(members: readonly string[]): (readonly [number, number])[] {
+  const ranges: (readonly [number, number])[] = [];
+  let index = 0;
+  while (index < members.length) {
+    const start = members[index] ?? "";
+    // A `-` with nothing after it is an ordinary member, which is why the end is
+    // read before the separator is trusted: `[a-]` admits `a` and `-`.
+    const separator = members[index + 1];
+    const end = members[index + 2];
+    if (separator === "-" && end !== undefined) {
+      const low = start.codePointAt(0) ?? 0;
+      const high = end.codePointAt(0) ?? 0;
+      if (low <= high) {
+        ranges.push([low, high]);
+      }
+      index += 3;
+      continue;
+    }
+    const code = start.codePointAt(0) ?? 0;
+    ranges.push([code, code]);
+    index += 1;
+  }
+  return ranges;
+}
+
+/**
+ * Read one fnmatch glob into the steps it is matched by: `*` matches any run of
+ * characters, `?` exactly one, and `[seq]` / `[!seq]` a character class.
  *
  * The awkward corners are the bracket's, and they are the ones a hand-written
  * translation gets wrong. An unterminated `[` is a literal bracket rather than
  * the start of a class; a `]` immediately after the opening bracket (or after
  * the negating `!`) is a literal member rather than the terminator; a `!` first
- * means negation, while a `^` first is an ordinary caret in fnmatch and the
- * negation in a JavaScript class, so it has to be escaped. Backslashes inside a
- * class are literal to fnmatch and would start an escape here, so they are
- * doubled.
+ * means negation, while a `^` first is an ordinary caret in fnmatch. Nothing
+ * inside a class escapes anything, so a backslash is a member like any other.
+ *
+ * Steps rather than a regular expression, which is what this used to build.
+ * Translating to one meant reproducing Python's dialect in JavaScript's, and the
+ * two disagree about exactly the corners above — a leading `]` is a member to
+ * Python and an empty class to JavaScript, and `(?s:...)` makes Python's `.`
+ * match a newline where JavaScript's does not. Matching the steps directly
+ * settles those in fnmatch's favor by construction, and it cannot backtrack
+ * catastrophically: `*a*a*a*a*b` translated to `^.*a.*a.*a.*a.*b$` takes minutes
+ * against a forty-character name, while the same glob walked as steps is linear
+ * in the name per `*`.
+ *
+ * `undefined` when the glob is longer than rulesync will resolve; the caller
+ * reports the entry instead of matching it.
  */
-function fnmatchToRegExpSource(pattern: string): string {
-  let source = "";
+function parseVibeGlob(pattern: string): VibeGlobToken[] | undefined {
+  if (pattern.length > MAX_VIBE_GLOB_LENGTH) {
+    return undefined;
+  }
+  const characters = [...pattern];
+  const tokens: VibeGlobToken[] = [];
   let index = 0;
-  while (index < pattern.length) {
-    const character = pattern[index] ?? "";
+  while (index < characters.length) {
+    const character = characters[index] ?? "";
     index += 1;
     if (character === "*") {
-      source += ".*";
+      // A run of stars says exactly what one says, and collapsing it here is
+      // what Python's own translation does before it builds anything.
+      if (tokens.at(-1)?.kind !== "star") {
+        tokens.push({ kind: "star" });
+      }
       continue;
     }
     if (character === "?") {
-      source += ".";
+      tokens.push({ kind: "any" });
       continue;
     }
     if (character !== "[") {
-      source += escapeRegExp(character);
+      tokens.push({ kind: "literal", character });
       continue;
     }
     let end = index;
-    if (pattern[end] === "!") {
+    if (characters[end] === "!") {
       end += 1;
     }
-    if (pattern[end] === "]") {
+    if (characters[end] === "]") {
       end += 1;
     }
-    while (end < pattern.length && pattern[end] !== "]") {
+    while (end < characters.length && characters[end] !== "]") {
       end += 1;
     }
-    if (end >= pattern.length) {
-      source += "\\[";
+    if (end >= characters.length) {
+      tokens.push({ kind: "literal", character: "[" });
       continue;
     }
-    const body = pattern.slice(index, end).replaceAll("\\", "\\\\");
+    const body = characters.slice(index, end);
     index = end + 1;
-    if (body.startsWith("!")) {
-      source += `[^${body.slice(1)}]`;
-    } else {
-      source += `[${body.startsWith("^") ? `\\^${body.slice(1)}` : body}]`;
-    }
+    const negated = body[0] === "!";
+    tokens.push({
+      kind: "class",
+      negated,
+      ranges: parseVibeGlobClass(negated ? body.slice(1) : body),
+    });
   }
-  return source;
+  return tokens;
+}
+
+/** Whether one step admits one character. A `*` is handled by the walk, not here. */
+function matchesVibeGlobToken({
+  token,
+  character,
+}: {
+  token: VibeGlobToken;
+  character: string;
+}): boolean {
+  if (token.kind === "star") {
+    return false;
+  }
+  if (token.kind === "any") {
+    return true;
+  }
+  if (token.kind === "literal") {
+    return token.character === character;
+  }
+  const code = character.codePointAt(0) ?? 0;
+  const admitted = token.ranges.some(([low, high]) => code >= low && code <= high);
+  return token.negated ? !admitted : admitted;
 }
 
 /**
- * Decide, the way Vibe's tool manager does, whether a `disabled_tools` entry
- * switches off the tool named `name`.
+ * Walk `characters` against the glob's steps, remembering the last `*` to fall
+ * back to.
+ *
+ * One remembered `*` is enough: an earlier one can always give up whatever the
+ * later one needed, so retrying only the most recent is what makes the walk cost
+ * the product of the two lengths rather than an exponential of them.
+ */
+function matchesVibeGlob({
+  tokens,
+  characters,
+}: {
+  tokens: readonly VibeGlobToken[];
+  characters: readonly string[];
+}): boolean {
+  let tokenIndex = 0;
+  let characterIndex = 0;
+  let starTokenIndex = -1;
+  let starCharacterIndex = 0;
+  while (characterIndex < characters.length) {
+    const token = tokens[tokenIndex];
+    if (token?.kind === "star") {
+      starTokenIndex = tokenIndex;
+      starCharacterIndex = characterIndex;
+      tokenIndex += 1;
+      continue;
+    }
+    if (
+      token !== undefined &&
+      matchesVibeGlobToken({ token, character: characters[characterIndex] ?? "" })
+    ) {
+      tokenIndex += 1;
+      characterIndex += 1;
+      continue;
+    }
+    if (starTokenIndex < 0) {
+      return false;
+    }
+    starCharacterIndex += 1;
+    tokenIndex = starTokenIndex + 1;
+    characterIndex = starCharacterIndex;
+  }
+  let remaining = tokenIndex;
+  while (tokens[remaining]?.kind === "star") {
+    remaining += 1;
+  }
+  return remaining === tokens.length;
+}
+
+/** One `disabled_tools` entry, paired with what it was worked out to reach. */
+type VibeDisabledToolEntry = {
+  /** The entry exactly as the file spells it. */
+  readonly entry: string;
+  /** Whether its reach could be worked out at all; see the matcher below. */
+  readonly resolved: boolean;
+  readonly matches: (name: string) => boolean;
+};
+
+/**
+ * Work out, the way Vibe's tool manager does, which tools each `disabled_tools`
+ * entry switches off.
  *
  * Upstream globs the RAW tool name with `fnmatch` after lowercasing both sides,
  * so `disabled_tools = ["read_*"]` disables `read_file` as surely as spelling it
@@ -1633,23 +1827,55 @@ function fnmatchToRegExpSource(pattern: string): string {
  * JavaScript's, and this is the one place where being wrong in either direction
  * costs something real — a wrong match drops a table's rules, a wrong miss
  * carries a disabled tool out as an allow — so the entry is reported instead of
- * guessed at, and only its exact spelling is matched. A glob JavaScript refuses
- * to compile (an inverted range such as `[z-a]`) is treated the same way.
+ * guessed at, and only its exact spelling is matched. A glob longer than
+ * `MAX_VIBE_GLOB_LENGTH` is treated the same way.
+ *
+ * The reach and the report are worked out here together so that the two cannot
+ * drift: every entry this returns unresolved is one the matcher took literally,
+ * and every entry it resolved is one no warning is owed for.
  * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/tools/manager.py
+ * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/utils/matching.py
  */
-function createVibeDisabledToolMatcher(entries: readonly string[]): (name: string) => boolean {
-  const matchers = entries.map((entry) => {
-    if (entry.startsWith(VIBE_REGEX_MATCHER_PREFIX) || !VIBE_GLOB_METACHARACTERS.test(entry)) {
-      return (name: string) => name === entry;
+function classifyDisabledToolEntries(entries: readonly string[]): VibeDisabledToolEntry[] {
+  return entries.map((entry) => {
+    const literally = (name: string): boolean => name === entry;
+    if (entry.startsWith(VIBE_REGEX_MATCHER_PREFIX)) {
+      return { entry, resolved: false, matches: literally };
     }
-    try {
-      const pattern = new RegExp(`^${fnmatchToRegExpSource(entry)}$`, "i");
-      return (name: string) => pattern.test(name);
-    } catch {
-      return (name: string) => name === entry;
+    if (!VIBE_GLOB_METACHARACTERS.test(entry)) {
+      return { entry, resolved: true, matches: literally };
     }
+    const tokens = parseVibeGlob(entry.toLowerCase());
+    if (tokens === undefined) {
+      return { entry, resolved: false, matches: literally };
+    }
+    return {
+      entry,
+      resolved: true,
+      matches: (name) => matchesVibeGlob({ tokens, characters: [...name.toLowerCase()] }),
+    };
   });
-  return (name) => matchers.some((matches) => matches(name));
+}
+
+/** Whether any `disabled_tools` entry switches off the tool named `name`. */
+function createVibeDisabledToolMatcher(entries: readonly string[]): (name: string) => boolean {
+  const classified = classifyDisabledToolEntries(entries);
+  return (name) => classified.some(({ matches }) => matches(name));
+}
+
+/**
+ * An entry copied out of `.vibe/config.toml` on its way into a log line: strip
+ * the control characters that would let it forge a line or hide the warnings
+ * beside it, and cap the length so one entry cannot fill the output.
+ */
+function displayVibeEntry(entry: string): string {
+  const stripped = stripControlCharacters(entry);
+  return stripped.length > 80 ? `${stripped.slice(0, 80)}…` : stripped;
+}
+
+/** The same, for the list a warning names. */
+function displayVibeEntries(entries: readonly string[]): string {
+  return entries.map(displayVibeEntry).join(", ");
 }
 
 /**
@@ -1669,43 +1895,21 @@ function warnOnUnresolvableDisabledTools({
   entries: readonly string[];
   tools: unknown;
 }): void {
-  const unresolvable = unresolvableDisabledToolEntries(entries);
+  const unresolvable = classifyDisabledToolEntries(entries)
+    .filter(({ resolved }) => !resolved)
+    .map(({ entry }) => entry);
   const toolNames = Object.keys(toVibeToolsRecord(tools));
   if (unresolvable.length === 0 || toolNames.length === 0) {
     return;
   }
   moduleLogger.warn(
-    `Vibe's disabled_tools carries ${unresolvable.join(", ")}, which rulesync does not expand: ` +
-      `a 're:' entry is a Python regular expression and a malformed glob matches nothing here. ` +
-      `Any [tools.<name>] table it silences upstream is imported as authored, so review the ` +
-      `imported permissions for ${toolNames.join(", ")}; spell the entry as a plain name or an ` +
-      `fnmatch glob to have rulesync honor it.`,
+    `Vibe's disabled_tools carries ${displayVibeEntries(unresolvable)}, which rulesync does not ` +
+      `expand: a 're:' entry is a Python regular expression, and a glob longer than ` +
+      `${MAX_VIBE_GLOB_LENGTH} characters is left alone. Any [tools.<name>] table it ` +
+      `silences upstream is imported as authored, so review the imported permissions for ` +
+      `${displayVibeEntries(toolNames)}; spell the entry as a plain name or a plain fnmatch glob ` +
+      `to have rulesync honor it.`,
   );
-}
-
-/**
- * The `disabled_tools` entries whose reach rulesync cannot work out: the `re:`
- * regexes, and the globs that do not compile.
- *
- * Named separately from the matcher above so the caller can say which entries
- * were taken literally, rather than leaving the user to discover that a table
- * they expected to be silenced was imported as-is.
- */
-function unresolvableDisabledToolEntries(entries: readonly string[]): string[] {
-  return entries.filter((entry) => {
-    if (entry.startsWith(VIBE_REGEX_MATCHER_PREFIX)) {
-      return true;
-    }
-    if (!VIBE_GLOB_METACHARACTERS.test(entry)) {
-      return false;
-    }
-    try {
-      void new RegExp(`^${fnmatchToRegExpSource(entry)}$`, "i");
-      return false;
-    } catch {
-      return true;
-    }
-  });
 }
 
 /**
