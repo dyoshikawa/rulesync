@@ -31,6 +31,19 @@ describe("mixedScriptsOf", () => {
     expect(mixedScriptsOf("a\u03b1")).toEqual(["Greek", "Latin"]);
   });
 
+  it("should report an alphabet that looks like Latin without being a familiar one", () => {
+    // "good" with both o's replaced by the Armenian o, U+0585. Armenian is one
+    // of the scripts UTS #39 lists as confusable with Latin, so it is named
+    // rather than left in the `Other` bucket, where a Latin mixture would be
+    // waved through as ordinary.
+    expect(mixedScriptsOf("g\u0585\u0585d")).toEqual(["Armenian", "Latin"]);
+  });
+
+  it("should report Cherokee beside Latin", () => {
+    // U+13AA is drawn as a capital A.
+    expect(mixedScriptsOf("\u13aadf")).toEqual(["Cherokee", "Latin"]);
+  });
+
   it("should treat a script it does not name as one bucket", () => {
     // Arabic and Thai are both `Other`, so a name built from the two alone is
     // not reported. This is the documented limit of the one-bucket fallback.
@@ -76,8 +89,10 @@ describe("describeConfusableNames", () => {
     // pair is only visible by comparing the two against each other.
     const notes = describeConfusableNames(["copy", CYRILLIC_COPY]);
 
-    expect(notes.get("copy")).toBe("another entry is the same name in a different script");
-    expect(notes.get(CYRILLIC_COPY)).toBe("another entry is the same name in a different script");
+    expect(notes.get("copy")).toBe("another entry differs from it only by lookalike letters");
+    expect(notes.get(CYRILLIC_COPY)).toBe(
+      "another entry differs from it only by lookalike letters",
+    );
   });
 
   it("should not note names that differ within a single script", () => {
@@ -94,10 +109,10 @@ describe("describeConfusableNames", () => {
     const notes = describeConfusableNames(["good", HALF_CYRILLIC_GOOD]);
 
     expect(notes.get(HALF_CYRILLIC_GOOD)).toBe(
-      "another entry is the same name in a different script; " +
+      "another entry differs from it only by lookalike letters; " +
         "mixes characters from Cyrillic and Latin",
     );
-    expect(notes.get("good")).toBe("another entry is the same name in a different script");
+    expect(notes.get("good")).toBe("another entry differs from it only by lookalike letters");
   });
 
   it("should list three scripts as a sentence rather than a chain of ands", () => {
@@ -115,6 +130,38 @@ describe("describeConfusableNames", () => {
     const notes = describeConfusableNames([withArabic]);
 
     expect(notes.get(withArabic)).toBe("mixes characters from Cyrillic and another script");
+  });
+
+  it("should fold an invisible character that normalization turns into another", () => {
+    // U+3164 HANGUL FILLER shows nothing and is a Hangul letter, so a check
+    // aimed at Latin would pass it; NFKC then turns it into U+1160, which shows
+    // nothing either. Stripping only once, on either side of the
+    // normalization, would leave the two names apart.
+    const hangulFiller = "pd\u3164f";
+    const notes = describeConfusableNames(["pdf", hangulFiller]);
+
+    expect(notes.get("pdf")).toBe("another entry has the same display form");
+    expect(notes.get(hangulFiller)).toBe("another entry has the same display form");
+  });
+
+  it("should not call two names of the same length twins when nothing links them", () => {
+    // Same length and no shared script, but no one would take a Japanese name
+    // for a two-letter Latin one. Marking these would fire on ordinary
+    // repositories often enough to make the mark worth ignoring.
+    expect(describeConfusableNames(["\u8a2d\u5b9a", "ai"])).toEqual(new Map());
+    expect(describeConfusableNames(["\uaddc\uce59", "go"])).toEqual(new Map());
+  });
+
+  it("should note a twin written in an alphabet only UTS #39 would name", () => {
+    // "copy" with the Latin o replaced by the Armenian o, U+0585.
+    const armenian = "c\u0585py";
+    const notes = describeConfusableNames(["copy", armenian]);
+
+    expect(notes.get("copy")).toBe("another entry differs from it only by lookalike letters");
+    expect(notes.get(armenian)).toBe(
+      "another entry differs from it only by lookalike letters; " +
+        "mixes characters from Armenian and Latin",
+    );
   });
 
   it("should not report a repeated name as colliding with itself", () => {

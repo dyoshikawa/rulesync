@@ -420,21 +420,21 @@ The interactive prompt therefore prefixes such an entry with `[!]` and the reaso
 ```text
 ? Select skills to fetch (press <a> to select/deselect all)
  ◯ pdf
- ◯ [!] another entry is the same name in a different script — skill
- ◯ [!] another entry is the same name in a different script; mixes characters from Cyrillic and Latin — сkill
+ ◯ [!] another entry differs from it only by lookalike letters — skill
+ ◯ [!] another entry differs from it only by lookalike letters; mixes characters from Cyrillic and Latin — сkill
 ```
 
-The mark comes first so that a name — which the remote repository chooses — cannot be spelled to look like a mark of its own, or reorder one away. A name too long for a line is shortened with an ellipsis for the same reason; the value behind the label is untouched, so the shortened entry still selects the skill it names.
+The mark comes first so that a name — which the remote repository chooses — cannot be spelled to look like a mark of its own, or reorder one away. A label too long for a line is shortened with an ellipsis for the same reason, and two entries shortened into the same label are numbered so they stay distinct. The value behind a label is untouched, so a shortened entry still selects the skill it names.
 
 An entry is marked for any of three reasons:
 
-- **Another entry has the same display form.** Names are compared with their invisible characters removed, normalized (NFKC), and lowercased, so `Skill`, `skill` and the fullwidth `ｓｋｉｌｌ` all collide.
-- **Another entry is the same name in a different script.** Two names of the same length whose differing positions each hold characters of two different scripts — `copy` beside the same word spelled entirely in Cyrillic. Neither name mixes scripts on its own, so this pair is visible only by comparing the two.
-- **The name mixes scripts.** A single name built from scripts that share letter shapes, such as `good` with a Cyrillic `о`. Japanese, Korean and Chinese names mix scripts by nature and routinely carry Latin, so those combinations are not marked, and neither is Latin beside a script that shares no shapes with it.
+- **Another entry has the same display form.** Names are compared with their hidden characters removed, normalized (NFKC), and lowercased, so `Skill`, `skill` and the fullwidth `ｓｋｉｌｌ` all collide.
+- **Another entry differs from it only by lookalike letters.** Two names of the same length whose differing positions each hold letters of two different lookalike alphabets — `copy` beside the same word spelled entirely in Cyrillic. Neither name mixes scripts on its own, so this pair is visible only by comparing the two.
+- **The name mixes scripts.** A single name built from scripts that share letter shapes, such as `good` with a Cyrillic `о`. The alphabets treated as lookalikes are Latin, Cyrillic, Greek, Armenian, Cherokee, Coptic, Lisu and Canadian Aboriginal Syllabics, which are the ones UTS #39 records as confusable with each other. Japanese, Korean and Chinese names mix scripts by nature and routinely carry Latin, so those combinations are not marked, and neither is Latin beside a script that shares no shapes with it.
 
 The mark is display-only: it never removes a skill from the list, and a skill written in a single script with no lookalike beside it is not marked. It is a hint to look closer, not a guarantee that unmarked entries are distinct.
 
-Names that cannot be shown honestly at all are a separate case: a skill directory whose name carries a control character or a zero-width one is dropped before the prompt, with a warning naming it in stripped form, rather than being offered with a mark.
+Names that cannot be shown honestly at all are a separate case: a skill directory whose name carries a control character or one that draws as nothing — a zero-width space, a variation selector, a Hangul filler — is dropped rather than marked, with a warning naming it in stripped form. That drop applies to every `fetch`, including a plain one with neither `--skills` nor `--interactive`, because such a directory on disk cannot be told from the plain name it imitates in any line Rulesync prints.
 
 #### Remote Paths in Rulesync's Output
 

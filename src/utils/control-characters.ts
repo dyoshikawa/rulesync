@@ -22,18 +22,26 @@ export function stripControlCharacters(text: string): string {
 }
 
 /**
- * Matches the characters that take no width of their own: the zero-width space,
- * joiners and non-joiner, the soft hyphen, the Mongolian vowel separator, the
- * Arabic letter mark, the word joiner and the invisible operators beside it,
- * the byte order mark, the interlinear annotation marks, and the tag
- * characters. None of them is a
- * control character, so none is caught by `stripControlCharacters` — and none
- * of them shows. A name that differs from another only by one of these is drawn
- * exactly like it, which is why a name that carries one is not a name a user can
- * be asked to judge.
+ * Matches the characters that take no width of their own.
+ *
+ * `Default_Ignorable_Code_Point` is the Unicode property for exactly this — the
+ * zero-width joiners, the soft hyphen, the variation selectors, the Hangul
+ * fillers, the tag characters — and the format category `Cf` covers the few
+ * that sit outside it, such as the interlinear annotation marks. Both are used
+ * rather than a list of ranges because a list has to be revisited every time
+ * Unicode adds one, and the one that is missed is the one an attacker reaches
+ * for: U+3164 HANGUL FILLER, the classic of the homograph domain names, is a
+ * letter of the Hangul script and would pass every check aimed at Latin.
+ *
+ * The braille blank is named on its own. It carries no dots, so it draws as
+ * nothing while belonging to neither set.
+ *
+ * None of these is a control character, so none is caught by
+ * `stripControlCharacters` — and none of them shows. A name that differs from
+ * another only by one of these is drawn exactly like it, which is why a name
+ * that carries one is not a name a user can be asked to judge.
  */
-const INVISIBLE_CHARACTERS_PATTERN =
-  /[\u00ad\u061c\u180e\u200b-\u200d\u2060-\u2064\ufeff\ufff9-\ufffb\u{e0000}-\u{e007f}]/gu;
+const INVISIBLE_CHARACTERS_PATTERN = /[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu;
 
 /**
  * Removes every zero-width and otherwise invisible character from `text`.
@@ -45,4 +53,17 @@ const INVISIBLE_CHARACTERS_PATTERN =
  */
 export function stripInvisibleCharacters(text: string): string {
   return text.replace(INVISIBLE_CHARACTERS_PATTERN, "");
+}
+
+/**
+ * Removes every character that does not show: the control characters and the
+ * invisible ones alike.
+ *
+ * This is the form a name has to survive unchanged before it can be offered as
+ * something to choose. Callers that need the whole answer should reach for this
+ * rather than composing the two strippers themselves, so that the order — and
+ * the definition of "hidden" — lives in one place.
+ */
+export function stripHiddenCharacters(text: string): string {
+  return stripInvisibleCharacters(stripControlCharacters(text));
 }

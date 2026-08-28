@@ -35,7 +35,7 @@ import type {
   ParsedSource,
 } from "../types/fetch.js";
 import type { ToolTarget } from "../types/tool-targets.js";
-import { stripControlCharacters, stripInvisibleCharacters } from "../utils/control-characters.js";
+import { stripControlCharacters, stripHiddenCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
@@ -324,7 +324,7 @@ function classifySkillPath(relativePath: string): SkillPathClass {
   if (name === "." || name === ".." || name.includes("\\")) {
     return NON_SKILL_PATH;
   }
-  const display = stripInvisibleCharacters(stripControlCharacters(name));
+  const display = stripHiddenCharacters(name);
   if (display !== name) {
     return { kind: "unsafe-name", raw: name, display };
   }
@@ -444,35 +444,46 @@ async function applySkillSelection(params: {
 }): Promise<CollectedFile[]> {
   const { files, requestedSkills, interactive, logger } = params;
 
-  if (requestedSkills.length === 0 && !interactive) {
-    return files;
-  }
+  // Without --skills and without --interactive there is no selection to apply:
+  // every skill the repository publishes is fetched. The unsafe names are still
+  // dropped on that path, because writing one would put a directory on disk
+  // that no line of the summary can tell apart from the name it imitates.
+  const selectsEverything = requestedSkills.length === 0 && !interactive;
 
-  const availableSkills = listAvailableSkills(files);
+  let selectedSkills: string[] = [];
+  if (!selectsEverything) {
+    const availableSkills = listAvailableSkills(files);
 
-  if (requestedSkills.length > 0) {
-    const unknownSkills = requestedSkills.filter((name) => !availableSkills.includes(name));
-    if (unknownSkills.length > 0) {
-      const availableText =
-        availableSkills.length > 0 ? availableSkills.join(", ") : "(no skills found)";
-      throw new Error(
-        `Unknown skill(s): ${unknownSkills.join(", ")}. Available skills: ${availableText}`,
-      );
+    if (requestedSkills.length > 0) {
+      const unknownSkills = requestedSkills.filter((name) => !availableSkills.includes(name));
+      if (unknownSkills.length > 0) {
+        // Both sides are quoted: the requested names came from the command line
+        // and the available ones from the remote repository, and a name holding
+        // a comma would otherwise read as two.
+        const availableText =
+          availableSkills.length > 0
+            ? availableSkills.map((name) => JSON.stringify(name)).join(", ")
+            : "(no skills found)";
+        throw new Error(
+          `Unknown skill(s): ${unknownSkills.map((name) => JSON.stringify(name)).join(", ")}. ` +
+            `Available skills: ${availableText}`,
+        );
+      }
     }
-  }
 
-  let selectedSkills = requestedSkills;
-  if (interactive) {
-    if (availableSkills.length === 0) {
-      logger.warn("No skills found in the source repository to select from.");
-      selectedSkills = [];
-    } else {
-      selectedSkills = await promptSkillSelection({
-        availableSkills,
-        preselectedSkills: requestedSkills,
-      });
-      if (selectedSkills.length === 0) {
-        logger.warn("No skills were selected in the interactive prompt; skipping all skills.");
+    selectedSkills = requestedSkills;
+    if (interactive) {
+      if (availableSkills.length === 0) {
+        logger.warn("No skills found in the source repository to select from.");
+        selectedSkills = [];
+      } else {
+        selectedSkills = await promptSkillSelection({
+          availableSkills,
+          preselectedSkills: requestedSkills,
+        });
+        if (selectedSkills.length === 0) {
+          logger.warn("No skills were selected in the interactive prompt; skipping all skills.");
+        }
       }
     }
   }
@@ -493,7 +504,7 @@ async function applySkillSelection(params: {
       droppedUnsafeNames.set(skill.raw, skill.display);
       return false;
     }
-    return selectedSet.has(skill.name);
+    return selectsEverything || selectedSet.has(skill.name);
   });
 
   if (droppedUnsafeNames.size > 0) {
@@ -529,8 +540,8 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
   const plural = droppedUnsafeNames.size !== 1;
   const lead =
     `Skipping ${plural ? `${droppedUnsafeNames.size} skill directories whose names contain` : "one skill directory whose name contains"} ` +
-    `hidden characters. Such a name cannot be listed truthfully, so it is never offered for ` +
-    `selection.`;
+    `hidden characters. Such a name cannot be shown truthfully, so it is neither offered for ` +
+    `selection nor fetched.`;
 
   if (shown === "") {
     return (
@@ -1159,7 +1170,10 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
 
   // Resolve ref to use
   const ref = resolvedRef ?? (await client.getDefaultBranch(parsed.owner, parsed.repo));
-  logger.debug(`Using ref: ${ref}`);
+  // A default branch name is chosen by the remote repository, and git allows
+  // characters in it that reorder a terminal line, so it is stripped like every
+  // other remote-controlled string this command prints.
+  logger.debug(`Using ref: ${stripControlCharacters(ref)}`);
 
   // If target is a tool format, use conversion flow
   if (isToolTarget(target)) {
@@ -1482,7 +1496,9 @@ async function fetchAndConvertToolFiles(params: {
           client.getFileContent(parsed.owner, parsed.repo, remotePath, ref),
         );
         await writeFileContent(localPath, content);
-        logger.debug(`Fetched to temp: ${stripControlCharacters(toolRelativePath)}`);
+        logger.debug(
+          `Fetched to temp: ${JSON.stringify(stripControlCharacters(toolRelativePath))}`,
+        );
       }),
     );
 
@@ -1692,7 +1708,9 @@ function fetchStatusText(status: FetchFileResult["status"]): string {
 export function formatFetchSummary(summary: FetchSummary): string {
   const lines: string[] = [];
 
-  lines.push(`Fetched from ${summary.source}@${summary.ref}:`);
+  // The ref comes from the remote repository when it was not given on the
+  // command line, so it is stripped alongside the paths below.
+  lines.push(`Fetched from ${summary.source}@${stripControlCharacters(summary.ref)}:`);
 
   for (const file of summary.files) {
     const icon = fetchStatusIcon(file.status);

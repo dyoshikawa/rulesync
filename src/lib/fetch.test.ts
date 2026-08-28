@@ -1310,7 +1310,7 @@ describe("fetchFiles with skill selection", () => {
         options: { skills: ["skill-a", "no-such-skill"] },
         outputRoot: testDir,
       }),
-    ).rejects.toThrow("Unknown skill(s): no-such-skill. Available skills: skill-a, skill-b");
+    ).rejects.toThrow('Unknown skill(s): "no-such-skill". Available skills: "skill-a", "skill-b"');
   });
 
   it("should throw error when skills option is used without the skills feature", async () => {
@@ -1582,6 +1582,51 @@ describe("fetchFiles with skill selection", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"pdf"'));
   });
 
+  it("should drop a skill directory with a hidden character even with no selection", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    const hiddenName = "pd\u3164f";
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              { name: hiddenName, path: `skills/${hiddenName}`, type: "dir" },
+            ],
+          );
+        }
+        if (path === `skills/${hiddenName}`) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `skills/${hiddenName}/SKILL.md`,
+              type: "file",
+              sha: "ggg",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+
+    // Neither --skills nor --interactive: everything the repository publishes
+    // is fetched, which is exactly why the name that cannot be shown honestly
+    // has to be left out here too.
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    const relativePaths = summary.files.map((f) => f.relativePath).toSorted();
+    expect(relativePaths).toEqual(["skills/skill-a/SKILL.md", "skills/skill-b/SKILL.md"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"pdf"'));
+  });
+
   it("should count two indistinguishable unsafe names as two skipped directories", async () => {
     mockMultiSkillRepository();
     const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
@@ -1665,7 +1710,7 @@ describe("fetchFiles with skill selection", () => {
         options: { target: "claudecode", skills: ["no-such-skill"] },
         outputRoot: testDir,
       }),
-    ).rejects.toThrow("Unknown skill(s): no-such-skill");
+    ).rejects.toThrow('Unknown skill(s): "no-such-skill"');
   });
 
   it("should apply the interactive selection in the tool-target conversion flow too", async () => {

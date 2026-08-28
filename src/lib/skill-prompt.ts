@@ -28,19 +28,31 @@ const SKILL_PROMPT_SHORTCUTS = {
 } as const;
 
 /**
- * How much of a name the prompt draws. A directory name can be 255 bytes long,
+ * How long a label the prompt draws. A directory name can be 255 bytes long,
  * which wraps across several lines of a terminal and lets a name padded with
- * spaces paint what looks like another entry underneath itself. What is cut is
- * only the label: the value stays whole, so a shortened name still stands for
- * the directory it names.
+ * spaces paint what looks like another entry underneath itself. The limit is on
+ * the whole label rather than on the name alone, so a long note cannot push the
+ * name onto a second line either. What is cut is only the label: the value
+ * stays whole, so a shortened name still stands for the directory it names.
  */
 const MAX_SKILL_LABEL_LENGTH = 72;
 
-function shortenSkillName(name: string): string {
+/**
+ * How much of a name survives however long the note in front of it is. A name
+ * cut to nothing would leave the picker choosing between rows it cannot tell
+ * apart at all, which is worse than a label that wraps.
+ */
+const MIN_SHORTENED_NAME_LENGTH = 16;
+
+function shortenSkillName(params: { name: string; budget: number }): string {
+  const { name, budget } = params;
   const characters = [...name];
-  return characters.length <= MAX_SKILL_LABEL_LENGTH
-    ? name
-    : `${characters.slice(0, MAX_SKILL_LABEL_LENGTH).join("")}\u2026`;
+  if (characters.length <= budget) {
+    return name;
+  }
+  // The ellipsis is part of the budget rather than something added on top of
+  // it, so a shortened label is never longer than one that was left alone.
+  return `${characters.slice(0, Math.max(budget - 1, 1)).join("")}\u2026`;
 }
 
 /**
@@ -55,8 +67,43 @@ function shortenSkillName(name: string): string {
  */
 function formatSkillChoiceLabel(params: { name: string; note: string | undefined }): string {
   const { name, note } = params;
-  const shortened = shortenSkillName(name);
-  return note === undefined ? shortened : `[!] ${note} \u2014 ${shortened}`;
+  if (note === undefined) {
+    return shortenSkillName({ name, budget: MAX_SKILL_LABEL_LENGTH });
+  }
+  const prefix = `[!] ${note} \u2014 `;
+  const budget = Math.max(MAX_SKILL_LABEL_LENGTH - [...prefix].length, MIN_SHORTENED_NAME_LENGTH);
+  return `${prefix}${shortenSkillName({ name, budget })}`;
+}
+
+/**
+ * Label every skill on the list, keeping the labels distinct.
+ *
+ * Shortening is what makes this necessary: two names that share a long enough
+ * beginning are cut down to the same label, and a repository can pick them so
+ * that they are. Names that collide only after shortening carry no note of
+ * their own — nothing about them is confusable until the prompt truncates them
+ * — so the numbering is added here, where the truncation happens, rather than
+ * being asked of `describeConfusableNames`.
+ */
+function formatSkillChoiceLabels(params: {
+  names: string[];
+  notes: ReadonlyMap<string, string>;
+}): string[] {
+  const { names, notes } = params;
+  const labels = names.map((name) => formatSkillChoiceLabel({ name, note: notes.get(name) }));
+  const counts = new Map<string, number>();
+  for (const label of labels) {
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  const numbered = new Map<string, number>();
+  return labels.map((label) => {
+    if ((counts.get(label) ?? 0) < 2) {
+      return label;
+    }
+    const position = (numbered.get(label) ?? 0) + 1;
+    numbered.set(label, position);
+    return `${label} (${position})`;
+  });
 }
 
 /**
@@ -76,16 +123,17 @@ export async function promptSkillSelection(params: {
 }): Promise<string[]> {
   const { availableSkills, preselectedSkills } = params;
   const confusableNotes = describeConfusableNames(availableSkills);
+  // The label is the only thing the user judges a skill by, and two names can
+  // be drawn identically. The labels carry the note that says so, and are made
+  // distinct from each other; `value` stays the real name, so what is written
+  // is still exactly what was checked.
+  const labels = formatSkillChoiceLabels({ names: availableSkills, notes: confusableNotes });
 
   try {
     return await checkbox({
       message: `Select skills to fetch (press <${SKILL_PROMPT_SHORTCUTS.all}> to select/deselect all)`,
-      choices: availableSkills.map((name) => ({
-        // The label is the only thing the user judges a skill by, and two names
-        // can be drawn identically. The note says so where that is the case;
-        // `value` stays the real name, so what is written is still exactly what
-        // was checked.
-        name: formatSkillChoiceLabel({ name, note: confusableNotes.get(name) }),
+      choices: availableSkills.map((name, index) => ({
+        name: labels[index] ?? name,
         value: name,
         // Start from nothing selected. Fetching writes files into the user's
         // project, so an unattended <enter> should fetch nothing rather than
