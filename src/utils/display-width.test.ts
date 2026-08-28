@@ -30,6 +30,14 @@ describe("displayWidthOf", () => {
     ["a black large square", "\u2b1b", 2],
     // A symbol drawn as text unless a selector asks otherwise stays one column.
     ["a text-presentation symbol", "\u2600", 1],
+    // The Hangul jamo extended block, which sits above the syllables with a
+    // reserved gap between the two: the range has to start at U+D7B0 rather
+    // than run on from U+D7A3.
+    ["an extended Hangul jamo", "\ud7b0", 2],
+    ["the last extended Hangul jamo", "\ud7fb", 2],
+    // The reserved gap itself is not drawn wide by a terminal, and counting it
+    // as one column is what keeps the range honest.
+    ["the gap above the Hangul syllables", "\ud7a4", 1],
     ["a hexagram", "\u4dc0", 2],
     ["an angle bracket", "\u2329", 2],
     // Two marks on one letter are how a written language uses them.

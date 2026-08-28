@@ -44,6 +44,20 @@ describe("mixedScriptsOf", () => {
     expect(mixedScriptsOf("\u13aadf")).toEqual(["Cherokee", "Latin"]);
   });
 
+  it.each([
+    ["Vai", "\ua500pdf", ["Latin", "Vai"]],
+    ["Canadian Aboriginal", "\u1401pdf", ["Canadian Aboriginal", "Latin"]],
+  ])(
+    "should report %s beside Latin even though it is not read as Latin on its own",
+    (_label, name, expected) => {
+      // Neither script is taken whole by the Latin-shaped list, because neither
+      // is drawn in Latin shapes throughout. Both are still named rather than
+      // left in the `Other` bucket, so the letters of theirs that do resemble a
+      // Latin one are reported when they turn up in a Latin name.
+      expect(mixedScriptsOf(name)).toEqual(expected);
+    },
+  );
+
   it("should treat a script it does not name as one bucket", () => {
     // Arabic and Thai are both `Other`, so a name built from the two alone is
     // not reported. This is the documented limit of the one-bucket fallback.
@@ -331,6 +345,27 @@ describe("describeConfusableNames", () => {
     expect(describeConfusableNames(["\ua4d1\ua4d3\ua4de"]).get("\ua4d1\ua4d3\ua4de")).toBe(
       "reads as Latin letters but is written in Lisu",
     );
+  });
+
+  it.each([
+    ["Tifinagh", "\u2d4f\u2d3d\u2d4d"],
+    ["Deseret", "\u{10428}\u{10429}\u{1042a}"],
+    ["Coptic", "\u2c9f\u2ca3\u2c9b"],
+  ])("should report a name written wholly in %s the same way", (script, name) => {
+    expect(describeConfusableNames([name]).get(name)).toBe(
+      `reads as Latin letters but is written in ${script}`,
+    );
+  });
+
+  it.each([
+    ["Vai", "\ua500\ua502\ua504"],
+    ["Canadian Aboriginal", "\u1401\u1403\u1405"],
+  ])("should not report a name written wholly in %s", (_script, name) => {
+    // Both alphabets are drawn in shapes of their own, so a name in either
+    // reads as nothing Latin. Saying that it does would be a false note on an
+    // ordinary name — the only alphabets taken whole are the ones built from
+    // Latin letter shapes.
+    expect(describeConfusableNames([name])).toEqual(new Map());
   });
 
   it("should not report a repeated name as colliding with itself", () => {

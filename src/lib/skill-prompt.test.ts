@@ -233,6 +233,22 @@ describe("promptSkillSelection", () => {
     expect(choices[0]?.value).toBe(impostor);
   });
 
+  it("should mark a name that draws the prompt's brackets with other brackets", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // U+2045 and U+2046 are square brackets with a quill on them, and are the
+    // shape a reader takes for the plain pair this list opens a warning with.
+    const impostor = "\u2045!\u2046 another entry has the same display form \u2014 pdf";
+
+    await promptSkillSelection({ availableSkills: [impostor], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(choices[0]?.name).toMatch(/^\[!\] begins the way this list marks its own rows \u2014 /u);
+    expect(choices[0]?.value).toBe(impostor);
+  });
+
   it("should number rows whose labels read alike without being the same text", async () => {
     checkboxMock.mockResolvedValue([]);
     // `git` and `ɡit` (U+0261) carry the same note as each other, so the two

@@ -1231,6 +1231,47 @@ describe("fetchFiles with skill selection", () => {
     mockClientInstance.getFileContent.mockResolvedValue("# Skill");
   }
 
+  /**
+   * The two-skill repository above, plus a directory per name in `names`, each
+   * holding one `SKILL.md`.
+   *
+   * Every test below asks the same question of a name a repository could
+   * publish — is it offered, is it fetched, is it warned about — and differs
+   * only in the name. Spelling the listing out once per test buried that one
+   * difference under twenty lines of identical mock, so the listing lives here
+   * and each test names only what it is about.
+   */
+  function mockSkillRepositoryWithSkills(names: string[]): void {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    const extraPaths = new Set(names.map((name) => `skills/${name}`));
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              ...names.map((name) => ({ name, path: `skills/${name}`, type: "dir" })),
+            ],
+          );
+        }
+        if (extraPaths.has(path)) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `${path}/SKILL.md`,
+              type: "file",
+              sha: "eee",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+  }
+
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
     vi.spyOn(process, "cwd").mockReturnValue(testDir);
@@ -1432,33 +1473,7 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should not fetch a skill directory whose name is invisible once stripped", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              { name: "\u200e", path: "skills/\u200e", type: "dir" },
-            ],
-          );
-        }
-        if (path === "skills/\u200e") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/\u200e/SKILL.md",
-              type: "file",
-              sha: "eee",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
-    );
+    mockSkillRepositoryWithSkills(["\u200e"]);
     isInteractiveTerminalMock.mockReturnValue(true);
     promptSkillSelectionMock.mockResolvedValue([]);
 
@@ -1486,33 +1501,7 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should not let a skill that only displays as another one ride along with it", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              { name: "skill\u200e-a", path: "skills/skill\u200e-a", type: "dir" },
-            ],
-          );
-        }
-        if (path === "skills/skill\u200e-a") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/skill\u200e-a/SKILL.md",
-              type: "file",
-              sha: "ddd",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
-    );
+    mockSkillRepositoryWithSkills(["skill\u200e-a"]);
     isInteractiveTerminalMock.mockReturnValue(true);
     promptSkillSelectionMock.mockResolvedValue(["skill-a"]);
 
@@ -1531,37 +1520,10 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should not fetch a skill directory whose name hides a zero-width character", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
     // A zero-width space is not a control character, so nothing about this name
     // is caught by the control-character strip alone \u2014 yet it is drawn exactly
     // like the plain "pdf" a user would read it as.
-    const zeroWidthName = "pd\u200bf";
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              { name: zeroWidthName, path: `skills/${zeroWidthName}`, type: "dir" },
-            ],
-          );
-        }
-        if (path === `skills/${zeroWidthName}`) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `skills/${zeroWidthName}/SKILL.md`,
-              type: "file",
-              sha: "fff",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
-    );
+    mockSkillRepositoryWithSkills(["pd\u200bf"]);
     isInteractiveTerminalMock.mockReturnValue(true);
     promptSkillSelectionMock.mockResolvedValue(["skill-a"]);
 
@@ -1583,34 +1545,7 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should drop a skill directory with a hidden character even with no selection", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
-    const hiddenName = "pd\u3164f";
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              { name: hiddenName, path: `skills/${hiddenName}`, type: "dir" },
-            ],
-          );
-        }
-        if (path === `skills/${hiddenName}`) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `skills/${hiddenName}/SKILL.md`,
-              type: "file",
-              sha: "ggg",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
-    );
+    mockSkillRepositoryWithSkills(["pd\u3164f"]);
 
     // Neither --skills nor --interactive: everything the repository publishes
     // is fetched, which is exactly why the name that cannot be shown honestly
@@ -1628,38 +1563,12 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should fetch a name whose zero-width joiner is how its script is written", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
     // Persian for "settings", written the way Persian writes it: a zero-width
     // non-joiner (U+200C) between the two words. Refusing this would refuse an
     // ordinary name rather than a disguise, so the joiner is judged by the
     // company it keeps \u2014 here, Arabic letters rather than Latin ones.
     const persianName = "\u062a\u0646\u0638\u06cc\u0645\u200c\u0627\u062a";
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              { name: persianName, path: `skills/${persianName}`, type: "dir" },
-            ],
-          );
-        }
-        if (path === `skills/${persianName}`) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `skills/${persianName}/SKILL.md`,
-              type: "file",
-              sha: "hhh",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
-    );
+    mockSkillRepositoryWithSkills([persianName]);
 
     const summary = await fetchFiles({
       logger,
@@ -1677,36 +1586,9 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should not fetch a skill directory whose name is nothing but blank space", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
     // Every character shows something \u2014 an ideographic space shows a gap \u2014 so
     // nothing here is hidden; the row the prompt would draw is still blank.
-    const blankName = "\u3000 ";
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              { name: blankName, path: `skills/${blankName}`, type: "dir" },
-            ],
-          );
-        }
-        if (path === `skills/${blankName}`) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `skills/${blankName}/SKILL.md`,
-              type: "file",
-              sha: "iii",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
-    );
+    mockSkillRepositoryWithSkills(["\u3000 "]);
 
     const summary = await fetchFiles({
       logger,
@@ -1723,38 +1605,7 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should count two indistinguishable unsafe names as two skipped directories", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
-    const unsafeDirs = ["skills/\u200e", "skills/\u200f"];
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              ...unsafeDirs.map((dirPath) => ({
-                name: dirPath.slice("skills/".length),
-                path: dirPath,
-                type: "dir",
-              })),
-            ],
-          );
-        }
-        if (unsafeDirs.includes(path)) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `${path}/SKILL.md`,
-              type: "file",
-              sha: "ccc",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
-    );
+    mockSkillRepositoryWithSkills(["\u200e", "\u200f"]);
     isInteractiveTerminalMock.mockReturnValue(true);
     promptSkillSelectionMock.mockResolvedValue([]);
 
@@ -1777,40 +1628,10 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should count the unsafe names it does not spell out", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
     // Twelve directories, each named for a real word with a zero-width space in
     // it: the warning spells out ten and says how many it did not.
-    const unsafeNames = Array.from({ length: 12 }, (_unused, index) => `pd\u200bf-${index}`);
-    const unsafeDirs = unsafeNames.map((name) => `skills/${name}`);
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              ...unsafeNames.map((name) => ({
-                name,
-                path: `skills/${name}`,
-                type: "dir",
-              })),
-            ],
-          );
-        }
-        if (unsafeDirs.includes(path)) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `${path}/SKILL.md`,
-              type: "file",
-              sha: "ddd",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
+    mockSkillRepositoryWithSkills(
+      Array.from({ length: 12 }, (_unused, index) => `pd\u200bf-${index}`),
     );
 
     const summary = await fetchFiles({
@@ -1828,36 +1649,9 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should skip a skill directory named with marks that have nothing to sit on", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
     // A combining acute accent on its own: it survives every strip, and draws
     // as a smear over whatever the terminal puts beside it.
-    const unsafeDir = "skills/\u0301";
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              { name: "\u0301", path: unsafeDir, type: "dir" },
-            ],
-          );
-        }
-        if (path === unsafeDir) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `${unsafeDir}/SKILL.md`,
-              type: "file",
-              sha: "eee",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
-    );
+    mockSkillRepositoryWithSkills(["\u0301"]);
 
     const summary = await fetchFiles({
       logger,
@@ -1876,37 +1670,10 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should say which fetched names read alike when there is no prompt to say it in", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
     // "copy" spelled with a zero for the o: nothing about either name is
     // hidden, so both are fetched, and a run with no prompt has nowhere else to
     // be told that the two read the same.
-    const lookalikes = ["copy", "c0py"];
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              ...lookalikes.map((name) => ({ name, path: `skills/${name}`, type: "dir" })),
-            ],
-          );
-        }
-        if (lookalikes.some((name) => path === `skills/${name}`)) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `${path}/SKILL.md`,
-              type: "file",
-              sha: "fff",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
-    );
+    mockSkillRepositoryWithSkills(["copy", "c0py"]);
 
     const summary = await fetchFiles({
       logger,
@@ -1925,38 +1692,11 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should judge a --skills run against every name the repository publishes", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
     // The user asks for one of the two by name, as a scripted run does. The
     // twin is what makes the requested name confusable, and it is not on the
     // list of what was fetched — so a warning that only looked at the fetched
     // names would find nothing to say.
-    const lookalikes = ["copy", "c0py"];
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              ...lookalikes.map((name) => ({ name, path: `skills/${name}`, type: "dir" })),
-            ],
-          );
-        }
-        if (lookalikes.some((name) => path === `skills/${name}`)) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `${path}/SKILL.md`,
-              type: "file",
-              sha: "fff",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
-    );
+    mockSkillRepositoryWithSkills(["copy", "c0py"]);
 
     const summary = await fetchFiles({
       logger,
@@ -1979,38 +1719,10 @@ describe("fetchFiles with skill selection", () => {
   });
 
   it("should count the lookalike names it does not spell out", async () => {
-    mockMultiSkillRepository();
-    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
     // Six pairs, each a name and the same name with a capital I for the l:
     // twelve noted names, of which the warning spells out ten.
-    const lookalikes = Array.from({ length: 6 }, (_unused, index) => [
-      `rules-${index}`,
-      `ruIes-${index}`,
-    ]).flat();
-    mockClientInstance.listDirectory.mockImplementation(
-      (owner: string, repo: string, path: string, ref: string) => {
-        if (path === "skills") {
-          return baseImplementation(owner, repo, path, ref).then(
-            (entries: Array<Record<string, unknown>>) => [
-              ...entries,
-              ...lookalikes.map((name) => ({ name, path: `skills/${name}`, type: "dir" })),
-            ],
-          );
-        }
-        if (lookalikes.some((name) => path === `skills/${name}`)) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `${path}/SKILL.md`,
-              type: "file",
-              sha: "fff",
-              size: 40,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        return baseImplementation(owner, repo, path, ref);
-      },
+    mockSkillRepositoryWithSkills(
+      Array.from({ length: 6 }, (_unused, index) => [`rules-${index}`, `ruIes-${index}`]).flat(),
     );
 
     await fetchFiles({ logger, source: "owner/repo", options: {}, outputRoot: testDir });

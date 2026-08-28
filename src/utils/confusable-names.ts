@@ -545,14 +545,11 @@ export function mixedScriptsOf(name: string): string[] | undefined {
  * colliding with itself.
  */
 export function describeConfusableNames(names: string[]): Map<string, string> {
-  const entries = [...new Set(names)].map((name) => {
-    const normalizedForm = normalizedFormOf(name);
-    return {
-      name,
-      displayForm: normalizedForm.toLowerCase(),
-      skeleton: latinSkeletonOf(name),
-    };
-  });
+  const entries = [...new Set(names)].map((name) => ({
+    name,
+    displayForm: displayFormOf(name),
+    skeleton: latinSkeletonOf(name),
+  }));
 
   const displayFormCounts = new Map<string, number>();
   const skeletonCounts = new Map<string, number>();
