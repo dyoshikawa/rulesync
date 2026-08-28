@@ -88,3 +88,58 @@ describe("AiDir.ownsDirTree", () => {
     expect(dir.ownsDirTree()).toBe(false);
   });
 });
+
+describe("AiDir.getFlatFilePath", () => {
+  /** A subclass that flattens into a shared root, the way `TaktSkill` does. */
+  class FlattenedAiDir extends TestAiDir {
+    override getDirPath(): string {
+      return join(this.getOutputRoot(), this.getRelativeDirPath());
+    }
+  }
+
+  function makeFlattenedDir(params: { mainFileName?: string }): FlattenedAiDir {
+    const { mainFileName } = params;
+    return new FlattenedAiDir({
+      outputRoot: "/repo",
+      relativeDirPath: ".takt/facets/knowledge",
+      dirName: "my-skill",
+      mainFile:
+        mainFileName === undefined ? undefined : { name: mainFileName, body: "", frontmatter: {} },
+    });
+  }
+
+  it("should name the file the entry flattens into", () => {
+    expect(makeFlattenedDir({ mainFileName: "my-skill.md" }).getFlatFilePath()).toBe(
+      join("/repo", ".takt/facets/knowledge", "my-skill.md"),
+    );
+  });
+
+  it("should name no file for an entry that owns its directory", () => {
+    // Its tree is what stands for it, and the directory half of the orphan
+    // sweep is what removes that.
+    const dir = makeTestDir({
+      outputRoot: "/repo",
+      relativeDirPath: ".agents/skills",
+      dirName: "my-skill",
+      mainFile: { name: "SKILL.md", body: "", frontmatter: {} },
+    });
+    expect(dir.getFlatFilePath()).toBeUndefined();
+  });
+
+  it("should name no file for an entry that carries none", () => {
+    expect(makeFlattenedDir({}).getFlatFilePath()).toBeUndefined();
+  });
+
+  it.each([
+    ["path separator", "nested/skill.md"],
+    ["Windows separator", "nested\\skill.md"],
+    ["parent directory", ".."],
+    ["current directory", "."],
+    ["empty name", ""],
+  ])("should name no file for a main file named with a %s", (_label, mainFileName) => {
+    // Each of these lands somewhere other than directly under the shared
+    // root — on the root itself, for `"."` — and the sweep may only remove a
+    // file that sits in it.
+    expect(makeFlattenedDir({ mainFileName }).getFlatFilePath()).toBeUndefined();
+  });
+});

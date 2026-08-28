@@ -127,13 +127,12 @@ The `generate` command reads source files from one or more rulesync source trees
 > unchanged: a file in a generated directory that no `.rulesync/` source
 > produces.
 >
-> Takt's skills are the one exception (its rules, commands, and subagents are
-> swept normally). They are flat files sharing a single
-> `.takt/facets/knowledge/` root rather than each getting a directory of its own,
-> so the sweep has no per-skill directory to remove and never touches that root —
-> which is what keeps it from deleting hand-authored files alongside generated
-> ones. A generated file there whose `.rulesync/skills/` source you later delete
-> stays behind, so remove it yourself. See [Takt](../tools/takt.md).
+> Takt's skills are the one target swept by file name rather than by directory
+> (its rules, commands, and subagents are swept normally). They are flat files
+> sharing a single `.takt/facets/knowledge/` root rather than each getting a
+> directory of its own, so what the sweep removes there is a `.md` file directly
+> under that root which no `.rulesync/skills/` source produces. The root itself
+> and anything nested inside it are left alone. See [Takt](../tools/takt.md).
 
 > **Note on unreadable sources:** This applies to the single-file features —
 > `mcp`, `hooks`, `permissions`, and `ignore` — each of which is generated from

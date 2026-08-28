@@ -32,6 +32,8 @@ const logger = createMockLogger();
 
 const createMockSkillsProcessor = () => ({
   loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
+  loadToolFlatFilesToDelete: vi.fn().mockResolvedValue([]),
+  removeOrphanFlatFiles: vi.fn().mockResolvedValue(0),
   ...mockProcessorBase(),
   loadRulesyncDirs: vi.fn().mockResolvedValue([]),
   convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
@@ -372,6 +374,8 @@ describe("generate", () => {
       });
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
+        loadToolFlatFilesToDelete: vi.fn().mockResolvedValue([]),
+        removeOrphanFlatFiles: vi.fn().mockResolvedValue(0),
         ...mockProcessorBase(),
         loadRulesyncDirs: vi.fn().mockResolvedValue([mockSkill]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
@@ -755,6 +759,8 @@ describe("generate", () => {
 
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
+        loadToolFlatFilesToDelete: vi.fn().mockResolvedValue([]),
+        removeOrphanFlatFiles: vi.fn().mockResolvedValue(0),
         ...mockProcessorBase(),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([
@@ -807,6 +813,8 @@ describe("generate", () => {
       });
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
+        loadToolFlatFilesToDelete: vi.fn().mockResolvedValue([]),
+        removeOrphanFlatFiles: vi.fn().mockResolvedValue(0),
         ...mockProcessorBase(),
         loadRulesyncDirs: vi.fn().mockResolvedValue([mockSkill]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
@@ -845,6 +853,8 @@ describe("generate", () => {
       ];
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue(existingDirs),
+        loadToolFlatFilesToDelete: vi.fn().mockResolvedValue([]),
+        removeOrphanFlatFiles: vi.fn().mockResolvedValue(0),
         removeOrphanAiDirs: vi.fn().mockResolvedValue(0),
         ...mockProcessorBase(),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
@@ -866,6 +876,46 @@ describe("generate", () => {
       const writeCall = mockSkillsProcessor.writeAiDirs.mock.invocationCallOrder[0] ?? 0;
       const removeCall = mockSkillsProcessor.removeOrphanAiDirs.mock.invocationCallOrder[0] ?? 0;
       expect(writeCall).toBeLessThan(removeCall);
+    });
+
+    it("should report a diff when only a flat skill file was swept", async () => {
+      // A tool that flattens into a shared root contributes no directory to
+      // remove, so the file half of the sweep is the only thing that can
+      // report the run as having changed anything — which is what `--check`
+      // reads to decide whether the tree is up to date.
+      mockConfig.getFeatures.mockReturnValue(["skills"]);
+      mockConfig.getDelete.mockReturnValue(true);
+
+      const existingFlatFiles = [
+        {
+          getDirPath: () => "/path/to/.takt/facets/knowledge",
+          getFlatFilePath: () => "/path/to/.takt/facets/knowledge/stale.md",
+          ownsDirTree: () => false,
+          getMainFile: () => ({ name: "stale.md", body: "" }),
+          getOtherFiles: () => [],
+        },
+      ];
+      const mockSkillsProcessor = {
+        loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
+        loadToolFlatFilesToDelete: vi.fn().mockResolvedValue(existingFlatFiles),
+        removeOrphanFlatFiles: vi.fn().mockResolvedValue(1),
+        removeOrphanAiDirs: vi.fn().mockResolvedValue(0),
+        ...mockProcessorBase(),
+        loadRulesyncDirs: vi.fn().mockResolvedValue([]),
+        convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
+        writeAiDirs: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+      };
+      vi.mocked(SkillsProcessor).mockImplementation(function () {
+        return mockSkillsProcessor as unknown as SkillsProcessor;
+      });
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(mockSkillsProcessor.removeOrphanFlatFiles).toHaveBeenCalledWith({
+        existingFlatFiles,
+        generatedDirs: [],
+      });
+      expect(result.hasDiff).toBe(true);
     });
   });
 
@@ -988,6 +1038,8 @@ describe("generate", () => {
 
       const mockSkillsProcessor = {
         loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
+        loadToolFlatFilesToDelete: vi.fn().mockResolvedValue([]),
+        removeOrphanFlatFiles: vi.fn().mockResolvedValue(0),
         ...mockProcessorBase(),
         loadRulesyncDirs: vi.fn().mockResolvedValue([]),
         convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),
@@ -1443,6 +1495,8 @@ describe("generate", () => {
       vi.mocked(SkillsProcessor).mockImplementation(function () {
         return {
           loadToolDirsToDelete: vi.fn().mockResolvedValue([]),
+          loadToolFlatFilesToDelete: vi.fn().mockResolvedValue([]),
+          removeOrphanFlatFiles: vi.fn().mockResolvedValue(0),
           ...mockProcessorBase(),
           loadRulesyncDirs: vi.fn().mockResolvedValue([makeRulesyncSkill(params.skillName)]),
           convertRulesyncDirsToToolDirs: vi.fn().mockResolvedValue([]),

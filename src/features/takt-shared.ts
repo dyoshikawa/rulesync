@@ -17,18 +17,16 @@ const TAKT_NAME_PATTERN = /^[A-Za-z0-9_.-]+$/u;
 
 /**
  * Whether a TAKT name (a filename stem or an `extends` parent) is unsafe to use
- * as a bare filename component: it must match {@link TAKT_NAME_PATTERN} and must
- * not be `.`/`..` or contain a `..` path segment. Shared by
- * {@link assertSafeTaktName} and {@link prependTaktExtends} so the rule lives in
- * one place.
+ * as a bare filename component: it must match {@link TAKT_NAME_PATTERN}, which
+ * is what rules out every path separator, and must not be `.` or `..`, which
+ * are legal under that pattern and name a directory rather than a file. Shared
+ * by {@link assertSafeTaktName} and {@link prependTaktExtends} so the rule
+ * lives in one place — and by `TaktSkill.canSweepFlatFileName`, which decides
+ * from it whether a file in the shared facet root is one TAKT could have
+ * written, and so whether `--delete` may sweep it.
  */
-function isUnsafeTaktName(name: string): boolean {
-  return (
-    !TAKT_NAME_PATTERN.test(name) ||
-    name === "." ||
-    name === ".." ||
-    name.split(/[.]/u).some((segment) => segment === "..")
-  );
+export function isUnsafeTaktName(name: string): boolean {
+  return !TAKT_NAME_PATTERN.test(name) || name === "." || name === "..";
 }
 
 /**
