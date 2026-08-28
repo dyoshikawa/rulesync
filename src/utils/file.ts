@@ -19,6 +19,7 @@ import { kebabCase } from "es-toolkit";
 import { globbySync, isGitIgnoredSync } from "globby";
 
 import { mapWithConcurrency } from "./concurrency.js";
+import { stripControlCharacters } from "./control-characters.js";
 import { formatError } from "./error.js";
 import { isEnvTest } from "./vitest.js";
 
@@ -232,13 +233,17 @@ export function checkPathTraversal({
   // Check for .. segments in the path (even if they don't escape the directory)
   const segments = relativePath.split(/[/\\]/);
   if (segments.includes("..")) {
-    throw new Error(`Path traversal detected: ${relativePath}`);
+    throw new Error(
+      `Path traversal detected: ${JSON.stringify(stripControlCharacters(relativePath))}`,
+    );
   }
 
   const resolved = resolve(intendedRootDir, relativePath);
   const rel = relative(intendedRootDir, resolved);
   if (rel.startsWith("..") || resolve(resolved) !== resolved) {
-    throw new Error(`Path traversal detected: ${relativePath}`);
+    throw new Error(
+      `Path traversal detected: ${JSON.stringify(stripControlCharacters(relativePath))}`,
+    );
   }
 }
 
@@ -996,7 +1001,7 @@ export function validateOutputRoot(outputRoot: string): void {
     const separatorRegex = process.platform === "win32" ? /[/\\]/ : /\//;
     const segments = outputRoot.split(separatorRegex);
     if (segments.includes("..")) {
-      throw new Error(`Path traversal detected: ${outputRoot}`);
+      throw new Error(`Path traversal detected: ${stripControlCharacters(outputRoot)}`);
     }
 
     // Reject unnormalized absolute paths. After `resolve(outputRoot)` collapses
@@ -1006,7 +1011,8 @@ export function validateOutputRoot(outputRoot: string): void {
     const normalized = resolve(outputRoot);
     if (normalized !== outputRoot) {
       throw new Error(
-        `outputRoot must be a normalized absolute path: ${outputRoot} (normalized: ${normalized})`,
+        `outputRoot must be a normalized absolute path: ${stripControlCharacters(outputRoot)} ` +
+          `(normalized: ${stripControlCharacters(normalized)})`,
       );
     }
 
@@ -1014,7 +1020,7 @@ export function validateOutputRoot(outputRoot: string): void {
     // standard cross-platform way to detect the root of the volume.
     if (dirname(normalized) === normalized) {
       throw new Error(
-        `outputRoot must not be the filesystem root: ${outputRoot}. ` +
+        `outputRoot must not be the filesystem root: ${stripControlCharacters(outputRoot)}. ` +
           `Pass a specific project directory instead.`,
       );
     }
