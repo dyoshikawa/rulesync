@@ -141,7 +141,9 @@ export class GitHubClient {
 
       // API returns single object for files, array for directories
       if (!Array.isArray(data)) {
-        throw new GitHubClientError(`Path "${path}" is not a directory`);
+        throw new GitHubClientError(
+          `Path ${JSON.stringify(stripControlCharacters(path))} is not a directory`,
+        );
       }
 
       const entries: GitHubFileEntry[] = [];

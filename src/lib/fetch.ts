@@ -35,7 +35,7 @@ import type {
   ParsedSource,
 } from "../types/fetch.js";
 import type { ToolTarget } from "../types/tool-targets.js";
-import { stripControlCharacters } from "../utils/control-characters.js";
+import { stripControlCharacters, stripInvisibleCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
@@ -273,8 +273,8 @@ type CollectedFeatureFiles = {
  *   directory-based (skills/<name>/SKILL.md), so such a file belongs to no
  *   skill and selection does not apply to it.
  * - `unsafe-name` — under a skills/ directory whose name does not survive
- *   control-character stripping. It cannot be offered honestly, so it is never
- *   selectable.
+ *   having its control characters and its invisible characters stripped. It
+ *   cannot be offered honestly, so it is never selectable.
  * - `skill` — belongs to the named skill.
  */
 type SkillPathClass =
@@ -292,12 +292,15 @@ const NON_SKILL_PATH: SkillPathClass = Object.freeze({ kind: "non-skill" });
 /**
  * Classify a collected file's path relative to the skills directory.
  *
- * A directory name is only usable when it is already free of control
- * characters. Stripping them for display and then matching on the stripped
- * form would let a remote repository publish `skills/<U+200E>/` — invisible in
- * the prompt — or `skills/go<U+200E>od/`, which displays as an existing skill
- * and would ride along with it. Names like that are reported as `unsafe-name`
- * so callers can leave them out instead of writing a skill the user never saw.
+ * A directory name is only usable when it is already free of characters that do
+ * not show. Stripping them for display and then matching on the stripped form
+ * would let a remote repository publish `skills/<U+200E>/` — invisible in the
+ * prompt — or `skills/go<U+200E>od/`, which displays as an existing skill and
+ * would ride along with it. The zero-width characters go with the control ones:
+ * `skills/pd<U+200B>f/` is drawn exactly like `skills/pdf/`, and nothing later
+ * in the prompt could tell the two apart. Names like that are reported as
+ * `unsafe-name` so callers can leave them out instead of writing a skill the
+ * user never saw.
  */
 function classifySkillPath(relativePath: string): SkillPathClass {
   // Split on "/" alone. A remote path is POSIX, so a backslash in one is an
@@ -321,7 +324,7 @@ function classifySkillPath(relativePath: string): SkillPathClass {
   if (name === "." || name === ".." || name.includes("\\")) {
     return NON_SKILL_PATH;
   }
-  const display = stripControlCharacters(name);
+  const display = stripInvisibleCharacters(stripControlCharacters(name));
   if (display !== name) {
     return { kind: "unsafe-name", raw: name, display };
   }
@@ -341,7 +344,7 @@ function validateRemoteRelativePath(relativePath: string): void {
   const segments = relativePath.split("/");
   if (segments.some((segment) => segment === "." || segment === "..")) {
     throw new Error(
-      `Unsafe path in the remote repository: ${JSON.stringify(relativePath)}. A fetched path ` +
+      `Unsafe path in the remote repository: ${JSON.stringify(stripControlCharacters(relativePath))}. A fetched path ` +
         `must be a plain POSIX path, without "." and ".." segments.`,
     );
   }
@@ -376,7 +379,11 @@ function dropAmbiguousRemotePaths(params: {
     // longer distinguishable from one it dropped.
     incompleteRemoteDirs.add(posix.dirname(toPosixPath(file.remotePath)));
     logger.warn(
-      `Skipping ${JSON.stringify(file.remotePath)}: its path contains a backslash, which names ` +
+      // `JSON.stringify` escapes the C0 controls and nothing else, so the path
+      // is stripped as well before it is quoted: the C1 range and the bidi
+      // overrides would otherwise reach the terminal intact.
+      `Skipping ${JSON.stringify(stripControlCharacters(file.remotePath))}: its path contains a ` +
+        `backslash, which names ` +
         `one file on some systems and a directory on others.`,
     );
   }
@@ -497,11 +504,13 @@ async function applySkillSelection(params: {
 }
 
 /**
- * Describe the skill directories dropped for having control characters in their
+ * Describe the skill directories dropped for having hidden characters in their
  * name, keyed raw name to stripped name.
  *
- * The stripped form is all there is to show — the raw name is unprintable, which
- * is the whole reason the directory was dropped — and it can be empty or read
+ * "Hidden" covers both halves of the drop: the control characters, which forge
+ * and reorder what is printed, and the zero-width ones, which show nothing at
+ * all. The stripped form is all there is to show — the raw name cannot be
+ * printed as it is, which is the whole reason the directory was dropped — and it can be empty or read
  * exactly like a skill the user did fetch. So a name that survives stripping is
  * quoted, to mark it as the sanitized form rather than a claim about what was
  * skipped, and a name that does not survive is counted instead of printed.
@@ -520,18 +529,18 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
   const plural = droppedUnsafeNames.size !== 1;
   const lead =
     `Skipping ${plural ? `${droppedUnsafeNames.size} skill directories whose names contain` : "one skill directory whose name contains"} ` +
-    `control characters. Such a name cannot be listed truthfully, so it is never offered for ` +
+    `hidden characters. Such a name cannot be listed truthfully, so it is never offered for ` +
     `selection.`;
 
   if (shown === "") {
     return (
-      `${lead} Nothing is left of ${plural ? "those names" : "the name"} once the control ` +
+      `${lead} Nothing is left of ${plural ? "those names" : "the name"} once the hidden ` +
       `characters are removed, so there is nothing to show here.`
     );
   }
 
   return (
-    `${lead} Shown here with the control characters removed, which is why a name may look ` +
+    `${lead} Shown here with the hidden characters removed, which is why a name may look ` +
     `like one you did select: ${shown}` +
     `${unprintable > 0 ? `, plus ${unprintable} with nothing left once they are removed` : ""}.`
   );

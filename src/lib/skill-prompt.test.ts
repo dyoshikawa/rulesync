@@ -72,13 +72,36 @@ describe("promptSkillSelection", () => {
     expect(checkboxMock).toHaveBeenCalledWith(
       expect.objectContaining({
         choices: [
-          { name: "skill", value: "skill", checked: false },
           {
-            name: `${lookalike}  [!] mixes Cyrillic and Latin characters`,
+            name: "[!] another entry is the same name in a different script \u2014 skill",
+            value: "skill",
+            checked: false,
+          },
+          {
+            name:
+              "[!] another entry is the same name in a different script; " +
+              `mixes characters from Cyrillic and Latin \u2014 ${lookalike}`,
             value: lookalike,
             checked: false,
           },
         ],
+      }),
+    );
+  });
+
+  it("should shorten a name too long to fit on one line", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // Long enough to wrap on any terminal, and padded so the wrapped part could
+    // be drawn to look like a second entry.
+    const padded = `pdf${" ".repeat(100)}pdf`;
+
+    await promptSkillSelection({ availableSkills: [padded], preselectedSkills: [] });
+
+    // The value is untouched, so the shortened label still selects the skill it
+    // names.
+    expect(checkboxMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        choices: [{ name: `pdf${" ".repeat(69)}\u2026`, value: padded, checked: false }],
       }),
     );
   });

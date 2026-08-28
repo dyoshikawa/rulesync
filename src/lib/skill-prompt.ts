@@ -28,12 +28,35 @@ const SKILL_PROMPT_SHORTCUTS = {
 } as const;
 
 /**
- * Label one skill in the prompt, appending the reason it may be mistaken for
+ * How much of a name the prompt draws. A directory name can be 255 bytes long,
+ * which wraps across several lines of a terminal and lets a name padded with
+ * spaces paint what looks like another entry underneath itself. What is cut is
+ * only the label: the value stays whole, so a shortened name still stands for
+ * the directory it names.
+ */
+const MAX_SKILL_LABEL_LENGTH = 72;
+
+function shortenSkillName(name: string): string {
+  const characters = [...name];
+  return characters.length <= MAX_SKILL_LABEL_LENGTH
+    ? name
+    : `${characters.slice(0, MAX_SKILL_LABEL_LENGTH).join("")}\u2026`;
+}
+
+/**
+ * Label one skill in the prompt, leading with the reason it may be mistaken for
  * another entry when there is one.
+ *
+ * The reason goes first because the name is the untrusted half. A name may
+ * itself read `pdf  [!] mixes characters from Cyrillic and Latin`, and trailing
+ * it with the real note would leave the two indistinguishable; a name that ends
+ * in right-to-left letters would also pull a trailing note out of place. In
+ * front, the note is always the tool's own text at the start of the line.
  */
 function formatSkillChoiceLabel(params: { name: string; note: string | undefined }): string {
   const { name, note } = params;
-  return note === undefined ? name : `${name}  [!] ${note}`;
+  const shortened = shortenSkillName(name);
+  return note === undefined ? shortened : `[!] ${note} \u2014 ${shortened}`;
 }
 
 /**

@@ -1478,10 +1478,10 @@ describe("fetchFiles with skill selection", () => {
     // Nothing is left of the name to print, so the warning says so rather than
     // trailing off after a "shown here" that shows nothing.
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Skipping one skill directory whose name contains control"),
+      expect.stringContaining("Skipping one skill directory whose name contains hidden"),
     );
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Nothing is left of the name once the control characters"),
+      expect.stringContaining("Nothing is left of the name once the hidden characters"),
     );
   });
 
@@ -1528,6 +1528,58 @@ describe("fetchFiles with skill selection", () => {
     // The stripped name reads exactly like the skill that WAS fetched, so the
     // warning has to quote it rather than assert that "skill-a" was skipped.
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('you did select: "skill-a".'));
+  });
+
+  it("should not fetch a skill directory whose name hides a zero-width character", async () => {
+    mockMultiSkillRepository();
+    const baseImplementation = mockClientInstance.listDirectory.getMockImplementation();
+    // A zero-width space is not a control character, so nothing about this name
+    // is caught by the control-character strip alone \u2014 yet it is drawn exactly
+    // like the plain "pdf" a user would read it as.
+    const zeroWidthName = "pd\u200bf";
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "skills") {
+          return baseImplementation(owner, repo, path, ref).then(
+            (entries: Array<Record<string, unknown>>) => [
+              ...entries,
+              { name: zeroWidthName, path: `skills/${zeroWidthName}`, type: "dir" },
+            ],
+          );
+        }
+        if (path === `skills/${zeroWidthName}`) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `skills/${zeroWidthName}/SKILL.md`,
+              type: "file",
+              sha: "fff",
+              size: 40,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        return baseImplementation(owner, repo, path, ref);
+      },
+    );
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue(["skill-a"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    // Never offered, so it cannot be picked, and picking everything else does
+    // not drag it along.
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+    });
+    expect(summary.files.map((f) => f.relativePath)).toEqual(["skills/skill-a/SKILL.md"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"pdf"'));
   });
 
   it("should count two indistinguishable unsafe names as two skipped directories", async () => {
@@ -1577,10 +1629,10 @@ describe("fetchFiles with skill selection", () => {
     // Both strip down to the same empty string, so counting them by their
     // stripped form would report one directory instead of two.
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Skipping 2 skill directories whose names contain control"),
+      expect.stringContaining("Skipping 2 skill directories whose names contain hidden"),
     );
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Nothing is left of those names once the control characters"),
+      expect.stringContaining("Nothing is left of those names once the hidden characters"),
     );
   });
 

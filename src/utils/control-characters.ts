@@ -20,3 +20,29 @@ const CONTROL_CHARACTERS_PATTERN =
 export function stripControlCharacters(text: string): string {
   return text.replace(CONTROL_CHARACTERS_PATTERN, "");
 }
+
+/**
+ * Matches the characters that take no width of their own: the zero-width space,
+ * joiners and non-joiner, the soft hyphen, the Mongolian vowel separator, the
+ * Arabic letter mark, the word joiner and the invisible operators beside it,
+ * the byte order mark, the interlinear annotation marks, and the tag
+ * characters. None of them is a
+ * control character, so none is caught by `stripControlCharacters` — and none
+ * of them shows. A name that differs from another only by one of these is drawn
+ * exactly like it, which is why a name that carries one is not a name a user can
+ * be asked to judge.
+ */
+const INVISIBLE_CHARACTERS_PATTERN =
+  /[\u00ad\u061c\u180e\u200b-\u200d\u2060-\u2064\ufeff\ufff9-\ufffb\u{e0000}-\u{e007f}]/gu;
+
+/**
+ * Removes every zero-width and otherwise invisible character from `text`.
+ *
+ * Kept apart from `stripControlCharacters` because the two answer different
+ * questions. That one asks what is safe to print; this one asks whether a name
+ * shows everything it contains, which is what a prompt needs before it offers
+ * the name as something to pick.
+ */
+export function stripInvisibleCharacters(text: string): string {
+  return text.replace(INVISIBLE_CHARACTERS_PATTERN, "");
+}

@@ -415,16 +415,26 @@ Because the skipped file is still part of the remote skill, the skill directory 
 
 A repository can publish two skill directories whose names a terminal draws the same way — `skill` spelled with a Cyrillic `с`, or the fullwidth `ｓｋｉｌｌ` beside the plain one. Each is still a separate entry with its own name, so a selection writes exactly the directories that were checked; the risk is only that the two entries cannot be told apart by sight.
 
-The interactive prompt therefore marks such an entry with `[!]` and the reason:
+The interactive prompt therefore prefixes such an entry with `[!]` and the reason, ahead of the name itself:
 
 ```text
 ? Select skills to fetch (press <a> to select/deselect all)
  ◯ pdf
- ◯ сkill  [!] mixes Cyrillic and Latin characters
- ◯ skill
+ ◯ [!] another entry is the same name in a different script — skill
+ ◯ [!] another entry is the same name in a different script; mixes characters from Cyrillic and Latin — сkill
 ```
 
-An entry is marked when another entry on the list normalizes to the same name (NFKC, compared case-insensitively), or when its own name mixes scripts in a way an ordinary name does not — Japanese, Korean and Chinese names, which mix scripts by nature and often carry Latin, are not marked. The mark is display-only: it never removes a skill from the list, and a skill written in a single script that has no lookalike on the list is not marked, so it is a hint to look closer rather than a guarantee.
+The mark comes first so that a name — which the remote repository chooses — cannot be spelled to look like a mark of its own, or reorder one away. A name too long for a line is shortened with an ellipsis for the same reason; the value behind the label is untouched, so the shortened entry still selects the skill it names.
+
+An entry is marked for any of three reasons:
+
+- **Another entry has the same display form.** Names are compared with their invisible characters removed, normalized (NFKC), and lowercased, so `Skill`, `skill` and the fullwidth `ｓｋｉｌｌ` all collide.
+- **Another entry is the same name in a different script.** Two names of the same length whose differing positions each hold characters of two different scripts — `copy` beside the same word spelled entirely in Cyrillic. Neither name mixes scripts on its own, so this pair is visible only by comparing the two.
+- **The name mixes scripts.** A single name built from scripts that share letter shapes, such as `good` with a Cyrillic `о`. Japanese, Korean and Chinese names mix scripts by nature and routinely carry Latin, so those combinations are not marked, and neither is Latin beside a script that shares no shapes with it.
+
+The mark is display-only: it never removes a skill from the list, and a skill written in a single script with no lookalike beside it is not marked. It is a hint to look closer, not a guarantee that unmarked entries are distinct.
+
+Names that cannot be shown honestly at all are a separate case: a skill directory whose name carries a control character or a zero-width one is dropped before the prompt, with a warning naming it in stripped form, rather than being offered with a mark.
 
 #### Remote Paths in Rulesync's Output
 
