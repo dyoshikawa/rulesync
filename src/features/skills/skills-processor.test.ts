@@ -1784,6 +1784,63 @@ Content that would fail parsing`;
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("should sweep the flat takt knowledge files in global scope too", async () => {
+      // takt skills are global-capable and the facet root is the same relative
+      // path under the home directory, so the sweep has to reach it there as
+      // well — the pseudo-home stands in for `~` (testing guidelines).
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "takt",
+        global: true,
+      });
+
+      const knowledgeDir = join(testDir, TAKT_SKILLS_DIR_PATH);
+      await ensureDir(knowledgeDir);
+      await writeFileContent(join(knowledgeDir, "runbook.md"), "the old name");
+      await writeFileContent(join(knowledgeDir, "renamed.md"), "the new name");
+
+      const generated = new TaktSkill({
+        outputRoot: testDir,
+        relativeDirPath: TAKT_SKILLS_DIR_PATH,
+        dirName: "renamed",
+        fileName: "renamed.md",
+        body: "the new name",
+        global: true,
+      });
+
+      const removedCount = await processor.removeOrphanFlatFiles({
+        existingFlatFiles: await processor.loadToolFlatFilesToDelete(),
+        generatedDirs: [generated],
+      });
+
+      expect(removedCount).toBe(1);
+      expect(await fileExists(join(knowledgeDir, "runbook.md"))).toBe(false);
+      expect(await fileExists(join(knowledgeDir, "renamed.md"))).toBe(true);
+    });
+
+    it("should leave every flat file alone when this run generated none", async () => {
+      // A takt user who keeps their own notes directly in the facet root, and
+      // whose `.rulesync/skills/` holds nothing that targets takt. The root has
+      // no source behind it, so it is not rulesync's to empty.
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({ logger, outputRoot: testDir, toolTarget: "takt" });
+
+      const knowledgeDir = join(testDir, TAKT_SKILLS_DIR_PATH);
+      await ensureDir(knowledgeDir);
+      await writeFileContent(join(knowledgeDir, "architecture.md"), "hand-authored");
+
+      const removedCount = await processor.removeOrphanFlatFiles({
+        existingFlatFiles: await processor.loadToolFlatFilesToDelete(),
+        generatedDirs: [],
+      });
+
+      expect(removedCount).toBe(0);
+      expect(await fileExists(join(knowledgeDir, "architecture.md"))).toBe(true);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("should leave a flat file whose name takt could never have written", async () => {
       // The shared facet root is a place a user may also keep notes of their
       // own. A name rulesync could not have produced — it would have been

@@ -166,6 +166,26 @@ describe("TaktSkill", () => {
     });
   });
 
+  describe("canSweepFlatFileName", () => {
+    // The policy that decides which files in the shared facet root `--delete`
+    // may take: a name TAKT itself could have written, and nothing else.
+    it.each([
+      ["runbook.md", true],
+      ["runbook.v2.md", true],
+      ["RUN_BOOK-1.md", true],
+      ["Design Doc.md", false],
+      ["設計メモ.md", false],
+      ["runbook (old).md", false],
+      ["runbook.txt", false],
+      ["runbook", false],
+      [".md", false],
+      ["..md", false],
+      [join("nested", "runbook.md"), false],
+    ])("answers %s with %s", (fileName, expected) => {
+      expect(TaktSkill.canSweepFlatFileName({ fileName })).toBe(expected);
+    });
+  });
+
   describe("forDeletion", () => {
     it("constructs an empty instance for deletion", () => {
       const skill = TaktSkill.forDeletion({

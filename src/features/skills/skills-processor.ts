@@ -847,16 +847,12 @@ export class SkillsProcessor extends DirFeatureProcessor {
         kind: "directory",
       });
       for (const dirName of candidateDirNames) {
-        // Directories owned by another feature (see the `isDirOwned` factory
-        // hook) are skipped so e.g. a Reasonix subagent profile is not
-        // imported as a regular skill.
         if (
-          factory.class.isDirOwned &&
-          !(await factory.class.isDirOwned({
+          !(await this.isOwnedSkillDir({
+            factory,
             outputRoot: rootOutputRoot,
             relativeDirPath,
             dirName,
-            inputRoots: this.inputRoots,
           }))
         ) {
           continue;
@@ -999,6 +995,37 @@ export class SkillsProcessor extends DirFeatureProcessor {
   }
 
   /**
+   * Whether a skill directory in a shared root belongs to this feature at all,
+   * via the optional `isDirOwned` factory hook. A tool without the hook owns
+   * everything it finds. Shared by import and by both halves of the orphan
+   * sweep, so ownership is decided the same way in all three — a directory
+   * another feature generated (a Reasonix subagent profile in
+   * `.reasonix/skills/`, a Devin command on the skills surface) is neither
+   * imported as a skill nor deleted as an orphan one.
+   */
+  private async isOwnedSkillDir({
+    factory,
+    outputRoot,
+    relativeDirPath,
+    dirName,
+  }: {
+    factory: ToolSkillFactory;
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+  }): Promise<boolean> {
+    if (factory.class.isDirOwned === undefined) {
+      return true;
+    }
+    return await factory.class.isDirOwned({
+      outputRoot,
+      relativeDirPath,
+      dirName,
+      inputRoots: this.inputRoots,
+    });
+  }
+
+  /**
    * The tool's skills roots that exist on disk, each paired with its absolute
    * path and vetted as writable inside this run's output root. Shared by the
    * two halves of the orphan sweep so both look in exactly the same places,
@@ -1039,17 +1066,12 @@ export class SkillsProcessor extends DirFeatureProcessor {
           rootPath: skillsDirPath,
           targetPath: join(skillsDirPath, dirName),
         });
-        // Directories owned by another feature (see the `isDirOwned` factory
-        // hook) must never be deleted as orphan skills — e.g. a Reasonix
-        // subagent profile generated into the shared `.reasonix/skills/`, or
-        // a Devin command emitted onto the skills surface.
         if (
-          factory.class.isDirOwned &&
-          !(await factory.class.isDirOwned({
+          !(await this.isOwnedSkillDir({
+            factory,
             outputRoot: this.outputRoot,
             relativeDirPath: root,
             dirName,
-            inputRoots: this.inputRoots,
           }))
         ) {
           continue;
@@ -1085,7 +1107,10 @@ export class SkillsProcessor extends DirFeatureProcessor {
    */
   override async loadToolFlatFilesToDelete(): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
-    const canSweepFlatFileName = factory.class.canSweepFlatFileName;
+    // Bound to the class, so a policy that grows a `this.` reference later
+    // keeps working: it is called from inside a filter callback, where an
+    // unbound static would be called with no receiver at all.
+    const canSweepFlatFileName = factory.class.canSweepFlatFileName?.bind(factory.class);
     // Opt-in, and the opt-in is the whole gate: a tool that declares no name
     // policy for this root has no flat file of its considered, and its roots
     // are not even listed. That is what every directory-based tool wants —
@@ -1119,10 +1144,14 @@ export class SkillsProcessor extends DirFeatureProcessor {
           rootPath: skillsDirPath,
           targetPath: filePath,
         });
+        // The stem is the skill's name for a tool that writes `<name>.md`,
+        // which is why the enumeration above is limited to `.md` in the first
+        // place: it is what the candidate is built from.
+        const dirName = basename(fileName, ".md");
         const toolSkill = factory.class.forDeletion({
           outputRoot: this.outputRoot,
           relativeDirPath: root,
-          dirName: basename(fileName, ".md"),
+          dirName,
           global: this.global,
         });
         // The candidate has to name back the very file it was built from.
@@ -1136,18 +1165,16 @@ export class SkillsProcessor extends DirFeatureProcessor {
         if (toolSkill.getFlatFilePath() !== filePath) {
           continue;
         }
-        // Same ownership hook as the directory half: a file another feature
-        // generated into a shared root must never be swept as an orphan skill.
-        // No tool declares both hooks today; it is here so that adding an
-        // ownership filter to a flattening tool takes effect on the sweep
-        // rather than being quietly ignored.
+        // Same ownership hook as the directory half. No tool declares both it
+        // and a flat-name policy today; it is here so that adding an ownership
+        // filter to a flattening tool takes effect on the sweep rather than
+        // being quietly ignored.
         if (
-          factory.class.isDirOwned &&
-          !(await factory.class.isDirOwned({
+          !(await this.isOwnedSkillDir({
+            factory,
             outputRoot: this.outputRoot,
             relativeDirPath: root,
-            dirName: basename(fileName, ".md"),
-            inputRoots: this.inputRoots,
+            dirName,
           }))
         ) {
           continue;

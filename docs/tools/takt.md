@@ -70,7 +70,9 @@ The root itself is never deleted, and neither is anything nested inside it: a su
 
 A hand-authored `.md` placed **directly** in the facet root, under a name that _does_ look generated, is another matter. It is indistinguishable from a real skill file, so `--delete` sweeps it — the same as for `policies/`, `instructions/`, and `personas/`, which the rules, commands, and subagents features own outright. Keep hand-authored knowledge in a subdirectory (for example `.takt/facets/knowledge/my-notes/`) to put it out of the sweep's reach. The same applies in global mode: `~/.takt/facets/knowledge/` is swept exactly like the project root.
 
-One gap is worth knowing about. A skill's companion files are flattened into the same root, and only the `.md` files directly under it are swept: a companion that is not Markdown (`runbook.txt`) or that sits in a subdirectory of its own (`refs/notes.md`) survives its skill's removal and has to be deleted by hand.
+The sweep only runs for a root this generate wrote a file into. If no skill targets TAKT — or `.rulesync/skills/` is empty — the facet root has no rulesync source behind it, so nothing in it is touched. That also means emptying `.rulesync/skills/` altogether leaves the last generated files in place, the same as the checks block above: delete them by hand in that case.
+
+Two gaps are worth knowing about. A skill's companion files are flattened into the same root, and only the `.md` files directly under it are swept: a companion that is not Markdown (`runbook.txt`) or that sits in a subdirectory of its own (`refs/notes.md`) survives its skill's removal and has to be deleted by hand. And a skill whose `takt.name` starts with a dot writes a hidden file, which the sweep does not enumerate, so that one is never swept either.
 
 ## Importing existing TAKT files into rulesync
 

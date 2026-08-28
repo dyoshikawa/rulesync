@@ -1,4 +1,4 @@
-import { basename, join, relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 import { TAKT_SKILLS_DIR_PATH } from "../../constants/takt-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -214,7 +214,10 @@ export class TaktSkill extends ToolSkill {
     if (!fileName.endsWith(".md")) {
       return false;
     }
-    return !isUnsafeTaktName(basename(fileName, ".md"));
+    // Not `basename`: that would answer for the last segment of a name shaped
+    // like a path, and a name carrying a separator is one TAKT could never
+    // have written into the root, whatever it ends in.
+    return !isUnsafeTaktName(fileName.slice(0, -".md".length));
   }
 
   static forDeletion({

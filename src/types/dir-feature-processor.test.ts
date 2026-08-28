@@ -623,6 +623,49 @@ describe("DirFeatureProcessor", () => {
       expect(removeFile).not.toHaveBeenCalled();
     });
 
+    it("should sweep nothing in a root this run wrote no file into", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanFlatFiles({
+        existingFlatFiles: [createMockFlatDir({ root, fileName: "handwritten.md" })],
+        // Nothing was generated into that root: no source targets the tool, or
+        // its sources are all gone. A root with no source behind it is not one
+        // whose every file has gone orphan.
+        generatedDirs: [],
+      });
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining("this run wrote no file into that shared root"),
+      );
+    });
+
+    it("should refuse a file a generated path differs from only in case", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanFlatFiles({
+        // What a rename from `Runbook` to `runbook` leaves behind on a
+        // case-insensitive filesystem: the write lands in the entry that is
+        // still spelled `Runbook.md`, so the file the run just wrote is the
+        // one the enumeration reads back.
+        existingFlatFiles: [
+          createMockFlatDir({ root, fileName: "Runbook.md" }),
+          createMockFlatDir({ root, fileName: "stale.md" }),
+        ],
+        generatedDirs: [createMockFlatDir({ root, fileName: "runbook.md" })],
+      });
+
+      expect(count).toBe(1);
+      expect(removeFile).toHaveBeenCalledExactlyOnceWith(join(root, "stale.md"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("differs from it only in case"),
+      );
+    });
+
     it("should delete a file two candidates report once", async () => {
       const processor = new TestDirProcessor({
         logger: createMockLogger(),
@@ -634,7 +677,7 @@ describe("DirFeatureProcessor", () => {
           createMockFlatDir({ root, fileName: "stale.md" }),
           createMockFlatDir({ root, fileName: "stale.md" }),
         ],
-        generatedDirs: [],
+        generatedDirs: [createMockFlatDir({ root, fileName: "kept.md" })],
       });
 
       expect(count).toBe(1);
@@ -647,7 +690,7 @@ describe("DirFeatureProcessor", () => {
 
       const count = await processor.removeOrphanFlatFiles({
         existingFlatFiles: [createMockFlatDir({ root, fileName: "stale.md" })],
-        generatedDirs: [],
+        generatedDirs: [createMockFlatDir({ root, fileName: "kept.md" })],
       });
 
       expect(count).toBe(1);
@@ -663,7 +706,7 @@ describe("DirFeatureProcessor", () => {
 
       const count = await processor.removeOrphanFlatFiles({
         existingFlatFiles: [createMockFlatDir({ root, fileName: "stale.md", flatFilePath: null })],
-        generatedDirs: [],
+        generatedDirs: [createMockFlatDir({ root, fileName: "kept.md" })],
       });
 
       expect(count).toBe(0);
@@ -681,7 +724,7 @@ describe("DirFeatureProcessor", () => {
         existingFlatFiles: [
           createMockFlatDir({ root: "/elsewhere/knowledge", fileName: "stale.md" }),
         ],
-        generatedDirs: [],
+        generatedDirs: [createMockFlatDir({ root, fileName: "kept.md" })],
       });
 
       expect(count).toBe(0);
@@ -701,7 +744,7 @@ describe("DirFeatureProcessor", () => {
         existingFlatFiles: [
           createMockFlatDir({ root, fileName: "stale.md", dirPath: join(root, "nested") }),
         ],
-        generatedDirs: [],
+        generatedDirs: [createMockFlatDir({ root, fileName: "kept.md" })],
       });
 
       expect(count).toBe(0);
@@ -723,7 +766,7 @@ describe("DirFeatureProcessor", () => {
         existingFlatFiles: [
           createMockFlatDir({ root, fileName: "stale.md", flatFilePath: "/etc/passwd" }),
         ],
-        generatedDirs: [],
+        generatedDirs: [createMockFlatDir({ root, fileName: "kept.md" })],
       });
 
       expect(count).toBe(0);

@@ -331,17 +331,33 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       }
     }
 
-    for (const dirPath of orphanPaths) {
-      const loggedPath = JSON.stringify(stripControlCharacters(dirPath));
+    return await this.deleteOrphanPaths({ paths: orphanPaths, kind: "directory" });
+  }
+
+  /**
+   * Delete the paths the sweeps decided on, or report what a real run would
+   * have deleted. Shared by both halves so the dry-run wording, the quoting of
+   * a name that came off disk, and the count they return stay one behavior
+   * rather than two that drift.
+   */
+  private async deleteOrphanPaths({
+    paths,
+    kind,
+  }: {
+    paths: Set<string>;
+    kind: "directory" | "file";
+  }): Promise<number> {
+    for (const targetPath of paths) {
+      const loggedPath = JSON.stringify(stripControlCharacters(targetPath));
       if (this.dryRun) {
-        this.logger.info(`[DRY RUN] Would delete directory: ${loggedPath}`);
+        this.logger.info(`[DRY RUN] Would delete ${kind}: ${loggedPath}`);
       } else {
-        await removeDirectory(dirPath);
-        this.logger.info(`Deleted directory: ${loggedPath}`);
+        await (kind === "directory" ? removeDirectory(targetPath) : removeFile(targetPath));
+        this.logger.info(`Deleted ${kind}: ${loggedPath}`);
       }
     }
 
-    return orphanPaths.size;
+    return paths.size;
   }
 
   /**
@@ -353,6 +369,11 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
    * sibling in it, hand-authored files included — so the file each entry writes
    * is the only thing there is to sweep. Anything else under the root is left
    * alone: a subdirectory, and any file the enumeration did not hand over.
+   *
+   * A root this run wrote no file into is left alone entirely. Every file in
+   * it would count as an orphan there, and a root with no source behind it is
+   * not one whose contents have all gone orphan — it is one rulesync does not
+   * manage.
    */
   async removeOrphanFlatFiles({
     existingFlatFiles,
@@ -365,18 +386,32 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     // stands for each entry: a takt skill's companion files land beside it,
     // directly under the same root, and one of those is exactly as much a file
     // of this run as the main file is.
-    const generatedPaths = new Set(
-      generatedDirs.flatMap((d) => {
-        const flatFilePath = d.getFlatFilePath();
-        if (flatFilePath === undefined) {
-          return [];
-        }
-        const dirPath = d.getDirPath();
-        return [
-          flatFilePath,
-          ...d.getOtherFiles().map((f) => join(dirPath, f.relativeFilePathToDirPath)),
-        ];
-      }),
+    const generatedPaths = new Set<string>();
+    // The roots this run actually wrote a file into. A root it wrote nothing
+    // into is a root it does not manage, and every file in it would be an
+    // orphan — which is the difference between "one skill was renamed" and
+    // "there is no source here at all", and the whole of a shared root is far
+    // too much to delete on the strength of the second.
+    const generatedRoots = new Set<string>();
+    for (const generatedDir of generatedDirs) {
+      const flatFilePath = generatedDir.getFlatFilePath();
+      if (flatFilePath === undefined) {
+        continue;
+      }
+      const generatedDirPath = generatedDir.getDirPath();
+      generatedRoots.add(generatedDirPath);
+      generatedPaths.add(flatFilePath);
+      for (const file of generatedDir.getOtherFiles()) {
+        generatedPaths.add(join(generatedDirPath, file.relativeFilePathToDirPath));
+      }
+    }
+    // Case-folded alongside the exact paths, for a case-insensitive filesystem
+    // only: there, a source renamed from `Foo` to `foo` writes through the
+    // directory entry that is still spelled `Foo.md`, so the name the
+    // enumeration reads back never matches the path this run wrote and the
+    // file the run just produced would be swept as an orphan.
+    const generatedPathsFolded = new Set(
+      [...generatedPaths].map((generatedPath) => generatedPath.toLowerCase()),
     );
     // A set, for the same reason the directory sweep uses one: two candidates
     // that report the same file delete it once and are counted once.
@@ -388,11 +423,10 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // this and `getDirPath()` below are methods a subclass supplies, and a
       // second call could answer differently from the one that was checked.
       const filePath = aiDir.getFlatFilePath();
-      const quotedDirName = JSON.stringify(stripControlCharacters(aiDir.getDirName()));
       if (filePath === undefined) {
         this.logger.warn(
-          `Refusing to sweep ${quotedDirName}: it owns a directory of its own, or names no file ` +
-            `directly under the root it was found in`,
+          `Refusing to sweep ${JSON.stringify(stripControlCharacters(aiDir.getDirName()))}: it ` +
+            `owns a directory of its own, or names no file directly under the root it was found in`,
         );
         continue;
       }
@@ -418,7 +452,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // against the path, not against the candidate's word for it, so an
       // override that returns a file somewhere else entirely is caught here
       // rather than deleting outside the root that was vetted.
-      if (verdict !== "equal" || dirname(filePath) !== dirPath) {
+      if (verdict !== "equal" || relative(resolve(dirname(filePath)), resolve(dirPath)) !== "") {
         this.logger.warn(
           `Refusing to delete ${quotedFilePath}: it is not directly inside ${quotedRoot}, the ` +
             `shared root it was found in`,
@@ -426,21 +460,31 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         continue;
       }
 
-      if (!generatedPaths.has(filePath)) {
-        orphanPaths.add(filePath);
+      // Nothing in a root this run wrote no file into is swept. Emptying the
+      // source of a flattening tool therefore leaves its last files in place,
+      // to be deleted by hand — the same trade the TAKT checks block makes,
+      // and the price of never mistaking a root rulesync does not manage for
+      // one whose every file has gone orphan.
+      if (!generatedRoots.has(dirPath)) {
+        this.logger.debug(
+          `Skipping orphan sweep in ${quotedRoot}: this run wrote no file into that shared root`,
+        );
+        continue;
       }
+
+      if (generatedPaths.has(filePath)) {
+        continue;
+      }
+      if (generatedPathsFolded.has(filePath.toLowerCase())) {
+        this.logger.warn(
+          `Refusing to delete ${quotedFilePath}: this run wrote a file whose path differs from ` +
+            `it only in case, which on a case-insensitive filesystem is the very file it wrote`,
+        );
+        continue;
+      }
+      orphanPaths.add(filePath);
     }
 
-    for (const filePath of orphanPaths) {
-      const loggedPath = JSON.stringify(stripControlCharacters(filePath));
-      if (this.dryRun) {
-        this.logger.info(`[DRY RUN] Would delete file: ${loggedPath}`);
-      } else {
-        await removeFile(filePath);
-        this.logger.info(`Deleted file: ${loggedPath}`);
-      }
-    }
-
-    return orphanPaths.size;
+    return await this.deleteOrphanPaths({ paths: orphanPaths, kind: "file" });
   }
 }

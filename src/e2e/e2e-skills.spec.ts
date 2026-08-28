@@ -660,8 +660,13 @@ This is the fallback skill body content.`;
     const testDir = getTestDir();
     const stalePath = join(testDir, ".takt", "facets", "knowledge", "runbook.md");
     const nestedPath = join(testDir, ".takt", "facets", "knowledge", "my-notes", "notes.md");
+    // A hand-authored file directly in the root, under a name takt could never
+    // have written. Deliberate: one that *does* look generated is swept, which
+    // is why the docs tell users to keep notes in a subdirectory.
+    const keptByPolicyPath = join(testDir, ".takt", "facets", "knowledge", "Design Doc.md");
     await writeFileContent(stalePath, "Stale runbook.");
     await writeFileContent(nestedPath, "Hand-authored notes.");
+    await writeFileContent(keptByPolicyPath, "Hand-authored design doc.");
     await writeFileContent(
       join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "SKILL.md"),
       ["---", "name: review", 'description: "Review"', "---", "Review body."].join("\n"),
@@ -674,11 +679,42 @@ This is the fallback skill body content.`;
     });
 
     expect(await fileExists(stalePath)).toBe(false);
-    // Only the flat files are the skills feature's to sweep.
+    // Only the flat files takt itself could have written are the skills
+    // feature's to sweep.
     expect(await readFileContent(nestedPath)).toContain("Hand-authored notes.");
+    expect(await readFileContent(keptByPolicyPath)).toContain("Hand-authored design doc.");
     expect(
       await readFileContent(join(testDir, ".takt", "facets", "knowledge", "review.md")),
     ).toContain("Review body.");
+  });
+
+  it("should leave the takt knowledge root alone when no skill targets takt", async () => {
+    // The root has no source behind it, so rulesync does not manage it: a
+    // takt user who keeps their own notes there and runs `--delete` for an
+    // unrelated tool's skills must not lose them.
+    const testDir = getTestDir();
+    const handAuthoredPath = join(testDir, ".takt", "facets", "knowledge", "architecture.md");
+    await writeFileContent(handAuthoredPath, "Hand-authored architecture notes.");
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "SKILL.md"),
+      [
+        "---",
+        "name: review",
+        'description: "Review"',
+        "targets:",
+        "  - claudecode",
+        "---",
+        "Review body.",
+      ].join("\n"),
+    );
+
+    await runGenerate({
+      target: "takt",
+      features: "skills",
+      deleteFiles: true,
+    });
+
+    expect(await readFileContent(handAuthoredPath)).toContain("Hand-authored architecture notes.");
   });
 
   it("should reject a symlinked Kimi managed skills root during deletion", async () => {
