@@ -323,6 +323,32 @@ describe("SkillsProcessor", () => {
       );
     });
 
+    it("should report a skill it cannot load without letting the name rewrite the line", async () => {
+      // The name comes off disk, so it can carry the escape sequence that
+      // erases the line it is printed on and passes the rest off as output of
+      // rulesync's own. Quoting the stripped path is what the rest of the
+      // codebase does with such a name.
+      const logger = createMockLogger();
+      const loggingProcessor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "amp",
+      });
+      // An interop root is read leniently, so a directory without a SKILL.md is
+      // reported instead of failing the import.
+      await ensureDir(join(testDir, ".agents", "skills", "ok\u001b[2K\r-fake-line"));
+
+      await loggingProcessor.loadToolDirs();
+
+      const reported = logger.warn.mock.calls
+        .map((call) => String(call[0]))
+        .filter((message) => message.startsWith("Skipping "));
+      expect(reported).toHaveLength(1);
+      expect(reported[0]).toContain('"' + join(".agents", "skills", "ok[2K-fake-line") + '"');
+      expect(reported[0]).not.toContain("\u001b");
+      expect(reported[0]).not.toContain("\r");
+    });
+
     it("should throw error for unsupported tool target", async () => {
       // Create processor with mock tool target (bypassing constructor validation)
       const processorWithMockTarget = Object.create(SkillsProcessor.prototype);

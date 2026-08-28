@@ -1,10 +1,58 @@
 import { basename, join } from "node:path";
 
+import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
   CURATED_SKILLS_FEATURE_SUBDIR,
   SKILLS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
-import { directoryExistsStrict, listSubdirectoryNames } from "../../utils/file.js";
+import {
+  directoryExists,
+  directoryExistsStrict,
+  fileExists,
+  listSubdirectoryNames,
+} from "../../utils/file.js";
+
+/**
+ * Whether a directory on disk can be addressed by its name.
+ *
+ * `AiDir` refuses a name holding a path separator, and rightly so: most tools
+ * take that name from a skill's frontmatter, and a repository written on one
+ * platform is read on the other, where a backslash is a separator. POSIX still
+ * lets a directory be *created* with a backslash in its name, so such a
+ * directory can sit in a skills root that nothing here can name — it is
+ * reported rather than passed on, since the alternative is a candidate built
+ * from a name that belongs to no directory at all.
+ */
+export function isAddressableSkillName(name: string): boolean {
+  return !name.includes("/") && !name.includes("\\");
+}
+
+/**
+ * The names of the skill directories directly under `skillsRoot`.
+ *
+ * A `**` glob for `SKILL.md` cannot stand in for this on two counts. It reads a
+ * backslash as a path separator, so a directory literally named `back\\slash`
+ * yields the two-segment name `back/slash`, which no `AiDir` accepts — and a
+ * `SKILL.md` nested deeper inside a skill yields a two-segment name for the
+ * same reason. Both turn a validation pass into a hard failure over a skill the
+ * skills processor itself only reports and skips.
+ *
+ * A root that does not exist is an empty root, matching what the glob returned.
+ */
+export async function listSkillDirNames(skillsRoot: string): Promise<string[]> {
+  if (!(await directoryExists(skillsRoot))) {
+    return [];
+  }
+  const names = await listSubdirectoryNames(skillsRoot);
+  const found = await Promise.all(
+    names.map(async (name) =>
+      isAddressableSkillName(name) && (await fileExists(join(skillsRoot, name, SKILL_FILE_NAME)))
+        ? name
+        : undefined,
+    ),
+  );
+  return found.filter((name) => name !== undefined);
+}
 
 /**
  * Returns the set of local skill directory names (excluding `.curated`)

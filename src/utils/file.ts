@@ -717,8 +717,9 @@ async function listEntryNames(params: {
   kind: "dir" | "file";
   followSymbolicLinks: boolean;
   includeHidden: boolean;
+  nameFilter: ((name: string) => boolean) | undefined;
 }): Promise<string[]> {
-  const { dirPath, kind, followSymbolicLinks, includeHidden } = params;
+  const { dirPath, kind, followSymbolicLinks, includeHidden, nameFilter } = params;
   const matches = (stats: { isDirectory: () => boolean; isFile: () => boolean }): boolean =>
     kind === "dir" ? stats.isDirectory() : stats.isFile();
   const entries = await readdir(dirPath, { withFileTypes: true });
@@ -726,9 +727,14 @@ async function listEntryNames(params: {
   // this replaced ran with. It is not cosmetic: the deletion sweep takes every
   // directory it is handed, so a `.git` or `.venv` beside the skills would be
   // removed by a change that only meant to spell names correctly.
+  // The caller's filter runs here rather than on the result, so a name it does
+  // not want cannot become the representative of an entry a wanted name also
+  // reaches — which would drop that entry from the listing entirely.
+  const wanted =
+    nameFilter === undefined ? entries : entries.filter((entry) => nameFilter(entry.name));
   const visible = includeHidden
-    ? entries
-    : entries.filter((entry) => !isHiddenPathSegment(entry.name));
+    ? wanted
+    : wanted.filter((entry) => !isHiddenPathSegment(entry.name));
   const classified = await mapWithConcurrency({
     items: visible,
     limit: ENTRY_CLASSIFY_CONCURRENCY,
@@ -844,16 +850,24 @@ async function dedupeNamesByFileIdentity(params: {
  *
  * Rejects if the directory cannot be read, so a root that is there but
  * unreadable is never mistaken for an empty one.
+ *
+ * `nameFilter` narrows the listing while it is read rather than afterwards; see
+ * {@link listEntryNames} for why the difference matters.
  */
 export async function listSubdirectoryNames(
   dirPath: string,
-  options: { followSymbolicLinks?: boolean; includeHidden?: boolean } = {},
+  options: {
+    followSymbolicLinks?: boolean;
+    includeHidden?: boolean;
+    nameFilter?: (name: string) => boolean;
+  } = {},
 ): Promise<string[]> {
   return await listEntryNames({
     dirPath,
     kind: "dir",
     followSymbolicLinks: options.followSymbolicLinks ?? true,
     includeHidden: options.includeHidden ?? false,
+    nameFilter: options.nameFilter,
   });
 }
 
@@ -864,13 +878,18 @@ export async function listSubdirectoryNames(
  */
 export async function listFileNames(
   dirPath: string,
-  options: { followSymbolicLinks?: boolean; includeHidden?: boolean } = {},
+  options: {
+    followSymbolicLinks?: boolean;
+    includeHidden?: boolean;
+    nameFilter?: (name: string) => boolean;
+  } = {},
 ): Promise<string[]> {
   return await listEntryNames({
     dirPath,
     kind: "file",
     followSymbolicLinks: options.followSymbolicLinks ?? true,
     includeHidden: options.includeHidden ?? false,
+    nameFilter: options.nameFilter,
   });
 }
 

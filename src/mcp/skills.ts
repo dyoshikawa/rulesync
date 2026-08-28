@@ -158,8 +158,12 @@ async function listSkills(): Promise<
             frontmatter,
           };
         } catch (error) {
+          // The name is stripped in both halves of the line: the error carries
+          // the same name back, and a control character left in either can
+          // erase the line and pass what follows off as rulesync's own output.
           logger.error(
-            `Failed to read skill directory ${stripControlCharacters(dirName)}: ${formatError(error)}`,
+            `Failed to read skill directory ${stripControlCharacters(dirName)}: ` +
+              stripControlCharacters(formatError(error)),
           );
           return null;
         }

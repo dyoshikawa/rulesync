@@ -656,6 +656,19 @@ describe("file utilities", () => {
         expect(await listFileNames(root)).toEqual(["zzz.md"]);
       });
 
+      it("should keep a name the caller asked for over the one it stands for", async () => {
+        // The filter runs before the entries are folded onto one name, so a
+        // `.md` link is not collapsed onto the file of another name it points
+        // at — and then dropped by a caller filtering the result for `.md`.
+        const root = join(testDir, "root");
+        await writeFileContent(join(root, "notes.txt"), "content");
+        await symlink(join(root, "notes.txt"), join(root, "notes.md"));
+
+        expect(await listFileNames(root, { nameFilter: (name) => name.endsWith(".md") })).toEqual([
+          "notes.md",
+        ]);
+      });
+
       it("should keep a link whose target is not among the entries", async () => {
         const root = join(testDir, "root");
         await ensureDir(join(root, "real"));

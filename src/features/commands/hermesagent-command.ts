@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -20,7 +20,7 @@ import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { caseFoldIdentity } from "../../types/feature-processor.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { findFilesByGlobs, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
+import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import {
   getHermesagentConfigSharedFileKey,
   getHermesagentRelativeDirPath,
@@ -31,6 +31,7 @@ import {
 import { applySharedConfigPatch, parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentSkill } from "../skills/hermesagent-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
+import { listSkillDirNames } from "../skills/skills-utils.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -289,12 +290,15 @@ export class HermesagentCommand extends ToolCommand {
     >();
     for (const rootPath of inputRoots) {
       const skillsRoot = join(rootPath, SKILLS_FEATURE_SUBDIR);
-      const skillFiles = await findFilesByGlobs(join(skillsRoot, "**", "SKILL.md"));
+      // Read rather than globbed: a glob for a nested `SKILL.md` builds a
+      // two-segment directory name that no `AiDir` accepts, and it spells a
+      // name holding a backslash as two segments as well, so a repository
+      // holding either used to fail the whole run here.
+      const dirNames = await listSkillDirNames(skillsRoot);
       // Roots stay sequential so a later root still shadows an earlier one, but
       // the skills inside one root are independent and load concurrently.
       const loaded = await Promise.all(
-        skillFiles.map(async (filePath) => {
-          const dirName = toPosixPath(relative(skillsRoot, dirname(filePath)));
+        dirNames.map(async (dirName) => {
           const rulesyncSkill = await RulesyncSkill.fromDir({
             outputRoot: rootPath,
             relativeDirPath: SKILLS_FEATURE_SUBDIR,

@@ -66,7 +66,7 @@ import { RooSkill } from "./roo-skill.js";
 import { RovodevSkill } from "./rovodev-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill } from "./simulated-skill.js";
-import { getLocalSkillDirNames } from "./skills-utils.js";
+import { getLocalSkillDirNames, isAddressableSkillName } from "./skills-utils.js";
 import { TaktSkill } from "./takt-skill.js";
 import {
   ToolSkill,
@@ -550,21 +550,6 @@ export const skillsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.
   return factory?.meta.supportsGlobal ?? false;
 });
 
-/**
- * Whether a directory on disk can be addressed by its name.
- *
- * `AiDir` refuses a name holding a path separator, and rightly so: most tools
- * take that name from a skill's frontmatter, and a repository written on one
- * platform is read on the other, where a backslash is a separator. POSIX still
- * lets a directory be *created* with a backslash in its name, so such a
- * directory can sit in a skills root that nothing here can name — it is
- * reported rather than passed on, since the alternative is a candidate built
- * from a name that belongs to no directory at all.
- */
-function isAddressableName(dirName: string): boolean {
-  return !dirName.includes("/") && !dirName.includes("\\");
-}
-
 export class SkillsProcessor extends DirFeatureProcessor {
   private readonly toolTarget: SkillsProcessorToolTarget;
   private readonly global: boolean;
@@ -885,7 +870,11 @@ export class SkillsProcessor extends DirFeatureProcessor {
               if (!isLenientRoot) {
                 throw error;
               }
-              this.logger.warn(`Skipping ${sourcePath}: ${formatError(error)}`);
+              this.logger.warn(
+                `Skipping ${JSON.stringify(stripControlCharacters(sourcePath))}: ` +
+                  // The error names the same path, so it is stripped too.
+                  stripControlCharacters(formatError(error)),
+              );
               return null;
             }
           }),
@@ -903,9 +892,12 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const fromFlatFile = factory.class.fromFlatFile;
       const directoryStems = new Set(ownedDirNames);
       const flatFileNames = this.keepAddressableNames({
-        names: (await listFileNames(skillsDirPath)).filter(
-          (fileName) => fileName.endsWith(".md") && !directoryStems.has(basename(fileName, ".md")),
-        ),
+        // The suffix is applied while reading rather than after, so a `.md`
+        // name that stands for a file of another name is not collapsed onto
+        // that file and dropped by the filter.
+        names: (
+          await listFileNames(skillsDirPath, { nameFilter: (name) => name.endsWith(".md") })
+        ).filter((fileName) => !directoryStems.has(basename(fileName, ".md"))),
         dirPath: skillsDirPath,
         kind: "file",
       });
@@ -928,7 +920,11 @@ export class SkillsProcessor extends DirFeatureProcessor {
               if (!isLenientRoot) {
                 throw error;
               }
-              this.logger.warn(`Skipping ${sourcePath}: ${formatError(error)}`);
+              this.logger.warn(
+                `Skipping ${JSON.stringify(stripControlCharacters(sourcePath))}: ` +
+                  // The error names the same path, so it is stripped too.
+                  stripControlCharacters(formatError(error)),
+              );
               return null;
             }
           }),
@@ -964,7 +960,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
   }): string[] {
     const { names, dirPath, kind } = params;
     return names.filter((name) => {
-      if (isAddressableName(kind === "file" ? basename(name, ".md") : name)) {
+      if (isAddressableSkillName(kind === "file" ? basename(name, ".md") : name)) {
         return true;
       }
       const consequence =
