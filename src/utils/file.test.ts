@@ -1,5 +1,5 @@
 import { realpath, symlink } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -29,6 +29,8 @@ import {
   isFileSystemError,
   isPresentButUnresolvable,
   listDirectoryFiles,
+  listFileNames,
+  listSubdirectoryNames,
   readFileBufferOrNull,
   readFileContent,
   readJsonFile,
@@ -543,6 +545,141 @@ describe("file utilities", () => {
       it("should return empty array for non-existent directory", async () => {
         const files = await findFiles(join(testDir, "nonexistent"));
         expect(files).toEqual([]);
+      });
+    });
+
+    describe("listSubdirectoryNames and listFileNames", () => {
+      it("should keep a name containing a backslash, which a glob rewrites", async () => {
+        // The bug this exists for: globby reads the backslash as a separator and
+        // returns `<root>/back/slash`, whose basename names nothing on disk.
+        await ensureDir(join(testDir, "back\\slash"));
+        await ensureDir(join(testDir, "plain"));
+        await writeFileContent(join(testDir, "back\\slash.md"), "content");
+
+        expect(await listSubdirectoryNames(testDir)).toEqual(["back\\slash", "plain"]);
+        expect(await listFileNames(testDir)).toEqual(["back\\slash.md"]);
+      });
+
+      it("should follow a symbolic link to a directory by default", async () => {
+        const shared = join(testDir, "outside", "shared");
+        await ensureDir(shared);
+        const root = join(testDir, "root");
+        await ensureDir(root);
+        await symlink(shared, join(root, "linked"));
+
+        expect(await listSubdirectoryNames(root)).toEqual(["linked"]);
+      });
+
+      it("should leave a symbolic link out when told not to follow", async () => {
+        const shared = join(testDir, "outside", "shared");
+        await ensureDir(shared);
+        const root = join(testDir, "root");
+        await ensureDir(root);
+        await symlink(shared, join(root, "linked"));
+        await ensureDir(join(root, "real"));
+
+        expect(await listSubdirectoryNames(root, { followSymbolicLinks: false })).toEqual(["real"]);
+      });
+
+      it("should leave out a link that leads nowhere", async () => {
+        const root = join(testDir, "root");
+        await ensureDir(root);
+        await symlink(join(testDir, "gone"), join(root, "dangling"));
+
+        expect(await listSubdirectoryNames(root)).toEqual([]);
+        expect(await listFileNames(root)).toEqual([]);
+      });
+
+      it("should follow a symbolic link to a file by default and not when told not to", async () => {
+        const root = join(testDir, "root");
+        await writeFileContent(join(testDir, "outside", "shared.md"), "content");
+        await writeFileContent(join(root, "real.md"), "content");
+        await symlink(join(testDir, "outside", "shared.md"), join(root, "linked.md"));
+
+        expect(await listFileNames(root)).toEqual(["linked.md", "real.md"]);
+        expect(await listFileNames(root, { followSymbolicLinks: false })).toEqual(["real.md"]);
+      });
+
+      it("should leave hidden entries out unless asked for them", async () => {
+        // The glob these replaced ran with `dot: false`. Callers sweep what they
+        // are given, so a `.git` beside the entries must not appear by default.
+        const root = join(testDir, "root");
+        await ensureDir(join(root, ".git"));
+        await ensureDir(join(root, "plain"));
+        await writeFileContent(join(root, ".hidden.md"), "content");
+        await writeFileContent(join(root, "plain.md"), "content");
+
+        expect(await listSubdirectoryNames(root)).toEqual(["plain"]);
+        expect(await listFileNames(root)).toEqual(["plain.md"]);
+        expect(await listSubdirectoryNames(root, { includeHidden: true })).toEqual([
+          ".git",
+          "plain",
+        ]);
+        expect(await listFileNames(root, { includeHidden: true })).toEqual([
+          ".hidden.md",
+          "plain.md",
+        ]);
+      });
+
+      it("should report a directory once when a link beside it stands for it", async () => {
+        // `findFilesByGlobs` collapses the paths that resolve to one entry, and a
+        // caller that lost that would read the same skill twice. The real name
+        // wins over the link, so the entry keeps the name it is stored under.
+        const root = join(testDir, "root");
+        await ensureDir(join(root, "zzz"));
+        await symlink(join(root, "zzz"), join(root, "aaa"));
+
+        expect(await listSubdirectoryNames(root)).toEqual(["zzz"]);
+      });
+
+      it("should report the real name even when the directory is not reached directly", async () => {
+        // Deciding which name is the real one by comparing the path against
+        // what `realpath` returns only holds when the caller passes an already
+        // resolved absolute path. A relative path — the shape `outputRoot: "."`
+        // produces — and a path leading through a link of its own must pick the
+        // same name, or `import` reads the entry under its alias and the sweep
+        // then treats the real one as an orphan.
+        const root = join(testDir, "root");
+        await ensureDir(join(root, "zzz"));
+        await symlink(join(root, "zzz"), join(root, "aaa"));
+        await symlink(root, join(testDir, "via-link"));
+
+        expect(await listSubdirectoryNames(relative(process.cwd(), root))).toEqual(["zzz"]);
+        expect(await listSubdirectoryNames(join(testDir, "via-link"))).toEqual(["zzz"]);
+      });
+
+      it("should report a file once when a link beside it stands for it", async () => {
+        const root = join(testDir, "root");
+        await writeFileContent(join(root, "zzz.md"), "content");
+        await symlink(join(root, "zzz.md"), join(root, "aaa.md"));
+
+        expect(await listFileNames(root)).toEqual(["zzz.md"]);
+      });
+
+      it("should keep a name the caller asked for over the one it stands for", async () => {
+        // The filter runs before the entries are folded onto one name, so a
+        // `.md` link is not collapsed onto the file of another name it points
+        // at — and then dropped by a caller filtering the result for `.md`.
+        const root = join(testDir, "root");
+        await writeFileContent(join(root, "notes.txt"), "content");
+        await symlink(join(root, "notes.txt"), join(root, "notes.md"));
+
+        expect(await listFileNames(root, { nameFilter: (name) => name.endsWith(".md") })).toEqual([
+          "notes.md",
+        ]);
+      });
+
+      it("should keep a link whose target is not among the entries", async () => {
+        const root = join(testDir, "root");
+        await ensureDir(join(root, "real"));
+        await ensureDir(join(testDir, "outside", "shared"));
+        await symlink(join(testDir, "outside", "shared"), join(root, "linked"));
+
+        expect(await listSubdirectoryNames(root)).toEqual(["linked", "real"]);
+      });
+
+      it("should reject a directory it cannot read", async () => {
+        await expect(listSubdirectoryNames(join(testDir, "missing"))).rejects.toThrow();
       });
     });
 

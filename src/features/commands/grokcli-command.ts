@@ -1,4 +1,4 @@
-import { basename, dirname, join } from "node:path";
+import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -6,9 +6,10 @@ import { GROKCLI_COMMANDS_DIR_PATH } from "../../constants/grokcli-paths.js";
 import { SKILLS_FEATURE_SUBDIR } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { findFilesByGlobs, readFileContent } from "../../utils/file.js";
+import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
+import { listSkillDirNames } from "../skills/skills-utils.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -197,15 +198,13 @@ export class GrokcliCommand extends ToolCommand {
 
     // Skills from any input root can shadow the command, so scan them all;
     // duplicates by directory name are naturally deduped via the Set below.
-    const perRootSkillFiles = await Promise.all(
-      inputRoots.map((root) =>
-        findFilesByGlobs(join(root, SKILLS_FEATURE_SUBDIR, "**", "SKILL.md")),
-      ),
+    // Read rather than globbed, so a skill directory whose name holds a
+    // backslash is compared under the name it has on disk instead of the
+    // trailing segment a glob rewrites it into.
+    const perRootSkillNames = await Promise.all(
+      inputRoots.map((root) => listSkillDirNames(join(root, SKILLS_FEATURE_SUBDIR))),
     );
-    const skillFiles = perRootSkillFiles.flat();
-    const shadowed = skillFiles
-      .map((filePath) => basename(dirname(filePath)))
-      .filter((skillName) => commandNames.has(skillName));
+    const shadowed = perRootSkillNames.flat().filter((skillName) => commandNames.has(skillName));
 
     if (shadowed.length > 0) {
       logger.warn(

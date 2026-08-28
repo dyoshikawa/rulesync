@@ -332,6 +332,26 @@ describe("GrokcliCommand", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("review"));
     });
 
+    it("should not read a backslash in a skill directory name as a separator", async () => {
+      // Globbed, `back\\review` came back as `back/review`, so the trailing
+      // segment matched the `review` command and a collision that does not
+      // exist was reported.
+      await ensureDir(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "back\\review"));
+      await writeFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "back\\review", "SKILL.md"),
+        ["---", "name: review", "description: d", "---", "", "body"].join("\n"),
+      );
+      const logger = { warn: vi.fn() };
+
+      await GrokcliCommand.validateRulesyncCommands({
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        rulesyncCommands: [commandNamed("review")],
+        logger: logger as unknown as Logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("should stay quiet when no skill matches a command name", async () => {
       await ensureDir(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "deploy"));
       await writeFileContent(

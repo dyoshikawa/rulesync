@@ -13,6 +13,7 @@ import {
   directoryExists,
   fileExists,
   findFilesByGlobs,
+  listSubdirectoryNames,
   readFileContent,
   removeDirectoryStrict as removeDirectory,
   removeFileStrict as removeFile,
@@ -66,6 +67,7 @@ vi.mock("../utils/file.js", async (importOriginal) => {
     directoryExistsStrict: directoryExistsMock,
     fileExists: vi.fn(),
     findFilesByGlobs: vi.fn(),
+    listSubdirectoryNames: vi.fn(),
     readFileContent: vi.fn(),
     removeDirectoryStrict: vi.fn(),
     removeFileStrict: vi.fn(),
@@ -153,6 +155,7 @@ describe("resolveAndFetchSources", () => {
     vi.mocked(directoryExists).mockResolvedValue(false);
     vi.mocked(fileExists).mockResolvedValue(false);
     vi.mocked(findFilesByGlobs).mockResolvedValue([]);
+    vi.mocked(listSubdirectoryNames).mockResolvedValue([]);
     vi.mocked(readFileContent).mockResolvedValue("");
     vi.mocked(removeDirectory).mockResolvedValue(undefined);
     vi.mocked(removeFile).mockResolvedValue(undefined);
@@ -1026,7 +1029,7 @@ describe("resolveAndFetchSources", () => {
       if (path.endsWith("skills")) return true;
       return false;
     });
-    vi.mocked(findFilesByGlobs).mockResolvedValue([join(testDir, ".rulesync/skills/my-skill")]);
+    vi.mocked(listSubdirectoryNames).mockResolvedValue(["my-skill"]);
 
     // Remote has same skill name
     mockClientInstance.listDirectory.mockImplementation(
@@ -1747,7 +1750,7 @@ describe("resolveAndFetchSources", () => {
       if (path.endsWith("skills")) return true;
       return false;
     });
-    vi.mocked(findFilesByGlobs).mockResolvedValue([join(testDir, ".rulesync/skills/local-skill")]);
+    vi.mocked(listSubdirectoryNames).mockResolvedValue(["local-skill"]);
 
     // remote-skill doesn't exist on disk, so SHA-match skip fails and re-fetch happens
     // Remote has only remote-skill
@@ -1933,7 +1936,7 @@ describe("resolveAndFetchSources", () => {
       if (path.endsWith("skills")) return true;
       return false;
     });
-    vi.mocked(findFilesByGlobs).mockResolvedValue([join(testDir, ".rulesync/skills/local-skill")]);
+    vi.mocked(listSubdirectoryNames).mockResolvedValue(["local-skill"]);
 
     const result = await resolveAndFetchSources({
       logger,

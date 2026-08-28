@@ -298,6 +298,57 @@ describe("SkillsProcessor", () => {
       expect(toolDirs).toEqual([]);
     });
 
+    it("should skip a directory it cannot name, or a hidden one, when importing", async () => {
+      // Same two directories the sweep leaves alone, on the read side: the
+      // backslash name is reported, and the hidden directory — which has no
+      // SKILL.md and would otherwise fail the import of this native root — is
+      // passed over silently, as the glob used to do.
+      const logger = createMockLogger();
+      const loggingProcessor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const skillsDir = join(testDir, ".claude", "skills");
+      const frontmatter = "---\nname: plain\ndescription: Test skill\n---\nContent";
+      await writeFileContent(join(skillsDir, "back\\slash", "SKILL.md"), frontmatter);
+      await writeFileContent(join(skillsDir, "plain", "SKILL.md"), frontmatter);
+      await ensureDir(join(skillsDir, ".git"));
+
+      const toolDirs = await loggingProcessor.loadToolDirs();
+
+      expect(toolDirs.map((dir) => dir.getDirName())).toEqual(["plain"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("a skill directory name cannot contain a path separator"),
+      );
+    });
+
+    it("should report a skill it cannot load without letting the name rewrite the line", async () => {
+      // The name comes off disk, so it can carry the escape sequence that
+      // erases the line it is printed on and passes the rest off as output of
+      // rulesync's own. Quoting the stripped path is what the rest of the
+      // codebase does with such a name.
+      const logger = createMockLogger();
+      const loggingProcessor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "amp",
+      });
+      // An interop root is read leniently, so a directory without a SKILL.md is
+      // reported instead of failing the import.
+      await ensureDir(join(testDir, ".agents", "skills", "ok\u001b[2K\r-fake-line"));
+
+      await loggingProcessor.loadToolDirs();
+
+      const reported = logger.warn.mock.calls
+        .map((call) => String(call[0]))
+        .filter((message) => message.startsWith("Skipping "));
+      expect(reported).toHaveLength(1);
+      expect(reported[0]).toContain('"' + join(".agents", "skills", "ok[2K-fake-line") + '"');
+      expect(reported[0]).not.toContain("\u001b");
+      expect(reported[0]).not.toContain("\r");
+    });
+
     it("should throw error for unsupported tool target", async () => {
       // Create processor with mock tool target (bypassing constructor validation)
       const processorWithMockTarget = Object.create(SkillsProcessor.prototype);
@@ -641,6 +692,44 @@ Linked skill content`,
         expect(rulesyncSkill.getFrontmatter().description).toBe("Skill shared via a symbolic link");
       },
     );
+
+    it("should skip a rulesync skill directory whose name contains a backslash", async () => {
+      // The glob this enumeration replaced rewrote the backslash into a
+      // separator, so it reported a directory that does not exist and missed
+      // the real one. A name holding a separator cannot be carried through
+      // `AiDir`, so the run reports it and generates the skill beside it.
+      const warningLogger = createMockLogger();
+      const loggingProcessor = new SkillsProcessor({
+        logger: warningLogger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      const frontmatter = "---\nname: plain\ndescription: Test skill\n---\nContent";
+      await writeFileContent(join(skillsDir, "back\\slash", "SKILL.md"), frontmatter);
+      await writeFileContent(join(skillsDir, "plain", "SKILL.md"), frontmatter);
+
+      const rulesyncDirs = await loggingProcessor.loadRulesyncDirs();
+
+      expect(rulesyncDirs.map((dir) => dir.getDirName())).toEqual(["plain"]);
+      expect(warningLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("a skill directory name cannot contain a path separator"),
+      );
+    });
+
+    it("should ignore a hidden directory beside the rulesync skills", async () => {
+      // `.ipynb_checkpoints`, `.venv` and their kind are not skills, and the
+      // loader throws on a directory without a SKILL.md — reading them would
+      // stop `generate` over somebody else's by-product.
+      const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+      const frontmatter = "---\nname: plain\ndescription: Test skill\n---\nContent";
+      await writeFileContent(join(skillsDir, "plain", "SKILL.md"), frontmatter);
+      await ensureDir(join(skillsDir, ".ipynb_checkpoints"));
+
+      const rulesyncDirs = await processor.loadRulesyncDirs();
+
+      expect(rulesyncDirs.map((dir) => dir.getDirName())).toEqual(["plain"]);
+    });
 
     it("should throw error when directory without SKILL.md file is found", async () => {
       const skillsDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH);
@@ -1180,6 +1269,56 @@ Broken YAML`,
       );
     });
 
+    it("should skip a flat-file skill whose name contains a backslash", async () => {
+      // The name a flat skill carries is its file name minus the extension, and
+      // it reaches `AiDir` like a directory name does. Reporting it keeps one
+      // file from failing the import of the whole root.
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "kimi-code",
+      });
+      const interopDir = join(testDir, ".agents", "skills");
+      const flatSkill = "---\nname: flat\ndescription: A conformant flat skill\n---\nBody";
+      await writeFileContent(join(interopDir, "good-flat.md"), flatSkill);
+      await writeFileContent(join(interopDir, "back\\slash.md"), flatSkill);
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("a skill name cannot contain a path separator"),
+      );
+    });
+
+    it("should report a skill directory it cannot name once per run", async () => {
+      // A processor is built per enabled tool target, and each one enumerates
+      // the same directory. A message naming that directory would otherwise be
+      // printed once per target.
+      const logger = createMockLogger();
+      const skillsDir = join(testDir, ".claude", "skills");
+      const frontmatter = "---\nname: plain\ndescription: Test skill\n---\nContent";
+      await writeFileContent(join(skillsDir, "back\\slash", "SKILL.md"), frontmatter);
+
+      await new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      }).loadToolDirs();
+      await new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      }).loadToolDirs();
+
+      expect(
+        logger.warn.mock.calls.filter(([message]) =>
+          String(message).includes("a skill directory name cannot contain a path separator"),
+        ),
+      ).toHaveLength(1);
+    });
+
     it("should import skills from nested .claude/skills directories (v2.1.178)", async () => {
       const logger = createMockLogger();
       const processor = new SkillsProcessor({
@@ -1458,6 +1597,53 @@ Test skill content`;
       expect(dirsToDelete).toHaveLength(1);
       expect(dirsToDelete[0]).toBeInstanceOf(ClaudecodeSkill);
       expect(dirsToDelete[0]?.getDirName()).toBe("test-skill");
+    });
+
+    it("should report a skill directory whose name contains a backslash", async () => {
+      // A `*` glob rewrites the backslash into a separator, so the candidate it
+      // used to yield was `<root>/slash` — a directory that does not exist. The
+      // real one cannot be swept either, since a directory name may not hold a
+      // separator, so the run says so instead of quietly building a candidate
+      // for nothing. The skill beside it is still swept.
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const skillsDir = join(testDir, ".claude", "skills");
+      const frontmatter = "---\nname: a-skill\ndescription: Test skill\n---\nContent";
+      await writeFileContent(join(skillsDir, "back\\slash", "SKILL.md"), frontmatter);
+      await writeFileContent(join(skillsDir, "plain", "SKILL.md"), frontmatter);
+
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete.map((dir) => dir.getDirName())).toEqual(["plain"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("a skill directory name cannot contain a path separator"),
+      );
+    });
+
+    it("should not sweep a hidden directory beside the skills", async () => {
+      // A user who keeps `.claude/skills/` under its own version control has a
+      // `.git` there. The glob this replaced never returned a hidden entry, and
+      // `generate --delete` removes every candidate it is handed, so including
+      // one here would delete a tree rulesync never wrote.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const skillsDir = join(testDir, ".claude", "skills");
+      const frontmatter = "---\nname: plain\ndescription: Test skill\n---\nContent";
+      await writeFileContent(join(skillsDir, "plain", "SKILL.md"), frontmatter);
+      await ensureDir(join(skillsDir, ".git"));
+
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete.map((dir) => dir.getDirName())).toEqual(["plain"]);
     });
 
     it("should succeed even when SKILL.md has broken frontmatter", async () => {

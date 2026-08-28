@@ -182,6 +182,57 @@ describe("HermesagentCommand", () => {
     ).resolves.toBeDefined();
   });
 
+  it("ignores a skill directory whose name it cannot address", async () => {
+    // Globbed, `back\\slash` came back as two segments and `RulesyncSkill.fromDir`
+    // threw over `.../skills/back/slash` — a directory that does not exist —
+    // failing the whole run. The skills processor only reports such a name, so
+    // the collision check must not be the thing that stops generation.
+    const skillDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "back\\slash");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      join(skillDir, "SKILL.md"),
+      '---\nname: review\ndescription: Review changes\ntargets: ["hermesagent"]\n---\n',
+      "utf8",
+    );
+    const processor = new CommandsProcessor({
+      inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+      toolTarget: "hermesagent",
+      global: true,
+      logger: createMockLogger(),
+    });
+
+    await expect(
+      processor.convertRulesyncFilesToToolFiles([rulesyncCommand()]),
+    ).resolves.toBeDefined();
+  });
+
+  it("ignores a SKILL.md nested below a skill directory", async () => {
+    // The `**` glob this used to walk built the name `review/examples`, which no
+    // `AiDir` accepts, so a skill shipping an example of its own broke the run.
+    const nestedDir = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "examples");
+    await mkdir(nestedDir, { recursive: true });
+    await writeFile(
+      join(nestedDir, "SKILL.md"),
+      '---\nname: examples\ndescription: An example\ntargets: ["hermesagent"]\n---\n',
+      "utf8",
+    );
+    await writeFile(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "SKILL.md"),
+      '---\nname: review\ndescription: Review changes\ntargets: ["claudecode"]\n---\n',
+      "utf8",
+    );
+    const processor = new CommandsProcessor({
+      inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+      toolTarget: "hermesagent",
+      global: true,
+      logger: createMockLogger(),
+    });
+
+    await expect(
+      processor.convertRulesyncFilesToToolFiles([rulesyncCommand()]),
+    ).resolves.toBeDefined();
+  });
+
   it("lets a later root's case-variant skill directory shadow an earlier root's skill", async () => {
     // The skills processor treats `Review` and `review` as one directory, so
     // the collision check must resolve the same single winner instead of
