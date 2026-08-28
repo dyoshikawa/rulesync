@@ -1,10 +1,6 @@
 import checkbox from "@inquirer/checkbox";
 
-import {
-  describeConfusableNames,
-  displayFormOf,
-  readingFormOf,
-} from "../utils/confusable-names.js";
+import { describeConfusableNames, readingFormOf } from "../utils/confusable-names.js";
 import { displayWidthOf, shortenToWidth } from "../utils/display-width.js";
 
 /**
@@ -106,8 +102,15 @@ function formatSkillChoiceLabel(params: {
  * Both are the prompt's own words, and a name is free to begin with either. A
  * name that does gets a note saying so, which puts the real mark in front of it
  * and leaves the imitation where it can be seen for what it is.
+ *
+ * Matched against the form the name is read in rather than the form it is
+ * written in, since a mark is a shape and not a spelling: `(l)` and `(I)` are
+ * drawn as the number this list would have printed, and U+01C3 is drawn as the
+ * exclamation mark. That is also why the digits are joined by `l` and `o` in
+ * the pattern — the reading form has already folded a one onto an l and a zero
+ * onto an o, so a genuine `(1)` arrives here spelled `(l)`.
  */
-const PROMPT_MARKUP_PATTERN = /^(?:\[!\]|\(\d+\))/u;
+const PROMPT_MARKUP_PATTERN = /^(?:\[!\]|\([lo\d]+\))/u;
 
 const PROMPT_MARKUP_NOTE = "begins the way this list marks its own rows";
 
@@ -149,7 +152,7 @@ function formatSkillChoiceLabels(params: {
   // the row explained by half of what is wrong with it.
   const noteFor = (name: string): string | undefined => {
     const reasons = [
-      PROMPT_MARKUP_PATTERN.test(displayFormOf(name)) ? PROMPT_MARKUP_NOTE : undefined,
+      PROMPT_MARKUP_PATTERN.test(readingFormOf(name)) ? PROMPT_MARKUP_NOTE : undefined,
       notes.get(name),
     ].filter((reason) => reason !== undefined);
     return reasons.length > 0 ? reasons.join("; ") : undefined;
@@ -167,12 +170,12 @@ function formatSkillChoiceLabels(params: {
   for (const reading of readings) {
     counts.set(reading, (counts.get(reading) ?? 0) + 1);
   }
-  return labels.map((label, index) => {
+  return names.map((name, index) => {
+    const label = labels[index] ?? name;
     if ((counts.get(readings[index] ?? label) ?? 0) < 2) {
       return label;
     }
     const prefix = numberPrefixOf(index + 1);
-    const name = names[index] ?? label;
     return `${prefix}${formatSkillChoiceLabel({
       name,
       note: notesByIndex[index],

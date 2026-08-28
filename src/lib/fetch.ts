@@ -601,8 +601,9 @@ function formatConfusableSkillsWarning(params: {
   // run writes. A name is confusable with another name, and the other one need
   // not have been selected: `--skills c0py` fetches one directory, and that the
   // repository also publishes `copy` is exactly what the user has to be told.
+  const fetchedNames = new Set(fetched);
   const notes = new Map(
-    [...describeConfusableNames(available)].filter(([name]) => fetched.includes(name)),
+    [...describeConfusableNames(available)].filter(([name]) => fetchedNames.has(name)),
   );
   if (notes.size === 0) {
     return undefined;
@@ -611,7 +612,8 @@ function formatConfusableSkillsWarning(params: {
     .toSorted(([a], [b]) => (a < b ? -1 : 1))
     .map(([name, note]) => `${JSON.stringify(stripControlCharacters(name))} (${note})`);
   return (
-    `Some fetched skill names may not be told apart from each other on sight: ` +
+    `Some fetched skill names may not be told apart on sight from another name the source ` +
+    `repository publishes, which this run may not have fetched: ` +
     `${formatCappedList({ items: described, separator: "; " })}. ` +
     `Check that each is the skill you meant to fetch.`
   );

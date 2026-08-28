@@ -181,6 +181,12 @@ const CASE_SENSITIVE_LOOKALIKES: ReadonlyMap<string, string> = new Map([
  * skips it, and the compatibility normalization leaves U+2010 alone — which is
  * why the skeleton has to fold it.
  *
+ * The brackets and the exclamation mark are here for the other half of the
+ * same problem. The prompt marks its own rows with `[!]` and numbers them
+ * `(1)`, and a name is checked against those marks — a check that reads the
+ * ASCII spelling alone is one U+01C3 LATIN LETTER RETROFLEX CLICK, drawn as an
+ * exclamation mark in every font, away from being told nothing.
+ *
  * U+2014 EM DASH is deliberately absent. It is drawn plainly longer than a
  * hyphen, and it is the character this tool puts between a note and a name, so
  * folding it would let a name reach into how the prompt marks its own rows.
@@ -195,6 +201,15 @@ const PUNCTUATION_LOOKALIKES: ReadonlyMap<string, string> = new Map([
   ["\u2212", "-"],
   ["\u2796", "-"],
   ["\u1806", "-"],
+  ["\u2500", "-"],
+  ["\u01c3", "!"],
+  ["\ua71d", "!"],
+  ["\u2045", "["],
+  ["\u2046", "]"],
+  ["\u2768", "("],
+  ["\u2769", ")"],
+  ["\u27ee", "("],
+  ["\u27ef", ")"],
   ["\u2018", "'"],
   ["\u2019", "'"],
   ["\u02bc", "'"],
@@ -278,23 +293,28 @@ const SAME_CASE_LATIN_LOOKALIKES: ReadonlySet<string> = sameCaseLookalikeSet([
 /**
  * The scripts every letter of which counts as a Latin lookalike.
  *
- * These are the alphabets the list above names for sharing letter shapes with
- * Latin and nothing else: no ordinary skill name is written in Cherokee or
- * Lisu, and the shapes are what the scripts were picked for. Mapping them
- * letter by letter would be hundreds of entries for a table whose point is the
- * pairs that carry the attack, so the whole script is taken instead — which is
- * what makes `\u13a1\u13aa\u13d2\u13da`, four Cherokee letters read as RATS,
- * a name the check can see. Cyrillic, Greek and Armenian are not here: those do
- * spell ordinary words, which is why they are named letter by letter.
+ * These are the alphabets of the list above whose letters are drawn as Latin
+ * ones throughout rather than here and there: Cherokee, Lisu, Osage and Deseret
+ * were all built from Latin letter shapes, and Coptic from the Greek ones that
+ * share them. Mapping them letter by letter would be hundreds of entries for a
+ * table whose point is the pairs that carry the attack, so the whole script is
+ * taken instead — which is what makes `\u13a1\u13aa\u13d2\u13da`, four
+ * Cherokee letters read as RATS, a name the check can see.
+ *
+ * Two of the scripts the list above names are deliberately absent. Canadian
+ * Aboriginal Syllabics and Vai are written in shapes of their own, so a name
+ * in either reads as nothing Latin and saying it does would be false — the
+ * mixed-script check still covers the letters of theirs that do resemble one.
+ * Cyrillic, Greek and Armenian are absent for the opposite reason: those spell
+ * ordinary words in letters that are mostly not Latin shapes, which is why they
+ * are named letter by letter.
  */
 const LATIN_SHAPED_SCRIPTS: ReadonlySet<string> = new Set([
   "Cherokee",
   "Coptic",
   "Lisu",
-  "Canadian Aboriginal",
   "Osage",
   "Deseret",
-  "Vai",
   "Tifinagh",
 ]);
 
@@ -374,14 +394,10 @@ function normalizedFormOf(name: string): string {
 }
 
 /**
- * The form of `name` a terminal draws, for callers that need to compare two
- * pieces of text the way a reader would rather than the way `===` does.
- *
- * Exported so that the rule for what counts as the same thing on screen — which
- * hidden characters vanish, which compatibility forms fold together — is
- * decided here and not a second time somewhere else.
+ * The form of `name` a terminal draws: what two pieces of text have to share to
+ * be the same thing on screen rather than the same thing to `===`.
  */
-export function displayFormOf(name: string): string {
+function displayFormOf(name: string): string {
   return normalizedFormOf(name).toLowerCase();
 }
 

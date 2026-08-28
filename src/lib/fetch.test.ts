@@ -1917,7 +1917,7 @@ describe("fetchFiles with skill selection", () => {
 
     expect(summary.files.map((file) => file.relativePath)).toContain("skills/c0py/SKILL.md");
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("may not be told apart from each other on sight"),
+      expect.stringContaining("may not be told apart on sight"),
     );
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("differs from it only by lookalike letters"),
@@ -1970,7 +1970,7 @@ describe("fetchFiles with skill selection", () => {
     expect(fetched).not.toContain("skills/copy/SKILL.md");
     const warning = logger.warn.mock.calls
       .map(([message]) => String(message))
-      .find((message) => message.includes("may not be told apart from each other"));
+      .find((message) => message.includes("may not be told apart on sight"));
     expect(warning).toContain("differs from it only by lookalike letters");
     // Only what this run writes is listed: the twin explains the note, it is
     // not itself a name the user has to check.

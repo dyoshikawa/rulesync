@@ -216,6 +216,23 @@ describe("promptSkillSelection", () => {
     expect(choices[0]?.value).toBe(impostor);
   });
 
+  it("should mark a name that spells the prompt's own marks in lookalikes", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // The same imitation drawn out of characters the ASCII spelling does not
+    // cover: U+01C3 is an exclamation mark in every font, and an l inside the
+    // parentheses is the number this list would have printed there.
+    const impostor = "(l) [\u01c3] another entry has the same display form \u2014 pdf";
+
+    await promptSkillSelection({ availableSkills: [impostor], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(choices[0]?.name).toMatch(/^\[!\] begins the way this list marks its own rows \u2014 /u);
+    expect(choices[0]?.value).toBe(impostor);
+  });
+
   it("should number rows whose labels read alike without being the same text", async () => {
     checkboxMock.mockResolvedValue([]);
     // `git` and `ɡit` (U+0261) carry the same note as each other, so the two

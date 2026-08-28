@@ -257,9 +257,12 @@ describe("describeConfusableNames", () => {
   });
 
   it("should still report a word whose every letter is drawn as a Latin one", () => {
-    // "copy" spelled in Cyrillic: с о р у are each drawn as the Latin letter
-    // they sit beside, lowercase and all.
-    expect(describeConfusableNames(["сору"]).get("сору")).toBe(
+    // "copy" spelled in Cyrillic, written as escapes: the point of the name is
+    // that it cannot be told from the Latin word on sight, and a reviewer
+    // reading this file is owed the same warning the prompt gives.
+    const cyrillicCopy = "\u0441\u043e\u0440\u0443";
+
+    expect(describeConfusableNames([cyrillicCopy]).get(cyrillicCopy)).toBe(
       "reads as Latin letters but is written in Cyrillic",
     );
   });
@@ -299,6 +302,24 @@ describe("describeConfusableNames", () => {
       new Map([
         ["code-review", twin],
         ["code\u2010review", twin],
+      ]),
+    );
+  });
+
+  it("should leave the dash this tool marks its own rows with alone", () => {
+    // U+2014 EM DASH separates a note from a name in the prompt, and it is
+    // drawn plainly longer than a hyphen. Folding it would hand a name a way
+    // into how the prompt marks its rows.
+    expect(describeConfusableNames(["code-review", "code\u2014review"])).toEqual(new Map());
+  });
+
+  it("should note a twin that only replaces the apostrophe", () => {
+    const twin = "another entry differs from it only by lookalike letters";
+
+    expect(describeConfusableNames(["let's-go", "let\u2019s-go"])).toEqual(
+      new Map([
+        ["let's-go", twin],
+        ["let\u2019s-go", twin],
       ]),
     );
   });
