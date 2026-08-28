@@ -22,7 +22,7 @@ const TAKT_NAME_PATTERN = /^[A-Za-z0-9_.-]+$/u;
  * {@link assertSafeTaktName} and {@link prependTaktExtends} so the rule lives in
  * one place.
  */
-function isUnsafeTaktName(name: string): boolean {
+export function isUnsafeTaktName(name: string): boolean {
   return (
     !TAKT_NAME_PATTERN.test(name) ||
     name === "." ||

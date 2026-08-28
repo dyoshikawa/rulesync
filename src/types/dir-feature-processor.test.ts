@@ -68,6 +68,7 @@ function createMockFlatDir({
   relativeDirPath = basename(root),
   dirPath = root,
   flatFilePath,
+  otherFiles = [],
 }: {
   root: string;
   fileName: string;
@@ -77,6 +78,8 @@ function createMockFlatDir({
   dirPath?: string;
   /** Overrides the file the candidate names; `null` for one that names none. */
   flatFilePath?: string | null;
+  /** Companion files this entry writes beside its own, as generate does. */
+  otherFiles?: AiDirFile[];
 }): AiDir {
   return {
     getDirPath: () => dirPath,
@@ -84,7 +87,7 @@ function createMockFlatDir({
     getFlatFilePath: () =>
       flatFilePath === null ? undefined : (flatFilePath ?? join(dirPath, fileName)),
     getMainFile: () => ({ name: fileName, body: "", frontmatter: {} }),
-    getOtherFiles: () => [],
+    getOtherFiles: () => otherFiles,
     getOutputRoot: () => outputRoot,
     getRelativeDirPath: () => relativeDirPath,
     getRelativePathFromCwd: () => join(relativeDirPath, fileName),
@@ -574,13 +577,13 @@ describe("DirFeatureProcessor", () => {
       const logger = createMockLogger();
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
-      const count = await processor.removeOrphanFlatFiles(
-        [
+      const count = await processor.removeOrphanFlatFiles({
+        existingFlatFiles: [
           createMockFlatDir({ root, fileName: "stale.md" }),
           createMockFlatDir({ root, fileName: "kept.md" }),
         ],
-        [createMockFlatDir({ root, fileName: "kept.md" })],
-      );
+        generatedDirs: [createMockFlatDir({ root, fileName: "kept.md" })],
+      });
 
       expect(count).toBe(1);
       expect(removeFile).toHaveBeenCalledExactlyOnceWith(join(root, "stale.md"));
@@ -592,19 +595,47 @@ describe("DirFeatureProcessor", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("should keep a companion file this run wrote into the same root", async () => {
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+      });
+
+      const count = await processor.removeOrphanFlatFiles({
+        // A companion lands beside the skill's own file, directly in the
+        // shared root, and is as much a file of this run as the main one.
+        existingFlatFiles: [createMockFlatDir({ root, fileName: "reference.md" })],
+        generatedDirs: [
+          createMockFlatDir({
+            root,
+            fileName: "kept.md",
+            otherFiles: [
+              {
+                relativeFilePathToDirPath: "reference.md",
+                fileBuffer: Buffer.from(""),
+              } as unknown as AiDirFile,
+            ],
+          }),
+        ],
+      });
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+    });
+
     it("should delete a file two candidates report once", async () => {
       const processor = new TestDirProcessor({
         logger: createMockLogger(),
         outputRoot: "/path/to",
       });
 
-      const count = await processor.removeOrphanFlatFiles(
-        [
+      const count = await processor.removeOrphanFlatFiles({
+        existingFlatFiles: [
           createMockFlatDir({ root, fileName: "stale.md" }),
           createMockFlatDir({ root, fileName: "stale.md" }),
         ],
-        [],
-      );
+        generatedDirs: [],
+      });
 
       expect(count).toBe(1);
       expect(removeFile).toHaveBeenCalledExactlyOnceWith(join(root, "stale.md"));
@@ -614,10 +645,10 @@ describe("DirFeatureProcessor", () => {
       const logger = createMockLogger();
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to", dryRun: true });
 
-      const count = await processor.removeOrphanFlatFiles(
-        [createMockFlatDir({ root, fileName: "stale.md" })],
-        [],
-      );
+      const count = await processor.removeOrphanFlatFiles({
+        existingFlatFiles: [createMockFlatDir({ root, fileName: "stale.md" })],
+        generatedDirs: [],
+      });
 
       expect(count).toBe(1);
       expect(removeFile).not.toHaveBeenCalled();
@@ -630,10 +661,10 @@ describe("DirFeatureProcessor", () => {
       const logger = createMockLogger();
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
-      const count = await processor.removeOrphanFlatFiles(
-        [createMockFlatDir({ root, fileName: "stale.md", flatFilePath: null })],
-        [],
-      );
+      const count = await processor.removeOrphanFlatFiles({
+        existingFlatFiles: [createMockFlatDir({ root, fileName: "stale.md", flatFilePath: null })],
+        generatedDirs: [],
+      });
 
       expect(count).toBe(0);
       expect(removeFile).not.toHaveBeenCalled();
@@ -646,10 +677,12 @@ describe("DirFeatureProcessor", () => {
       const logger = createMockLogger();
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
-      const count = await processor.removeOrphanFlatFiles(
-        [createMockFlatDir({ root: "/elsewhere/knowledge", fileName: "stale.md" })],
-        [],
-      );
+      const count = await processor.removeOrphanFlatFiles({
+        existingFlatFiles: [
+          createMockFlatDir({ root: "/elsewhere/knowledge", fileName: "stale.md" }),
+        ],
+        generatedDirs: [],
+      });
 
       expect(count).toBe(0);
       expect(removeFile).not.toHaveBeenCalled();
@@ -662,12 +695,36 @@ describe("DirFeatureProcessor", () => {
       const logger = createMockLogger();
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
-      const count = await processor.removeOrphanFlatFiles(
+      const count = await processor.removeOrphanFlatFiles({
         // A `getDirPath()` override this sweep was never told about: the file
         // it names is not the one the root was enumerated for.
-        [createMockFlatDir({ root, fileName: "stale.md", dirPath: join(root, "nested") })],
-        [],
+        existingFlatFiles: [
+          createMockFlatDir({ root, fileName: "stale.md", dirPath: join(root, "nested") }),
+        ],
+        generatedDirs: [],
+      });
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("it is not directly inside"),
       );
+    });
+
+    it("should refuse a candidate naming a file outside the root it reports", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanFlatFiles({
+        // The root it reports is the one it was enumerated from, and passes
+        // the positional check — but the file it names is somewhere else
+        // entirely. Only the file is ever deleted, so only the file's own
+        // directory settles whether it may be.
+        existingFlatFiles: [
+          createMockFlatDir({ root, fileName: "stale.md", flatFilePath: "/etc/passwd" }),
+        ],
+        generatedDirs: [],
+      });
 
       expect(count).toBe(0);
       expect(removeFile).not.toHaveBeenCalled();
@@ -683,7 +740,10 @@ describe("DirFeatureProcessor", () => {
       });
 
       expect(
-        await processor.removeOrphanFlatFiles([], [createMockFlatDir({ root, fileName: "a.md" })]),
+        await processor.removeOrphanFlatFiles({
+          existingFlatFiles: [],
+          generatedDirs: [createMockFlatDir({ root, fileName: "a.md" })],
+        }),
       ).toBe(0);
       expect(removeFile).not.toHaveBeenCalled();
     });

@@ -130,6 +130,21 @@ type ToolSkillFactory = {
        */
       inputRoots: readonly string[];
     }): Promise<boolean>;
+    /**
+     * Opt-in name policy for the flat half of the `--delete` orphan sweep, for
+     * a tool that writes one `<name>.md` per skill into a root it shares with
+     * the user's own files (TAKT's `.takt/facets/knowledge/`). It answers
+     * whether `fileName` is a name this tool could itself have written there;
+     * a name it could never have produced is nobody's orphan, and is left
+     * alone.
+     *
+     * Declaring it is what opts a tool into that half of the sweep at all — a
+     * tool without it has no flat file considered. It only ever narrows: the
+     * derived check that the candidate names back the very file enumerated
+     * still decides whether an individual file may go, so declaring this on a
+     * directory-based tool cannot make it start deleting files.
+     */
+    canSweepFlatFileName?(params: { fileName: string }): boolean;
   };
   meta: {
     /** Whether the tool supports project (workspace-level) skills */
@@ -983,13 +998,17 @@ export class SkillsProcessor extends DirFeatureProcessor {
     });
   }
 
-  async loadToolDirsToDelete(): Promise<AiDir[]> {
-    const factory = this.getFactory(this.toolTarget);
-    const paths = factory.class.getSettablePaths({ global: this.global });
-    const roots = toolSkillSearchRoots(paths);
-
-    const toolSkills: AiDir[] = [];
-    for (const root of roots) {
+  /**
+   * The tool's skills roots that exist on disk, each paired with its absolute
+   * path and vetted as writable inside this run's output root. Shared by the
+   * two halves of the orphan sweep so both look in exactly the same places,
+   * under exactly the same guard.
+   */
+  private async loadExistingSkillsRoots(
+    paths: ToolSkillSettablePaths,
+  ): Promise<Array<{ root: string; skillsDirPath: string }>> {
+    const existingRoots: Array<{ root: string; skillsDirPath: string }> = [];
+    for (const root of toolSkillSearchRoots(paths)) {
       const skillsDirPath = join(this.outputRoot, root);
       if (!(await directoryExists(skillsDirPath))) {
         continue;
@@ -998,6 +1017,18 @@ export class SkillsProcessor extends DirFeatureProcessor {
         rootPath: this.outputRoot,
         targetPath: skillsDirPath,
       });
+      existingRoots.push({ root, skillsDirPath });
+    }
+    return existingRoots;
+  }
+
+  async loadToolDirsToDelete(): Promise<AiDir[]> {
+    const factory = this.getFactory(this.toolTarget);
+    const paths = factory.class.getSettablePaths({ global: this.global });
+    const roots = toolSkillSearchRoots(paths);
+
+    const toolSkills: AiDir[] = [];
+    for (const { root, skillsDirPath } of await this.loadExistingSkillsRoots(paths)) {
       const dirNames = this.keepAddressableNames({
         names: await listSubdirectoryNames(skillsDirPath, { followSymbolicLinks: false }),
         dirPath: skillsDirPath,
@@ -1046,33 +1077,37 @@ export class SkillsProcessor extends DirFeatureProcessor {
    * are invisible to {@link loadToolDirsToDelete}, which enumerates
    * subdirectories — of which such a tool creates none.
    *
-   * A directory-based tool contributes nothing here. The candidate built for
-   * one of its `.md` files reports a directory of its own rather than that
-   * file, and is dropped by the check below: a stray Markdown file next to its
-   * skill directories is not a skill of its, and must not be swept as one.
+   * A directory-based tool contributes nothing here: it declares no
+   * `canSweepFlatFileName` policy, so its roots are never listed, and a
+   * candidate built for one of its `.md` files would name a directory of its
+   * own rather than that file anyway. A stray Markdown file next to its skill
+   * directories is not a skill of its, and must not be swept as one.
    */
   override async loadToolFlatFilesToDelete(): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
+    const canSweepFlatFileName = factory.class.canSweepFlatFileName;
+    // Opt-in, and the opt-in is the whole gate: a tool that declares no name
+    // policy for this root has no flat file of its considered, and its roots
+    // are not even listed. That is what every directory-based tool wants —
+    // a stray Markdown file next to its skill directories is not a skill of
+    // its, and must not be swept as one.
+    if (canSweepFlatFileName === undefined) {
+      return [];
+    }
     const paths = factory.class.getSettablePaths({ global: this.global });
     const roots = toolSkillSearchRoots(paths);
 
     const toolSkills: AiDir[] = [];
-    for (const root of roots) {
-      const skillsDirPath = join(this.outputRoot, root);
-      if (!(await directoryExists(skillsDirPath))) {
-        continue;
-      }
-      await assertWritablePathInsideRoot({
-        rootPath: this.outputRoot,
-        targetPath: skillsDirPath,
-      });
+    for (const { root, skillsDirPath } of await this.loadExistingSkillsRoots(paths)) {
       const fileNames = this.keepAddressableNames({
         // Symbolic links are left out, as they are for the directory half of
         // the sweep: a link that happens to share a generated file's name is
         // not that file, and removing it deletes something rulesync never
-        // wrote there.
+        // wrote there. Hidden files are left out for the same reason
+        // `listFileNames` omits them everywhere else: a dotfile in the root is
+        // the tool's or the editor's, never a skill this run wrote.
         names: await listFileNames(skillsDirPath, {
-          nameFilter: (name) => name.endsWith(".md"),
+          nameFilter: (name) => name.endsWith(".md") && canSweepFlatFileName({ fileName: name }),
           followSymbolicLinks: false,
         }),
         dirPath: skillsDirPath,
@@ -1095,12 +1130,17 @@ export class SkillsProcessor extends DirFeatureProcessor {
         // instead, and `getFlatFilePath()` returns nothing), and false for a
         // flat one whose file name is not the stem plus `.md` — in which case
         // the file it does name is not the one enumerated here, and sweeping
-        // it would delete an unrelated entry.
+        // it would delete an unrelated entry. Derived rather than declared, so
+        // a tool that declares the name policy but does not actually flatten
+        // still sweeps nothing.
         if (toolSkill.getFlatFilePath() !== filePath) {
           continue;
         }
         // Same ownership hook as the directory half: a file another feature
         // generated into a shared root must never be swept as an orphan skill.
+        // No tool declares both hooks today; it is here so that adding an
+        // ownership filter to a flattening tool takes effect on the sweep
+        // rather than being quietly ignored.
         if (
           factory.class.isDirOwned &&
           !(await factory.class.isDirOwned({

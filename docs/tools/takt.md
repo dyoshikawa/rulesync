@@ -66,9 +66,11 @@ Both project mode (`.takt/facets/...`, `.takt/config.yaml`) and global mode (`~/
 
 Skills are written as flat files sharing one facet root instead of each getting a directory of its own, so `generate --delete` sweeps `.takt/facets/knowledge/` (or `~/.takt/facets/knowledge/` in global mode) by file name rather than by directory: a `.md` file directly under the root that no `.rulesync/skills/` source produces is deleted. That is what makes a renamed or deleted skill stop being served to TAKT. The other facets are unaffected — rules, commands, and subagents each get their own directory and are swept normally.
 
-The root itself is never deleted, and neither is anything nested inside it: a subdirectory under `.takt/facets/knowledge/` is left alone, files and all.
+The root itself is never deleted, and neither is anything nested inside it: a subdirectory under `.takt/facets/knowledge/` is left alone, files and all. Symbolic links and hidden dotfiles in the root are skipped too, and so is any file whose name TAKT itself could never have written — a facet name is limited to ASCII letters, digits, `_`, `-`, and `.`, so `Design Doc.md` or `設計メモ.md` is never touched.
 
-A hand-authored `.md` placed **directly** in the facet root is another matter. It is indistinguishable from a generated one, so `--delete` sweeps it — the same as for `policies/`, `instructions/`, and `personas/`, which the rules, commands, and subagents features own outright. Keep hand-authored knowledge in a subdirectory (for example `.takt/facets/knowledge/my-notes/`) to put it out of the sweep's reach.
+A hand-authored `.md` placed **directly** in the facet root, under a name that _does_ look generated, is another matter. It is indistinguishable from a real skill file, so `--delete` sweeps it — the same as for `policies/`, `instructions/`, and `personas/`, which the rules, commands, and subagents features own outright. Keep hand-authored knowledge in a subdirectory (for example `.takt/facets/knowledge/my-notes/`) to put it out of the sweep's reach. The same applies in global mode: `~/.takt/facets/knowledge/` is swept exactly like the project root.
+
+One gap is worth knowing about. A skill's companion files are flattened into the same root, and only the `.md` files directly under it are swept: a companion that is not Markdown (`runbook.txt`) or that sits in a subdirectory of its own (`refs/notes.md`) survives its skill's removal and has to be deleted by hand.
 
 ## Importing existing TAKT files into rulesync
 

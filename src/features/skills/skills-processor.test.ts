@@ -1770,7 +1770,10 @@ Content that would fail parsing`;
       });
 
       const filesToDelete = await processor.loadToolFlatFilesToDelete();
-      const removedCount = await processor.removeOrphanFlatFiles(filesToDelete, [generated]);
+      const removedCount = await processor.removeOrphanFlatFiles({
+        existingFlatFiles: filesToDelete,
+        generatedDirs: [generated],
+      });
 
       expect(removedCount).toBe(1);
       expect(await fileExists(join(knowledgeDir, "runbook.md"))).toBe(false);
@@ -1779,6 +1782,26 @@ Content that would fail parsing`;
       expect(await directoryExists(knowledgeDir)).toBe(true);
       expect(await fileExists(join(handAuthoredDir, "notes.md"))).toBe(true);
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should leave a flat file whose name takt could never have written", async () => {
+      // The shared facet root is a place a user may also keep notes of their
+      // own. A name rulesync could not have produced — it would have been
+      // rejected as a facet name — is nobody's orphan.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "takt",
+      });
+
+      const knowledgeDir = join(testDir, TAKT_SKILLS_DIR_PATH);
+      await ensureDir(knowledgeDir);
+      await writeFileContent(join(knowledgeDir, "Design Doc.md"), "hand-authored");
+      await writeFileContent(join(knowledgeDir, "runbook.md"), "generated once");
+
+      const filesToDelete = await processor.loadToolFlatFilesToDelete();
+
+      expect(filesToDelete.map((file) => file.getDirName())).toEqual(["runbook"]);
     });
 
     it("should never list a directory-based tool's stray markdown file for deletion", async () => {

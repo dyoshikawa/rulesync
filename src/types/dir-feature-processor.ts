@@ -1,4 +1,4 @@
-import { join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {
@@ -354,9 +354,29 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
    * is the only thing there is to sweep. Anything else under the root is left
    * alone: a subdirectory, and any file the enumeration did not hand over.
    */
-  async removeOrphanFlatFiles(existingFlatFiles: AiDir[], generatedDirs: AiDir[]): Promise<number> {
+  async removeOrphanFlatFiles({
+    existingFlatFiles,
+    generatedDirs,
+  }: {
+    existingFlatFiles: AiDir[];
+    generatedDirs: AiDir[];
+  }): Promise<number> {
+    // Everything this run wrote into a shared root, not just the file that
+    // stands for each entry: a takt skill's companion files land beside it,
+    // directly under the same root, and one of those is exactly as much a file
+    // of this run as the main file is.
     const generatedPaths = new Set(
-      generatedDirs.map((d) => d.getFlatFilePath()).filter((p) => p !== undefined),
+      generatedDirs.flatMap((d) => {
+        const flatFilePath = d.getFlatFilePath();
+        if (flatFilePath === undefined) {
+          return [];
+        }
+        const dirPath = d.getDirPath();
+        return [
+          flatFilePath,
+          ...d.getOtherFiles().map((f) => join(dirPath, f.relativeFilePathToDirPath)),
+        ];
+      }),
     );
     // A set, for the same reason the directory sweep uses one: two candidates
     // that report the same file delete it once and are counted once.
@@ -393,12 +413,12 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       }
 
       // The file has to sit directly in the root the candidate was enumerated
-      // from, and `getFlatFilePath()` builds it by joining a single name onto
-      // `getDirPath()` — so that path being the root is the whole of the check.
-      // A candidate that reports anything else has a `getDirPath()` override
-      // this sweep was never told about, and the file it names is somewhere
-      // other than where the enumeration looked.
-      if (verdict !== "equal") {
+      // from. `getDirPath()` is what the root check above ruled on, so the
+      // directory the file itself is in has to be that same path — checked
+      // against the path, not against the candidate's word for it, so an
+      // override that returns a file somewhere else entirely is caught here
+      // rather than deleting outside the root that was vetted.
+      if (verdict !== "equal" || dirname(filePath) !== dirPath) {
         this.logger.warn(
           `Refusing to delete ${quotedFilePath}: it is not directly inside ${quotedRoot}, the ` +
             `shared root it was found in`,

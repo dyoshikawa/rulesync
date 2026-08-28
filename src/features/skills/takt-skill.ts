@@ -1,9 +1,9 @@
-import { join, relative, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 
 import { TAKT_SKILLS_DIR_PATH } from "../../constants/takt-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { pathEscapesRoot, toPosixPath } from "../../utils/file.js";
-import { assertSafeTaktName, prependTaktExtends } from "../takt-shared.js";
+import { assertSafeTaktName, isUnsafeTaktName, prependTaktExtends } from "../takt-shared.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -197,6 +197,24 @@ export class TaktSkill extends ToolSkill {
       "Importing existing TAKT facet files into rulesync is not supported: " +
         "TAKT files are plain Markdown and the original skill metadata cannot be recovered.",
     );
+  }
+
+  /**
+   * The `--delete` sweep only considers a flat file whose name TAKT itself
+   * could have written: `<stem>.md` with a stem that passes the same
+   * validation every generated facet name has to pass
+   * ({@link assertSafeTaktName}). `.takt/facets/knowledge/` is a root a user
+   * may also keep their own notes in, and a name rulesync could never have
+   * produced — `Design Doc.md`, `設計メモ.md` — is nobody's orphan.
+   *
+   * It narrows only. A name that passes here is still swept only if the
+   * candidate built from it names back that very file.
+   */
+  static canSweepFlatFileName({ fileName }: { fileName: string }): boolean {
+    if (!fileName.endsWith(".md")) {
+      return false;
+    }
+    return !isUnsafeTaktName(basename(fileName, ".md"));
   }
 
   static forDeletion({
