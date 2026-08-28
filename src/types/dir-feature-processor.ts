@@ -1,4 +1,4 @@
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {
@@ -9,6 +9,7 @@ import { stripControlCharacters } from "../utils/control-characters.js";
 import {
   addTrailingNewline,
   ensureDir,
+  pathEscapesRoot,
   readFileBufferOrNull,
   readFileContentOrNull,
   removeDirectory,
@@ -26,18 +27,23 @@ import { ToolTarget } from "./tool-targets.js";
  * Whether the directory a candidate reports really is one of the directories
  * inside the root it was enumerated from.
  *
- * Deliberately structural: it asks nothing of the candidate beyond the three
- * values it was built with, so it holds even when {@link AiDir.getDirPath} is
- * overridden and {@link AiDir.ownsDirTree} is not kept in agreement with it.
- * Equal paths fail it too — a candidate that reports the root is the shared
- * root, and deleting that takes every sibling in it.
+ * Positional rather than delegated: a subclass that overrides
+ * {@link AiDir.getDirPath} without keeping {@link AiDir.ownsDirTree} in
+ * agreement with it is caught here, since the answer comes from comparing the
+ * path against the root instead of from asking the candidate whether its path
+ * is its own. Equal paths fail it too — a candidate that reports the root is
+ * the shared root, and deleting that takes every sibling in it.
+ *
+ * It is a backstop, not the guard: the comparison is lexical, so a root that is
+ * itself a link into another tree still passes it, and the caller-side
+ * `assertWritablePathInsideRoot` — which resolves the real path — is what rules
+ * that out. The three values it reads are the candidate's own, so it is a
+ * consistency check across them rather than a fact about the filesystem.
  */
 function isInsideOwnRoot(aiDir: AiDir): boolean {
   const root = resolve(join(aiDir.getOutputRoot(), aiDir.getRelativeDirPath()));
   const relativeToRoot = relative(root, resolve(aiDir.getDirPath()));
-  // An absolute result means the two are on different Windows drives, and a
-  // leading `..` means the candidate climbs out of the root.
-  return relativeToRoot !== "" && !relativeToRoot.startsWith("..") && !isAbsolute(relativeToRoot);
+  return relativeToRoot !== "" && !pathEscapesRoot(relativeToRoot);
 }
 
 export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
@@ -224,24 +230,11 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
   async removeOrphanAiDirs(existingDirs: AiDir[], generatedDirs: AiDir[]): Promise<number> {
     const generatedPaths = new Set(generatedDirs.map((d) => d.getDirPath()));
     const orphanDirs = existingDirs.filter((d) => {
-      // Checked here rather than trusted from the caller: this method is public
-      // on the base class and takes any `AiDir`, so a future caller inherits the
-      // recursive deletion without the caller-side guards `SkillsProcessor`
-      // applies. What it refuses is positional — the candidate has to sit
-      // strictly below the root it was enumerated from — so a subclass that
-      // reports the root itself, or a path in another tree entirely, cannot
-      // turn a contract mismatch into a deletion the user cannot undo.
-      if (!isInsideOwnRoot(d)) {
-        this.logger.warn(
-          `Refusing to delete ${JSON.stringify(stripControlCharacters(d.getDirPath()))}: it is ` +
-            `not inside ${JSON.stringify(stripControlCharacters(join(d.getOutputRoot(), d.getRelativeDirPath())))}, ` +
-            `the directory it was found in`,
-        );
-        return false;
-      }
       // A candidate that does not own its directory tree cannot be an orphan of
       // itself: its path is a root it merely flattens into, so deleting it would
       // take every sibling in that root with it (see `AiDir.ownsDirTree`).
+      // Checked first, because a tool that flattens says so here and reports
+      // the root as its path — an expected shape, not the mismatch below.
       if (!d.ownsDirTree()) {
         this.logger.debug(
           // Quoted by the serializer: the name comes off disk, and while the
@@ -249,6 +242,24 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
           // `Deleted directory: /home/you/important` still reads as one.
           `Skipping orphan sweep for ${JSON.stringify(stripControlCharacters(d.getDirName()))}: ` +
             `${stripControlCharacters(d.getDirPath())} is a shared root, not a directory of its own`,
+        );
+        return false;
+      }
+      // Checked here rather than trusted from the caller: this method is public
+      // on the base class and takes any `AiDir`, so a future caller inherits the
+      // recursive deletion without the caller-side guards `SkillsProcessor`
+      // applies. A candidate that claims its directory as its own and reports a
+      // path that is not in the root it was found in has a contract mismatch,
+      // and this is where that stops being a deletion the user cannot undo.
+      if (!isInsideOwnRoot(d)) {
+        const dirPath = JSON.stringify(stripControlCharacters(d.getDirPath()));
+        const root = join(d.getOutputRoot(), d.getRelativeDirPath());
+        this.logger.warn(
+          resolve(root) === resolve(d.getDirPath())
+            ? `Refusing to delete ${dirPath}: it is the root it was found in, not a directory ` +
+                `inside that root`
+            : `Refusing to delete ${dirPath}: it is not inside ` +
+                `${JSON.stringify(stripControlCharacters(root))}, the root it was found in`,
         );
         return false;
       }

@@ -1715,11 +1715,8 @@ Content that would fail parsing`;
       // every enumerated candidate. Sweeping the root when the run generated no
       // takt skill deleted it outright, along with anything the user had put
       // there by hand.
-      const processor = new SkillsProcessor({
-        logger: createMockLogger(),
-        outputRoot: testDir,
-        toolTarget: "takt",
-      });
+      const logger = createMockLogger();
+      const processor = new SkillsProcessor({ logger, outputRoot: testDir, toolTarget: "takt" });
 
       const knowledgeDir = join(testDir, ".takt", "facets", "knowledge");
       const handAuthoredDir = join(knowledgeDir, "my-notes");
@@ -1732,6 +1729,13 @@ Content that would fail parsing`;
       expect(removedCount).toBe(0);
       expect(await directoryExists(knowledgeDir)).toBe(true);
       expect(await directoryExists(handAuthoredDir)).toBe(true);
+      // A tool that flattens into a shared root is an expected shape, not a
+      // contract mismatch, so it is skipped quietly: the positional backstop
+      // added for #2786 must not turn this path into a user-facing warning.
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining("is a shared root, not a directory of its own"),
+      );
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should never list an importOnlySkillRoots skill for deletion", async () => {

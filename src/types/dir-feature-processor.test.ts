@@ -145,10 +145,11 @@ describe("DirFeatureProcessor", () => {
     });
 
     it("should refuse a candidate that reports the root it was found in", async () => {
-      // What #2784 actually hit: a subclass overrode `getDirPath()` to return
-      // the shared root, so every candidate reported the same directory and the
-      // sweep deleted the root with every sibling in it. `ownsDirTree()` is the
-      // subclass's own answer, so the sweep does not take it as the last word.
+      // The shape #2777 hit: a subclass overrode `getDirPath()` to return the
+      // shared root, so every candidate reported the same directory and the
+      // sweep deleted the root with every sibling in it. There it was
+      // `ownsDirTree()` that stopped the deletion; this pins that a candidate
+      // which claims the tree as its own anyway does not get through either.
       const logger = createMockLogger();
       const processor = new TestDirProcessor({ logger, outputRoot: testDir });
 
@@ -160,7 +161,8 @@ describe("DirFeatureProcessor", () => {
       expect(count).toBe(0);
       expect(removeDirectory).not.toHaveBeenCalled();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Refusing to delete "/path/to/root"'),
+        'Refusing to delete "/path/to/root": it is the root it was found in, not a directory ' +
+          "inside that root",
       );
     });
 
@@ -176,8 +178,22 @@ describe("DirFeatureProcessor", () => {
       expect(count).toBe(0);
       expect(removeDirectory).not.toHaveBeenCalled();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Refusing to delete "/path/to/elsewhere"'),
+        'Refusing to delete "/path/to/elsewhere": it is not inside "/path/to/root", the root it ' +
+          "was found in",
       );
+    });
+
+    it("should still remove a directory whose name merely starts with dots", async () => {
+      // `..cache` is an ordinary directory name, not a climb out of the root.
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir("/path/to/root/..cache", true, "/path/to/root")],
+        [],
+      );
+
+      expect(count).toBe(1);
+      expect(removeDirectory).toHaveBeenCalledWith("/path/to/root/..cache");
     });
 
     it("should still remove a directory nested below the root it was found in", async () => {
