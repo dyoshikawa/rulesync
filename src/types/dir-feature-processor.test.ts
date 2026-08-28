@@ -28,15 +28,20 @@ vi.mock("../utils/file.js", async () => {
   };
 });
 
-function createMockDir(
-  dirPath: string,
+function createMockDir({
+  dirPath,
   ownsDirTree = true,
   // The root the directory was found in, as a real `AiDir` carries it: an
   // output root plus a relative directory path. It defaults to the parent,
   // which is where a real `AiDir` puts it — the sweep checks that positionally.
   outputRoot = dirname(dirPath),
   relativeDirPath = ".",
-): AiDir {
+}: {
+  dirPath: string;
+  ownsDirTree?: boolean;
+  outputRoot?: string;
+  relativeDirPath?: string;
+}): AiDir {
   return {
     getDirPath: () => dirPath,
     getDirName: () => basename(dirPath),
@@ -60,6 +65,12 @@ function createMockDirWithFiles({
 }): AiDir {
   return {
     getDirPath: () => dirPath,
+    // The same three values `createMockDir` supplies: the orphan sweep reads
+    // them positionally, so a mock without them fails at run time rather than
+    // in the type checker, which the cast below has already given up on.
+    getOutputRoot: () => dirname(dirPath),
+    getRelativeDirPath: () => ".",
+    getDirName: () => basename(dirPath),
     getMainFile: () =>
       mainFileBody !== undefined
         ? { name: "SKILL.md", body: mainFileBody, frontmatter: {} }
@@ -112,12 +123,12 @@ describe("DirFeatureProcessor", () => {
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
       const existingDirs = [
-        createMockDir("/path/to/orphan1"),
-        createMockDir("/path/to/orphan2"),
-        createMockDir("/path/to/kept"),
+        createMockDir({ dirPath: "/path/to/orphan1" }),
+        createMockDir({ dirPath: "/path/to/orphan2" }),
+        createMockDir({ dirPath: "/path/to/kept" }),
       ];
 
-      const generatedDirs = [createMockDir("/path/to/kept")];
+      const generatedDirs = [createMockDir({ dirPath: "/path/to/kept" })];
 
       const count = await processor.removeOrphanAiDirs(existingDirs, generatedDirs);
 
@@ -130,6 +141,9 @@ describe("DirFeatureProcessor", () => {
       expect(logger.info).toHaveBeenCalledWith('Deleted directory: "/path/to/orphan1"');
       expect(logger.info).toHaveBeenCalledWith('Deleted directory: "/path/to/orphan2"');
       expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("kept"));
+      // The backstop must stay invisible on the ordinary path: a warning here
+      // would mean every `--delete` run tells the user it refused something.
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should strip control characters from the deletion log", async () => {
@@ -138,7 +152,7 @@ describe("DirFeatureProcessor", () => {
 
       // The path is an on-disk name rulesync did not choose, so a name carrying
       // `\x1b[2K\r` must not be able to rewrite the line and hide the deletion.
-      const existingDirs = [createMockDir("/path/to/\u001b[2K\r-innocent")];
+      const existingDirs = [createMockDir({ dirPath: "/path/to/\u001b[2K\r-innocent" })];
 
       const count = await processor.removeOrphanAiDirs(existingDirs, []);
 
@@ -156,7 +170,7 @@ describe("DirFeatureProcessor", () => {
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
       const count = await processor.removeOrphanAiDirs(
-        [createMockDir("/path/to/root", true, "/path/to/root")],
+        [createMockDir({ dirPath: "/path/to/root", outputRoot: "/path/to/root" })],
         [],
       );
 
@@ -173,7 +187,7 @@ describe("DirFeatureProcessor", () => {
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
       const count = await processor.removeOrphanAiDirs(
-        [createMockDir("/path/to/elsewhere", true, "/path/to/root")],
+        [createMockDir({ dirPath: "/path/to/elsewhere", outputRoot: "/path/to/root" })],
         [],
       );
 
@@ -193,7 +207,7 @@ describe("DirFeatureProcessor", () => {
       });
 
       const count = await processor.removeOrphanAiDirs(
-        [createMockDir("/path/to/root/..cache", true, "/path/to/root")],
+        [createMockDir({ dirPath: "/path/to/root/..cache", outputRoot: "/path/to/root" })],
         [],
       );
 
@@ -209,7 +223,7 @@ describe("DirFeatureProcessor", () => {
       });
 
       const count = await processor.removeOrphanAiDirs(
-        [createMockDir("/path/to/root/nested/orphan", true, "/path/to/root")],
+        [createMockDir({ dirPath: "/path/to/root/nested/orphan", outputRoot: "/path/to/root" })],
         [],
       );
 
@@ -226,7 +240,13 @@ describe("DirFeatureProcessor", () => {
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
       const count = await processor.removeOrphanAiDirs(
-        [createMockDir("/path/to/root/elsewhere", false, "/path/to/root")],
+        [
+          createMockDir({
+            dirPath: "/path/to/root/elsewhere",
+            ownsDirTree: false,
+            outputRoot: "/path/to/root",
+          }),
+        ],
         [],
       );
 
@@ -246,7 +266,13 @@ describe("DirFeatureProcessor", () => {
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
       const count = await processor.removeOrphanAiDirs(
-        [createMockDir("/path/to/other/orphan", true, "/path/to", "root")],
+        [
+          createMockDir({
+            dirPath: "/path/to/other/orphan",
+            outputRoot: "/path/to",
+            relativeDirPath: "root",
+          }),
+        ],
         [],
       );
 
@@ -265,7 +291,7 @@ describe("DirFeatureProcessor", () => {
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
 
       const count = await processor.removeOrphanAiDirs(
-        [createMockDir("/elsewhere/root/orphan", true, "/elsewhere/root")],
+        [createMockDir({ dirPath: "/elsewhere/root/orphan", outputRoot: "/elsewhere/root" })],
         [],
       );
 
@@ -287,7 +313,7 @@ describe("DirFeatureProcessor", () => {
 
       const sharedRoot = "/elsewhere/facets/knowledge";
       const count = await processor.removeOrphanAiDirs(
-        [createMockDir(sharedRoot, false, sharedRoot)],
+        [createMockDir({ dirPath: sharedRoot, ownsDirTree: false, outputRoot: sharedRoot })],
         [],
       );
 
@@ -300,15 +326,60 @@ describe("DirFeatureProcessor", () => {
       expect(logger.debug).not.toHaveBeenCalledWith(expect.stringContaining("shared root"));
     });
 
+    it("should refuse a candidate whose relative directory path climbs out", async () => {
+      // The half of the root the candidate supplies as a relative path is the
+      // one that can climb: a root reached by `..` would otherwise vouch for
+      // every directory below wherever it landed.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanAiDirs(
+        [createMockDir({ dirPath: "/orphan", outputRoot: "/path/to", relativeDirPath: "../.." })],
+        [],
+      );
+
+      expect(count).toBe(0);
+      expect(removeDirectory).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('the root "/" it was found in is not inside "/path/to"'),
+      );
+    });
+
+    it("should still sweep a real orphan alongside a refused candidate", async () => {
+      // Refusing one candidate must not turn `--delete` off for the rest of the
+      // run, the same way the shared-root case does not.
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+      });
+
+      const count = await processor.removeOrphanAiDirs(
+        [
+          createMockDir({ dirPath: "/elsewhere/root/orphan", outputRoot: "/elsewhere/root" }),
+          createMockDir({ dirPath: "/path/to/orphan" }),
+        ],
+        [],
+      );
+
+      expect(count).toBe(1);
+      expect(removeDirectory).toHaveBeenCalledExactlyOnceWith("/path/to/orphan");
+    });
+
     it("should not remove any dirs when all existing dirs are in generated", async () => {
       const processor = new TestDirProcessor({
         logger: createMockLogger(),
         outputRoot: "/path/to",
       });
 
-      const existingDirs = [createMockDir("/path/to/dir1"), createMockDir("/path/to/dir2")];
+      const existingDirs = [
+        createMockDir({ dirPath: "/path/to/dir1" }),
+        createMockDir({ dirPath: "/path/to/dir2" }),
+      ];
 
-      const generatedDirs = [createMockDir("/path/to/dir1"), createMockDir("/path/to/dir2")];
+      const generatedDirs = [
+        createMockDir({ dirPath: "/path/to/dir1" }),
+        createMockDir({ dirPath: "/path/to/dir2" }),
+      ];
 
       const count = await processor.removeOrphanAiDirs(existingDirs, generatedDirs);
 
@@ -322,7 +393,10 @@ describe("DirFeatureProcessor", () => {
         outputRoot: "/path/to",
       });
 
-      const existingDirs = [createMockDir("/path/to/dir1"), createMockDir("/path/to/dir2")];
+      const existingDirs = [
+        createMockDir({ dirPath: "/path/to/dir1" }),
+        createMockDir({ dirPath: "/path/to/dir2" }),
+      ];
 
       const generatedDirs: AiDir[] = [];
 
@@ -343,12 +417,12 @@ describe("DirFeatureProcessor", () => {
       });
 
       const existingDirs = [
-        createMockDir("/path/to/orphan1"),
-        createMockDir("/path/to/orphan2"),
-        createMockDir("/path/to/kept"),
+        createMockDir({ dirPath: "/path/to/orphan1" }),
+        createMockDir({ dirPath: "/path/to/orphan2" }),
+        createMockDir({ dirPath: "/path/to/kept" }),
       ];
 
-      const generatedDirs = [createMockDir("/path/to/kept")];
+      const generatedDirs = [createMockDir({ dirPath: "/path/to/kept" })];
 
       const count = await processor.removeOrphanAiDirs(existingDirs, generatedDirs);
 
@@ -374,8 +448,8 @@ describe("DirFeatureProcessor", () => {
 
       const sharedRoot = "/path/to/.takt/facets/knowledge";
       const existingDirs = [
-        createMockDir(sharedRoot, false, sharedRoot),
-        createMockDir(sharedRoot, false, sharedRoot),
+        createMockDir({ dirPath: sharedRoot, ownsDirTree: false, outputRoot: sharedRoot }),
+        createMockDir({ dirPath: sharedRoot, ownsDirTree: false, outputRoot: sharedRoot }),
       ];
 
       const count = await processor.removeOrphanAiDirs(existingDirs, []);
@@ -400,12 +474,12 @@ describe("DirFeatureProcessor", () => {
 
       const count = await processor.removeOrphanAiDirs(
         [
-          createMockDir(
-            "/path/to/.takt/facets/knowledge",
-            false,
-            "/path/to/.takt/facets/knowledge",
-          ),
-          createMockDir("/path/to/orphan"),
+          createMockDir({
+            dirPath: "/path/to/.takt/facets/knowledge",
+            ownsDirTree: false,
+            outputRoot: "/path/to/.takt/facets/knowledge",
+          }),
+          createMockDir({ dirPath: "/path/to/orphan" }),
         ],
         [],
       );
@@ -427,11 +501,11 @@ describe("DirFeatureProcessor", () => {
 
       const count = await processor.removeOrphanAiDirs(
         [
-          createMockDir(
-            "/path/to/.takt/facets/knowledge",
-            false,
-            "/path/to/.takt/facets/knowledge",
-          ),
+          createMockDir({
+            dirPath: "/path/to/.takt/facets/knowledge",
+            ownsDirTree: false,
+            outputRoot: "/path/to/.takt/facets/knowledge",
+          }),
         ],
         [],
       );
@@ -447,7 +521,7 @@ describe("DirFeatureProcessor", () => {
       });
 
       const existingDirs: AiDir[] = [];
-      const generatedDirs = [createMockDir("/path/to/dir1")];
+      const generatedDirs = [createMockDir({ dirPath: "/path/to/dir1" })];
 
       await processor.removeOrphanAiDirs(existingDirs, generatedDirs);
 

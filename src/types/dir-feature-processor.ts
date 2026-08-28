@@ -242,7 +242,10 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
    */
   async removeOrphanAiDirs(existingDirs: AiDir[], generatedDirs: AiDir[]): Promise<number> {
     const generatedPaths = new Set(generatedDirs.map((d) => d.getDirPath()));
-    const orphanPaths: string[] = [];
+    // A set, so two candidates that report the same directory delete it once
+    // and are counted once.
+    const orphanPaths = new Set<string>();
+    const quotedOutputRoot = JSON.stringify(stripControlCharacters(this.outputRoot));
 
     for (const aiDir of existingDirs) {
       // Read once, and check and delete that one value: `getDirPath()` is a
@@ -250,13 +253,13 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // differently and delete something the checks below never saw.
       const dirPath = aiDir.getDirPath();
       const { verdict, root } = locateInOwnRoot({ aiDir, dirPath, outputRoot: this.outputRoot });
-      // Quoted by the serializer: these names come off disk, and while the
-      // strip rules out forging a whole line, an unquoted name like
-      // `Deleted directory: /home/you/important` still reads as one.
+      // Quoted by the serializer: the last segment of `dirPath` is a name that
+      // came off disk, and while the strip rules out forging a whole line, an
+      // unquoted path like `Deleted directory: /home/you/important` still reads
+      // as one. The root is quoted with it so one line reads consistently.
       const quotedDirPath = JSON.stringify(stripControlCharacters(dirPath));
       const quotedRoot = JSON.stringify(stripControlCharacters(root));
 
-      const quotedOutputRoot = JSON.stringify(stripControlCharacters(this.outputRoot));
       // Reported before anything about the directory's position, because a root
       // that is not in the directory this run writes to makes that position
       // meaningless: the directory can sit squarely inside a root that is
@@ -309,7 +312,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       }
 
       if (!generatedPaths.has(dirPath)) {
-        orphanPaths.push(dirPath);
+        orphanPaths.add(dirPath);
       }
     }
 
@@ -323,6 +326,6 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       }
     }
 
-    return orphanPaths.length;
+    return orphanPaths.size;
   }
 }
