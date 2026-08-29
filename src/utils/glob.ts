@@ -141,23 +141,11 @@ export function matchesGlob(glob: string, value: string): boolean {
  */
 export function compileGlob(glob: string): (value: string) => boolean {
   const steps = parseGlob(glob);
-  // Every step but `*` consumes exactly one character, so a value shorter than
-  // that count cannot match however the stars are placed. Checking it first
-  // keeps the walk off the shape it is slowest on — a star followed by a long
-  // literal run, which otherwise retries the run from every position.
-  const minimumLength = steps.filter((step) => step.kind !== "star").length;
-  return (value) => matchesParsedGlob(steps, minimumLength, value);
+  return (value) => matchesParsedGlob(steps, value);
 }
 
-function matchesParsedGlob(
-  steps: readonly GlobStep[],
-  minimumLength: number,
-  value: string,
-): boolean {
+function matchesParsedGlob(steps: readonly GlobStep[], value: string): boolean {
   const characters = [...value];
-  if (characters.length < minimumLength) {
-    return false;
-  }
   let stepIndex = 0;
   let characterIndex = 0;
   let starStepIndex = -1;

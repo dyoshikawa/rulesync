@@ -56,13 +56,6 @@ describe("matchesGlob", () => {
     expect(matchesGlob("git-[a[b", "git-[a[b")).toBe(true);
   });
 
-  it("should refuse a value shorter than the pattern's fixed steps outright", () => {
-    // The shape the walk is slowest on: a star, then a literal run it would
-    // otherwise retry from every position in the value.
-    expect(matchesGlob(`*${"a".repeat(2_000)}b`, "a".repeat(1_000))).toBe(false);
-    expect(matchesGlob("*ab", "ab")).toBe(true);
-  });
-
   it("should stay linear on a pattern that never closes a bracket", () => {
     // Scanning to the end again for every `[` would be quadratic, and a pattern
     // this shape can come from a file a repository carries.

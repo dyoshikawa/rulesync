@@ -705,13 +705,17 @@ describe("DeepagentsPermissions", () => {
       await writeFileContent(join(testDir, ".deepagents", "config.toml"), 'shell = "bash"\n');
 
       await generate({
-        config: { permission: { bash: { "git *": "allow", "rm -rf *": "deny" } } },
+        config: { permission: { bash: { "git *": "allow", "git push": "deny" } } },
         logger,
       });
 
       // dcode has no denylist whatever this run wrote, and "allow_list was left
-      // untouched" does not say so.
+      // untouched" does not say so. The deny is *only* unenforced here, though:
+      // nothing was written for it to collide with.
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("has no command denylist"));
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("are not merely unenforced"),
+      );
     });
 
     it("reports removing an allowlist the user had curated", async () => {

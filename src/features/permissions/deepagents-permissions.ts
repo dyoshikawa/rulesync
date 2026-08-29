@@ -78,19 +78,20 @@ const GLOB_CHARACTERS_PATTERN = /[*?[\]]/;
  * it splits a command on `&&`, `||`, `|` and `;` before comparing, rejects
  * `$(...)`, backticks, redirects and process substitution outright, and reads
  * the name through `shlex.split`, which takes the quotes and escapes off. An
- * entry holding
- * one of them therefore matches nothing, or matches only by accident of the
- * shell — either way it is not a rule worth writing into a global config.
+ * entry holding one of them therefore matches nothing, or matches only by
+ * accident of the shell — either way it is not a rule worth writing into a
+ * global config.
  */
 const SHELL_METACHARACTERS_PATTERN = /[;&|$`()<>'"\\]/;
 // The subset `shlex.split` strips rather than refuses — quotes and the
 // backslash escape — so a name spelled with them still reaches dcode's
 // comparison, as the name without them.
 const SHLEX_STRIPPED_PATTERN = /['"\\]/g;
-// `NAME_MAX` on every filesystem dcode runs on. A token longer than this is
-// not the name of anything that can be executed, so writing it would leave a
-// rule that cannot fire — and comparing a glob that long against a list is
-// work spent on an answer that is already known.
+// `NAME_MAX` on every filesystem dcode runs on, and so the longest a command's
+// own name can be. A token past it is a path spelled out in full or a mistake,
+// neither of which belongs in a list dcode compares executable names against;
+// it is refused with a warning rather than trimmed, and it bounds the value
+// side of the glob comparison below, which both sides otherwise lack.
 const MAX_EXECUTABLE_NAME_LENGTH = 255;
 // A canonical pattern may spell "any arguments" as a trailing `:*` on the
 // executable itself (`git:*`) rather than as a separate word (`git *`).
@@ -127,7 +128,7 @@ const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
  *   leave the user with less than dcode's own default, so deny wins.
  * - A token that still holds a glob (`npm-*`, `*.sh`), a shell metacharacter
  *   (`git;rm`, `$(id)`), a quote (`"git"`) or an escape (`\\git`) after the
- *   reduction has no
+ *   reduction — or one longer than a command's own name can be — has no
  *   counterpart and is skipped with a warning: dcode compares the name exactly,
  *   and splits, refuses, or unquotes a command holding one before it compares
  *   anything, so writing one would leave a rule in the user's global config
@@ -403,10 +404,7 @@ function warnAboutUnwrittenBashRules({
     // `allow_list = ["all"]` covers every command *and* turns the
     // dangerous-pattern check off, so nothing can miss it.
     if (allowAll) return true;
-    // dcode reads the name through `shlex.split`, which takes the quotes and
-    // escapes off, so `"git" *` and `\\git *` both collide with a `git` allow
-    // however oddly they are spelled.
-    const leading = leadingToken(pattern).replaceAll(SHLEX_STRIPPED_PATTERN, "");
+    const leading = leadingToken(pattern);
     // A rule whose executable is itself a glob — `*`, `npm*` — collides with
     // every entry it matches, so the reduction inverts it exactly as a literal
     // collision does. `*` is only the widest spelling of that, not a case of
@@ -419,7 +417,12 @@ function warnAboutUnwrittenBashRules({
       const matches = compileGlob(leading);
       return allowList.some((token) => matches(token));
     }
-    return allowedTokens.has(leading);
+    // dcode reads the name through `shlex.split`, which takes the quotes and
+    // escapes off, so `"git" *` and `\\git *` both collide with a `git` allow
+    // however oddly they are spelled. Stripped *after* the glob test above, so
+    // that `\\*` stays the literal `*` dcode compares rather than becoming a
+    // glob that collides with every entry.
+    return allowedTokens.has(leading.replaceAll(SHLEX_STRIPPED_PATTERN, ""));
   };
   // Canonically the stricter rule wins whatever its width — rulesync collapses
   // colliding rules as `deny > ask > allow` everywhere, and Claude Code applies
@@ -476,8 +479,8 @@ function warnAboutUnwrittenBashRules({
       logger,
       `deepagents-cli compares an allow_list entry to the executable name exactly, so a glob ` +
         `in that name matches nothing, a name longer than ${MAX_EXECUTABLE_NAME_LENGTH} ` +
-        `characters is longer than any executable, and a name holding a shell metacharacter, a ` +
-        `quote or an escape is ` +
+        `characters is longer than a command's own name can be, and a name holding a shell ` +
+        `metacharacter, a quote or an escape is ` +
         `one dcode splits on, refuses outright, or reads differently than it is written — the ` +
         `pattern(s) ${unmatchablePatterns.join(", ")} were therefore skipped rather than ` +
         `written as a rule that cannot be relied on to fire.`,
@@ -949,8 +952,10 @@ function convertDeepagentsToRulesyncPermissions({
   if (inertEntries.length > 0) {
     warnWithFallback(
       undefined,
-      `deepagents-cli matches an allow_list entry against the executable name exactly, so ` +
-        `${inertEntries.join(", ")} auto-approve nothing and were not imported as allow rules.`,
+      `deepagents-cli matches an allow_list entry against the executable name exactly, after ` +
+        `splitting the command and taking its quotes and escapes off, and a command's own name ` +
+        `is at most ${MAX_EXECUTABLE_NAME_LENGTH} characters, so ${inertEntries.join(", ")} ` +
+        `auto-approve nothing and were not imported as allow rules.`,
     );
   }
 
