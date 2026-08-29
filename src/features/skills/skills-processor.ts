@@ -138,14 +138,22 @@ type ToolSkillFactory = {
       global: boolean;
     }): Promise<boolean>;
     /**
-     * Optional write-direction counterpart of `isDirOwned`: whether this tool
-     * may emit a skill directory of this name at all. A name another feature
-     * owns must not be written from a rulesync skill, because the skills
-     * feature then refuses to delete it again and the directory outlives the
-     * source it came from. Decided from the name and scope alone, since
-     * nothing is on disk yet.
+     * Optional write-direction counterpart of `isDirOwned`: the reason this
+     * tool must not emit a skill directory of this name, or `null` when it
+     * may. A name another feature owns must not be written from a rulesync
+     * skill, because `isDirOwned` then refuses to delete it again and the
+     * directory outlives the source it came from — so the two hooks have to
+     * agree, and they take the same parameters to make keeping them in step
+     * straightforward. The reason is logged verbatim, so it must not embed
+     * anything read off disk.
      */
-    canWriteDir?(params: { dirName: string; global: boolean }): boolean;
+    getUnwritableDirReason?(params: {
+      outputRoot: string;
+      relativeDirPath: string;
+      dirName: string;
+      inputRoots: readonly string[];
+      global: boolean;
+    }): Promise<string | null>;
     /**
      * Opt-in name policy for the flat half of the `--delete` orphan sweep, for
      * a tool that writes one `<name>.md` per skill into a root it shares with
@@ -635,40 +643,51 @@ export class SkillsProcessor extends DirFeatureProcessor {
 
     const factory = this.getFactory(this.toolTarget);
 
-    const toolSkills = rulesyncSkills
-      .map((rulesyncSkill) => {
-        const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-        const isClaudecodeScheduledTask =
-          rulesyncFrontmatter.claudecode?.["scheduled-task"] === true;
-        if (
-          isClaudecodeScheduledTask &&
-          this.toolTarget !== "claudecode" &&
-          this.toolTarget !== "claudecode-legacy"
-        ) {
-          return null;
-        }
-        if (!factory.class.isTargetedByRulesyncSkill(rulesyncSkill)) {
-          return null;
-        }
-        const dirName = rulesyncSkill.getDirName();
-        if (factory.class.canWriteDir?.({ dirName, global: this.global }) === false) {
-          // Another feature owns this output directory, so the skills feature
-          // never deletes it either: writing it here would leave a directory
-          // that outlives the rulesync skill it came from.
-          this.logger.warn(
-            `Skipping skill "${dirName}" for '${this.toolTarget}': another feature owns that ` +
-              `output directory. Rename the skill to generate it.`,
-          );
-          return null;
-        }
-        return factory.class.fromRulesyncSkill({
-          outputRoot: this.outputRoot,
-          rulesyncSkill: rulesyncSkill,
-          global: this.global,
-          logger: this.logger,
-        });
-      })
-      .filter((skill): skill is ToolSkill => skill !== null);
+    const toolSkills = (
+      await Promise.all(
+        rulesyncSkills.map(async (rulesyncSkill) => {
+          const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+          const isClaudecodeScheduledTask =
+            rulesyncFrontmatter.claudecode?.["scheduled-task"] === true;
+          if (
+            isClaudecodeScheduledTask &&
+            this.toolTarget !== "claudecode" &&
+            this.toolTarget !== "claudecode-legacy"
+          ) {
+            return null;
+          }
+          if (!factory.class.isTargetedByRulesyncSkill(rulesyncSkill)) {
+            return null;
+          }
+          const dirName = rulesyncSkill.getDirName();
+          const unwritableReason = await factory.class.getUnwritableDirReason?.({
+            outputRoot: this.outputRoot,
+            relativeDirPath: factory.class.getSettablePaths({ global: this.global })
+              .relativeDirPath,
+            dirName,
+            inputRoots: this.inputRoots,
+            global: this.global,
+          });
+          if (unwritableReason !== undefined && unwritableReason !== null) {
+            // Another feature owns this output directory, so the skills feature
+            // never deletes it either: writing it here would leave a directory
+            // that outlives the rulesync skill it came from. The name is quoted
+            // and stripped because whoever wrote the repository chose it.
+            this.logger.warn(
+              `Skipping skill ${JSON.stringify(stripControlCharacters(dirName))} for ` +
+                `'${this.toolTarget}': ${unwritableReason}`,
+            );
+            return null;
+          }
+          return factory.class.fromRulesyncSkill({
+            outputRoot: this.outputRoot,
+            rulesyncSkill: rulesyncSkill,
+            global: this.global,
+            logger: this.logger,
+          });
+        }),
+      )
+    ).filter((skill): skill is ToolSkill => skill !== null);
 
     return toolSkills;
   }

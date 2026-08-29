@@ -4,12 +4,15 @@ import { z } from "zod/mini";
 
 import {
   FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME,
+  FACTORYDROID_REVIEW_GUIDELINES_DIR_PATH,
   FACTORYDROID_SKILLS_DIR_PATH,
 } from "../../constants/factorydroid-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { caseFoldIdentity } from "../../types/feature-processor.js";
 import { formatError } from "../../utils/error.js";
+import { toPosixPath } from "../../utils/file.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
@@ -231,24 +234,46 @@ export class FactorydroidSkill extends ToolSkill {
   }
 
   /**
-   * Whether a directory in `.factory/skills/` belongs to the skills feature.
+   * Whether a name in `.factory/skills/` belongs to the skills feature at this
+   * scope.
    *
-   * Project-scoped `review-guidelines/` never does. The checks feature writes
+   * Project-scoped `review-guidelines/` does not. The checks feature writes
    * Factory's review guidelines there (see `FactorydroidCheck`), because
    * Factory's automated reviewer reads that exact path, so the path has a
-   * single owner in both directions: the skills feature neither deletes the
-   * directory as an orphan on `generate --delete` nor imports it as a skill.
-   * Ownership cannot be decided from the file's shape instead — Factory's own
-   * documented example has no frontmatter, so a hand-authored
-   * `review-guidelines` is indistinguishable from a generated one until it is
-   * too late to put it back.
+   * single owner in every direction: the skills feature neither generates it,
+   * nor imports it as a skill, nor deletes it as an orphan on
+   * `generate --delete`. Ownership cannot be decided from the file's shape
+   * instead — Factory's own documented example has no frontmatter, so a
+   * hand-authored `review-guidelines` is indistinguishable from a generated one
+   * until it is too late to put it back.
    *
-   * `rulesync import --targets factorydroid --features checks` is what reads a
-   * hand-authored file at this path.
+   * The comparison is case-folded like every other skill-directory identity,
+   * because `Review-Guidelines/` is the same file as `review-guidelines/` on
+   * macOS and Windows — and a spelling that slipped through here would be
+   * written by one feature and swept by the other.
    *
    * Global mode is unaffected: the reviewer runs against a repository, so
    * checks has no user-level output and `~/.factory/skills/review-guidelines/`
    * is an ordinary skill nobody else claims.
+   */
+  private static isCheckOwnedDirName({
+    dirName,
+    global,
+  }: {
+    dirName: string;
+    global: boolean;
+  }): boolean {
+    return (
+      !global &&
+      caseFoldIdentity(dirName) === caseFoldIdentity(FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME)
+    );
+  }
+
+  /**
+   * Read direction of {@link isCheckOwnedDirName}: the checks-owned directory
+   * is not imported as a skill and not swept as an orphan one.
+   * `rulesync import --targets factorydroid --features checks` is what reads a
+   * hand-authored file at this path.
    */
   static async isDirOwned({
     dirName,
@@ -262,18 +287,36 @@ export class FactorydroidSkill extends ToolSkill {
     inputRoots: readonly string[];
     global: boolean;
   }): Promise<boolean> {
-    return global || dirName !== FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
+    return !FactorydroidSkill.isCheckOwnedDirName({ dirName, global });
   }
 
   /**
-   * The same single-owner rule in the write direction: a rulesync skill named
-   * `review-guidelines` is not generated into the project tree, because
-   * {@link isDirOwned} would then refuse to delete the directory again and it
-   * would outlive the skill it came from. The checks feature is where that path
-   * is authored.
+   * Write direction of the same rule: a rulesync skill of that name is not
+   * generated into the project tree, because {@link isDirOwned} would then
+   * refuse to delete the directory again and it would outlive the skill it came
+   * from. The checks feature is where that path is authored.
    */
-  static canWriteDir({ dirName, global }: { dirName: string; global: boolean }): boolean {
-    return global || dirName !== FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
+  static async getUnwritableDirReason({
+    dirName,
+    global,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+    inputRoots: readonly string[];
+    global: boolean;
+  }): Promise<string | null> {
+    if (!FactorydroidSkill.isCheckOwnedDirName({ dirName, global })) {
+      return null;
+    }
+    return (
+      `the checks feature owns ${toPosixPath(FACTORYDROID_REVIEW_GUIDELINES_DIR_PATH)}, ` +
+      `because ` +
+      `Factory's reviewer reads it, and the skills feature can no longer delete it either. ` +
+      `Move the content to \`.rulesync/checks/\`, or rename the skill to generate it. If an ` +
+      `older rulesync already wrote that directory, import it with ` +
+      `\`rulesync import --targets factorydroid --features checks\` or delete it by hand.`
+    );
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<FactorydroidSkill> {

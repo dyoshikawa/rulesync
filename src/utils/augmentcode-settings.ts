@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME } from "../constants/augmentcode-paths.js";
 import { readFileContentOrNull } from "./file.js";
+import type { Logger } from "./logger.js";
 import { isPrototypePollutionKey } from "./prototype-pollution.js";
 import { readSettingsWithLocalOverlay } from "./settings-local-overlay.js";
 import { isPlainObject } from "./type-guards.js";
@@ -78,12 +79,14 @@ export async function readAugmentcodeSettingsWithLocalOverlay({
   baseFileName,
   baseFallbackContent,
   includeLocalOverlay,
+  logger,
 }: {
   outputRoot: string;
   relativeDirPath: string;
   baseFileName: string;
   baseFallbackContent: string;
   includeLocalOverlay: boolean;
+  logger?: Logger;
 }): Promise<string> {
   if (!includeLocalOverlay) {
     const baseFilePath = join(outputRoot, relativeDirPath, baseFileName);
@@ -100,6 +103,7 @@ export async function readAugmentcodeSettingsWithLocalOverlay({
     // Combine per AugmentCode's documented layering (local wins for scalars,
     // mcpServers/plugins replace, other objects/lists combine local-first).
     merge: combineAugmentSettings,
+    logger,
   });
   // `baseFallbackContent` stands in for a missing base file, so the overlay
   // never returns null here.

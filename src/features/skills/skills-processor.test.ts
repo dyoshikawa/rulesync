@@ -305,6 +305,7 @@ describe("SkillsProcessor", () => {
 
       expect(toolDirs).toEqual([]);
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("review-guidelines"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("checks"));
     });
 
     it("should generate that same skill in global mode", async () => {

@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "./file.js";
 import { readSettingsWithLocalOverlay } from "./settings-local-overlay.js";
@@ -22,7 +23,10 @@ describe("readSettingsWithLocalOverlay", () => {
 
   // Records what the caller's merge saw, so the shared half can be tested
   // without committing to either tool's layering semantics.
-  const read = ({ baseFallbackContent }: { baseFallbackContent?: string } = {}): Promise<
+  const read = ({
+    baseFallbackContent,
+    logger,
+  }: { baseFallbackContent?: string; logger?: ReturnType<typeof createMockLogger> } = {}): Promise<
     string | null
   > =>
     readSettingsWithLocalOverlay({
@@ -32,6 +36,7 @@ describe("readSettingsWithLocalOverlay", () => {
       localFileName: "settings.local.json",
       toolLabel: "Test Tool",
       ...(baseFallbackContent !== undefined && { baseFallbackContent }),
+      ...(logger !== undefined && { logger }),
       merge: (base, local) => ({ ...base, ...local, merged: true }),
     });
 
@@ -90,5 +95,37 @@ describe("readSettingsWithLocalOverlay", () => {
 
     await write("settings.json", "[1, 2]");
     expect(await read()).toBe("[1, 2]");
+  });
+
+  it("should name what the machine-local file contributed", async () => {
+    await write("settings.json", '{"a":1}');
+    await write("settings.local.json", '{"maxAutonomyLevel":"high"}');
+    const logger = createMockLogger();
+
+    await read({ logger });
+
+    // An import writes to `.rulesync/`, which is committed, so a value that was
+    // personal to one machine must not slip into the team's config unnoticed.
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"maxAutonomyLevel"'));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("settings.local.json"));
+  });
+
+  it("should stay quiet when there is no local file", async () => {
+    await write("settings.json", '{"a":1}');
+    const logger = createMockLogger();
+
+    await read({ logger });
+
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("should strip control characters from the key it names", async () => {
+    await write("settings.json", "{}");
+    await write("settings.local.json", '{"a\\u001b[31mb":1}');
+    const logger = createMockLogger();
+
+    await read({ logger });
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"a[31mb"'));
   });
 });

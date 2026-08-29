@@ -110,6 +110,7 @@ export class FactorydroidHooks extends ToolHooks {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolHooksFromFileParams): Promise<FactorydroidHooks> {
     const paths = FactorydroidHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -126,6 +127,7 @@ export class FactorydroidHooks extends ToolHooks {
         outputRoot,
         relativeDirPath: paths.relativeDirPath,
         baseFileName: FACTORYDROID_SETTINGS_FILE_NAME,
+        logger,
       });
       // The settings step is skipped unless the settings actually declare
       // hooks. Testing the file for existence instead would let an unrelated

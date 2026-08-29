@@ -128,6 +128,7 @@ export class FactorydroidPermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolPermissionsFromFileParams): Promise<FactorydroidPermissions> {
     const paths = FactorydroidPermissions.getSettablePaths({ global });
     // Droid applies `settings.local.json` on top of `settings.json` at this
@@ -138,6 +139,7 @@ export class FactorydroidPermissions extends ToolPermissions {
         outputRoot,
         relativeDirPath: paths.relativeDirPath,
         baseFileName: paths.relativeFilePath,
+        logger,
       })) ?? "{}";
     return new FactorydroidPermissions({
       outputRoot,

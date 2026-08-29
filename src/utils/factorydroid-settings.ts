@@ -1,4 +1,5 @@
 import { FACTORYDROID_LOCAL_SETTINGS_FILE_NAME } from "../constants/factorydroid-paths.js";
+import type { Logger } from "./logger.js";
 import { isPrototypePollutionKey } from "./prototype-pollution.js";
 import { readSettingsWithLocalOverlay } from "./settings-local-overlay.js";
 
@@ -39,10 +40,12 @@ export async function readFactorydroidSettingsWithLocalOverlay({
   outputRoot,
   relativeDirPath,
   baseFileName,
+  logger,
 }: {
   outputRoot: string;
   relativeDirPath: string;
   baseFileName: string;
+  logger?: Logger;
 }): Promise<string | null> {
   return await readSettingsWithLocalOverlay({
     outputRoot,
@@ -51,5 +54,6 @@ export async function readFactorydroidSettingsWithLocalOverlay({
     localFileName: FACTORYDROID_LOCAL_SETTINGS_FILE_NAME,
     toolLabel: "Factory Droid",
     merge: overrideFactorydroidSettings,
+    logger,
   });
 }

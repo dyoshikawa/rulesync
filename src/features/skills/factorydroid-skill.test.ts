@@ -693,6 +693,13 @@ Global body content`;
       expect(await isDirOwned("review-guidelines")).toBe(false);
     });
 
+    it("should disown a spelling that differs only in case", async () => {
+      // Case-insensitive filesystems resolve both spellings to one directory.
+      await writeSkillFile("Review-Guidelines", "Ours.\n");
+
+      expect(await isDirOwned("Review-Guidelines")).toBe(false);
+    });
+
     it("should own review-guidelines in global mode", async () => {
       // Checks is project-only, so nothing else claims the user-level path.
       await writeSkillFile("review-guidelines", "---\nname: rg\ndescription: Ours\n---\n\nOurs.\n");
@@ -701,23 +708,33 @@ Global body content`;
     });
   });
 
-  describe("canWriteDir", () => {
-    it("should refuse to generate a project-scoped review-guidelines skill", () => {
+  describe("getUnwritableDirReason", () => {
+    const reasonFor = (dirName: string, global = false): Promise<string | null> =>
+      FactorydroidSkill.getUnwritableDirReason({
+        outputRoot: testDir,
+        relativeDirPath: join(".factory", "skills"),
+        dirName,
+        inputRoots: ["."],
+        global,
+      });
+
+    it("should refuse to generate a project-scoped review-guidelines skill", async () => {
       // The checks feature owns that directory, and `isDirOwned` keeps the
       // skills feature from deleting it again.
-      expect(FactorydroidSkill.canWriteDir({ dirName: "review-guidelines", global: false })).toBe(
-        false,
-      );
+      expect(await reasonFor("review-guidelines")).toContain("checks");
     });
 
-    it("should generate review-guidelines in global mode", () => {
-      expect(FactorydroidSkill.canWriteDir({ dirName: "review-guidelines", global: true })).toBe(
-        true,
-      );
+    it("should refuse a spelling that differs only in case", async () => {
+      // On macOS and Windows it is the very same file as the checks output.
+      expect(await reasonFor("Review-Guidelines")).toContain("checks");
     });
 
-    it("should generate every other name", () => {
-      expect(FactorydroidSkill.canWriteDir({ dirName: "other", global: false })).toBe(true);
+    it("should generate review-guidelines in global mode", async () => {
+      expect(await reasonFor("review-guidelines", true)).toBeNull();
+    });
+
+    it("should generate every other name", async () => {
+      expect(await reasonFor("other")).toBeNull();
     });
   });
 

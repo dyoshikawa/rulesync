@@ -33,20 +33,23 @@ const FALLBACK_CHECK_NAME = FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
  *
  * rulesync never writes frontmatter here, but a user who authored this path as
  * an ordinary skill did, and that block is the skill's metadata rather than
- * review instructions. Left in the body it would be re-read as the check's own
- * frontmatter on the next load — a `severity: bogus` copied out of a skill
- * would then fail `.rulesync/checks/` validation for a file rulesync had just
- * written.
+ * review instructions. Writing the check back out hands the body to
+ * gray-matter's `stringify`, which re-parses whatever leads it and *merges*
+ * those keys into the frontmatter it is given — so a `severity: bogus` copied
+ * out of a skill would fail `.rulesync/checks/` validation for a file rulesync
+ * had just written, and a stray `name: [unclosed` would make the import throw
+ * a raw YAML error.
  *
- * The block is found the way gray-matter finds it rather than by parsing it, so
- * that exactly what gray-matter would have swallowed is dropped and no more:
- * a block whose YAML is invalid goes too (writing the check back out re-parses
- * whatever leads the body, so leaving it in place turns a stray
- * `name: [unclosed` in someone else's file into an import that throws), while
- * a fence nothing closes is left alone as the horizontal rule it is — treating
- * it as frontmatter is what empties the file.
+ * The block is therefore found the way gray-matter finds it rather than by
+ * parsing it, so that what gray-matter would have swallowed is what goes: the
+ * opening delimiter may carry a language name (`---yaml`), but four dashes are
+ * a horizontal rule gray-matter itself skips. The one deliberate difference is
+ * a fence nothing closes: gray-matter would swallow the rest of the file, so
+ * only the rule line goes and the prose under it is kept.
  */
-const FRONTMATTER_OPEN_PATTERN = /^\uFEFF?---[^\S\r\n]*\r?\n/;
+// `(?!-)` mirrors gray-matter's own "next character is a delimiter, so this is
+// not front matter" test; the rest of the line is the language name it reads.
+const FRONTMATTER_OPEN_PATTERN = /^\uFEFF?---(?!-)[^\r\n]*\r?\n/;
 // gray-matter ends the block at the first `\n---`, with no requirement that the
 // delimiter be alone on its line, and drops one newline after it.
 const FRONTMATTER_CLOSE_PATTERN = /\r?\n---/;
@@ -54,8 +57,10 @@ const LEADING_BLANK_LINE_PATTERN = /^[^\S\r\n]*\r?\n/;
 
 function stripSkillFrontmatter(fileContent: string): string {
   let content = fileContent;
-  // A loop, not a single pass: the written check is re-read from its own text,
-  // so a second block stacked behind the first would become its frontmatter.
+  // A loop, not a single pass: gray-matter takes only the leading block, so a
+  // second one written immediately behind the first would lead the body and be
+  // merged into the check's own frontmatter on the way out. A block further
+  // down is ordinary content and the loop stops before it.
   for (;;) {
     const opening = FRONTMATTER_OPEN_PATTERN.exec(content);
     if (!opening) {
@@ -100,10 +105,11 @@ function stripSkillFrontmatter(fileContent: string): string {
  * file out of it, so there is no user-level equivalent to write.
  *
  * The output lives inside the same `.factory/skills/` tree the `skills` feature
- * writes, so a user-authored `review-guidelines` skill collides with it. The
- * collision is handled the same way as a hand-written `BUGBOT.md`: generating
- * checks warns before replacing the file, and {@link canDeleteAuxiliaryFiles}
- * refuses to remove one holding anything rulesync did not write.
+ * writes, so a user-authored `review-guidelines` skill collides with it. Unlike
+ * `.cursor/BUGBOT.md`, that tree is gitignored, so a file replaced here has no
+ * committed copy to come back from: {@link fromRulesyncChecks} leaves a file
+ * holding anything rulesync did not write untouched, and
+ * {@link canDeleteAuxiliaryFiles} refuses to remove one.
  *
  * @see https://docs.factory.ai/software-factory/code-review-ci
  */
@@ -163,19 +169,24 @@ export class FactorydroidCheck extends ToolCheck {
     const relativeFilePath = paths.relativeFilePath ?? SKILL_FILE_NAME;
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
 
-    // The file is rewritten from `.rulesync/checks/` rather than merged into, so
-    // say so before a hand-authored `review-guidelines` skill goes away — the
-    // deletion guard protects it, but generating over it cannot.
+    // The file would be rewritten from `.rulesync/checks/` rather than merged
+    // into, so content rulesync did not write is left alone instead: unlike
+    // `.cursor/BUGBOT.md`, this path sits inside the gitignored
+    // `.factory/skills/` tree, so a hand-authored file replaced here is gone
+    // with nothing to restore it from. The deletion guard makes the same
+    // promise from the other side.
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     if (hasHandWrittenPreamble(existingContent)) {
       logger?.warn(
-        `Factory Droid checks: ${filePath} holds instructions rulesync did not write, and ` +
-          `generating replaces the whole file. If they were hand-authored, run ` +
-          `\`rulesync import --targets factorydroid --features checks\` first to keep them. ` +
-          `A rulesync skill named \`${FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME}\` is no longer ` +
-          `generated here — Factory's reviewer reads this path, so the checks feature owns it — ` +
-          `but a directory an older rulesync wrote can still be sitting there.`,
+        `Factory Droid checks: ${filePath} holds instructions rulesync did not write, so it is ` +
+          `left as it is and no checks were generated for Factory Droid. Run ` +
+          `\`rulesync import --targets factorydroid --features checks\` to bring them into ` +
+          `\`.rulesync/checks/\`, or delete the file if you no longer want it. A rulesync skill ` +
+          `named \`${FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME}\` is no longer generated here — ` +
+          `Factory's reviewer reads this path, so the checks feature owns it — but a directory ` +
+          `an older rulesync wrote can still be sitting there.`,
       );
+      return [];
     }
 
     const fileContent = renderCheckFile(rulesyncChecks);

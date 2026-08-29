@@ -2,11 +2,12 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { FACTORYDROID_REVIEW_GUIDELINES_DIR_PATH } from "../../constants/factorydroid-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, readFileContentOrNull, writeFileContent } from "../../utils/file.js";
 import { FactorydroidCheck } from "./factorydroid-check.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 
@@ -104,17 +105,27 @@ describe("FactorydroidCheck", () => {
       ).toEqual([]);
     });
 
-    it("should warn before replacing a hand-authored review-guidelines skill", async () => {
-      await writeGuidelines("---\nname: review-guidelines\n---\n\nOur own guidelines.\n");
+    it("should leave a hand-authored review-guidelines skill in place", async () => {
+      const handWritten = "---\nname: review-guidelines\n---\n\nOur own guidelines.\n";
+      await writeGuidelines(handWritten);
       const logger = createMockLogger();
 
-      await FactorydroidCheck.fromRulesyncChecks({
+      const generated = await FactorydroidCheck.fromRulesyncChecks({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
         rulesyncChecks: [checkOf({ name: "hooks-rules", body: "Flag hooks violations." })],
         logger,
       });
 
+      // `.factory/skills/` is gitignored, so a file replaced here has no
+      // committed copy to restore from: nothing is written and the warning
+      // points at `rulesync import`.
+      expect(generated).toEqual([]);
+      expect(
+        await readFileContentOrNull(
+          join(testDir, FACTORYDROID_REVIEW_GUIDELINES_DIR_PATH, SKILL_FILE_NAME),
+        ),
+      ).toBe(handWritten);
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("rulesync did not write"));
     });
 
@@ -269,7 +280,37 @@ describe("FactorydroidCheck", () => {
       expect(imported[0]!.getBody()).toBe("extra\nCheck Prisma queries.");
     });
 
-    it("should drop every stacked block, not just the first", async () => {
+    it("should drop a block whose delimiter carries a language name", async () => {
+      await writeGuidelines("---yaml\nseverity: bogus\n---\n\nCheck Prisma queries.\n");
+
+      const imported = (
+        await FactorydroidCheck.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: SKILL_FILE_NAME,
+        })
+      ).toRulesyncChecks();
+
+      // gray-matter reads the rest of that line as an engine name and parses
+      // the block, so a `---yaml` fence left in place leaks its keys too.
+      expect(imported[0]!.getBody()).toBe("Check Prisma queries.");
+      expect(imported[0]!.getFrontmatter()).toEqual({ targets: ["*"] });
+    });
+
+    it("should keep a horizontal rule of four or more dashes", async () => {
+      await writeGuidelines("----------\n\nCheck Prisma queries.\n");
+
+      const imported = (
+        await FactorydroidCheck.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: SKILL_FILE_NAME,
+        })
+      ).toRulesyncChecks();
+
+      // gray-matter stops at a fourth dash, so this is content, not a fence.
+      expect(imported[0]!.getBody()).toContain("----------");
+    });
+
+    it("should drop a block written immediately behind the first", async () => {
       await writeGuidelines(
         "---\nname: review-guidelines\n---\n---\nseverity: bogus\n---\nRule.\n",
       );
@@ -281,7 +322,8 @@ describe("FactorydroidCheck", () => {
         })
       ).toRulesyncChecks();
 
-      // A block left behind is re-read as the check's own frontmatter.
+      // gray-matter merges the keys of whatever leads the body into the
+      // frontmatter it is handed, so a second adjacent block leaks too.
       expect(imported[0]!.getBody()).toBe("Rule.");
       expect(imported[0]!.getFrontmatter()).toEqual({ targets: ["*"] });
     });

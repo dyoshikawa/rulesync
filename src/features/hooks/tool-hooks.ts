@@ -25,7 +25,13 @@ export type ToolHooksFromRulesyncHooksParams = Omit<
 export type ToolHooksFromFileParams = Pick<
   AiFileFromFileParams,
   "outputRoot" | "validate" | "global"
->;
+> & {
+  /**
+   * Lets an adapter report what it read, e.g. that a value came out of a
+   * machine-local overrides file the import is about to make committable.
+   */
+  logger?: Logger;
+};
 
 export type ToolHooksForDeletionParams = {
   outputRoot?: string;

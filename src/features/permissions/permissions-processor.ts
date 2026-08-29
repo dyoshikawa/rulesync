@@ -596,6 +596,7 @@ export class PermissionsProcessor extends FeatureProcessor {
         outputRoot: this.outputRoot,
         validate: true,
         global: this.global,
+        logger: this.logger,
       });
       return [toolPermissions];
     } catch (error) {

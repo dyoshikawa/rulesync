@@ -1,7 +1,9 @@
 import { join } from "node:path";
 
+import { stripControlCharacters } from "./control-characters.js";
 import { formatError } from "./error.js";
 import { readFileContentOrNull } from "./file.js";
+import type { Logger } from "./logger.js";
 import { isPlainObject } from "./type-guards.js";
 
 /**
@@ -21,6 +23,11 @@ import { isPlainObject } from "./type-guards.js";
  * A merge implementation is responsible for skipping prototype-pollution keys
  * coming from the local file.
  *
+ * Whatever the local file contributes is named in a warning when a `logger` is
+ * given, because the import's own output — `.rulesync/permissions.jsonc` and
+ * friends — is committed: a value that was personal to one machine becomes the
+ * team's on the next generate unless someone takes it out first.
+ *
  * Returns `null` when neither file exists and no `baseFallbackContent` is
  * given, so callers can tell "no settings at this scope" apart from empty ones.
  */
@@ -32,6 +39,7 @@ export async function readSettingsWithLocalOverlay({
   toolLabel,
   baseFallbackContent,
   merge,
+  logger,
 }: {
   outputRoot: string;
   relativeDirPath: string;
@@ -41,6 +49,8 @@ export async function readSettingsWithLocalOverlay({
   toolLabel: string;
   /** Stands in for a missing base file; omit to get `null` instead. */
   baseFallbackContent?: string;
+  /** Receives the warning naming what the machine-local file contributed. */
+  logger?: Logger;
   merge: (base: Record<string, unknown>, local: Record<string, unknown>) => Record<string, unknown>;
 }): Promise<string | null> {
   const baseContent =
@@ -94,5 +104,35 @@ export async function readSettingsWithLocalOverlay({
     baseParsed = parsed;
   }
 
+  warnAboutLocalKeys({ localParsed, configPath, toolLabel, logger });
+
   return JSON.stringify(merge(baseParsed, localParsed), null, 2);
+}
+
+/**
+ * Name the settings the machine-local file contributed, so nobody publishes one
+ * by accident. The keys are the user's own, so they are quoted and stripped of
+ * control characters like every other name read off disk.
+ */
+function warnAboutLocalKeys({
+  localParsed,
+  configPath,
+  toolLabel,
+  logger,
+}: {
+  localParsed: Record<string, unknown>;
+  configPath: string;
+  toolLabel: string;
+  logger?: Logger;
+}): void {
+  const keys = Object.keys(localParsed);
+  if (logger === undefined || keys.length === 0) {
+    return;
+  }
+  const named = keys.map((key) => JSON.stringify(stripControlCharacters(key))).join(", ");
+  logger.warn(
+    `${toolLabel}: ${configPath} is a machine-local overrides file, and importing read ` +
+      `${named} from it. What rulesync writes from an import is committed, so remove anything ` +
+      `personal to this machine from the imported files before sharing them.`,
+  );
 }
