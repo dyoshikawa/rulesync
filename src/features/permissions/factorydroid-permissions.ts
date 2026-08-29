@@ -6,9 +6,11 @@ import {
   FACTORYDROID_DIR,
   FACTORYDROID_SETTINGS_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
+import { FACTORYDROID_OVERRIDE_KEYS } from "../../constants/factorydroid-settings-keys.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
+import { readFactorydroidSettingsWithLocalOverlay } from "../../utils/factorydroid-settings.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -32,39 +34,6 @@ type FactorydroidSettingsJson = {
   commandBlocklist?: string[];
   [key: string]: unknown;
 };
-
-// Factory Droid-specific security keys that the `factorydroid` override authors
-// and that round-trip back into it on import. `commandBlocklist` is the
-// hard-block tier (distinct from an approvable canonical `deny`); the rest are
-// autonomy/sandbox/network/MCP controls with no canonical slot. rulesync still
-// fully owns `commandAllowlist`/`commandDenylist` via the shared block.
-// `subagentAutonomyLevel` scopes the autonomy granted to spawned subagents and
-// `mcpAutonomyOverrides` configures autonomy levels for individual MCP tools;
-// both are Factory-specific autonomy controls with no canonical slot.
-const FACTORYDROID_OVERRIDE_KEYS = [
-  "commandBlocklist",
-  "networkPolicy",
-  "sandbox",
-  "mcpPolicy",
-  "mcpAutonomyOverrides",
-  "enableDroidShield",
-  "sessionDefaultSettings",
-  "maxAutonomyLevel",
-  "subagentAutonomyLevel",
-  "interactionMode",
-  // Plugin bootstrap: Droid auto-registers these marketplaces and installs
-  // these plugins on start — the upstream distribution path for the same
-  // artifacts rulesync generates (commands, skills, droids, hooks, mcp).
-  // https://docs.factory.ai/cli/configuration/plugins
-  "extraKnownMarketplaces",
-  "enabledPlugins",
-  // Global hooks kill-switch. https://docs.factory.ai/cli/configuration/settings
-  "hooksDisabled",
-  // Per-skill kill-switch: an array of skill names Droid must not load. Same
-  // shape and settings file as `hooksDisabled`.
-  // https://docs.factory.ai/cli/configuration/settings
-  "disabledSkills",
-] as const;
 
 /**
  * Permissions adapter for Factory Droid.
@@ -121,10 +90,19 @@ export class FactorydroidPermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolPermissionsFromFileParams): Promise<FactorydroidPermissions> {
     const paths = FactorydroidPermissions.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? "{}";
+    // Droid applies `settings.local.json` on top of `settings.json` at this
+    // scope, so importing without it would read permissions Droid does not
+    // actually enforce. Generation still writes `settings.json` alone.
+    const fileContent =
+      (await readFactorydroidSettingsWithLocalOverlay({
+        outputRoot,
+        relativeDirPath: paths.relativeDirPath,
+        baseFileName: paths.relativeFilePath,
+        logger,
+      })) ?? "{}";
     return new FactorydroidPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,

@@ -641,6 +641,103 @@ Global body content`;
     });
   });
 
+  describe("isDirOwned", () => {
+    const skillsDir = join(".factory", "skills");
+
+    const writeSkillFile = async (dirName: string, content: string): Promise<void> => {
+      await ensureDir(join(testDir, skillsDir, dirName));
+      await writeFileContent(join(testDir, skillsDir, dirName, SKILL_FILE_NAME), content);
+    };
+
+    const isDirOwned = (dirName: string, global = false): Promise<boolean> =>
+      FactorydroidSkill.isDirOwned({
+        outputRoot: testDir,
+        relativeDirPath: skillsDir,
+        dirName,
+        inputRoots: ["."],
+        global,
+      });
+
+    it("should own every directory other than review-guidelines", async () => {
+      await writeSkillFile("other", "<!-- rulesync:check:security -->\n\n## security\n");
+
+      expect(await isDirOwned("other")).toBe(true);
+    });
+
+    it("should disown a review-guidelines directory holding generated check sections", async () => {
+      // The checks feature owns this path, so the skills feature must neither
+      // delete it as an orphan nor import it as a skill.
+      await writeSkillFile(
+        "review-guidelines",
+        "<!-- rulesync:check:security -->\n\n## security\n",
+      );
+
+      expect(await isDirOwned("review-guidelines")).toBe(false);
+    });
+
+    it("should disown a hand-authored review-guidelines directory too", async () => {
+      // Factory's documented example has no frontmatter, so shape cannot tell a
+      // hand-authored file from a generated one. The path decides instead, and
+      // `import --features checks` is what reads this one.
+      await writeSkillFile(
+        "review-guidelines",
+        "---\nname: review-guidelines\ndescription: Ours\n---\n\nOur guidelines.\n",
+      );
+
+      expect(await isDirOwned("review-guidelines")).toBe(false);
+    });
+
+    it("should disown a review-guidelines directory with no SKILL.md", async () => {
+      await ensureDir(join(testDir, skillsDir, "review-guidelines"));
+
+      expect(await isDirOwned("review-guidelines")).toBe(false);
+    });
+
+    it("should disown a spelling that differs only in case", async () => {
+      // Case-insensitive filesystems resolve both spellings to one directory.
+      await writeSkillFile("Review-Guidelines", "Ours.\n");
+
+      expect(await isDirOwned("Review-Guidelines")).toBe(false);
+    });
+
+    it("should own review-guidelines in global mode", async () => {
+      // Checks is project-only, so nothing else claims the user-level path.
+      await writeSkillFile("review-guidelines", "---\nname: rg\ndescription: Ours\n---\n\nOurs.\n");
+
+      expect(await isDirOwned("review-guidelines", true)).toBe(true);
+    });
+  });
+
+  describe("getDirWriteBlockReason", () => {
+    const reasonFor = (dirName: string, global = false): Promise<string | null> =>
+      FactorydroidSkill.getDirWriteBlockReason({
+        outputRoot: testDir,
+        relativeDirPath: join(".factory", "skills"),
+        dirName,
+        inputRoots: ["."],
+        global,
+      });
+
+    it("should refuse to generate a project-scoped review-guidelines skill", async () => {
+      // The checks feature owns that directory, and `isDirOwned` keeps the
+      // skills feature from deleting it again.
+      expect(await reasonFor("review-guidelines")).toContain("checks");
+    });
+
+    it("should refuse a spelling that differs only in case", async () => {
+      // On macOS and Windows it is the very same file as the checks output.
+      expect(await reasonFor("Review-Guidelines")).toContain("checks");
+    });
+
+    it("should generate review-guidelines in global mode", async () => {
+      expect(await reasonFor("review-guidelines", true)).toBeNull();
+    });
+
+    it("should generate every other name", async () => {
+      expect(await reasonFor("other")).toBeNull();
+    });
+  });
+
   describe("forDeletion", () => {
     it("should create deletion marker", () => {
       const skill = FactorydroidSkill.forDeletion({

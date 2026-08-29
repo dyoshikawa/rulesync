@@ -173,6 +173,10 @@ describe("registry derivation", () => {
       // Devin's personal MCP override, documented as gitignored and never
       // emitted by rulesync (issue #2510).
       "devin::mcp::**/.devin/mcp_config.local.json",
+      // Factory Droid's personal settings overlay: read on import, documented
+      // upstream as machine-local, never written by rulesync (issue #2765).
+      "factorydroid::general::**/.factory/settings.local.json",
+      "augmentcode::general::**/.augment/settings.local.json",
       "junie::rules::**/.junie/memories/",
       // Legacy outputs of earlier versions (issue #2404): the retired
       // .gooseignore and the inert sub-recipe subagents directory.
@@ -517,6 +521,22 @@ describe("committedOutput check outputs", () => {
     // ignoring them would disable the checks feature (#2487).
     expect(entries).not.toContain("**/.cursor/BUGBOT.md");
     expect(entries).not.toContain("**/.rovodev/.review-agent.md");
+  });
+
+  it("re-includes a committed output nested inside another feature's ignored directory", () => {
+    const entries = deriveAllGitignoreEntries().map((tag) => tag.entry);
+    // The skills feature ignores `**/.factory/skills/`, but Factory Droid reads
+    // its review guidelines out of that tree and only sees them when committed
+    // (#2765). git cannot un-ignore a path inside an ignored directory, so the
+    // directory entry is widened to `/**` and the file re-included after it.
+    expect(entries).not.toContain("**/.factory/skills/");
+    const dirIndex = entries.indexOf("**/.factory/skills/**");
+    expect(dirIndex).toBeGreaterThanOrEqual(0);
+    // Last match wins, so both negations must follow the widened entry.
+    expect(entries.indexOf("!**/.factory/skills/review-guidelines/")).toBeGreaterThan(dirIndex);
+    expect(entries.indexOf("!**/.factory/skills/review-guidelines/SKILL.md")).toBeGreaterThan(
+      dirIndex,
+    );
   });
 
   it("keeps the committedOutput flag meaningful (at least one checks factory sets it)", async () => {

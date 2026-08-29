@@ -99,6 +99,7 @@ export class AugmentcodeHooks extends ToolHooks {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolHooksFromFileParams): Promise<AugmentcodeHooks> {
     const paths = AugmentcodeHooks.getSettablePaths({ global });
     // On import, overlay the project-scope `.augment/settings.local.json`
@@ -112,6 +113,7 @@ export class AugmentcodeHooks extends ToolHooks {
       baseFileName: paths.relativeFilePath,
       baseFallbackContent: '{"hooks":{}}',
       includeLocalOverlay: !global,
+      logger,
     });
     return new AugmentcodeHooks({
       outputRoot,

@@ -30,6 +30,11 @@ const checksGenerateTargets = [
     outputPath: join(".cursor", "BUGBOT.md"),
   },
   {
+    // Factory's reviewer reads repository review guidelines from a skill.
+    target: "factorydroid",
+    outputPath: join(".factory", "skills", "review-guidelines", "SKILL.md"),
+  },
+  {
     target: "hermesagent",
     outputPath: join(".hermes", "plugins", "rulesync-checks", "checks", "security.json"),
   },
@@ -108,7 +113,7 @@ Look for injection vulnerabilities.
         expect(generatedContent).toContain("Look for injection vulnerabilities.");
         return;
       }
-      if (target === "cursor" || target === "rovodev") {
+      if (target === "cursor" || target === "rovodev" || target === "factorydroid") {
         // One marked-up section per check, keyed by the source file basename.
         expect(generatedContent).toContain("<!-- rulesync:check:security -->");
         expect(generatedContent).toContain("## security");
@@ -154,6 +159,26 @@ Look for injection vulnerabilities.
       join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "review-agent.md"),
     );
     expect(importedContent).toContain("Prefer small, well-named functions.");
+  });
+
+  it("should round-trip factorydroid checks through import", async () => {
+    const testDir = getTestDir();
+
+    // A `review-guidelines` skill someone wrote by hand: Factory reads the path
+    // as a skill, so the file may carry skill frontmatter the checks feature
+    // never writes. It must not survive into the check.
+    await writeFileContent(
+      join(testDir, ".factory", "skills", "review-guidelines", "SKILL.md"),
+      "---\nname: review-guidelines\ndescription: Ours\n---\n\nCheck Prisma query performance.\n",
+    );
+
+    await runImport({ target: "factorydroid", features: "checks" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "review-guidelines.md"),
+    );
+    expect(importedContent).toContain("Check Prisma query performance.");
+    expect(importedContent).not.toContain("name:");
   });
 
   it("should round-trip checks through import", async () => {

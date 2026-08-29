@@ -9,6 +9,7 @@ import {
   ALL_GITIGNORE_ENTRIES,
   resolveGitignoreEntries,
   type ResolvedGitignoreEntry,
+  RETIRED_GITIGNORE_ENTRIES,
 } from "./gitignore-entries.js";
 
 // Start / end markers that delimit the auto-generated block. Wrapping the
@@ -27,12 +28,20 @@ const isRulesyncFooter = (line: string): boolean => {
   return line.trim() === RULESYNC_FOOTER;
 };
 
+// Retired spellings count as rulesync's own so the block rewrite takes them
+// out. Recognizing them is what makes a respelling actually land: a stale
+// directory entry left beside its replacement keeps git from descending into
+// the directory, and every negation written for the file inside it stops
+// meaning anything.
+const isRetiredEntry = (entry: string): boolean =>
+  RETIRED_GITIGNORE_ENTRIES.some((retired) => retired.entry === entry);
+
 const isRulesyncEntry = (line: string): boolean => {
   const trimmed = line.trim();
   if (trimmed === "" || isRulesyncHeader(line) || isRulesyncFooter(line)) {
     return false;
   }
-  return ALL_GITIGNORE_ENTRIES.includes(trimmed);
+  return ALL_GITIGNORE_ENTRIES.includes(trimmed) || isRetiredEntry(trimmed);
 };
 
 // Locate the footer that closes the block opened at `start - 1`. Returns -1 when
@@ -193,7 +202,12 @@ const groupEntriesByDestination = ({
       }
     }
 
-    if (destinations.has("gitattributes")) {
+    // Git forbids negative patterns in `.gitattributes` — it warns "Negative
+    // patterns are ignored in git attributes" every time it reads the file — and
+    // a negation only means anything beside the ignore rule it overrides, which
+    // lives in `.gitignore`. So an entry routed to `.gitattributes` keeps its
+    // widened directory pattern and drops the exceptions written for it.
+    if (destinations.has("gitattributes") && !entry.entry.startsWith("!")) {
       gitattributes.add(entry.entry);
     }
     if (destinations.size === 0 || destinations.has("gitignore")) {
@@ -254,7 +268,22 @@ export const gitignoreCommand = async (
     const entrySet = new Set(entries);
     const entriesRemoved = [
       ...new Set(extractRulesyncManagedEntries(content).filter((entry) => !entrySet.has(entry))),
-    ];
+      // A retired spelling whose replacement is being written is not a path
+      // that stops being ignored, so it is not reported as one. The
+      // replacement widens the same directory, and the exceptions written
+      // beside it re-expose only paths rulesync generates and commits. A file
+      // somebody authored by hand at one of those paths — the checks feature
+      // leaves a `review-guidelines` skill it did not write alone — becomes
+      // visible along with it, and that is the intent rather than a lapse:
+      // it is a file the repository is meant to carry. When the replacement is
+      // not written — a `.gitattributes` destination, or a narrowed
+      // `--targets` — the entry is reported like any other.
+    ].filter(
+      (entry) =>
+        !RETIRED_GITIGNORE_ENTRIES.some(
+          (retired) => retired.entry === entry && entrySet.has(retired.replacedBy),
+        ),
+    );
 
     const existingEntries = new Set(
       content

@@ -3,8 +3,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { canonicalToToolHooks, type ToolHooksConverterConfig } from "./tool-hooks-converter.js";
@@ -957,6 +959,130 @@ describe("FactorydroidHooks", () => {
       const parsed = JSON.parse(factorydroidHooks.getFileContent());
       // settings.json keeps the wrapped shape, and the file is read verbatim.
       expect(parsed.hooks.Stop).toEqual([]);
+    });
+
+    it("should overlay settings.local.json onto the settings.json fallback", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.json"),
+        JSON.stringify({ hooks: { Stop: [] } }),
+      );
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({
+          hooks: { SessionStart: [{ hooks: [{ type: "command", command: "local.sh" }] }] },
+        }),
+      );
+
+      const factorydroidHooks = await FactorydroidHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      // Droid layers the pair, and the local file overrides the `hooks` key.
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe("local.sh");
+      expect(parsed.hooks.Stop).toBeUndefined();
+    });
+
+    it("should fall back to the pre-1.0 .factory/hooks/hooks.json last", async () => {
+      await ensureDir(join(testDir, ".factory", "hooks"));
+      await writeFileContent(
+        join(testDir, ".factory", "hooks", "hooks.json"),
+        JSON.stringify({ SessionStart: [{ hooks: [{ type: "command", command: "old.sh" }] }] }),
+      );
+
+      const factorydroidHooks = await FactorydroidHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      expect(parsed.SessionStart[0].hooks[0].command).toBe("old.sh");
+    });
+
+    it("should not let a hookless settings.local.json shadow the pre-1.0 layout", async () => {
+      await ensureDir(join(testDir, ".factory", "hooks"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ maxAutonomyLevel: "low" }),
+      );
+      await writeFileContent(
+        join(testDir, ".factory", "hooks", "hooks.json"),
+        JSON.stringify({ SessionStart: [{ hooks: [{ type: "command", command: "old.sh" }] }] }),
+      );
+
+      const factorydroidHooks = await FactorydroidHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      expect(parsed.SessionStart[0].hooks[0].command).toBe("old.sh");
+    });
+
+    it("should stay quiet about a local file whose settings it then discards", async () => {
+      await ensureDir(join(testDir, ".factory", "hooks"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ maxAutonomyLevel: "low" }),
+      );
+      await writeFileContent(
+        join(testDir, ".factory", "hooks", "hooks.json"),
+        JSON.stringify({ SessionStart: [] }),
+      );
+      const logger = createMockLogger();
+      const fallbackWarn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      await FactorydroidHooks.fromFile({ outputRoot: testDir, validate: false, logger });
+
+      // Nothing from the machine-local file reached the imported hooks, so
+      // warning that it did would send people looking for a value that is not
+      // there. The shared logger is watched too: a read that merely omits the
+      // caller's logger still prints there, where `ConsoleLogger` is muted
+      // under test and the assertion above would pass on a broken probe.
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(fallbackWarn).not.toHaveBeenCalled();
+    });
+
+    it("should name the machine-local file whose settings it does use", async () => {
+      await writeFileContent(
+        join(testDir, ".factory", "settings.json"),
+        JSON.stringify({ hooks: { Stop: [] } }),
+      );
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ enabledPlugins: ["local-only"] }),
+      );
+      const logger = createMockLogger();
+
+      await FactorydroidHooks.fromFile({ outputRoot: testDir, validate: false, logger });
+
+      // The quiet probe must not spend the once-per-run warning that this read
+      // needs, or the one mitigation for publishing a machine-local value
+      // reaches nobody.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"enabledPlugins"'));
+    });
+
+    it("should prefer the settings.json hooks key over the pre-1.0 layout", async () => {
+      await ensureDir(join(testDir, ".factory", "hooks"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.json"),
+        JSON.stringify({ hooks: { Stop: [] } }),
+      );
+      await writeFileContent(
+        join(testDir, ".factory", "hooks", "hooks.json"),
+        JSON.stringify({ SessionStart: [] }),
+      );
+
+      const factorydroidHooks = await FactorydroidHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      expect(parsed.hooks.Stop).toEqual([]);
+      expect(parsed.SessionStart).toBeUndefined();
     });
 
     it("should prefer .factory/hooks.json over the legacy settings.json fallback", async () => {

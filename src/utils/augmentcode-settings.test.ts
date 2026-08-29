@@ -129,6 +129,24 @@ describe("readAugmentcodeSettingsWithLocalOverlay", () => {
     ).rejects.toThrow(/Failed to parse AugmentCode settings/);
   });
 
+  it("returns the raw base content when settings.json is not a JSON object", async () => {
+    await ensureDir(join(testDir, ".augment"));
+    await writeFileContent(join(testDir, ".augment", "settings.json"), "[1, 2, 3]");
+    await writeSettings("settings.local.json", { toolPermissions: [{ "tool-name": "x" }] });
+
+    // Merging onto `{}` would hand the caller a settings object it never wrote
+    // and swallow the malformed file; the caller's own schema parse reports it.
+    expect(
+      await readAugmentcodeSettingsWithLocalOverlay({
+        outputRoot: testDir,
+        relativeDirPath: ".augment",
+        baseFileName: "settings.json",
+        baseFallbackContent: "{}",
+        includeLocalOverlay: true,
+      }),
+    ).toBe("[1, 2, 3]");
+  });
+
   it("throws when settings.local.json is not a JSON object", async () => {
     await writeSettings("settings.json", { toolPermissions: [] });
     await ensureDir(join(testDir, ".augment"));

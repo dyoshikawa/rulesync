@@ -235,6 +235,8 @@ rulesync.local.jsonc
 **/.claude/memories/
 **/.opencode/package-lock.json
 **/.devin/mcp_config.local.json
+**/.factory/settings.local.json
+**/.augment/settings.local.json
 **/.rovodev/.rulesync/
 **/.takt/runs/
 **/.takt/tasks/
@@ -341,7 +343,9 @@ rulesync.local.jsonc
 **/.github/skills/
 **/.cursor/skills/
 **/.deepagents/skills/
-**/.factory/skills/
+**/.factory/skills/**
+!**/.factory/skills/review-guidelines/
+!**/.factory/skills/review-guidelines/SKILL.md
 **/.goose/skills/
 **/.grok/skills/
 **/.junie/skills/

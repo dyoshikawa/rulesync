@@ -4,7 +4,11 @@ import { ConfigResolver } from "../../config/config-resolver.js";
 import { KIRO_IGNORE_FILE_NAME } from "../../constants/kiro-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
-import { ALL_GITIGNORE_ENTRIES, filterGitignoreEntries } from "./gitignore-entries.js";
+import {
+  ALL_GITIGNORE_ENTRIES,
+  filterGitignoreEntries,
+  RETIRED_GITIGNORE_ENTRIES,
+} from "./gitignore-entries.js";
 import { gitignoreCommand } from "./gitignore.js";
 
 const buildRulesyncBlock = (): string => {
@@ -338,6 +342,50 @@ dist/`;
       expect(writtenContent).not.toContain("**/.obsolete/config.toml");
     });
 
+    it("should take a retired entry spelling back out of the file", async () => {
+      // Reads as "there is nothing left to retire" rather than as a confusing
+      // failure inside the test body if the list is ever emptied.
+      expect(RETIRED_GITIGNORE_ENTRIES.length).toBeGreaterThan(0);
+      const retired = RETIRED_GITIGNORE_ENTRIES[0]!;
+      // Outside the managed block, where a legacy write left it: inside one it
+      // would be dropped with the block whether it is recognized or not.
+      const existing = `node_modules/\n${retired.entry}\n\n${buildRulesyncBlock()}`;
+
+      vi.mocked(fileExists).mockImplementation(async (path: string) => path.endsWith(".gitignore"));
+      vi.mocked(readFileContent).mockImplementation(async (path: string) =>
+        path.endsWith(".gitignore") ? existing : "",
+      );
+
+      await gitignoreCommand(mockLogger);
+
+      // git never descends into an ignored directory, so the old directory
+      // entry would leave the widened pattern and its negations inert.
+      const writtenContent = vi.mocked(writeFileContent).mock.calls[0]?.[1] ?? "";
+      expect(writtenContent.split("\n")).not.toContain(retired.entry);
+      expect(writtenContent.split("\n")).toContain(retired.replacedBy);
+    });
+
+    it("should not call a respelled entry one that stopped being gitignored", async () => {
+      expect(RETIRED_GITIGNORE_ENTRIES.length).toBeGreaterThan(0);
+      const retired = RETIRED_GITIGNORE_ENTRIES[0]!;
+      // Outside the managed block, where a legacy write left it: inside one it
+      // would be dropped with the block whether it is recognized or not.
+      const existing = `node_modules/\n${retired.entry}\n\n${buildRulesyncBlock()}`;
+
+      vi.mocked(fileExists).mockImplementation(async (path: string) => path.endsWith(".gitignore"));
+      vi.mocked(readFileContent).mockImplementation(async (path: string) =>
+        path.endsWith(".gitignore") ? existing : "",
+      );
+
+      await gitignoreCommand(mockLogger);
+
+      // The path is still ignored, by its replacement — warning about secrets
+      // here would send people looking for a change that did not happen.
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("no longer gitignored"),
+      );
+    });
+
     it("should not warn when the managed block matches the emitted entries", async () => {
       const rulesyncBlock = buildRulesyncBlock();
 
@@ -600,6 +648,25 @@ dist/`;
         "/workspace/.gitattributes",
         expect.stringContaining("**/CLAUDE.md"),
       );
+    });
+
+    it("keeps negative patterns out of .gitattributes", async () => {
+      const getGitignoreDestination = vi.fn().mockReturnValue("gitattributes");
+      vi.mocked(ConfigResolver.resolve).mockResolvedValueOnce({
+        getGitignoreDestination,
+      } as never);
+      vi.mocked(fileExists).mockResolvedValue(false);
+
+      await gitignoreCommand(mockLogger, { targets: ["factorydroid"], features: ["skills"] });
+
+      const written = vi
+        .mocked(writeFileContent)
+        .mock.calls.find(([filePath]) => filePath === "/workspace/.gitattributes")?.[1];
+
+      // Git warns "Negative patterns are ignored in git attributes" for every
+      // one of these, and they only mean something beside a `.gitignore` rule.
+      expect(written).toContain("**/.factory/skills/**");
+      expect(written).not.toContain("!");
     });
   });
 });

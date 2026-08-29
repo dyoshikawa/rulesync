@@ -130,7 +130,30 @@ type ToolSkillFactory = {
        * overlay-only command still shadows the same-named skill.
        */
       inputRoots: readonly string[];
+      /**
+       * The scope being processed, for hooks whose co-owner exists in only one
+       * of them (Factory Droid's checks output is project-only, so the same
+       * directory name is an ordinary skill in global mode).
+       */
+      global: boolean;
     }): Promise<boolean>;
+    /**
+     * Optional write-direction counterpart of `isDirOwned`: the reason this
+     * tool must not emit a skill directory of this name, or `null` when it
+     * may. A name another feature owns must not be written from a rulesync
+     * skill, because `isDirOwned` then refuses to delete it again and the
+     * directory outlives the source it came from — so the two hooks have to
+     * agree, and they take the same parameters to make keeping them in step
+     * straightforward. The reason is logged verbatim, so it must not embed
+     * anything read off disk.
+     */
+    getDirWriteBlockReason?(params: {
+      outputRoot: string;
+      relativeDirPath: string;
+      dirName: string;
+      inputRoots: readonly string[];
+      global: boolean;
+    }): Promise<string | null>;
     /**
      * Opt-in name policy for the flat half of the `--delete` orphan sweep, for
      * a tool that writes one `<name>.md` per skill into a root it shares with
@@ -620,29 +643,51 @@ export class SkillsProcessor extends DirFeatureProcessor {
 
     const factory = this.getFactory(this.toolTarget);
 
-    const toolSkills = rulesyncSkills
-      .map((rulesyncSkill) => {
-        const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-        const isClaudecodeScheduledTask =
-          rulesyncFrontmatter.claudecode?.["scheduled-task"] === true;
-        if (
-          isClaudecodeScheduledTask &&
-          this.toolTarget !== "claudecode" &&
-          this.toolTarget !== "claudecode-legacy"
-        ) {
-          return null;
-        }
-        if (!factory.class.isTargetedByRulesyncSkill(rulesyncSkill)) {
-          return null;
-        }
-        return factory.class.fromRulesyncSkill({
-          outputRoot: this.outputRoot,
-          rulesyncSkill: rulesyncSkill,
-          global: this.global,
-          logger: this.logger,
-        });
-      })
-      .filter((skill): skill is ToolSkill => skill !== null);
+    const toolSkills = (
+      await Promise.all(
+        rulesyncSkills.map(async (rulesyncSkill) => {
+          const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+          const isClaudecodeScheduledTask =
+            rulesyncFrontmatter.claudecode?.["scheduled-task"] === true;
+          if (
+            isClaudecodeScheduledTask &&
+            this.toolTarget !== "claudecode" &&
+            this.toolTarget !== "claudecode-legacy"
+          ) {
+            return null;
+          }
+          if (!factory.class.isTargetedByRulesyncSkill(rulesyncSkill)) {
+            return null;
+          }
+          const dirName = rulesyncSkill.getDirName();
+          const dirWriteBlockReason = await factory.class.getDirWriteBlockReason?.({
+            outputRoot: this.outputRoot,
+            relativeDirPath: factory.class.getSettablePaths({ global: this.global })
+              .relativeDirPath,
+            dirName,
+            inputRoots: this.inputRoots,
+            global: this.global,
+          });
+          if (dirWriteBlockReason !== undefined && dirWriteBlockReason !== null) {
+            // Another feature owns this output directory, so the skills feature
+            // never deletes it either: writing it here would leave a directory
+            // that outlives the rulesync skill it came from. The name is quoted
+            // and stripped because whoever wrote the repository chose it.
+            this.logger.warn(
+              `Skipping skill ${JSON.stringify(stripControlCharacters(dirName))} for ` +
+                `'${this.toolTarget}': ${dirWriteBlockReason}`,
+            );
+            return null;
+          }
+          return factory.class.fromRulesyncSkill({
+            outputRoot: this.outputRoot,
+            rulesyncSkill: rulesyncSkill,
+            global: this.global,
+            logger: this.logger,
+          });
+        }),
+      )
+    ).filter((skill): skill is ToolSkill => skill !== null);
 
     return toolSkills;
   }
@@ -1030,6 +1075,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       relativeDirPath,
       dirName,
       inputRoots: this.inputRoots,
+      global: this.global,
     });
   }
 

@@ -338,6 +338,7 @@ export class AugmentcodePermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolPermissionsFromFileParams): Promise<AugmentcodePermissions> {
     const paths = AugmentcodePermissions.getSettablePaths({ global });
     // On import, overlay the project-scope `.augment/settings.local.json`
@@ -351,6 +352,7 @@ export class AugmentcodePermissions extends ToolPermissions {
       baseFileName: paths.relativeFilePath,
       baseFallbackContent: '{"toolPermissions":[]}',
       includeLocalOverlay: !global,
+      logger,
     });
     return new AugmentcodePermissions({
       outputRoot,

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   FACTORYDROID_DIR,
   FACTORYDROID_HOOKS_FILE_NAME,
+  FACTORYDROID_LEGACY_HOOKS_DIR_PATH,
   FACTORYDROID_SETTINGS_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
@@ -13,8 +14,10 @@ import {
   CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
+import { readFactorydroidSettingsWithLocalOverlay } from "../../utils/factorydroid-settings.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import {
@@ -30,6 +33,22 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
+/**
+ * Whether a `settings.json` body carries hook declarations, i.e. an object under
+ * the `hooks` key — the only place Droid reads them from that file. A body that
+ * cannot be parsed counts as declaring them, so a malformed settings file still
+ * reaches the constructor and reports its own error rather than being skipped.
+ */
+function declaresHooksKey(fileContent: string): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fileContent);
+  } catch {
+    return true;
+  }
+  return isRecord(parsed) && isRecord(parsed["hooks"]);
+}
+
 const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: FACTORYDROID_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
@@ -43,7 +62,7 @@ const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // "Additional regex filter for Execute commands. It matches the actual shell
   // command string when Droid has one. Invalid regex values are skipped." It
   // sits next to `matcher` on the group, so it is carried at group level.
-  // https://docs.factory.ai/reference/hooks-reference
+  // https://docs.factory.ai/harness/hooks
   // It narrows when a hook fires, so hooks that disagree get their own matcher
   // entry rather than inheriting a neighboring hook's filter and going quiet.
   groupPassthroughFields: [
@@ -83,7 +102,7 @@ export class FactorydroidHooks extends ToolHooks {
     // `~/.factory/hooks.json` (global). The home directory is resolved by the
     // harness via outputRoot in global mode. The legacy `.factory/settings.json`
     // `hooks` key is only a read-time fallback (see fromFile).
-    // https://docs.factory.ai/reference/hooks-reference
+    // https://docs.factory.ai/harness/hooks
     return { relativeDirPath: FACTORYDROID_DIR, relativeFilePath: FACTORYDROID_HOOKS_FILE_NAME };
   }
 
@@ -91,20 +110,50 @@ export class FactorydroidHooks extends ToolHooks {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolHooksFromFileParams): Promise<FactorydroidHooks> {
     const paths = FactorydroidHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    // Prefer the dedicated `.factory/hooks.json`. When it is absent, fall back to
-    // the legacy `.factory/settings.json` `hooks` key for back-compat, since
-    // Droid itself falls back that way.
+    // Prefer the dedicated `.factory/hooks.json`. When it is absent, fall back
+    // first to the `.factory/settings.json` `hooks` key — with the scope's
+    // `settings.local.json` overlaid, since Droid reads the pair as one — and
+    // then to the pre-1.0 `.factory/hooks/hooks.json`. That layout is last
+    // because Droid renames it to `hooks.migrated.json` once it has migrated
+    // the file, so a copy still sitting there is the least likely to be live.
+    // https://docs.factory.ai/harness/hooks
     let fileContent = await readFileContentOrNull(filePath);
     if (fileContent === null) {
-      const legacyFilePath = join(
+      // Probed quietly: the overlay warns about whatever the machine-local
+      // file contributed, and that warning would be a false alarm when the
+      // settings turn out to declare no hooks and this content is thrown away.
+      // The read is repeated, unmuted, once it is going to be used, so the
+      // warning describes something that actually happened. Dropping the logger
+      // would not do instead: the warning falls back to the shared logger and
+      // would spend the once-per-run token the second read needs.
+      const settingsContent = await readFactorydroidSettingsWithLocalOverlay({
         outputRoot,
-        paths.relativeDirPath,
-        FACTORYDROID_SETTINGS_FILE_NAME,
+        relativeDirPath: paths.relativeDirPath,
+        baseFileName: FACTORYDROID_SETTINGS_FILE_NAME,
+        quiet: true,
+      });
+      // The settings step is skipped unless the settings actually declare
+      // hooks. Testing the file for existence instead would let an unrelated
+      // `settings.local.json` — one setting an autonomy level, say — shadow the
+      // pre-1.0 layout, because the overlay returns merged content whenever
+      // either file of the pair is there.
+      if (settingsContent !== null && declaresHooksKey(settingsContent)) {
+        fileContent = await readFactorydroidSettingsWithLocalOverlay({
+          outputRoot,
+          relativeDirPath: paths.relativeDirPath,
+          baseFileName: FACTORYDROID_SETTINGS_FILE_NAME,
+          logger,
+        });
+      }
+    }
+    if (fileContent === null) {
+      fileContent = await readFileContentOrNull(
+        join(outputRoot, FACTORYDROID_LEGACY_HOOKS_DIR_PATH, FACTORYDROID_HOOKS_FILE_NAME),
       );
-      fileContent = await readFileContentOrNull(legacyFilePath);
     }
     return new FactorydroidHooks({
       outputRoot,
@@ -136,7 +185,7 @@ export class FactorydroidHooks extends ToolHooks {
     // A standalone `hooks.json` is keyed directly by event name; the `hooks`
     // wrapper belongs to `settings.json` only. Writing the wrapped shape here
     // left Droid with no known event key at the top level, so no generated hook
-    // ever fired. https://docs.factory.ai/reference/hooks-reference
+    // ever fired. https://docs.factory.ai/harness/hooks
     const fileContent = JSON.stringify(factorydroidHooks, null, 2);
     return new FactorydroidHooks({
       outputRoot,

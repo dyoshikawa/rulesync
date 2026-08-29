@@ -26,6 +26,11 @@ export type ToolPermissionsFromFileParams = Pick<
   "outputRoot" | "validate"
 > & {
   global?: boolean;
+  /**
+   * Lets an adapter report what it read, e.g. that a value came out of a
+   * machine-local overrides file the import is about to make committable.
+   */
+  logger?: Logger;
 };
 
 export type ToolPermissionsForDeletionParams = {

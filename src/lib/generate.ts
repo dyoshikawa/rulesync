@@ -609,7 +609,15 @@ export const GENERATION_STEP_GRAPH: readonly GenerationStepMeta[] = [
   // Checks reach a shared file only for Takt (`workflow_overrides` in
   // `.takt/config.yaml`), so this step carries shared-write metadata like the
   // rest and must run before the features that write the same file.
-  { id: "checks", ...sharedWriteMeta("checks") },
+  {
+    id: "checks",
+    ...sharedWriteMeta("checks"),
+    // Factory Droid's checks output is a file inside the skills tree
+    // (`.factory/skills/review-guidelines/SKILL.md`), which the derived
+    // shared-file edges cannot see: the skills step's settable path is a
+    // directory, not that file. Checks owns the path, so it writes last.
+    dependsOn: [...(sharedWriteMeta("checks").dependsOn ?? []), "skills"],
+  },
   { id: "permissions", ...sharedWriteMeta("permissions") },
   {
     id: "rules",

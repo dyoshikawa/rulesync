@@ -850,6 +850,7 @@ export class HooksProcessor extends FeatureProcessor {
         outputRoot: this.outputRoot,
         validate: true,
         global: this.global,
+        logger: this.logger,
       });
       this.logger.debug(`Successfully loaded 1 ${this.toolTarget} hooks file`);
       return [toolHooks];

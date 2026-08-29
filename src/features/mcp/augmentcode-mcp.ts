@@ -97,6 +97,7 @@ export class AugmentcodeMcp extends ToolMcp {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromFileParams): Promise<AugmentcodeMcp> {
     const paths = this.getSettablePaths({ global });
     // On project-scope import, overlay the gitignored
@@ -110,6 +111,7 @@ export class AugmentcodeMcp extends ToolMcp {
       baseFileName: paths.relativeFilePath,
       baseFallbackContent: "{}",
       includeLocalOverlay: !global,
+      logger,
     });
     const json = parseAugmentcodeSettings(
       fileContent,

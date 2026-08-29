@@ -74,7 +74,8 @@ const deriveDirEntries = (factories: FactoryMap, feature: Feature): GitignoreEnt
     if (TARGETS_NOT_DERIVED.has(target)) continue;
     if (!supportsProject(factory)) continue;
     // Outputs the upstream tool reads from the committed repository (Cursor
-    // Bugbot's BUGBOT.md, Rovo Dev's .review-agent.md) must not be gitignored:
+    // Bugbot's BUGBOT.md, Rovo Dev's .review-agent.md, Factory Droid's
+    // review-guidelines skill) must not be gitignored:
     // ignoring them would disable the very feature the adapter generates.
     if (isCommittedOutput(factory)) continue;
     const paths = getProjectPaths(factory) as {
@@ -181,11 +182,82 @@ const DERIVED_FEATURES: ReadonlyArray<Feature> = [
   "checks",
 ];
 
+// Every committed output a tool writes at project scope, as a file glob. These
+// are the paths `isCommittedOutput` keeps out of the derived entries; collected
+// again here because another feature's directory entry can cover one of them.
+const collectCommittedOutputGlobs = (): string[] => {
+  const globs: string[] = [];
+  for (const feature of DERIVED_FEATURES) {
+    // Rules have no committedOutput adapters, and their composite path shape
+    // would need separate handling.
+    if (feature === "rules") continue;
+    const factories = getProcessorRegistryEntry(feature).factory as unknown as FactoryMap;
+    for (const [target, factory] of factories) {
+      if (TARGETS_NOT_DERIVED.has(target)) continue;
+      if (!supportsProject(factory)) continue;
+      if (!isCommittedOutput(factory)) continue;
+      const paths = getProjectPaths(factory) as {
+        relativeDirPath?: string;
+        relativeFilePath?: string;
+      };
+      if (!paths.relativeFilePath) continue;
+      globs.push(fileToGlob(paths.relativeDirPath, paths.relativeFilePath));
+    }
+  }
+  return globs;
+};
+
+// A committed output can sit inside a directory some other feature ignores
+// wholesale: Factory Droid's review guidelines are a skill, so
+// `.factory/skills/review-guidelines/SKILL.md` falls under the
+// `**/.factory/skills/` entry the skills feature contributes. Git cannot
+// re-include a path inside an ignored directory, so such a directory entry is
+// widened from `**/d/` to `**/d/**` — that ignores the contents without
+// ignoring the directory itself, leaving git free to descend — and negations
+// are appended for the committed file plus every directory on the way down to
+// it. Last match wins, so the negations must follow the pattern they override.
+//
+// Two limits, both fine for today's entries and worth knowing before adding
+// one: only derived entries are rewritten, so a committed output landing under
+// a HAND_MAINTAINED_GITIGNORE_ENTRIES directory needs its exception written by
+// hand; and each covering directory entry is expanded on its own, so two nested
+// directory entries covering the same file (`**/.factory/` plus
+// `**/.factory/skills/`) would re-ignore it with the second widened pattern
+// while the dedupe that keeps the first spelling of an entry drops the repeated
+// negations.
+const withCommittedOutputExceptions = (entries: GitignoreEntryTag[]): GitignoreEntryTag[] => {
+  const committedGlobs = collectCommittedOutputGlobs();
+  return entries.flatMap((tag): GitignoreEntryTag[] => {
+    // Only directory entries can swallow a nested file.
+    if (!tag.entry.endsWith("/")) return [tag];
+    const nested = committedGlobs.filter((glob) => glob.startsWith(tag.entry));
+    if (nested.length === 0) return [tag];
+
+    const negations = new Set<string>();
+    for (const glob of nested) {
+      const segments = glob.slice(tag.entry.length).split("/");
+      let prefix = tag.entry;
+      for (const segment of segments.slice(0, -1)) {
+        prefix = `${prefix}${segment}/`;
+        negations.add(`!${prefix}`);
+      }
+      negations.add(`!${glob}`);
+    }
+
+    return [
+      { ...tag, entry: `${tag.entry}**` },
+      ...[...negations].map((entry) => ({ ...tag, entry })),
+    ];
+  });
+};
+
 // Every project-scope output path, derived from each tool's getSettablePaths,
 // BEFORE the DERIVED_PATHS_NOT_GITIGNORED exclusion is applied. Exported so
 // tests can verify each exclusion-set path still matches a real output path.
 export const deriveAllGitignoreEntriesUnfiltered = (): GitignoreEntryTag[] =>
-  DERIVED_FEATURES.flatMap((feature) => deriveFeatureGitignoreEntries(feature));
+  withCommittedOutputExceptions(
+    DERIVED_FEATURES.flatMap((feature) => deriveFeatureGitignoreEntries(feature)),
+  );
 
 // Every gitignore entry rulesync emits, derived from each tool's getSettablePaths.
 export const deriveAllGitignoreEntries = (): GitignoreEntryTag[] =>

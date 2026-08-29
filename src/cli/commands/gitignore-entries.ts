@@ -1,10 +1,18 @@
 import {
+  AUGMENTCODE_DIR,
+  AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME,
+} from "../../constants/augmentcode-paths.js";
+import {
   CLAUDECODE_DIR,
   CLAUDECODE_LOCAL_RULE_FILE_NAME,
   CLAUDECODE_MEMORIES_DIR_NAME,
   CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/claudecode-paths.js";
 import { CODEXCLI_BASH_RULES_FILE_NAME, CODEXCLI_DIR } from "../../constants/codexcli-paths.js";
+import {
+  FACTORYDROID_DIR,
+  FACTORYDROID_SETTINGS_LOCAL_FILE_NAME,
+} from "../../constants/factorydroid-paths.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
@@ -99,6 +107,23 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   // Devin's personal MCP override (documented as gitignored; never emitted by
   // rulesync). https://docs.devin.ai/cli/extensibility/mcp/configuration
   { target: "devin", feature: "mcp", entry: "**/.devin/mcp_config.local.json" },
+  // Factory Droid's personal settings overlay. Rulesync reads it when importing
+  // permissions and hooks, so a repository is likely to have one, but Factory
+  // documents it as machine-local and rulesync never writes it.
+  // https://docs.factory.ai/droid-cli/settings
+  {
+    target: "factorydroid",
+    feature: "general",
+    entry: `**/${FACTORYDROID_DIR}/${FACTORYDROID_SETTINGS_LOCAL_FILE_NAME}`,
+  },
+  // AugmentCode's personal settings overlay, read on import for the same reason
+  // and documented the same way as Factory Droid's above.
+  // https://docs.augmentcode.com/cli/configuration
+  {
+    target: "augmentcode",
+    feature: "general",
+    entry: `**/${AUGMENTCODE_DIR}/${AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME}`,
+  },
   { target: "rovodev", feature: "general", entry: "**/.rovodev/.rulesync/" },
   { target: "takt", feature: "general", entry: "**/.takt/runs/" },
   { target: "takt", feature: "general", entry: "**/.takt/tasks/" },
@@ -219,6 +244,27 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
 
   // Keep this after ignore entries like Junie's "**/.aiignore" so the exception remains effective.
   { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
+];
+
+/**
+ * Entries an older rulesync wrote that this one no longer emits, each paired
+ * with the entry that took its place. They are still recognized so `rulesync
+ * gitignore` can take the old spelling back out of the file it manages.
+ *
+ * Leaving one behind is not harmless. A bare `.factory/skills/` directory
+ * pattern ignores the directory itself, and git never descends into an ignored
+ * directory — so the widened contents pattern and the negations that re-include
+ * the committed Factory Droid checks file would all be dead letters, and the
+ * reviewer would never see a file rulesync writes on every generate.
+ */
+export const RETIRED_GITIGNORE_ENTRIES: ReadonlyArray<{
+  readonly entry: string;
+  readonly replacedBy: string;
+}> = [
+  {
+    entry: `**/${FACTORYDROID_DIR}/skills/`,
+    replacedBy: `**/${FACTORYDROID_DIR}/skills/**`,
+  },
 ];
 
 export const ALL_GITIGNORE_ENTRIES: ReadonlyArray<string> = (() => {

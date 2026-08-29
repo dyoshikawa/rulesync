@@ -7,13 +7,14 @@ import { RulesyncCheck } from "./rulesync-check.js";
 /**
  * Shared machinery for the tools whose checks surface is **one aggregated
  * instruction file** rather than a file per check — Cursor Bugbot's
- * `.cursor/BUGBOT.md` and Rovo Dev's `.rovodev/.review-agent.md`.
+ * `.cursor/BUGBOT.md`, Rovo Dev's `.rovodev/.review-agent.md` and Factory
+ * Droid's `.factory/skills/review-guidelines/SKILL.md`.
  *
- * Both read the file as free prose, so the check identities have to be carried
- * in something invisible to the reader: an HTML-comment marker per section.
- * That marker convention, the escaping that keeps a check body from splitting
- * itself, and the import-side split are the same for both files, so they live
- * here once.
+ * They all read the file as free prose, so the check identities have to be
+ * carried in something invisible to the reader: an HTML-comment marker per
+ * section. That marker convention, the escaping that keeps a check body from
+ * splitting itself, and the import-side split are the same for every one of
+ * them, so they live here once.
  */
 
 /** Marks where one check starts inside the single instruction file. */

@@ -23,6 +23,7 @@ describe("ChecksProcessor.getToolTargets", () => {
       "amp",
       "augmentcode",
       "cursor",
+      "factorydroid",
       "hermesagent",
       "rovodev",
       "takt",
