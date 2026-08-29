@@ -117,9 +117,9 @@ describe("FactorydroidCheck", () => {
         logger,
       });
 
-      // `.factory/skills/` is gitignored, so a file replaced here has no
-      // committed copy to restore from: nothing is written and the warning
-      // points at `rulesync import`.
+      // The path has one owner, and a file somebody hand-wrote there holds
+      // review prose rulesync cannot rebuild: nothing is written and the
+      // warning points at `rulesync import`.
       expect(generated).toEqual([]);
       expect(
         await readFileContentOrNull(
@@ -294,6 +294,36 @@ describe("FactorydroidCheck", () => {
       // the block, so a `---yaml` fence left in place leaks its keys too.
       expect(imported[0]!.getBody()).toBe("Check Prisma queries.");
       expect(imported[0]!.getFrontmatter()).toEqual({ targets: ["*"] });
+    });
+
+    it("should drop an empty frontmatter block", async () => {
+      await writeGuidelines("---\n---\n\nCheck Prisma queries.\n");
+
+      const imported = (
+        await FactorydroidCheck.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: SKILL_FILE_NAME,
+        })
+      ).toRulesyncChecks();
+
+      // gray-matter looks for the closing `\n---` from the newline of the
+      // opening line, so two adjacent delimiters are an empty block rather
+      // than a fence nothing closes.
+      expect(imported[0]!.getBody()).toBe("Check Prisma queries.");
+      expect(imported[0]!.getFrontmatter()).toEqual({ targets: ["*"] });
+    });
+
+    it("should drop an empty frontmatter block written with CRLF", async () => {
+      await writeGuidelines("---\r\n---\r\n\r\nCheck Prisma queries.\r\n");
+
+      const imported = (
+        await FactorydroidCheck.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: SKILL_FILE_NAME,
+        })
+      ).toRulesyncChecks();
+
+      expect(imported[0]!.getBody()).toBe("Check Prisma queries.");
     });
 
     it("should keep a horizontal rule of four or more dashes", async () => {

@@ -51,8 +51,12 @@ const FALLBACK_CHECK_NAME = FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
 // not front matter" test; the rest of the line is the language name it reads.
 const FRONTMATTER_OPEN_PATTERN = /^\uFEFF?---(?!-)[^\r\n]*\r?\n/;
 // gray-matter ends the block at the first `\n---`, with no requirement that the
-// delimiter be alone on its line, and drops one newline after it.
-const FRONTMATTER_CLOSE_PATTERN = /\r?\n---/;
+// delimiter be alone on its line, and drops one newline after it. It starts
+// that search at the newline of the opening line, which the opening pattern
+// above has already consumed — so `^---` is the same delimiter seen from here,
+// and without it an empty block (`---` on two adjacent lines) would look
+// unclosed.
+const FRONTMATTER_CLOSE_PATTERN = /^---|\r?\n---/;
 const LEADING_BLANK_LINE_PATTERN = /^[^\S\r\n]*\r?\n/;
 
 function stripSkillFrontmatter(fileContent: string): string {
@@ -105,11 +109,16 @@ function stripSkillFrontmatter(fileContent: string): string {
  * file out of it, so there is no user-level equivalent to write.
  *
  * The output lives inside the same `.factory/skills/` tree the `skills` feature
- * writes, so a user-authored `review-guidelines` skill collides with it. Unlike
- * `.cursor/BUGBOT.md`, that tree is gitignored, so a file replaced here has no
- * committed copy to come back from: {@link fromRulesyncChecks} leaves a file
- * holding anything rulesync did not write untouched, and
- * {@link canDeleteAuxiliaryFiles} refuses to remove one.
+ * writes, so a user-authored `review-guidelines` skill collides with it. The
+ * path has one owner rather than a merge rule, and the owner is this feature:
+ * {@link fromRulesyncChecks} leaves a file holding anything rulesync did not
+ * write untouched, and {@link canDeleteAuxiliaryFiles} refuses to remove one.
+ * Their content is somebody's own writing and rulesync cannot reconstruct it,
+ * so neither direction guesses. That is stricter than Cursor Bugbot's
+ * replace-and-warn, and deliberately: `.cursor/BUGBOT.md` is a path only the
+ * reviewer reads, so rewriting it replaces review instructions with review
+ * instructions, while a file here may be an ordinary skill written for Droid's
+ * skill loader that has nothing to do with reviews.
  *
  * @see https://docs.factory.ai/software-factory/code-review-ci
  */
@@ -170,11 +179,10 @@ export class FactorydroidCheck extends ToolCheck {
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
 
     // The file would be rewritten from `.rulesync/checks/` rather than merged
-    // into, so content rulesync did not write is left alone instead: unlike
-    // `.cursor/BUGBOT.md`, this path sits inside the gitignored
-    // `.factory/skills/` tree, so a hand-authored file replaced here is gone
-    // with nothing to restore it from. The deletion guard makes the same
-    // promise from the other side.
+    // into, so content rulesync did not write is left alone instead: it is a
+    // skill somebody authored at a path this feature owns, and rewriting it
+    // would drop review instructions rulesync has no way to rebuild. The
+    // deletion guard makes the same promise from the other side.
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     if (hasHandWrittenPreamble(existingContent)) {
       logger?.warn(

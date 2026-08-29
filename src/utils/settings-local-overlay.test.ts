@@ -110,6 +110,18 @@ describe("readSettingsWithLocalOverlay", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("settings.local.json"));
   });
 
+  it("should name it once however many features read the same pair", async () => {
+    await write("settings.json", '{"a":1}');
+    await write("settings.local.json", '{"maxAutonomyLevel":"high"}');
+    const logger = createMockLogger();
+
+    // One `import` reads this pair once per feature — permissions, hooks, MCP.
+    await read({ logger });
+    await read({ logger });
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+
   it("should stay quiet when there is no local file", async () => {
     await write("settings.json", '{"a":1}');
     const logger = createMockLogger();
