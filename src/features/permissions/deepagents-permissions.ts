@@ -11,7 +11,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { parseCommaSeparatedList } from "../../utils/parse-comma-separated-list.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -184,14 +184,14 @@ export class DeepagentsPermissions extends ToolPermissions {
     // something rulesync did not write and cannot merge into, so it is left
     // exactly as the user has it rather than replaced.
     const existingShell = settings[SHELL_TABLE_KEY];
-    if (existingShell !== undefined && !isRecord(existingShell)) {
+    if (existingShell !== undefined && !isPlainObject(existingShell)) {
       warnWithFallback(
         logger,
         `deepagents-cli: '${SHELL_TABLE_KEY}' in ${filePath} is not a table, so ` +
           `${ALLOW_LIST_KEY} was left untouched rather than overwriting it.`,
       );
     } else {
-      const shell = isRecord(existingShell) ? { ...existingShell } : {};
+      const shell = isPlainObject(existingShell) ? { ...existingShell } : {};
       if (allowList.length > 0) {
         shell[ALLOW_LIST_KEY] = allowList;
       } else if (shell[ALLOW_LIST_KEY] !== undefined) {
@@ -218,14 +218,14 @@ export class DeepagentsPermissions extends ToolPermissions {
     const startupOverride = config.deepagents?.startup;
     if (isPlainObject(startupOverride) && Object.keys(startupOverride).length > 0) {
       const existingStartup = settings[STARTUP_TABLE_KEY];
-      if (existingStartup !== undefined && !isRecord(existingStartup)) {
+      if (existingStartup !== undefined && !isPlainObject(existingStartup)) {
         warnWithFallback(
           logger,
           `deepagents-cli: '${STARTUP_TABLE_KEY}' in ${filePath} is not a table, so the ` +
             `deepagents startup override was skipped rather than overwriting it.`,
         );
       } else {
-        const startup = isRecord(existingStartup) ? { ...existingStartup } : {};
+        const startup = isPlainObject(existingStartup) ? { ...existingStartup } : {};
         const previousStartup = { ...startup };
         // Copied key by key rather than `Object.assign`ed, so a `__proto__`
         // coming from the JSON config cannot reach the object's prototype.
@@ -260,12 +260,14 @@ export class DeepagentsPermissions extends ToolPermissions {
       );
     }
 
-    const shell = isRecord(settings[SHELL_TABLE_KEY]) ? settings[SHELL_TABLE_KEY] : {};
+    // `isPlainObject`, not `isRecord`: smol-toml returns a datetime as a
+    // `Date` subclass, which is a record but not a table to merge into.
+    const shell = isPlainObject(settings[SHELL_TABLE_KEY]) ? settings[SHELL_TABLE_KEY] : {};
     const config = convertDeepagentsToRulesyncPermissions({
       allowList: readAllowListEntries(shell[ALLOW_LIST_KEY]),
     });
 
-    const startup = isRecord(settings[STARTUP_TABLE_KEY]) ? settings[STARTUP_TABLE_KEY] : {};
+    const startup = isPlainObject(settings[STARTUP_TABLE_KEY]) ? settings[STARTUP_TABLE_KEY] : {};
     const startupOverride: Record<string, unknown> = {};
     for (const key of DEEPAGENTS_STARTUP_KEYS) {
       if (startup[key] !== undefined) startupOverride[key] = startup[key];
@@ -326,7 +328,7 @@ function warnAboutUnwrittenBashRules({
   widenedPatterns: string[];
   unmatchablePatterns: string[];
   sentinelPatterns: string[];
-  logger: Logger;
+  logger?: Logger;
 }): void {
   // A rule that is not written is one thing; a rule the reduction *inverts*
   // is another. Reducing to the executable makes an `ask` or `deny` on a
@@ -344,59 +346,75 @@ function warnAboutUnwrittenBashRules({
   const unenforcedDeny = denyPatterns.filter((pattern) => !isAutoApproved(pattern));
 
   if (unenforcedDeny.length > 0) {
-    logger.warn(
+    warnWithFallback(
+      logger,
       `deepagents-cli has no command denylist — a command it does not auto-approve is asked ` +
         `about, not blocked — so ${unenforcedDeny.length} bash deny rule(s) from ` +
         `.rulesync/permissions.jsonc were skipped and those commands remain runnable on ` +
         `approval.`,
     );
   }
+  const shadowReason = allowAll
+    ? `allow_list = ["all"] auto-approves every command`
+    : `their executable is in the generated allow_list`;
   if (shadowedDeny.length > 0) {
-    logger.warn(
+    warnWithFallback(
+      logger,
       `deepagents-cli matches only the executable name, so the deny rule(s) ` +
-        `${shadowedDeny.join(", ")} are not merely unenforced: their executable is in the ` +
-        `generated allow_list, so those commands are auto-approved without a prompt. Narrow ` +
-        `or drop the allow rule that covers them.`,
+        `${shadowedDeny.join(", ")} are not merely unenforced: ${shadowReason}, so those ` +
+        `commands run without a prompt. Narrow or drop the allow rule that covers them.`,
     );
   }
   if (shadowedAsk.length > 0) {
-    logger.warn(
+    warnWithFallback(
+      logger,
       `deepagents-cli matches only the executable name, so the ask rule(s) ` +
-        `${shadowedAsk.join(", ")} are auto-approved without a prompt: their executable is in ` +
-        `the generated allow_list. Narrow or drop the allow rule that covers them.`,
+        `${shadowedAsk.join(", ")} run without a prompt: ${shadowReason}. Narrow or drop the ` +
+        `allow rule that covers them.`,
     );
   }
   if (widenedPatterns.length > 0) {
-    logger.warn(
+    warnWithFallback(
+      logger,
       `deepagents-cli matches only the executable name of a command, so ` +
         `${widenedPatterns.join(", ")} were widened to their first token — every invocation of ` +
         `those executables is now auto-approved, not just the listed arguments.`,
     );
   }
   if (unmatchablePatterns.length > 0) {
-    logger.warn(
+    warnWithFallback(
+      logger,
       `deepagents-cli compares allow_list entries to the executable name exactly, so the ` +
         `pattern(s) ${unmatchablePatterns.join(", ")} would match no command and were skipped.`,
     );
   }
   if (sentinelPatterns.length > 0) {
-    logger.warn(
+    warnWithFallback(
+      logger,
       `deepagents-cli reads 'all' and 'recommended' in allow_list as sentinels rather than ` +
         `command names, so ${sentinelPatterns.join(", ")} were skipped. Use the '*' pattern to ` +
         `allow every command.`,
     );
   }
   if (requestedAllowAll && !allowAll) {
-    logger.warn(
+    // A deny rule for another tool (`Read(...)`, `WebFetch(...)`) blocks the
+    // sentinel just as a bash one does: 'all' turns dcode's dangerous-pattern
+    // check off wholesale, so any denial in the config makes it too broad.
+    const denyReason =
+      denyPatterns.length > 0
+        ? `your config denies commands`
+        : `your config has deny rules for other tools`;
+    warnWithFallback(
+      logger,
       `The bash '*' allow rule was not written as allow_list = ["all"] for deepagents-cli, ` +
         `because 'all' also turns off its dangerous-pattern check (command substitution, ` +
-        `redirects, process substitution) and your config denies commands — the two together ` +
-        `would be weaker than dcode's own default. List the executables you want auto-approved ` +
-        `instead.`,
+        `redirects, process substitution) and ${denyReason} — the two together would be weaker ` +
+        `than dcode's own default. List the executables you want auto-approved instead.`,
     );
   }
   if (allowAll) {
-    logger.warn(
+    warnWithFallback(
+      logger,
       `The bash '*' allow rule became allow_list = ["all"] for deepagents-cli, which ` +
         `auto-approves every command and skips its dangerous-pattern check (command ` +
         `substitution, redirects, process substitution). List the executables you want ` +
@@ -524,8 +542,9 @@ function convertRulesyncToDeepagentsAllowList({
       if (hasDeny) {
         hasForeignDeny = true;
       }
-      if (hasDeny && logger) {
-        logger.warn(
+      if (hasDeny) {
+        warnWithFallback(
+          logger,
           `deepagents-cli only models shell-command permissions ([shell].allow_list), so ` +
             `'${category}' deny rules cannot be represented and were skipped.`,
         );
@@ -581,19 +600,17 @@ function convertRulesyncToDeepagentsAllowList({
   // other entry is redundant beside it anyway.
   const allowList = allowAll ? [ALLOW_ALL_SENTINEL] : uniq(allowed.toSorted());
 
-  if (logger) {
-    warnAboutUnwrittenBashRules({
-      allowList,
-      allowAll,
-      requestedAllowAll,
-      askPatterns,
-      denyPatterns,
-      widenedPatterns,
-      unmatchablePatterns,
-      sentinelPatterns,
-      logger,
-    });
-  }
+  warnAboutUnwrittenBashRules({
+    allowList,
+    allowAll,
+    requestedAllowAll,
+    askPatterns,
+    denyPatterns,
+    widenedPatterns,
+    unmatchablePatterns,
+    sentinelPatterns,
+    logger,
+  });
 
   return allowList;
 }

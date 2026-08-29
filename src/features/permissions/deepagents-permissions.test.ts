@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { DeepagentsPermissions } from "./deepagents-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -345,7 +346,38 @@ describe("DeepagentsPermissions", () => {
 
       expect(allowListOf(content)).toEqual(["npm"]);
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("are auto-approved without a prompt"),
+        expect.stringContaining("their executable is in the generated allow_list"),
+      );
+    });
+
+    it("blames the sentinel, not the allow_list, when everything is auto-approved", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "*": "allow", "npm publish": "ask" } } },
+        logger,
+      });
+
+      // `allow_list = ["all"]` holds no executable name, so the wording that
+      // points at one would send the author looking for a rule that is not there.
+      expect(allowListOf(content)).toEqual(["all"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('allow_list = ["all"] auto-approves every command'),
+      );
+    });
+
+    it("names the other tool's rules when they are what blocked the sentinel", async () => {
+      const logger = createMockLogger();
+
+      await generate({
+        config: { permission: { bash: { "*": "allow" }, read: { "./.env": "deny" } } },
+        logger,
+      });
+
+      // No bash deny rule exists, so "your config denies commands" would describe
+      // a rule the author never wrote.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("your config has deny rules for other tools"),
       );
     });
 
@@ -387,6 +419,21 @@ describe("DeepagentsPermissions", () => {
       });
 
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("leaves a `shell` that parsed as a datetime untouched", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(join(testDir, ".deepagents", "config.toml"), "shell = 1979-05-27\n");
+
+      const content = await generate({
+        config: { permission: { bash: { ls: "allow" } } },
+        logger,
+      });
+
+      // smol-toml returns a datetime as a `Date` subclass. That is a record but
+      // not a table, and spreading it would drop the value the file holds.
+      expect(smolToml.parse(content).shell).toBeInstanceOf(Date);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("is not a table"));
     });
 
     it("leaves a `shell` that is not a table untouched", async () => {
@@ -476,11 +523,16 @@ describe("DeepagentsPermissions", () => {
     });
 
     it("skips entries dcode itself could never match", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
       const config = importFrom('[shell]\nallow_list = ["git status", "npm-*", "ls"]\n');
 
       // Neither entry auto-approves anything upstream, and importing them would
       // let the next generate widen `git status` to every `git` invocation.
       expect(config).toEqual({ permission: { bash: { ls: "allow" } } });
+      // Dropping them silently would read as "dcode approves these", which is
+      // the opposite of what upstream does with them.
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("git status, npm-*"));
     });
 
     it("reads the sentinels case-insensitively, the way upstream lowercases them", () => {
