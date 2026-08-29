@@ -395,22 +395,35 @@ describe("DeepagentsPermissions", () => {
       );
     });
 
-    it("leaves an open-argument glob ask alone however many allows it covers", async () => {
+    it("catches an ask spelled with the trailing `:*`", async () => {
       const logger = createMockLogger();
 
       const content = await generate({
-        config: { permission: { bash: { "git *": "allow", "npm *": "allow", "git*": "ask" } } },
+        config: { permission: { bash: { "npm *": "allow", "npm:*": "ask" } } },
         logger,
       });
 
-      // `git*` is broader than the `git *` it collides with, so the allow is
-      // its exception — and whether a second, unrelated allow sits beside it
-      // cannot change that reading.
-      expect(allowListOf(content)).toEqual(["git", "npm"]);
-      expect(logger.warn).not.toHaveBeenCalled();
+      // The two spellings mean the same thing, so the ask cancels the allow
+      // outright rather than narrowing it — and dcode keeps the allow.
+      expect(allowListOf(content)).toEqual(["npm"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("npm:* run without a prompt"),
+      );
     });
 
-    it("leaves a blanket ask alone, since the allow rules are its exceptions", async () => {
+    it("catches a bare-executable ask", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "npm *": "allow", npm: "ask" } } },
+        logger,
+      });
+
+      expect(allowListOf(content)).toEqual(["npm"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("npm run without a prompt"));
+    });
+
+    it("catches a blanket ask, which the allow beside it does not narrow", async () => {
       const logger = createMockLogger();
 
       const content = await generate({
@@ -418,11 +431,10 @@ describe("DeepagentsPermissions", () => {
         logger,
       });
 
-      // dcode reproduces this pair exactly — `git` is auto-approved and every
-      // other command prompts — so there is nothing to warn about. A deny is
-      // different: it outranks an allow, and dcode cannot express that.
+      // Canonically the stricter rule wins whatever its width, so this asks
+      // about `git` too — and dcode auto-approves it.
       expect(allowListOf(content)).toEqual(["git"]);
-      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("* run without a prompt"));
     });
 
     it("catches a deny whose executable is itself a glob", async () => {
@@ -663,9 +675,14 @@ describe("DeepagentsPermissions", () => {
     });
 
     it("drops the `recommended` sentinel rather than expanding it", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
       expect(importFrom('[shell]\nallow_list = ["recommended", "git"]\n')).toEqual({
         permission: { bash: { git: "allow" } },
       });
+      // The next generate drops the curated commands, which fails closed but
+      // silently — so the drop is named where every other skipped entry is.
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("a curated list it owns"));
     });
 
     it("lifts the startup approval knobs into the deepagents override", () => {

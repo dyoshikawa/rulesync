@@ -8,7 +8,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { globToAnchoredRegexSource } from "../../utils/glob-to-regex.js";
+import { matchesGlob } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { parseCommaSeparatedList } from "../../utils/parse-comma-separated-list.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
@@ -74,12 +74,14 @@ const RECOMMENDED_SENTINEL = "recommended";
 const GLOB_CHARACTERS_PATTERN = /[*?[\]]/;
 
 /**
- * Characters that keep an entry from ever equalling a command name: dcode
- * splits a command on `&&`, `||`, `|` and `;` before comparing, and rejects
- * `$(...)`, backticks, redirects and process substitution outright, so an
- * entry containing any of them auto-approves nothing.
+ * Characters that stop dcode comparing an entry to a command name as written:
+ * it splits a command on `&&`, `||`, `|` and `;` before comparing, rejects
+ * `$(...)`, backticks, redirects and process substitution outright, and reads
+ * the name through `shlex.split`, which takes the quotes off. An entry holding
+ * one of them therefore matches nothing, or matches only by accident of the
+ * shell — either way it is not a rule worth writing into a global config.
  */
-const SHELL_METACHARACTERS_PATTERN = /[;&|$`()<>]/;
+const SHELL_METACHARACTERS_PATTERN = /[;&|$`()<>'"]/;
 // A canonical pattern may spell "any arguments" as a trailing `:*` on the
 // executable itself (`git:*`) rather than as a separate word (`git *`).
 const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
@@ -123,11 +125,10 @@ const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
  *   command is still asked about rather than blocked. An `ask` or `deny` on a
  *   narrower pattern than an `allow` beside it (`npm publish` against `npm *`)
  *   is worse than unenforced — the reduction collides them on `npm` and dcode
- *   keeps the allow — so those are warned about separately. An `ask` that
- *   leaves the arguments open (`*`, `npm*`) is not one of them: it is the
- *   broader rule of the pair, so the allows read as its exceptions, which is
- *   what dcode does anyway. A `deny` outranks an allow at every width, so it
- *   is warned about however it is spelled.
+ *   keeps the allow — so those are warned about separately. A *broader* ask or
+ *   deny is warned about too (`*` beside a `git *` allow): canonically the
+ *   stricter rule wins whatever its width, so that one is inverted as surely as
+ *   a narrow one.
  *
  * dcode's approval mode is a separate axis from the allowlist and is authored
  * through the `deepagents` override namespace (see
@@ -374,23 +375,19 @@ function warnAboutUnwrittenBashRules({
     // collision does. `*` is only the widest spelling of that, not a case of
     // its own.
     if (GLOB_CHARACTERS_PATTERN.test(leading)) {
-      const matcher = new RegExp(globToAnchoredRegexSource(leading));
-      return allowList.some((token) => matcher.test(token));
+      // Walked rather than translated to a regex: both sides come from a file a
+      // repository can carry, and `*a*a*a*a*b` as `^.*a.*a.*a.*a.*b$` costs
+      // minutes against a long enough name.
+      return allowList.some((token) => matchesGlob(leading, token));
     }
     return allowedTokens.has(leading);
   };
-  // An `ask` that leaves the arguments open (`*`, `npm*`) is the broader rule of
-  // the pair, and canonical precedence already reads the allows beside it as its
-  // exceptions — which is what dcode does anyway, since an unlisted command
-  // prompts. Only an ask that names arguments (`npm publish`, `npm* publish`) is
-  // inverted, because the allow it collides with covers those arguments too.
-  // `all` is the exception: it also switches the dangerous-pattern check off, so
-  // no ask beside it is broader.
-  const shadowedAsk = askPatterns.filter(
-    (pattern) => collidesWithAllow(pattern) && (allowAll || !meansAnyArguments(pattern)),
-  );
-  // A deny has no such reading: it outranks an allow canonically, so any
-  // collision inverts it.
+  // Canonically the stricter rule wins whatever its width — rulesync collapses
+  // colliding rules as `deny > ask > allow` everywhere, and Claude Code applies
+  // deny first, then ask, then allow — so a *broad* ask beside a narrow allow
+  // (`*` ask, `git *` allow) is inverted by the reduction just as a narrow one
+  // is: the author asked to be prompted for `git` and dcode auto-approves it.
+  const shadowedAsk = askPatterns.filter(collidesWithAllow);
   const shadowedDeny = denyPatterns.filter(collidesWithAllow);
   const unenforcedDeny = denyPatterns.filter((pattern) => !collidesWithAllow(pattern));
 
@@ -434,9 +431,10 @@ function warnAboutUnwrittenBashRules({
     warnWithFallback(
       logger,
       `deepagents-cli compares an allow_list entry to the executable name exactly, so a glob ` +
-        `in that name matches nothing, and a command holding a shell metacharacter is split or ` +
-        `refused before any comparison — the pattern(s) ${unmatchablePatterns.join(", ")} were ` +
-        `therefore skipped rather than written as a rule that cannot fire.`,
+        `in that name matches nothing, and a name holding a shell metacharacter or a quote is ` +
+        `one dcode splits on, refuses outright, or reads differently than it is written — the ` +
+        `pattern(s) ${unmatchablePatterns.join(", ")} were therefore skipped rather than ` +
+        `written as a rule that cannot be relied on to fire.`,
     );
   }
   if (sentinelPatterns.length > 0) {
@@ -774,9 +772,9 @@ function convertRulesyncToDeepagentsAllowList({
         askPatterns.push(pattern);
         continue;
       }
-      // `*` and `*:*` are the same rule — "every command, any arguments" —
-      // spelled the two ways the canonical format allows.
-      if (pattern.trim().replace(TRAILING_ARGUMENT_WILDCARD_PATTERN, "") === "*") {
+      // `*`, `*:*` and `* *` are the same rule — "every command, any
+      // arguments" — spelled the three ways the canonical format allows.
+      if (leadingToken(pattern) === "*" && meansAnyArguments(pattern)) {
         requestedAllowAll = true;
         continue;
       }
@@ -868,11 +866,13 @@ function convertDeepagentsToRulesyncPermissions({
   }
 
   const inertEntries: string[] = [];
+  const droppedSentinels: string[] = [];
   for (const entry of allowList) {
     // `recommended` names a curated list dcode owns; expanding it here would
     // freeze a copy that drifts as upstream edits it, so it is left out and
     // the generate direction simply does not write it back.
     if (entry.toLowerCase() === RECOMMENDED_SENTINEL) {
+      droppedSentinels.push(entry);
       continue;
     }
     if (
@@ -886,6 +886,14 @@ function convertDeepagentsToRulesyncPermissions({
     bash[entry] = "allow";
   }
 
+  if (droppedSentinels.length > 0) {
+    warnWithFallback(
+      undefined,
+      `deepagents-cli expands '${droppedSentinels.join(", ")}' from a curated list it owns and ` +
+        `edits, so it was not imported as command names. The next generate therefore drops those ` +
+        `commands from allow_list — re-add by name the ones you want kept.`,
+    );
+  }
   if (inertEntries.length > 0) {
     warnWithFallback(
       undefined,
