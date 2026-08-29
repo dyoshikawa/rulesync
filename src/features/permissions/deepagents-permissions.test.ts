@@ -170,7 +170,7 @@ describe("DeepagentsPermissions", () => {
       // Written verbatim it would match no command, which reads as an allow
       // rule that quietly does nothing.
       expect(allowListOf(content)).toEqual(["ls"]);
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("would match no command"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("were therefore skipped"));
     });
 
     it("skips a pattern that reduces to a sentinel name", async () => {
@@ -361,7 +361,7 @@ describe("DeepagentsPermissions", () => {
       // Writing it would put a rule in the user's global config that can never
       // fire, and the import direction already refuses to read one back.
       expect(allowListOf(content)).toEqual(["ls"]);
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("would match no command"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("were therefore skipped"));
     });
 
     it("reports a bare executable as widened, since dcode holds no arguments", async () => {
@@ -376,6 +376,38 @@ describe("DeepagentsPermissions", () => {
       // `rm -rf /` too, so the narrow spelling widens further than the loud one.
       expect(allowListOf(content)).toEqual(["rm"]);
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("were widened"));
+    });
+
+    it("catches an ask that names arguments even when its executable is a glob", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "npm *": "allow", "npm* publish": "ask" } } },
+        logger,
+      });
+
+      // The ask names arguments the allow beside it covers, so the reduction
+      // hands the collision to the allow — the glob in the executable does not
+      // make it the broader rule.
+      expect(allowListOf(content)).toEqual(["npm"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("npm* publish run without a prompt"),
+      );
+    });
+
+    it("leaves an open-argument glob ask alone however many allows it covers", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "git *": "allow", "npm *": "allow", "git*": "ask" } } },
+        logger,
+      });
+
+      // `git*` is broader than the `git *` it collides with, so the allow is
+      // its exception — and whether a second, unrelated allow sits beside it
+      // cannot change that reading.
+      expect(allowListOf(content)).toEqual(["git", "npm"]);
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("leaves a blanket ask alone, since the allow rules are its exceptions", async () => {
@@ -622,9 +654,12 @@ describe("DeepagentsPermissions", () => {
     });
 
     it("imports nothing when `all` shares the list with command names", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
       // dcode raises on that combination and ignores the option, so the
       // commands beside it are not actually auto-approved.
       expect(importFrom('[shell]\nallow_list = ["all", "git"]\n')).toEqual({ permission: {} });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("mixes 'all' with command names"));
     });
 
     it("drops the `recommended` sentinel rather than expanding it", () => {

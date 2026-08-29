@@ -11,6 +11,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { readAugmentcodeSettingsWithLocalOverlay } from "../../utils/augmentcode-settings.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { globToAnchoredRegexSource } from "../../utils/glob-to-regex.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -201,26 +202,6 @@ function coerceAuthoredEntries(
     }
   }
   return out;
-}
-
-/**
- * Convert a glob-like pattern into a regex string for AugmentCode's `shellInputRegex`.
- * Maps glob `*` to `.*`, `?` to `.`, escapes other regex metacharacters, and anchors at both ends.
- */
-function globToShellRegex(glob: string): string {
-  let regex = "";
-  for (const char of glob) {
-    if (char === "*") {
-      regex += ".*";
-    } else if (char === "?") {
-      regex += ".";
-    } else if (/[\\^$.|+(){}[\]]/.test(char)) {
-      regex += `\\${char}`;
-    } else {
-      regex += char;
-    }
-  }
-  return `^${regex}$`;
 }
 
 /**
@@ -580,7 +561,7 @@ function convertRulesyncToAugmentEntries({
         } else {
           entries.push({
             toolName: augmentToolName,
-            shellInputRegex: globToShellRegex(pattern),
+            shellInputRegex: globToAnchoredRegexSource(pattern),
             permission: { type: augmentType },
           });
         }
