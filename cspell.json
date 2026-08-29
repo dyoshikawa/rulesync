@@ -206,6 +206,7 @@
     "fdir",
     "flexbox",
     "fnmatch",
+    "fullmatch",
     "fromfile",
     "frompath",
     "frontmatter",
