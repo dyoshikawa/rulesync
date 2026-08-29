@@ -301,6 +301,37 @@ describe("DeepagentsPermissions", () => {
       expect(allowListOf(content)).toEqual(["all"]);
     });
 
+    it("treats the `* *` spelling of the wildcard as the wildcard", async () => {
+      const content = await generate({ config: { permission: { bash: { "* *": "allow" } } } });
+
+      expect(allowListOf(content)).toEqual(["all"]);
+    });
+
+    it("skips an executable spelled with quotes, which dcode reads without them", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { '"git" *': "allow" } } },
+        logger,
+      });
+
+      expect(allowListOf(content)).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("were therefore skipped"));
+    });
+
+    it("catches a quoted ask against the allow it collides with once unquoted", async () => {
+      const logger = createMockLogger();
+
+      await generate({
+        config: { permission: { bash: { "git *": "allow", '"git" push': "ask" } } },
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"git" push run without a prompt'),
+      );
+    });
+
     it("refuses to write `all` when the config also denies commands", async () => {
       const logger = createMockLogger();
 
@@ -386,9 +417,8 @@ describe("DeepagentsPermissions", () => {
         logger,
       });
 
-      // The ask names arguments the allow beside it covers, so the reduction
-      // hands the collision to the allow — the glob in the executable does not
-      // make it the broader rule.
+      // The ask's executable is a glob, so it collides with every allowed name
+      // it matches — the reduction hands that collision to the allow.
       expect(allowListOf(content)).toEqual(["npm"]);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("npm* publish run without a prompt"),
@@ -625,6 +655,24 @@ describe("DeepagentsPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("is not a table"));
     });
 
+    it("says nothing about an allowlist it could not write", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(join(testDir, ".deepagents", "config.toml"), 'shell = "bash"\n');
+
+      const content = await generate({
+        config: { permission: { bash: { "*": "allow" } } },
+        logger,
+      });
+
+      // The `all` sentinel warning describes a global auto-approve. Nothing was
+      // written here, so saying it would describe a relaxation that never
+      // happened.
+      expect(smolToml.parse(content).shell).toBe("bash");
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("auto-approves every command"),
+      );
+    });
+
     it("reports removing an allowlist the user had curated", async () => {
       const logger = createMockLogger();
       await writeFileContent(
@@ -728,6 +776,17 @@ describe("DeepagentsPermissions", () => {
       // before it ever compares a name, so neither entry approves anything.
       expect(config).toEqual({ permission: { bash: { ls: "allow" } } });
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("git;rm, $(id)"));
+    });
+
+    it("skips a quoted entry, which dcode compares without its quotes", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const config = importFrom('[shell]\nallow_list = [\'"git"\', "ls"]\n');
+
+      // `shlex.split` takes the quotes off the command being checked, so the
+      // quoted entry can never equal the name dcode ends up comparing.
+      expect(config).toEqual({ permission: { bash: { ls: "allow" } } });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"git"'));
     });
 
     it("reads the sentinels case-insensitively, the way upstream lowercases them", () => {

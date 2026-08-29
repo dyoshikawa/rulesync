@@ -8,7 +8,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { matchesGlob } from "../../utils/glob.js";
+import { compileGlob } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { parseCommaSeparatedList } from "../../utils/parse-comma-separated-list.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
@@ -82,6 +82,9 @@ const GLOB_CHARACTERS_PATTERN = /[*?[\]]/;
  * shell — either way it is not a rule worth writing into a global config.
  */
 const SHELL_METACHARACTERS_PATTERN = /[;&|$`()<>'"]/;
+// The subset `shlex.split` strips rather than refuses, so a name spelled with
+// them still reaches dcode's comparison — as the name without them.
+const QUOTE_CHARACTERS_PATTERN = /['"]/g;
 // A canonical pattern may spell "any arguments" as a trailing `:*` on the
 // executable itself (`git:*`) rather than as a separate word (`git *`).
 const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
@@ -115,11 +118,12 @@ const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
  *   config also *denies* something, `all` is not written at all: switching the
  *   dangerous-pattern check off in the name of a rule meant to restrict would
  *   leave the user with less than dcode's own default, so deny wins.
- * - A token that still holds a glob (`npm-*`, `*.sh`) or a shell metacharacter
- *   (`git;rm`, `$(id)`) after the reduction has no counterpart and is skipped
- *   with a warning: dcode compares the name exactly, and splits or refuses a
- *   command holding a metacharacter before it compares anything, so writing one
- *   would leave a rule in the user's global config that never fires.
+ * - A token that still holds a glob (`npm-*`, `*.sh`), a shell metacharacter
+ *   (`git;rm`, `$(id)`) or a quote (`"git"`) after the reduction has no
+ *   counterpart and is skipped with a warning: dcode compares the name exactly,
+ *   and splits, refuses, or unquotes a command holding one before it compares
+ *   anything, so writing one would leave a rule in the user's global config
+ *   that never fires.
  * - `ask` rules need no output — a command outside the list already prompts —
  *   but `deny` rules are reported, because dcode cannot express them: the
  *   command is still asked about rather than blocked. An `ask` or `deny` on a
@@ -220,7 +224,6 @@ export class DeepagentsPermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const allowList = convertRulesyncToDeepagentsAllowList({ config, logger });
 
     // Merge into `[shell]`, preserving every other key of that table. A
     // `shell` that is not a table at all — an array of tables, a scalar — is
@@ -234,6 +237,12 @@ export class DeepagentsPermissions extends ToolPermissions {
           `${ALLOW_LIST_KEY} was left untouched rather than overwriting it.`,
       );
     } else {
+      // Converted only once there is somewhere to put the result: the
+      // conversion's warnings describe what the allowlist *became* — "every
+      // command is auto-approved and the dangerous-pattern check is off" among
+      // them — and saying that about a file this run leaves untouched describes
+      // a global relaxation that did not happen.
+      const allowList = convertRulesyncToDeepagentsAllowList({ config, logger });
       const shell = isPlainObject(existingShell) ? { ...existingShell } : {};
       if (allowList.length > 0) {
         shell[ALLOW_LIST_KEY] = allowList;
@@ -369,7 +378,9 @@ function warnAboutUnwrittenBashRules({
     // `allow_list = ["all"]` covers every command *and* turns the
     // dangerous-pattern check off, so nothing can miss it.
     if (allowAll) return true;
-    const leading = leadingToken(pattern);
+    // dcode reads the name through `shlex.split`, which takes the quotes off,
+    // so `"git" *` collides with a `git` allow however oddly it is spelled.
+    const leading = leadingToken(pattern).replaceAll(QUOTE_CHARACTERS_PATTERN, "");
     // A rule whose executable is itself a glob — `*`, `npm*` — collides with
     // every entry it matches, so the reduction inverts it exactly as a literal
     // collision does. `*` is only the widest spelling of that, not a case of
@@ -377,8 +388,10 @@ function warnAboutUnwrittenBashRules({
     if (GLOB_CHARACTERS_PATTERN.test(leading)) {
       // Walked rather than translated to a regex: both sides come from a file a
       // repository can carry, and `*a*a*a*a*b` as `^.*a.*a.*a.*a.*b$` costs
-      // minutes against a long enough name.
-      return allowList.some((token) => matchesGlob(leading, token));
+      // minutes against a long enough name. Parsed once for the whole list, so
+      // the pattern's own length is paid once rather than per entry.
+      const matches = compileGlob(leading);
+      return allowList.some((token) => matches(token));
     }
     return allowedTokens.has(leading);
   };
@@ -691,9 +704,8 @@ function leadingToken(pattern: string): string {
  * glob executable such as `npm*`, which matches the rest of the command line on
  * its own.
  *
- * Anything else names arguments, which dcode has nowhere to put: reducing it to
- * the executable widens it (on an `allow`), or lets an `allow` beside it win a
- * collision the author meant the other way round (on an `ask`).
+ * Anything else names arguments, which dcode has nowhere to put, so reducing an
+ * `allow` to its executable widens it — which is what the caller warns about.
  */
 function meansAnyArguments(pattern: string): boolean {
   const [first = "", ...rest] = pattern.trim().split(/\s+/);

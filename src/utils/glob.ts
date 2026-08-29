@@ -6,10 +6,12 @@
  * result is anchored at both ends, because the callers ask "is this the whole
  * name?" rather than "does this appear somewhere in it?".
  *
- * Shared by the tools that have to compare a canonical glob against a concrete
- * string — AugmentCode writes the regex into its own config, while
- * deepagents-cli uses it to test a rule's executable glob against the names
- * actually written to `allow_list`.
+ * Note that `[` and `]` are escaped along with everything else, so a bracket
+ * class is a literal here while `matchesGlob` below reads it as a class. The
+ * one caller wants exactly that: AugmentCode writes this source into its own
+ * config as the tool's own shell-command regex, and never executes it, so it
+ * has to say what the tool would read rather than what a glob means. Use
+ * `matchesGlob` for an actual comparison.
  */
 export function globToAnchoredRegexSource(glob: string): string {
   let source = "";
@@ -74,6 +76,10 @@ function parseGlob(glob: string): GlobStep[] {
   const characters = [...glob];
   const steps: GlobStep[] = [];
   let index = 0;
+  // Once a `[` has failed to find its `]`, no later one can find one either —
+  // there is no `]` left in the string. Remembering that keeps a pattern of
+  // nothing but `[` linear instead of scanning to the end for every bracket.
+  let bracketsAreClosed = true;
   while (index < characters.length) {
     const character = characters[index] ?? "";
     index += 1;
@@ -88,9 +94,11 @@ function parseGlob(glob: string): GlobStep[] {
       steps.push({ kind: "any" });
       continue;
     }
-    if (character === "[") {
+    if (character === "[" && bracketsAreClosed) {
       const parsed = parseGlobClass(characters, index);
-      if (parsed !== undefined) {
+      if (parsed === undefined) {
+        bracketsAreClosed = false;
+      } else {
         steps.push(parsed.step);
         index = parsed.next;
         continue;
@@ -113,7 +121,8 @@ function matchesGlobStep(step: GlobStep, character: string): boolean {
 
 /**
  * Whether `value` matches `glob` in full, with `*`, `?` and `[...]` carrying
- * their usual meaning.
+ * their usual meaning. The glob comes first, unlike Node's own
+ * `path.matchesGlob(path, pattern)`.
  *
  * The glob is walked step by step rather than translated to a regex, because
  * both sides of a comparison can come from a file a repository carries: `*a*a*a*a*b`
@@ -123,7 +132,19 @@ function matchesGlobStep(step: GlobStep, character: string): boolean {
  * up whatever the later one needed.
  */
 export function matchesGlob(glob: string, value: string): boolean {
+  return compileGlob(glob)(value);
+}
+
+/**
+ * Parse `glob` once and return a predicate that walks it, for a caller that
+ * tests the same glob against a whole list of names.
+ */
+export function compileGlob(glob: string): (value: string) => boolean {
   const steps = parseGlob(glob);
+  return (value) => matchesParsedGlob(steps, value);
+}
+
+function matchesParsedGlob(steps: readonly GlobStep[], value: string): boolean {
   const characters = [...value];
   let stepIndex = 0;
   let characterIndex = 0;

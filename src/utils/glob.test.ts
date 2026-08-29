@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { globToAnchoredRegexSource, matchesGlob } from "./glob.js";
+import { compileGlob, globToAnchoredRegexSource, matchesGlob } from "./glob.js";
 
 const matches = (glob: string, value: string): boolean =>
   new RegExp(globToAnchoredRegexSource(glob)).test(value);
@@ -57,5 +57,24 @@ describe("matchesGlob", () => {
     // from a file a repository can carry.
     const glob = `${"*a".repeat(24)}X`;
     expect(matchesGlob(glob, "a".repeat(120))).toBe(false);
+  });
+});
+
+describe("compileGlob", () => {
+  it("parses once and answers for every name", () => {
+    const matchesCompiled = compileGlob("git-*");
+
+    expect(matchesCompiled("git-a")).toBe(true);
+    expect(matchesCompiled("npm")).toBe(false);
+  });
+
+  it("stays linear on a pattern that never closes a bracket", () => {
+    // Re-scanning to the end for every `[` would make this quadratic, and a
+    // pattern this shape can come from a file a repository carries.
+    const started = performance.now();
+
+    expect(matchesGlob("[".repeat(50_000), "a")).toBe(false);
+
+    expect(performance.now() - started).toBeLessThan(1_000);
   });
 });
