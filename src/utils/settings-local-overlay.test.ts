@@ -25,10 +25,13 @@ describe("readSettingsWithLocalOverlay", () => {
   // without committing to either tool's layering semantics.
   const read = ({
     baseFallbackContent,
+    sensitiveKeys,
     logger,
-  }: { baseFallbackContent?: string; logger?: ReturnType<typeof createMockLogger> } = {}): Promise<
-    string | null
-  > =>
+  }: {
+    baseFallbackContent?: string;
+    sensitiveKeys?: readonly string[];
+    logger?: ReturnType<typeof createMockLogger>;
+  } = {}): Promise<string | null> =>
     readSettingsWithLocalOverlay({
       outputRoot: testDir,
       relativeDirPath: ".tool",
@@ -36,6 +39,7 @@ describe("readSettingsWithLocalOverlay", () => {
       localFileName: "settings.local.json",
       toolLabel: "Test Tool",
       ...(baseFallbackContent !== undefined && { baseFallbackContent }),
+      ...(sensitiveKeys !== undefined && { sensitiveKeys }),
       ...(logger !== undefined && { logger }),
       merge: (base, local) => ({ ...base, ...local, merged: true }),
     });
@@ -120,6 +124,31 @@ describe("readSettingsWithLocalOverlay", () => {
     await read({ logger });
 
     expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("should say what a guardrail key taken from the local file would become", async () => {
+    await write("settings.json", "{}");
+    await write("settings.local.json", '{"editor":"vim","sandbox":{"bash":"off"}}');
+    const logger = createMockLogger();
+
+    await read({ sensitiveKeys: ["sandbox"], logger });
+
+    // Publishing a sandbox somebody switched off for their own machine hands
+    // the relaxed value to everyone, so it is named beyond the plain key list.
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('"sandbox" decides what Test Tool is allowed to do'),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"editor"'));
+  });
+
+  it("should keep the guardrail sentence out when no such key was read", async () => {
+    await write("settings.json", "{}");
+    await write("settings.local.json", '{"editor":"vim"}');
+    const logger = createMockLogger();
+
+    await read({ sensitiveKeys: ["sandbox"], logger });
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.not.stringContaining("is allowed to do"));
   });
 
   it("should stay quiet when there is no local file", async () => {

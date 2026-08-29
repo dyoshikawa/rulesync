@@ -73,6 +73,13 @@ function combineAugmentSettings(
  *
  * @see https://docs.augmentcode.com/cli/config
  */
+/**
+ * The AugmentCode counterpart of Droid's guardrail keys: the tool-permission
+ * rules, the hooks Auggie executes, and the servers and plugins it loads them
+ * from. See `readSettingsWithLocalOverlay` for why they are named twice.
+ */
+const AUGMENTCODE_GUARDRAIL_KEYS = ["toolPermissions", "hooks", "mcpServers", "plugins"] as const;
+
 export async function readAugmentcodeSettingsWithLocalOverlay({
   outputRoot,
   relativeDirPath,
@@ -99,6 +106,7 @@ export async function readAugmentcodeSettingsWithLocalOverlay({
     baseFileName,
     localFileName: AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME,
     toolLabel: "AugmentCode",
+    sensitiveKeys: AUGMENTCODE_GUARDRAIL_KEYS,
     baseFallbackContent,
     // Combine per AugmentCode's documented layering (local wins for scalars,
     // mcpServers/plugins replace, other objects/lists combine local-first).

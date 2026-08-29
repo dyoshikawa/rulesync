@@ -26,8 +26,10 @@ import { isPlainObject } from "./type-guards.js";
  * Whatever the local file contributes is named in a warning, because the
  * import's own output — `.rulesync/permissions.jsonc` and friends — is
  * committed: a value personal to one machine becomes the team's on the next
- * generate unless someone takes it out first. The warning is emitted once per
- * run, however many features read the same pair of files.
+ * generate unless someone takes it out first. Keys the caller lists in
+ * `sensitiveKeys` are called out a second time, since those decide what the
+ * tool may run rather than how it looks. The warning is emitted once per run,
+ * however many features read the same pair of files.
  *
  * Returns `null` when neither file exists and no `baseFallbackContent` is
  * given, so callers can tell "no settings at this scope" apart from empty ones.
@@ -39,6 +41,7 @@ export async function readSettingsWithLocalOverlay({
   localFileName,
   toolLabel,
   baseFallbackContent,
+  sensitiveKeys = [],
   merge,
   logger,
 }: {
@@ -48,6 +51,12 @@ export async function readSettingsWithLocalOverlay({
   localFileName: string;
   /** Names the tool in parse errors, e.g. `"Factory Droid"`. */
   toolLabel: string;
+  /**
+   * Top-level keys that govern what the tool is allowed to do — sandboxing,
+   * autonomy, hooks it executes. One of these coming from a machine-local file
+   * is worth a sentence of its own in the warning; the rest are named anyway.
+   */
+  sensitiveKeys?: readonly string[];
   /** Stands in for a missing base file; omit to get `null` instead. */
   baseFallbackContent?: string;
   /**
@@ -108,7 +117,7 @@ export async function readSettingsWithLocalOverlay({
     baseParsed = parsed;
   }
 
-  warnAboutLocalKeys({ localParsed, configPath, toolLabel, logger });
+  warnAboutLocalKeys({ localParsed, configPath, toolLabel, sensitiveKeys, logger });
 
   return JSON.stringify(merge(baseParsed, localParsed), null, 2);
 }
@@ -118,31 +127,49 @@ export async function readSettingsWithLocalOverlay({
  * by accident. The keys are the user's own, so they are quoted and stripped of
  * control characters like every other name read off disk.
  *
+ * A `sensitiveKeys` hit gets a sentence of its own: relaxing a guardrail for
+ * one machine — a sandbox switched off, a hook only that machine should run —
+ * reads as an ordinary key in a list, but publishing it hands the relaxed value
+ * to everyone on the next generate.
+ *
  * Once per run: one `import` reads the same pair of files once per feature —
  * permissions, hooks and MCP all go through here — and the warning describes
  * the file rather than the feature, so it would otherwise repeat verbatim.
  */
+/** Quotes a name read off disk, the way every other such name is logged. */
+function quoteKey(key: string): string {
+  return JSON.stringify(stripControlCharacters(key));
+}
+
 function warnAboutLocalKeys({
   localParsed,
   configPath,
   toolLabel,
+  sensitiveKeys,
   logger,
 }: {
   localParsed: Record<string, unknown>;
   configPath: string;
   toolLabel: string;
+  sensitiveKeys: readonly string[];
   logger?: Logger;
 }): void {
   const keys = Object.keys(localParsed);
   if (keys.length === 0) {
     return;
   }
-  const named = keys.map((key) => JSON.stringify(stripControlCharacters(key))).join(", ");
+  const flagged = keys.filter((key) => sensitiveKeys.includes(key));
+  const guardrailSentence =
+    flagged.length === 0
+      ? ""
+      : ` ${flagged.map(quoteKey).join(", ")} ${flagged.length === 1 ? "decides" : "decide"} what ` +
+        `${toolLabel} is allowed to do, so a value meant for one machine would become the ` +
+        `team's guardrail.`;
   warnOnceWithFallback(
     logger,
     `${toolLabel}: ${configPath} is a machine-local overrides file, and importing read ` +
-      `${named} from it. Whatever an import takes from there lands in files rulesync commits, ` +
-      `so check the imported files and remove anything personal to this machine before ` +
-      `sharing them.`,
+      `${keys.map(quoteKey).join(", ")} from it. Whatever an import takes from there lands in ` +
+      `files rulesync commits, so check the imported files and remove anything personal to ` +
+      `this machine before sharing them.${guardrailSentence}`,
   );
 }
