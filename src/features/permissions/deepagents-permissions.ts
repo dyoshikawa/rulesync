@@ -77,14 +77,21 @@ const GLOB_CHARACTERS_PATTERN = /[*?[\]]/;
  * Characters that stop dcode comparing an entry to a command name as written:
  * it splits a command on `&&`, `||`, `|` and `;` before comparing, rejects
  * `$(...)`, backticks, redirects and process substitution outright, and reads
- * the name through `shlex.split`, which takes the quotes off. An entry holding
+ * the name through `shlex.split`, which takes the quotes and escapes off. An
+ * entry holding
  * one of them therefore matches nothing, or matches only by accident of the
  * shell — either way it is not a rule worth writing into a global config.
  */
-const SHELL_METACHARACTERS_PATTERN = /[;&|$`()<>'"]/;
-// The subset `shlex.split` strips rather than refuses, so a name spelled with
-// them still reaches dcode's comparison — as the name without them.
-const QUOTE_CHARACTERS_PATTERN = /['"]/g;
+const SHELL_METACHARACTERS_PATTERN = /[;&|$`()<>'"\\]/;
+// The subset `shlex.split` strips rather than refuses — quotes and the
+// backslash escape — so a name spelled with them still reaches dcode's
+// comparison, as the name without them.
+const SHLEX_STRIPPED_PATTERN = /['"\\]/g;
+// `NAME_MAX` on every filesystem dcode runs on. A token longer than this is
+// not the name of anything that can be executed, so writing it would leave a
+// rule that cannot fire — and comparing a glob that long against a list is
+// work spent on an answer that is already known.
+const MAX_EXECUTABLE_NAME_LENGTH = 255;
 // A canonical pattern may spell "any arguments" as a trailing `:*` on the
 // executable itself (`git:*`) rather than as a separate word (`git *`).
 const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
@@ -119,7 +126,8 @@ const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
  *   dangerous-pattern check off in the name of a rule meant to restrict would
  *   leave the user with less than dcode's own default, so deny wins.
  * - A token that still holds a glob (`npm-*`, `*.sh`), a shell metacharacter
- *   (`git;rm`, `$(id)`) or a quote (`"git"`) after the reduction has no
+ *   (`git;rm`, `$(id)`), a quote (`"git"`) or an escape (`\\git`) after the
+ *   reduction has no
  *   counterpart and is skipped with a warning: dcode compares the name exactly,
  *   and splits, refuses, or unquotes a command holding one before it compares
  *   anything, so writing one would leave a rule in the user's global config
@@ -236,13 +244,18 @@ export class DeepagentsPermissions extends ToolPermissions {
         `deepagents-cli: '${SHELL_TABLE_KEY}' in ${filePath} is not a table, so ` +
           `${ALLOW_LIST_KEY} was left untouched rather than overwriting it.`,
       );
+      // Converted anyway, but told that nothing is written: the sentences about
+      // what the allowlist *became* — "every command is auto-approved and the
+      // dangerous-pattern check is off" among them — would describe a global
+      // relaxation that did not happen, while the ones about a deny rule dcode
+      // cannot express stay true and are all the user hears here.
+      convertRulesyncToDeepagentsAllowList({ config, willWrite: false, logger });
     } else {
-      // Converted only once there is somewhere to put the result: the
-      // conversion's warnings describe what the allowlist *became* — "every
-      // command is auto-approved and the dangerous-pattern check is off" among
-      // them — and saying that about a file this run leaves untouched describes
-      // a global relaxation that did not happen.
-      const allowList = convertRulesyncToDeepagentsAllowList({ config, logger });
+      const allowList = convertRulesyncToDeepagentsAllowList({
+        config,
+        willWrite: true,
+        logger,
+      });
       const shell = isPlainObject(existingShell) ? { ...existingShell } : {};
       if (allowList.length > 0) {
         shell[ALLOW_LIST_KEY] = allowList;
@@ -356,6 +369,7 @@ function warnAboutUnwrittenBashRules({
   widenedPatterns,
   unmatchablePatterns,
   sentinelPatterns,
+  willWrite,
   logger,
 }: {
   allowList: string[];
@@ -366,6 +380,14 @@ function warnAboutUnwrittenBashRules({
   widenedPatterns: string[];
   unmatchablePatterns: string[];
   sentinelPatterns: string[];
+  /**
+   * Whether the caller is going to write the allowlist it asked for. When it is
+   * not — a `[shell]` that is not a table cannot be merged into — the sentences
+   * describing what the list auto-approves would describe a relaxation that did
+   * not happen, while the ones saying a deny rule has no counterpart at all
+   * stay true and are the only warning the user gets.
+   */
+  willWrite: boolean;
   logger?: Logger;
 }): void {
   // A rule that is not written is one thing; a rule the reduction *inverts*
@@ -375,12 +397,16 @@ function warnAboutUnwrittenBashRules({
   // wanted stopped runs with no prompt at all.
   const allowedTokens = new Set(allowList);
   const collidesWithAllow = (pattern: string): boolean => {
+    // Nothing was written, so nothing shadows anything: every deny is merely
+    // unenforced, which is what the sentence below already says.
+    if (!willWrite) return false;
     // `allow_list = ["all"]` covers every command *and* turns the
     // dangerous-pattern check off, so nothing can miss it.
     if (allowAll) return true;
-    // dcode reads the name through `shlex.split`, which takes the quotes off,
-    // so `"git" *` collides with a `git` allow however oddly it is spelled.
-    const leading = leadingToken(pattern).replaceAll(QUOTE_CHARACTERS_PATTERN, "");
+    // dcode reads the name through `shlex.split`, which takes the quotes and
+    // escapes off, so `"git" *` and `\\git *` both collide with a `git` allow
+    // however oddly they are spelled.
+    const leading = leadingToken(pattern).replaceAll(SHLEX_STRIPPED_PATTERN, "");
     // A rule whose executable is itself a glob — `*`, `npm*` — collides with
     // every entry it matches, so the reduction inverts it exactly as a literal
     // collision does. `*` is only the widest spelling of that, not a case of
@@ -401,8 +427,13 @@ function warnAboutUnwrittenBashRules({
   // (`*` ask, `git *` allow) is inverted by the reduction just as a narrow one
   // is: the author asked to be prompted for `git` and dcode auto-approves it.
   const shadowedAsk = askPatterns.filter(collidesWithAllow);
-  const shadowedDeny = denyPatterns.filter(collidesWithAllow);
-  const unenforcedDeny = denyPatterns.filter((pattern) => !collidesWithAllow(pattern));
+  const shadowedDeny: string[] = [];
+  const unenforcedDeny: string[] = [];
+  for (const pattern of denyPatterns) {
+    // Partitioned in one pass: asking twice would compile the same glob twice,
+    // which is exactly what `compileGlob` above exists to avoid.
+    (collidesWithAllow(pattern) ? shadowedDeny : unenforcedDeny).push(pattern);
+  }
 
   if (unenforcedDeny.length > 0) {
     warnWithFallback(
@@ -432,7 +463,7 @@ function warnAboutUnwrittenBashRules({
         `allow rule that covers them.`,
     );
   }
-  if (widenedPatterns.length > 0) {
+  if (willWrite && widenedPatterns.length > 0) {
     warnWithFallback(
       logger,
       `deepagents-cli matches only the executable name of a command, so ` +
@@ -440,17 +471,19 @@ function warnAboutUnwrittenBashRules({
         `those executables is now auto-approved, not just the listed arguments.`,
     );
   }
-  if (unmatchablePatterns.length > 0) {
+  if (willWrite && unmatchablePatterns.length > 0) {
     warnWithFallback(
       logger,
       `deepagents-cli compares an allow_list entry to the executable name exactly, so a glob ` +
-        `in that name matches nothing, and a name holding a shell metacharacter or a quote is ` +
+        `in that name matches nothing, a name longer than ${MAX_EXECUTABLE_NAME_LENGTH} ` +
+        `characters is longer than any executable, and a name holding a shell metacharacter, a ` +
+        `quote or an escape is ` +
         `one dcode splits on, refuses outright, or reads differently than it is written — the ` +
         `pattern(s) ${unmatchablePatterns.join(", ")} were therefore skipped rather than ` +
         `written as a rule that cannot be relied on to fire.`,
     );
   }
-  if (sentinelPatterns.length > 0) {
+  if (willWrite && sentinelPatterns.length > 0) {
     warnWithFallback(
       logger,
       `deepagents-cli reads 'all' and 'recommended' in allow_list as sentinels rather than ` +
@@ -458,7 +491,7 @@ function warnAboutUnwrittenBashRules({
         `allow every command.`,
     );
   }
-  if (requestedAllowAll && !allowAll) {
+  if (willWrite && requestedAllowAll && !allowAll) {
     // A deny rule for another tool (`Read(...)`, `WebFetch(...)`) blocks the
     // sentinel just as a bash one does: 'all' turns dcode's dangerous-pattern
     // check off wholesale, so any denial in the config makes it too broad.
@@ -474,7 +507,7 @@ function warnAboutUnwrittenBashRules({
         `than dcode's own default. List the executables you want auto-approved instead.`,
     );
   }
-  if (allowAll) {
+  if (willWrite && allowAll) {
     warnWithFallback(
       logger,
       `The bash '*' allow rule became allow_list = ["all"] for deepagents-cli, which ` +
@@ -725,11 +758,13 @@ function toExecutableToken(pattern: string): { token: string; widened: boolean }
   const token = leadingToken(trimmed);
   if (
     token.length === 0 ||
+    token.length > MAX_EXECUTABLE_NAME_LENGTH ||
     GLOB_CHARACTERS_PATTERN.test(token) ||
     SHELL_METACHARACTERS_PATTERN.test(token)
   ) {
     // A metacharacter is as unmatchable as a glob: dcode splits the command on
-    // it, or rejects it as a dangerous pattern, before comparing any name. The
+    // it, or rejects it as a dangerous pattern, before comparing any name. A
+    // name no filesystem can hold is unmatchable for the same reason. The
     // import direction already drops such an entry, and writing one would put
     // a rule in the user's global config that can never fire.
     return null;
@@ -748,9 +783,12 @@ function toExecutableToken(pattern: string): { token: string; widened: boolean }
  */
 function convertRulesyncToDeepagentsAllowList({
   config,
+  willWrite,
   logger,
 }: {
   config: PermissionsConfig;
+  /** See `warnAboutUnwrittenBashRules`; the reporting depends on it. */
+  willWrite: boolean;
   logger?: Logger;
 }): string[] {
   const allowed: string[] = [];
@@ -833,6 +871,7 @@ function convertRulesyncToDeepagentsAllowList({
     widenedPatterns,
     unmatchablePatterns,
     sentinelPatterns,
+    willWrite,
     logger,
   });
 
@@ -889,6 +928,7 @@ function convertDeepagentsToRulesyncPermissions({
     }
     if (
       /\s/.test(entry) ||
+      entry.length > MAX_EXECUTABLE_NAME_LENGTH ||
       GLOB_CHARACTERS_PATTERN.test(entry) ||
       SHELL_METACHARACTERS_PATTERN.test(entry)
     ) {

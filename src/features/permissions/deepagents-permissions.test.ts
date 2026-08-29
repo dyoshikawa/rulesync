@@ -319,6 +319,33 @@ describe("DeepagentsPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("were therefore skipped"));
     });
 
+    it("skips an executable longer than any name a filesystem can hold", async () => {
+      const logger = createMockLogger();
+      const name = "a".repeat(300);
+
+      const content = await generate({
+        config: { permission: { bash: { [`${name} *`]: "allow" } } },
+        logger,
+      });
+
+      expect(allowListOf(content)).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("were therefore skipped"));
+    });
+
+    it("catches an escaped ask against the allow dcode reads it as", async () => {
+      const logger = createMockLogger();
+
+      await generate({
+        config: { permission: { bash: { "git *": "allow", "\\git push": "ask" } } },
+        logger,
+      });
+
+      // `shlex.split` drops the backslash, so dcode compares `git` either way.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("\\git push run without a prompt"),
+      );
+    });
+
     it("catches a quoted ask against the allow it collides with once unquoted", async () => {
       const logger = createMockLogger();
 
@@ -671,6 +698,20 @@ describe("DeepagentsPermissions", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(
         expect.stringContaining("auto-approves every command"),
       );
+    });
+
+    it("still reports a deny it could not express when it wrote nothing", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(join(testDir, ".deepagents", "config.toml"), 'shell = "bash"\n');
+
+      await generate({
+        config: { permission: { bash: { "git *": "allow", "rm -rf *": "deny" } } },
+        logger,
+      });
+
+      // dcode has no denylist whatever this run wrote, and "allow_list was left
+      // untouched" does not say so.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("has no command denylist"));
     });
 
     it("reports removing an allowlist the user had curated", async () => {

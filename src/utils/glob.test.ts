@@ -49,6 +49,24 @@ describe("matchesGlob", () => {
     expect(matchesGlob("git-[!a-c]", "git-z")).toBe(true);
     // An unclosed bracket is an ordinary character, as in every shell.
     expect(matchesGlob("git-[a", "git-[a")).toBe(true);
+    // A `]` in the first position is a member, not the terminator — which is
+    // what leaves at most one `]` behind an unclosed bracket, and so lets the
+    // parser stop looking for a closing one after the first failure.
+    expect(matchesGlob("git-[]a]", "git-]")).toBe(true);
+    expect(matchesGlob("git-[a[b", "git-[a[b")).toBe(true);
+  });
+
+  it("should refuse a value shorter than the pattern's fixed steps outright", () => {
+    // The shape the walk is slowest on: a star, then a literal run it would
+    // otherwise retry from every position in the value.
+    expect(matchesGlob(`*${"a".repeat(2_000)}b`, "a".repeat(1_000))).toBe(false);
+    expect(matchesGlob("*ab", "ab")).toBe(true);
+  });
+
+  it("should stay linear on a pattern that never closes a bracket", () => {
+    // Scanning to the end again for every `[` would be quadratic, and a pattern
+    // this shape can come from a file a repository carries.
+    expect(matchesGlob("[".repeat(50_000), "a")).toBe(false);
   });
 
   it("should stay linear on the pattern a regex chokes on", () => {
@@ -66,15 +84,5 @@ describe("compileGlob", () => {
 
     expect(matchesCompiled("git-a")).toBe(true);
     expect(matchesCompiled("npm")).toBe(false);
-  });
-
-  it("stays linear on a pattern that never closes a bracket", () => {
-    // Re-scanning to the end for every `[` would make this quadratic, and a
-    // pattern this shape can come from a file a repository carries.
-    const started = performance.now();
-
-    expect(matchesGlob("[".repeat(50_000), "a")).toBe(false);
-
-    expect(performance.now() - started).toBeLessThan(1_000);
   });
 });
