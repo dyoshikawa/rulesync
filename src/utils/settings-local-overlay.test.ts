@@ -148,7 +148,7 @@ describe("readSettingsWithLocalOverlay", () => {
 
     await read({ sensitiveKeys: ["sandbox"], logger });
 
-    expect(logger.warn).toHaveBeenCalledWith(expect.not.stringContaining("is allowed to do"));
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("is allowed to do"));
   });
 
   it("should stay quiet when there is no local file", async () => {

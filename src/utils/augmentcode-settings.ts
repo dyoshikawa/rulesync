@@ -47,6 +47,13 @@ function combineAugmentSettings(
 }
 
 /**
+ * The AugmentCode counterpart of Droid's guardrail keys: the tool-permission
+ * rules, the hooks Auggie executes, and the servers and plugins it loads them
+ * from. See `readSettingsWithLocalOverlay` for why they are named twice.
+ */
+const AUGMENTCODE_GUARDRAIL_KEYS = ["toolPermissions", "hooks", "mcpServers", "plugins"] as const;
+
+/**
  * Read the base `.augment/settings.json` content and, when a project-scope
  * `.augment/settings.local.json` overrides file exists, combine it ON TOP of the
  * base settings (per AugmentCode's documented layering) before returning the
@@ -73,12 +80,6 @@ function combineAugmentSettings(
  *
  * @see https://docs.augmentcode.com/cli/config
  */
-/**
- * The AugmentCode counterpart of Droid's guardrail keys: the tool-permission
- * rules, the hooks Auggie executes, and the servers and plugins it loads them
- * from. See `readSettingsWithLocalOverlay` for why they are named twice.
- */
-const AUGMENTCODE_GUARDRAIL_KEYS = ["toolPermissions", "hooks", "mcpServers", "plugins"] as const;
 
 export async function readAugmentcodeSettingsWithLocalOverlay({
   outputRoot,

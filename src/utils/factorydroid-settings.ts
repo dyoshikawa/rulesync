@@ -1,4 +1,5 @@
 import { FACTORYDROID_SETTINGS_LOCAL_FILE_NAME } from "../constants/factorydroid-paths.js";
+import { FACTORYDROID_OVERRIDE_KEYS } from "../constants/factorydroid-settings-keys.js";
 import type { Logger } from "./logger.js";
 import { isPrototypePollutionKey } from "./prototype-pollution.js";
 import { readSettingsWithLocalOverlay } from "./settings-local-overlay.js";
@@ -23,27 +24,24 @@ function overrideFactorydroidSettings(
 }
 
 /**
- * Settings that decide what Droid may run rather than how it behaves: the
- * sandbox and network tiers, the autonomy ceilings, the hard command blocklist,
- * the Droid Shield switch, and the hooks it executes (plus their kill-switch).
+ * Settings whose value decides what Droid may do rather than how it behaves:
+ * every key the `factorydroid` permissions override round-trips — the sandbox
+ * and network tiers, the autonomy ceilings, the hard command blocklist, the
+ * Droid Shield switch, the plugin and marketplace bootstrap, the hooks and
+ * skills kill-switches — plus the command lists and the hooks themselves, which
+ * the shared blocks own. Deriving the bulk of the list keeps it from drifting
+ * behind the override as keys are added there.
+ *
  * A machine-local value for one of these is the kind that must not be published
  * by accident, so the overlay's warning calls them out by name.
  *
  * @see https://docs.factory.ai/cli/configuration/settings
  */
 const FACTORYDROID_GUARDRAIL_KEYS = [
+  ...FACTORYDROID_OVERRIDE_KEYS,
   "commandAllowlist",
   "commandDenylist",
-  "commandBlocklist",
-  "sandbox",
-  "networkPolicy",
-  "enableDroidShield",
-  "maxAutonomyLevel",
-  "subagentAutonomyLevel",
-  "mcpPolicy",
-  "mcpAutonomyOverrides",
   "hooks",
-  "hooksDisabled",
 ] as const;
 
 /**

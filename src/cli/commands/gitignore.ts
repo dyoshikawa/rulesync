@@ -269,7 +269,12 @@ export const gitignoreCommand = async (
     const entriesRemoved = [
       ...new Set(extractRulesyncManagedEntries(content).filter((entry) => !entrySet.has(entry))),
       // A retired spelling whose replacement is being written is not a path
-      // that stops being ignored, so it is not reported as one.
+      // that stops being ignored, so it is not reported as one. The
+      // replacement widens the same directory and the only exceptions written
+      // beside it are for rulesync's own committed output, so nothing under
+      // the directory becomes visible that the retired entry was hiding. When
+      // the replacement is not written — a `.gitattributes` destination, or a
+      // narrowed `--targets` — the entry is reported like any other.
     ].filter(
       (entry) =>
         !RETIRED_GITIGNORE_ENTRIES.some(

@@ -123,11 +123,15 @@ export class FactorydroidHooks extends ToolHooks {
     // https://docs.factory.ai/harness/hooks
     let fileContent = await readFileContentOrNull(filePath);
     if (fileContent === null) {
+      // Probed without a logger: the overlay warns about whatever the
+      // machine-local file contributed, and that warning would be a false alarm
+      // when the settings turn out to declare no hooks and this content is
+      // thrown away. The read is repeated with the logger once it is going to
+      // be used, so the warning describes something that actually happened.
       const settingsContent = await readFactorydroidSettingsWithLocalOverlay({
         outputRoot,
         relativeDirPath: paths.relativeDirPath,
         baseFileName: FACTORYDROID_SETTINGS_FILE_NAME,
-        logger,
       });
       // The settings step is skipped unless the settings actually declare
       // hooks. Testing the file for existence instead would let an unrelated
@@ -135,7 +139,12 @@ export class FactorydroidHooks extends ToolHooks {
       // pre-1.0 layout, because the overlay returns merged content whenever
       // either file of the pair is there.
       if (settingsContent !== null && declaresHooksKey(settingsContent)) {
-        fileContent = settingsContent;
+        fileContent = await readFactorydroidSettingsWithLocalOverlay({
+          outputRoot,
+          relativeDirPath: paths.relativeDirPath,
+          baseFileName: FACTORYDROID_SETTINGS_FILE_NAME,
+          logger,
+        });
       }
     }
     if (fileContent === null) {

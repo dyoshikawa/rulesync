@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { readFactorydroidSettingsWithLocalOverlay } from "./factorydroid-settings.js";
 import { writeFileContent } from "./file.js";
@@ -20,11 +21,12 @@ describe("readFactorydroidSettingsWithLocalOverlay", () => {
     vi.restoreAllMocks();
   });
 
-  const read = (): Promise<string | null> =>
+  const read = (logger?: ReturnType<typeof createMockLogger>): Promise<string | null> =>
     readFactorydroidSettingsWithLocalOverlay({
       outputRoot: testDir,
       relativeDirPath: ".factory",
       baseFileName: "settings.json",
+      ...(logger !== undefined && { logger }),
     });
 
   const writeBase = (json: unknown): Promise<void> =>
@@ -70,6 +72,21 @@ describe("readFactorydroidSettingsWithLocalOverlay", () => {
     const merged = JSON.parse((await read())!);
     expect(merged).toEqual({ commandAllowlist: ["ls"], commandDenylist: ["rm *"] });
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it("should call the plugin bootstrap out as a guardrail key", async () => {
+    await writeBase({});
+    await writeLocal({ enabledPlugins: ["local-only"], theme: "dark" });
+    const logger = createMockLogger();
+
+    await read(logger);
+
+    // Droid installs these on start, so one machine's list becoming the team's
+    // is the whole class of value this sentence exists to catch. The list is
+    // derived from the permissions override's own keys so it cannot fall behind.
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('"enabledPlugins" decides what Factory Droid is allowed to do'),
+    );
   });
 
   it("should throw when the local file is not valid JSON", async () => {

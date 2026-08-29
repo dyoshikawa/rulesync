@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
@@ -1017,6 +1018,26 @@ describe("FactorydroidHooks", () => {
 
       const parsed = JSON.parse(factorydroidHooks.getFileContent());
       expect(parsed.SessionStart[0].hooks[0].command).toBe("old.sh");
+    });
+
+    it("should stay quiet about a local file whose settings it then discards", async () => {
+      await ensureDir(join(testDir, ".factory", "hooks"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ maxAutonomyLevel: "low" }),
+      );
+      await writeFileContent(
+        join(testDir, ".factory", "hooks", "hooks.json"),
+        JSON.stringify({ SessionStart: [] }),
+      );
+      const logger = createMockLogger();
+
+      await FactorydroidHooks.fromFile({ outputRoot: testDir, validate: false, logger });
+
+      // Nothing from the machine-local file reached the imported hooks, so
+      // warning that it did would send people looking for a value that is not
+      // there.
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should prefer the settings.json hooks key over the pre-1.0 layout", async () => {

@@ -122,6 +122,11 @@ export async function readSettingsWithLocalOverlay({
   return JSON.stringify(merge(baseParsed, localParsed), null, 2);
 }
 
+/** Quotes a name read off disk, the way every other such name is logged. */
+function quoteKey(key: string): string {
+  return JSON.stringify(stripControlCharacters(key));
+}
+
 /**
  * Name the settings the machine-local file contributed, so nobody publishes one
  * by accident. The keys are the user's own, so they are quoted and stripped of
@@ -136,11 +141,6 @@ export async function readSettingsWithLocalOverlay({
  * permissions, hooks and MCP all go through here — and the warning describes
  * the file rather than the feature, so it would otherwise repeat verbatim.
  */
-/** Quotes a name read off disk, the way every other such name is logged. */
-function quoteKey(key: string): string {
-  return JSON.stringify(stripControlCharacters(key));
-}
-
 function warnAboutLocalKeys({
   localParsed,
   configPath,
