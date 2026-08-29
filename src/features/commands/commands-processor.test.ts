@@ -1256,6 +1256,7 @@ describe("CommandsProcessor", () => {
           "takt",
           "devin",
           "warp",
+          "zcode",
         ]),
       );
     });
@@ -1292,6 +1293,7 @@ describe("CommandsProcessor", () => {
           "takt",
           "devin",
           "warp",
+          "zcode",
         ]),
       );
     });
@@ -1327,6 +1329,7 @@ describe("CommandsProcessor", () => {
           "takt",
           "devin",
           "warp",
+          "zcode",
         ]),
       );
     });

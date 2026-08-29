@@ -48,6 +48,7 @@ import {
 } from "./tool-mcp.js";
 import { VibeMcp } from "./vibe-mcp.js";
 import { WarpMcp } from "./warp-mcp.js";
+import { ZcodeMcp } from "./zcode-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
 
 /**
@@ -626,6 +627,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "zcode",
+    {
+      class: ZcodeMcp,
+      meta: {
+        // ZCode reads `mcp.servers` from `<project>/.zcode/config.json` and
+        // `~/.zcode/cli/config.json`. Per-server tool filters are not part of
+        // the documented entry shape.
+        // https://zcode.z.ai/en/docs/mcp-services
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],

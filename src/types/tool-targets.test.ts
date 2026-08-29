@@ -54,6 +54,7 @@ describe("tool targets", () => {
         "vibe",
         "warp",
         "devin",
+        "zcode",
         "zed",
         "zoocode",
         "claudecode-plugin",
