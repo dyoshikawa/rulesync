@@ -343,6 +343,9 @@ dist/`;
     });
 
     it("should take a retired entry spelling back out of the file", async () => {
+      // Reads as "there is nothing left to retire" rather than as a confusing
+      // failure inside the test body if the list is ever emptied.
+      expect(RETIRED_GITIGNORE_ENTRIES.length).toBeGreaterThan(0);
       const retired = RETIRED_GITIGNORE_ENTRIES[0]!;
       // Outside the managed block, where a legacy write left it: inside one it
       // would be dropped with the block whether it is recognized or not.
@@ -363,6 +366,7 @@ dist/`;
     });
 
     it("should not call a respelled entry one that stopped being gitignored", async () => {
+      expect(RETIRED_GITIGNORE_ENTRIES.length).toBeGreaterThan(0);
       const retired = RETIRED_GITIGNORE_ENTRIES[0]!;
       // Outside the managed block, where a legacy write left it: inside one it
       // would be dropped with the block whether it is recognized or not.
