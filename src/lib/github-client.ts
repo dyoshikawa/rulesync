@@ -14,6 +14,7 @@ import {
   GitHubReleaseSchema,
   GitHubRepoInfoSchema,
 } from "../types/fetch.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
 
@@ -140,7 +141,9 @@ export class GitHubClient {
 
       // API returns single object for files, array for directories
       if (!Array.isArray(data)) {
-        throw new GitHubClientError(`Path "${path}" is not a directory`);
+        throw new GitHubClientError(
+          `Path ${JSON.stringify(stripControlCharacters(path))} is not a directory`,
+        );
       }
 
       const entries: GitHubFileEntry[] = [];
@@ -222,7 +225,9 @@ export class GitHubClient {
 
       if (parsed.data.size > MAX_FILE_SIZE) {
         throw new GitHubClientError(
-          `File "${path}" exceeds maximum size limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+          // `path` names a file in the remote repository, so it is stripped
+          // and quoted before it reaches a terminal.
+          `File ${JSON.stringify(stripControlCharacters(path))} exceeds maximum size limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
         );
       }
 
@@ -370,7 +375,10 @@ export class GitHubClient {
    * Get human-readable error message for HTTP status codes
    */
   private getErrorMessage(statusCode: number, apiError?: GitHubApiError): string {
-    const baseMessage = apiError?.message ?? `HTTP ${statusCode}`;
+    // The message comes from the API, which relays text the repository owner
+    // wrote, so it reaches the terminal stripped of anything that could forge a
+    // line around it.
+    const baseMessage = stripControlCharacters(apiError?.message ?? `HTTP ${statusCode}`);
 
     switch (statusCode) {
       case 401:

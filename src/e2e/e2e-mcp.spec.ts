@@ -59,6 +59,7 @@ const mcpGenerateTargets = [
   { target: "vibe", outputPath: join(".vibe", "config.toml") },
   { target: "reasonix", outputPath: "reasonix.toml" },
   { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
+  { target: "zcode", outputPath: join(".zcode", "config.json") },
 ] as const;
 
 describe("E2E: mcp", () => {
@@ -913,6 +914,7 @@ const mcpGlobalTargets = [
   { target: "kiro", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "settings", "mcp.json") },
+  { target: "zcode", outputPath: join(".zcode", "cli", "config.json") },
 ] as const;
 
 describe("E2E: mcp (global mode)", () => {

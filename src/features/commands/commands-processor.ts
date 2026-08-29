@@ -72,6 +72,7 @@ import {
   ToolCommandSettablePaths,
 } from "./tool-command.js";
 import { WarpCommand } from "./warp-command.js";
+import { ZcodeCommand } from "./zcode-command.js";
 import { ZoocodeCommand } from "./zoocode-command.js";
 
 /**
@@ -606,6 +607,21 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         isSimulated: false,
         supportsSubdirectory: false,
         skipToolFileScan: true,
+      },
+    },
+  ],
+  [
+    "zcode",
+    {
+      class: ZcodeCommand,
+      meta: {
+        // ZCode reads Markdown slash commands from `<project>/.zcode/commands/`
+        // and `~/.zcode/commands/`. https://zcode.z.ai/en/docs/commands
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
       },
     },
   ],

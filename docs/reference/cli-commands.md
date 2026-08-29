@@ -208,7 +208,7 @@ The override must be a usable directory: an empty value is ignored (the default 
 
 ### Shared config files are never created empty
 
-Some outputs are files Rulesync merges into rather than owns, because the tool (or you) keeps unrelated settings there: `.amp/settings.json(c)`, `.antigravity/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, `.codex/config.toml`, `.copilot/settings.json`, `.devin/config.json`, `.factory/settings.json`, `.github/copilot/settings.json`, `.grok/config.toml`, `.vibe/config.toml`, `.vscode/settings.json`, `.zed/settings.json`, `kilo.json(c)`, `opencode.json(c)`, and `reasonix.toml`. These are deliberately **not** added to `.gitignore` by `rulesync gitignore`, so that settings you hand-author in them stay version-controlled.
+Some outputs are files Rulesync merges into rather than owns, because the tool (or you) keeps unrelated settings there: `.amp/settings.json(c)`, `.antigravity/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, `.codex/config.toml`, `.copilot/settings.json`, `.devin/config.json`, `.factory/settings.json`, `.github/copilot/settings.json`, `.grok/config.toml`, `.vibe/config.toml`, `.vscode/settings.json`, `.zcode/config.json`, `.zcode/cli/config.json`, `.zed/settings.json`, `kilo.json(c)`, `opencode.json(c)`, and `reasonix.toml`. These are deliberately **not** added to `.gitignore` by `rulesync gitignore`, so that settings you hand-author in them stay version-controlled.
 
 Because they stay committable, `generate` will not **create** one of them just to hold an empty payload: if Rulesync has nothing to contribute (e.g. no permissions map to that tool), the file is left absent instead of being written as `{}`. A file that already exists is always rewritten as usual, so nothing you authored is dropped. Every other generated file is written even when empty, since for a file Rulesync owns its existence is part of the output.
 
@@ -399,17 +399,54 @@ The scope is deliberately narrow:
 - A skill directory Rulesync cannot read or delete from — a permission it does not hold, a disk that gave out — stops that skill's prune where it failed rather than the whole fetch. Rulesync warns, still lists whatever it had already deleted, and moves on to the next skill.
 - Nothing more than 15 directories below the skill directory is pruned. That is a limit on the local walk, deep enough that a fetched tree stays well inside it; Rulesync warns and leaves anything deeper alone.
 - A skill directory whose name ends in a dot or a space, or whose name has the `NAME~1` shape of a Windows short name, is not pruned. Some systems resolve such a name to a different directory, so the directory that name reads as may not be the directory it opens.
+- A skill directory whose name differs from another in `skills/` — one that was already there, or one this same fetch just wrote — only in ways some filesystems ignore — its case, or whether an accented letter is written composed or decomposed — is not pruned either, for the same reason: macOS and Windows resolve `skills/PDF` to an existing `skills/pdf`, and macOS resolves a decomposed name to the composed directory of the same name, so pruning it would judge the local skill's own files stale.
 - A skill whose remote listing came back incomplete — GitHub caps a directory listing at 1,000 entries, and entries such as symlinks and submodules cannot be fetched — is not pruned either. Rulesync warns instead, because a local file that upstream still ships cannot be told apart from one it dropped.
 - `--conflict skip` disables pruning. That flag says to leave existing local files alone, and it also means the local copies are not this run's output, so they cannot be judged against the remote list.
 - `--target <tool>` never prunes, because that conversion path does not fetch skills at all.
 
 Pass `--no-prune` to get the old purely additive behavior.
 
-#### Remote Paths Containing a Backslash
+#### Remote Paths Containing a Backslash or a Colon
 
-A backslash is an ordinary character in a filename on Linux and macOS, and a directory separator on Windows. A remote file whose path contains one therefore names one file on some systems and a nested path on others, so `fetch` skips it and warns rather than picking an interpretation. The rest of the fetch continues normally.
+A backslash is an ordinary character in a filename on Linux and macOS, and a directory separator on Windows. A colon is ordinary too here, and on Windows it separates a file from one of its alternate data streams, so `skills/pdf::$INDEX_ALLOCATION` is another way of writing `skills/pdf` rather than a directory of its own. A remote file whose path contains either character therefore names one file on some systems and something else on others, so `fetch` skips it and warns rather than picking an interpretation. The rest of the fetch continues normally.
 
 Because the skipped file is still part of the remote skill, the skill directory it came from is not pruned in that run either — a local copy of a file the remote still ships would otherwise be indistinguishable from one it dropped.
+
+#### Skill Names That Look Alike
+
+A repository can publish two skill directories whose names a terminal draws the same way — `skill` spelled with a Cyrillic `ѕ`, or the fullwidth `ｓｋｉｌｌ` beside the plain one. Each is still a separate entry with its own name, so a selection writes exactly the directories that were checked; the risk is only that the two entries cannot be told apart by sight.
+
+The interactive prompt therefore prefixes such an entry with `[!]` and the reason, ahead of the name itself:
+
+```text
+? Select skills to fetch (press <a> to select/deselect all)
+ ◯ pdf
+ ◯ [!] another entry differs from it only by lookalike letters — skill
+ ◯ [!] another entry differs from it only by lookalike letters; mi… — ѕkill
+```
+
+The mark comes first so that a name — which the remote repository chooses — cannot be spelled to look like a mark of its own, or reorder one away. A label wider than one line is shortened with an ellipsis for the same reason; the budget is measured in terminal columns, so a name of ideographic spaces cannot buy extra width by being few characters. The name is measured first and the reasons take the room that is left, which is why the second label above is cut: a cut takes the reasons from the tail, and the mark and the start of the first reason always survive. Two entries whose labels read alike are numbered — `(1) `, `(2) `, in front for the same reason the mark is — so they stay distinct. That covers labels shortened into the same text, and equally `git` beside `ɡit`, where both rows carry the same note and the names are one shape: the numbers do not say which row is which, but they do say there are two of them, and the value behind a label is untouched, so a shortened entry still selects the skill it names. A name that itself begins the way a marked row does is given a mark of its own saying so — judged by the shape it is drawn in rather than the characters it is spelled with, so `(l)` and a `[ǃ]` written with U+01C3 LATIN LETTER RETROFLEX CLICK are marked alongside the plain `(1)` and `[!]`.
+
+An entry is marked for any of four reasons:
+
+- **Another entry has the same display form.** Names are compared with their hidden characters removed, normalized (NFKC), their whitespace collapsed, and lowercased, so `Skill`, `skill`, `skill ` and the fullwidth `ｓｋｉｌｌ` all collide.
+- **Another entry differs from it only by lookalike letters.** Two names that read the same once each character is replaced by the Latin letter it is drawn as — `copy` beside the same word spelled entirely in Cyrillic. A name does not have to leave the Latin alphabet to qualify: `c0py` with a zero, `ruIes` with a capital I for the l, `Ⅰist` with the Roman numeral one, and `git` with the script `ɡ` or the dotless `ı` are all marked against the plain spelling. The separator counts too, since nearly every skill name is kebab-case and a name that swaps only its hyphen for U+2010 HYPHEN — drawn identically, belonging to no script, and left alone by the compatibility normalization — would otherwise pass every check as plain ASCII. Neither name mixes scripts on its own, so this pair is visible only by comparing the two.
+- **The name reads as Latin letters but is written in another script.** Every letter of it is drawn as a Latin one without being Latin, which is the whole-script confusable of UTS #39: `copy` spelled with four Cyrillic letters is marked even when no Latin `copy` is on the list. This check uses the narrower list of letters that are drawn as a _lowercase_ Latin letter while being lowercase themselves, so an ordinary Russian or Greek word — `текст`, `κατα` — is not marked: its letters are ones whose capitals resemble Latin capitals, which is not the same thing. Cherokee, Coptic, Lisu, Osage, Deseret and Tifinagh are taken whole instead of letter by letter — a name written in nothing but one of them is marked — since those alphabets are drawn in Latin letter shapes throughout. Canadian Aboriginal Syllabics and Vai are not: their letters are shapes of their own, so a name in either reads as nothing Latin, and only a mixture with Latin is marked.
+- **The name mixes scripts.** A single name built from scripts that share letter shapes, such as `good` with a Cyrillic `о`. The alphabets treated as lookalikes are Latin, Cyrillic, Greek, Armenian, Cherokee, Coptic, Lisu, Canadian Aboriginal Syllabics, Osage, Deseret, Vai and Tifinagh, which are among the ones UTS #39 records as confusable with each other. Japanese, Korean and Chinese names mix scripts by nature and routinely carry Latin, so those combinations are not marked, and neither is Latin beside a script that shares no shapes with it.
+
+A `fetch` that shows no prompt — a plain one, or one selecting with `--skills` — prints the same reasons as a warning listing the names they apply to, so a scripted run is told what an interactive one would have been shown. The names are judged against everything the repository publishes, as the prompt judges them, and listed for what the run actually writes: `--skills c0py` is told that the name reads like another entry even though the `copy` that makes it so was never fetched.
+
+The mark is display-only: it never removes a skill from the list. It is also not a complete answer — the table of lookalike letters holds the common pairs rather than every one, and a name written entirely in a script the table does not map is compared against nothing — so treat it as a hint to look closer, not as a guarantee that unmarked entries are distinct.
+
+Names that cannot be shown honestly at all are a separate case: a skill directory whose name carries a control character, one that draws as nothing — a zero-width space, a Hangul filler, a braille blank — or one that draws as nothing but blank space or combining marks with no letter to sit on is dropped rather than marked, with a warning naming it in stripped form. That drop applies to every `fetch`, including a plain one with neither `--skills` nor `--interactive`, because such a directory on disk cannot be told from the plain name it imitates in any line Rulesync prints.
+
+A zero-width joiner or a variation selector is dropped only where it hides something. It is kept beside the scripts that are written with one — the Arabic family, the Indic scripts, Mongolian — and beside the pictographs an emoji sequence is built from; anywhere else it can be nothing but padding, so `pdf` with a joiner in it is dropped, and so is `設定` with one between its two characters. Standing where its own script puts it — a Persian or Indic name written with a zero-width non-joiner, an emoji name built from a chain of joiners — it is left alone and the name is fetched normally. A joiner is held to both of its neighbors, since it exists to bind two characters: a name that merely ends in one is a second directory drawn exactly like the name beside it, and is dropped. A variation selector is held only to the character before it, which is the one whose form it selects, so an emoji name may end in one.
+
+#### Remote Paths in Rulesync's Output
+
+Path names come from the remote repository, so every one that Rulesync prints — the fetch summary, warnings, and debug lines — has its control characters stripped first. A crafted path cannot forge or erase the lines around it, which is what makes the record of what was written and deleted worth reading.
+
+The `--json` output is the exception: it carries each path exactly as the repository spells it, because a machine consumer needs the real name to act on it. Anything that renders a value out of that JSON into a terminal has to strip it itself.
 
 ### Examples
 

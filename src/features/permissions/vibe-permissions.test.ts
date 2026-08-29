@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { VibePermissions } from "./vibe-permissions.js";
 
@@ -2565,5 +2566,609 @@ describe("VibePermissions", () => {
     expect(logger.warn.mock.calls.some(([message]) => String(message).includes("ignored"))).toBe(
       false,
     );
+  });
+
+  it.each([
+    ["a trailing wildcard", 'disabled_tools = ["read_*"]'],
+    ["a wildcard on both sides", 'disabled_tools = ["*ead_fil*"]'],
+    ["a different case", 'disabled_tools = ["READ_*"]'],
+    ["a single-character wildcard", 'disabled_tools = ["read_fil?"]'],
+    ["a character class", 'disabled_tools = ["read_fil[ef]"]'],
+  ])("should keep a tool disabled by %s out of the import", async (_label, disabledTools) => {
+    // Vibe's `name_matches` globs the RAW tool name case-insensitively, so every
+    // spelling here switches read_file off upstream. Reading the table as live
+    // carried a hole through a disabled tool into every other tool's config.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        disabledTools,
+        "[tools.read_file]",
+        'permission = "always"',
+        'allowlist = ["src/*"]',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission.read).toEqual({ "*": "deny" });
+  });
+
+  it("should carry a disabling glob out under its own name as well as the table's", async () => {
+    // The glob also reaches tools rulesync cannot enumerate (an MCP tool
+    // registered at run time), so it round-trips verbatim beside the deny for the
+    // one table the file does state.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["read_*"]', "[tools.read_file]", 'permission = "always"', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission["read_*"]).toEqual({ "*": "deny" });
+
+    const regenerated = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(imported),
+      }),
+    });
+    const parsed = smolToml.parse(regenerated.getFileContent()) as any;
+
+    expect(parsed.disabled_tools).toEqual(["read_*", "read_file"]);
+    expect(parsed.tools.read_file.permission).toBe("never");
+  });
+
+  it("should not import a shell as allowed when a glob disables it", async () => {
+    // `*bash*` disables bash and git_bash upstream. Reading [tools.bash] as live
+    // imported an allow that the fan-out then spread to powershell, the one shell
+    // the glob does not reach.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["*bash*"]', "[tools.bash]", 'permission = "always"', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission.bash).toEqual({ "*": "deny" });
+
+    const regenerated = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(imported),
+      }),
+    });
+    const parsed = smolToml.parse(regenerated.getFileContent()) as any;
+
+    expect(parsed.tools.powershell.permission).toBe("never");
+  });
+
+  it("should import a table as authored when disabled_tools spells a regex", async () => {
+    // Vibe reads a `re:` entry as a Python regular expression. Rulesync does not
+    // evaluate it — a wrong verdict either way costs something real — so the
+    // table is imported as it stands and the fallback logger says so.
+    const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["re:read_.*"]', "[tools.read_file]", 'permission = "always"', ""].join(
+        "\n",
+      ),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission.read).toEqual({ "*": "allow" });
+    expect(warn.mock.calls.filter((call) => String(call[0]).includes("re:read_.*"))).toHaveLength(
+      1,
+    );
+  });
+
+  it("should say nothing about a regex disabled_tools entry when the file has no tables", async () => {
+    const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["re:read_.*"]', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    vibePermissions.toRulesyncPermissions();
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("should report a surviving glob that silences a tool rulesync just allowed", async () => {
+    // The glob is left in place because it reaches tools rulesync cannot
+    // enumerate; upstream applies disabled_tools last, so the allow is inert.
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["read_*"]', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { read: { "*": "allow" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.disabled_tools).toEqual(["read_*"]);
+    expect(parsed.tools.read_file.permission).toBe("always");
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("which also matches read_file"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("should not report a surviving glob when the tool it matches is denied anyway", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["read_*"]', ""].join("\n"),
+    );
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { read: { "*": "deny" } } }),
+      }),
+    });
+
+    expect(
+      logger.warn.mock.calls.filter((call) => String(call[0]).includes("which also matches")),
+    ).toHaveLength(0);
+  });
+
+  it("should copy hand-authored bash sensitive_patterns onto the shells in authored order", async () => {
+    // Rulesync leaves [tools.bash]'s own list in authored order because it does
+    // not own that key. Sorting only the copy made one guard read as two
+    // different lists across the three managed shells.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.bash]", 'sensitive_patterns = ["sudo *", "curl *"]', ""].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "allow" } } }),
+      }),
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    expect(parsed.tools.bash.sensitive_patterns).toEqual(["sudo *", "curl *"]);
+    expect(parsed.tools.git_bash.sensitive_patterns).toEqual(["sudo *", "curl *"]);
+    expect(parsed.tools.powershell.sensitive_patterns).toEqual(["sudo *", "curl *"]);
+  });
+
+  it("should not promise a deny merge into a shell whose denylist is not a list", async () => {
+    // The stand-down warning used to announce a merge that the malformed-key
+    // warning then denied, leaving the two contradicting each other.
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.git_bash]", 'denylist = "rm -rf *"', ""].join("\n"),
+    );
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "ask", "sudo *": "deny" } } }),
+      }),
+    });
+
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Only the 'bash' deny patterns are merged into it"),
+      ),
+    ).toHaveLength(0);
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Nothing from the category reaches it"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("should still promise the deny merge into a well-formed stood-down shell", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.git_bash]", 'permission = "never"', ""].join("\n"),
+    );
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "ask", "sudo *": "deny" } } }),
+      }),
+    });
+
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Only the 'bash' deny patterns are merged into it"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("should not promise a deny merge when the bash category has no deny patterns", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.git_bash]", 'permission = "never"', ""].join("\n"),
+    );
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "ask" } } }),
+      }),
+    });
+
+    expect(
+      logger.warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Nothing from the category reaches it"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it.each([
+    // Verified against Python's own `fnmatch` — the bracket corners are the ones
+    // a hand-written translation gets wrong, and each of these disagrees with a
+    // naive JavaScript regular expression built from the same glob.
+    ["a leading ] as a literal member", '["read_fil[]e]"]', true],
+    ["a class admitting only a literal ]", '["read_fil[]]"]', false],
+    ["a negated class whose only member is ]", '["read_fil[!]]"]', true],
+    ["an unterminated bracket", '["read_file["]', false],
+    ["a literal ^ beside the member it admits", '["read_fil[^e]"]', true],
+    ["a literal ^ where the member is not admitted", '["read_fil[^x]"]', false],
+    ["a backslash member beside the one it admits", '["read_fil[\\\\e]"]', true],
+    ["a run of stars", '["**read**"]', true],
+    ["an inverted range, dropped so the class admits nothing", '["read_fil[z-a]"]', false],
+    [
+      "an inverted range in a negated class, which then admits everything",
+      '["read_fil[!z-a]"]',
+      true,
+    ],
+    ["a trailing - member", '["read_fil[e-]"]', true],
+    // An inverted range is closed over rather than dropped: the member before it
+    // and the member after it go with it, which can expose — or swallow — the
+    // leading `!` that negates the whole class.
+    ["an inverted range closing over the members around it", '["read_fil[b-ax]"]', false],
+    ["an inverted range that exposes a negating !", '["read_fil[a--!]"]', true],
+    ["an inverted range that swallows a negating !", '["read_fil[!a--]"]', true],
+    ["two inverted ranges closing over each other", '["read_fil[a--b--e]"]', true],
+    ["an inverted range in a negated class, keeping the rest", '["read_fil[!a--e]"]', false],
+    ["a - that joins nothing, left as a member", '["read_fil[a-c-e]"]', true],
+  ])("should follow Python's fnmatch for %s", async (_label, disabledTools, disabled) => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [`disabled_tools = ${disabledTools}`, "[tools.read_file]", 'permission = "always"', ""].join(
+        "\n",
+      ),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission.read["*"]).toBe(disabled ? "deny" : "allow");
+  });
+
+  it("should resolve a pathological glob without stalling", async () => {
+    // `*a*a*…*b` translated to a regular expression backtracks catastrophically:
+    // thirteen stars against a forty-character name took minutes. Walking the
+    // glob's steps is linear in the name per star, so the whole import stays in
+    // the millisecond range.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        `disabled_tools = ["${"*a".repeat(40)}*b"]`,
+        `[tools.${"a".repeat(120)}]`,
+        'permission = "always"',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const startedAt = performance.now();
+    vibePermissions.toRulesyncPermissions();
+
+    expect(performance.now() - startedAt).toBeLessThan(2_000);
+  });
+
+  it("should import a table as authored when a disabling glob is longer than rulesync resolves", async () => {
+    const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        `disabled_tools = ["${"*".repeat(300)}"]`,
+        "[tools.read_file]",
+        'permission = "always"',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission.read).toEqual({ "*": "allow" });
+    expect(
+      warn.mock.calls.filter((call) => String(call[0]).includes("which rulesync does not expand")),
+    ).toHaveLength(1);
+    warn.mockRestore();
+  });
+
+  it("should strip control characters out of the entries a warning names", async () => {
+    const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        'disabled_tools = ["re:read_\\u001b[2K\\rrulesync: verified"]',
+        "[tools.read_file]",
+        'permission = "always"',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    vibePermissions.toRulesyncPermissions();
+
+    const reported = warn.mock.calls
+      .map((call) => String(call[0]))
+      .filter((message) => message.includes("which rulesync does not expand"));
+    expect(reported).toHaveLength(1);
+    // oxlint-disable-next-line no-control-regex
+    expect(reported[0]).not.toMatch(/[\u0000-\u001f]/);
+    expect(reported[0]).toContain("rulesync: verified");
+    warn.mockRestore();
+  });
+
+  it("should keep the deny patterns of a table a glob switches off", async () => {
+    // `read_file` and a bare `read` MCP table share the `read` category. The
+    // blanket deny wins over the live table's own base permission whichever
+    // order the two are written in, and the switched-off table's deny patterns
+    // come across so the file's stated deny is not lost with it.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        'disabled_tools = ["read_*"]',
+        "[tools.read_file]",
+        'permission = "always"',
+        'allowlist = ["src/*"]',
+        'denylist = ["/etc/**"]',
+        "[tools.read]",
+        'permission = "ask"',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission.read).toEqual({ "*": "deny", "/etc/**": "deny" });
+  });
+
+  it("should report a re: entry that may silence a tool rulesync just allowed", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["re:^web_.*$"]', ""].join("\n"),
+    );
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { webfetch: { "*": "allow" } } }),
+      }),
+    });
+
+    const reported = logger.warn.mock.calls
+      .map((call) => String(call[0]))
+      .filter((message) => message.includes("which rulesync does not evaluate"));
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toContain("re:^web_.*$");
+  });
+
+  it.each([
+    ["a plain name spelled in another case", '["READ_FILE"]'],
+    ["a plain name padded with spaces", '["  read_file  "]'],
+    ["a glob padded with spaces", '["  read_fil*  "]'],
+  ])("should switch off a table named by %s", async (_label, disabledTools) => {
+    // Upstream strips every entry and lowercases both sides before matching, so
+    // these spellings all reach `read_file`. Comparing raw left the table live
+    // and carried its allow out into every other tool's generated config.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        `disabled_tools = ${disabledTools}`,
+        "[tools.read_file]",
+        'permission = "always"',
+        'allowlist = ["src/*"]',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission.read).toEqual({ "*": "deny" });
+  });
+
+  it("should drop the blank entries upstream skips", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        'disabled_tools = ["", "   ", "read_file"]',
+        "[tools.write_file]",
+        'permission = "always"',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(Object.keys(imported.permission).toSorted()).toEqual(["read", "write"]);
+  });
+
+  it.each([
+    ["the switched-off table first", ["task", "agent"]],
+    ["the switched-off table last", ["agent", "task"]],
+  ])("should deny a shared category with %s", async (_label, order) => {
+    // `task` and `agent` canonicalize to the same rulesync category, so whichever
+    // table came later would otherwise decide its base permission — and in one of
+    // the two orders a tool the file switched off was imported as a live allow.
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        'disabled_tools = ["task"]',
+        ...order.flatMap((name) => [`[tools.${name}]`, 'permission = "always"']),
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported.permission.agent).toEqual({ "*": "deny" });
+  });
+
+  it("should count the names a warning cannot fit rather than listing them", async () => {
+    const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        `disabled_tools = [${Array.from({ length: 24 }, (_, index) => `"re:^t${index}$"`).join(", ")}]`,
+        "[tools.read_file]",
+        'permission = "always"',
+        "",
+      ].join("\n"),
+    );
+
+    const vibePermissions = await VibePermissions.fromFile({ outputRoot: testDir });
+    vibePermissions.toRulesyncPermissions();
+
+    const reported = warn.mock.calls
+      .map((call) => String(call[0]))
+      .filter((message) => message.includes("which rulesync does not expand"));
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toContain("re:^t9$");
+    expect(reported[0]).not.toContain("re:^t10$");
+    expect(reported[0]).toContain("and 14 more");
+    warn.mockRestore();
+  });
+
+  it("should report an over-length glob beside the re: entries on generate", async () => {
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [`disabled_tools = ["${"*".repeat(300)}read"]`, ""].join("\n"),
+    );
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { read: { "*": "allow" } } }),
+      }),
+    });
+
+    const reported = logger.warn.mock.calls
+      .map((call) => String(call[0]))
+      .filter((message) => message.includes("which rulesync does not evaluate"));
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toContain("characters is left alone");
+  });
+
+  it("should not name a glob that silences nothing rulesync wrote", async () => {
+    // Naming every glob in the file would read as though each of them silenced
+    // the tools the line goes on to name.
+    const logger = createMockLogger();
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["read_*", "shell_*"]', ""].join("\n"),
+    );
+
+    await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { read: { "*": "allow" } } }),
+      }),
+    });
+
+    const reported = logger.warn.mock.calls
+      .map((call) => String(call[0]))
+      .filter((message) => message.includes("which also matches"));
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toContain("read_*");
+    expect(reported[0]).not.toContain("shell_*");
   });
 });

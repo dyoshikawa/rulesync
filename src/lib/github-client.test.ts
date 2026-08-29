@@ -461,6 +461,33 @@ describe("GitHubClient", () => {
         /exceeds maximum size limit/,
       );
     });
+
+    it("should strip control characters from the path it reports as oversized", async () => {
+      const path = "large\u001b[2K.bin";
+      const fileInfo = {
+        name: path,
+        path,
+        sha: "abc123",
+        size: 11 * 1024 * 1024,
+        type: "file",
+        download_url: "https://example.com",
+      };
+
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(fileInfo), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+
+      // The path is the remote repository's to choose and this message is read
+      // in a terminal, so an escape sequence in it must not survive.
+      await expect(client.getFileInfo("owner", "repo", path)).rejects.toThrow(
+        /"large\[2K\.bin" exceeds maximum size limit/,
+      );
+    });
   });
 });
 

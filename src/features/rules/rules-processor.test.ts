@@ -1594,6 +1594,7 @@ Content that would fail parsing`;
         "vibe",
         "warp",
         "devin",
+        "zcode",
         "zed",
       ]);
     });
@@ -1645,7 +1646,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kiro-ide");
       expect(globalTargets).toContain("reasonix");
       expect(globalTargets).toContain("warp");
-      expect(globalTargets.length).toBe(32);
+      expect(globalTargets.length).toBe(33);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -3755,6 +3756,7 @@ targets: ["claudecode"]
         "reasonix",
         "vibe",
         "warp",
+        "zcode",
       ]);
     });
 

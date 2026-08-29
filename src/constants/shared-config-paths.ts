@@ -42,6 +42,10 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".rovodev/config.yml",
   ".rovodev/mcp.json",
   ".vibe/config.toml",
+  // ZCode config: the workspace file and the user one under `~/.zcode/cli/`.
+  // Both carry the user's own ZCode settings beside the `mcp` block.
+  ".zcode/config.json",
+  ".zcode/cli/config.json",
   "reasonix.toml",
   ".vscode/settings.json",
   ".zed/settings.json",
