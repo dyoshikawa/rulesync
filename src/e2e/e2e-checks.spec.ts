@@ -30,6 +30,11 @@ const checksGenerateTargets = [
     outputPath: join(".cursor", "BUGBOT.md"),
   },
   {
+    // Factory's reviewer reads repository review guidelines from a skill.
+    target: "factorydroid",
+    outputPath: join(".factory", "skills", "review-guidelines", "SKILL.md"),
+  },
+  {
     target: "hermesagent",
     outputPath: join(".hermes", "plugins", "rulesync-checks", "checks", "security.json"),
   },
@@ -108,7 +113,7 @@ Look for injection vulnerabilities.
         expect(generatedContent).toContain("Look for injection vulnerabilities.");
         return;
       }
-      if (target === "cursor" || target === "rovodev") {
+      if (target === "cursor" || target === "rovodev" || target === "factorydroid") {
         // One marked-up section per check, keyed by the source file basename.
         expect(generatedContent).toContain("<!-- rulesync:check:security -->");
         expect(generatedContent).toContain("## security");

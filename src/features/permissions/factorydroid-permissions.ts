@@ -9,6 +9,7 @@ import {
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
+import { readFactorydroidSettingsWithLocalOverlay } from "../../utils/factorydroid-settings.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -64,6 +65,12 @@ const FACTORYDROID_OVERRIDE_KEYS = [
   // shape and settings file as `hooksDisabled`.
   // https://docs.factory.ai/cli/configuration/settings
   "disabledSkills",
+  // Which models Droid may use and how a mission is allowed to run. Both are
+  // organization-level controls with no canonical slot, so they round-trip
+  // through the override like the other security keys above.
+  // https://docs.factory.ai/droid-cli/settings
+  "modelPolicy",
+  "missionPolicy",
 ] as const;
 
 /**
@@ -123,8 +130,15 @@ export class FactorydroidPermissions extends ToolPermissions {
     global = false,
   }: ToolPermissionsFromFileParams): Promise<FactorydroidPermissions> {
     const paths = FactorydroidPermissions.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? "{}";
+    // Droid applies `settings.local.json` on top of `settings.json` at this
+    // scope, so importing without it would read permissions Droid does not
+    // actually enforce. Generation still writes `settings.json` alone.
+    const fileContent =
+      (await readFactorydroidSettingsWithLocalOverlay({
+        outputRoot,
+        relativeDirPath: paths.relativeDirPath,
+        baseFileName: paths.relativeFilePath,
+      })) ?? "{}";
     return new FactorydroidPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,

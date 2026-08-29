@@ -341,7 +341,9 @@ rulesync.local.jsonc
 **/.github/skills/
 **/.cursor/skills/
 **/.deepagents/skills/
-**/.factory/skills/
+**/.factory/skills/**
+!**/.factory/skills/review-guidelines/
+!**/.factory/skills/review-guidelines/SKILL.md
 **/.goose/skills/
 **/.grok/skills/
 **/.junie/skills/

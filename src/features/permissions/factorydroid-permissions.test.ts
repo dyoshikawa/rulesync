@@ -414,6 +414,78 @@ describe("FactorydroidPermissions", () => {
         disabledSkills: ["legacy-migration", "scratch"],
       });
     });
+    it("round-trips modelPolicy and missionPolicy, the organization-level controls", async () => {
+      const factorydroid = {
+        modelPolicy: { allowedModels: ["claude-opus-4"], defaultModel: "claude-opus-4" },
+        missionPolicy: { enabled: false },
+      };
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: {}, factorydroid }),
+        }),
+      });
+
+      const settings = JSON.parse(instance.getFileContent());
+      expect(settings.modelPolicy).toEqual(factorydroid.modelPolicy);
+      expect(settings.missionPolicy).toEqual(factorydroid.missionPolicy);
+
+      const imported = JSON.parse(
+        new FactorydroidPermissions({
+          relativeDirPath: ".factory",
+          relativeFilePath: "settings.json",
+          fileContent: instance.getFileContent(),
+        })
+          .toRulesyncPermissions()
+          .getFileContent(),
+      );
+      expect(imported.factorydroid).toEqual(factorydroid);
+    });
+  });
+
+  describe("fromFile", () => {
+    const writeSettings = async (fileName: string, config: unknown): Promise<void> => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(join(testDir, ".factory", fileName), JSON.stringify(config));
+    };
+
+    it("should read settings.json when there is no local overlay", async () => {
+      await writeSettings("settings.json", { commandAllowlist: ["git *"] });
+
+      const instance = await FactorydroidPermissions.fromFile({ outputRoot: testDir });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash).toEqual({ "git *": "allow" });
+    });
+
+    it("should apply settings.local.json on top of settings.json", async () => {
+      await writeSettings("settings.json", { commandAllowlist: ["git *"] });
+      await writeSettings("settings.local.json", { commandAllowlist: ["ls *"] });
+
+      const instance = await FactorydroidPermissions.fromFile({ outputRoot: testDir });
+
+      // Droid enforces the local override, so importing must read it rather than
+      // the committed list it replaces.
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash).toEqual({ "ls *": "allow" });
+    });
+
+    it("should read a settings.local.json that has no settings.json beside it", async () => {
+      await writeSettings("settings.local.json", { commandBlocklist: ["curl *"] });
+
+      const instance = await FactorydroidPermissions.fromFile({ outputRoot: testDir });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.factorydroid).toEqual({ commandBlocklist: ["curl *"] });
+    });
+
+    it("should fall back to empty settings when neither file exists", async () => {
+      const instance = await FactorydroidPermissions.fromFile({ outputRoot: testDir });
+
+      expect(JSON.parse(instance.getFileContent())).toEqual({});
+    });
   });
 
   describe("round-trip", () => {

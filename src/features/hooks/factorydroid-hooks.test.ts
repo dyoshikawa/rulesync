@@ -959,6 +959,67 @@ describe("FactorydroidHooks", () => {
       expect(parsed.hooks.Stop).toEqual([]);
     });
 
+    it("should overlay settings.local.json onto the settings.json fallback", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.json"),
+        JSON.stringify({ hooks: { Stop: [] } }),
+      );
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({
+          hooks: { SessionStart: [{ hooks: [{ type: "command", command: "local.sh" }] }] },
+        }),
+      );
+
+      const factorydroidHooks = await FactorydroidHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      // Droid layers the pair, and the local file overrides the `hooks` key.
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe("local.sh");
+      expect(parsed.hooks.Stop).toBeUndefined();
+    });
+
+    it("should fall back to the pre-1.0 .factory/hooks/hooks.json last", async () => {
+      await ensureDir(join(testDir, ".factory", "hooks"));
+      await writeFileContent(
+        join(testDir, ".factory", "hooks", "hooks.json"),
+        JSON.stringify({ SessionStart: [{ hooks: [{ type: "command", command: "old.sh" }] }] }),
+      );
+
+      const factorydroidHooks = await FactorydroidHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      expect(parsed.SessionStart[0].hooks[0].command).toBe("old.sh");
+    });
+
+    it("should prefer the settings.json hooks key over the pre-1.0 layout", async () => {
+      await ensureDir(join(testDir, ".factory", "hooks"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.json"),
+        JSON.stringify({ hooks: { Stop: [] } }),
+      );
+      await writeFileContent(
+        join(testDir, ".factory", "hooks", "hooks.json"),
+        JSON.stringify({ SessionStart: [] }),
+      );
+
+      const factorydroidHooks = await FactorydroidHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      expect(parsed.hooks.Stop).toEqual([]);
+      expect(parsed.SessionStart).toBeUndefined();
+    });
+
     it("should prefer .factory/hooks.json over the legacy settings.json fallback", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(

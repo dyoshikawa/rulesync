@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   FACTORYDROID_DIR,
   FACTORYDROID_HOOKS_FILE_NAME,
+  FACTORYDROID_LEGACY_HOOKS_DIR_PATH,
   FACTORYDROID_SETTINGS_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
@@ -13,6 +14,7 @@ import {
   CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
+import { readFactorydroidSettingsWithLocalOverlay } from "../../utils/factorydroid-settings.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -43,7 +45,7 @@ const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // "Additional regex filter for Execute commands. It matches the actual shell
   // command string when Droid has one. Invalid regex values are skipped." It
   // sits next to `matcher` on the group, so it is carried at group level.
-  // https://docs.factory.ai/reference/hooks-reference
+  // https://docs.factory.ai/harness/hooks
   // It narrows when a hook fires, so hooks that disagree get their own matcher
   // entry rather than inheriting a neighboring hook's filter and going quiet.
   groupPassthroughFields: [
@@ -83,7 +85,7 @@ export class FactorydroidHooks extends ToolHooks {
     // `~/.factory/hooks.json` (global). The home directory is resolved by the
     // harness via outputRoot in global mode. The legacy `.factory/settings.json`
     // `hooks` key is only a read-time fallback (see fromFile).
-    // https://docs.factory.ai/reference/hooks-reference
+    // https://docs.factory.ai/harness/hooks
     return { relativeDirPath: FACTORYDROID_DIR, relativeFilePath: FACTORYDROID_HOOKS_FILE_NAME };
   }
 
@@ -94,17 +96,25 @@ export class FactorydroidHooks extends ToolHooks {
   }: ToolHooksFromFileParams): Promise<FactorydroidHooks> {
     const paths = FactorydroidHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    // Prefer the dedicated `.factory/hooks.json`. When it is absent, fall back to
-    // the legacy `.factory/settings.json` `hooks` key for back-compat, since
-    // Droid itself falls back that way.
+    // Prefer the dedicated `.factory/hooks.json`. When it is absent, fall back
+    // first to the `.factory/settings.json` `hooks` key — with the scope's
+    // `settings.local.json` overlaid, since Droid reads the pair as one — and
+    // then to the pre-1.0 `.factory/hooks/hooks.json`. That layout is last
+    // because Droid renames it to `hooks.migrated.json` once it has migrated
+    // the file, so a copy still sitting there is the least likely to be live.
+    // https://docs.factory.ai/harness/hooks
     let fileContent = await readFileContentOrNull(filePath);
     if (fileContent === null) {
-      const legacyFilePath = join(
+      fileContent = await readFactorydroidSettingsWithLocalOverlay({
         outputRoot,
-        paths.relativeDirPath,
-        FACTORYDROID_SETTINGS_FILE_NAME,
+        relativeDirPath: paths.relativeDirPath,
+        baseFileName: FACTORYDROID_SETTINGS_FILE_NAME,
+      });
+    }
+    if (fileContent === null) {
+      fileContent = await readFileContentOrNull(
+        join(outputRoot, FACTORYDROID_LEGACY_HOOKS_DIR_PATH, FACTORYDROID_HOOKS_FILE_NAME),
       );
-      fileContent = await readFileContentOrNull(legacyFilePath);
     }
     return new FactorydroidHooks({
       outputRoot,
@@ -136,7 +146,7 @@ export class FactorydroidHooks extends ToolHooks {
     // A standalone `hooks.json` is keyed directly by event name; the `hooks`
     // wrapper belongs to `settings.json` only. Writing the wrapped shape here
     // left Droid with no known event key at the top level, so no generated hook
-    // ever fired. https://docs.factory.ai/reference/hooks-reference
+    // ever fired. https://docs.factory.ai/harness/hooks
     const fileContent = JSON.stringify(factorydroidHooks, null, 2);
     return new FactorydroidHooks({
       outputRoot,
