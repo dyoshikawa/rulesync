@@ -1635,6 +1635,9 @@ type VibeGlobToken =
       readonly ranges: readonly (readonly [number, number])[];
     };
 
+/** The code point of `-`, which a `[seq]` class admits as a member of its own. */
+const HYPHEN_CODE_POINT = 45;
+
 /**
  * One piece of a `[seq]` class body once its ranges have been worked out: a
  * character the class admits, or the `-` that joins the two around it into a
@@ -1748,7 +1751,9 @@ function parseVibeGlobClass(body: readonly string[]): VibeGlobToken {
     const separator = members[index + 1];
     const end = members[index + 2];
     if (item?.kind === "separator") {
-      ranges.push([45, 45]);
+      // A separator reached in member position had nothing to join on its left,
+      // so it stands for itself.
+      ranges.push([HYPHEN_CODE_POINT, HYPHEN_CODE_POINT]);
       index += 1;
       continue;
     }
