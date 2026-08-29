@@ -346,7 +346,23 @@ describe("DeepagentsPermissions", () => {
 
       expect(allowListOf(content)).toEqual(["npm"]);
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("their executable is in the generated allow_list"),
+        expect.stringContaining("the generated allow_list auto-approves commands they cover"),
+      );
+    });
+
+    it("warns that a blanket deny is what the allow_list overrides", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "*": "deny", "git *": "allow" } } },
+        logger,
+      });
+
+      // The widest deny an author can write is the one the reduction inverts:
+      // `git` runs with no prompt at all, not merely "on approval".
+      expect(allowListOf(content)).toEqual(["git"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("are not merely unenforced"),
       );
     });
 
@@ -379,6 +395,49 @@ describe("DeepagentsPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("your config has deny rules for other tools"),
       );
+    });
+
+    it("refuses to write dcode's app-managed `recent`", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { startup: { recent: "auto" } } },
+        logger,
+      });
+
+      // With no explicit `mode`, dcode restores `recent` at launch, so a
+      // repository could switch a machine into auto-approval through it.
+      expect(smolToml.parse(content).startup).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("dcode manages that key itself"),
+      );
+    });
+
+    it("names a startup key it cannot judge", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { startup: { something_new: true } } },
+        logger,
+      });
+
+      // The override is loose so upstream additions still reach the config,
+      // but the file it lands in is the machine's global one.
+      expect(tableOf(content, "startup")).toEqual({ something_new: true });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("something_new"));
+    });
+
+    it("says nothing about a boolean startup key already true by default", async () => {
+      const logger = createMockLogger();
+
+      await generate({
+        config: { permission: {}, deepagents: { startup: { read_project_dotenv: true } } },
+        logger,
+      });
+
+      // Upstream defaults it to true, so this grants nothing; warning here
+      // would bury the case where the user had turned it off.
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("warns that a startup override relaxes the machine's global config", async () => {
@@ -535,16 +594,26 @@ describe("DeepagentsPermissions", () => {
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("git status, npm-*"));
     });
 
+    it("skips entries dcode splits or refuses before comparing", () => {
+      const config = importFrom('[shell]\nallow_list = ["git;rm", "$(id)", "ls"]\n');
+
+      // dcode splits a command on `;`/`&&`/`|` and rejects command substitution
+      // before it ever compares a name, so neither entry approves anything.
+      expect(config).toEqual({ permission: { bash: { ls: "allow" } } });
+    });
+
     it("reads the sentinels case-insensitively, the way upstream lowercases them", () => {
       const config = importFrom('[shell]\nallow_list = ["ALL"]\n');
 
       expect(config).toEqual({ permission: { bash: { "*": "allow" } } });
     });
 
-    it("keeps the command names beside a non-string entry", () => {
+    it("imports nothing when the array holds a non-string entry", () => {
       const config = importFrom('[shell]\nallow_list = ["git", 3]\n');
 
-      expect(config).toEqual({ permission: { bash: { git: "allow" } } });
+      // dcode requires every element to be a string and drops the whole option
+      // otherwise, so `git` is not auto-approved there either.
+      expect(config).toEqual({ permission: {} });
     });
 
     it("lifts the dotenv knob back into the override", () => {

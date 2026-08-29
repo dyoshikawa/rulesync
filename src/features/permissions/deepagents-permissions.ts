@@ -36,6 +36,29 @@ const STARTUP_TABLE_KEY = "startup";
 // permissions file that gets committed.
 const DEEPAGENTS_STARTUP_KEYS = ["mode", "yolo_switcher", "read_project_dotenv"] as const;
 
+/**
+ * dcode's own record of the last approval mode the user switched to. It is
+ * app-managed state, and it is also a second way into `auto`: with no explicit
+ * `[startup].mode`, `load_startup_mode` restores `recent` when
+ * `is_recent_startup_mode_restorable` allows it. A repository's
+ * `.rulesync/permissions.jsonc` must not reach it, so neither direction
+ * carries the key — import skips it with `DEEPAGENTS_STARTUP_KEYS`, and
+ * generate drops it here.
+ */
+const STARTUP_RECENT_KEY = "recent";
+
+/**
+ * Upstream defaults for the boolean startup knobs. Writing one of these on a
+ * machine that has not set it changes nothing, so it is not a relaxation to
+ * warn about.
+ *
+ * @see https://github.com/langchain-ai/deepagents `config_manifest.py`
+ */
+const DEEPAGENTS_STARTUP_BOOLEAN_DEFAULTS: Record<string, boolean> = {
+  yolo_switcher: true,
+  read_project_dotenv: true,
+};
+
 // Sentinels `parse_shell_allow_list_items` recognizes instead of a command
 // name: `all` allows everything (and must be the sole entry), `recommended`
 // expands to a curated list dcode owns.
@@ -45,6 +68,14 @@ const RECOMMENDED_SENTINEL = "recommended";
 // dcode compares the first token of each pipeline segment against the list
 // with `==`, so an entry carrying a glob character never matches anything.
 const GLOB_CHARACTERS_PATTERN = /[*?[\]]/;
+
+/**
+ * Characters that keep an entry from ever equalling a command name: dcode
+ * splits a command on `&&`, `||`, `|` and `;` before comparing, and rejects
+ * `$(...)`, backticks, redirects and process substitution outright, so an
+ * entry containing any of them auto-approves nothing.
+ */
+const SHELL_METACHARACTERS_PATTERN = /[;&|$`()<>]/;
 // A canonical pattern may spell "any arguments" as a trailing `:*` on the
 // executable itself (`git:*`) rather than as a separate word (`git *`).
 const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
@@ -217,26 +248,7 @@ export class DeepagentsPermissions extends ToolPermissions {
 
     const startupOverride = config.deepagents?.startup;
     if (isPlainObject(startupOverride) && Object.keys(startupOverride).length > 0) {
-      const existingStartup = settings[STARTUP_TABLE_KEY];
-      if (existingStartup !== undefined && !isPlainObject(existingStartup)) {
-        warnWithFallback(
-          logger,
-          `deepagents-cli: '${STARTUP_TABLE_KEY}' in ${filePath} is not a table, so the ` +
-            `deepagents startup override was skipped rather than overwriting it.`,
-        );
-      } else {
-        const startup = isPlainObject(existingStartup) ? { ...existingStartup } : {};
-        const previousStartup = { ...startup };
-        // Copied key by key rather than `Object.assign`ed, so a `__proto__`
-        // coming from the JSON config cannot reach the object's prototype.
-        for (const [key, value] of Object.entries(startupOverride)) {
-          if (isPrototypePollutionKey(key)) continue;
-          // Verbatim, so a key added upstream passes through the loose override.
-          startup[key] = value;
-        }
-        warnAboutStartupRelaxations({ startupOverride, previousStartup, filePath, logger });
-        settings[STARTUP_TABLE_KEY] = startup;
-      }
+      mergeStartupOverride({ settings, startupOverride, filePath, logger });
     }
 
     return new DeepagentsPermissions({
@@ -263,9 +275,16 @@ export class DeepagentsPermissions extends ToolPermissions {
     // `isPlainObject`, not `isRecord`: smol-toml returns a datetime as a
     // `Date` subclass, which is a record but not a table to merge into.
     const shell = isPlainObject(settings[SHELL_TABLE_KEY]) ? settings[SHELL_TABLE_KEY] : {};
-    const config = convertDeepagentsToRulesyncPermissions({
-      allowList: readAllowListEntries(shell[ALLOW_LIST_KEY]),
-    });
+    const allowList = readAllowListEntries(shell[ALLOW_LIST_KEY]);
+    if (allowList === null) {
+      warnWithFallback(
+        undefined,
+        `deepagents-cli ignores '${ALLOW_LIST_KEY}' entirely when the array holds anything but ` +
+          `strings, so nothing in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())} ` +
+          `is auto-approved and no bash allow rules were imported.`,
+      );
+    }
+    const config = convertDeepagentsToRulesyncPermissions({ allowList: allowList ?? [] });
 
     const startup = isPlainObject(settings[STARTUP_TABLE_KEY]) ? settings[STARTUP_TABLE_KEY] : {};
     const startupOverride: Record<string, unknown> = {};
@@ -338,6 +357,11 @@ function warnAboutUnwrittenBashRules({
   const allowedTokens = new Set(allowList);
   const isAutoApproved = (pattern: string): boolean => {
     if (allowAll) return true;
+    // A deny-by-default config writes `*` (or `*:*`), which covers every
+    // executable the allow rules put in the list — the widest rule an author
+    // can write is exactly the one the executable-name reduction inverts.
+    const trimmed = pattern.trim().replace(TRAILING_ARGUMENT_WILDCARD_PATTERN, "");
+    if (trimmed === "*") return allowList.length > 0;
     const token = toExecutableToken(pattern)?.token;
     return token !== undefined && allowedTokens.has(token);
   };
@@ -356,7 +380,7 @@ function warnAboutUnwrittenBashRules({
   }
   const shadowReason = allowAll
     ? `allow_list = ["all"] auto-approves every command`
-    : `their executable is in the generated allow_list`;
+    : `the generated allow_list auto-approves commands they cover`;
   if (shadowedDeny.length > 0) {
     warnWithFallback(
       logger,
@@ -424,6 +448,51 @@ function warnAboutUnwrittenBashRules({
 }
 
 /**
+ * Merge the `deepagents.startup` override into `[startup]`, preserving every
+ * other key of that table. A `startup` that is not a table at all is something
+ * rulesync did not write and cannot merge into, so it is left exactly as the
+ * user has it rather than replaced.
+ */
+function mergeStartupOverride({
+  settings,
+  startupOverride,
+  filePath,
+  logger,
+}: {
+  settings: Record<string, unknown>;
+  startupOverride: Record<string, unknown>;
+  filePath: string;
+  logger?: Logger;
+}): void {
+  const existingStartup = settings[STARTUP_TABLE_KEY];
+  if (existingStartup !== undefined && !isPlainObject(existingStartup)) {
+    warnWithFallback(
+      logger,
+      `deepagents-cli: '${STARTUP_TABLE_KEY}' in ${filePath} is not a table, so the ` +
+        `deepagents startup override was skipped rather than overwriting it.`,
+    );
+    return;
+  }
+
+  const startup = isPlainObject(existingStartup) ? { ...existingStartup } : {};
+  const previousStartup = { ...startup };
+  // Copied key by key rather than `Object.assign`ed, so a `__proto__` coming
+  // from the JSON config cannot reach the object's prototype.
+  for (const [key, value] of Object.entries(startupOverride)) {
+    if (isPrototypePollutionKey(key)) continue;
+    if (key === STARTUP_RECENT_KEY) continue;
+    // Verbatim, so a key added upstream passes through the loose override.
+    startup[key] = value;
+  }
+  warnAboutStartupRelaxations({ startupOverride, previousStartup, filePath, logger });
+  // An override of nothing but dropped keys leaves no table to write; an empty
+  // `[startup]` header would suggest rulesync set something there.
+  if (Object.keys(startup).length > 0) {
+    settings[STARTUP_TABLE_KEY] = startup;
+  }
+}
+
+/**
  * Warn when the `deepagents` startup override relaxes what dcode may do on its
  * own, because that override is written into the user's **global** config from
  * a `.rulesync/permissions.jsonc` that a repository can carry: cloning a
@@ -459,37 +528,68 @@ function warnAboutStartupRelaxations({
   if (mode === "auto" || mode === "yolo") {
     relaxations.push(describe("mode", mode));
   }
-  if (startupOverride.yolo_switcher === true) {
-    relaxations.push(describe("yolo_switcher", true));
-  }
-  if (startupOverride.read_project_dotenv === true) {
-    relaxations.push(describe("read_project_dotenv", true));
-  }
-  if (relaxations.length === 0) {
-    return;
+  for (const key of ["yolo_switcher", "read_project_dotenv"]) {
+    // Both default to `true` upstream, so writing `true` over an unset key is a
+    // no-op. Reporting it would bury the case that grants something — a value
+    // the user had turned off being turned back on.
+    if (startupOverride[key] !== true) continue;
+    if (previousStartup[key] === DEEPAGENTS_STARTUP_BOOLEAN_DEFAULTS[key]) continue;
+    if (previousStartup[key] === undefined && DEEPAGENTS_STARTUP_BOOLEAN_DEFAULTS[key] === true) {
+      continue;
+    }
+    relaxations.push(describe(key, true));
   }
 
-  warnWithFallback(
-    logger,
-    `The deepagents startup override wrote ${relaxations.join(", ")} into ${filePath}, which is ` +
-      `your global deepagents-cli config: it relaxes how much dcode does without asking, for ` +
-      `every project on this machine, not just this one.`,
-  );
+  if (relaxations.length > 0) {
+    warnWithFallback(
+      logger,
+      `The deepagents startup override wrote ${relaxations.join(", ")} into ${filePath}, which ` +
+        `is your global deepagents-cli config: it relaxes how much dcode does without asking, ` +
+        `for every project on this machine, not just this one.`,
+    );
+  }
+
+  if (startupOverride[STARTUP_RECENT_KEY] !== undefined) {
+    warnWithFallback(
+      logger,
+      `The deepagents startup override's '${STARTUP_RECENT_KEY}' was not written to ${filePath}: ` +
+        `dcode manages that key itself, and with no explicit 'mode' beside it, it is what ` +
+        `restores auto-approval at launch. Set 'mode' if switching approval modes is the intent.`,
+    );
+  }
+
+  const known = new Set<string>([...DEEPAGENTS_STARTUP_KEYS, STARTUP_RECENT_KEY]);
+  const unknownKeys = Object.keys(startupOverride).filter((key) => !known.has(key));
+  if (unknownKeys.length > 0) {
+    // The override is a loose object so a key added upstream still reaches the
+    // config, but this one writes into the machine's global file: what rulesync
+    // cannot judge, it at least names.
+    warnWithFallback(
+      logger,
+      `The deepagents startup override wrote ${unknownKeys.join(", ")} into ${filePath} ` +
+        `unchecked — rulesync does not know what those keys grant, and that file is your ` +
+        `global deepagents-cli config.`,
+    );
+  }
 }
 
 /**
  * Read `[shell].allow_list` the way dcode does: a TOML array is taken element
  * by element, while a string is split on commas — the one spelling that cannot
  * carry a command name containing a comma.
+ *
+ * Returns `null` for an array holding anything but strings. dcode's provider
+ * requires `all(isinstance(item, str) for item in raw)` and otherwise reports
+ * `Ignoring allow_list=...`, dropping the **whole** option — so keeping the
+ * names beside the offending element would record permissions dcode is not
+ * applying, and the next generate would hand them to every other tool.
  */
-function readAllowListEntries(raw: unknown): string[] {
+function readAllowListEntries(raw: unknown): string[] | null {
   if (Array.isArray(raw)) {
-    // Element by element, so one non-string entry does not discard the command
-    // names beside it — dcode reads the array the same way.
-    return raw
-      .filter((entry): entry is string => typeof entry === "string")
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
+    if (raw.some((entry) => typeof entry !== "string")) {
+      return null;
+    }
+    return raw.map((entry) => String(entry).trim()).filter((entry) => entry.length > 0);
   }
   if (typeof raw === "string") {
     return parseCommaSeparatedList(raw);
@@ -655,7 +755,11 @@ function convertDeepagentsToRulesyncPermissions({
     if (entry.toLowerCase() === RECOMMENDED_SENTINEL) {
       continue;
     }
-    if (/\s/.test(entry) || GLOB_CHARACTERS_PATTERN.test(entry)) {
+    if (
+      /\s/.test(entry) ||
+      GLOB_CHARACTERS_PATTERN.test(entry) ||
+      SHELL_METACHARACTERS_PATTERN.test(entry)
+    ) {
       inertEntries.push(entry);
       continue;
     }
