@@ -404,7 +404,12 @@ function warnAboutUnwrittenBashRules({
     // `allow_list = ["all"]` covers every command *and* turns the
     // dangerous-pattern check off, so nothing can miss it.
     if (allowAll) return true;
-    const leading = leadingToken(pattern);
+    // dcode reads the name through `shlex.split`, which takes the quotes and
+    // escapes off, so `"git" *`, `\\git *` and `"npm*" publish` all collide with
+    // the allow they would collide with spelled plainly. Stripping first can
+    // also turn `\\*` into the glob `*`, which reports a collision dcode would
+    // not make — an odd spelling over-warning is the safe direction here.
+    const leading = leadingToken(pattern).replaceAll(SHLEX_STRIPPED_PATTERN, "");
     // A rule whose executable is itself a glob — `*`, `npm*` — collides with
     // every entry it matches, so the reduction inverts it exactly as a literal
     // collision does. `*` is only the widest spelling of that, not a case of
@@ -417,12 +422,7 @@ function warnAboutUnwrittenBashRules({
       const matches = compileGlob(leading);
       return allowList.some((token) => matches(token));
     }
-    // dcode reads the name through `shlex.split`, which takes the quotes and
-    // escapes off, so `"git" *` and `\\git *` both collide with a `git` allow
-    // however oddly they are spelled. Stripped *after* the glob test above, so
-    // that `\\*` stays the literal `*` dcode compares rather than becoming a
-    // glob that collides with every entry.
-    return allowedTokens.has(leading.replaceAll(SHLEX_STRIPPED_PATTERN, ""));
+    return allowedTokens.has(leading);
   };
   // Canonically the stricter rule wins whatever its width — rulesync collapses
   // colliding rules as `deny > ask > allow` everywhere, and Claude Code applies

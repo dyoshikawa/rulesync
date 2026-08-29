@@ -346,6 +346,21 @@ describe("DeepagentsPermissions", () => {
       );
     });
 
+    it("catches a quoted glob deny against the allow it covers", async () => {
+      const logger = createMockLogger();
+
+      await generate({
+        config: { permission: { bash: { "npm *": "allow", '"npm*" publish': "deny" } } },
+        logger,
+      });
+
+      // The quotes come off before the glob is walked, so the odd spelling does
+      // not hide the collision with `npm`.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("are not merely unenforced"),
+      );
+    });
+
     it("catches a quoted ask against the allow it collides with once unquoted", async () => {
       const logger = createMockLogger();
 
@@ -832,6 +847,16 @@ describe("DeepagentsPermissions", () => {
       // quoted entry can never equal the name dcode ends up comparing.
       expect(config).toEqual({ permission: { bash: { ls: "allow" } } });
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('"git"'));
+    });
+
+    it("skips an entry longer than a command's own name can be", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const name = "a".repeat(300);
+      const config = importFrom(`[shell]\nallow_list = ["${name}", "ls"]\n`);
+
+      expect(config).toEqual({ permission: { bash: { ls: "allow" } } });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining(name));
     });
 
     it("reads the sentinels case-insensitively, the way upstream lowercases them", () => {
