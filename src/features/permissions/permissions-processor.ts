@@ -23,6 +23,7 @@ import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-per
 import { CopilotPermissions } from "./copilot-permissions.js";
 import { CopilotcliPermissions } from "./copilotcli-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
+import { DeepagentsPermissions } from "./deepagents-permissions.js";
 import { DevinPermissions } from "./devin-permissions.js";
 import { FactorydroidPermissions } from "./factorydroid-permissions.js";
 import { GoosePermissions } from "./goose-permissions.js";
@@ -200,6 +201,20 @@ export const toolPermissionsFactories = new Map<
       class: CursorPermissions,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "deepagents",
+    {
+      class: DeepagentsPermissions,
+      meta: {
+        // dcode reads shell auto-approval from `[shell].allow_list` in the user
+        // config `~/.deepagents/config.toml`; it has no project-level config
+        // file, so there is no project scope to write.
+        supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,
       },

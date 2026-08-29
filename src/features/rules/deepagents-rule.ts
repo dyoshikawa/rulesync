@@ -55,7 +55,7 @@ export class DeepagentsRule extends ToolRule {
     excludeToolDir?: boolean;
   } = {}): DeepagentsRuleSettablePaths {
     // dcode reads user-level context from `~/.deepagents/<agent_name>/AGENTS.md`
-    // (default agent_name `deepagents`); the home directory is resolved by the
+    // (default agent_name `agent`); the home directory is resolved by the
     // processor through outputRoot in global mode. Project context lives in
     // `<project>/.deepagents/AGENTS.md`.
     return {
@@ -97,7 +97,7 @@ export class DeepagentsRule extends ToolRule {
     relativeFilePath,
   }: ToolRuleForDeletionParams): DeepagentsRule {
     // The deepagents root file is always `AGENTS.md`, under `.deepagents`
-    // (project) or `.deepagents/deepagents` (global).
+    // (project) or `.deepagents/agent` (global).
     const isRoot =
       relativeFilePath === DEEPAGENTS_RULE_FILE_NAME &&
       (relativeDirPath === DEEPAGENTS_DIR || relativeDirPath === DEEPAGENTS_GLOBAL_DIR);
@@ -122,7 +122,7 @@ export class DeepagentsRule extends ToolRule {
     const isRoot = rulesyncRule.getFrontmatter().root ?? false;
 
     // deepagents reads context only from the fixed root AGENTS.md file
-    // (`.deepagents/AGENTS.md` for project, `.deepagents/deepagents/AGENTS.md`
+    // (`.deepagents/AGENTS.md` for project, `.deepagents/agent/AGENTS.md`
     // for global). Both root and non-root rules therefore target that single
     // path; the RulesProcessor folds the non-root bodies (`root: false`) into
     // the root rule and drops the redundant non-root instances before writing.

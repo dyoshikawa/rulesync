@@ -773,7 +773,7 @@ const skillsGlobalTargets = [
   },
   {
     target: "deepagents",
-    outputPath: join(".deepagents", "deepagents", "skills", "test-skill", "SKILL.md"),
+    outputPath: join(".deepagents", "agent", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "codexcli",

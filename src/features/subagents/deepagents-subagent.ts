@@ -69,7 +69,7 @@ export class DeepagentsSubagent extends ToolSubagent {
     global = false,
   }: { global?: boolean } = {}): ToolSubagentSettablePaths {
     // dcode discovers user-level subagents in `~/.deepagents/<agent_name>/agents/`
-    // (default agent_name `deepagents`); the home directory is resolved by the
+    // (default agent_name `agent`); the home directory is resolved by the
     // processor through outputRoot in global mode.
     return {
       relativeDirPath: global ? DEEPAGENTS_GLOBAL_AGENTS_DIR_PATH : DEEPAGENTS_AGENTS_DIR_PATH,

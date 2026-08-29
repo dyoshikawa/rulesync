@@ -965,7 +965,7 @@ const rulesGlobalTargets = [
   { target: "antigravity-cli", outputPath: join(".gemini", "GEMINI.md") },
   { target: "goose", outputPath: join(".config", "goose", ".goosehints") },
   { target: "copilotcli", outputPath: join(".copilot", "copilot-instructions.md") },
-  { target: "deepagents", outputPath: join(".deepagents", "deepagents", "AGENTS.md") },
+  { target: "deepagents", outputPath: join(".deepagents", "agent", "AGENTS.md") },
   { target: "factorydroid", outputPath: join(".factory", "AGENTS.md") },
   { target: "kilo", outputPath: join(".config", "kilo", "AGENTS.md") },
   { target: "kimi-code", outputPath: join(".kimi-code", "AGENTS.md") },

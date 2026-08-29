@@ -29,7 +29,7 @@ describe("DeepagentsSubagent", () => {
 
     it("should return the user-level path for global mode", () => {
       const paths = DeepagentsSubagent.getSettablePaths({ global: true });
-      expect(paths.relativeDirPath).toBe(join(".deepagents", "deepagents", "agents"));
+      expect(paths.relativeDirPath).toBe(join(".deepagents", "agent", "agents"));
     });
   });
 

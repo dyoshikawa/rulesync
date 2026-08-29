@@ -71,7 +71,7 @@ describe("DeepagentsRule", () => {
 
     it("should return the user-level root path for global mode", () => {
       const paths = DeepagentsRule.getSettablePaths({ global: true });
-      expect(paths.root.relativeDirPath).toBe(join(".deepagents", "deepagents"));
+      expect(paths.root.relativeDirPath).toBe(join(".deepagents", "agent"));
       expect(paths.root.relativeFilePath).toBe("AGENTS.md");
     });
   });

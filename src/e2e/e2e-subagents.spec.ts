@@ -165,7 +165,7 @@ const subagentsGlobalTargets = [
   { target: "cline", outputPath: join(".cline", "agents", "planner.yaml") },
   {
     target: "deepagents",
-    outputPath: join(".deepagents", "deepagents", "agents", "planner", "AGENTS.md"),
+    outputPath: join(".deepagents", "agent", "agents", "planner", "AGENTS.md"),
   },
   {
     target: "devin",
