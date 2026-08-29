@@ -2,11 +2,16 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { FACTORYDROID_SKILLS_DIR_PATH } from "../../constants/factorydroid-paths.js";
+import {
+  FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME,
+  FACTORYDROID_SKILLS_DIR_PATH,
+} from "../../constants/factorydroid-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import { readFileContentOrNull } from "../../utils/file.js";
+import { isOnlyGeneratedSections } from "../checks/aggregated-check-file.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
@@ -225,6 +230,44 @@ export class FactorydroidSkill extends ToolSkill {
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
     const targets = rulesyncSkill.getFrontmatter().targets;
     return targets.includes("*") || targets.includes("factorydroid");
+  }
+
+  /**
+   * Whether a directory in `.factory/skills/` belongs to the skills feature.
+   *
+   * The checks feature writes Factory's review guidelines into this same tree
+   * as `review-guidelines/SKILL.md` (see `FactorydroidCheck`), and that file is
+   * plain Markdown holding only generated check sections. Without this hook the
+   * skills feature would treat it as an orphan skill directory — deleting it on
+   * `generate --delete` and failing to import it for want of skill frontmatter.
+   *
+   * Only that exact shape is disowned. A `review-guidelines` directory a user
+   * authored, or one the skills feature itself generated from a rulesync skill
+   * of that name, still carries frontmatter, so it stays a skill.
+   */
+  static async isDirOwned({
+    outputRoot,
+    relativeDirPath,
+    dirName,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+    // Accepted for interface parity with tools whose ownership hook consults
+    // `.rulesync/` sources; Factory Droid decides ownership from the generated
+    // file alone, so the value is unused.
+    inputRoots: readonly string[];
+  }): Promise<boolean> {
+    if (dirName !== FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME) {
+      return true;
+    }
+    const fileContent = await readFileContentOrNull(
+      join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME),
+    );
+    if (fileContent === null) {
+      return true;
+    }
+    return !isOnlyGeneratedSections(fileContent);
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<FactorydroidSkill> {

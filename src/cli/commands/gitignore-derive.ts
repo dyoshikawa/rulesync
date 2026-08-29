@@ -215,6 +215,15 @@ const collectCommittedOutputGlobs = (): string[] => {
 // ignoring the directory itself, leaving git free to descend — and negations
 // are appended for the committed file plus every directory on the way down to
 // it. Last match wins, so the negations must follow the pattern they override.
+//
+// Two limits, both fine for today's entries and worth knowing before adding
+// one: only derived entries are rewritten, so a committed output landing under
+// a HAND_MAINTAINED_GITIGNORE_ENTRIES directory needs its exception written by
+// hand; and each covering directory entry is expanded on its own, so two nested
+// directory entries covering the same file (`**/.factory/` plus
+// `**/.factory/skills/`) would re-ignore it with the second widened pattern
+// while the dedupe that keeps the first spelling of an entry drops the repeated
+// negations.
 const withCommittedOutputExceptions = (entries: GitignoreEntryTag[]): GitignoreEntryTag[] => {
   const committedGlobs = collectCommittedOutputGlobs();
   return entries.flatMap((tag): GitignoreEntryTag[] => {

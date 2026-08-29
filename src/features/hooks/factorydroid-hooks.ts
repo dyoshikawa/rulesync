@@ -17,6 +17,7 @@ import { formatError } from "../../utils/error.js";
 import { readFactorydroidSettingsWithLocalOverlay } from "../../utils/factorydroid-settings.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import {
@@ -31,6 +32,22 @@ import {
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
+
+/**
+ * Whether a `settings.json` body carries hook declarations, i.e. an object under
+ * the `hooks` key — the only place Droid reads them from that file. A body that
+ * cannot be parsed counts as declaring them, so a malformed settings file still
+ * reaches the constructor and reports its own error rather than being skipped.
+ */
+function declaresHooksKey(fileContent: string): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fileContent);
+  } catch {
+    return true;
+  }
+  return isRecord(parsed) && isRecord(parsed["hooks"]);
+}
 
 const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: FACTORYDROID_HOOK_EVENTS,
@@ -105,11 +122,19 @@ export class FactorydroidHooks extends ToolHooks {
     // https://docs.factory.ai/harness/hooks
     let fileContent = await readFileContentOrNull(filePath);
     if (fileContent === null) {
-      fileContent = await readFactorydroidSettingsWithLocalOverlay({
+      const settingsContent = await readFactorydroidSettingsWithLocalOverlay({
         outputRoot,
         relativeDirPath: paths.relativeDirPath,
         baseFileName: FACTORYDROID_SETTINGS_FILE_NAME,
       });
+      // The settings step is skipped unless the settings actually declare
+      // hooks. Testing the file for existence instead would let an unrelated
+      // `settings.local.json` — one setting an autonomy level, say — shadow the
+      // pre-1.0 layout, because the overlay returns merged content whenever
+      // either file of the pair is there.
+      if (settingsContent !== null && declaresHooksKey(settingsContent)) {
+        fileContent = settingsContent;
+      }
     }
     if (fileContent === null) {
       fileContent = await readFileContentOrNull(

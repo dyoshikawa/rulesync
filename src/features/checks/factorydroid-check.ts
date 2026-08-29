@@ -1,6 +1,9 @@
 import { join } from "node:path";
 
-import { FACTORYDROID_REVIEW_GUIDELINES_DIR_PATH } from "../../constants/factorydroid-paths.js";
+import {
+  FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME,
+  FACTORYDROID_REVIEW_GUIDELINES_DIR_PATH,
+} from "../../constants/factorydroid-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -20,7 +23,9 @@ import {
   type ToolCheckSettablePaths,
 } from "./tool-check.js";
 
-const FALLBACK_CHECK_NAME = "review-guidelines";
+// The skill's own name: an import that finds no marked section attributes the
+// whole file to one check named after it.
+const FALLBACK_CHECK_NAME = FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
 
 /**
  * Checks adapter for Factory Droid's code-review guidelines
@@ -118,8 +123,11 @@ export class FactorydroidCheck extends ToolCheck {
     if (hasHandWrittenPreamble(existingContent)) {
       logger?.warn(
         `Factory Droid checks: ${filePath} holds instructions rulesync did not write, and ` +
-          `generating replaces the whole file. Run ` +
-          `\`rulesync import --targets factorydroid --features checks\` first to keep them.`,
+          `generating replaces the whole file. If they were hand-authored, run ` +
+          `\`rulesync import --targets factorydroid --features checks\` first to keep them. ` +
+          `If they came from a rulesync skill named ` +
+          `\`${FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME}\`, rename that skill instead: Factory's ` +
+          `reviewer reads this path, so the checks feature owns it.`,
       );
     }
 

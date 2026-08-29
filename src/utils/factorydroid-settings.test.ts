@@ -86,6 +86,14 @@ describe("readFactorydroidSettingsWithLocalOverlay", () => {
     await expect(read()).rejects.toThrow(/expected a JSON object/);
   });
 
+  it("should return the raw base content when the base file is not a JSON object", async () => {
+    await writeFileContent(join(testDir, ".factory", "settings.json"), "[1, 2]");
+    await writeLocal({ commandAllowlist: ["ls"] });
+
+    // Overlaying onto `{}` would discard it silently, so the caller decides.
+    expect(await read()).toBe("[1, 2]");
+  });
+
   it("should return the raw base content when the base file is malformed", async () => {
     await writeFileContent(join(testDir, ".factory", "settings.json"), "{ not json");
     await writeLocal({ commandAllowlist: ["ls"] });

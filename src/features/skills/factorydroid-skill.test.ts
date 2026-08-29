@@ -641,6 +641,55 @@ Global body content`;
     });
   });
 
+  describe("isDirOwned", () => {
+    const skillsDir = join(".factory", "skills");
+
+    const writeSkillFile = async (dirName: string, content: string): Promise<void> => {
+      await ensureDir(join(testDir, skillsDir, dirName));
+      await writeFileContent(join(testDir, skillsDir, dirName, SKILL_FILE_NAME), content);
+    };
+
+    const isDirOwned = (dirName: string): Promise<boolean> =>
+      FactorydroidSkill.isDirOwned({
+        outputRoot: testDir,
+        relativeDirPath: skillsDir,
+        dirName,
+        inputRoots: ["."],
+      });
+
+    it("should own every directory other than review-guidelines", async () => {
+      await writeSkillFile("other", "<!-- rulesync:check:security -->\n\n## security\n");
+
+      expect(await isDirOwned("other")).toBe(true);
+    });
+
+    it("should disown a review-guidelines directory holding generated check sections", async () => {
+      // The checks feature owns this shape, so the skills feature must neither
+      // delete it as an orphan nor import it as a skill.
+      await writeSkillFile(
+        "review-guidelines",
+        "<!-- rulesync:check:security -->\n\n## security\n",
+      );
+
+      expect(await isDirOwned("review-guidelines")).toBe(false);
+    });
+
+    it("should own a hand-authored review-guidelines skill", async () => {
+      await writeSkillFile(
+        "review-guidelines",
+        "---\nname: review-guidelines\ndescription: Ours\n---\n\nOur guidelines.\n",
+      );
+
+      expect(await isDirOwned("review-guidelines")).toBe(true);
+    });
+
+    it("should own a review-guidelines directory with no SKILL.md", async () => {
+      await ensureDir(join(testDir, skillsDir, "review-guidelines"));
+
+      expect(await isDirOwned("review-guidelines")).toBe(true);
+    });
+  });
+
   describe("forDeletion", () => {
     it("should create deletion marker", () => {
       const skill = FactorydroidSkill.forDeletion({

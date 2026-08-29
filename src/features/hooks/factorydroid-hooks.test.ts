@@ -999,6 +999,26 @@ describe("FactorydroidHooks", () => {
       expect(parsed.SessionStart[0].hooks[0].command).toBe("old.sh");
     });
 
+    it("should not let a hookless settings.local.json shadow the pre-1.0 layout", async () => {
+      await ensureDir(join(testDir, ".factory", "hooks"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ maxAutonomyLevel: "low" }),
+      );
+      await writeFileContent(
+        join(testDir, ".factory", "hooks", "hooks.json"),
+        JSON.stringify({ SessionStart: [{ hooks: [{ type: "command", command: "old.sh" }] }] }),
+      );
+
+      const factorydroidHooks = await FactorydroidHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      expect(parsed.SessionStart[0].hooks[0].command).toBe("old.sh");
+    });
+
     it("should prefer the settings.json hooks key over the pre-1.0 layout", async () => {
       await ensureDir(join(testDir, ".factory", "hooks"));
       await writeFileContent(

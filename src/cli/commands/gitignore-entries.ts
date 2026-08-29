@@ -5,6 +5,10 @@ import {
   CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/claudecode-paths.js";
 import { CODEXCLI_BASH_RULES_FILE_NAME, CODEXCLI_DIR } from "../../constants/codexcli-paths.js";
+import {
+  FACTORYDROID_DIR,
+  FACTORYDROID_LOCAL_SETTINGS_FILE_NAME,
+} from "../../constants/factorydroid-paths.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
@@ -99,6 +103,15 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   // Devin's personal MCP override (documented as gitignored; never emitted by
   // rulesync). https://docs.devin.ai/cli/extensibility/mcp/configuration
   { target: "devin", feature: "mcp", entry: "**/.devin/mcp_config.local.json" },
+  // Factory Droid's personal settings overlay. Rulesync reads it when importing
+  // permissions and hooks, so a repository is likely to have one, but Factory
+  // documents it as machine-local and rulesync never writes it.
+  // https://docs.factory.ai/droid-cli/settings
+  {
+    target: "factorydroid",
+    feature: "general",
+    entry: `**/${FACTORYDROID_DIR}/${FACTORYDROID_LOCAL_SETTINGS_FILE_NAME}`,
+  },
   { target: "rovodev", feature: "general", entry: "**/.rovodev/.rulesync/" },
   { target: "takt", feature: "general", entry: "**/.takt/runs/" },
   { target: "takt", feature: "general", entry: "**/.takt/tasks/" },

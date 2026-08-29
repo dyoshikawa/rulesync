@@ -1,9 +1,9 @@
 import { join } from "node:path";
 
 import { AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME } from "../constants/augmentcode-paths.js";
-import { formatError } from "./error.js";
 import { readFileContentOrNull } from "./file.js";
 import { isPrototypePollutionKey } from "./prototype-pollution.js";
+import { readSettingsWithLocalOverlay } from "./settings-local-overlay.js";
 import { isPlainObject } from "./type-guards.js";
 
 /**
@@ -63,9 +63,9 @@ function combineAugmentSettings(
  * not request it (`includeLocalOverlay: false`). When the overrides file is
  * absent the base content is returned unchanged.
  *
- * Both files are parsed with the same `isPlainObject` guard the adapters use
- * (rejecting class instances for prototype-pollution hardening). The merge
- * follows AugmentCode's documented semantics: `mcpServers` / `plugins` replace
+ * The read-and-parse mechanics are shared with the other tools that layer a
+ * personal settings file (see `readSettingsWithLocalOverlay`); only the merge
+ * below is AugmentCode's own, following its documented semantics: `mcpServers` / `plugins` replace
  * wholesale, while other objects/lists (notably `toolPermissions` and `hooks`)
  * are combined across tiers so base entries — e.g. committed `deny` rules — are
  * preserved rather than dropped when local defines the same key.
@@ -85,50 +85,23 @@ export async function readAugmentcodeSettingsWithLocalOverlay({
   baseFallbackContent: string;
   includeLocalOverlay: boolean;
 }): Promise<string> {
-  const baseFilePath = join(outputRoot, relativeDirPath, baseFileName);
-  const baseContent = (await readFileContentOrNull(baseFilePath)) ?? baseFallbackContent;
-
   if (!includeLocalOverlay) {
-    return baseContent;
+    const baseFilePath = join(outputRoot, relativeDirPath, baseFileName);
+    return (await readFileContentOrNull(baseFilePath)) ?? baseFallbackContent;
   }
 
-  const localFilePath = join(outputRoot, relativeDirPath, AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME);
-  const localContent = await readFileContentOrNull(localFilePath);
-  if (localContent === null) {
-    return baseContent;
-  }
-
-  const configPath = join(relativeDirPath, AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME);
-  let localParsed: unknown;
-  try {
-    localParsed = JSON.parse(localContent);
-  } catch (error) {
-    throw new Error(
-      `Failed to parse AugmentCode settings at ${configPath}: ${formatError(error)}`,
-      { cause: error },
-    );
-  }
-  // `isPlainObject` (not `isRecord`) rejects class instances for
-  // prototype-pollution hardening; `JSON.parse` always yields a plain object.
-  if (!isPlainObject(localParsed)) {
-    throw new Error(
-      `Failed to parse AugmentCode settings at ${configPath}: expected a JSON object`,
-    );
-  }
-
-  let baseParsed: unknown;
-  try {
-    baseParsed = JSON.parse(baseContent);
-  } catch {
-    // The base settings.json is malformed. Leave it to the adapter's own
-    // (schema-aware) parse to surface a descriptive error; returning the raw
-    // base content here preserves the pre-existing error path and message.
-    return baseContent;
-  }
-  const baseObject = isPlainObject(baseParsed) ? baseParsed : {};
-
-  // Combine per AugmentCode's documented layering (local wins for scalars,
-  // mcpServers/plugins replace, other objects/lists combine local-first).
-  const merged = combineAugmentSettings(baseObject, localParsed);
-  return JSON.stringify(merged, null, 2);
+  const merged = await readSettingsWithLocalOverlay({
+    outputRoot,
+    relativeDirPath,
+    baseFileName,
+    localFileName: AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME,
+    toolLabel: "AugmentCode",
+    baseFallbackContent,
+    // Combine per AugmentCode's documented layering (local wins for scalars,
+    // mcpServers/plugins replace, other objects/lists combine local-first).
+    merge: combineAugmentSettings,
+  });
+  // `baseFallbackContent` stands in for a missing base file, so the overlay
+  // never returns null here.
+  return merged ?? baseFallbackContent;
 }
