@@ -51,9 +51,15 @@ function parseZcodeConfig(fileContent: string, filePath?: string): Record<string
 }
 
 /**
- * ZCode's two documented remote transports, spelled the way its config does.
- * `streamable-http` is the canonical rulesync name for what ZCode calls
- * `http`; everything else is left to the caller to reject.
+ * The remote transports ZCode's config is taken to accept, spelled the way it
+ * writes them. ZCode's own MCP page documents remote servers only through its
+ * UI ("Service URL" plus optional headers) and shows a JSON example for stdio
+ * servers alone, so the `http`/`sse` spelling below is inferred from the JSON
+ * Z.ai documents for the other MCP clients it supports rather than read off a
+ * ZCode example. `streamable-http` is the canonical rulesync name for what
+ * those configs call `http`; everything else is left to the caller to reject.
+ *
+ * @see https://zcode.z.ai/en/docs/mcp-services
  */
 function asZcodeRemoteType(stated: string | undefined, url: string): "http" | "sse" | undefined {
   if (stated === "sse") return "sse";
@@ -107,13 +113,18 @@ function convertToZcodeFormat(mcpServers: McpServers, logger?: Logger): Record<s
       const stated = config.type ?? config.transport;
       const type = asZcodeRemoteType(stated, url);
       if (type === undefined) {
-        // Rewriting a `ws` server as `http` would hand ZCode a server it cannot
-        // connect to, so it is skipped out loud instead (the rovodev/musecode
-        // precedent).
+        // Rewriting a WebSocket server as `http` would hand ZCode a server it
+        // cannot connect to, so it is skipped out loud instead (the
+        // rovodev/musecode precedent). The reason names what the entry actually
+        // declared: with no `type`/`transport` of its own, it is the `ws(s)://`
+        // url that ruled the server out.
         warnAndSkipMcpServer({
           toolName: "ZCode",
           serverName: name,
-          reason: `the "${stated ?? "ws"}" transport, which ZCode does not implement (only stdio, http and sse are supported)`,
+          reason:
+            stated === undefined
+              ? "a WebSocket url, which ZCode's remote transports (http and sse) cannot reach"
+              : `the "${stated}" transport, which ZCode does not offer for remote servers (only http and sse)`,
           logger,
         });
         continue;
@@ -154,7 +165,14 @@ function convertToZcodeFormat(mcpServers: McpServers, logger?: Logger): Record<s
 /**
  * Convert ZCode's native `mcp.servers` shape back to canonical rulesync
  * servers: `enable: false` maps back to `disabled: true`, and unknown keys pass
- * through untouched so a hand-authored entry survives the round-trip.
+ * through untouched so an import keeps whatever a hand-authored entry declared.
+ * Generation back out is a whitelist, so only the keys `convertToZcodeFormat`
+ * writes are re-emitted.
+ *
+ * An explicit `enable: true` is dropped rather than mapped to a canonical
+ * `disabled: false`: absent already means enabled on both sides, so the flag
+ * carries no information, and emitting it would push a redundant `disabled`
+ * key into every other tool's generated config.
  */
 function convertFromZcodeFormat(zcodeServers: Record<string, unknown>): McpServers {
   const result: McpServers = {};

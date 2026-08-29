@@ -16,14 +16,19 @@ export const ZCODE_RULE_FILE_NAME = "AGENTS.md";
 
 // Custom slash commands: Markdown files under `<project>/.zcode/commands/`
 // (workspace scope) and `~/.zcode/commands/` (user scope), invoked with `/`.
+// Only the user path is spelled out in the docs, which put workspace-level
+// commands "in the project directory"; the `.zcode/commands/` path is inferred
+// from that sentence and from the `.zcode/` layout every other workspace asset
+// uses.
 // @see https://zcode.z.ai/en/docs/commands
 export const ZCODE_COMMANDS_DIR_PATH = join(ZCODE_DIR, "commands");
 
 // Skills: Anthropic-style directory-layout skills, each `<name>/SKILL.md`,
 // invoked with `$`. The documented path is the user one,
 // `~/.zcode/skills/<name>/SKILL.md`; the workspace scope the import dialog
-// offers ("Global … or the current Project") mirrors it under the project's own
-// `.zcode/`, the same way commands do.
+// offers ("Global … or the current Project") is taken to mirror it under the
+// project's own `.zcode/`, the same way commands do — inferred from that
+// dialog, not documented.
 // @see https://zcode.z.ai/en/docs/skill
 export const ZCODE_SKILLS_DIR_PATH = join(ZCODE_DIR, "skills");
 

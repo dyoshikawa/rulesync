@@ -353,6 +353,25 @@ const KIMI_CODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
   },
 };
 
+/**
+ * ZCode's settings file, which also carries model/theme/permission keys
+ * rulesync does not own. The workspace copy (`<project>/.zcode/config.json`)
+ * and the user copy (`~/.zcode/cli/config.json`) are the same file with the
+ * same owners, so the declaration is written once and shared — a policy edit
+ * cannot land on one scope only. `mcp` is owned as a whole key because the
+ * writer recomputes it from the existing file (non-`servers` siblings carried
+ * over) before applying the patch.
+ */
+const ZCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "json",
+  // The user's primary ZCode config: refuse to read-modify-write a file we
+  // could not parse rather than replacing it with generated output.
+  invalidRootPolicy: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
+  },
+};
+
 export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDeclaration>> = {
   [CLAUDE_SETTINGS_SHARED_FILE_KEY]: {
     format: "json",
@@ -592,27 +611,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers", "schema_version"] },
     },
   },
-  // ZCode config (`<project>/.zcode/config.json` workspace,
-  // `~/.zcode/cli/config.json` user): ZCode's own settings file, which also
-  // carries model/theme/permission keys rulesync does not own. `mcp` is owned
-  // as a whole key because the writer recomputes it from the existing file
-  // (non-`servers` siblings carried over) before applying the patch.
-  ".zcode/config.json": {
-    format: "json",
-    // The user's primary ZCode config: refuse to read-modify-write a file we
-    // could not parse rather than replacing it with generated output.
-    invalidRootPolicy: "error",
-    features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
-    },
-  },
-  ".zcode/cli/config.json": {
-    format: "json",
-    invalidRootPolicy: "error",
-    features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
-    },
-  },
+  ".zcode/config.json": ZCODE_CONFIG_DECLARATION,
+  ".zcode/cli/config.json": ZCODE_CONFIG_DECLARATION,
   // Kiro agent config: `allowedTools`/`toolsSettings` are recomputed from the
   // existing file (existing tools and settings folded in) before being applied.
   ".kiro/agents/default.json": {

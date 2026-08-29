@@ -19,7 +19,9 @@ import {
 /**
  * ZCode custom commands are Markdown files under `<project>/.zcode/commands/`
  * (workspace scope) and `~/.zcode/commands/` (user scope), invoked from the
- * input box with `/`. The create-command form carries a description shown in
+ * input box with `/`. The docs spell out only the user path and place
+ * workspace-level commands "in the project directory", so the `.zcode/commands/`
+ * path is inferred from ZCode's workspace layout rather than documented. The create-command form carries a description shown in
  * the command picker and an argument hint, which map onto the same
  * `description` / `argument-hint` frontmatter keys the Claude-Code-lineage
  * tools use; the command's file name is its identifier.

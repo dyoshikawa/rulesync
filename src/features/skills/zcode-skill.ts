@@ -18,8 +18,9 @@ import {
 
 // ZCode skills use the Anthropic Agent Skills format: a `<name>/SKILL.md`
 // directory whose YAML frontmatter carries `name` and `description` — the same
-// pair the canonical rulesync skill adapter emits. The schema is loose so any
-// extra key on an imported file survives the round-trip.
+// pair the canonical rulesync skill adapter emits. The schema is loose so an
+// imported file carrying extra keys still parses; only the portable pair is
+// carried into the canonical skill, the same as every other skill target.
 export const ZcodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
