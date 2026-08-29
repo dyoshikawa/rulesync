@@ -10,8 +10,6 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
-import { isOnlyGeneratedSections } from "../checks/aggregated-check-file.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
 import {
@@ -235,39 +233,29 @@ export class FactorydroidSkill extends ToolSkill {
   /**
    * Whether a directory in `.factory/skills/` belongs to the skills feature.
    *
-   * The checks feature writes Factory's review guidelines into this same tree
-   * as `review-guidelines/SKILL.md` (see `FactorydroidCheck`), and that file is
-   * plain Markdown holding only generated check sections. Without this hook the
-   * skills feature would treat it as an orphan skill directory — deleting it on
-   * `generate --delete` and failing to import it for want of skill frontmatter.
+   * `review-guidelines/` never does. The checks feature writes Factory's
+   * review guidelines there (see `FactorydroidCheck`), because Factory's
+   * automated reviewer reads that exact path, so the path has a single owner in
+   * both directions: the skills feature neither deletes the directory as an
+   * orphan on `generate --delete` nor imports it as a skill. Ownership cannot
+   * be decided from the file's shape instead — Factory's own documented example
+   * has no frontmatter, so a hand-authored `review-guidelines` is
+   * indistinguishable from a generated one until it is too late to put it back.
    *
-   * Only that exact shape is disowned. A `review-guidelines` directory a user
-   * authored, or one the skills feature itself generated from a rulesync skill
-   * of that name, still carries frontmatter, so it stays a skill.
+   * `rulesync import --targets factorydroid --features checks` is what reads a
+   * hand-authored file at this path.
    */
   static async isDirOwned({
-    outputRoot,
-    relativeDirPath,
     dirName,
   }: {
     outputRoot: string;
     relativeDirPath: string;
     dirName: string;
     // Accepted for interface parity with tools whose ownership hook consults
-    // `.rulesync/` sources; Factory Droid decides ownership from the generated
-    // file alone, so the value is unused.
+    // the generated tree or `.rulesync/` sources; the path alone decides here.
     inputRoots: readonly string[];
   }): Promise<boolean> {
-    if (dirName !== FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME) {
-      return true;
-    }
-    const fileContent = await readFileContentOrNull(
-      join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME),
-    );
-    if (fileContent === null) {
-      return true;
-    }
-    return !isOnlyGeneratedSections(fileContent);
+    return dirName !== FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<FactorydroidSkill> {

@@ -7,6 +7,7 @@ import {
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import {
   hasHandWrittenPreamble,
   isOnlyGeneratedSections,
@@ -26,6 +27,39 @@ import {
 // The skill's own name: an import that finds no marked section attributes the
 // whole file to one check named after it.
 const FALLBACK_CHECK_NAME = FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
+
+/**
+ * Drop the YAML frontmatter of a hand-authored `review-guidelines` skill before
+ * the file is split into checks.
+ *
+ * rulesync never writes frontmatter here, but a user who authored this path as
+ * an ordinary skill did, and that block is the skill's metadata rather than
+ * review instructions. Left in the body it would be re-read as the check's own
+ * frontmatter on the next load — a `severity: bogus` copied out of a skill
+ * would then fail `.rulesync/checks/` validation for a file rulesync had just
+ * written. Only the prose survives the import.
+ *
+ * The block goes even when its YAML does not parse, because writing the check
+ * back out re-parses whatever leads the body: leaving a broken block in place
+ * turns a stray `name: [unclosed` in someone else's file into an import that
+ * throws.
+ */
+const LEADING_FRONTMATTER_PATTERN = /^\uFEFF?---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/;
+
+function stripSkillFrontmatter(fileContent: string): string {
+  if (!fileContent.startsWith("---") && !fileContent.startsWith("\uFEFF---")) {
+    return fileContent;
+  }
+  try {
+    const { body, hasFrontmatter } = parseFrontmatter(fileContent);
+    if (hasFrontmatter) {
+      return body;
+    }
+  } catch {
+    // Fall through: the YAML is this file's problem, not rulesync's to report.
+  }
+  return fileContent.replace(LEADING_FRONTMATTER_PATTERN, "");
+}
 
 /**
  * Checks adapter for Factory Droid's code-review guidelines
@@ -193,7 +227,7 @@ export class FactorydroidCheck extends ToolCheck {
 
   override toRulesyncChecks(): RulesyncCheck[] {
     return splitCheckFile({
-      fileContent: this.getFileContent(),
+      fileContent: stripSkillFrontmatter(this.getFileContent()),
       fallbackName: FALLBACK_CHECK_NAME,
     });
   }

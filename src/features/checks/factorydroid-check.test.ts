@@ -203,6 +203,40 @@ describe("FactorydroidCheck", () => {
       expect(imported[0]!.getBody()).toContain("Prisma query performance");
     });
 
+    it("should drop a hand-authored skill's frontmatter", async () => {
+      await writeGuidelines(
+        "---\nname: review-guidelines\nseverity: bogus\n---\n\nCheck Prisma queries.\n",
+      );
+
+      const imported = (
+        await FactorydroidCheck.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: SKILL_FILE_NAME,
+        })
+      ).toRulesyncChecks();
+
+      // Skill metadata is not review prose, and `severity: bogus` would fail
+      // the checks schema on the very file rulesync had just written.
+      expect(imported).toHaveLength(1);
+      expect(imported[0]!.getBody()).toBe("Check Prisma queries.");
+      expect(imported[0]!.getFrontmatter()).toEqual({ targets: ["*"] });
+    });
+
+    it("should drop a frontmatter block whose YAML does not parse", async () => {
+      await writeGuidelines("---\nname: [unclosed\n---\n\nCheck Prisma queries.\n");
+
+      const imported = (
+        await FactorydroidCheck.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: SKILL_FILE_NAME,
+        })
+      ).toRulesyncChecks();
+
+      // Writing the check back out re-parses whatever leads the body, so a
+      // block left in place would make the import throw.
+      expect(imported[0]!.getBody()).toBe("Check Prisma queries.");
+    });
+
     it("should round-trip a body that contains a marker line", async () => {
       const body = "Example:\n\n<!-- rulesync:check:example -->";
       const [generated] = await FactorydroidCheck.fromRulesyncChecks({

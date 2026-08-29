@@ -664,7 +664,7 @@ Global body content`;
     });
 
     it("should disown a review-guidelines directory holding generated check sections", async () => {
-      // The checks feature owns this shape, so the skills feature must neither
+      // The checks feature owns this path, so the skills feature must neither
       // delete it as an orphan nor import it as a skill.
       await writeSkillFile(
         "review-guidelines",
@@ -674,19 +674,22 @@ Global body content`;
       expect(await isDirOwned("review-guidelines")).toBe(false);
     });
 
-    it("should own a hand-authored review-guidelines skill", async () => {
+    it("should disown a hand-authored review-guidelines directory too", async () => {
+      // Factory's documented example has no frontmatter, so shape cannot tell a
+      // hand-authored file from a generated one. The path decides instead, and
+      // `import --features checks` is what reads this one.
       await writeSkillFile(
         "review-guidelines",
         "---\nname: review-guidelines\ndescription: Ours\n---\n\nOur guidelines.\n",
       );
 
-      expect(await isDirOwned("review-guidelines")).toBe(true);
+      expect(await isDirOwned("review-guidelines")).toBe(false);
     });
 
-    it("should own a review-guidelines directory with no SKILL.md", async () => {
+    it("should disown a review-guidelines directory with no SKILL.md", async () => {
       await ensureDir(join(testDir, skillsDir, "review-guidelines"));
 
-      expect(await isDirOwned("review-guidelines")).toBe(true);
+      expect(await isDirOwned("review-guidelines")).toBe(false);
     });
   });
 

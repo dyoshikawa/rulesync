@@ -161,6 +161,26 @@ Look for injection vulnerabilities.
     expect(importedContent).toContain("Prefer small, well-named functions.");
   });
 
+  it("should round-trip factorydroid checks through import", async () => {
+    const testDir = getTestDir();
+
+    // A `review-guidelines` skill someone wrote by hand: Factory reads the path
+    // as a skill, so the file may carry skill frontmatter the checks feature
+    // never writes. It must not survive into the check.
+    await writeFileContent(
+      join(testDir, ".factory", "skills", "review-guidelines", "SKILL.md"),
+      "---\nname: review-guidelines\ndescription: Ours\n---\n\nCheck Prisma query performance.\n",
+    );
+
+    await runImport({ target: "factorydroid", features: "checks" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "review-guidelines.md"),
+    );
+    expect(importedContent).toContain("Check Prisma query performance.");
+    expect(importedContent).not.toContain("name:");
+  });
+
   it("should round-trip checks through import", async () => {
     const testDir = getTestDir();
 

@@ -74,7 +74,8 @@ const deriveDirEntries = (factories: FactoryMap, feature: Feature): GitignoreEnt
     if (TARGETS_NOT_DERIVED.has(target)) continue;
     if (!supportsProject(factory)) continue;
     // Outputs the upstream tool reads from the committed repository (Cursor
-    // Bugbot's BUGBOT.md, Rovo Dev's .review-agent.md) must not be gitignored:
+    // Bugbot's BUGBOT.md, Rovo Dev's .review-agent.md, Factory Droid's
+    // review-guidelines skill) must not be gitignored:
     // ignoring them would disable the very feature the adapter generates.
     if (isCommittedOutput(factory)) continue;
     const paths = getProjectPaths(factory) as {

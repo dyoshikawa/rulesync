@@ -1,4 +1,8 @@
 import {
+  AUGMENTCODE_DIR,
+  AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME,
+} from "../../constants/augmentcode-paths.js";
+import {
   CLAUDECODE_DIR,
   CLAUDECODE_LOCAL_RULE_FILE_NAME,
   CLAUDECODE_MEMORIES_DIR_NAME,
@@ -111,6 +115,14 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     target: "factorydroid",
     feature: "general",
     entry: `**/${FACTORYDROID_DIR}/${FACTORYDROID_LOCAL_SETTINGS_FILE_NAME}`,
+  },
+  // AugmentCode's personal settings overlay, read on import for the same reason
+  // and documented the same way as Factory Droid's above.
+  // https://docs.augmentcode.com/cli/configuration
+  {
+    target: "augmentcode",
+    feature: "general",
+    entry: `**/${AUGMENTCODE_DIR}/${AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME}`,
   },
   { target: "rovodev", feature: "general", entry: "**/.rovodev/.rulesync/" },
   { target: "takt", feature: "general", entry: "**/.takt/runs/" },

@@ -1659,9 +1659,12 @@ describe("GENERATION_STEP_GRAPH", () => {
     expect(() => resolveExecutionOrder(asRunnableSteps())).not.toThrow();
   });
 
-  it("declares every dependsOn edge for a reason: an overlapping writesSharedFile token, or the known rules->skills value dependency", () => {
+  it("declares every dependsOn edge for a reason: an overlapping writesSharedFile token, or a known value dependency", () => {
     const byId = new Map(GENERATION_STEP_GRAPH.map((meta) => [meta.id, meta]));
-    const knownValueDependencies = new Set(["rules->skills"]);
+    // `checks->skills` is a path dependency the derived tokens cannot express:
+    // Factory Droid's checks output is a file inside the skills tree, whose own
+    // settable path is the directory around it.
+    const knownValueDependencies = new Set(["rules->skills", "checks->skills"]);
 
     for (const step of GENERATION_STEP_GRAPH) {
       for (const dep of step.dependsOn ?? []) {

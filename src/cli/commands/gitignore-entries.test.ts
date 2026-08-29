@@ -176,6 +176,7 @@ describe("registry derivation", () => {
       // Factory Droid's personal settings overlay: read on import, documented
       // upstream as machine-local, never written by rulesync (issue #2765).
       "factorydroid::general::**/.factory/settings.local.json",
+      "augmentcode::general::**/.augment/settings.local.json",
       "junie::rules::**/.junie/memories/",
       // Legacy outputs of earlier versions (issue #2404): the retired
       // .gooseignore and the inert sub-recipe subagents directory.

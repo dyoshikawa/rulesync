@@ -236,6 +236,7 @@ rulesync.local.jsonc
 **/.opencode/package-lock.json
 **/.devin/mcp_config.local.json
 **/.factory/settings.local.json
+**/.augment/settings.local.json
 **/.rovodev/.rulesync/
 **/.takt/runs/
 **/.takt/tasks/
