@@ -43,6 +43,7 @@ const commandsGenerateTargets = [
   { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
   { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
   { target: "rovodev", outputPath: join(".rovodev", "prompts", "review-pr.md") },
+  { target: "zcode", outputPath: join(".zcode", "commands", "review-pr.md") },
 ] as const;
 
 const commandsGlobalTargets = [
@@ -86,6 +87,7 @@ const commandsGlobalTargets = [
   },
   { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
   { target: "rovodev", outputPath: join(".rovodev", "prompts", "review-pr.md") },
+  { target: "zcode", outputPath: join(".zcode", "commands", "review-pr.md") },
 ] as const;
 
 describe("E2E: commands", () => {

@@ -41,6 +41,7 @@ export const rulesProcessorToolTargetTuple = [
   "vibe",
   "warp",
   "devin",
+  "zcode",
   "zed",
   "zoocode",
 ] as const;
@@ -105,6 +106,7 @@ export const mcpProcessorToolTargetTuple = [
   "vibe",
   "warp",
   "devin",
+  "zcode",
   "zed",
   "zoocode",
 ] as const;
@@ -140,6 +142,7 @@ export const commandsProcessorToolTargetTuple = [
   "takt",
   "devin",
   "warp",
+  "zcode",
 ] as const;
 
 export const subagentsProcessorToolTargetTuple = [
@@ -222,6 +225,7 @@ export const skillsProcessorToolTargetTuple = [
   "vibe",
   "warp",
   "devin",
+  "zcode",
   "zed",
   "zoocode",
 ] as const;

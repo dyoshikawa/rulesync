@@ -592,6 +592,27 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers", "schema_version"] },
     },
   },
+  // ZCode config (`<project>/.zcode/config.json` workspace,
+  // `~/.zcode/cli/config.json` user): ZCode's own settings file, which also
+  // carries model/theme/permission keys rulesync does not own. `mcp` is owned
+  // as a whole key because the writer recomputes it from the existing file
+  // (non-`servers` siblings carried over) before applying the patch.
+  ".zcode/config.json": {
+    format: "json",
+    // The user's primary ZCode config: refuse to read-modify-write a file we
+    // could not parse rather than replacing it with generated output.
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
+    },
+  },
+  ".zcode/cli/config.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
+    },
+  },
   // Kiro agent config: `allowedTools`/`toolsSettings` are recomputed from the
   // existing file (existing tools and settings folded in) before being applied.
   ".kiro/agents/default.json": {

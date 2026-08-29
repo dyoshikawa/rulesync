@@ -169,6 +169,10 @@ const skillsGenerateTargets = [
     target: "reasonix",
     outputPath: join(".reasonix", "skills", "test-skill", "SKILL.md"),
   },
+  {
+    target: "zcode",
+    outputPath: join(".zcode", "skills", "test-skill", "SKILL.md"),
+  },
 ] as const;
 
 describe("E2E: skills", () => {
@@ -881,6 +885,11 @@ const skillsGlobalTargets = [
     // Reasonix reads global skills from ~/.reasonix/skills/.
     target: "reasonix",
     outputPath: join(".reasonix", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    // ZCode reads global skills from ~/.zcode/skills/.
+    target: "zcode",
+    outputPath: join(".zcode", "skills", "test-skill", "SKILL.md"),
   },
 ] as const;
 

@@ -1952,6 +1952,7 @@ Content that would fail parsing`;
           "warp",
           "devin",
           "zed",
+          "zcode",
         ]),
       );
     });
@@ -2000,6 +2001,7 @@ Content that would fail parsing`;
           "warp",
           "devin",
           "zed",
+          "zcode",
         ]),
       );
     });
@@ -2047,6 +2049,7 @@ Content that would fail parsing`;
           "warp",
           "devin",
           "zed",
+          "zcode",
         ]),
       );
     });
@@ -2101,6 +2104,7 @@ Content that would fail parsing`;
         "vibe",
         "warp",
         "devin",
+        "zcode",
         "zed",
       ]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
@@ -2145,6 +2149,7 @@ Content that would fail parsing`;
         "vibe",
         "warp",
         "devin",
+        "zcode",
         "zed",
       ]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);

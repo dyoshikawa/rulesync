@@ -109,6 +109,9 @@ describe("registry derivation", () => {
       // global generate with nothing to contribute does not create `{}` in the
       // user's home directory.
       "**/.copilot/settings.json",
+      // ZCode user config: emitted in GLOBAL scope only (project scope writes
+      // `.zcode/config.json` instead), so project derivation never yields it.
+      "**/.zcode/cli/config.json",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(

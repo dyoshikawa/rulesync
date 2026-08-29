@@ -94,6 +94,7 @@ import {
 } from "./tool-rule.js";
 import { VibeRule } from "./vibe-rule.js";
 import { WarpRule } from "./warp-rule.js";
+import { ZcodeRule } from "./zcode-rule.js";
 import { ZedRule } from "./zed-rule.js";
 import { ZoocodeRule } from "./zoocode-rule.js";
 
@@ -909,6 +910,24 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // @see https://docs.devin.ai/cli/extensibility/rules
         localRootMode: "separate-local-file",
         localRootFileName: "AGENTS.local.md",
+      },
+    },
+  ],
+  [
+    "zcode",
+    {
+      class: ZcodeRule,
+      meta: {
+        // ZCode reads exactly two instruction files, the workspace `AGENTS.md`
+        // at the project root and the user `~/.zcode/AGENTS.md`. It documents
+        // that it does not merge `AGENTS.md` across directory levels and does
+        // not scan child directories, so there is no modular non-root surface
+        // and topic rules fold into the root file (mirrors musecode).
+        // https://zcode.z.ai/en/docs/agents
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],
