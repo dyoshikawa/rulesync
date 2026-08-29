@@ -464,6 +464,20 @@ const WarpExecutionProfileOverrideSchema = z.looseObject({
  *
  * @see https://docs.langchain.com/oss/deepagents/code/configuration
  */
+const WarpPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  // @see https://docs.warp.dev/terminal/settings/all-settings/
+  agent_mode_coding_permissions: z.optional(
+    z.enum(["always_ask_before_reading", "always_allow_reading", "allow_reading_specific_files"]),
+  ),
+  agent_mode_coding_file_read_allowlist: z.optional(z.array(z.string())),
+  agent_mode_execute_readonly_commands: z.optional(z.boolean()),
+  // Merged into the `default` execution profile, not `[agents.profiles]` —
+  // see the adapter for the collection-exists guard.
+  execution_profile: z.optional(WarpExecutionProfileOverrideSchema),
+});
+export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
+
 const DeepagentsStartupOverrideSchema = z.looseObject({
   mode: z.optional(z.enum(["manual", "auto", "yolo"])),
   yolo_switcher: z.optional(z.boolean()),
@@ -479,20 +493,6 @@ const DeepagentsPermissionsOverrideSchema = z.looseObject({
   startup: z.optional(DeepagentsStartupOverrideSchema),
 });
 export type DeepagentsPermissionsOverride = z.infer<typeof DeepagentsPermissionsOverrideSchema>;
-
-const WarpPermissionsOverrideSchema = z.looseObject({
-  permission: z.optional(ToolScopedPermissionSchema),
-  // @see https://docs.warp.dev/terminal/settings/all-settings/
-  agent_mode_coding_permissions: z.optional(
-    z.enum(["always_ask_before_reading", "always_allow_reading", "allow_reading_specific_files"]),
-  ),
-  agent_mode_coding_file_read_allowlist: z.optional(z.array(z.string())),
-  agent_mode_execute_readonly_commands: z.optional(z.boolean()),
-  // Merged into the `default` execution profile, not `[agents.profiles]` —
-  // see the adapter for the collection-exists guard.
-  execution_profile: z.optional(WarpExecutionProfileOverrideSchema),
-});
-export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
 
 /**
  * The actions Junie's allowlist accepts. Verified against the shipped Junie

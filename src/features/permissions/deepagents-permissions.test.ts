@@ -294,6 +294,126 @@ describe("DeepagentsPermissions", () => {
       });
     });
 
+    it("treats the `*:*` spelling of the wildcard as the wildcard", async () => {
+      const content = await generate({ config: { permission: { bash: { "*:*": "allow" } } } });
+
+      expect(allowListOf(content)).toEqual(["all"]);
+    });
+
+    it("refuses to write `all` when the config also denies commands", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "*": "allow", "rm -rf *": "deny" } } },
+        logger,
+      });
+
+      // `all` would switch off the dangerous-pattern check as well, leaving the
+      // user with less than dcode's own default in the name of a deny rule.
+      expect(smolToml.parse(content).shell).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("was not written as allow_list"),
+      );
+    });
+
+    it("warns when a deny rule's executable ends up auto-approved anyway", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "git *": "allow", "git push": "deny" } } },
+        logger,
+      });
+
+      expect(allowListOf(content)).toEqual(["git"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("are not merely unenforced"),
+      );
+      // The generic "asked about, not blocked" wording would be wrong here:
+      // `git push` is not asked about either.
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("has no command denylist"),
+      );
+    });
+
+    it("warns when an ask rule's executable ends up auto-approved", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "npm *": "allow", "npm publish": "ask" } } },
+        logger,
+      });
+
+      expect(allowListOf(content)).toEqual(["npm"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("are auto-approved without a prompt"),
+      );
+    });
+
+    it("warns that a startup override relaxes the machine's global config", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { startup: { mode: "yolo" } } },
+        logger,
+      });
+
+      expect(tableOf(content, "startup")).toEqual({ mode: "yolo" });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('mode = "yolo"'));
+    });
+
+    it("names the value a startup override replaces", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        join(testDir, ".deepagents", "config.toml"),
+        "[startup]\nread_project_dotenv = false\n",
+      );
+
+      await generate({
+        config: { permission: {}, deepagents: { startup: { read_project_dotenv: true } } },
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("read_project_dotenv = true (was false)"),
+      );
+    });
+
+    it("says nothing about a startup override that grants nothing", async () => {
+      const logger = createMockLogger();
+
+      await generate({
+        config: { permission: {}, deepagents: { startup: { mode: "manual" } } },
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("leaves a `shell` that is not a table untouched", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(join(testDir, ".deepagents", "config.toml"), 'shell = "bash"\n');
+
+      const content = await generate({
+        config: { permission: { bash: { ls: "allow" } } },
+        logger,
+      });
+
+      expect(smolToml.parse(content).shell).toBe("bash");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("is not a table"));
+    });
+
+    it("reports removing an allowlist the user had curated", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        join(testDir, ".deepagents", "config.toml"),
+        '[shell]\nallow_list = ["recommended"]\n',
+      );
+
+      await generate({ config: { permission: {} }, logger });
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("was removed"));
+    });
+
     it("throws a descriptive error when the existing config.toml is malformed", async () => {
       await writeFileContent(join(testDir, ".deepagents", "config.toml"), "[shell\n");
 
@@ -352,6 +472,35 @@ describe("DeepagentsPermissions", () => {
 
       expect(importFrom(content)).toEqual({
         permission: { bash: { git: "allow", ls: "allow" } },
+      });
+    });
+
+    it("skips entries dcode itself could never match", () => {
+      const config = importFrom('[shell]\nallow_list = ["git status", "npm-*", "ls"]\n');
+
+      // Neither entry auto-approves anything upstream, and importing them would
+      // let the next generate widen `git status` to every `git` invocation.
+      expect(config).toEqual({ permission: { bash: { ls: "allow" } } });
+    });
+
+    it("reads the sentinels case-insensitively, the way upstream lowercases them", () => {
+      const config = importFrom('[shell]\nallow_list = ["ALL"]\n');
+
+      expect(config).toEqual({ permission: { bash: { "*": "allow" } } });
+    });
+
+    it("keeps the command names beside a non-string entry", () => {
+      const config = importFrom('[shell]\nallow_list = ["git", 3]\n');
+
+      expect(config).toEqual({ permission: { bash: { git: "allow" } } });
+    });
+
+    it("lifts the dotenv knob back into the override", () => {
+      const config = importFrom("[startup]\nread_project_dotenv = true\n");
+
+      expect(config).toEqual({
+        permission: {},
+        deepagents: { startup: { read_project_dotenv: true } },
       });
     });
 
