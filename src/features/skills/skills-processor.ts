@@ -147,7 +147,7 @@ type ToolSkillFactory = {
      * straightforward. The reason is logged verbatim, so it must not embed
      * anything read off disk.
      */
-    getUnwritableDirReason?(params: {
+    getDirWriteBlockReason?(params: {
       outputRoot: string;
       relativeDirPath: string;
       dirName: string;
@@ -660,7 +660,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
             return null;
           }
           const dirName = rulesyncSkill.getDirName();
-          const unwritableReason = await factory.class.getUnwritableDirReason?.({
+          const dirWriteBlockReason = await factory.class.getDirWriteBlockReason?.({
             outputRoot: this.outputRoot,
             relativeDirPath: factory.class.getSettablePaths({ global: this.global })
               .relativeDirPath,
@@ -668,14 +668,14 @@ export class SkillsProcessor extends DirFeatureProcessor {
             inputRoots: this.inputRoots,
             global: this.global,
           });
-          if (unwritableReason !== undefined && unwritableReason !== null) {
+          if (dirWriteBlockReason !== undefined && dirWriteBlockReason !== null) {
             // Another feature owns this output directory, so the skills feature
             // never deletes it either: writing it here would leave a directory
             // that outlives the rulesync skill it came from. The name is quoted
             // and stripped because whoever wrote the repository chose it.
             this.logger.warn(
               `Skipping skill ${JSON.stringify(stripControlCharacters(dirName))} for ` +
-                `'${this.toolTarget}': ${unwritableReason}`,
+                `'${this.toolTarget}': ${dirWriteBlockReason}`,
             );
             return null;
           }

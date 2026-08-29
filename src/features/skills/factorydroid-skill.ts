@@ -296,7 +296,7 @@ export class FactorydroidSkill extends ToolSkill {
    * refuse to delete the directory again and it would outlive the skill it came
    * from. The checks feature is where that path is authored.
    */
-  static async getUnwritableDirReason({
+  static async getDirWriteBlockReason({
     dirName,
     global,
   }: {

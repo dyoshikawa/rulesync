@@ -708,9 +708,9 @@ Global body content`;
     });
   });
 
-  describe("getUnwritableDirReason", () => {
+  describe("getDirWriteBlockReason", () => {
     const reasonFor = (dirName: string, global = false): Promise<string | null> =>
-      FactorydroidSkill.getUnwritableDirReason({
+      FactorydroidSkill.getDirWriteBlockReason({
         outputRoot: testDir,
         relativeDirPath: join(".factory", "skills"),
         dirName,
