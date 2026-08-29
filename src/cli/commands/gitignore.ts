@@ -270,11 +270,14 @@ export const gitignoreCommand = async (
       ...new Set(extractRulesyncManagedEntries(content).filter((entry) => !entrySet.has(entry))),
       // A retired spelling whose replacement is being written is not a path
       // that stops being ignored, so it is not reported as one. The
-      // replacement widens the same directory and the only exceptions written
-      // beside it are for rulesync's own committed output, so nothing under
-      // the directory becomes visible that the retired entry was hiding. When
-      // the replacement is not written — a `.gitattributes` destination, or a
-      // narrowed `--targets` — the entry is reported like any other.
+      // replacement widens the same directory, and the exceptions written
+      // beside it re-expose only paths rulesync generates and commits. A file
+      // somebody authored by hand at one of those paths — the checks feature
+      // leaves a `review-guidelines` skill it did not write alone — becomes
+      // visible along with it, and that is the intent rather than a lapse:
+      // it is a file the repository is meant to carry. When the replacement is
+      // not written — a `.gitattributes` destination, or a narrowed
+      // `--targets` — the entry is reported like any other.
     ].filter(
       (entry) =>
         !RETIRED_GITIGNORE_ENTRIES.some(
