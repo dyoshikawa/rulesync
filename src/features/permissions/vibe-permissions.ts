@@ -9,6 +9,7 @@ import type {
   VibePermissionsOverride,
 } from "../../types/permissions.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
+import { shortenToWidth } from "../../utils/display-width.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
@@ -365,7 +366,9 @@ export class VibePermissions extends ToolPermissions {
     // glob over the RAW tool name, so `disabled_tools = ["read"]` matches nothing
     // — reading it as the `read` category and letting it silence
     // `[tools.read_file]` would disable a tool upstream leaves running.
-    const disabledToolEntries = toStringArray(this.toml.disabled_tools);
+    const disabledToolEntries = normalizeVibeDisabledToolEntries(
+      toStringArray(this.toml.disabled_tools),
+    );
     // The entry is still imported as a deny for its canonical category even when
     // no builtin bears that raw name, because rulesync cannot see Vibe's registry:
     // `disabled_tools = ["read"]` matches no builtin, but an MCP server is free to
@@ -379,6 +382,15 @@ export class VibePermissions extends ToolPermissions {
       ensurePermission(permission, toCanonicalToolName(tool))["*"] = "deny";
     }
     const disablesToolName = createVibeDisabledToolMatcher(disabledToolEntries);
+    // The categories a switched-off table lands in, remembered so the deny can be
+    // re-asserted once every table has been read. Two Vibe tools can share one
+    // category — `task` and `agent`, `read_file` and a bare `read` MCP table —
+    // and only one of them need be switched off, so whichever table came later
+    // in the file would otherwise decide the category's base permission. That
+    // made the import depend on the order the tables happen to sit in, and in
+    // one of the two orders a tool the file switched off was imported as a live
+    // allow. The deny wins in both orders instead.
+    const silencedCategories = new Set<string>();
 
     for (const [vibeToolName, toolConfig] of Object.entries(toVibeToolsRecord(this.toml.tools))) {
       const category = toCanonicalToolName(vibeToolName);
@@ -396,14 +408,14 @@ export class VibePermissions extends ToolPermissions {
       // its own literal name (`read_*`) and would leave the table it silences
       // (`read_file` → the `read` category) with no deny at all.
       if (disablesToolName(vibeToolName)) {
+        silencedCategories.add(category);
         const denied = ensurePermission(permission, category);
         denied["*"] = "deny";
         // The table's deny patterns come across even though its allow patterns
         // do not, because a category can be shared: `read_file` and a bare
-        // `read` MCP table both canonicalize to `read`, and the later table's
-        // own base permission overwrites the blanket deny written here. Dropping
-        // the patterns with it would lose a deny the file states outright, which
-        // is the broadening direction; keeping only the denies loses nothing.
+        // `read` MCP table both canonicalize to `read`. The patterns are just as
+        // binding as the blanket deny and dropping them would lose a restriction
+        // the file states outright, which is the broadening direction.
         for (const pattern of readVibeToolPatterns({ toolConfig, kind: "deny" })) {
           denied[pattern] = "deny";
         }
@@ -428,6 +440,10 @@ export class VibePermissions extends ToolPermissions {
       if (sensitivePatterns.length > 0) {
         vibeOverridePermission[category] = { sensitive_patterns: sensitivePatterns };
       }
+    }
+
+    for (const category of silencedCategories) {
+      ensurePermission(permission, category)["*"] = "deny";
     }
 
     warnOnUnresolvableDisabledTools({ entries: disabledToolEntries, tools: this.toml.tools });
@@ -1371,16 +1387,13 @@ function warnOnGlobDisabledTools({
   if (live.length === 0) {
     return;
   }
-  const entries = [...disabledTools];
+  const entries = normalizeVibeDisabledToolEntries([...disabledTools]);
+  const classified = classifyDisabledToolEntries(entries);
   // Only the globs that actually reach a live table are named. Listing every
   // glob in the file would read as though each of them silenced the tools the
   // line goes on to name, which is the opposite of what the warning is for.
-  const hits = classifyDisabledToolEntries(
-    entries.filter(
-      (entry) =>
-        !entry.startsWith(VIBE_REGEX_MATCHER_PREFIX) && VIBE_GLOB_METACHARACTERS.test(entry),
-    ),
-  )
+  const hits = classified
+    .filter(({ resolved, entry }) => resolved && VIBE_GLOB_METACHARACTERS.test(entry))
     .map(({ entry, matches }) => ({ entry, silenced: live.filter(matches) }))
     .filter(({ silenced }) => silenced.length > 0);
   if (hits.length > 0) {
@@ -1394,18 +1407,19 @@ function warnOnGlobDisabledTools({
         `permission take effect.`,
     );
   }
-  // A `re:` entry is reported on its own, because rulesync does not evaluate one
-  // (see `classifyDisabledToolEntries`) and so cannot say which tables it
-  // reaches. Folding it into the line above would name it beside tables another
-  // entry's glob matched, claiming a reach that was never worked out.
-  const regexes = entries.filter((entry) => entry.startsWith(VIBE_REGEX_MATCHER_PREFIX));
-  if (regexes.length > 0) {
+  // An entry rulesync does not work out is reported on its own, because it
+  // cannot be said which tables it reaches. Folding it into the line above would
+  // name it beside tables another entry's glob matched, claiming a reach that
+  // was never established.
+  const unresolved = classified.filter(({ resolved }) => !resolved).map(({ entry }) => entry);
+  if (unresolved.length > 0) {
     logger?.warn(
-      `Vibe's disabled_tools keeps ${displayVibeEntries(regexes)}, which rulesync does not ` +
-        `evaluate: a 're:' entry is a Python regular expression, not a glob. Check by hand ` +
-        `whether it matches ${displayVibeEntries(live)} — tables rulesync just wrote a live ` +
-        `permission into. Upstream applies disabled_tools last and unconditionally, so any tool ` +
-        `it reaches stays switched off however its table reads.`,
+      `Vibe's disabled_tools keeps ${displayVibeEntries(unresolved)}, which rulesync does not ` +
+        `evaluate: a 're:' entry is a Python regular expression rather than a glob, and a glob ` +
+        `longer than ${MAX_VIBE_GLOB_LENGTH} characters is left alone. Check by hand whether it ` +
+        `matches ${displayVibeEntries(live)} — the tables in .vibe/config.toml that carry a live ` +
+        `permission. Upstream applies disabled_tools last and unconditionally, so any tool it ` +
+        `reaches stays switched off however its table reads.`,
     );
   }
 }
@@ -1622,37 +1636,136 @@ type VibeGlobToken =
     };
 
 /**
- * The members of a `[seq]` class, as code point ranges.
+ * One piece of a `[seq]` class body once its ranges have been worked out: a
+ * character the class admits, or the `-` that joins the two around it into a
+ * range.
  *
- * A range whose ends are the wrong way round is dropped rather than refused,
- * which is what Python's `fnmatch.translate` does before it hands the class to
- * `re`. Dropping the only range leaves a class admitting nothing: `[z-a]` then
- * matches no character at all and `[!z-a]` matches every one, exactly as
- * upstream's `(?!)` and `.` do.
+ * The distinction cannot be read off the body directly, which is the whole
+ * difficulty of the bracket. `[a-c-e]` admits `a`-`c`, a literal `-`, and `e`,
+ * because the second `-` is not a separator at all — CPython decides which is
+ * which while it splits the body, and the split is reproduced below.
  */
-function parseVibeGlobClass(members: readonly string[]): (readonly [number, number])[] {
+type VibeGlobClassItem =
+  | { readonly kind: "member"; readonly character: string }
+  | { readonly kind: "separator" };
+
+/**
+ * Split a `[seq]` body the way `fnmatch.translate` does, and fold away the
+ * ranges whose ends are the wrong way round.
+ *
+ * CPython walks the body looking for a `-` every three characters — the low
+ * end, the `-`, the high end — and cuts the body at each one it finds, so every
+ * cut lies between a range's two ends and every character inside a piece is a
+ * plain member. An inverted range is then not dropped but *closed over*: the
+ * piece before it loses its last character, the piece after it loses its first,
+ * and the two are spliced together. That is why `[b-a!]` admits `!` alone while
+ * `[a--!]` admits everything — splicing `a` out of `["a"]` and `-` out of
+ * `["-!"]` leaves `!`, which is then read as the negating `!` rather than as a
+ * member, and a negated class with no members admits every character.
+ *
+ * Reproducing the splice rather than simply discarding the bad range is what
+ * keeps the two apart. Discarding it left `[a--!]` admitting only a literal `!`,
+ * where upstream switches off every tool in the file.
+ *
+ * @see https://github.com/python/cpython/blob/main/Lib/fnmatch.py
+ */
+function chunkVibeGlobClassBody(body: readonly string[]): string[][] {
+  const chunks: string[][] = [];
+  let start = 0;
+  // The negating `!` is never a range's low end, so the search for the first
+  // separator starts past it.
+  let cursor = body[0] === "!" ? 2 : 1;
+  while (cursor < body.length) {
+    if (body[cursor] !== "-") {
+      cursor += 1;
+      continue;
+    }
+    chunks.push(body.slice(start, cursor));
+    start = cursor + 1;
+    // Past the `-` and past the high end it takes with it.
+    cursor += 3;
+  }
+  const tail = body.slice(start);
+  if (tail.length > 0) {
+    chunks.push(tail);
+  } else {
+    // The body ended on the `-` itself, which is then an ordinary member.
+    chunks.at(-1)?.push("-");
+  }
+  for (let index = chunks.length - 1; index > 0; index -= 1) {
+    const previous = chunks[index - 1];
+    const current = chunks[index];
+    const low = previous?.at(-1)?.codePointAt(0);
+    const high = current?.[0]?.codePointAt(0);
+    if (
+      previous === undefined ||
+      current === undefined ||
+      low === undefined ||
+      high === undefined
+    ) {
+      continue;
+    }
+    if (low > high) {
+      chunks[index - 1] = [...previous.slice(0, -1), ...current.slice(1)];
+      chunks.splice(index, 1);
+    }
+  }
+  return chunks;
+}
+
+/** The body of a `[seq]` class as members and the separators between them. */
+function toVibeGlobClassItems(body: readonly string[]): VibeGlobClassItem[] {
+  if (!body.includes("-")) {
+    return body.map((character) => ({ kind: "member", character }) as const);
+  }
+  return chunkVibeGlobClassBody(body).flatMap((chunk, index) => [
+    ...(index > 0 ? [{ kind: "separator" } as const] : []),
+    ...chunk.map((character) => ({ kind: "member", character }) as const),
+  ]);
+}
+
+/**
+ * Read a `[seq]` / `[!seq]` body into the class it stands for.
+ *
+ * The negation is decided here rather than by the caller because the splice
+ * above can expose a `!` that was not leading in the body as written, and can
+ * equally swallow one that was: `[!a--]` becomes a bare `!`, which negates an
+ * empty class and so admits everything.
+ *
+ * A `-` left with nothing on one side of it is a member like any other, which is
+ * what makes `[a-]` admit `a` and `-`, and a class left with no members at all
+ * admits nothing — or, negated, every character, exactly as upstream's `(?!)`
+ * and `.` do.
+ */
+function parseVibeGlobClass(body: readonly string[]): VibeGlobToken {
+  const items = toVibeGlobClassItems(body);
+  const negated = items[0]?.kind === "member" && items[0].character === "!";
+  const members = negated ? items.slice(1) : items;
   const ranges: (readonly [number, number])[] = [];
   let index = 0;
   while (index < members.length) {
-    const start = members[index] ?? "";
-    // A `-` with nothing after it is an ordinary member, which is why the end is
-    // read before the separator is trusted: `[a-]` admits `a` and `-`.
+    const item = members[index];
     const separator = members[index + 1];
     const end = members[index + 2];
-    if (separator === "-" && end !== undefined) {
-      const low = start.codePointAt(0) ?? 0;
-      const high = end.codePointAt(0) ?? 0;
+    if (item?.kind === "separator") {
+      ranges.push([45, 45]);
+      index += 1;
+      continue;
+    }
+    if (separator?.kind === "separator" && end?.kind === "member") {
+      const low = item?.character.codePointAt(0) ?? 0;
+      const high = end.character.codePointAt(0) ?? 0;
       if (low <= high) {
         ranges.push([low, high]);
       }
       index += 3;
       continue;
     }
-    const code = start.codePointAt(0) ?? 0;
+    const code = item?.character.codePointAt(0) ?? 0;
     ranges.push([code, code]);
     index += 1;
   }
-  return ranges;
+  return { kind: "class", negated, ranges };
 }
 
 /**
@@ -1721,12 +1834,7 @@ function parseVibeGlob(pattern: string): VibeGlobToken[] | undefined {
     }
     const body = characters.slice(index, end);
     index = end + 1;
-    const negated = body[0] === "!";
-    tokens.push({
-      kind: "class",
-      negated,
-      ranges: parseVibeGlobClass(negated ? body.slice(1) : body),
-    });
+    tokens.push(parseVibeGlobClass(body));
   }
   return tokens;
 }
@@ -1802,6 +1910,25 @@ function matchesVibeGlob({
   return remaining === tokens.length;
 }
 
+/**
+ * The `disabled_tools` entries as upstream reads them: whitespace trimmed off
+ * each one, and the blank ones dropped.
+ *
+ * Vibe's `name_matches` does `(raw or "").strip()` and skips the result when it
+ * is empty, so `" read_file "` switches off `read_file` and `""` switches off
+ * nothing. Carrying the entries across untrimmed matched neither: the padded
+ * one silenced no table and was imported as a category named with its own
+ * spaces, and the blank one became an empty category in `permissions.jsonc`.
+ *
+ * Duplicates collapse here too, since an entry that survives twice would be
+ * carried out twice and named twice in a warning.
+ *
+ * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/utils/matching.py
+ */
+function normalizeVibeDisabledToolEntries(entries: readonly string[]): string[] {
+  return [...new Set(entries.map((entry) => entry.trim()).filter((entry) => entry.length > 0))];
+}
+
 /** One `disabled_tools` entry, paired with what it was worked out to reach. */
 type VibeDisabledToolEntry = {
   /** The entry exactly as the file spells it. */
@@ -1837,13 +1964,18 @@ type VibeDisabledToolEntry = {
  * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/utils/matching.py
  */
 function classifyDisabledToolEntries(entries: readonly string[]): VibeDisabledToolEntry[] {
-  return entries.map((entry) => {
+  return normalizeVibeDisabledToolEntries(entries).map((entry) => {
+    // The fallback for an entry rulesync will not work out. It is deliberately
+    // exact where the resolved paths fold case: an under-approximation that
+    // matches only the spelling in the file cannot silence a table by accident,
+    // and the entry is reported rather than relied on.
     const literally = (name: string): boolean => name === entry;
     if (entry.startsWith(VIBE_REGEX_MATCHER_PREFIX)) {
       return { entry, resolved: false, matches: literally };
     }
     if (!VIBE_GLOB_METACHARACTERS.test(entry)) {
-      return { entry, resolved: true, matches: literally };
+      const folded = entry.toLowerCase();
+      return { entry, resolved: true, matches: (name) => name.toLowerCase() === folded };
     }
     const tokens = parseVibeGlob(entry.toLowerCase());
     if (tokens === undefined) {
@@ -1863,19 +1995,38 @@ function createVibeDisabledToolMatcher(entries: readonly string[]): (name: strin
   return (name) => classified.some(({ matches }) => matches(name));
 }
 
+/** How wide one name from the config file may be drawn in a warning. */
+const MAX_VIBE_ENTRY_COLUMNS = 80;
+
+/** How many names one warning spells out before it starts counting them. */
+const MAX_VIBE_ENTRIES_NAMED = 10;
+
 /**
  * An entry copied out of `.vibe/config.toml` on its way into a log line: strip
  * the control characters that would let it forge a line or hide the warnings
- * beside it, and cap the length so one entry cannot fill the output.
+ * beside it, and cut it to a width so one entry cannot fill the output.
+ *
+ * Columns rather than code units, via `shortenToWidth`, because the two part
+ * company exactly where the cap is needed: eighty ideographs are eighty units
+ * and a hundred and sixty columns, and a cut counted in units can land inside a
+ * surrogate pair and emit half of one.
  */
 function displayVibeEntry(entry: string): string {
-  const stripped = stripControlCharacters(entry);
-  return stripped.length > 80 ? `${stripped.slice(0, 80)}…` : stripped;
+  return shortenToWidth({
+    text: stripControlCharacters(entry),
+    budget: MAX_VIBE_ENTRY_COLUMNS,
+  });
 }
 
-/** The same, for the list a warning names. */
+/**
+ * The same, for the list a warning names — and a count in place of the tail,
+ * since a file is free to carry hundreds of entries or tables and a warning
+ * that names them all is one nobody reads.
+ */
 function displayVibeEntries(entries: readonly string[]): string {
-  return entries.map(displayVibeEntry).join(", ");
+  const named = entries.slice(0, MAX_VIBE_ENTRIES_NAMED).map(displayVibeEntry).join(", ");
+  const rest = entries.length - MAX_VIBE_ENTRIES_NAMED;
+  return rest > 0 ? `${named} and ${rest} more` : named;
 }
 
 /**
