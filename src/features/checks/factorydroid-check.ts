@@ -189,7 +189,9 @@ export class FactorydroidCheck extends ToolCheck {
         `Factory Droid checks: ${filePath} holds instructions rulesync did not write, so it is ` +
           `left as it is and no checks were generated for Factory Droid. Run ` +
           `\`rulesync import --targets factorydroid --features checks\` to bring them into ` +
-          `\`.rulesync/checks/\`, or delete the file if you no longer want it. A rulesync skill ` +
+          `\`.rulesync/checks/\` and then delete the file, so the next generate writes it back ` +
+          `from there; delete it outright if you no longer want it. Importing alone leaves this ` +
+          `file as it is, so it keeps blocking generation until it is gone. A rulesync skill ` +
           `named \`${FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME}\` is no longer generated here — ` +
           `Factory's reviewer reads this path, so the checks feature owns it — but a directory ` +
           `an older rulesync wrote can still be sitting there.`,

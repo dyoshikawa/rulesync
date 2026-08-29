@@ -23,10 +23,11 @@ import { isPlainObject } from "./type-guards.js";
  * A merge implementation is responsible for skipping prototype-pollution keys
  * coming from the local file.
  *
- * Whatever the local file contributes is named in a warning — once per run,
- * however many features read the same pair — because the import's own output — `.rulesync/permissions.jsonc` and
- * friends — is committed: a value that was personal to one machine becomes the
- * team's on the next generate unless someone takes it out first.
+ * Whatever the local file contributes is named in a warning, because the
+ * import's own output — `.rulesync/permissions.jsonc` and friends — is
+ * committed: a value personal to one machine becomes the team's on the next
+ * generate unless someone takes it out first. The warning is emitted once per
+ * run, however many features read the same pair of files.
  *
  * Returns `null` when neither file exists and no `baseFallbackContent` is
  * given, so callers can tell "no settings at this scope" apart from empty ones.
@@ -140,7 +141,8 @@ function warnAboutLocalKeys({
   warnOnceWithFallback(
     logger,
     `${toolLabel}: ${configPath} is a machine-local overrides file, and importing read ` +
-      `${named} from it. What rulesync writes from an import is committed, so remove anything ` +
-      `personal to this machine from the imported files before sharing them.`,
+      `${named} from it. Whatever an import takes from there lands in files rulesync commits, ` +
+      `so check the imported files and remove anything personal to this machine before ` +
+      `sharing them.`,
   );
 }
