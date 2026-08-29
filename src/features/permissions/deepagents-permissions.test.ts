@@ -350,6 +350,65 @@ describe("DeepagentsPermissions", () => {
       );
     });
 
+    it("skips a pattern whose executable dcode would never compare", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "git;rm *": "allow", ls: "allow" } } },
+        logger,
+      });
+
+      // Writing it would put a rule in the user's global config that can never
+      // fire, and the import direction already refuses to read one back.
+      expect(allowListOf(content)).toEqual(["ls"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("would match no command"));
+    });
+
+    it("reports a bare executable as widened, since dcode holds no arguments", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { rm: "allow" } } },
+        logger,
+      });
+
+      // Canonically `rm` means `rm` with no arguments; in dcode it auto-approves
+      // `rm -rf /` too, so the narrow spelling widens further than the loud one.
+      expect(allowListOf(content)).toEqual(["rm"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("were widened"));
+    });
+
+    it("leaves a blanket ask alone, since the allow rules are its exceptions", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "*": "ask", "git *": "allow" } } },
+        logger,
+      });
+
+      // dcode reproduces this pair exactly — `git` is auto-approved and every
+      // other command prompts — so there is nothing to warn about. A deny is
+      // different: it outranks an allow, and dcode cannot express that.
+      expect(allowListOf(content)).toEqual(["git"]);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("catches a deny whose executable is itself a glob", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "npm *": "allow", "npm*": "deny" } } },
+        logger,
+      });
+
+      // `*` is only the widest spelling of a glob executable; `npm*` covers the
+      // generated `npm` just as surely, so the same warning has to fire.
+      expect(allowListOf(content)).toEqual(["npm"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("are not merely unenforced"),
+      );
+    });
+
     it("warns that a blanket deny is what the allow_list overrides", async () => {
       const logger = createMockLogger();
 
@@ -411,6 +470,20 @@ describe("DeepagentsPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("dcode manages that key itself"),
       );
+    });
+
+    it("says nothing about a startup key it could not write", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { startup: { future_key: null } } },
+        logger,
+      });
+
+      // TOML has no null, so smol-toml drops the key; naming it would describe
+      // a setting the file does not hold.
+      expect(smolToml.parse(content).startup).toBeUndefined();
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("names a startup key it cannot judge", async () => {
@@ -595,11 +668,14 @@ describe("DeepagentsPermissions", () => {
     });
 
     it("skips entries dcode splits or refuses before comparing", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
       const config = importFrom('[shell]\nallow_list = ["git;rm", "$(id)", "ls"]\n');
 
       // dcode splits a command on `;`/`&&`/`|` and rejects command substitution
       // before it ever compares a name, so neither entry approves anything.
       expect(config).toEqual({ permission: { bash: { ls: "allow" } } });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("git;rm, $(id)"));
     });
 
     it("reads the sentinels case-insensitively, the way upstream lowercases them", () => {
@@ -609,11 +685,37 @@ describe("DeepagentsPermissions", () => {
     });
 
     it("imports nothing when the array holds a non-string entry", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
       const config = importFrom('[shell]\nallow_list = ["git", 3]\n');
 
       // dcode requires every element to be a string and drops the whole option
       // otherwise, so `git` is not auto-approved there either.
       expect(config).toEqual({ permission: {} });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("ignores 'allow_list' entirely"));
+    });
+
+    it("imports nothing from an allow_list that is neither a string nor an array", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const config = importFrom("[shell]\nallow_list = 3\n");
+
+      expect(config).toEqual({ permission: {} });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("ignores 'allow_list' entirely"));
+    });
+
+    it("leaves behind a startup value dcode cannot read", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      // dcode falls back to its own default for these, and the canonical schema
+      // is stricter than TOML — importing them would write a permissions file
+      // the next generate could not parse.
+      const config = importFrom('[startup]\nmode = "AUTO"\nyolo_switcher = "yes"\n');
+
+      expect(config).toEqual({ permission: {} });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('mode = "AUTO", yolo_switcher = "yes"'),
+      );
     });
 
     it("lifts the dotenv knob back into the override", () => {

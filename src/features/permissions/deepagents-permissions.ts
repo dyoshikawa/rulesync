@@ -36,6 +36,9 @@ const STARTUP_TABLE_KEY = "startup";
 // permissions file that gets committed.
 const DEEPAGENTS_STARTUP_KEYS = ["mode", "yolo_switcher", "read_project_dotenv"] as const;
 
+/** The approval modes dcode reads; anything else is `Invalid` upstream. */
+const DEEPAGENTS_STARTUP_MODES = ["manual", "auto", "yolo"] as const;
+
 /**
  * dcode's own record of the last approval mode the user switched to. It is
  * app-managed state, and it is also a second way into `auto`: with no explicit
@@ -262,12 +265,13 @@ export class DeepagentsPermissions extends ToolPermissions {
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
+    const selfPath = join(this.getRelativeDirPath(), this.getRelativeFilePath());
     let settings: Record<string, unknown>;
     try {
       settings = smolToml.parse(this.getFileContent());
     } catch (error) {
       throw new Error(
-        `Failed to parse deepagents permissions content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
+        `Failed to parse deepagents permissions content in ${selfPath}: ${formatError(error)}`,
         { cause: error },
       );
     }
@@ -279,18 +283,15 @@ export class DeepagentsPermissions extends ToolPermissions {
     if (allowList === null) {
       warnWithFallback(
         undefined,
-        `deepagents-cli ignores '${ALLOW_LIST_KEY}' entirely when the array holds anything but ` +
-          `strings, so nothing in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())} ` +
-          `is auto-approved and no bash allow rules were imported.`,
+        `deepagents-cli ignores '${ALLOW_LIST_KEY}' entirely unless it is a string or an array ` +
+          `of strings, so nothing in ${selfPath} is auto-approved and no bash allow rules were ` +
+          `imported.`,
       );
     }
     const config = convertDeepagentsToRulesyncPermissions({ allowList: allowList ?? [] });
 
     const startup = isPlainObject(settings[STARTUP_TABLE_KEY]) ? settings[STARTUP_TABLE_KEY] : {};
-    const startupOverride: Record<string, unknown> = {};
-    for (const key of DEEPAGENTS_STARTUP_KEYS) {
-      if (startup[key] !== undefined) startupOverride[key] = startup[key];
-    }
+    const startupOverride = liftStartupOverride({ startup, selfPath });
 
     const result: Record<string, unknown> = { ...config };
     if (Object.keys(startupOverride).length > 0) {
@@ -355,19 +356,32 @@ function warnAboutUnwrittenBashRules({
   // (`npm *`), and dcode keeps only the allow — so the command the author
   // wanted stopped runs with no prompt at all.
   const allowedTokens = new Set(allowList);
-  const isAutoApproved = (pattern: string): boolean => {
-    if (allowAll) return true;
-    // A deny-by-default config writes `*` (or `*:*`), which covers every
-    // executable the allow rules put in the list — the widest rule an author
-    // can write is exactly the one the executable-name reduction inverts.
-    const trimmed = pattern.trim().replace(TRAILING_ARGUMENT_WILDCARD_PATTERN, "");
-    if (trimmed === "*") return allowList.length > 0;
-    const token = toExecutableToken(pattern)?.token;
-    return token !== undefined && allowedTokens.has(token);
+  const coverageOf = (pattern: string): "none" | "narrower" | "blanket" => {
+    // `allow_list = ["all"]` covers everything *and* turns the dangerous-pattern
+    // check off, which no rule beside it can be read as an exception to.
+    if (allowAll) return "narrower";
+    const first = pattern.trim().split(/\s+/)[0] ?? "";
+    const leading = first.replace(TRAILING_ARGUMENT_WILDCARD_PATTERN, "");
+    // A rule whose executable is itself a glob — `*`, `npm*` — covers every
+    // entry it matches, so the reduction inverts it exactly as a literal
+    // collision does. `*` is only the widest spelling of that, not a case of
+    // its own.
+    if (GLOB_CHARACTERS_PATTERN.test(leading)) {
+      const matcher = new RegExp(globToRegexSource(leading));
+      const matched = allowList.filter((token) => matcher.test(token));
+      if (matched.length === 0) return "none";
+      return matched.length === allowList.length ? "blanket" : "narrower";
+    }
+    return allowedTokens.has(leading) ? "narrower" : "none";
   };
-  const shadowedAsk = askPatterns.filter(isAutoApproved);
-  const shadowedDeny = denyPatterns.filter(isAutoApproved);
-  const unenforcedDeny = denyPatterns.filter((pattern) => !isAutoApproved(pattern));
+  // An `ask` that covers the whole allow_list is the broader rule of the pair,
+  // and canonical precedence already reads the allows as its exceptions — which
+  // is exactly what dcode does, since an unlisted command prompts. Only an ask
+  // the allows *out-cover* is inverted. A deny has no such reading: it outranks
+  // an allow canonically, so any collision is an inversion.
+  const shadowedAsk = askPatterns.filter((pattern) => coverageOf(pattern) === "narrower");
+  const shadowedDeny = denyPatterns.filter((pattern) => coverageOf(pattern) !== "none");
+  const unenforcedDeny = denyPatterns.filter((pattern) => coverageOf(pattern) === "none");
 
   if (unenforcedDeny.length > 0) {
     warnWithFallback(
@@ -448,6 +462,51 @@ function warnAboutUnwrittenBashRules({
 }
 
 /**
+ * Lift the `[startup]` keys rulesync models back into the `deepagents`
+ * override, keeping only values dcode itself accepts.
+ *
+ * A `mode` outside the three approval modes, or a non-boolean where a switch
+ * belongs, is `Invalid` upstream — dcode ignores it and falls back to its
+ * default. Importing it anyway would record a setting the tool is not applying
+ * and, because the canonical schema is stricter than TOML, would write a
+ * `.rulesync/permissions.jsonc` the next `rulesync generate` cannot even read.
+ */
+function liftStartupOverride({
+  startup,
+  selfPath,
+}: {
+  startup: Record<string, unknown>;
+  selfPath: string;
+}): Record<string, unknown> {
+  const startupOverride: Record<string, unknown> = {};
+  const rejected: string[] = [];
+  for (const key of DEEPAGENTS_STARTUP_KEYS) {
+    const value = startup[key];
+    if (value === undefined) continue;
+    const acceptable =
+      key === "mode"
+        ? DEEPAGENTS_STARTUP_MODES.includes(value as (typeof DEEPAGENTS_STARTUP_MODES)[number])
+        : typeof value === "boolean";
+    if (acceptable) {
+      startupOverride[key] = value;
+    } else {
+      rejected.push(`${key} = ${JSON.stringify(value)}`);
+    }
+  }
+
+  if (rejected.length > 0) {
+    warnWithFallback(
+      undefined,
+      `deepagents-cli falls back to its own default for a '[${STARTUP_TABLE_KEY}]' value it ` +
+        `cannot read, so ${rejected.join(", ")} in ${selfPath} ${rejected.length === 1 ? "was" : "were"} ` +
+        `not imported.`,
+    );
+  }
+
+  return startupOverride;
+}
+
+/**
  * Merge the `deepagents.startup` override into `[startup]`, preserving every
  * other key of that table. A `startup` that is not a table at all is something
  * rulesync did not write and cannot merge into, so it is left exactly as the
@@ -476,15 +535,20 @@ function mergeStartupOverride({
 
   const startup = isPlainObject(existingStartup) ? { ...existingStartup } : {};
   const previousStartup = { ...startup };
+  const writtenKeys: string[] = [];
   // Copied key by key rather than `Object.assign`ed, so a `__proto__` coming
   // from the JSON config cannot reach the object's prototype.
   for (const [key, value] of Object.entries(startupOverride)) {
     if (isPrototypePollutionKey(key)) continue;
     if (key === STARTUP_RECENT_KEY) continue;
+    // TOML has no null, so smol-toml drops such a key on the way out. Writing
+    // it would leave a warning naming a setting the file does not hold.
+    if (value === null || value === undefined) continue;
     // Verbatim, so a key added upstream passes through the loose override.
     startup[key] = value;
+    writtenKeys.push(key);
   }
-  warnAboutStartupRelaxations({ startupOverride, previousStartup, filePath, logger });
+  warnAboutStartupRelaxations({ startupOverride, previousStartup, writtenKeys, filePath, logger });
   // An override of nothing but dropped keys leaves no table to write; an empty
   // `[startup]` header would suggest rulesync set something there.
   if (Object.keys(startup).length > 0) {
@@ -508,11 +572,14 @@ function mergeStartupOverride({
 function warnAboutStartupRelaxations({
   startupOverride,
   previousStartup,
+  writtenKeys,
   filePath,
   logger,
 }: {
   startupOverride: Record<string, unknown>;
   previousStartup: Record<string, unknown>;
+  /** The keys the merge actually wrote, so no warning names one it dropped. */
+  writtenKeys: readonly string[];
   filePath: string;
   logger?: Logger;
 }): void {
@@ -528,15 +595,12 @@ function warnAboutStartupRelaxations({
   if (mode === "auto" || mode === "yolo") {
     relaxations.push(describe("mode", mode));
   }
-  for (const key of ["yolo_switcher", "read_project_dotenv"]) {
-    // Both default to `true` upstream, so writing `true` over an unset key is a
-    // no-op. Reporting it would bury the case that grants something — a value
-    // the user had turned off being turned back on.
+  for (const [key, upstreamDefault] of Object.entries(DEEPAGENTS_STARTUP_BOOLEAN_DEFAULTS)) {
+    // Both default to `true` upstream, so writing `true` over a key the user
+    // never set is a no-op. Reporting it would bury the case that grants
+    // something — a value the user had turned off being turned back on.
     if (startupOverride[key] !== true) continue;
-    if (previousStartup[key] === DEEPAGENTS_STARTUP_BOOLEAN_DEFAULTS[key]) continue;
-    if (previousStartup[key] === undefined && DEEPAGENTS_STARTUP_BOOLEAN_DEFAULTS[key] === true) {
-      continue;
-    }
+    if ((previousStartup[key] ?? upstreamDefault) === true) continue;
     relaxations.push(describe(key, true));
   }
 
@@ -558,8 +622,8 @@ function warnAboutStartupRelaxations({
     );
   }
 
-  const known = new Set<string>([...DEEPAGENTS_STARTUP_KEYS, STARTUP_RECENT_KEY]);
-  const unknownKeys = Object.keys(startupOverride).filter((key) => !known.has(key));
+  const known = new Set<string>(DEEPAGENTS_STARTUP_KEYS);
+  const unknownKeys = writtenKeys.filter((key) => !known.has(key));
   if (unknownKeys.length > 0) {
     // The override is a loose object so a key added upstream still reaches the
     // config, but this one writes into the machine's global file: what rulesync
@@ -589,12 +653,30 @@ function readAllowListEntries(raw: unknown): string[] | null {
     if (raw.some((entry) => typeof entry !== "string")) {
       return null;
     }
-    return raw.map((entry) => String(entry).trim()).filter((entry) => entry.length > 0);
+    return raw.map((entry) => (entry as string).trim()).filter((entry) => entry.length > 0);
   }
   if (typeof raw === "string") {
     return parseCommaSeparatedList(raw);
   }
-  return [];
+  // A scalar is neither of the two spellings dcode accepts, so it too drops the
+  // whole option. Only an absent key is genuinely "no allowlist".
+  return raw === undefined ? [] : null;
+}
+
+/**
+ * Anchor a glob as a regex source, so an executable-name glob can be tested
+ * against the names actually written to `allow_list`. Only `*` and `?` carry
+ * meaning here; everything else is matched literally.
+ */
+function globToRegexSource(glob: string): string {
+  let source = "";
+  for (const char of glob) {
+    if (char === "*") source += ".*";
+    else if (char === "?") source += ".";
+    else if (/[\\^$.|+(){}[\]]/.test(char)) source += `\\${char}`;
+    else source += char;
+  }
+  return `^${source}$`;
 }
 
 /**
@@ -605,14 +687,25 @@ function toExecutableToken(pattern: string): { token: string; widened: boolean }
   const trimmed = pattern.trim();
   const [first = "", ...rest] = trimmed.split(/\s+/);
   const token = first.replace(TRAILING_ARGUMENT_WILDCARD_PATTERN, "");
-  if (token.length === 0 || GLOB_CHARACTERS_PATTERN.test(token)) {
+  if (
+    token.length === 0 ||
+    GLOB_CHARACTERS_PATTERN.test(token) ||
+    SHELL_METACHARACTERS_PATTERN.test(token)
+  ) {
+    // A metacharacter is as unmatchable as a glob: dcode splits the command on
+    // it, or rejects it as a dangerous pattern, before comparing any name. The
+    // import direction already drops such an entry, and writing one would put
+    // a rule in the user's global config that can never fire.
     return null;
   }
-  // Anything after the executable — `git commit:*`, `npm run build` — is a
-  // narrower rule than dcode can hold, except the bare `*` that already means
-  // "any arguments".
+  // dcode holds an executable name and nothing else, so every canonical rule
+  // here is widened to every invocation of that executable — the arguments in
+  // `git commit:*` are dropped, and the bare `rm` that meant "with no
+  // arguments at all" now covers `rm -rf /` too.
   const remainder = rest.join(" ");
-  return { token, widened: remainder.length > 0 && remainder !== "*" };
+  const meansAnyArguments =
+    (TRAILING_ARGUMENT_WILDCARD_PATTERN.test(first) && remainder.length === 0) || remainder === "*";
+  return { token, widened: !meansAnyArguments };
 }
 
 /**
