@@ -84,7 +84,7 @@ export class DeepagentsSkill extends ToolSkill {
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
     // dcode discovers user-level skills in `~/.deepagents/<agent_name>/skills/`
-    // (default agent_name `deepagents`); the home directory is resolved by the
+    // (default agent_name `agent`); the home directory is resolved by the
     // processor through outputRoot in global mode.
     return {
       relativeDirPath: global ? DEEPAGENTS_GLOBAL_SKILLS_DIR_PATH : DEEPAGENTS_SKILLS_DIR_PATH,

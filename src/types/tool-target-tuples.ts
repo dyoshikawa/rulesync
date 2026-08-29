@@ -273,6 +273,7 @@ export const permissionsProcessorToolTargetTuple = [
   "copilot",
   "copilotcli",
   "cursor",
+  "deepagents",
   "devin",
   "factorydroid",
   "goose",

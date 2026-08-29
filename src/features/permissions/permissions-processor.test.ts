@@ -117,6 +117,7 @@ describe("PermissionsProcessor", () => {
         "codexcli",
         "copilotcli",
         "cursor",
+        "deepagents",
         "devin",
         "factorydroid",
         "goose",

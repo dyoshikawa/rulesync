@@ -72,6 +72,7 @@ const permissionsGlobalTargets = [
   "qwencode",
   "antigravity-cli",
   "warp",
+  "deepagents",
   "zed",
   "amp",
   "vibe",
@@ -2457,6 +2458,44 @@ describe("E2E: permissions (global mode)", () => {
     expect(generated).toContain("agent_mode_command_execution_allowlist");
     expect(generated).toContain("git status .*");
     expect(generated).toContain("rm -rf .*");
+  });
+
+  it("should generate deepagents permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", ls: "allow", "rm -rf *": "deny" },
+          },
+          deepagents: { startup: { mode: "auto" } },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "deepagents",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // dcode auto-approves a command whose executable name is in
+    // `[shell].allow_list` of the user config and asks about everything else,
+    // so allow rules are reduced to their executable and deny rules have no
+    // counterpart. Permissions are global-scope only: dcode reads no
+    // project-level config file.
+    const generated = smolToml.parse(
+      await readFileContent(join(homeDir, ".deepagents", "config.toml")),
+    );
+    const shell = generated.shell as Record<string, unknown>;
+    expect(shell.allow_list).toEqual(["git", "ls"]);
+    expect(generated.startup).toEqual({ mode: "auto" });
   });
 
   it("should generate zed permissions in home directory with --global", async () => {

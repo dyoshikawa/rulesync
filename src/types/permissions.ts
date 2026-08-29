@@ -467,6 +467,34 @@ const WarpPermissionsOverrideSchema = z.looseObject({
 export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
 
 /**
+ * deepagents-cli's approval-mode knobs under `[startup]` in
+ * `~/.deepagents/config.toml`. They gate what dcode does without asking, but
+ * none of them is a per-command rule, so they are authored here rather than in
+ * the canonical `permission` block. Loose so a key added upstream passes
+ * through verbatim.
+ *
+ * `startup.recent` is deliberately absent: dcode rewrites it as the user
+ * cycles approval modes, so committing it would publish one session's state.
+ *
+ * @see https://docs.langchain.com/oss/deepagents/code/configuration
+ */
+const DeepagentsStartupOverrideSchema = z.looseObject({
+  mode: z.optional(z.enum(["manual", "auto", "yolo"])),
+  yolo_switcher: z.optional(z.boolean()),
+  read_project_dotenv: z.optional(z.boolean()),
+});
+
+/**
+ * The `[shell].allow_list` array itself is rulesync-owned, driven by the
+ * shared `permission.bash` block, so it has no key here.
+ */
+const DeepagentsPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  startup: z.optional(DeepagentsStartupOverrideSchema),
+});
+export type DeepagentsPermissionsOverride = z.infer<typeof DeepagentsPermissionsOverrideSchema>;
+
+/**
  * The actions Junie's allowlist accepts. Verified against the shipped Junie
  * CLI release `2383.10` (26.7.20): `AllowListDecision` contains exactly
  * `allow` and `ask`, and a `deny` value fails the whole-file parse — which
@@ -1051,6 +1079,7 @@ const PermissionsConfigSchema = z.looseObject({
   claudecode: z.optional(ClaudecodePermissionsOverrideSchema),
   vibe: z.optional(VibePermissionsOverrideSchema),
   cursor: z.optional(CursorPermissionsOverrideSchema),
+  deepagents: z.optional(DeepagentsPermissionsOverrideSchema),
   qwencode: z.optional(QwencodePermissionsOverrideSchema),
   reasonix: z.optional(ReasonixPermissionsOverrideSchema),
   factorydroid: z.optional(FactorydroidPermissionsOverrideSchema),
