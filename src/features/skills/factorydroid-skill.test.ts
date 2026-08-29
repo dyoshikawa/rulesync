@@ -649,12 +649,13 @@ Global body content`;
       await writeFileContent(join(testDir, skillsDir, dirName, SKILL_FILE_NAME), content);
     };
 
-    const isDirOwned = (dirName: string): Promise<boolean> =>
+    const isDirOwned = (dirName: string, global = false): Promise<boolean> =>
       FactorydroidSkill.isDirOwned({
         outputRoot: testDir,
         relativeDirPath: skillsDir,
         dirName,
         inputRoots: ["."],
+        global,
       });
 
     it("should own every directory other than review-guidelines", async () => {
@@ -690,6 +691,33 @@ Global body content`;
       await ensureDir(join(testDir, skillsDir, "review-guidelines"));
 
       expect(await isDirOwned("review-guidelines")).toBe(false);
+    });
+
+    it("should own review-guidelines in global mode", async () => {
+      // Checks is project-only, so nothing else claims the user-level path.
+      await writeSkillFile("review-guidelines", "---\nname: rg\ndescription: Ours\n---\n\nOurs.\n");
+
+      expect(await isDirOwned("review-guidelines", true)).toBe(true);
+    });
+  });
+
+  describe("canWriteDir", () => {
+    it("should refuse to generate a project-scoped review-guidelines skill", () => {
+      // The checks feature owns that directory, and `isDirOwned` keeps the
+      // skills feature from deleting it again.
+      expect(FactorydroidSkill.canWriteDir({ dirName: "review-guidelines", global: false })).toBe(
+        false,
+      );
+    });
+
+    it("should generate review-guidelines in global mode", () => {
+      expect(FactorydroidSkill.canWriteDir({ dirName: "review-guidelines", global: true })).toBe(
+        true,
+      );
+    });
+
+    it("should generate every other name", () => {
+      expect(FactorydroidSkill.canWriteDir({ dirName: "other", global: false })).toBe(true);
     });
   });
 

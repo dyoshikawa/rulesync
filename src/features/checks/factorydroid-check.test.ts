@@ -237,6 +237,55 @@ describe("FactorydroidCheck", () => {
       expect(imported[0]!.getBody()).toBe("Check Prisma queries.");
     });
 
+    it("should keep prose under a fence nothing closes", async () => {
+      await writeGuidelines("---\n\n# Guidelines\n\nCheck Prisma queries.\n");
+
+      const imported = (
+        await FactorydroidCheck.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: SKILL_FILE_NAME,
+        })
+      ).toRulesyncChecks();
+
+      // Reading an unclosed fence as frontmatter would empty the file, and the
+      // generate-side warning sends people here to keep what it holds.
+      expect(imported).toHaveLength(1);
+      expect(imported[0]!.getBody()).toContain("# Guidelines");
+      expect(imported[0]!.getBody()).toContain("Check Prisma queries.");
+    });
+
+    it("should drop a block whose closing delimiter carries trailing text", async () => {
+      await writeGuidelines("---\nname: [unclosed\n---extra\nCheck Prisma queries.\n");
+
+      const imported = (
+        await FactorydroidCheck.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: SKILL_FILE_NAME,
+        })
+      ).toRulesyncChecks();
+
+      // gray-matter closes the block at the first `\n---` whatever follows it on
+      // that line, so the strip has to end there too or the broken YAML stays.
+      expect(imported[0]!.getBody()).toBe("extra\nCheck Prisma queries.");
+    });
+
+    it("should drop every stacked block, not just the first", async () => {
+      await writeGuidelines(
+        "---\nname: review-guidelines\n---\n---\nseverity: bogus\n---\nRule.\n",
+      );
+
+      const imported = (
+        await FactorydroidCheck.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: SKILL_FILE_NAME,
+        })
+      ).toRulesyncChecks();
+
+      // A block left behind is re-read as the check's own frontmatter.
+      expect(imported[0]!.getBody()).toBe("Rule.");
+      expect(imported[0]!.getFrontmatter()).toEqual({ targets: ["*"] });
+    });
+
     it("should round-trip a body that contains a marker line", async () => {
       const body = "Example:\n\n<!-- rulesync:check:example -->";
       const [generated] = await FactorydroidCheck.fromRulesyncChecks({

@@ -130,7 +130,22 @@ type ToolSkillFactory = {
        * overlay-only command still shadows the same-named skill.
        */
       inputRoots: readonly string[];
+      /**
+       * The scope being processed, for hooks whose co-owner exists in only one
+       * of them (Factory Droid's checks output is project-only, so the same
+       * directory name is an ordinary skill in global mode).
+       */
+      global: boolean;
     }): Promise<boolean>;
+    /**
+     * Optional write-direction counterpart of `isDirOwned`: whether this tool
+     * may emit a skill directory of this name at all. A name another feature
+     * owns must not be written from a rulesync skill, because the skills
+     * feature then refuses to delete it again and the directory outlives the
+     * source it came from. Decided from the name and scope alone, since
+     * nothing is on disk yet.
+     */
+    canWriteDir?(params: { dirName: string; global: boolean }): boolean;
     /**
      * Opt-in name policy for the flat half of the `--delete` orphan sweep, for
      * a tool that writes one `<name>.md` per skill into a root it shares with
@@ -635,6 +650,17 @@ export class SkillsProcessor extends DirFeatureProcessor {
         if (!factory.class.isTargetedByRulesyncSkill(rulesyncSkill)) {
           return null;
         }
+        const dirName = rulesyncSkill.getDirName();
+        if (factory.class.canWriteDir?.({ dirName, global: this.global }) === false) {
+          // Another feature owns this output directory, so the skills feature
+          // never deletes it either: writing it here would leave a directory
+          // that outlives the rulesync skill it came from.
+          this.logger.warn(
+            `Skipping skill "${dirName}" for '${this.toolTarget}': another feature owns that ` +
+              `output directory. Rename the skill to generate it.`,
+          );
+          return null;
+        }
         return factory.class.fromRulesyncSkill({
           outputRoot: this.outputRoot,
           rulesyncSkill: rulesyncSkill,
@@ -1030,6 +1056,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       relativeDirPath,
       dirName,
       inputRoots: this.inputRoots,
+      global: this.global,
     });
   }
 

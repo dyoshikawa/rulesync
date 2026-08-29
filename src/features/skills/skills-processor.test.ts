@@ -279,6 +279,60 @@ describe("SkillsProcessor", () => {
       expect(toolDirs[0]).toBeInstanceOf(ClaudecodeSkill);
     });
 
+    it("should not generate a skill into a directory another feature owns", async () => {
+      // `.factory/skills/review-guidelines/` is the checks feature's output, and
+      // `FactorydroidSkill.isDirOwned` keeps the skills feature from deleting it
+      // again, so writing it from a skill would outlive the skill.
+      const logger = createMockLogger();
+      const factorydroidProcessor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "factorydroid",
+      });
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "review-guidelines",
+        frontmatter: {
+          name: "review-guidelines",
+          description: "Our guidelines",
+        },
+        body: "Content",
+        validate: false,
+      });
+
+      const toolDirs = await factorydroidProcessor.convertRulesyncDirsToToolDirs([rulesyncSkill]);
+
+      expect(toolDirs).toEqual([]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("review-guidelines"));
+    });
+
+    it("should generate that same skill in global mode", async () => {
+      // Factory's reviewer reads a repository, so checks has no user-level
+      // output and nothing else claims the name there.
+      const factorydroidProcessor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "factorydroid",
+        global: true,
+      });
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "review-guidelines",
+        frontmatter: {
+          name: "review-guidelines",
+          description: "Our guidelines",
+        },
+        body: "Content",
+        validate: false,
+      });
+
+      const toolDirs = await factorydroidProcessor.convertRulesyncDirsToToolDirs([rulesyncSkill]);
+
+      expect(toolDirs).toHaveLength(1);
+    });
+
     it("should not convert claudecode scheduled-task skills for non-claudecode targets", async () => {
       const cursorProcessor = new SkillsProcessor({
         logger: createMockLogger(),

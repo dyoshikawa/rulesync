@@ -233,20 +233,26 @@ export class FactorydroidSkill extends ToolSkill {
   /**
    * Whether a directory in `.factory/skills/` belongs to the skills feature.
    *
-   * `review-guidelines/` never does. The checks feature writes Factory's
-   * review guidelines there (see `FactorydroidCheck`), because Factory's
-   * automated reviewer reads that exact path, so the path has a single owner in
-   * both directions: the skills feature neither deletes the directory as an
-   * orphan on `generate --delete` nor imports it as a skill. Ownership cannot
-   * be decided from the file's shape instead — Factory's own documented example
-   * has no frontmatter, so a hand-authored `review-guidelines` is
-   * indistinguishable from a generated one until it is too late to put it back.
+   * Project-scoped `review-guidelines/` never does. The checks feature writes
+   * Factory's review guidelines there (see `FactorydroidCheck`), because
+   * Factory's automated reviewer reads that exact path, so the path has a
+   * single owner in both directions: the skills feature neither deletes the
+   * directory as an orphan on `generate --delete` nor imports it as a skill.
+   * Ownership cannot be decided from the file's shape instead — Factory's own
+   * documented example has no frontmatter, so a hand-authored
+   * `review-guidelines` is indistinguishable from a generated one until it is
+   * too late to put it back.
    *
    * `rulesync import --targets factorydroid --features checks` is what reads a
    * hand-authored file at this path.
+   *
+   * Global mode is unaffected: the reviewer runs against a repository, so
+   * checks has no user-level output and `~/.factory/skills/review-guidelines/`
+   * is an ordinary skill nobody else claims.
    */
   static async isDirOwned({
     dirName,
+    global,
   }: {
     outputRoot: string;
     relativeDirPath: string;
@@ -254,8 +260,20 @@ export class FactorydroidSkill extends ToolSkill {
     // Accepted for interface parity with tools whose ownership hook consults
     // the generated tree or `.rulesync/` sources; the path alone decides here.
     inputRoots: readonly string[];
+    global: boolean;
   }): Promise<boolean> {
-    return dirName !== FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
+    return global || dirName !== FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
+  }
+
+  /**
+   * The same single-owner rule in the write direction: a rulesync skill named
+   * `review-guidelines` is not generated into the project tree, because
+   * {@link isDirOwned} would then refuse to delete the directory again and it
+   * would outlive the skill it came from. The checks feature is where that path
+   * is authored.
+   */
+  static canWriteDir({ dirName, global }: { dirName: string; global: boolean }): boolean {
+    return global || dirName !== FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<FactorydroidSkill> {

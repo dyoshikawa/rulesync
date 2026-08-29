@@ -7,7 +7,6 @@ import {
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
 import {
   hasHandWrittenPreamble,
   isOnlyGeneratedSections,
@@ -37,28 +36,42 @@ const FALLBACK_CHECK_NAME = FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
  * review instructions. Left in the body it would be re-read as the check's own
  * frontmatter on the next load — a `severity: bogus` copied out of a skill
  * would then fail `.rulesync/checks/` validation for a file rulesync had just
- * written. Only the prose survives the import.
+ * written.
  *
- * The block goes even when its YAML does not parse, because writing the check
- * back out re-parses whatever leads the body: leaving a broken block in place
- * turns a stray `name: [unclosed` in someone else's file into an import that
- * throws.
+ * The block is found the way gray-matter finds it rather than by parsing it, so
+ * that exactly what gray-matter would have swallowed is dropped and no more:
+ * a block whose YAML is invalid goes too (writing the check back out re-parses
+ * whatever leads the body, so leaving it in place turns a stray
+ * `name: [unclosed` in someone else's file into an import that throws), while
+ * a fence nothing closes is left alone as the horizontal rule it is — treating
+ * it as frontmatter is what empties the file.
  */
-const LEADING_FRONTMATTER_PATTERN = /^\uFEFF?---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/;
+const FRONTMATTER_OPEN_PATTERN = /^\uFEFF?---[^\S\r\n]*\r?\n/;
+// gray-matter ends the block at the first `\n---`, with no requirement that the
+// delimiter be alone on its line, and drops one newline after it.
+const FRONTMATTER_CLOSE_PATTERN = /\r?\n---/;
+const LEADING_BLANK_LINE_PATTERN = /^[^\S\r\n]*\r?\n/;
 
 function stripSkillFrontmatter(fileContent: string): string {
-  if (!fileContent.startsWith("---") && !fileContent.startsWith("\uFEFF---")) {
-    return fileContent;
-  }
-  try {
-    const { body, hasFrontmatter } = parseFrontmatter(fileContent);
-    if (hasFrontmatter) {
-      return body;
+  let content = fileContent;
+  // A loop, not a single pass: the written check is re-read from its own text,
+  // so a second block stacked behind the first would become its frontmatter.
+  for (;;) {
+    const opening = FRONTMATTER_OPEN_PATTERN.exec(content);
+    if (!opening) {
+      return content;
     }
-  } catch {
-    // Fall through: the YAML is this file's problem, not rulesync's to report.
+    const rest = content.slice(opening[0].length);
+    const closing = FRONTMATTER_CLOSE_PATTERN.exec(rest);
+    if (!closing) {
+      // Nothing closes the fence, so this is prose under a horizontal rule and
+      // only the rule itself goes. Reading it as frontmatter would leave an
+      // empty body, and the warning on the generate side tells people to import
+      // this file precisely to keep what it holds.
+      return rest;
+    }
+    content = rest.slice(closing.index + closing[0].length).replace(LEADING_BLANK_LINE_PATTERN, "");
   }
-  return fileContent.replace(LEADING_FRONTMATTER_PATTERN, "");
 }
 
 /**
@@ -159,9 +172,9 @@ export class FactorydroidCheck extends ToolCheck {
         `Factory Droid checks: ${filePath} holds instructions rulesync did not write, and ` +
           `generating replaces the whole file. If they were hand-authored, run ` +
           `\`rulesync import --targets factorydroid --features checks\` first to keep them. ` +
-          `If they came from a rulesync skill named ` +
-          `\`${FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME}\`, rename that skill instead: Factory's ` +
-          `reviewer reads this path, so the checks feature owns it.`,
+          `A rulesync skill named \`${FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME}\` is no longer ` +
+          `generated here — Factory's reviewer reads this path, so the checks feature owns it — ` +
+          `but a directory an older rulesync wrote can still be sitting there.`,
       );
     }
 
