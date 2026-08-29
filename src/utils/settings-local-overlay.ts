@@ -42,6 +42,7 @@ export async function readSettingsWithLocalOverlay({
   toolLabel,
   baseFallbackContent,
   sensitiveKeys = [],
+  quiet = false,
   merge,
   logger,
 }: {
@@ -57,6 +58,14 @@ export async function readSettingsWithLocalOverlay({
    * is worth a sentence of its own in the warning; the rest are named anyway.
    */
   sensitiveKeys?: readonly string[];
+  /**
+   * Read without saying anything. For a caller that may throw the result away —
+   * warning about a file whose values were then discarded describes something
+   * that did not happen. Omitting `logger` does not do this: the warning falls
+   * back to the shared logger, and it would spend the once-per-run token that
+   * the caller's own read needs.
+   */
+  quiet?: boolean;
   /** Stands in for a missing base file; omit to get `null` instead. */
   baseFallbackContent?: string;
   /**
@@ -117,7 +126,9 @@ export async function readSettingsWithLocalOverlay({
     baseParsed = parsed;
   }
 
-  warnAboutLocalKeys({ localParsed, configPath, toolLabel, sensitiveKeys, logger });
+  if (!quiet) {
+    warnAboutLocalKeys({ localParsed, configPath, toolLabel, sensitiveKeys, logger });
+  }
 
   return JSON.stringify(merge(baseParsed, localParsed), null, 2);
 }

@@ -24,16 +24,19 @@ function overrideFactorydroidSettings(
 }
 
 /**
- * Settings whose value decides what Droid may do rather than how it behaves:
- * every key the `factorydroid` permissions override round-trips — the sandbox
- * and network tiers, the autonomy ceilings, the hard command blocklist, the
- * Droid Shield switch, the plugin and marketplace bootstrap, the hooks and
- * skills kill-switches — plus the command lists and the hooks themselves, which
- * the shared blocks own. Deriving the bulk of the list keeps it from drifting
- * behind the override as keys are added there.
+ * Settings a machine-local file must not publish by accident, so the overlay's
+ * warning calls them out by name: every key the `factorydroid` permissions
+ * override round-trips — the sandbox and network tiers, the autonomy ceilings,
+ * the hard command blocklist, the Droid Shield switch, the plugin and
+ * marketplace bootstrap, the hooks and skills kill-switches — plus the command
+ * lists and the hooks themselves, which the shared blocks own.
  *
- * A machine-local value for one of these is the kind that must not be published
- * by accident, so the overlay's warning calls them out by name.
+ * The list is derived from the override rather than written out, so it cannot
+ * drift behind it as keys are added there. That sweeps in a couple that shape
+ * how a session behaves by default rather than what Droid may do
+ * (`interactionMode`, `sessionDefaultSettings`), and deliberately: naming one
+ * key too many costs a sentence, while missing one that grants power is the
+ * failure this warning exists to prevent.
  *
  * @see https://docs.factory.ai/cli/configuration/settings
  */
@@ -62,11 +65,14 @@ export async function readFactorydroidSettingsWithLocalOverlay({
   outputRoot,
   relativeDirPath,
   baseFileName,
+  quiet = false,
   logger,
 }: {
   outputRoot: string;
   relativeDirPath: string;
   baseFileName: string;
+  /** Read without warning about the machine-local file; see the shared helper. */
+  quiet?: boolean;
   logger?: Logger;
 }): Promise<string | null> {
   return await readSettingsWithLocalOverlay({
@@ -76,6 +82,7 @@ export async function readFactorydroidSettingsWithLocalOverlay({
     localFileName: FACTORYDROID_SETTINGS_LOCAL_FILE_NAME,
     toolLabel: "Factory Droid",
     sensitiveKeys: FACTORYDROID_GUARDRAIL_KEYS,
+    quiet,
     merge: overrideFactorydroidSettings,
     logger,
   });

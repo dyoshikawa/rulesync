@@ -26,10 +26,12 @@ describe("readSettingsWithLocalOverlay", () => {
   const read = ({
     baseFallbackContent,
     sensitiveKeys,
+    quiet,
     logger,
   }: {
     baseFallbackContent?: string;
     sensitiveKeys?: readonly string[];
+    quiet?: boolean;
     logger?: ReturnType<typeof createMockLogger>;
   } = {}): Promise<string | null> =>
     readSettingsWithLocalOverlay({
@@ -40,6 +42,7 @@ describe("readSettingsWithLocalOverlay", () => {
       toolLabel: "Test Tool",
       ...(baseFallbackContent !== undefined && { baseFallbackContent }),
       ...(sensitiveKeys !== undefined && { sensitiveKeys }),
+      ...(quiet !== undefined && { quiet }),
       ...(logger !== undefined && { logger }),
       merge: (base, local) => ({ ...base, ...local, merged: true }),
     });
@@ -148,7 +151,23 @@ describe("readSettingsWithLocalOverlay", () => {
 
     await read({ sensitiveKeys: ["sandbox"], logger });
 
+    // Paired: without the positive half, a warning that stopped being emitted
+    // at all would satisfy the negative one.
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"editor"'));
     expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("is allowed to do"));
+  });
+
+  it("should keep the once-per-run warning for the read that is not quiet", async () => {
+    await write("settings.json", '{"a":1}');
+    await write("settings.local.json", '{"maxAutonomyLevel":"high"}');
+    const logger = createMockLogger();
+
+    // A caller that may discard the result probes first; the warning belongs to
+    // the read whose values are actually kept.
+    await read({ quiet: true, logger });
+    await read({ logger });
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
   });
 
   it("should stay quiet when there is no local file", async () => {

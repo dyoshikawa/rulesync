@@ -80,7 +80,6 @@ const AUGMENTCODE_GUARDRAIL_KEYS = ["toolPermissions", "hooks", "mcpServers", "p
  *
  * @see https://docs.augmentcode.com/cli/config
  */
-
 export async function readAugmentcodeSettingsWithLocalOverlay({
   outputRoot,
   relativeDirPath,
