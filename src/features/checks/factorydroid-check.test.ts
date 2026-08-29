@@ -127,6 +127,12 @@ describe("FactorydroidCheck", () => {
         ),
       ).toBe(handWritten);
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("rulesync did not write"));
+      // Importing copies the text out but leaves this file alone, so saying
+      // "import it" on its own would send people round a loop that never ends.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("and then delete the file"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("keeps blocking generation"),
+      );
     });
 
     it("should stay quiet when the existing file is only generated sections", async () => {

@@ -11,7 +11,7 @@ import {
 import { CODEXCLI_BASH_RULES_FILE_NAME, CODEXCLI_DIR } from "../../constants/codexcli-paths.js";
 import {
   FACTORYDROID_DIR,
-  FACTORYDROID_LOCAL_SETTINGS_FILE_NAME,
+  FACTORYDROID_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
@@ -114,7 +114,7 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   {
     target: "factorydroid",
     feature: "general",
-    entry: `**/${FACTORYDROID_DIR}/${FACTORYDROID_LOCAL_SETTINGS_FILE_NAME}`,
+    entry: `**/${FACTORYDROID_DIR}/${FACTORYDROID_SETTINGS_LOCAL_FILE_NAME}`,
   },
   // AugmentCode's personal settings overlay, read on import for the same reason
   // and documented the same way as Factory Droid's above.

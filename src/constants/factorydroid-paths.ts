@@ -15,7 +15,7 @@ export const FACTORYDROID_HOOKS_FILE_NAME = "hooks.json";
  * on import and never writes it.
  * @see https://docs.factory.ai/droid-cli/settings
  */
-export const FACTORYDROID_LOCAL_SETTINGS_FILE_NAME = "settings.local.json";
+export const FACTORYDROID_SETTINGS_LOCAL_FILE_NAME = "settings.local.json";
 
 /**
  * The pre-1.0 hooks location Droid still reads when `.factory/hooks.json` is

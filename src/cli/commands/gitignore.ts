@@ -193,7 +193,12 @@ const groupEntriesByDestination = ({
       }
     }
 
-    if (destinations.has("gitattributes")) {
+    // Git forbids negative patterns in `.gitattributes` — it warns "Negative
+    // patterns are ignored in git attributes" every time it reads the file — and
+    // a negation only means anything beside the ignore rule it overrides, which
+    // lives in `.gitignore`. So an entry routed to `.gitattributes` keeps its
+    // widened directory pattern and drops the exceptions written for it.
+    if (destinations.has("gitattributes") && !entry.entry.startsWith("!")) {
       gitattributes.add(entry.entry);
     }
     if (destinations.size === 0 || destinations.has("gitignore")) {

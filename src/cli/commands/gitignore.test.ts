@@ -601,5 +601,24 @@ dist/`;
         expect.stringContaining("**/CLAUDE.md"),
       );
     });
+
+    it("keeps negative patterns out of .gitattributes", async () => {
+      const getGitignoreDestination = vi.fn().mockReturnValue("gitattributes");
+      vi.mocked(ConfigResolver.resolve).mockResolvedValueOnce({
+        getGitignoreDestination,
+      } as never);
+      vi.mocked(fileExists).mockResolvedValue(false);
+
+      await gitignoreCommand(mockLogger, { targets: ["factorydroid"], features: ["skills"] });
+
+      const written = vi
+        .mocked(writeFileContent)
+        .mock.calls.find(([filePath]) => filePath === "/workspace/.gitattributes")?.[1];
+
+      // Git warns "Negative patterns are ignored in git attributes" for every
+      // one of these, and they only mean something beside a `.gitignore` rule.
+      expect(written).toContain("**/.factory/skills/**");
+      expect(written).not.toContain("!");
+    });
   });
 });
