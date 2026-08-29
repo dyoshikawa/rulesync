@@ -246,6 +246,27 @@ export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
   { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
 ];
 
+/**
+ * Entries an older rulesync wrote that this one no longer emits, each paired
+ * with the entry that took its place. They are still recognized so `rulesync
+ * gitignore` can take the old spelling back out of the file it manages.
+ *
+ * Leaving one behind is not harmless. A bare `.factory/skills/` directory
+ * pattern ignores the directory itself, and git never descends into an ignored
+ * directory — so the widened contents pattern and the negations that re-include
+ * the committed Factory Droid checks file would all be dead letters, and the
+ * reviewer would never see a file rulesync writes on every generate.
+ */
+export const RETIRED_GITIGNORE_ENTRIES: ReadonlyArray<{
+  readonly entry: string;
+  readonly replacedBy: string;
+}> = [
+  {
+    entry: `**/${FACTORYDROID_DIR}/skills/`,
+    replacedBy: `**/${FACTORYDROID_DIR}/skills/**`,
+  },
+];
+
 export const ALL_GITIGNORE_ENTRIES: ReadonlyArray<string> = (() => {
   // The registry may register the SAME entry under multiple feature tags
   // The exported default list excludes opt-in packaging targets and dedupes
