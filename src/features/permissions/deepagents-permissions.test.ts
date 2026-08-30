@@ -644,6 +644,40 @@ describe("DeepagentsPermissions", () => {
       );
     });
 
+    it("does not call a withheld allow rule auto-approved", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "git push": "allow", "git *": "deny" } } },
+        logger,
+      });
+
+      // Reducing `git push` to `git` widens it, but the deny rule then withholds
+      // that entry — so the warning about widening would announce an approval
+      // the file does not carry.
+      expect(smolToml.parse(content).shell).toBeUndefined();
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("were widened to their first token"),
+      );
+    });
+
+    it("refuses to write `all` when another tool's rule asks to be prompted", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "*": "allow" }, webfetch: { "*": "ask" } } },
+        logger,
+      });
+
+      // `all` switches dcode's dangerous-pattern check off for every command,
+      // so a config that asks about anything is already stricter than the
+      // sentinel — an `ask` written for another tool no less than a deny.
+      expect(smolToml.parse(content).shell).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("your config restricts 'webfetch'"),
+      );
+    });
+
     it("names the other tool's rules when they are what blocked the sentinel", async () => {
       const logger = createMockLogger();
 
@@ -655,7 +689,7 @@ describe("DeepagentsPermissions", () => {
       // No bash deny rule exists, so "your config denies commands" would describe
       // a rule the author never wrote.
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("your config has deny rules for other tools"),
+        expect.stringContaining("your config restricts 'read'"),
       );
     });
 

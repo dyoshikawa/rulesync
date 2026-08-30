@@ -12,7 +12,7 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   collectShellCommandRules,
-  createShadowedAllowTest,
+  createShadowingRestrictionsTest,
   SHELL_PERMISSION_CATEGORY,
 } from "./shell-command-categories.js";
 import {
@@ -49,6 +49,11 @@ type ClineTranslationResult = {
   droppedCategories: string[];
   translatedAskPatterns: string[];
   shadowedAllowPatterns: string[];
+  /**
+   * All-tools `deny` patterns written into the denylist that withheld no allow
+   * rule, so nothing observed says they name a command Cline can block.
+   */
+  unenforcedAllToolsDenyPatterns: string[];
   ignoredAllToolsAllowPatterns: string[];
 };
 
@@ -85,9 +90,11 @@ function translateClinePermissions(
   // case where it *is* a command). Translating the `ask` to `deny` outright would
   // turn the ordinary catch-all `{"*": {"*": "ask"}}` into a block on every
   // command — one Cline's additive `deny` merge would then keep forever.
-  const isShadowed = createShadowedAllowTest(
+  const shadowingRestrictions = createShadowingRestrictionsTest(
     rules.filter(({ fromAllToolsCategory }) => fromAllToolsCategory),
   );
+  const allToolsDenyPatterns: string[] = [];
+  const withholdingPatterns = new Set<string>();
 
   for (const { pattern, action, fromAllToolsCategory } of rules) {
     if (action === "ask") {
@@ -103,14 +110,28 @@ function translateClinePermissions(
     }
     if (action === "deny") {
       deny.push(pattern);
+      if (fromAllToolsCategory) {
+        allToolsDenyPatterns.push(pattern);
+      }
       continue;
     }
-    if (isShadowed(pattern)) {
+    const shadowing = shadowingRestrictions(pattern);
+    if (shadowing.length > 0) {
       shadowedAllowPatterns.push(pattern);
+      for (const restriction of shadowing) {
+        withholdingPatterns.add(restriction);
+      }
       continue;
     }
     allow.push(pattern);
   }
+
+  // A `*` deny that overlapped some allow rule restricts whatever it names. One
+  // that overlapped none may be a path pattern sitting in a command denylist,
+  // where it blocks nothing — the author wrote it to stop something, so say so.
+  const unenforcedAllToolsDenyPatterns = uniq(allToolsDenyPatterns).filter(
+    (pattern) => !withholdingPatterns.has(pattern),
+  );
 
   return {
     allow,
@@ -118,6 +139,7 @@ function translateClinePermissions(
     droppedCategories,
     translatedAskPatterns,
     shadowedAllowPatterns,
+    unenforcedAllToolsDenyPatterns,
     ignoredAllToolsAllowPatterns,
   };
 }
@@ -132,12 +154,14 @@ function warnClineTranslationNotices({
   droppedCategories,
   translatedAskPatterns,
   shadowedAllowPatterns,
+  unenforcedAllToolsDenyPatterns,
   ignoredAllToolsAllowPatterns,
   logger,
 }: {
   droppedCategories: string[];
   translatedAskPatterns: string[];
   shadowedAllowPatterns: string[];
+  unenforcedAllToolsDenyPatterns: string[];
   ignoredAllToolsAllowPatterns: string[];
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
@@ -145,6 +169,7 @@ function warnClineTranslationNotices({
     droppedCategories.length === 0 &&
     translatedAskPatterns.length === 0 &&
     shadowedAllowPatterns.length === 0 &&
+    unenforcedAllToolsDenyPatterns.length === 0 &&
     ignoredAllToolsAllowPatterns.length === 0
   ) {
     return;
@@ -169,6 +194,14 @@ function warnClineTranslationNotices({
         `need not name a command Cline's own lists can act on. Cline's allowlist is a gate — ` +
         `once set, only the commands matching it run without approval — so withholding every ` +
         `entry leaves every command asking`,
+    );
+  }
+  if (unenforcedAllToolsDenyPatterns.length > 0) {
+    parts.push(
+      `'deny' rules for [${unenforcedAllToolsDenyPatterns.join(", ")}] under the all-tools '*' ` +
+        `category written into the denylist as they stand, where they withheld no allow rule — ` +
+        `a pattern written there need not name a command, and a denylist entry that names none ` +
+        `blocks nothing; write it under 'bash' if it is a command pattern`,
     );
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {
@@ -260,6 +293,7 @@ export class ClinePermissions extends ToolPermissions {
       droppedCategories,
       translatedAskPatterns,
       shadowedAllowPatterns,
+      unenforcedAllToolsDenyPatterns,
       ignoredAllToolsAllowPatterns,
     } = translateClinePermissions(config.permission);
 
@@ -267,6 +301,7 @@ export class ClinePermissions extends ToolPermissions {
       droppedCategories,
       translatedAskPatterns,
       shadowedAllowPatterns,
+      unenforcedAllToolsDenyPatterns,
       ignoredAllToolsAllowPatterns,
       logger,
     });

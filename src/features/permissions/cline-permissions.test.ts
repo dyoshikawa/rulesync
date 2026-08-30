@@ -198,7 +198,8 @@ describe("ClinePermissions", () => {
     expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("withheld because"));
   });
 
-  it("should still write an all-tools deny that names no command at all", async () => {
+  it("should still write an all-tools deny that names no command at all, and say it blocks nothing", async () => {
+    const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
@@ -213,13 +214,17 @@ describe("ClinePermissions", () => {
     const instance = await ClinePermissions.fromRulesyncPermissions({
       outputRoot: testDir,
       rulesyncPermissions,
+      logger,
     });
 
     // `secrets/**` matches no command, so the entry is inert — but dropping it
-    // would lose the rule on a later import, and it costs nothing to keep.
+    // would lose the rule on a later import, and it costs nothing to keep. It
+    // withheld no allow rule either, which leaves the author's deny stopping
+    // nothing; that is worth a word rather than silence.
     const content = JSON.parse(instance.getFileContent());
     expect(content.deny).toEqual(["secrets/**"]);
     expect(content.allow).toEqual(["git *"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("withheld no allow rule"));
   });
 
   it("should ignore the all-tools category's allow rules", async () => {

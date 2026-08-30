@@ -456,6 +456,7 @@ function warnAboutUnwrittenBashRules({
   requestedAllowAll,
   askPatterns,
   denyPatterns,
+  foreignRestrictingCategories,
   shadowedAsk,
   shadowedDeny,
   unenforcedDeny,
@@ -469,6 +470,8 @@ function warnAboutUnwrittenBashRules({
   requestedAllowAll: boolean;
   askPatterns: string[];
   denyPatterns: string[];
+  /** Categories other than `bash` and `*` that carry a `deny` or an `ask`. */
+  foreignRestrictingCategories: string[];
   /** The `ask` rules whose executables were dropped from the allowlist. */
   shadowedAsk: string[];
   /** The `deny` rules whose executables were dropped from the allowlist. */
@@ -548,11 +551,13 @@ function warnAboutUnwrittenBashRules({
     // sentinel just as a bash one does, and so does an `ask`: 'all' turns
     // dcode's dangerous-pattern check off wholesale and approves every command
     // unseen, so any restriction in the config makes it too broad.
-    let restrictionReason = `your config has deny rules for other tools`;
+    let restrictionReason = `your config restricts other tools`;
     if (denyPatterns.length > 0) {
       restrictionReason = `your config denies commands`;
     } else if (askPatterns.length > 0) {
       restrictionReason = `your config asks before running commands`;
+    } else if (foreignRestrictingCategories.length > 0) {
+      restrictionReason = `your config restricts '${foreignRestrictingCategories.join("', '")}'`;
     }
     warnWithFallback(
       logger,
@@ -849,16 +854,19 @@ function convertRulesyncToDeepagentsAllowList({
   logger?: Logger;
 }): string[] {
   const allowed: string[] = [];
-  const widenedPatterns: string[] = [];
+  const widened: { pattern: string; token: string }[] = [];
   const unmatchablePatterns: string[] = [];
   const sentinelPatterns: string[] = [];
   const askPatterns: string[] = [];
   const denyPatterns: string[] = [];
   let requestedAllowAll = false;
 
-  const { rules, foreignDenyCategories, ignoredAllToolsAllowPatterns } = collectShellCommandRules(
-    config.permission,
-  );
+  const {
+    rules,
+    foreignDenyCategories,
+    foreignRestrictingCategories,
+    ignoredAllToolsAllowPatterns,
+  } = collectShellCommandRules(config.permission);
   // Shared with the other command-only adapters so a rule dropped in one is
   // worded the same way in all. `shadowedAllowPatterns` is empty here because
   // dcode reduces every pattern to an executable name, so the allow entries a
@@ -905,7 +913,7 @@ function convertRulesyncToDeepagentsAllowList({
       continue;
     }
     if (reduced.widened) {
-      widenedPatterns.push(pattern);
+      widened.push({ pattern, token: reduced.token });
     }
     allowed.push(reduced.token);
   }
@@ -917,7 +925,7 @@ function convertRulesyncToDeepagentsAllowList({
   // conflict — an `ask` as much as a `deny`, since neither wants a command
   // approved unseen — and the `*` allow is dropped instead.
   const hasRestriction =
-    foreignDenyCategories.length > 0 || denyPatterns.length > 0 || askPatterns.length > 0;
+    foreignRestrictingCategories.length > 0 || denyPatterns.length > 0 || askPatterns.length > 0;
   const allowAll = requestedAllowAll && !hasRestriction;
   const candidates = uniq(allowed.toSorted());
   const { shadowedAsk, shadowedDeny, unenforcedDeny, withheldTokens } = partitionRestrictingRules({
@@ -937,10 +945,15 @@ function convertRulesyncToDeepagentsAllowList({
     requestedAllowAll,
     askPatterns,
     denyPatterns,
+    foreignRestrictingCategories,
     shadowedAsk,
     shadowedDeny,
     unenforcedDeny,
-    widenedPatterns,
+    // A widened pattern that was then withheld auto-approves nothing, so it is
+    // reported by the rule that withheld it rather than as a widening.
+    widenedPatterns: uniq(
+      widened.filter(({ token }) => !withheldTokens.has(token)).map(({ pattern }) => pattern),
+    ),
     unmatchablePatterns,
     sentinelPatterns,
     willWrite,

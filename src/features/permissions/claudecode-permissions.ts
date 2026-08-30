@@ -15,6 +15,7 @@ import {
   SHARED_CONFIG_OWNERSHIP,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { ALL_TOOLS_PERMISSION_CATEGORY } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -1271,8 +1272,18 @@ function convertRulesyncToClaudePermissions({
   // hear about it rather than discover it later.
   const actionByEntry = new Map<string, PermissionAction>();
 
+  const allToolsPatterns: string[] = [];
+
   for (const [category, rules] of Object.entries(config.permission)) {
     const claudeToolName = toClaudeToolName(category);
+    if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
+      // Claude Code names a tool per rule and has no key standing for every
+      // one, so `*` is written through as the tool name it is not: the entry
+      // round-trips back to the same canonical rule, but Claude Code matches no
+      // tool with it and enforces nothing. Say so, since the rule the author
+      // wrote there is usually the restricting one.
+      allToolsPatterns.push(...Object.keys(rules));
+    }
     for (const [pattern, action] of Object.entries(rules)) {
       const entry = buildClaudePermissionEntry(claudeToolName, pattern);
       const previous = actionByEntry.get(entry);
@@ -1296,6 +1307,15 @@ function convertRulesyncToClaudePermissions({
           break;
       }
     }
+  }
+
+  if (allToolsPatterns.length > 0) {
+    logger?.warn(
+      `Claude Code permissions: a rule names one tool, and there is no name standing for every ` +
+        `tool, so the all-tools '*' rule(s) for ${allToolsPatterns.join(", ")} were written as ` +
+        `'*(pattern)' entries that Claude Code matches against no tool. Write them under the ` +
+        `categories they are meant for (for example 'bash' or 'read') to have them enforced.`,
+    );
   }
 
   return { allow, ask, deny };

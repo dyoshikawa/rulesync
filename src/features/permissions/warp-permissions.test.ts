@@ -273,6 +273,25 @@ describe("WarpPermissions", () => {
       expect(profilesOf(perms.getFileContent())[ALLOWLIST_KEY]).toEqual(["^sudo apt install$"]);
     });
 
+    it("withholds an allow a case-insensitive flag can reach", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // `(?i)` makes everything after it case-insensitive, so this asks
+            // about `RM -rf /` as much as about `rm -rf /`. Reading the group as
+            // just another atom would compare a glob that matches neither
+            // spelling of the allow beside it.
+            "(?i)rm": "ask",
+            "^RM -rf /$": "allow",
+          },
+        }),
+        global: true,
+      });
+
+      expect(profilesOf(perms.getFileContent())[ALLOWLIST_KEY]).toBeUndefined();
+    });
+
     it("withholds an allow that only an escaped bracket keeps apart", async () => {
       const perms = await WarpPermissions.fromRulesyncPermissions({
         outputRoot: testDir,

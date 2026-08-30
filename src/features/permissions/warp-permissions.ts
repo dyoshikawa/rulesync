@@ -580,8 +580,41 @@ function escapedCharacterWidens(escaped: string): boolean {
 }
 
 /**
+ * Read one `[...]`, `(...)` or `{...}` construct starting at `start`, saying
+ * where it ends and whether it repeats the atom in front of it (a quantifier)
+ * or is an atom of its own (a class or a group) — or that the whole pattern has
+ * to widen, which is the only safe reading of a construct that never closes and
+ * of one that sets flags for everything after it.
+ */
+function readBracketedConstruct(
+  body: string,
+  start: number,
+  open: string,
+): { next: number; widensLastAtom: boolean } | "widens-pattern" {
+  const next = skipBracketedConstruct(body, start, open);
+  if (next === undefined) {
+    return "widens-pattern";
+  }
+  // `(?i)` and its kin set flags for everything that follows rather than
+  // matching anything themselves, and a case-insensitive rest-of-pattern covers
+  // spellings the glob written here does not. Widening only the group would
+  // narrow the reading, so the whole pattern widens.
+  if (open === "(" && INLINE_FLAG_GROUP_PATTERN.test(body.slice(start, next))) {
+    return "widens-pattern";
+  }
+  return { next, widensLastAtom: open === "{" };
+}
+
+/**
+ * A group that only sets flags — `(?i)`, `(?im)`, `(?-i)` — as opposed to one
+ * that scopes them to its own body (`(?i:...)`, which widens to `*` like any
+ * other group).
+ */
+const INLINE_FLAG_GROUP_PATTERN = /^\(\?[A-Za-z]*-?[A-Za-z]*\)$/;
+
+/**
  * Approximate a Warp command pattern as a glob, so restrictions and allow rules
- * can be compared by `createShadowedAllowTest`.
+ * can be compared by `createShadowingRestrictionsTest`.
  *
  * Warp matches commands with regular expressions, and a glob reader would
  * misread the ordinary spellings: `.*` — Warp's catch-all — is a literal dot
@@ -637,14 +670,12 @@ function warpCommandPatternToGlob(pattern: string): string {
       continue;
     }
     if (character === "[" || character === "(" || character === "{") {
-      const next = skipBracketedConstruct(body, index, character);
-      if (next === undefined) {
+      const read = readBracketedConstruct(body, index, character);
+      if (read === "widens-pattern") {
         return "*";
       }
-      index = next;
-      // A quantifier repeats the atom in front of it; a class or a group is an
-      // atom of its own.
-      if (character === "{") {
+      index = read.next;
+      if (read.widensLastAtom) {
         widenLastAtom();
       } else {
         atoms.push("*");

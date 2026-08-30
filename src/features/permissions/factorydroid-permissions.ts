@@ -257,15 +257,17 @@ function convertRulesyncToFactorydroidPermissions({
   // name. It withholds the allow rules it covers all the same: a pattern under
   // `*` such as `secrets/**` names no command, so the entry alone would leave
   // the very access the author denied auto-approved by the allowlist.
-  const { allow, deny, shadowedAllowPatterns } = partitionCommandRules({
-    rules,
-    writesAllToolsDeny: true,
-  });
+  const { allow, deny, shadowedAllowPatterns, unenforcedAllToolsDenyPatterns } =
+    partitionCommandRules({
+      rules,
+      writesAllToolsDeny: true,
+    });
   warnAboutUnwrittenCommandRules({
     toolLabel: "Factory Droid",
     surfaceLabel: "commandAllowlist/commandDenylist",
     foreignDenyCategories,
     shadowedAllowPatterns,
+    unenforcedAllToolsDenyPatterns,
     ignoredAllToolsAllowPatterns,
     logger,
   });

@@ -208,7 +208,7 @@ function isAllStars(steps: readonly GlobStep[], index: number): boolean {
 }
 
 /**
- * The most work the intersection walk will do, counted in cells times the cost
+ * The most work one intersection walk will do, counted in cells times the cost
  * of one. Past it the two patterns are reported as intersecting without being
  * walked: the product of two lengths grows quadratically, and a pattern long
  * enough to reach this is pathological rather than a command anybody typed.
@@ -216,6 +216,44 @@ function isAllStars(steps: readonly GlobStep[], index: number): boolean {
  * closed.
  */
 const MAX_INTERSECTION_CELLS = 1_000_000;
+
+/**
+ * The most work a whole run of comparisons will do. A caller holding R
+ * restrictions and A allow rules asks R x A times, and a per-pair cap alone
+ * bounds none of that: a hundred restrictions against a hundred allow rules,
+ * each pattern just under the per-pair cap, is ten thousand affordable walks
+ * that together take minutes. The shared budget is spent down across the run
+ * and, once it is gone, every remaining pair is reported as intersecting —
+ * again the direction that withholds an `allow` rather than writing one.
+ */
+const MAX_TOTAL_INTERSECTION_CELLS = 10_000_000;
+
+/** What a run of comparisons has left to spend; see `createIntersectionBudget`. */
+export type IntersectionBudget = { remaining: number };
+
+/**
+ * A budget for one caller's run of comparisons. Hand the same one to every
+ * `parsedGlobsIntersect` call that belongs together — one adapter reading one
+ * config — so the run as a whole stays bounded rather than only each pair in
+ * it.
+ */
+export function createIntersectionBudget(
+  remaining: number = MAX_TOTAL_INTERSECTION_CELLS,
+): IntersectionBudget {
+  return { remaining };
+}
+
+/** A glob parsed once, for a caller that compares it more than once. */
+export type ParsedGlob = { steps: GlobStep[]; maxRanges: number };
+
+/**
+ * Parse `glob` into the form `parsedGlobsIntersect` walks. A caller comparing
+ * the same pattern against a whole list parses it once and reuses the result.
+ */
+export function parseGlobPattern(glob: string): ParsedGlob {
+  const steps = parseGlob(glob);
+  return { steps, maxRanges: maxRangeCount(steps) };
+}
 
 /**
  * What one cell can cost, as a multiplier on the cell count. A literal met by a
@@ -256,15 +294,39 @@ function maxRangeCount(steps: readonly GlobStep[]): number {
  * assumed to be yes, which over-reports rather than misses.
  */
 export function globsIntersect(left: string, right: string): boolean {
-  const leftSteps = parseGlob(left);
-  const rightSteps = parseGlob(right);
+  return parsedGlobsIntersect(parseGlobPattern(left), parseGlobPattern(right));
+}
+
+/**
+ * `globsIntersect` for two globs already parsed, optionally spending a budget
+ * shared with the rest of the caller's run — see `createIntersectionBudget`.
+ * Once that budget is exhausted every further pair answers `true` without being
+ * walked, so a caller reading the answer as a reason to restrict stays on the
+ * safe side.
+ */
+export function parsedGlobsIntersect(
+  left: ParsedGlob,
+  right: ParsedGlob,
+  budget?: IntersectionBudget,
+): boolean {
   // The walk is symmetric, so the shorter list can always be the one held in a
   // row — `columns` below is its length.
   const [rows, columns] =
-    leftSteps.length >= rightSteps.length ? [leftSteps, rightSteps] : [rightSteps, leftSteps];
-  const cellCost = 1 + maxRangeCount(rows) + maxRangeCount(columns);
-  if (rows.length * columns.length * cellCost > MAX_INTERSECTION_CELLS) {
+    left.steps.length >= right.steps.length ? [left.steps, right.steps] : [right.steps, left.steps];
+  const cellCost = 1 + left.maxRanges + right.maxRanges;
+  const cost = rows.length * columns.length * cellCost;
+  if (cost > MAX_INTERSECTION_CELLS) {
     return true;
+  }
+  if (budget !== undefined) {
+    if (cost > budget.remaining) {
+      // Spent to the last cell rather than left at whatever fell short of this
+      // pair: a cheaper pair later must not slip through a budget this one
+      // already ended.
+      budget.remaining = 0;
+      return true;
+    }
+    budget.remaining -= cost;
   }
 
   // `row[j]` — can the steps from the current row index and from `j` on produce

@@ -1,5 +1,11 @@
+import { uniq } from "es-toolkit";
+
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
-import { globsIntersect } from "../../utils/glob.js";
+import {
+  createIntersectionBudget,
+  parseGlobPattern,
+  parsedGlobsIntersect,
+} from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 
 /** The canonical category that names a shell command's permissions. */
@@ -33,6 +39,12 @@ export type ShellCommandRules = {
    */
   foreignDenyCategories: string[];
   /**
+   * Categories that are neither `bash` nor `*` and carry a `deny` **or** an
+   * `ask`, for an adapter that has to know whether the config restricts
+   * anything at all — a foreign `ask` restricts as surely as a foreign `deny`.
+   */
+  foreignRestrictingCategories: string[];
+  /**
    * All-tools `allow` patterns deliberately left out of `rules`, so an adapter
    * can report what it dropped rather than dropping it in silence.
    */
@@ -61,6 +73,7 @@ export function collectShellCommandRules(
 ): ShellCommandRules {
   const rules: ShellCommandRule[] = [];
   const foreignDenyCategories: string[] = [];
+  const foreignRestrictingCategories: string[] = [];
   const ignoredAllToolsAllowPatterns: string[] = [];
 
   for (const [category, categoryRules] of Object.entries(permission)) {
@@ -80,17 +93,29 @@ export function collectShellCommandRules(
       }
       continue;
     }
-    if (Object.values(categoryRules).some((action) => action === "deny")) {
+    const actions = Object.values(categoryRules);
+    if (actions.some((action) => action === "deny")) {
       foreignDenyCategories.push(category);
+    }
+    if (actions.some((action) => action === "deny" || action === "ask")) {
+      foreignRestrictingCategories.push(category);
     }
   }
 
-  return { rules, foreignDenyCategories, ignoredAllToolsAllowPatterns };
+  return {
+    rules,
+    foreignDenyCategories,
+    foreignRestrictingCategories,
+    ignoredAllToolsAllowPatterns,
+  };
 }
 
 /**
  * Build the test an adapter applies to an `allow` pattern before writing it:
- * does any restriction it cannot write name some of the same commands?
+ * which restrictions it cannot write name some of the same commands? The
+ * answer is the list of those restrictions — empty when the `allow` may be
+ * written — so a caller can report both the allow rules it withheld and the
+ * restrictions that withheld nothing.
  *
  * Canonically the stricter rule wins **whatever its width** — rulesync collapses
  * colliding rules as `deny > ask > allow` — so the two patterns are compared by
@@ -113,22 +138,30 @@ export function collectShellCommandRules(
  * withholds an allow rather than writing one the config restricts — see
  * `warpCommandPatternToGlob`.
  */
-export function createShadowedAllowTest(
+export function createShadowingRestrictionsTest(
   restrictions: readonly Pick<ShellCommandRule, "pattern" | "fromAllToolsCategory">[],
   {
     normalizePattern = (pattern: string) => pattern,
   }: { normalizePattern?: (pattern: string) => string } = {},
-): (allowPattern: string) => boolean {
+): (allowPattern: string) => string[] {
+  // Each restriction is parsed once for the whole run rather than once per
+  // allow rule it is compared against, and the walks share one budget: the
+  // caller asks this as many times as it holds allow rules, so a cap on a
+  // single pair would bound none of the run.
   const normalized = restrictions.map(({ pattern, fromAllToolsCategory }) => ({
     pattern,
-    glob: fromAllToolsCategory ? pattern : normalizePattern(pattern),
+    glob: parseGlobPattern(fromAllToolsCategory ? pattern : normalizePattern(pattern)),
   }));
+  const budget = createIntersectionBudget();
 
   return (allowPattern) => {
-    const allowGlob = normalizePattern(allowPattern);
-    return normalized.some(
-      ({ pattern, glob }) => pattern === allowPattern || globsIntersect(glob, allowGlob),
-    );
+    const allowGlob = parseGlobPattern(normalizePattern(allowPattern));
+    return normalized
+      .filter(
+        ({ pattern, glob }) =>
+          pattern === allowPattern || parsedGlobsIntersect(glob, allowGlob, budget),
+      )
+      .map(({ pattern }) => pattern);
   };
 }
 
@@ -140,11 +173,17 @@ export type CommandListPartition = {
   deny: string[];
   /**
    * Patterns whose `allow` was withheld because a restriction the tool cannot
-   * write covers the same commands — see `createShadowedAllowTest`.
+   * write covers the same commands — see `createShadowingRestrictionsTest`.
    */
   shadowedAllowPatterns: string[];
   /** All-tools `deny` patterns left out of the denylist, when `writesAllToolsDeny` is false. */
   unwrittenDenyPatterns: string[];
+  /**
+   * All-tools `deny` patterns that were written into the denylist and withheld
+   * no `allow` rule, so nothing observed says they name a command the tool can
+   * act on — see `warnAboutUnwrittenCommandRules`.
+   */
+  unenforcedAllToolsDenyPatterns: string[];
 };
 
 /**
@@ -175,7 +214,7 @@ export type CommandListPartition = {
  * commands the author meant to stop. Over-restricting a `*` deny that *was* a
  * command pattern is reported; failing open would not be.
  *
- * `normalizePattern` is handed to `createShadowedAllowTest` for a tool whose
+ * `normalizePattern` is handed to `createShadowingRestrictionsTest` for a tool whose
  * patterns are not globs.
  */
 export function partitionCommandRules({
@@ -190,6 +229,7 @@ export function partitionCommandRules({
   const deny: string[] = [];
   const unwrittenDenyPatterns: string[] = [];
   const restrictions: ShellCommandRule[] = [];
+  const writtenAllToolsDenyPatterns: string[] = [];
 
   for (const rule of rules) {
     const { pattern, action, fromAllToolsCategory } = rule;
@@ -206,6 +246,9 @@ export function partitionCommandRules({
       // Written into the denylist, where the tool's own deny-beats-allow
       // precedence enforces it against the very commands it names.
       deny.push(pattern);
+      if (fromAllToolsCategory) {
+        writtenAllToolsDenyPatterns.push(pattern);
+      }
     } else {
       unwrittenDenyPatterns.push(pattern);
     }
@@ -218,21 +261,40 @@ export function partitionCommandRules({
     // enforcement — the allow rules beside it stay.
   }
 
-  const isShadowed = createShadowedAllowTest(restrictions, { normalizePattern });
+  const shadowingRestrictions = createShadowingRestrictionsTest(restrictions, { normalizePattern });
   const allow: string[] = [];
   const shadowedAllowPatterns: string[] = [];
+  const withholdingPatterns = new Set<string>();
   for (const { pattern, action } of rules) {
     if (action !== "allow") {
       continue;
     }
-    if (isShadowed(pattern)) {
+    const shadowing = shadowingRestrictions(pattern);
+    if (shadowing.length > 0) {
       shadowedAllowPatterns.push(pattern);
+      for (const restriction of shadowing) {
+        withholdingPatterns.add(restriction);
+      }
       continue;
     }
     allow.push(pattern);
   }
 
-  return { allow, deny, shadowedAllowPatterns, unwrittenDenyPatterns };
+  // A `*` deny that overlapped some allow rule is doing work whatever it names.
+  // One that overlapped none may be a path pattern sitting in a command
+  // denylist, matching nothing and enforcing nothing — worth a word, since the
+  // author wrote it to stop something.
+  const unenforcedAllToolsDenyPatterns = uniq(writtenAllToolsDenyPatterns).filter(
+    (pattern) => !withholdingPatterns.has(pattern),
+  );
+
+  return {
+    allow,
+    deny,
+    shadowedAllowPatterns,
+    unwrittenDenyPatterns,
+    unenforcedAllToolsDenyPatterns,
+  };
 }
 
 /**
@@ -247,6 +309,7 @@ export function warnAboutUnwrittenCommandRules({
   shadowedAllowPatterns,
   unwrittenDenyPatterns = [],
   unwrittenDenyReason,
+  unenforcedAllToolsDenyPatterns = [],
   ignoredAllToolsAllowPatterns = [],
   logger,
 }: {
@@ -263,6 +326,7 @@ export function warnAboutUnwrittenCommandRules({
    * reason is the tool's, not this module's.
    */
   unwrittenDenyReason?: string;
+  unenforcedAllToolsDenyPatterns?: readonly string[];
   ignoredAllToolsAllowPatterns?: readonly string[];
   logger?: Logger;
 }): void {
@@ -281,6 +345,16 @@ export function warnAboutUnwrittenCommandRules({
           unwrittenDenyReason === undefined ? "" : ` ${unwrittenDenyReason}`
         } They restrict only by withholding the allow rules they cover; write them under ` +
         `'bash' to have them enforced as commands.`,
+    );
+  }
+  if (unenforcedAllToolsDenyPatterns.length > 0) {
+    warnWithFallback(
+      logger,
+      `${toolLabel} wrote the all-tools '*' deny rule(s) for ` +
+        `${unenforcedAllToolsDenyPatterns.join(", ")} into its denylist as they stand, and they ` +
+        `withheld no allow rule. A pattern written under '*' need not name a command — ` +
+        `'secrets/**' there denies a path — and a denylist entry that names none blocks ` +
+        `nothing; write it under 'bash' if it is a command pattern.`,
     );
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {

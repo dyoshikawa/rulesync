@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { compileGlob, globToAnchoredRegexSource, globsIntersect, matchesGlob } from "./glob.js";
+import {
+  compileGlob,
+  createIntersectionBudget,
+  globToAnchoredRegexSource,
+  globsIntersect,
+  matchesGlob,
+  parsedGlobsIntersect,
+  parseGlobPattern,
+} from "./glob.js";
 
 const matches = (glob: string, value: string): boolean =>
   new RegExp(globToAnchoredRegexSource(glob)).test(value);
@@ -144,5 +152,28 @@ describe("globsIntersect", () => {
     expect(globsIntersect(`${"a".repeat(2000)}b`, `${"a".repeat(2000)}c`)).toBe(true);
     expect(globsIntersect(`${"a".repeat(500)}b`, `${"a".repeat(500)}c`)).toBe(false);
     expect(performance.now() - start).toBeLessThan(1000);
+  });
+});
+
+describe("parsedGlobsIntersect with a shared budget", () => {
+  it("answers without walking once the run has spent its budget", () => {
+    // One pair of one-character patterns costs one cell, so this budget pays
+    // for exactly one comparison.
+    const budget = createIntersectionBudget(1);
+    const left = parseGlobPattern("a");
+    const right = parseGlobPattern("b");
+
+    expect(parsedGlobsIntersect(left, right, budget)).toBe(false);
+    // Past the budget the answer is `true` without a walk — the direction that
+    // withholds an allow rather than writing one the config restricts.
+    expect(parsedGlobsIntersect(left, right, budget)).toBe(true);
+  });
+
+  it("leaves a caller that passes no budget bounded only by the per-pair cap", () => {
+    const left = parseGlobPattern("git *");
+    const right = parseGlobPattern("npm *");
+
+    expect(parsedGlobsIntersect(left, right)).toBe(false);
+    expect(parsedGlobsIntersect(left, right)).toBe(false);
   });
 });

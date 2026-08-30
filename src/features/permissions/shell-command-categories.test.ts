@@ -4,7 +4,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import {
   collectShellCommandRules,
-  createShadowedAllowTest,
+  createShadowingRestrictionsTest,
   partitionCommandRules,
   warnAboutUnwrittenCommandRules,
 } from "./shell-command-categories.js";
@@ -95,73 +95,98 @@ describe("collectShellCommandRules", () => {
     expect(collectShellCommandRules({})).toEqual({
       rules: [],
       foreignDenyCategories: [],
+      foreignRestrictingCategories: [],
       ignoredAllToolsAllowPatterns: [],
     });
   });
 });
 
-describe("createShadowedAllowTest", () => {
+describe("createShadowingRestrictionsTest", () => {
   it("compares the two patterns in both directions", () => {
     // The stricter rule wins whatever its width, so a broad restriction covers
     // a narrow allow and a broad allow is covered by a narrow restriction.
-    const isShadowed = createShadowedAllowTest([
+    const shadowing = createShadowingRestrictionsTest([
       allToolsRule("*", "ask"),
       bashRule("npm publish", "ask"),
     ]);
 
-    expect(isShadowed("git *")).toBe(true);
-    expect(isShadowed("npm *")).toBe(true);
+    // The answer names the restrictions that reached the allow rule, so a
+    // caller can report both what it withheld and what withheld it.
+    expect(shadowing("git *")).toEqual(["*"]);
+    expect(shadowing("npm *")).toEqual(["*", "npm publish"]);
   });
 
   it("catches a restriction that crosses an allow without covering it", () => {
     // Neither pattern's text matches the other, yet every `git ... --force`
     // command matches both — which is the pair the author meant to restrict.
-    const isShadowed = createShadowedAllowTest([allToolsRule("* --force", "ask")]);
+    const shadowing = createShadowingRestrictionsTest([allToolsRule("* --force", "ask")]);
 
-    expect(isShadowed("git *")).toBe(true);
+    expect(shadowing("git *").length).toBeGreaterThan(0);
   });
 
   it("leaves an allow no restriction reaches alone", () => {
-    const isShadowed = createShadowedAllowTest([bashRule("npm publish", "ask")]);
+    const shadowing = createShadowingRestrictionsTest([bashRule("npm publish", "ask")]);
 
-    expect(isShadowed("git *")).toBe(false);
+    expect(shadowing("git *")).toEqual([]);
   });
 });
 
-describe("createShadowedAllowTest with a bracket pattern", () => {
+/** A pattern long enough that one comparison nearly fills the per-pair cap. */
+const longPattern = (seed: string): string => `${seed}${"a*".repeat(495)}`;
+
+describe("createShadowingRestrictionsTest with many long patterns", () => {
+  it("stays bounded across the whole run rather than per pair", () => {
+    // A hundred restrictions against a hundred allow rules is ten thousand
+    // comparisons, each just under the cap one pair may cost. Without a budget
+    // shared by the run, walking them all takes minutes; with one, the walks
+    // stop and the remaining pairs answer the fail-closed way.
+    const restrictions = Array.from({ length: 100 }, (_, index) =>
+      bashRule(longPattern(`r${index}`), "ask"),
+    );
+    const shadowing = createShadowingRestrictionsTest(restrictions);
+
+    const answers = Array.from({ length: 100 }, (_, index) => shadowing(longPattern(`a${index}`)));
+
+    // The run ends inside the test timeout, and once the budget is gone every
+    // allow rule is withheld rather than written.
+    expect(answers.at(-1)?.length).toBe(restrictions.length);
+  });
+});
+
+describe("createShadowingRestrictionsTest with a bracket pattern", () => {
   it("matches an identical spelling a glob does not match against itself", () => {
     // `compileGlob` reads `[rf]` as a character class, so the compiled pattern
     // does not match its own text. Comparing the strings keeps a bracket
     // anywhere in the pattern from switching the whole check off.
-    const isShadowed = createShadowedAllowTest([bashRule("rm -[rf]*", "deny")]);
+    const shadowing = createShadowingRestrictionsTest([bashRule("rm -[rf]*", "deny")]);
 
-    expect(isShadowed("rm -[rf]*")).toBe(true);
-    expect(isShadowed("git status")).toBe(false);
+    expect(shadowing("rm -[rf]*").length).toBeGreaterThan(0);
+    expect(shadowing("git status")).toEqual([]);
   });
 });
 
-describe("createShadowedAllowTest with a normalizer", () => {
+describe("createShadowingRestrictionsTest with a normalizer", () => {
   it("reads a tool-language pattern through the normalizer", () => {
     // Stands in for Warp's regex-to-glob widening: without it, `.*` is a
     // literal dot beside a wildcard rather than the catch-all it really is.
-    const isShadowed = createShadowedAllowTest([bashRule("rm", "ask")], {
+    const shadowing = createShadowingRestrictionsTest([bashRule("rm", "ask")], {
       normalizePattern: (pattern) => pattern.replaceAll(".*", "*"),
     });
 
-    expect(isShadowed(".*")).toBe(true);
-    expect(isShadowed("git status")).toBe(false);
+    expect(shadowing(".*").length).toBeGreaterThan(0);
+    expect(shadowing("git status")).toEqual([]);
   });
 
   it("leaves an all-tools pattern alone, since it is a glob already", () => {
     // Under `*` the pattern is canonical, so its `.` is the character it looks
     // like. Widening it as if it were written in the tool's own language would
     // shadow `rm x` as well, which the author never restricted.
-    const isShadowed = createShadowedAllowTest([allToolsRule("rm .*", "deny")], {
+    const shadowing = createShadowingRestrictionsTest([allToolsRule("rm .*", "deny")], {
       normalizePattern: (pattern) => pattern.replaceAll(".*", "*"),
     });
 
-    expect(isShadowed("rm x")).toBe(false);
-    expect(isShadowed("rm .y")).toBe(true);
+    expect(shadowing("rm x")).toEqual([]);
+    expect(shadowing("rm .y").length).toBeGreaterThan(0);
   });
 });
 
