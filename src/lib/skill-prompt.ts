@@ -29,7 +29,7 @@ const SKILL_PROMPT_SHORTCUTS = {
 } as const;
 
 /**
- * How wide a label the prompt draws, in terminal columns.
+ * The widest label the prompt draws, in terminal columns.
  *
  * A directory name can be 255 bytes long, which wraps across several lines of a
  * terminal and lets a name padded with spaces paint what looks like another
@@ -41,8 +41,31 @@ const SKILL_PROMPT_SHORTCUTS = {
  * Columns rather than characters, because the two part ways precisely where an
  * attacker would want them to: 66 ideographic spaces are 66 characters and 132
  * columns, so a limit counted in characters would wave them through.
+ *
+ * A ceiling rather than the budget itself: the terminal has the other half of
+ * the say, and `skillLabelBudget` takes the smaller of the two.
  */
 const MAX_SKILL_LABEL_WIDTH = 72;
+
+/**
+ * What the prompt draws in front of a label, in columns.
+ *
+ * `@inquirer/checkbox` renders each row as `${cursor}${checkbox} ${name}`: one
+ * column for the pointer, one for the box, and one for the space between the
+ * box and the label. Nothing is drawn in front of a continuation line, so a
+ * label that overruns the row paints its tail flush against the left margin,
+ * which is exactly where a padded name wants it.
+ */
+const CHOICE_PREFIX_WIDTH = 3;
+
+/**
+ * The width to assume when the terminal does not say how wide it is.
+ *
+ * The same 80 that `@inquirer/core` falls back to when it wraps the rows
+ * (`readlineWidth`, by way of `cli-width`), so the budget is derived from the
+ * width the rows are actually broken at rather than from a second guess.
+ */
+const FALLBACK_TERMINAL_WIDTH = 80;
 
 /**
  * How much of a name survives however long the note in front of it is. A name
@@ -50,6 +73,30 @@ const MAX_SKILL_LABEL_WIDTH = 72;
  * apart at all, which is worse than a label that wraps.
  */
 const MIN_SHORTENED_NAME_WIDTH = 16;
+
+/**
+ * How wide a label may be in the terminal it is about to be drawn in.
+ *
+ * The cap above is not enough on its own: `@inquirer/core` breaks every
+ * rendered row at the real terminal width, and the three columns of pointer and
+ * checkbox come out of that width without being repeated on the continuation
+ * line. In anything narrower than 75 columns — a 120-column window split in
+ * half is 60 — a 72-column label wraps, and the second line a name can paint
+ * beneath itself is back, carrying no note, since a name padded with ordinary
+ * visible characters is not confusable with anything.
+ *
+ * The floor is the one a name is kept to anyway. Below it a label is cut to
+ * little more than an ellipsis, and a list of rows that cannot be told apart at
+ * all is worse than a row that wraps — which, in a terminal that narrow, it
+ * does whatever this returns.
+ */
+function skillLabelBudget(): number {
+  const terminalWidth = process.stdout.columns ?? FALLBACK_TERMINAL_WIDTH;
+  return Math.max(
+    Math.min(MAX_SKILL_LABEL_WIDTH, terminalWidth - CHOICE_PREFIX_WIDTH),
+    MIN_SHORTENED_NAME_WIDTH,
+  );
+}
 
 /** Marks the label as carrying the tool's own warning rather than a name. */
 const NOTE_MARKER = "[!] ";
@@ -145,8 +192,9 @@ function numberPrefixOf(position: number): string {
 function formatSkillChoiceLabels(params: {
   names: string[];
   notes: ReadonlyMap<string, string>;
+  budget: number;
 }): string[] {
-  const { names, notes } = params;
+  const { names, notes, budget } = params;
   // Both notes when both apply: a name can read like another entry and open
   // with the tool's own markup at once, and dropping either reason would leave
   // the row explained by half of what is wrong with it.
@@ -162,7 +210,7 @@ function formatSkillChoiceLabels(params: {
     formatSkillChoiceLabel({
       name,
       note: notesByIndex[index],
-      budget: MAX_SKILL_LABEL_WIDTH,
+      budget,
     }),
   );
   const readings = labels.map((label) => readingFormOf(label));
@@ -179,7 +227,7 @@ function formatSkillChoiceLabels(params: {
     return `${prefix}${formatSkillChoiceLabel({
       name,
       note: notesByIndex[index],
-      budget: MAX_SKILL_LABEL_WIDTH - displayWidthOf(prefix),
+      budget: budget - displayWidthOf(prefix),
     })}`;
   });
 }
@@ -205,7 +253,11 @@ export async function promptSkillSelection(params: {
   // be drawn identically. The labels carry the note that says so, and are made
   // distinct from each other; `value` stays the real name, so what is written
   // is still exactly what was checked.
-  const labels = formatSkillChoiceLabels({ names: availableSkills, notes: confusableNotes });
+  const labels = formatSkillChoiceLabels({
+    names: availableSkills,
+    notes: confusableNotes,
+    budget: skillLabelBudget(),
+  });
 
   try {
     return await checkbox({
