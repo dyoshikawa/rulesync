@@ -17,6 +17,13 @@ export type JsonOutput = {
   version: string;
   /** Command-specific data */
   data?: Record<string, unknown>;
+  /**
+   * Diagnostics raised during the run. Top-level rather than inside `data` so
+   * a command's own captured keys can never collide with it, and so warnings
+   * are still reported when the command failed. Omitted when nothing warned,
+   * and always omitted under `--silent`.
+   */
+  warnings?: string[];
   /** Error information if command failed */
   error?: JsonError;
 };

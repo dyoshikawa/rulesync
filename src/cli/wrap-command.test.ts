@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 
 import { createMockLogger, type MockLogger } from "../test-utils/mock-logger.js";
 import { CLIError } from "../types/json-output.js";
-import { Logger } from "../utils/logger.js";
+import { fallbackLogger, JsonLogger, Logger, warnWithFallback } from "../utils/logger.js";
 import { createLogger, wrapCommand } from "./wrap-command.js";
 
 type CommandHandler = (
@@ -132,6 +132,69 @@ describe("wrapCommand", () => {
         verbose: false,
         silent: true,
       });
+    });
+  });
+
+  describe("shared fallback logger", () => {
+    it("routes a warning raised without a logger into the --json document", async () => {
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const jsonLogger = new JsonLogger({ command: "test", version: "1.0.0" });
+      const { wrapped } = createWrappedCommand(
+        {
+          handler: vi.fn().mockImplementation(async () => {
+            // A module-level translator deep in the run, with no logger of its
+            // own. On stderr this line would be invisible to a `--json`
+            // consumer, which reads the document and nothing else.
+            warnWithFallback(undefined, "machine-local settings were skipped");
+          }) as unknown as CommandHandler,
+        },
+        (() => jsonLogger) as unknown as LoggerFactory,
+      );
+
+      await wrapped({}, createMockCommand({ json: true }));
+
+      const output = JSON.parse(logSpy.mock.calls[0]![0] as string);
+
+      expect(output.warnings).toEqual(["machine-local settings were skipped"]);
+    });
+
+    it("honors --silent on that path as well", async () => {
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const jsonLogger = new JsonLogger({ command: "test", version: "1.0.0" });
+      const { wrapped } = createWrappedCommand(
+        {
+          handler: vi.fn().mockImplementation(async () => {
+            warnWithFallback(undefined, "machine-local settings were skipped");
+          }) as unknown as CommandHandler,
+        },
+        (() => jsonLogger) as unknown as LoggerFactory,
+      );
+
+      await wrapped({}, createMockCommand({ json: true, silent: true }));
+
+      const output = JSON.parse(logSpy.mock.calls[0]![0] as string);
+
+      expect(output.warnings).toBeUndefined();
+    });
+
+    it("carries --silent to the console the fallback keeps after the command returns", async () => {
+      const { wrapped } = createWrappedCommand(
+        {
+          // `rulesync mcp` returns from its handler while the server it started
+          // keeps running, so warnings raised later fall back to that console
+          // rather than to any adopted logger. `--silent` has to reach it.
+          handler: vi.fn() as unknown as CommandHandler,
+        },
+        mockLoggerFactory,
+      );
+
+      try {
+        await wrapped({}, createMockCommand({ silent: true }));
+
+        expect(fallbackLogger.silent).toBe(true);
+      } finally {
+        fallbackLogger.configure({ verbose: false, silent: false });
+      }
     });
   });
 

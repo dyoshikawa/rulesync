@@ -22,6 +22,22 @@ export function stripControlCharacters(text: string): string {
 }
 
 /**
+ * Removes every control character from `text` except the line feed, so a
+ * message written to be read over several lines still is.
+ *
+ * `stripControlCharacters` takes newlines out because a diagnostic is one line
+ * and a name that carries one can forge a second. An error message is not: a
+ * lock file names the process holding it over several lines, and the MCP
+ * `generate` failure lists one unreadable source per line. The carriage return
+ * still goes, since on its own it paints over the line already written — which
+ * is why this splits on the line feed and strips each line rather than carrying
+ * a second character class that has to be kept in step with the first.
+ */
+export function stripControlCharactersKeepingLineFeeds(text: string): string {
+  return text.split("\n").map(stripControlCharacters).join("\n");
+}
+
+/**
  * Matches the characters that take no width of their own.
  *
  * `Default_Ignorable_Code_Point` is the Unicode property for exactly this — the

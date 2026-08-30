@@ -1,9 +1,9 @@
 import { join } from "node:path";
 
-import { stripControlCharacters } from "./control-characters.js";
 import { formatError } from "./error.js";
 import { readFileContentOrNull } from "./file.js";
 import { type Logger, warnOnceWithFallback } from "./logger.js";
+import { quoteValueForWarning } from "./quote-value.js";
 import { isPlainObject } from "./type-guards.js";
 
 /**
@@ -135,7 +135,27 @@ export async function readSettingsWithLocalOverlay({
 
 /** Quotes a name read off disk, the way every other such name is logged. */
 function quoteKey(key: string): string {
-  return JSON.stringify(stripControlCharacters(key));
+  // Bounded as well as quoted: the count below caps how many keys are named,
+  // but one multi-kilobyte key would otherwise crowd out the sentence that
+  // says what to do about them.
+  return quoteValueForWarning(key);
+}
+
+/**
+ * How many keys the warning names before it stops counting.
+ *
+ * The keys come from a file rulesync did not write, and the warning now travels
+ * into `--json` documents and MCP results as well as onto a console. A settings
+ * file with hundreds of top-level keys is unusual but not impossible, and the
+ * point of the sentence is to make the reader open the file — naming the first
+ * few does that as well as naming all of them.
+ */
+const MAX_LISTED_KEYS = 20;
+
+function listKeys(keys: readonly string[]): string {
+  const named = keys.slice(0, MAX_LISTED_KEYS).map(quoteKey).join(", ");
+  const rest = keys.length - MAX_LISTED_KEYS;
+  return rest > 0 ? `${named} and ${rest} more` : named;
 }
 
 /**
@@ -173,13 +193,13 @@ function warnAboutLocalKeys({
   const guardrailSentence =
     flagged.length === 0
       ? ""
-      : ` ${flagged.map(quoteKey).join(", ")} ${flagged.length === 1 ? "decides" : "decide"} what ` +
+      : ` ${listKeys(flagged)} ${flagged.length === 1 ? "decides" : "decide"} what ` +
         `${toolLabel} is allowed to do, so a value meant for one machine would become the ` +
         `team's guardrail.`;
   warnOnceWithFallback(
     logger,
     `${toolLabel}: ${configPath} is a machine-local overrides file, and importing read ` +
-      `${keys.map(quoteKey).join(", ")} from it. Whatever an import takes from there lands in ` +
+      `${listKeys(keys)} from it. Whatever an import takes from there lands in ` +
       `files rulesync commits, so check the imported files and remove anything personal to ` +
       `this machine before sharing them.${guardrailSentence}`,
   );

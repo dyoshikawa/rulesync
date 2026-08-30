@@ -97,6 +97,27 @@ rulesync update --force
 
 > **Deprecated feature:** `ignore` remains available to existing projects throughout Rulesync 14.x, but new projects should use `permissions`. Any removal will be decided separately and will not occur before a future major release.
 
+## JSON Output
+
+The global `--json` flag makes a command print a single result document and nothing else. Because that document is the whole of the output, warnings that would otherwise go to standard error are carried inside it, as a top-level `warnings` array of strings:
+
+```json
+{
+  "success": true,
+  "timestamp": "2025-01-01T00:00:00.000Z",
+  "command": "import",
+  "version": "x.y.z",
+  "warnings": [".factory/settings.local.json is a machine-local overrides file …"],
+  "data": { "…": "…" }
+}
+```
+
+The key is omitted when nothing warned, and `--silent` suppresses warnings there as it does on the console. `warnings` sits beside `data` rather than inside it so a command's own captured keys can never collide with it, and it is reported on the failure document too, where a diagnostic about the input is often what explains the failure.
+
+At most 100 warnings are reported, each truncated to 1,000 characters and 8,000 characters in total; a run that exceeds any of those limits says so in a final entry rather than growing the document without bound.
+
+Because that budget is finite, the array carries the diagnostics a run has no other way to report — not a restatement of what `data` already holds. A command that lists something under a captured key writes the list there and warns only about what the list does not say.
+
 ## Generate Command
 
 The `generate` command reads source files from one or more rulesync source trees (default: `<cwd>/.rulesync`; configurable via `--input-roots`) and writes AI tool configuration files to the output directories.

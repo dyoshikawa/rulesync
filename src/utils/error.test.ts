@@ -138,4 +138,54 @@ describe("formatError", () => {
     const formatted = formatError({ foo: "bar" });
     expect(formatted).toBe("[object Object]");
   });
+
+  it("should bound the Zod expansion, which is sized by the input rather than by rulesync", () => {
+    const error = {
+      issues: Array.from({ length: 500 }, (_, index) => ({
+        path: ["items", index],
+        message: "x".repeat(200),
+      })),
+    };
+
+    const formatted = formatError(error);
+
+    expect(formatted.length).toBeLessThan(2_500);
+    expect(formatted).toMatch(/…\(truncated\)$/);
+  });
+
+  it("should strip what reorders or escapes out of an ordinary error message", () => {
+    // A YAML parser quotes the offending source line verbatim, so an ESC or a
+    // bidirectional override in a source file reaches the failure document.
+    const formatted = formatError(new Error("bad indentation at a\u001b[31mb\u202ec"));
+
+    expect(formatted).toBe("Error: bad indentation at a[31mbc");
+  });
+
+  it("should keep the line breaks of a message written over several lines", () => {
+    const formatted = formatError(new Error("lock held by pid 42\nsince 10:00"));
+
+    expect(formatted).toBe("Error: lock held by pid 42\nsince 10:00");
+  });
+
+  it("should bound an error message quoting a line as long as the file", () => {
+    const formatted = formatError(new Error("x".repeat(50_000)));
+
+    expect(formatted.length).toBeLessThan(8_100);
+    expect(formatted).toMatch(/…\(truncated\)$/);
+  });
+
+  it("should bound and strip a thrown value that is not an Error", () => {
+    const formatted = formatError(`plain \u202e${"y".repeat(50_000)}`);
+
+    expect(formatted.length).toBeLessThan(8_100);
+    expect(formatted.startsWith("plain y")).toBe(true);
+  });
+
+  it("should strip the control characters JSON.stringify leaves intact in an issue", () => {
+    // `‮` reorders whatever follows it; `JSON.stringify` escapes C0 only, so it
+    // would otherwise reach the reader of the failure document unchanged.
+    const error = { issues: [{ path: ["a"], message: "left\u202eright" }] };
+
+    expect(formatError(error)).toBe('Zod raw error: [{"path":["a"],"message":"leftright"}]');
+  });
 });
