@@ -123,4 +123,14 @@ describe("globsIntersect", () => {
     expect(globsIntersect("*a*a*a*a*a*a*a*a*b", "*a*a*a*a*a*a*a*a*b*")).toBe(true);
     expect(performance.now() - start).toBeLessThan(1000);
   });
+
+  it("gives up and says yes on a pair too long to walk", () => {
+    // Past the cell budget the pair is reported as intersecting without being
+    // walked, so a pathological pattern withholds an allow instead of costing
+    // the memory and time the full table would.
+    const start = performance.now();
+    expect(globsIntersect(`${"a".repeat(2000)}b`, `${"a".repeat(2000)}c`)).toBe(true);
+    expect(globsIntersect(`${"a".repeat(500)}b`, `${"a".repeat(500)}c`)).toBe(false);
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
 });

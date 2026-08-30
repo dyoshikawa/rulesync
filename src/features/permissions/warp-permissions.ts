@@ -460,27 +460,109 @@ function mergeIntoDefaultExecutionProfile({
   }
 }
 
-/** Skip a balanced `(...)` or `[...]` run, or to the end when it never closes. */
-function skipBalancedRun(body: string, start: number, open: string, close: string): number {
-  let depth = 0;
-  for (let index = start; index < body.length; index++) {
+/**
+ * Read a `[...]` class starting at its `[` and return the index just past its
+ * `]`, or `undefined` when it never closes. Regex class rules apply: a `]` in
+ * the first position is a member rather than the terminator, a backslash
+ * escapes the character after it, and classes do not nest — a `[` inside one is
+ * an ordinary member, which is why counting brackets would run past the end.
+ */
+function skipRegexClass(body: string, start: number): number | undefined {
+  let index = start + 1;
+  if (body.charAt(index) === "^") {
+    index += 1;
+  }
+  if (body.charAt(index) === "]") {
+    index += 1;
+  }
+  while (index < body.length) {
     const character = body.charAt(index);
     if (character === "\\") {
-      index++;
+      index += 2;
       continue;
     }
-    if (character === open) {
-      depth++;
+    if (character === "]") {
+      return index + 1;
+    }
+    index += 1;
+  }
+  return undefined;
+}
+
+/**
+ * Read a `(...)` group starting at its `(` and return the index just past its
+ * `)`, or `undefined` when it never closes. Groups nest, so the depth is
+ * counted — but a class inside one is skipped whole, since a `)` written there
+ * is a member rather than a closer.
+ */
+function skipRegexGroup(body: string, start: number): number | undefined {
+  let depth = 0;
+  let index = start;
+  while (index < body.length) {
+    const character = body.charAt(index);
+    if (character === "\\") {
+      index += 2;
       continue;
     }
-    if (character === close) {
-      depth--;
-      if (depth <= 0) {
-        return index + 1;
+    if (character === "[") {
+      const next = skipRegexClass(body, index);
+      if (next === undefined) {
+        return undefined;
       }
+      index = next;
+      continue;
+    }
+    if (character === "(") {
+      depth += 1;
+      index += 1;
+      continue;
+    }
+    if (character === ")") {
+      depth -= 1;
+      index += 1;
+      if (depth === 0) {
+        return index;
+      }
+      continue;
+    }
+    index += 1;
+  }
+  return undefined;
+}
+
+/** Read a `{2,3}` quantifier starting at its `{`, or `undefined` when unclosed. */
+function skipQuantifier(body: string, start: number): number | undefined {
+  for (let index = start + 1; index < body.length; index++) {
+    if (body.charAt(index) === "}") {
+      return index + 1;
     }
   }
-  return body.length;
+  return undefined;
+}
+
+/**
+ * Read the bracketed construct that opens at `start`, whichever kind it is, and
+ * return the index just past it — or `undefined` when it never closes.
+ */
+function skipBracketedConstruct(body: string, start: number, open: string): number | undefined {
+  if (open === "[") {
+    return skipRegexClass(body, start);
+  }
+  if (open === "(") {
+    return skipRegexGroup(body, start);
+  }
+  return skipQuantifier(body, start);
+}
+
+/**
+ * Whether an escaped character has to widen to `*` rather than stand for
+ * itself: a letter or a digit spells a class (`\s`, `\d`, `\w`), a glob
+ * metacharacter would be read as a wildcard or a class by the comparison
+ * instead of as the literal the escape asked for, and an empty string is a
+ * trailing backslash spelling nothing at all.
+ */
+function escapedCharacterWidens(escaped: string): boolean {
+  return escaped === "" || /^[A-Za-z0-9*?[\]]$/.test(escaped);
 }
 
 /**
@@ -500,9 +582,15 @@ function skipBalancedRun(body: string, start: number, open: string, close: strin
  * a class (`[rf]`), a group (`(sudo )?`), a character escape (`\s`) and a
  * missing `^`/`$` anchor all become `*`, and a quantifier (`?`, `*`, `+`,
  * `{2}`) widens the atom in front of it — `git commits?` covers `git commit`,
- * so its glob has to as well. A top-level `|` makes the whole pattern `*`,
- * since the two alternatives are not one sequence. Both sides of a comparison
- * are widened, so a pattern that is really a glob still compares sensibly.
+ * so its glob has to as well. Both sides of a comparison are widened, so a
+ * pattern that is really a glob still compares sensibly.
+ *
+ * A pattern the walk cannot read as one sequence widens to `*` whole: a
+ * top-level `|` is two patterns rather than one, and a class, group or
+ * quantifier that never closes leaves the rest of the pattern unreadable —
+ * guessing at either could only narrow the result, which is the one direction
+ * this rewrite must never take. An alternation *inside* a group needs no such
+ * treatment: the group it sits in already widens to `*`.
  */
 function warpCommandPatternToGlob(pattern: string): string {
   const anchoredStart = pattern.startsWith("^");
@@ -528,21 +616,25 @@ function warpCommandPatternToGlob(pattern: string): string {
     }
     if (character === "\\") {
       // `charAt` past the end is the empty string, so a trailing backslash
-      // widens like any other escape it cannot spell. A letter or digit after
-      // the backslash is a character class (`\s`, `\d`, `\w`), not a literal.
+      // widens like any other escape it cannot spell.
       const escaped = body.charAt(index + 1);
       index += 2;
-      atoms.push(/^[A-Za-z0-9*?]$/.test(escaped) || escaped === "" ? "*" : escaped);
+      atoms.push(escapedCharacterWidens(escaped) ? "*" : escaped);
       continue;
     }
-    if (character === "[" || character === "(") {
-      index = skipBalancedRun(body, index, character, character === "[" ? "]" : ")");
-      atoms.push("*");
-      continue;
-    }
-    if (character === "{") {
-      index = skipBalancedRun(body, index, "{", "}");
-      widenLastAtom();
+    if (character === "[" || character === "(" || character === "{") {
+      const next = skipBracketedConstruct(body, index, character);
+      if (next === undefined) {
+        return "*";
+      }
+      index = next;
+      // A quantifier repeats the atom in front of it; a class or a group is an
+      // atom of its own.
+      if (character === "{") {
+        widenLastAtom();
+      } else {
+        atoms.push("*");
+      }
       continue;
     }
     if (character === "*" || character === "+" || character === "?") {

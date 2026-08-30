@@ -230,6 +230,42 @@ describe("WarpPermissions", () => {
       expect(profiles[ALLOWLIST_KEY]).toEqual(["^ls -la$"]);
     });
 
+    it.each([
+      // The class holds a `[` of its own, so counting brackets would run past
+      // the `]` and swallow the `|` that makes this two patterns.
+      ["^git [^[]*|^rm ", "^rm -rf /tmp$"],
+      // The `{` never closes, so everything after it — the `|` included — is
+      // unreadable as a quantifier.
+      ["^npm run build{|^sudo ", "^sudo apt install$"],
+    ])("withholds an allow the second half of %s reaches", async (restriction, allowed) => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { [restriction]: "ask", [allowed]: "allow" },
+        }),
+        global: true,
+      });
+
+      expect(profilesOf(perms.getFileContent())[ALLOWLIST_KEY]).toBeUndefined();
+    });
+
+    it("withholds an allow that only an escaped bracket keeps apart", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // `\[ab\]` is the literal text `[ab]`, not a class of two letters:
+            // both patterns match the command `rm [ab]`.
+            "^rm \\[ab\\]$": "ask",
+            "^rm .ab.$": "allow",
+          },
+        }),
+        global: true,
+      });
+
+      expect(profilesOf(perms.getFileContent())[ALLOWLIST_KEY]).toBeUndefined();
+    });
+
     it("reports the all-tools allow rules it read past", async () => {
       const logger = createMockLogger();
 

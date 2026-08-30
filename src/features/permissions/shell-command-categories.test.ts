@@ -215,17 +215,17 @@ describe("partitionCommandRules", () => {
     expect(shadowedAllowPatterns).toEqual([]);
   });
 
-  it("withholds the allow an all-tools deny covers even when the deny is written", () => {
-    // The tool's deny-beats-allow order only reaches the commands the pattern
-    // matches, and a pattern written under `*` need not name a command at all.
+  it("keeps the allow an all-tools deny covers, once the deny is written", () => {
+    // The denylist outranks the allowlist, so the commands the two rules share
+    // stay blocked — the same result the rule written under `bash` produces.
     const { allow, deny, shadowedAllowPatterns } = partitionCommandRules({
       rules: [allToolsRule("rm *", "deny"), bashRule("rm *", "allow"), bashRule("git *", "allow")],
       writesAllToolsDeny: true,
     });
 
-    expect(allow).toEqual(["git *"]);
+    expect(allow).toEqual(["rm *", "git *"]);
     expect(deny).toEqual(["rm *"]);
-    expect(shadowedAllowPatterns).toEqual(["rm *"]);
+    expect(shadowedAllowPatterns).toEqual([]);
   });
 
   it("withholds instead of writing when the denylist cannot carry an all-tools pattern", () => {

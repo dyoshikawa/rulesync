@@ -208,6 +208,15 @@ function isAllStars(steps: readonly GlobStep[], index: number): boolean {
 }
 
 /**
+ * The most cells the intersection walk will fill. Past it the two patterns are
+ * reported as intersecting without being walked: the product of two lengths
+ * grows quadratically, and a pattern long enough to reach this is pathological
+ * rather than a command anybody typed. Answering `true` withholds an `allow`,
+ * which is the direction that fails closed.
+ */
+const MAX_INTERSECTION_CELLS = 1_000_000;
+
+/**
  * Whether any one value matches both globs — that is, whether the two patterns
  * overlap at all.
  *
@@ -217,46 +226,48 @@ function isAllStars(steps: readonly GlobStep[], index: number): boolean {
  * `* --force` and `git *` cover none of each other's spellings, yet they share
  * every `git … --force` command.
  *
- * The two step lists are walked as a table rather than by backtracking, so the
- * cost is the product of the two pattern lengths and no input makes it blow up.
- * Where a `[...]` class meets another `[...]` class the answer is assumed to be
- * yes, which over-reports rather than misses.
+ * The two step lists are walked as a table rather than by backtracking, so no
+ * input makes the time blow up the way a translated regex would. Only two rows
+ * of that table are ever held, and the shorter pattern is the one that sizes
+ * them, so the memory is linear in the shorter pattern however long the other
+ * one is. Where a `[...]` class meets another `[...]` class the answer is
+ * assumed to be yes, which over-reports rather than misses.
  */
 export function globsIntersect(left: string, right: string): boolean {
   const leftSteps = parseGlob(left);
   const rightSteps = parseGlob(right);
-  // `table[i][j]` — can the steps from `i` and from `j` on produce one same
-  // remaining string? Filled from the end so each cell reads finished ones.
-  const table: boolean[][] = Array.from({ length: leftSteps.length + 1 }, () =>
-    Array.from({ length: rightSteps.length + 1 }, () => false),
+  // The walk is symmetric, so the shorter list can always be the one held in a
+  // row — `columns` below is its length.
+  const [rows, columns] =
+    leftSteps.length >= rightSteps.length ? [leftSteps, rightSteps] : [rightSteps, leftSteps];
+  if (rows.length * columns.length > MAX_INTERSECTION_CELLS) {
+    return true;
+  }
+
+  // `row[j]` — can the steps from the current row index and from `j` on produce
+  // one same remaining string? Filled from the end so each cell reads finished
+  // ones: `next` is the row below, `row` the one being filled.
+  let next: boolean[] = Array.from({ length: columns.length + 1 }, (_, j) =>
+    isAllStars(columns, j),
   );
-  for (let i = leftSteps.length; i >= 0; i--) {
-    for (let j = rightSteps.length; j >= 0; j--) {
-      const row = table[i];
-      if (row === undefined) {
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row: boolean[] = Array.from({ length: columns.length + 1 }, () => false);
+    row[columns.length] = isAllStars(rows, i);
+    for (let j = columns.length - 1; j >= 0; j--) {
+      const rowStep = rows[i];
+      const columnStep = columns[j];
+      if (rowStep === undefined || columnStep === undefined) {
         continue;
       }
-      if (i === leftSteps.length) {
-        row[j] = isAllStars(rightSteps, j);
-        continue;
-      }
-      if (j === rightSteps.length) {
-        row[j] = isAllStars(leftSteps, i);
-        continue;
-      }
-      const leftStep = leftSteps[i];
-      const rightStep = rightSteps[j];
-      if (leftStep === undefined || rightStep === undefined) {
-        continue;
-      }
-      if (leftStep.kind === "star" || rightStep.kind === "star") {
+      if (rowStep.kind === "star" || columnStep.kind === "star") {
         // A `*` either matches nothing and steps aside, or swallows whatever
         // one character the other side produces next.
-        row[j] = (table[i + 1]?.[j] ?? false) || (row[j + 1] ?? false);
+        row[j] = (next[j] ?? false) || (row[j + 1] ?? false);
         continue;
       }
-      row[j] = stepsShareACharacter(leftStep, rightStep) && (table[i + 1]?.[j + 1] ?? false);
+      row[j] = stepsShareACharacter(rowStep, columnStep) && (next[j + 1] ?? false);
     }
+    next = row;
   }
-  return table[0]?.[0] ?? false;
+  return next[0] ?? false;
 }

@@ -92,7 +92,7 @@ describe("ClinePermissions", () => {
     expect(message).toContain("rm *");
   });
 
-  it("should deny a command the all-tools category blocks and withhold the bash allow", async () => {
+  it("should deny a command the all-tools category blocks and keep the bash allow", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -111,12 +111,40 @@ describe("ClinePermissions", () => {
       logger,
     });
 
-    // A rule under `*` covers shell commands too, and a pattern written there
-    // need not be a command Cline's `deny` list can catch, so the allow beside
-    // it is withheld rather than left to auto-approve what the config blocks.
+    // A rule under `*` covers shell commands too, so it reaches Cline's `deny`
+    // list — which outranks the `allow` beside it, exactly as a `bash` deny of
+    // the same spelling would.
     const content = JSON.parse(instance.getFileContent());
-    expect(content.allow).toEqual(["git *"]);
+    expect(content.allow).toEqual(["git *", "rm *"]);
     expect(content.deny).toEqual(["rm *"]);
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("withheld because"));
+  });
+
+  it("should withhold the allow an all-tools ask covers instead of denying it", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "*": "ask" },
+          bash: { "git *": "allow" },
+        },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // `{"*": {"*": "ask"}}` is the ordinary "prompt me for everything" config.
+    // Translating it to `deny` would block every command — and Cline's `deny`
+    // merge is additive, so the entry would outlive the rule that produced it.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual([]);
+    expect(content.deny).toEqual([]);
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("withheld because"));
   });
 

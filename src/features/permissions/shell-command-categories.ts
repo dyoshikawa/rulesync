@@ -165,12 +165,12 @@ export type CommandListPartition = {
  * cannot be written it withholds the allow rules it covers instead, which
  * restricts in the same direction without touching the denylist.
  *
- * An all-tools deny that *is* written withholds too, because the tool's
- * deny-beats-allow precedence only protects the commands the pattern actually
- * matches — and a pattern written under `*` need not name a command at all, so
- * `{"*": {"secrets/**": "deny"}}` can reach the denylist as an entry that
- * matches nothing. A `bash` deny needs no such treatment: it is a command
- * pattern by construction, and the tool's own denylist outranks its allowlist.
+ * A deny that *is* written withholds nothing, whichever category wrote it: the
+ * tool's denylist outranks its allowlist, so the commands the two rules share
+ * are blocked where the author asked and the rest of the allow keeps working.
+ * Withholding there would make the same intent behave differently depending on
+ * the category it was written under — `{"*": {"git push *": "deny"}}` beside an
+ * allowed `git *` would drop the allowlist that `{"bash": ...}` keeps.
  *
  * `normalizePattern` is handed to `createShadowedAllowTest` for a tool whose
  * patterns are not globs.
@@ -195,13 +195,12 @@ export function partitionCommandRules({
     }
     if (action === "deny") {
       if (writesAllToolsDeny || !fromAllToolsCategory) {
+        // Written into the denylist, where the tool's own deny-beats-allow
+        // precedence enforces it against the very commands it names.
         deny.push(pattern);
-        if (!fromAllToolsCategory) {
-          continue;
-        }
-      } else {
-        unwrittenDenyPatterns.push(pattern);
+        continue;
       }
+      unwrittenDenyPatterns.push(pattern);
     }
     restrictions.push(rule);
   }

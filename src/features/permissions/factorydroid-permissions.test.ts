@@ -93,7 +93,7 @@ describe("FactorydroidPermissions", () => {
       expect(json.commandDenylist).toBeUndefined();
     });
 
-    it("should write an all-tools deny into commandDenylist and withhold the allow it covers", async () => {
+    it("should write an all-tools deny into commandDenylist and keep the allow beside it", async () => {
       const logger = createMockLogger();
       const rulesyncPermissions = buildRulesyncPermissions({
         permission: {
@@ -110,13 +110,12 @@ describe("FactorydroidPermissions", () => {
 
       const json = JSON.parse(instance.getFileContent());
       // The denylist wins over the allowlist in Factory Droid, so the command
-      // the file blocks stays blocked — but the deny-beats-allow order only
-      // reaches the commands the pattern matches, and a pattern written under
-      // `*` need not name a command at all, so the allow is withheld too.
+      // the file blocks stays blocked — and the category the deny was written
+      // under does not change that, so the allow is written as it stands.
       expect(json.commandDenylist).toEqual(["rm -rf *"]);
-      expect(json.commandAllowlist).toEqual(["git *"]);
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("was not given the allow rule(s) for rm -rf *"),
+      expect(json.commandAllowlist).toEqual(["git *", "rm -rf *"]);
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("was not given the allow rule(s)"),
       );
     });
 

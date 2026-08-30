@@ -435,10 +435,13 @@ function warnAboutUnwrittenBashRules({
   // deny first, then ask, then allow — so a *broad* ask beside a narrow allow
   // (`*` ask, `git *` allow) is inverted by the reduction just as a narrow one
   // is: the author asked to be prompted for `git` and dcode auto-approves it.
-  const shadowedAsk = askPatterns.filter(collidesWithAllow);
+  // A pattern written under both `bash` and the all-tools `*` category arrives
+  // twice, and reporting it twice would say two rules were skipped where the
+  // author wrote one.
+  const shadowedAsk = uniq(askPatterns).filter(collidesWithAllow);
   const shadowedDeny: string[] = [];
   const unenforcedDeny: string[] = [];
-  for (const pattern of denyPatterns) {
+  for (const pattern of uniq(denyPatterns)) {
     // Partitioned in one pass: asking twice would compile the same glob twice,
     // which is exactly what `compileGlob` above exists to avoid.
     (collidesWithAllow(pattern) ? shadowedDeny : unenforcedDeny).push(pattern);

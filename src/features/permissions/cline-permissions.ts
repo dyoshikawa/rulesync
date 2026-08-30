@@ -72,20 +72,26 @@ function translateClinePermissions(
       category !== SHELL_PERMISSION_CATEGORY && category !== ALL_TOOLS_PERMISSION_CATEGORY,
   );
   const { rules, ignoredAllToolsAllowPatterns } = collectShellCommandRules(permission);
-  // A restriction written under the all-tools `*` category reaches Cline's
-  // `deny` list, but a pattern written there need not name a command at all, so
-  // the entry can sit in the file matching nothing while the `allow` beside it
-  // auto-approves the command the config restricts. Such an `allow` is withheld
-  // instead. A `bash` restriction needs no such treatment: it is a command
-  // pattern by construction, so the `deny` entry it produces does its own work.
+  // Cline has no `ask` list, so an `ask` rule has to land somewhere else, and
+  // where depends on the category that wrote it. An all-tools `*` ask withholds
+  // the `allow` rules it covers, the way Warp and Factory Droid handle theirs:
+  // a pattern written under `*` need not name a command, and denying it outright
+  // would turn the ordinary catch-all `{"*": {"*": "ask"}}` into a block on every
+  // command — one Cline's additive `deny` merge would then keep forever. A `deny`
+  // needs no such treatment whatever wrote it: it reaches Cline's own `deny` list,
+  // which outranks the `allow` beside it.
   const isShadowed = createShadowedAllowTest(
-    rules.filter(({ fromAllToolsCategory }) => fromAllToolsCategory),
+    rules.filter(({ action, fromAllToolsCategory }) => action === "ask" && fromAllToolsCategory),
   );
 
-  for (const { pattern, action } of rules) {
+  for (const { pattern, action, fromAllToolsCategory } of rules) {
     if (action === "ask") {
-      // Cline has no `ask` semantics. Translate to `deny` for fail-closed safety so the
-      // protective intent of the rule is preserved instead of being silently dropped.
+      if (fromAllToolsCategory) {
+        continue;
+      }
+      // A `bash` ask is a command pattern by construction. Translate it to `deny`
+      // for fail-closed safety so the protective intent of the rule is preserved
+      // instead of being silently dropped.
       translatedAskPatterns.push(pattern);
       deny.push(pattern);
       continue;
@@ -154,8 +160,8 @@ function warnClineTranslationNotices({
   if (shadowedAllowPatterns.length > 0) {
     parts.push(
       `'allow' rules for [${shadowedAllowPatterns.join(", ")}] withheld because the ` +
-        `all-tools '*' category restricts the same commands, and a pattern written there ` +
-        `need not be a command Cline's 'deny' list can catch`,
+        `all-tools '*' category asks about the same commands, and Cline has no 'ask' list ` +
+        `to prompt from`,
     );
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {
