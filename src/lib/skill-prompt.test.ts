@@ -351,7 +351,13 @@ describe("promptSkillSelection", () => {
       name: string;
       value: string;
     }>;
-    expect(displayWidthOf(choices[0]?.name ?? "")).toBeLessThanOrEqual(57);
+    // Asserted to the column rather than as an upper bound, so a budget that
+    // subtracted the wrong prefix would fail here instead of passing by being
+    // shorter than it had to be.
+    expect(choices[0]?.name).toBe(
+      `[!] carries more whitespace than the \u2026 \u2014 pdf${" ".repeat(12)}\u2026`,
+    );
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(57);
     expect(choices[0]?.value).toBe(padded);
   });
 
@@ -367,10 +373,15 @@ describe("promptSkillSelection", () => {
       preselectedSkills: [],
     });
 
-    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
-    for (const choice of choices) {
-      expect(displayWidthOf(choice.name)).toBeLessThanOrEqual(57);
-    }
+    const shortened = "a".repeat(52);
+    expect(checkboxMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        choices: [
+          { name: `(1) ${shortened}\u2026`, value: `${shared}-official`, checked: false },
+          { name: `(2) ${shortened}\u2026`, value: `${shared}-not-official`, checked: false },
+        ],
+      }),
+    );
   });
 
   it("should assume the width its own renderer assumes when the terminal is silent", async () => {
@@ -378,6 +389,21 @@ describe("promptSkillSelection", () => {
     // A pipe carries no width, and the renderer wraps at 80 when asked one it
     // cannot answer, so the label is budgeted against the same 80.
     setTerminalWidth(undefined);
+    const long = `pdf${"o".repeat(100)}`;
+
+    await promptSkillSelection({ availableSkills: [long], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(68)}\u2026`);
+  });
+
+  it("should treat a width of zero as a terminal that did not answer", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // A TTY reports zero columns while it is being resized. The renderer breaks
+    // the rows at 80 in that case rather than at nothing, so the budget has to
+    // land on the same 80 — read literally, it would cut every name down to the
+    // floor while the row it is drawn on has room for the whole 72.
+    setTerminalWidth(0);
     const long = `pdf${"o".repeat(100)}`;
 
     await promptSkillSelection({ availableSkills: [long], preselectedSkills: [] });

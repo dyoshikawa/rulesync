@@ -50,11 +50,18 @@ const MAX_SKILL_LABEL_WIDTH = 72;
 /**
  * What the prompt draws in front of a label, in columns.
  *
- * `@inquirer/checkbox` renders each row as `${cursor}${checkbox} ${name}`: one
- * column for the pointer, one for the box, and one for the space between the
- * box and the label. Nothing is drawn in front of a continuation line, so a
- * label that overruns the row paints its tail flush against the left margin,
- * which is exactly where a padded name wants it.
+ * `@inquirer/checkbox` renders each row as `${cursor}${checkbox} ${name}` (its
+ * `renderItem`, as of 5.2.2): one column for the pointer, one for the box, and
+ * one for the space between the box and the label. Nothing is drawn in front of
+ * a continuation line, so a label that overruns the row paints its tail flush
+ * against the left margin, which is exactly where a padded name wants it.
+ *
+ * The pointer and the box are counted at one column each, which is what
+ * `displayWidthOf` counts them as: the box is East Asian Ambiguous, and this
+ * project counts the ambiguous characters as one column, the width a terminal
+ * running a Latin font draws them in. A terminal configured to draw them wide
+ * takes two more columns than this, which shortens what fits rather than
+ * lengthening it.
  */
 const CHOICE_PREFIX_WIDTH = 3;
 
@@ -85,13 +92,21 @@ const MIN_SHORTENED_NAME_WIDTH = 16;
  * beneath itself is back, carrying no note, since a name padded with ordinary
  * visible characters is not confusable with anything.
  *
- * The floor is the one a name is kept to anyway. Below it a label is cut to
- * little more than an ellipsis, and a list of rows that cannot be told apart at
- * all is worse than a row that wraps — which, in a terminal that narrow, it
- * does whatever this returns.
+ * A width of zero is treated as no width at all rather than as a terminal three
+ * columns narrower than nothing. A TTY reports it while it is being resized,
+ * and `cli-width` — which is what decides where the rows are actually broken —
+ * turns it into the same 80 this does, so taking it literally would budget
+ * against a width the renderer never uses.
+ *
+ * Below about two dozen columns the floor takes over, and a noted label runs
+ * past what is returned here: the name keeps its `MIN_SHORTENED_NAME_WIDTH`
+ * whatever is left for it, and the note in front of it is cut to an ellipsis
+ * rather than to nothing. That is the deliberate end of the trade — a row of
+ * rows that cannot be told apart at all is worse than a row that wraps, and in
+ * a terminal that narrow it wraps whatever this returns.
  */
 function skillLabelBudget(): number {
-  const terminalWidth = process.stdout.columns ?? FALLBACK_TERMINAL_WIDTH;
+  const terminalWidth = process.stdout.columns || FALLBACK_TERMINAL_WIDTH;
   return Math.max(
     Math.min(MAX_SKILL_LABEL_WIDTH, terminalWidth - CHOICE_PREFIX_WIDTH),
     MIN_SHORTENED_NAME_WIDTH,
