@@ -1,31 +1,10 @@
-import { join } from "node:path";
-
 import {
   FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME,
   FACTORYDROID_REVIEW_GUIDELINES_DIR_PATH,
 } from "../../constants/factorydroid-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import type { ValidationResult } from "../../types/ai-file.js";
-import { readFileContentOrNull } from "../../utils/file.js";
-import {
-  hasHandWrittenPreamble,
-  isOnlyGeneratedSections,
-  renderCheckFile,
-  splitCheckFile,
-} from "./aggregated-check-file.js";
-import { RulesyncCheck } from "./rulesync-check.js";
-import {
-  ToolCheck,
-  type ToolCheckForDeletionParams,
-  type ToolCheckFromFileParams,
-  type ToolCheckFromRulesyncCheckParams,
-  type ToolCheckFromRulesyncChecksParams,
-  type ToolCheckSettablePaths,
-} from "./tool-check.js";
-
-// The skill's own name: an import that finds no marked section attributes the
-// whole file to one check named after it.
-const FALLBACK_CHECK_NAME = FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME;
+import { AggregatedToolCheck, type AggregatedToolCheckConfig } from "./aggregated-tool-check.js";
+import { type ToolCheckSettablePaths } from "./tool-check.js";
 
 /**
  * Drop the YAML frontmatter of a hand-authored `review-guidelines` skill before
@@ -83,6 +62,21 @@ function stripSkillFrontmatter(fileContent: string): string {
   }
 }
 
+function handWrittenWarning({ filePath }: { filePath: string }): string {
+  return (
+    `Factory Droid checks: ${filePath} holds instructions rulesync did not write, so it is ` +
+    `left as it is and no checks were generated for Factory Droid. Run ` +
+    `\`rulesync import --targets factorydroid --features checks\` to bring them into ` +
+    `\`.rulesync/checks/\` and then delete the file, so the next generate writes it back ` +
+    `from there; delete it outright if you no longer want it, or rename the directory if ` +
+    `it is an ordinary skill rather than review guidelines. Importing alone leaves this ` +
+    `file as it is, so it keeps blocking generation until it is gone. A rulesync skill ` +
+    `named \`${FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME}\` is no longer generated here — ` +
+    `Factory's reviewer reads this path, so the checks feature owns it — but a directory ` +
+    `an older rulesync wrote can still be sitting there.`
+  );
+}
+
 /**
  * Checks adapter for Factory Droid's code-review guidelines
  * (`.factory/skills/review-guidelines/SKILL.md`).
@@ -91,9 +85,10 @@ function stripSkillFrontmatter(fileContent: string): string {
  * "repository-specific review guidelines" from a skill named
  * `review-guidelines` and injects them into every review run. That makes the
  * output a single aggregated file like Cursor Bugbot's and Rovo Dev's, so every
- * `.rulesync/checks/*.md` targeting Factory Droid collapses into it via
- * {@link fromRulesyncChecks}, each check written as a marked section (see
- * `aggregated-check-file.ts` for the marker convention the adapters share).
+ * `.rulesync/checks/*.md` targeting Factory Droid collapses into it via the
+ * `fromRulesyncChecks` on {@link AggregatedToolCheck}, each check written as a
+ * marked section (see `aggregated-check-file.ts` for the marker convention the
+ * three aggregated adapters share).
  *
  * The file is plain Markdown with no frontmatter, matching Factory's documented
  * example. Frontmatter would also be self-defeating here: `renderCheckFile`
@@ -111,8 +106,9 @@ function stripSkillFrontmatter(fileContent: string): string {
  * The output lives inside the same `.factory/skills/` tree the `skills` feature
  * writes, so a user-authored `review-guidelines` skill collides with it. The
  * path has one owner rather than a merge rule, and the owner is this feature:
- * {@link fromRulesyncChecks} leaves a file holding anything rulesync did not
- * write untouched, and {@link canDeleteAuxiliaryFiles} refuses to remove one.
+ * generating leaves a file holding anything rulesync did not write untouched —
+ * the `skip` policy below — and the base's `canDeleteAuxiliaryFiles` refuses to
+ * remove one.
  * Their content is somebody's own writing and rulesync cannot reconstruct it,
  * so neither direction guesses. That is stricter than Cursor Bugbot's
  * replace-and-warn, and deliberately: `.cursor/BUGBOT.md` is a path only the
@@ -122,7 +118,7 @@ function stripSkillFrontmatter(fileContent: string): string {
  *
  * @see https://docs.factory.ai/software-factory/code-review-ci
  */
-export class FactorydroidCheck extends ToolCheck {
+export class FactorydroidCheck extends AggregatedToolCheck {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCheckSettablePaths {
     return {
       relativeDirPath: FACTORYDROID_REVIEW_GUIDELINES_DIR_PATH,
@@ -130,140 +126,21 @@ export class FactorydroidCheck extends ToolCheck {
     };
   }
 
-  static isTargetedByRulesyncCheck(rulesyncCheck: RulesyncCheck): boolean {
-    return this.isTargetedByRulesyncCheckDefault({ rulesyncCheck, toolTarget: "factorydroid" });
-  }
-
-  /**
-   * Ownership guard the processor consults before it deletes anything for this
-   * tool. `review-guidelines` is an ordinary skill directory a user may have
-   * authored by hand, so dropping the last check targeting Factory Droid must
-   * not take their review instructions with it. Deletion is allowed only for a
-   * file that is nothing but generated sections.
-   */
-  static async canDeleteAuxiliaryFiles({ outputRoot }: { outputRoot: string }): Promise<boolean> {
-    const paths = FactorydroidCheck.getSettablePaths();
-    const filePath = join(
-      outputRoot,
-      paths.relativeDirPath,
-      paths.relativeFilePath ?? SKILL_FILE_NAME,
-    );
-    const fileContent = await readFileContentOrNull(filePath);
-    if (fileContent === null) {
-      return true;
-    }
-    return isOnlyGeneratedSections(fileContent);
-  }
-
-  static override fromRulesyncCheck(_params: ToolCheckFromRulesyncCheckParams): FactorydroidCheck {
-    // Sections share one file, so they are only ever built as a set.
-    throw new Error(
-      "Factory Droid checks are built from all checks at once; use fromRulesyncChecks.",
-    );
-  }
-
-  static async fromRulesyncChecks({
-    outputRoot = process.cwd(),
-    rulesyncChecks,
-    global = false,
-    logger,
-  }: ToolCheckFromRulesyncChecksParams): Promise<FactorydroidCheck[]> {
-    if (rulesyncChecks.length === 0) {
-      // No section to write. A stale file from an earlier generate is removed by
-      // the processor's deletion pass rather than by an empty file written here.
-      return [];
-    }
-
-    const paths = FactorydroidCheck.getSettablePaths({ global });
-    const relativeFilePath = paths.relativeFilePath ?? SKILL_FILE_NAME;
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-
-    // The file would be rewritten from `.rulesync/checks/` rather than merged
-    // into, so content rulesync did not write is left alone instead: it is a
-    // skill somebody authored at a path this feature owns, and rewriting it
-    // would drop review instructions rulesync has no way to rebuild. The
-    // deletion guard makes the same promise from the other side.
-    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    if (hasHandWrittenPreamble(existingContent)) {
-      logger?.warn(
-        `Factory Droid checks: ${filePath} holds instructions rulesync did not write, so it is ` +
-          `left as it is and no checks were generated for Factory Droid. Run ` +
-          `\`rulesync import --targets factorydroid --features checks\` to bring them into ` +
-          `\`.rulesync/checks/\` and then delete the file, so the next generate writes it back ` +
-          `from there; delete it outright if you no longer want it, or rename the directory if ` +
-          `it is an ordinary skill rather than review guidelines. Importing alone leaves this ` +
-          `file as it is, so it keeps blocking generation until it is gone. A rulesync skill ` +
-          `named \`${FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME}\` is no longer generated here — ` +
-          `Factory's reviewer reads this path, so the checks feature owns it — but a directory ` +
-          `an older rulesync wrote can still be sitting there.`,
-      );
-      return [];
-    }
-
-    const fileContent = renderCheckFile(rulesyncChecks);
-
-    return [
-      new FactorydroidCheck({
-        outputRoot,
-        relativeDirPath: paths.relativeDirPath,
-        relativeFilePath,
-        fileContent,
-        global,
-      }),
-    ];
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    global = false,
-  }: ToolCheckFromFileParams): Promise<FactorydroidCheck> {
-    const paths = FactorydroidCheck.getSettablePaths({ global });
-    const relativeFilePath = paths.relativeFilePath ?? SKILL_FILE_NAME;
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    return new FactorydroidCheck({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      fileContent: (await readFileContentOrNull(filePath)) ?? "",
-      global,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolCheckForDeletionParams): FactorydroidCheck {
-    return new FactorydroidCheck({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global,
-    });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
-  toRulesyncCheck(): RulesyncCheck {
-    const checks = this.toRulesyncChecks();
-    const first = checks[0];
-    if (!first) {
-      throw new Error(
-        `No check instructions found in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}.`,
-      );
-    }
-    return first;
-  }
-
-  override toRulesyncChecks(): RulesyncCheck[] {
-    return splitCheckFile({
-      fileContent: stripSkillFrontmatter(this.getFileContent()),
-      fallbackName: FALLBACK_CHECK_NAME,
-    });
+  protected static override getAggregatedCheckConfig(): AggregatedToolCheckConfig {
+    return {
+      displayName: "Factory Droid",
+      toolTarget: "factorydroid",
+      // The skill's own name: an import that finds no marked section attributes
+      // the whole file to one check named after it.
+      fallbackCheckName: FACTORYDROID_REVIEW_GUIDELINES_DIR_NAME,
+      // Stricter than Cursor Bugbot's replace-and-warn, and deliberately: a
+      // file here may be an ordinary skill written for Droid's skill loader
+      // that has nothing to do with reviews.
+      handWrittenPreamble: "skip",
+      handWrittenWarning,
+      // The only aggregated adapter that needs one: this path can also hold a
+      // hand-authored skill, and a skill carries frontmatter.
+      transformImportedContent: stripSkillFrontmatter,
+    };
   }
 }
