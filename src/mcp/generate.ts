@@ -14,6 +14,7 @@ import { type RulesyncTargets } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
 import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
+import { truncateText } from "../utils/truncate.js";
 import { type McpResultCounts } from "./types.js";
 
 /**
@@ -36,18 +37,48 @@ import { type McpResultCounts } from "./types.js";
  */
 class CollectingLogger extends WarningCollectingLogger {
   private readonly errors: string[] = [];
+  private omittedErrors = 0;
 
   override error(message: string | Error, code?: string, ...args: unknown[]): void {
     if (code === ErrorCodes.SOURCE_LOAD_FAILED) {
-      this.errors.push(message instanceof Error ? message.message : message);
+      this.collect(message instanceof Error ? message.message : message);
     }
     super.error(message, code, ...args);
   }
 
+  private collect(message: string): void {
+    if (this.errors.length >= MAX_COLLECTED_ERRORS) {
+      this.omittedErrors++;
+      return;
+    }
+    this.errors.push(
+      truncateText({
+        text: message,
+        maxLength: MAX_COLLECTED_ERROR_LENGTH,
+        suffix: "…(truncated)",
+      }),
+    );
+  }
+
   getErrors(): readonly string[] {
-    return this.errors;
+    if (this.omittedErrors === 0) {
+      return this.errors;
+    }
+    return [...this.errors, `… and ${this.omittedErrors} more source(s) that could not be read`];
   }
 }
+
+/**
+ * How many unreadable sources the failure names, and how much of each reason.
+ *
+ * These lines become the `error` of an MCP result the calling agent reads as
+ * context, and each one quotes a file rulesync did not write. A `.rulesync/`
+ * tree with a thousand broken sources is a plausible accident; a failure
+ * message sized to it is not something an agent can act on, and the first few
+ * reasons are what says which file to open.
+ */
+const MAX_COLLECTED_ERRORS = 20;
+const MAX_COLLECTED_ERROR_LENGTH = 1_000;
 
 /**
  * Schema for generate options

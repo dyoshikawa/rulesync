@@ -744,6 +744,25 @@ describe("withFallbackLoggerTarget", () => {
       outputSpy.mockRestore();
     }
   });
+
+  it("does not narrate progress, which stdio MCP cannot have written to stdout", async () => {
+    const collector = new WarningCollectingLogger({ verbose: true, silent: false });
+    const infoSpy = vi.spyOn(collector, "info");
+    const successSpy = vi.spyOn(collector, "success");
+
+    await withFallbackLoggerTarget({
+      logger: collector,
+      operation: async () => {
+        fallbackLogger.info("progress");
+        fallbackLogger.success("done");
+        fallbackLogger.warn("a diagnostic still travels");
+      },
+    });
+
+    expect(infoSpy).not.toHaveBeenCalled();
+    expect(successSpy).not.toHaveBeenCalled();
+    expect(collector.getWarnings()).toEqual(["a diagnostic still travels"]);
+  });
 });
 
 describe("warnOnceWithFallback", () => {

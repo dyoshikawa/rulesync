@@ -20,6 +20,7 @@ import {
   type RulesyncSubagentFrontmatter,
   RulesyncSubagentFrontmatterSchema,
 } from "../features/subagents/rulesync-subagent.js";
+import { withWarnOnceScope } from "../utils/warned-once.js";
 import { checkTools } from "./checks.js";
 import { commandTools } from "./commands.js";
 import { convertOptionsSchema, convertTools } from "./convert.js";
@@ -442,16 +443,22 @@ export const rulesyncTool = {
   description:
     'Manage Rulesync files through a single MCP tool. Features: rule/command/subagent/skill/check support list/get/put/delete; ignore/mcp/permissions/hooks support get/put/delete only; generate supports run only; import supports run only; convert supports run only. Parameters: list requires no targetPathFromCwd (lists all items); get/delete require targetPathFromCwd; put requires targetPathFromCwd, frontmatter, and body (or content for ignore/mcp/permissions/hooks); generate/run uses generateOptions to configure generation; import/run uses importOptions to configure import; convert/run uses convertOptions to configure conversion. skill otherFiles entries accept an optional encoding ("utf-8" by default, "base64" for binary files) and are returned with the encoding they require.',
   parameters: rulesyncToolSchema,
-  execute: async (args: RulesyncToolArgs) => {
-    const parsed = rulesyncToolSchema.parse(args);
+  // Each call gets its own once-per-run bookkeeping. The server is long-lived
+  // and does not serialize requests, so without a scope the process-wide record
+  // would grow for as long as it runs, and the first call to hit a
+  // once-per-run diagnostic would silence it for every call after it — however
+  // many days later, and whatever project it was about.
+  execute: async (args: RulesyncToolArgs) =>
+    await withWarnOnceScope(async () => {
+      const parsed = rulesyncToolSchema.parse(args);
 
-    assertSupported({ feature: parsed.feature, operation: parsed.operation });
+      assertSupported({ feature: parsed.feature, operation: parsed.operation });
 
-    const executor = featureExecutors[parsed.feature];
-    if (!executor) {
-      throw new Error(`Unknown feature: ${parsed.feature}`);
-    }
+      const executor = featureExecutors[parsed.feature];
+      if (!executor) {
+        throw new Error(`Unknown feature: ${parsed.feature}`);
+      }
 
-    return executor(parsed);
-  },
+      return await executor(parsed);
+    }),
 } as const;

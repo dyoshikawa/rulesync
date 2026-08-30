@@ -1,4 +1,5 @@
 import { stripControlCharacters } from "./control-characters.js";
+import { truncateText } from "./truncate.js";
 
 /**
  * How much of a value read off disk a diagnostic quotes.
@@ -23,10 +24,33 @@ const MAX_QUOTED_VALUE_LENGTH = 60;
  * bidirectional overrides); and truncated.
  */
 export function quoteValueForWarning(value: unknown): string {
-  // `JSON.stringify` returns undefined for a function or a bare `undefined`,
-  // neither of which is data we would want to lose the mention of.
-  const encoded = stripControlCharacters(JSON.stringify(value) ?? String(value));
-  return encoded.length > MAX_QUOTED_VALUE_LENGTH
-    ? `${encoded.slice(0, MAX_QUOTED_VALUE_LENGTH)}…(truncated)`
-    : encoded;
+  const encoded = stripControlCharacters(serialize(value));
+  return truncateText({
+    text: encoded,
+    maxLength: MAX_QUOTED_VALUE_LENGTH,
+    suffix: "…(truncated)",
+  });
+}
+
+function serialize(value: unknown): string {
+  try {
+    // `JSON.stringify` returns undefined for a function or a bare `undefined`,
+    // neither of which is data we would want to lose the mention of.
+    return JSON.stringify(value, stripStrings) ?? String(value);
+  } catch {
+    // A YAML config can hold a recursive anchor, and js-yaml resolves it into a
+    // genuinely circular object; a BigInt throws here too. Neither is a reason
+    // for a warning to become the failure of the whole run.
+    return `[unserializable ${typeof value}]`;
+  }
+}
+
+/**
+ * Strip the control characters out of every string before `JSON.stringify`
+ * sees it, not only out of the document it produces: `JSON.stringify` escapes
+ * a C0 character into the six literal characters `\u001b`, which no later pass
+ * over the output can recognize as a control character again.
+ */
+function stripStrings(_key: string, value: unknown): unknown {
+  return typeof value === "string" ? stripControlCharacters(value) : value;
 }

@@ -1,9 +1,9 @@
 import { join } from "node:path";
 
-import { stripControlCharacters } from "./control-characters.js";
 import { formatError } from "./error.js";
 import { readFileContentOrNull } from "./file.js";
 import { type Logger, warnOnceWithFallback } from "./logger.js";
+import { quoteValueForWarning } from "./quote-value.js";
 import { isPlainObject } from "./type-guards.js";
 
 /**
@@ -135,7 +135,10 @@ export async function readSettingsWithLocalOverlay({
 
 /** Quotes a name read off disk, the way every other such name is logged. */
 function quoteKey(key: string): string {
-  return JSON.stringify(stripControlCharacters(key));
+  // Bounded as well as quoted: the count below caps how many keys are named,
+  // but one multi-kilobyte key would otherwise crowd out the sentence that
+  // says what to do about them.
+  return quoteValueForWarning(key);
 }
 
 /**

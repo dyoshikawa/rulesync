@@ -1,5 +1,8 @@
 import { ZodError } from "zod";
 
+import { stripControlCharacters } from "./control-characters.js";
+import { truncateText } from "./truncate.js";
+
 /**
  * Convert various error types to a readable error message
  * @param error Error instance (ZodError, Error, or unknown)
@@ -41,10 +44,32 @@ function isZodErrorLike(error: unknown): error is {
   );
 }
 
+/**
+ * How much of a Zod error the formatted message spells out.
+ *
+ * One `safeParse` of a large invalid document produces an issue per offending
+ * node, each carrying the path and message, so the raw expansion is bounded by
+ * the size of the input rather than by anything rulesync decides — and the
+ * formatted message no longer stops at a terminal: it becomes the `message` of
+ * a `--json` failure document and of an MCP result. The first few issues are
+ * what tells the reader which file to open; the rest is the same information
+ * again, at whatever length the input chose.
+ */
+const MAX_ZOD_ISSUES_LENGTH = 2_000;
+
 export function formatError(error: unknown): string {
   // Check for ZodError by duck typing (handles both zod and zod/mini)
   if (error instanceof ZodError || isZodErrorLike(error)) {
-    return `Zod raw error: ${JSON.stringify(error.issues)}`;
+    // Stripped as well as bounded: the issues are already JSON-encoded, so no
+    // newline of the message's own is lost, but `JSON.stringify` escapes C0
+    // only — a path or a custom message read out of an untrusted document can
+    // still carry a C1 introducer or a bidirectional override.
+    const issues = stripControlCharacters(JSON.stringify(error.issues));
+    return `Zod raw error: ${truncateText({
+      text: issues,
+      maxLength: MAX_ZOD_ISSUES_LENGTH,
+      suffix: "…(truncated)",
+    })}`;
   }
 
   if (error instanceof Error) {

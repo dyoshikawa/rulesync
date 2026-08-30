@@ -3,6 +3,7 @@ import { format } from "node:util";
 
 import { CLIError, ErrorCodes, JsonOutput } from "../types/json-output.js";
 import { stripControlCharacters } from "./control-characters.js";
+import { truncateText } from "./truncate.js";
 import { isEnvTest } from "./vitest.js";
 import { claimWarnOnce, withWarnOnceScope } from "./warned-once.js";
 
@@ -81,10 +82,11 @@ class WarningCollection {
     // still carry a bidirectional override or a C1 introducer that reorders or
     // forges the line when whatever reads the document prints it.
     const line = stripControlCharacters(formatLogLine({ message, args }));
-    const kept =
-      line.length > MAX_COLLECTED_WARNING_LENGTH
-        ? `${line.slice(0, MAX_COLLECTED_WARNING_LENGTH)}… (truncated)`
-        : line;
+    const kept = truncateText({
+      text: line,
+      maxLength: MAX_COLLECTED_WARNING_LENGTH,
+      suffix: "… (truncated)",
+    });
 
     // A plain `warn` repeats per tool target, so without this the budget below
     // could be spent entirely on copies of one line while every distinct later
@@ -408,12 +410,13 @@ export const fallbackLogger: Logger = {
     return {};
   },
   outputJson(_success: boolean, _error?: JsonErrorInfo): void {},
-  info(message: string, ...args: unknown[]): void {
-    currentFallbackTarget().info(message, ...args);
-  },
-  success(message: string, ...args: unknown[]): void {
-    currentFallbackTarget().success(message, ...args);
-  },
+  // `info` and `success` narrate a command's progress on stdout, which is the
+  // one stream an MCP server speaking JSON-RPC over stdio cannot have anything
+  // else written to. Nothing calls them through the forwarder, and a path with
+  // no logger of its own has no progress to narrate — only diagnostics, which
+  // `warn` and `debug` carry.
+  info(_message: string, ..._args: unknown[]): void {},
+  success(_message: string, ..._args: unknown[]): void {},
   warn(message: string, ...args: unknown[]): void {
     currentFallbackTarget().warn(message, ...args);
   },

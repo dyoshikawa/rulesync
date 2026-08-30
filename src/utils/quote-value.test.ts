@@ -22,6 +22,12 @@ describe("quoteValueForWarning", () => {
     expect(quoteValueForWarning("a‮b")).toBe('"ab"');
   });
 
+  it("should strip a control character before JSON.stringify can escape it", () => {
+    // Escaped first, the ESC would survive as the six literal characters
+    // `\u001b` that a later strip cannot recognize as a control character.
+    expect(quoteValueForWarning("a\u001b[31mb")).toBe('"a[31mb"');
+  });
+
   it("should truncate a long value, since it now travels into JSON and MCP results", () => {
     const quoted = quoteValueForWarning("x".repeat(200));
 
