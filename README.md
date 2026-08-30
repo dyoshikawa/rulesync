@@ -126,7 +126,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Replit                    |  ✅   |        |     |          |           |   ✅   |       |             |        |
 | Pi Coding Agent           |  ✅   |        |     |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
 | Zed                       |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |
-| ZCode (Z.ai)              |  ✅   |        | ✅  |    ✅    |           |   ✅   |       |             |        |
+| ZCode (Z.ai)              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
 
 <!-- SUPPORTED_TOOLS_AI:END -->
 
