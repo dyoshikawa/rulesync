@@ -781,19 +781,23 @@ describe("withFallbackLoggerTarget", () => {
   it("configures the default target, not whichever logger is adopted", async () => {
     const collector = new WarningCollectingLogger({ verbose: false, silent: true });
 
-    await withFallbackLoggerTarget({
-      logger: collector,
-      operation: async () => {
-        fallbackLogger.configure({ verbose: true, silent: true });
-      },
-    });
+    try {
+      await withFallbackLoggerTarget({
+        logger: collector,
+        operation: async () => {
+          fallbackLogger.configure({ verbose: true, silent: true });
+        },
+      });
 
-    // The adopted logger belongs to the operation that handed it over; only the
-    // console the forwarder falls back to is `wrapCommand`'s to silence.
-    expect(collector.verbose).toBe(false);
-    expect(fallbackLogger.silent).toBe(true);
-
-    fallbackLogger.configure({ verbose: false, silent: false });
+      // The adopted logger belongs to the operation that handed it over; only
+      // the console the forwarder falls back to is `wrapCommand`'s to silence.
+      expect(collector.verbose).toBe(false);
+      expect(fallbackLogger.silent).toBe(true);
+    } finally {
+      // The default target is module-global: a failed expectation above would
+      // otherwise leave every later test running against a silenced console.
+      fallbackLogger.configure({ verbose: false, silent: false });
+    }
   });
 
   it("carries diagnostics only, leaving the adopted logger's JSON document alone", async () => {

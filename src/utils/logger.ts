@@ -475,8 +475,8 @@ export const fallbackLogger: Logger = {
   // written to. Nothing calls any of them through the forwarder, and a path
   // with no logger of its own has no progress to narrate — only diagnostics,
   // which `warn` carries. `debug` is silent today merely because the `mcp`
-  // subcommand registers no `--verbose`; that is a coincidence to be relied on,
-  // not a design.
+  // subcommand registers no `--verbose`; that is a coincidence, not a design to
+  // be relied on.
   info(_message: string, ..._args: unknown[]): void {},
   success(_message: string, ..._args: unknown[]): void {},
   warn(message: string, ...args: unknown[]): void {

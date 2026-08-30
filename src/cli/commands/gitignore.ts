@@ -353,14 +353,12 @@ export const gitignoreCommand = async (
     // go out of the document. The sentence that introduces it changes with it,
     // since one ending in a colon promises a list that would never arrive.
     if (logger.jsonMode) {
+      const removedCount = gitignoreResult.entriesRemoved.length;
+      const single = removedCount === 1;
       logger.warn(
-        `${gitignoreResult.entriesRemoved.length} ${
-          gitignoreResult.entriesRemoved.length === 1 ? "entry" : "entries"
-        } listed under "entriesRemoved" ${
-          gitignoreResult.entriesRemoved.length === 1 ? "was" : "were"
-        } removed from the rulesync-managed block in .gitignore and ${
-          gitignoreResult.entriesRemoved.length === 1 ? "is" : "are"
-        } no longer gitignored by rulesync.`,
+        `${removedCount} ${single ? "entry" : "entries"} listed under "entriesRemoved" ` +
+          `${single ? "was" : "were"} removed from the rulesync-managed block in .gitignore ` +
+          `and ${single ? "is" : "are"} no longer gitignored by rulesync.`,
       );
     } else {
       logger.warn(
