@@ -698,15 +698,18 @@ describe("file utilities", () => {
         ]);
       });
 
-      it("should spell a name the way the filesystem does", async () => {
-        // The reason this exists rather than a `**` glob: globby reads the
-        // backslash as a separator and reports the file at `back/slash.md`,
-        // a path that belongs to no file.
-        const root = join(testDir, "root");
-        await writeFileContent(join(root, "back\\slash.md"), "content");
+      it.skipIf(process.platform === "win32")(
+        "should spell a name the way the filesystem does",
+        async () => {
+          // The reason this exists rather than a `**` glob: globby reads the
+          // backslash as a separator and reports the file at `back/slash.md`,
+          // a path that belongs to no file.
+          const root = join(testDir, "root");
+          await writeFileContent(join(root, "back\\slash.md"), "content");
 
-        expect(await listFilePathsRecursively(root)).toEqual(["back\\slash.md"]);
-      });
+          expect(await listFilePathsRecursively(root)).toEqual(["back\\slash.md"]);
+        },
+      );
 
       it("should leave hidden entries out unless asked for them", async () => {
         const root = join(testDir, "root");
@@ -739,13 +742,32 @@ describe("file utilities", () => {
       });
 
       it.skipIf(process.platform === "win32")(
-        "should walk each directory once when a link points back at an ancestor",
+        "should stop at a link that points back at an ancestor",
         async () => {
           const root = join(testDir, "root");
           await writeFileContent(join(root, "sub", "note.md"), "content");
           await symlink(root, join(root, "sub", "loop"));
 
           expect(await listFilePathsRecursively(root)).toEqual([join("sub", "note.md")]);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should report a directory two names reach under both of them",
+        async () => {
+          // Only a cycle ends the walk. A link pointing sideways is a second
+          // name for the same file, and dropping either one would hide a path
+          // that is really there -- for local rule names, a rule the project
+          // holds under a name the walk never reported.
+          const root = join(testDir, "root");
+          await writeFileContent(join(root, "target", "y.md"), "content");
+          await ensureDir(join(root, "a"));
+          await symlink(join(root, "target"), join(root, "a", "link"));
+
+          expect(await listFilePathsRecursively(root)).toEqual([
+            join("a", "link", "y.md"),
+            join("target", "y.md"),
+          ]);
         },
       );
     });

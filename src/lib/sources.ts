@@ -25,6 +25,7 @@ import {
   fileExists,
   listFilePathsRecursively,
   readFileContent,
+  splitPathSegments,
   removeFileStrict,
   removeDirectoryStrict,
   runWithDirectoryRollback,
@@ -316,6 +317,12 @@ function getSourceFilters(sourceEntry: SourceEntry): {
   };
 }
 
+/** The subdirectory of the rules tree that holds the fetched copy of remote rules. */
+const CURATED_RULES_SUBDIR_NAME = posix.relative(
+  RULESYNC_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+);
+
 /**
  * The names of the rules the project holds itself, which take precedence over
  * the rules a source offers under the same name.
@@ -324,16 +331,23 @@ function getSourceFilters(sourceEntry: SourceEntry): {
  * rewrites it in the paths it returns, so a rule file named `back\\slash.md`
  * would be recorded as the rule `back/slash`, which is not the name of any rule
  * on disk — a remote rule of that name would then be skipped in favour of a
- * local rule that does not exist. Hidden entries stay out of the walk, which is
- * what keeps `.curated`, the fetched copy of the remote rules, from being read
- * as local.
+ * local rule that does not exist.
+ *
+ * The curated subtree is named rather than left to the walk's hidden-entry
+ * rule, which happens to cover it today only because the name starts with a
+ * dot. Reading a fetched rule as a local one is not a small mistake: it would
+ * take precedence over its own source and never be refreshed again.
  */
 async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   const rulesDir = join(projectRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
   const relativePaths = await listFilePathsRecursively(rulesDir, {
     nameFilter: (name) => name.toLowerCase().endsWith(".md"),
   });
-  return new Set(relativePaths.map((relativePath) => relativePath.replace(/\.md$/i, "")));
+  return new Set(
+    relativePaths
+      .filter((relativePath) => splitPathSegments(relativePath)[0] !== CURATED_RULES_SUBDIR_NAME)
+      .map((relativePath) => relativePath.replace(/\.md$/i, "")),
+  );
 }
 
 export async function getInstalledSourceSkillNames({

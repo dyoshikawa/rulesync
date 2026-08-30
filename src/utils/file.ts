@@ -618,9 +618,9 @@ async function realFileIdentity(filePath: string): Promise<string> {
  * the file's identity; one that walked through a link named differently from
  * its target parts from the identity at that segment and shares only what
  * follows it. Counting from the end rather than testing the two for equality is
- * what lets the comparison hold for a path that is not itself resolved: a
- * relative glob, or one whose root leads through a link of its own, gives every
- * candidate the same unresolved prefix, and only the segments below it decide.
+ * what lets the comparison hold for a path that is not itself resolved: a glob
+ * rooted at a directory that is a link of its own gives every candidate the
+ * same unresolved prefix, and only the segments below it decide.
  */
 function sharedTrailingSegments(filePath: string, identity: string): number {
   const left = splitPathSegments(toPosixPath(filePath));
@@ -946,9 +946,14 @@ export async function listFileNames(
  * directory below it, since a subtree silently missing from the result is the
  * same mistake one level down.
  *
- * Each real directory is walked once, so a link pointing back at an ancestor
- * ends the walk instead of looping. `nameFilter` narrows the files, not the
- * directories the walk descends into.
+ * A directory link is followed like any other directory, and only a link that
+ * leads back into the chain the walk is already inside ends there, so a link
+ * pointing at an ancestor cannot loop. A link pointing sideways, at a directory
+ * the walk reaches elsewhere too, is reported under both names rather than
+ * under whichever the walk happened to reach first -- the same rule the files
+ * follow, and the same reason {@link findFilesByGlobs} keeps a file's real path
+ * rather than an alias: no name on disk goes missing from the result.
+ * `nameFilter` narrows the files, not the directories the walk descends into.
  */
 export async function listFilePathsRecursively(
   dirPath: string,
@@ -963,13 +968,16 @@ export async function listFilePathsRecursively(
     return [];
   }
   const filePaths: string[] = [];
-  const walked = new Set<string>();
+  // The chain of directories the walk is currently inside, not every directory
+  // it has ever seen: a directory reached twice by two different names is two
+  // results, and only a directory reached from inside itself is a cycle.
+  const ancestorIdentities = new Set<string>();
   const walk = async (currentPath: string, prefix: string): Promise<void> => {
     const identity = await realFileIdentity(currentPath);
-    if (walked.has(identity)) {
+    if (ancestorIdentities.has(identity)) {
       return;
     }
-    walked.add(identity);
+    ancestorIdentities.add(identity);
     const [fileNames, dirNames] = await Promise.all([
       listFileNames(currentPath, { followSymbolicLinks, includeHidden, nameFilter }),
       listSubdirectoryNames(currentPath, { followSymbolicLinks, includeHidden }),
@@ -980,6 +988,7 @@ export async function listFilePathsRecursively(
     for (const dirName of dirNames) {
       await walk(join(currentPath, dirName), prefix === "" ? dirName : join(prefix, dirName));
     }
+    ancestorIdentities.delete(identity);
   };
   await walk(dirPath, "");
   return filePaths.toSorted();

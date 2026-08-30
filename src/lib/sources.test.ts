@@ -673,6 +673,32 @@ describe("resolveAndFetchSources", () => {
     );
   });
 
+  it("should not read an already-fetched curated rule as a local rule", async () => {
+    // The curated subtree holds the fetched copies of the remote rules. Reading
+    // one of them as a rule the project holds itself would make it take
+    // precedence over its own source and never be refreshed again.
+    const curatedDir = join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
+    await mkdir(curatedDir, { recursive: true });
+    await writeFile(join(curatedDir, "testing-guidelines.md"), "# fetched\n", "utf8");
+    mockClientInstance.listDirectory.mockResolvedValue([
+      {
+        name: "testing-guidelines.md",
+        path: "rules/testing-guidelines.md",
+        type: "file",
+        size: 100,
+      },
+    ]);
+    mockClientInstance.getFileContent.mockResolvedValue("remote content");
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo", rules: ["testing-guidelines"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedRuleCount).toBe(1);
+  });
+
   it("should remove a formerly owned curated rule even when a local rule has the same name", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     const curatedRulePath = join(

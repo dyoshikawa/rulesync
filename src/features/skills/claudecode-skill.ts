@@ -15,6 +15,7 @@ import {
   directoryExists,
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
+  pathEscapesRoot,
   toPosixPath,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -361,12 +362,26 @@ export class ClaudecodeSkill extends ToolSkill {
       if (!(await directoryExists(dirPath))) {
         logger?.warn(
           `Skipping the nested Claude Code skills directory ${JSON.stringify(stripControlCharacters(dirPath))}: ` +
-            "it could not be read under the path the scan reports, which happens when a " +
+            "it could not be read under the path the scan reports, most often because a " +
             "directory name above it contains a backslash. Its skills are not imported.",
         );
         continue;
       }
-      roots.push({ outputRoot, relativeDirPath: relative(outputRoot, dirPath) });
+      // The same rewrite can also produce a path that resolves, just not where
+      // the scan looked: a directory named `x\\..\\..` is reported as
+      // `x/../..`, which climbs out of the project next to a real `x/`. An
+      // import root outside the scanned tree is never one the scan found, so it
+      // is refused rather than followed.
+      const relativeDirPath = relative(outputRoot, dirPath);
+      if (pathEscapesRoot(relativeDirPath)) {
+        logger?.warn(
+          `Skipping the nested Claude Code skills directory ${JSON.stringify(stripControlCharacters(dirPath))}: ` +
+            "it resolves outside the project, which happens when a directory name above it " +
+            "contains a backslash. Its skills are not imported.",
+        );
+        continue;
+      }
+      roots.push({ outputRoot, relativeDirPath });
     }
     return roots;
   }

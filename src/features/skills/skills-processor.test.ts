@@ -1466,6 +1466,40 @@ Broken YAML`,
       },
     );
 
+    it.skipIf(process.platform === "win32")(
+      "should refuse a nested skills directory whose reported path leaves the project",
+      async () => {
+        // The same rewrite can also land somewhere real: a directory named
+        // `x\\..\\..\\outside` is reported at `x/../../outside`, which resolves
+        // through a real sibling `x/` and out of the project entirely.
+        // Following it would import somebody else's skills.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await ensureDir(join(outputRoot, "x"));
+        await writeFileContent(
+          join(outputRoot, "x\\..\\..\\outside", ".claude", "skills", "nested-skill", "SKILL.md"),
+          "---\nname: nested-skill\ndescription: Nested description\n---\nNested body",
+        );
+        await writeFileContent(
+          join(testDir, "outside", ".claude", "skills", "leaked", "SKILL.md"),
+          "---\nname: leaked\ndescription: Leaked description\n---\nLeaked body",
+        );
+
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        expect(toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName())).not.toContain(
+          "leaked",
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("it resolves outside the project"),
+        );
+      },
+    );
+
     it("should still abort import for non-lenient tools when a declared-root skill is invalid", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
