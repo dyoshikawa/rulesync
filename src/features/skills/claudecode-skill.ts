@@ -16,7 +16,6 @@ import {
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
   resolvedPathEscapesRoot,
-  splitPathSegments,
   toPosixPath,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -45,19 +44,21 @@ import {
  *
  * A recursive glob cannot be swapped for a walk the way a flat one can, so the
  * path it hands back is checked instead. globby reads a backslash as a path
- * separator and rewrites it, and what the rewritten path then means depends on
- * the name it came from: a root below `back\\slash` is reported at
- * `back/slash`, which nothing answers to; one below `x\\..\\..` at `x/../..`,
- * which climbs out of the project through a real sibling `x/`; one below
- * `x\\..\\y` at `x/../y`, which lands on a different real directory inside it.
- * Only the first is caught by asking whether the path is there, so a path
- * carrying a segment no directory name can be — `.` or `..` — is refused
- * outright, which covers all three. A fourth needs no `..` at all: `a\\b` is
- * reported at `a/b`, and `a/b` may be a symbolic link the scan deliberately
- * did not follow, so containment is taken from the resolved paths as well.
- * Left in, the skills under the directory that was really named would never
- * appear, and in every shape but the first somebody else's would appear in
- * their place.
+ * separator and rewrites it, so a root below a directory really named
+ * `back\\slash` is reported at `back/slash`. Where that leads decides what to
+ * do with it, and the spelling alone does not say: `back/slash` usually answers
+ * to nothing, but `x\\..\\..\\outside` is reported at `x/../../outside`, which
+ * climbs out of the project through the real sibling `x/`, and `a\\b` at `a/b`,
+ * which may be a symbolic link out of the project that the scan — it passes
+ * `followSymbolicLinks: false` — never meant to reach. Both are refused by
+ * resolving the path rather than reading it.
+ *
+ * What is deliberately not refused is a rewritten path that stays inside the
+ * project, such as `x\\..\\y` reported at `x/../y`. It names a real directory
+ * `y`, and the scan reports that directory under this spelling *instead of* its
+ * own, so refusing it would lose `y`'s skills rather than protect anything. The
+ * skills under the directory that was really named are unreachable either way:
+ * no path the scan can report leads back to a name holding a backslash.
  */
 async function unusableNestedSkillsRootReason({
   outputRoot,
@@ -66,22 +67,15 @@ async function unusableNestedSkillsRootReason({
   outputRoot: string;
   dirPath: string;
 }): Promise<string | undefined> {
-  if (splitPathSegments(dirPath).some((segment) => segment === "." || segment === "..")) {
-    return (
-      "the path the scan reports is not the directory's own, which happens when a " +
-      "directory name above it contains a backslash."
-    );
-  }
   if (!(await directoryExists(dirPath))) {
     return (
       "it could not be read under the path the scan reports, most often because a " +
       "directory name above it contains a backslash."
     );
   }
-  // The rewrite does not need a `..` to move the path: a name really spelled `a\\b`
-  // is reported at `a/b`, and if `a/b` is a symbolic link out of the project the two
-  // checks above both pass. The scan itself sets `followSymbolicLinks: false`, so a
-  // link is never a root it meant to find -- resolve both sides and say so.
+  // Resolved rather than read: a `..` the rewrite left in can climb out through a
+  // real sibling, and a name that carries no `..` at all can still be a link that
+  // leads out. Both spellings look contained to a lexical test.
   if (await resolvedPathEscapesRoot({ rootPath: outputRoot, targetPath: dirPath })) {
     return "it resolves outside the project.";
   }
@@ -402,6 +396,10 @@ export class ClaudecodeSkill extends ToolSkill {
       filePaths: dirPaths,
     }).toSorted();
     const roots: Array<{ outputRoot: string; relativeDirPath: string }> = [];
+    // A rewritten spelling and the directory's own can both name the same root,
+    // and `relative` folds the two into one path, so the same root would be
+    // scanned twice and every skill under it reported as a duplicate name.
+    const seenRelativeDirPaths = new Set<string>();
     for (const dirPath of filteredDirPaths) {
       const reason = await unusableNestedSkillsRootReason({ outputRoot, dirPath });
       if (reason !== undefined) {
@@ -411,7 +409,12 @@ export class ClaudecodeSkill extends ToolSkill {
         );
         continue;
       }
-      roots.push({ outputRoot, relativeDirPath: relative(outputRoot, dirPath) });
+      const relativeDirPath = relative(outputRoot, dirPath);
+      if (seenRelativeDirPaths.has(relativeDirPath)) {
+        continue;
+      }
+      seenRelativeDirPaths.add(relativeDirPath);
+      roots.push({ outputRoot, relativeDirPath });
     }
     return roots;
   }

@@ -1495,18 +1495,18 @@ Broken YAML`,
           "leaked",
         );
         expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining("is not the directory's own"),
+          expect.stringContaining("it resolves outside the project"),
         );
       },
     );
 
     it.skipIf(process.platform === "win32")(
-      "should refuse a nested skills directory the scan reports at another directory",
+      "should still import a directory the scan reports under a rewritten spelling",
       async () => {
-        // The third shape of the same rewrite: `x\\..\\y` is reported at
-        // `x/../y`, which is inside the project and real, but belongs to `y`.
-        // Importing it would scan `y` twice and the directory that was really
-        // named not at all.
+        // `x\\..\\y` is reported at `x/../y`, which resolves to the real `y`
+        // inside the project -- and the scan reports `y` under that spelling
+        // *instead of* its own, so refusing the path would lose `y`'s own
+        // skills. What is unreachable either way is `x\\..\\y` itself.
         const logger = createMockLogger();
         const outputRoot = join(testDir, "project");
         await ensureDir(join(outputRoot, "x"));
@@ -1525,12 +1525,9 @@ Broken YAML`,
           toolTarget: "claudecode",
         }).loadToolDirs();
 
-        expect(toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName())).not.toContain(
-          "shadowed",
-        );
-        expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining("is not the directory's own"),
-        );
+        const dirNames = toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName());
+        expect(dirNames).toContain("sibling");
+        expect(dirNames).not.toContain("shadowed");
       },
     );
 

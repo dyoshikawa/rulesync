@@ -5,6 +5,7 @@ import { Semaphore } from "es-toolkit/promise";
 import type { SourceEntry } from "../config/config.js";
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
+  CURATED_RULES_FEATURE_SUBDIR,
   FETCH_CONCURRENCY_LIMIT,
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   MAX_FILE_SIZE,
@@ -28,6 +29,7 @@ import {
   removeFileStrict,
   removeDirectoryStrict,
   runWithDirectoryRollback,
+  splitPathSegments,
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -316,11 +318,13 @@ function getSourceFilters(sourceEntry: SourceEntry): {
   };
 }
 
-/** The subdirectory of the rules tree that holds the fetched copy of remote rules. */
-const CURATED_RULES_SUBDIR_NAME = posix.relative(
-  RULESYNC_RULES_RELATIVE_DIR_PATH,
-  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
-);
+/**
+ * The name, within the rules tree, of the subdirectory holding the fetched copy
+ * of remote rules. Taken as the last segment of the feature subdirectory rather
+ * than by subtracting one path from another, so no separator spelling is
+ * involved on either side.
+ */
+const CURATED_RULES_SUBDIR_NAME = posix.basename(CURATED_RULES_FEATURE_SUBDIR);
 
 /**
  * The names of the rules the project holds itself, which take precedence over
@@ -341,9 +345,10 @@ const CURATED_RULES_SUBDIR_NAME = posix.relative(
  * The curated subtree is named rather than left to the walk's hidden-entry
  * rule, which happens to cover it today only because the name starts with a
  * dot. Reading a fetched rule as a local one is not a small mistake: it would
- * take precedence over its own source and never be refreshed again. The prefix
- * is matched with the native separator alone, since a backslash inside a name
- * is the very thing the walk exists to preserve.
+ * take precedence over its own source and never be refreshed again. Its own
+ * first segment is compared, not a prefix of the path, so a rule really named
+ * `.curatedish/x.md` is left alone -- and a backslash inside a name, the very
+ * thing the walk exists to preserve, cannot split a segment in two.
  */
 async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   const rulesDir = join(projectRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
@@ -352,7 +357,7 @@ async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   });
   return new Set(
     relativePaths
-      .filter((relativePath) => !relativePath.startsWith(`${CURATED_RULES_SUBDIR_NAME}${sep}`))
+      .filter((relativePath) => splitPathSegments(relativePath)[0] !== CURATED_RULES_SUBDIR_NAME)
       .map((relativePath) => relativePath.replace(/\.md$/, "")),
   );
 }
