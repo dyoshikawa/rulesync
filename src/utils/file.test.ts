@@ -602,6 +602,35 @@ describe("file utilities", () => {
         expect(await listFileNames(root, { followSymbolicLinks: false })).toEqual(["real.md"]);
       });
 
+      it.skipIf(process.platform === "win32")(
+        "should report every name a file is reachable under by default",
+        async () => {
+          const root = join(testDir, "root");
+          await writeFileContent(join(root, "shared", "base.md"), "content");
+          await symlink(join(root, "shared", "base.md"), join(root, "alias.md"));
+
+          expect(await listFilePathsRecursively(root)).toEqual([
+            "alias.md",
+            join("shared", "base.md"),
+          ]);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should keep one name per file when asked to deduplicate by identity",
+        async () => {
+          // The same choice the glob makes: the name that walked through no link
+          // represents the file, so both agree on the name it has.
+          const root = join(testDir, "root");
+          await writeFileContent(join(root, "shared", "base.md"), "content");
+          await symlink(join(root, "shared", "base.md"), join(root, "alias.md"));
+
+          expect(await listFilePathsRecursively(root, { deduplicateByFileIdentity: true })).toEqual(
+            [join("shared", "base.md")],
+          );
+        },
+      );
+
       it("should leave hidden entries out unless asked for them", async () => {
         // The glob these replaced ran with `dot: false`. Callers sweep what they
         // are given, so a `.git` beside the entries must not appear by default.

@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -724,6 +724,37 @@ describe("resolveAndFetchSources", () => {
 
     expect(result.fetchedRuleCount).toBe(1);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "should not let a symbolic link to another rule shadow a remote rule",
+    async () => {
+      // The walk reports every name it passes, while the glob that loads the
+      // rules keeps one name per file. A rule shared inside the tree through a
+      // link loads only under the name the glob keeps, so counting the alias
+      // here would skip the remote rule and leave the project with neither.
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+      await mkdir(join(rulesDir, "shared"), { recursive: true });
+      await writeFile(join(rulesDir, "shared", "base.md"), "# shared\n", "utf8");
+      await symlink(join(rulesDir, "shared", "base.md"), join(rulesDir, "testing-guidelines.md"));
+      mockClientInstance.listDirectory.mockResolvedValue([
+        {
+          name: "testing-guidelines.md",
+          path: "rules/testing-guidelines.md",
+          type: "file",
+          size: 100,
+        },
+      ]);
+      mockClientInstance.getFileContent.mockResolvedValue("remote content");
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: [{ source: "https://github.com/org/repo", rules: ["testing-guidelines"] }],
+        projectRoot: testDir,
+      });
+
+      expect(result.fetchedRuleCount).toBe(1);
+    },
+  );
 
   it("should remove a formerly owned curated rule even when a local rule has the same name", async () => {
     const { readLockFile } = await import("./sources-lock.js");

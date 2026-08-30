@@ -993,9 +993,22 @@ export async function listFilePathsRecursively(
     followSymbolicLinks?: boolean;
     includeHidden?: boolean;
     nameFilter?: (name: string) => boolean;
+    /**
+     * Report one path per real file rather than one per name, the way
+     * {@link findFilesByGlobs} does. Off by default: a walk that carries a tree
+     * as it is must keep every name the tree gives a file. Turn it on where the
+     * result is read as a set of files -- there, two names for one file are two
+     * files that do not exist.
+     */
+    deduplicateByFileIdentity?: boolean;
   } = {},
 ): Promise<string[]> {
-  const { followSymbolicLinks = true, includeHidden = false, nameFilter } = options;
+  const {
+    followSymbolicLinks = true,
+    includeHidden = false,
+    nameFilter,
+    deduplicateByFileIdentity = false,
+  } = options;
   if (!(await directoryExists(dirPath))) {
     return [];
   }
@@ -1035,7 +1048,40 @@ export async function listFilePathsRecursively(
     }
     level = nextLevel;
   }
-  return filePaths.toSorted();
+  return deduplicateByFileIdentity
+    ? await deduplicateRelativePathsByFileIdentity({ dirPath, relativePaths: filePaths })
+    : filePaths.toSorted();
+}
+
+/**
+ * One path per real file, chosen the way {@link findFilesByGlobs} chooses it.
+ *
+ * The walk de-duplicates the directories it descends into, so it cannot loop,
+ * but it still reports every name it walks past: a file reached under two names
+ * is listed twice. A caller reading the result as a set of files has to fold
+ * those aliases together, and has to fold them the same way the glob does, or
+ * the two disagree about the name a file has.
+ */
+async function deduplicateRelativePathsByFileIdentity({
+  dirPath,
+  relativePaths,
+}: {
+  dirPath: string;
+  relativePaths: string[];
+}): Promise<string[]> {
+  const candidatesByFile = new Map<string, string[]>();
+  for (const relativePath of relativePaths.toSorted()) {
+    const identity = await realFileIdentity(join(dirPath, relativePath));
+    const candidates = candidatesByFile.get(identity);
+    if (candidates === undefined) {
+      candidatesByFile.set(identity, [relativePath]);
+    } else {
+      candidates.push(relativePath);
+    }
+  }
+  return [...candidatesByFile.entries()]
+    .map(([identity, candidates]) => chooseRepresentative(candidates, identity))
+    .toSorted();
 }
 
 export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {

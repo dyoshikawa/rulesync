@@ -339,7 +339,12 @@ const CURATED_RULES_SUBDIR_NAME = posix.basename(CURATED_RULES_FEATURE_SUBDIR);
  * The `.md` test is case-sensitive to match the glob that loads the rules, so a
  * name can only land in this set if a rule of that name really loads. A
  * `NOTES.MD` counted here but not loaded there would shadow the remote `NOTES`
- * and leave the project with neither.
+ * and leave the project with neither. The walk is de-duplicated by file
+ * identity for the same reason: it reports every name it passes, while the
+ * loader's glob keeps one name per file, so a rule shared inside the tree
+ * through a symbolic link would otherwise be counted under an alias the loader
+ * never uses -- shadowing the remote rule of that name while loading nothing
+ * under it.
  *
  * The curated subtree is named rather than left to the walk's hidden-entry
  * rule, which happens to cover it today only because the name starts with a
@@ -354,6 +359,7 @@ async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   const rulesDir = join(projectRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
   const relativePaths = await listFilePathsRecursively(rulesDir, {
     nameFilter: (name) => name.endsWith(".md"),
+    deduplicateByFileIdentity: true,
   });
   return new Set(
     relativePaths

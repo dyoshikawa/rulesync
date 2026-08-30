@@ -1528,6 +1528,7 @@ Broken YAML`,
         const dirNames = toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName());
         expect(dirNames).toContain("sibling");
         expect(dirNames).not.toContain("shadowed");
+        expect(logger.warn).not.toHaveBeenCalled();
       },
     );
 
@@ -1592,6 +1593,55 @@ Broken YAML`,
         );
         expect(logger.warn).toHaveBeenCalledWith(
           expect.stringContaining("it resolves outside the project"),
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should refuse a nested skills directory the scan reports inside an excluded tree",
+      async () => {
+        // The exclusions are glob `ignore` patterns, matched against the path the
+        // scan reports. `x\\..\\node_modules` is reported at `x/../node_modules`,
+        // which matches none of them and then resolves to the dependency tree
+        // they name -- somebody else's project.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await ensureDir(join(outputRoot, "x"));
+        await writeFileContent(
+          join(outputRoot, "node_modules", ".claude", "skills", "dep-skill", "SKILL.md"),
+          "---\nname: dep-skill\ndescription: Dependency description\n---\nDependency body",
+        );
+        await writeFileContent(
+          join(outputRoot, "dist", ".claude", "skills", "built-skill", "SKILL.md"),
+          "---\nname: built-skill\ndescription: Built description\n---\nBuilt body",
+        );
+        // The decoys have to hold a skills directory of their own, because that is
+        // what makes the scan report the rewritten path in the first place.
+        await writeFileContent(
+          join(outputRoot, "x\\..\\node_modules", ".claude", "skills", "decoy-a", "SKILL.md"),
+          "---\nname: decoy-a\ndescription: Decoy description\n---\nDecoy body",
+        );
+        await writeFileContent(
+          join(outputRoot, "x\\..\\dist", ".claude", "skills", "decoy-b", "SKILL.md"),
+          "---\nname: decoy-b\ndescription: Decoy description\n---\nDecoy body",
+        );
+
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        const dirNames = toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName());
+        expect(dirNames).not.toContain("dep-skill");
+        expect(dirNames).not.toContain("built-skill");
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            'it resolves inside "node_modules", which the nested scan excludes',
+          ),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('it resolves inside "dist", which the nested scan excludes'),
         );
       },
     );

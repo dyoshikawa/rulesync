@@ -1,4 +1,4 @@
-import { join, relative, resolve } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -15,6 +15,7 @@ import {
   directoryExists,
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
+  isHiddenPathSegment,
   resolvedPathEscapesRoot,
   toPosixPath,
 } from "../../utils/file.js";
@@ -37,6 +38,39 @@ import {
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
+
+/**
+ * How many segments the `.claude/skills` tail every scanned root ends with has.
+ *
+ * Split here rather than through the shared helper: this is evaluated as the
+ * module loads, before a test that mocks the file utilities can supply one.
+ */
+const CLAUDECODE_SKILLS_DIR_SEGMENT_COUNT = CLAUDECODE_SKILLS_DIR_PATH.split(sep).length;
+
+/**
+ * The segment that puts `relativeDirPath` inside a tree the nested scan
+ * excludes, or `undefined` when none does.
+ *
+ * The scan states those exclusions as glob `ignore` patterns, and globby matches
+ * them against the path it reports -- before the `..` that a rewritten directory
+ * name carries is folded away. A root reported at `x/../node_modules/.claude/skills`
+ * matches none of the patterns and then resolves to the very directory they
+ * name, so the decision has to be taken a second time, on the folded path.
+ *
+ * The `.claude/skills` tail is the part the glob matched and is not judged:
+ * `.claude` is hidden by definition and every root ends with it. The split is on
+ * the native separator alone, so a backslash inside a directory name -- the
+ * whole reason a path can arrive here misspelled -- does not divide a segment.
+ */
+function excludedNestedScanSegment(relativeDirPath: string): string | undefined {
+  const segments = relativeDirPath.split(sep).slice(0, -CLAUDECODE_SKILLS_DIR_SEGMENT_COUNT);
+  return segments.find(
+    (segment, index) =>
+      NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.includes(segment) ||
+      (index === 0 && NESTED_SCAN_EXCLUDED_ROOT_DIRS.includes(segment)) ||
+      isHiddenPathSegment(segment),
+  );
+}
 
 /**
  * Why a nested skills directory the scan reported cannot be used as an import
@@ -84,6 +118,10 @@ async function unusableNestedSkillsRootReason({
   // leads out. Both spellings look contained to a lexical test.
   if (await resolvedPathEscapesRoot({ rootPath: outputRoot, targetPath: dirPath })) {
     return "it resolves outside the project.";
+  }
+  const excludedSegment = excludedNestedScanSegment(relative(outputRoot, dirPath));
+  if (excludedSegment !== undefined) {
+    return `it resolves inside ${JSON.stringify(stripControlCharacters(excludedSegment))}, which the nested scan excludes.`;
   }
   return undefined;
 }
