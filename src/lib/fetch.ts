@@ -48,6 +48,7 @@ import {
   createTempDirectory,
   fileExists,
   isFileNotFoundError,
+  isFileSystemError,
   removeTempDirectory,
   toPosixPath,
   writeFileContent,
@@ -289,7 +290,9 @@ type SkillPathClass =
   | { readonly kind: "skill"; readonly name: string };
 
 /** Where a skill directory sits, under the output base path and in the remote. */
-const SKILLS_DIR_PREFIX = "skills/";
+const SKILLS_DIR_NAME = "skills";
+/** The same directory as the head of a POSIX path, for prefix comparisons. */
+const SKILLS_DIR_PREFIX = `${SKILLS_DIR_NAME}/`;
 
 /**
  * The one `non-skill` verdict, shared by every caller that reaches it. It is
@@ -675,7 +678,7 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
  */
 async function readSkillRootNames(outputBasePath: string): Promise<string[]> {
   try {
-    const entries = await readdir(join(outputBasePath, SKILLS_DIR_PREFIX), {
+    const entries = await readdir(join(outputBasePath, SKILLS_DIR_NAME), {
       withFileTypes: true,
     });
     // Directories only: a skill is a directory, and a file beside them shares
@@ -1163,8 +1166,12 @@ async function pruneStaleSkillFiles(params: {
       // could not do rather than throwing the fetch away over it. Only a
       // filesystem error is absorbed: anything else is a defect in the walk, and
       // one that turned into a warning would take a skipped prune with it
-      // quietly. The message is stripped too, since a filesystem error carries
-      // the local path it failed on.
+      // quietly. `isFileSystemError` recognizes an I/O failure by its `errno`
+      // code, so a `code` of another shape — the `UNKNOWN` libuv falls back to
+      // for a system error it cannot translate — is rethrown rather than warned
+      // about. That is the side to err on here: a prune silently skipped is
+      // worse than a fetch that says why it stopped. The message is stripped
+      // too, since a filesystem error carries the local path it failed on.
       if (!isFileSystemError(error)) {
         throw error;
       }
@@ -1199,15 +1206,6 @@ async function pruneStaleSkillFiles(params: {
  */
 function isSymbolicLinkLoopError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ELOOP";
-}
-
-/**
- * Whether the error came from the filesystem rather than from the walk itself.
- * Node stamps every `fs` rejection with a `code`, so its presence is what tells
- * an I/O failure apart from a programming error raised in the same call.
- */
-function isFileSystemError(error: unknown): boolean {
-  return error instanceof Error && "code" in error && typeof error.code === "string";
 }
 
 /**
