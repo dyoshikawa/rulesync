@@ -136,6 +136,11 @@ describe("hasDeceptiveHiddenCharacters", () => {
     // U+FE0E asks for the text form, which is not the sequence ED-14 spells,
     // and a name is not the place to guess at what a near miss meant.
     ["a keycap written with the text presentation selector", "1\ufe0e\u20e3"],
+    // The near misses on either side of the sequence: nothing to build on, a
+    // selector the sequence has no room for, and one hanging off the end.
+    ["a keycap with no base before it", "\ufe0f\u20e3pdf"],
+    ["a keycap with the selector doubled", "1\ufe0f\ufe0f\u20e3"],
+    ["a keycap with a selector after it", "1\ufe0f\u20e3\ufe0f"],
   ])("should reject %s", (_label, name) => {
     expect(hasDeceptiveHiddenCharacters(name)).toBe(true);
   });

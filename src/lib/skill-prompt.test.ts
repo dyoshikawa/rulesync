@@ -123,7 +123,7 @@ describe("promptSkillSelection", () => {
       expect.objectContaining({
         choices: [
           {
-            name: `[!] carries whitespace that is not drawn where it si\u2026 \u2014 pdf${" ".repeat(12)}\u2026`,
+            name: `[!] carries more whitespace than the row shows \u2014 pdf${" ".repeat(19)}\u2026`,
             value: padded,
             checked: false,
           },

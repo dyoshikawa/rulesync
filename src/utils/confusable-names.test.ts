@@ -15,8 +15,8 @@ const HALF_CYRILLIC_GOOD = "g\u043e\u043ed";
 const TWIN_NOTE = "another entry differs from it only by lookalike letters";
 /** The note both halves of a pair that prints identically are given. */
 const SAME_FORM_NOTE = "another entry has the same display form";
-/** The note a name whose whitespace does not show is given. */
-const WHITESPACE_NOTE = "carries whitespace that is not drawn where it sits";
+/** The note a name carrying more whitespace than it shows is given. */
+const WHITESPACE_NOTE = "carries more whitespace than the row shows";
 
 describe("mixedScriptsOf", () => {
   it.each([
@@ -164,21 +164,32 @@ describe("describeConfusableNames", () => {
     ["a name that ends in a space", "pdf "],
     ["a name that begins with a space", " pdf"],
     ["a name with a doubled space", "pdf  reader"],
-    // A no-break space and an ideographic space are drawn as a gap like any
-    // other, so a name carrying one is a second directory under a row that
-    // reads as the plain name.
-    ["a name written with a no-break space", "pdf\u00a0reader"],
-    ["a name written with an ideographic space", "pdf\u3000reader"],
+    ["a name with a doubled ideographic space", "pdf\u3000\u3000reader"],
   ])("should note %s with nothing to compare it to", (_label, name) => {
     // No twin on the list, so nothing else says the row reaches past what can
     // be seen of it.
     expect(describeConfusableNames([name])).toEqual(new Map([[name, WHITESPACE_NOTE]]));
   });
 
-  it("should leave the single spaces inside a name alone", () => {
-    // A gap a terminal draws exactly as it is written says nothing a reader
-    // cannot already see.
-    expect(describeConfusableNames(["pdf reader"])).toEqual(new Map());
+  it.each([
+    ["a single space inside a name", "pdf reader"],
+    // Drawn, and drawn wider than a plain space at that. A name that swaps one
+    // blank for another is the display-form check's business, and reporting it
+    // here would put a warning on an ordinary Japanese name.
+    ["a single ideographic space inside a name", "\u8a2d\u5b9a\u3000\u30ac\u30a4\u30c9"],
+    ["a single no-break space inside a name", "pdf\u00a0reader"],
+  ])("should leave %s alone", (_label, name) => {
+    expect(describeConfusableNames([name])).toEqual(new Map());
+  });
+
+  it("should still pair a name that swaps a blank for one drawn like it", () => {
+    // The pair is what makes the substitution visible, and the display form is
+    // what reports it.
+    const wide = "pdf\u00a0reader";
+    const notes = describeConfusableNames(["pdf reader", wide]);
+
+    expect(notes.get("pdf reader")).toBe(SAME_FORM_NOTE);
+    expect(notes.get(wide)).toBe(SAME_FORM_NOTE);
   });
 
   it("should not note names that differ within a single script", () => {

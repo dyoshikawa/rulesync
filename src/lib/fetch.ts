@@ -615,8 +615,9 @@ function formatConfusableSkillsWarning(params: {
     .toSorted(([a], [b]) => (a < b ? -1 : 1))
     .map(([name, note]) => `${JSON.stringify(stripControlCharacters(name))} (${note})`);
   return (
-    `Some fetched skill names may not be told apart on sight from another name the source ` +
-    `repository publishes, which this run may not have fetched: ` +
+    `Some fetched skill names may not be told apart on sight from what they appear to be \u2014 ` +
+    `either from another name the source repository publishes, which this run may not have ` +
+    `fetched, or from the plainer name the row itself reads as: ` +
     `${formatCappedList({ items: described, separator: "; " })}. ` +
     `Check that each is the skill you meant to fetch.`
   );

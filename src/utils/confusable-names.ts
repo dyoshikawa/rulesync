@@ -393,17 +393,28 @@ function normalizedFormOf(name: string): string {
     .trim();
 }
 
+/** Whitespace at either end of a name, which the row it is drawn on shows none of. */
+const EDGE_WHITESPACE_PATTERN = /^\s|\s$/u;
+
+/** Two blanks running, which the row draws as the one gap it draws for any number. */
+const REPEATED_WHITESPACE_PATTERN = /\s\s/u;
+
 /**
- * Whether the name carries whitespace the row it is printed on does not show.
+ * Whether the name carries more whitespace than the row it is printed on shows.
  *
- * Whitespace at either edge is the plain case: `pdf ` and `pdf` are one row on
- * screen, and the space is only found by the cursor landing past the name. A
- * doubled run and a no-break space go the same way — a terminal draws a gap,
- * not a count of what is in it — so all of them are asked as one question, by
- * collapsing the whitespace the way {@link normalizedFormOf} does and seeing
- * whether anything moved. The tab and the other blank control characters are
- * not among them: they are stripped rather than collapsed, having already been
- * refused by the check that reads a name before it is offered at all.
+ * Two shapes, and both are about how much rather than which: whitespace at an
+ * edge, where `pdf ` and `pdf` end at the same column and the space is only
+ * found by the cursor landing past the name, and a run of it, which a terminal
+ * draws as one gap however many blanks are in it. Between them they are what
+ * lets a name be padded to reach under the row beneath it.
+ *
+ * A single blank that is merely not the plain space — a no-break space, an
+ * ideographic one — is deliberately not this check's business. It is drawn, and
+ * it is a substitution rather than an extent, so the name it imitates is one
+ * the display-form check already reports the pair of; marking it here would put
+ * a warning on `設定　ガイド`, which is an ordinary name written the ordinary
+ * way. The tab and the other blank control characters are not here either:
+ * a name carrying one is refused outright before it is ever offered.
  *
  * A name with a twin already carries a note, since the two share a display
  * form. This is for the one without: nothing else on the list says that the
@@ -412,7 +423,7 @@ function normalizedFormOf(name: string): string {
  */
 function hasWhitespaceThatDoesNotShow(name: string): boolean {
   const shown = stripHiddenCharacters(name);
-  return shown !== shown.replace(WHITESPACE_RUN_PATTERN, " ").trim();
+  return EDGE_WHITESPACE_PATTERN.test(shown) || REPEATED_WHITESPACE_PATTERN.test(shown);
 }
 
 /**
@@ -553,15 +564,15 @@ export function mixedScriptsOf(name: string): string[] | undefined {
  * tell that two entries which look identical are not.
  *
  * Five things are reported: two names with the same display form, two names
- * that read the same once the lookalike letters are matched up, a name whose
- * whitespace is not drawn where it sits, a name spelled entirely in letters
- * that read as Latin ones, and a name that mixes scripts it has no ordinary
- * reason to. None of the five is a complete answer — the
- * lookalike tables hold the common pairs rather than all of them, a name
- * written entirely in a script the tables do not map is compared against
- * nothing, and a hand-picked pair of unrelated-looking names from one script
- * escapes every check — so the note is a prompt to look closer, not a guarantee
- * that unmarked entries are distinct.
+ * that read the same once the lookalike letters are matched up, a name that
+ * carries more whitespace than the row shows, a name spelled entirely in
+ * letters that read as Latin ones, and a name that mixes scripts it has no
+ * ordinary reason to. None of the five is a complete answer — the lookalike
+ * tables hold the common pairs rather than all of them, a name written entirely
+ * in a script the tables do not map is compared against nothing, and a
+ * hand-picked pair of unrelated-looking names from one script escapes every
+ * check — so the note is a prompt to look closer, not a guarantee that unmarked
+ * entries are distinct.
  *
  * Names absent from the returned map carry no note. Duplicates in `names` are
  * folded first, so a list that repeats a name does not report that name as
@@ -595,7 +606,7 @@ export function describeConfusableNames(names: string[]): Map<string, string> {
       reasons.push("another entry differs from it only by lookalike letters");
     }
     if (hasWhitespaceThatDoesNotShow(entry.name)) {
-      reasons.push("carries whitespace that is not drawn where it sits");
+      reasons.push("carries more whitespace than the row shows");
     }
     // The display form is what a reader sees, so it is what the script checks
     // are asked about: a circled or fullwidth letter carries the script of the

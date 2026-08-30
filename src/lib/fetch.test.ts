@@ -1714,6 +1714,25 @@ describe("fetchFiles with skill selection", () => {
     );
   });
 
+  it("should say when a fetched name reaches past the row it is drawn on", async () => {
+    // Nothing else on the list shares its display form, so the padding is only
+    // reported by the note the name carries on its own \u2014 and a run with no
+    // prompt has nowhere but the warning to be told.
+    mockSkillRepositoryWithSkills(["pdf "]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath)).toContain("skills/pdf /SKILL.md");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("carries more whitespace than the row shows"),
+    );
+  });
+
   it("should judge a --skills run against every name the repository publishes", async () => {
     // The user asks for one of the two by name, as a scripted run does. The
     // twin is what makes the requested name confusable, and it is not on the

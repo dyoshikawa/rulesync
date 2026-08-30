@@ -100,9 +100,16 @@ export function stripHiddenCharacters(text: string): string {
 const ZERO_WIDTH_JOINER_PATTERN = /\u200c|\u200d/u;
 const VARIATION_SELECTOR_PATTERN = /[\u{fe00}-\u{fe0f}]|[\u{e0100}-\u{e01ef}]/u;
 
+/** The twelve characters a keycap can be built on, per ED-14 of UTS #51. */
+const KEYCAP_BASE_PATTERN = /[0-9#*]/u;
+/** The selector that asks for the emoji form of the character before it. */
+const EMOJI_PRESENTATION_SELECTOR = "\u{fe0f}";
+/** U+20E3, which draws the box the base and the selector go inside. */
+const COMBINING_ENCLOSING_KEYCAP = "\u{20e3}";
+
 /**
- * The shape of an emoji keycap, spelled as UTS #51 spells it:
- * `Emoji_Keycap_Sequence := [0-9#*] FE0F 20E3`.
+ * Whether the three characters are an emoji keycap, spelled as UTS #51 spells
+ * it: `Emoji_Keycap_Sequence := [0-9#*] FE0F 20E3`.
  *
  * The twelve bases are the only ASCII characters Unicode gives the `Emoji`
  * property to, and not one of them is a pictograph — `1` is a digit and `#` is
@@ -117,10 +124,6 @@ const VARIATION_SELECTOR_PATTERN = /[\u{fe00}-\u{fe0f}]|[\u{e0100}-\u{e01ef}]/u;
  *
  * @see https://www.unicode.org/reports/tr51/#def_emoji_keycap_sequence
  */
-const KEYCAP_BASE_PATTERN = /[0-9#*]/u;
-const EMOJI_PRESENTATION_SELECTOR = "\u{fe0f}";
-const COMBINING_ENCLOSING_KEYCAP = "\u{20e3}";
-
 function isKeycapSequence(params: {
   base: string | undefined;
   selector: string;
