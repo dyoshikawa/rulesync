@@ -410,7 +410,7 @@ function normalizedFormOf(name: string): string {
  * name reaches past what can be seen of it, and a name padded to sit under
  * another row is padded whether or not that other row is on the same list.
  */
-function hasUndrawnWhitespace(name: string): boolean {
+function hasWhitespaceThatDoesNotShow(name: string): boolean {
   const shown = stripHiddenCharacters(name);
   return shown !== shown.replace(WHITESPACE_RUN_PATTERN, " ").trim();
 }
@@ -594,7 +594,7 @@ export function describeConfusableNames(names: string[]): Map<string, string> {
     if ((skeletonCounts.get(entry.skeleton) ?? 0) > sameDisplayForm) {
       reasons.push("another entry differs from it only by lookalike letters");
     }
-    if (hasUndrawnWhitespace(entry.name)) {
+    if (hasWhitespaceThatDoesNotShow(entry.name)) {
       reasons.push("carries whitespace that is not drawn where it sits");
     }
     // The display form is what a reader sees, so it is what the script checks
