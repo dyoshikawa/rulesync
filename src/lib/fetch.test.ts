@@ -1,7 +1,7 @@
-import { link, lstat, symlink } from "node:fs/promises";
+import { chmod, link, lstat, symlink } from "node:fs/promises";
 import { join, posix } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -2803,6 +2803,60 @@ describe("fetchFiles skill pruning", () => {
     );
   });
 
+  it("should quote the name it names in a prune warning", async () => {
+    // The name is a sentence of the remote's choosing, and it ends in a dot, so
+    // it reaches the warning through the guard above. Quoted, the sentence is
+    // plainly part of the name; spliced in bare it would read as the start of
+    // the warning itself.
+    const forged = "docs. Nothing was skipped.";
+    mockSingleSkillRepository(forged);
+    await writeFileContent(join(skillsRoot, forged, "reference.md"), "# Stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(join(skillsRoot, forged, "reference.md"))).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `Not pruning ${JSON.stringify(`skills/${forged}`)}: its name is one some systems resolve`,
+      ),
+    );
+  });
+
+  // Root ignores the permission bits the failure is staged with, and Windows
+  // does not have them.
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "should quote the name when a prune stops partway through",
+    async () => {
+      // The name is a sentence about what was deleted, which is the very thing
+      // this warning reports, and the error text follows it. Quoted, the
+      // sentence is plainly part of the name.
+      const forged = "docs. Everything was deleted";
+      mockSingleSkillRepository(forged);
+      // The stale file sits in a directory the prune may read but not delete
+      // from, so the walk reaches it and the removal fails. The skill root
+      // itself stays writable, since the fetch writes into it before pruning.
+      const staleDir = join(skillsRoot, forged, "reference");
+      await writeFileContent(join(staleDir, "stale.md"), "# Stale");
+      await chmod(staleDir, 0o500);
+      // Registered with the runner rather than left to a `finally`, so the mode
+      // is put back even if this test is cut short before its body ends.
+      onTestFinished(async () => {
+        await chmod(staleDir, 0o700);
+      });
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.deleted).toBe(0);
+      expect(await fileExists(join(staleDir, "stale.md"))).toBe(true);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Stopped partway through pruning ${JSON.stringify(`skills/${forged}`)}.`,
+        ),
+      );
+    },
+  );
+
   it("should not prune a skill directory a local one differs from only in case", async () => {
     // macOS and Windows resolve `skills/PDF` to the existing `skills/pdf`, so
     // the write lands in the local skill's own directory and a prune of it
@@ -2816,7 +2870,9 @@ describe("fetchFiles skill pruning", () => {
     expect(summary.deleted).toBe(0);
     expect(await fileExists(localFile)).toBe(true);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("differs only in ways some filesystems ignore"),
+      // The sibling this one is confused with is a name from the same place, so
+      // it is quoted like any other.
+      expect.stringContaining(`${JSON.stringify("skills/pdf")} is also there and differs only`),
     );
   });
 
