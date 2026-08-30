@@ -302,14 +302,22 @@ function formatSkillChoiceLabels(params: {
  * @param availableSkills - Skill names discovered in the source repository
  * @param preselectedSkills - Skill names to pre-check (from --skills); when
  *   empty, every skill starts unchecked and the user opts in
+ * @param localSkillNames - Skill names already in the output directory. Only
+ *   compared against, never offered: a row is marked for reading like a skill
+ *   the user already has, which is the collision no listing of the source
+ *   repository can show.
  * @returns The skill names the user selected
  */
 export async function promptSkillSelection(params: {
   availableSkills: string[];
   preselectedSkills: string[];
+  localSkillNames: string[];
 }): Promise<string[]> {
-  const { availableSkills, preselectedSkills } = params;
-  const confusableNotes = describeConfusableNames(availableSkills);
+  const { availableSkills, preselectedSkills, localSkillNames } = params;
+  const confusableNotes = describeConfusableNames({
+    names: availableSkills,
+    localNames: localSkillNames,
+  });
   // The label is the only thing the user judges a skill by, and two names can
   // be drawn identically. The labels carry the note that says so, and are made
   // distinct from each other; `value` stays the real name, so what is written

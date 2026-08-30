@@ -29,6 +29,47 @@ vi.mock("./skill-prompt.js", () => ({
   isInteractiveTerminal: isInteractiveTerminalMock,
 }));
 
+const { directoryExistsMock } = vi.hoisted(() => ({
+  directoryExistsMock: vi.fn(),
+}));
+
+// Only `directoryExists` is stood in for, and only so a test can answer the one
+// question the filesystem under CI cannot: whether `skills/Deploy` resolves to
+// the `skills/deploy` that is already there. macOS and Windows say yes and
+// Linux says no, so the folding branch of `localSkillNamesToCompare` would
+// otherwise never run in this suite. Every other export stays the real one, and
+// the stand-in calls the real implementation unless a test says otherwise.
+vi.mock("../utils/file.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/file.js")>();
+  return { ...actual, directoryExists: directoryExistsMock };
+});
+
+const realDirectoryExists = (
+  await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js")
+).directoryExists;
+
+directoryExistsMock.mockImplementation(realDirectoryExists);
+
+/**
+ * Makes `directoryExists` answer `folds` for `path` and the truth for
+ * everything else, so that a test can put the fetch on a filesystem that folds
+ * a spelling onto a directory it already holds — or on one that does not.
+ *
+ * Both directions are pinned rather than only the folding one, because the
+ * volume the suite runs on is not known to be either: a case-sensitive checkout
+ * and a case-insensitive one both happen, and a test that read the real answer
+ * would assert something different on each.
+ */
+function mockCaseFoldedLookup(params: { path: string; folds: boolean }): void {
+  const { path, folds } = params;
+  directoryExistsMock.mockImplementation(async (candidate: string) =>
+    candidate === path ? folds : realDirectoryExists(candidate),
+  );
+  onTestFinished(() => {
+    directoryExistsMock.mockImplementation(realDirectoryExists);
+  });
+}
+
 vi.mock("./github-client.js", () => ({
   GitHubClient: class MockGitHubClient {
     static resolveToken = vi.fn();
@@ -1391,6 +1432,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     expect(summary.files).toEqual([{ relativePath: "skills/skill-b/SKILL.md", status: "created" }]);
   });
@@ -1410,6 +1452,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: ["skill-a"],
+      localSkillNames: [],
     });
   });
 
@@ -1467,6 +1510,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     const relativePaths = summary.files.map((f) => f.relativePath).toSorted();
     expect(relativePaths).toEqual(["skills/README.md", "skills/skill-a/SKILL.md"]);
@@ -1488,6 +1532,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     expect(summary.files).toEqual([]);
     // Nothing is left of the name to print, so the warning says so rather than
@@ -1539,6 +1584,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     expect(summary.files.map((f) => f.relativePath)).toEqual(["skills/skill-a/SKILL.md"]);
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"pdf"'));
@@ -1760,6 +1806,184 @@ describe("fetchFiles with skill selection", () => {
     expect(warning).not.toContain('"copy"');
   });
 
+  it("should judge a fetched name against the skills already in the output directory", async () => {
+    // The attack the remote listing cannot show: the repository publishes only
+    // the imitation, so there is no twin beside it to compare, and the name is
+    // plain ASCII in one script. What it reads like is a skill the user has
+    // had all along.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockSkillRepositoryWithSkills(["dep1oy"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath)).toContain("skills/dep1oy/SKILL.md");
+    const warning = logger.warn.mock.calls
+      .map(([message]) => String(message))
+      .find((message) => message.includes("may not be told apart on sight"));
+    expect(warning).toContain("a local skill differs from it only by lookalike letters");
+    expect(warning).toContain('"dep1oy"');
+  });
+
+  it("should not mark a fetched name against the local skill of the same name", async () => {
+    // The ordinary case: fetching the same repository a second time refreshes
+    // the skills it wrote the first time. Every row would carry a note if a
+    // local name spelled exactly like a remote one counted as a collision.
+    await ensureDir(join(testDir, ".rulesync", "skills", "skill-a"));
+    mockMultiSkillRepository();
+
+    await fetchFiles({ logger, source: "owner/repo", options: {}, outputRoot: testDir });
+
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("may not be told apart on sight"),
+    );
+  });
+
+  it("should pass the local skill names to the interactive prompt", async () => {
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
+  it("should drop a local skill a case variant on the list would be written into", async () => {
+    // Whether `Deploy` is a second directory or another way of spelling the one
+    // that is already there is the filesystem's answer to give, not the
+    // listing's: macOS and Windows fold the pair, Linux does not. Here it folds.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockCaseFoldedLookup({ path: join(testDir, ".rulesync", "skills", "Deploy"), folds: true });
+    mockSkillRepositoryWithSkills(["Deploy"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["Deploy", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
+  });
+
+  it("should keep a local skill a case variant on the list is a second directory from", async () => {
+    // The same pair on a filesystem that keeps them apart: two directories, so
+    // the local one still has something to say about the names on offer.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockCaseFoldedLookup({ path: join(testDir, ".rulesync", "skills", "Deploy"), folds: false });
+    mockSkillRepositoryWithSkills(["Deploy"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["Deploy", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
+  it("should keep a local skill a second entry imitates even where the first folds onto it", async () => {
+    // `api` is the local `API` under another spelling on a folding filesystem,
+    // but it does not read like it: `API` reads as `APl`, which is what `AP1`
+    // imitates. Dropping the local name for the refresh would take the only
+    // name that mark is made against off the comparison.
+    await ensureDir(join(testDir, ".rulesync", "skills", "API"));
+    mockCaseFoldedLookup({ path: join(testDir, ".rulesync", "skills", "api"), folds: true });
+    mockSkillRepositoryWithSkills(["api", "AP1"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["AP1", "api", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["API"],
+    });
+  });
+
+  it("should keep comparing against a local skill the listing does not name", async () => {
+    // Only the ambiguous pairs are asked about. A local skill with no
+    // case-folded twin on the list is compared against whatever the list holds.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockSkillRepositoryWithSkills(["dep1oy"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["dep1oy", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
+  it("should count a local skill kept as a symlink", async () => {
+    // A skill linked into a shared tree is a skill the user has: `readdir`
+    // reports the link rather than the directory behind it, so a filter that
+    // asked only for directories would turn the comparison off for anyone who
+    // arranges their skills this way.
+    const shared = join(testDir, "shared-skills", "deploy");
+    await ensureDir(shared);
+    await ensureDir(join(testDir, ".rulesync", "skills"));
+    await symlink(shared, join(testDir, ".rulesync", "skills", "deploy"), "dir");
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
   it("should count the lookalike names it does not spell out", async () => {
     // Six pairs, each a name and the same name with a capital I for the l:
     // twelve noted names, of which the warning spells out ten.
@@ -1804,6 +2028,26 @@ describe("fetchFiles with skill selection", () => {
     ).rejects.toThrow('Unknown skill(s): "no-such-skill"');
   });
 
+  it("should read the local skill names in the tool-target conversion flow too", async () => {
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { target: "claudecode", interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
   it("should apply the interactive selection in the tool-target conversion flow too", async () => {
     mockMultiSkillRepository();
     isInteractiveTerminalMock.mockReturnValue(true);
@@ -1819,6 +2063,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
   });
 
