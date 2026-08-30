@@ -121,6 +121,46 @@ This is a test rule file.
       expect(result.config?.features).toContain("mcp");
     });
 
+    it("carries a diagnostic back in the result, since MCP has no console to write it to", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ commandAllowlist: ["git *"] }),
+      );
+
+      const result = await executeImport({
+        target: "factorydroid",
+        features: ["permissions"],
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.warnings).toEqual([
+        expect.stringContaining("settings.local.json is a machine-local overrides file"),
+      ]);
+    });
+
+    it("reports the same diagnostic to a later call, since each call is its own run", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ commandAllowlist: ["git *"] }),
+      );
+
+      const first = await executeImport({ target: "factorydroid", features: ["permissions"] });
+      const second = await executeImport({ target: "factorydroid", features: ["permissions"] });
+
+      expect(second.warnings).toEqual(first.warnings);
+    });
+
+    it("omits the warnings key when the import had nothing to report", async () => {
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Claude Code Rules\n");
+
+      const result = await executeImport({ target: "claudecode", features: ["rules"] });
+
+      expect(result.success).toBe(true);
+      expect(result.warnings).toBeUndefined();
+    });
+
     it("should return import counts in result", async () => {
       // Create CLAUDE.md file to import from
       await writeFileContent(

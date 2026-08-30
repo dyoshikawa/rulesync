@@ -17,6 +17,10 @@ The single `rulesyncTool` multiplexes by `feature` and `operation`:
 
 The `permissions` feature operates on `.rulesync/permissions.jsonc` and the `hooks` feature operates on `.rulesync/hooks.jsonc`. Both accept a `content` string (valid JSONC) on `put`.
 
+### Warnings from `import` / `run`
+
+The server writes nothing to a console the calling agent can read, so a diagnostic raised while importing — for example, that a machine-local overrides file such as `.factory/settings.local.json` was read into files rulesync commits — travels back in the result instead, as a `warnings` array of strings. The field is omitted when the import had nothing to report.
+
 ### `skill` other files
 
 A skill directory may contain files other than `SKILL.md`. They are passed as `otherFiles`, where each entry has:

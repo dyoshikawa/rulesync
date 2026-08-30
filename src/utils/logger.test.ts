@@ -7,6 +7,7 @@ import {
   JsonLogger,
   warnOnConflictingFlags,
   warnOnceWithFallback,
+  WarningCollectingLogger,
   warnWithFallback,
 } from "./logger.js";
 
@@ -409,6 +410,85 @@ describe("JsonLogger", () => {
   });
 });
 
+const captureJsonOutput = (act: (logger: JsonLogger) => void): Record<string, unknown> => {
+  const logger = new JsonLogger({ command: "test", version: "1.0.0" });
+  const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+  try {
+    act(logger);
+    logger.outputJson(true);
+
+    return JSON.parse(logSpy.mock.calls[0]![0] as string);
+  } finally {
+    logSpy.mockRestore();
+  }
+};
+
+describe("JsonLogger warnings", () => {
+  it("carries warnings into the document, since a --json consumer reads nothing else", () => {
+    const output = captureJsonOutput((logger) => {
+      logger.captureData("test", "data");
+      logger.warn("machine-local settings were skipped");
+      logger.warn("unknown key", "foo", 42);
+    });
+
+    expect(output.data).toEqual({
+      test: "data",
+      warnings: ["machine-local settings were skipped", "unknown key foo 42"],
+    });
+  });
+
+  it("omits the key entirely when nothing warned", () => {
+    const output = captureJsonOutput((logger) => {
+      logger.captureData("test", "data");
+    });
+
+    expect(output.data).toEqual({ test: "data" });
+  });
+
+  it("drops warnings under --silent, which asks for no diagnostics at all", () => {
+    const output = captureJsonOutput((logger) => {
+      logger.configure({ verbose: false, silent: true });
+      logger.warn("machine-local settings were skipped");
+    });
+
+    expect(output.data).toEqual({});
+  });
+});
+
+describe("WarningCollectingLogger", () => {
+  it("keeps what it is told even while silent, and prints nothing", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      const logger = new WarningCollectingLogger({ verbose: false, silent: true });
+
+      logger.warn("machine-local settings were skipped");
+      logger.warn("unknown key", "foo");
+
+      expect(logger.getWarnings()).toEqual([
+        "machine-local settings were skipped",
+        "unknown key foo",
+      ]);
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("still writes to the console when it is not silent", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      new WarningCollectingLogger().warn("visible warning");
+
+      expect(warnSpy).toHaveBeenCalledOnce();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
 describe("warnOnceWithFallback", () => {
   it("reports a repeated message only once within a run", () => {
     const logger = { warn: vi.fn() } as unknown as Logger;
@@ -420,6 +500,27 @@ describe("warnOnceWithFallback", () => {
     expect(logger.warn).toHaveBeenNthCalledWith(1, "repeated message");
     expect(logger.warn).toHaveBeenNthCalledWith(2, "another message");
     expect(logger.warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves the token unspent for a silent logger, so a later run still reports", () => {
+    const silent = new ConsoleLogger({ verbose: false, silent: true });
+    const silentWarnSpy = vi.spyOn(silent, "warn");
+    const listening = { warn: vi.fn() } as unknown as Logger;
+
+    warnOnceWithFallback(silent, "skipped by a silent run");
+    warnOnceWithFallback(listening, "skipped by a silent run");
+
+    expect(silentWarnSpy).not.toHaveBeenCalled();
+    expect(listening.warn).toHaveBeenCalledWith("skipped by a silent run");
+  });
+
+  it("spends the token on a silent logger that hands its warnings back", () => {
+    const logger = new WarningCollectingLogger({ verbose: false, silent: true });
+
+    warnOnceWithFallback(logger, "kept by a collecting run");
+    warnOnceWithFallback(logger, "kept by a collecting run");
+
+    expect(logger.getWarnings()).toEqual(["kept by a collecting run"]);
   });
 
   it("falls back to the shared logger like warnWithFallback", () => {

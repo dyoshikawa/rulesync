@@ -6,7 +6,7 @@ import { importFromTool, type ImportResult } from "../lib/import.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
-import { ConsoleLogger } from "../utils/logger.js";
+import { WarningCollectingLogger } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
 import { type McpResultCounts } from "./types.js";
 
@@ -37,6 +37,12 @@ export type McpImportResult = {
     features: string[];
     global: boolean;
   };
+  /**
+   * Diagnostics raised while reading the tool's files. The MCP server writes
+   * nothing to a console the caller can see, so anything worth acting on has to
+   * travel in the result itself. Omitted when there is nothing to report.
+   */
+  warnings?: string[];
   error?: string;
 };
 
@@ -69,10 +75,10 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
 
     const tool = config.getTargets()[0] as ToolTarget;
 
-    const logger = new ConsoleLogger({ verbose: false, silent: true });
+    const logger = new WarningCollectingLogger({ verbose: false, silent: true });
     const importResult = await importFromTool({ config, tool, logger });
 
-    return buildSuccessResponse({ importResult, config, tool });
+    return buildSuccessResponse({ importResult, config, tool, logger });
   } catch (error) {
     return {
       success: false,
@@ -85,10 +91,12 @@ function buildSuccessResponse(params: {
   importResult: ImportResult;
   config: Config;
   tool: ToolTarget;
+  logger: WarningCollectingLogger;
 }): McpImportResult {
-  const { importResult, config, tool } = params;
+  const { importResult, config, tool, logger } = params;
 
   const totalCount = calculateTotalCount(importResult);
+  const warnings = logger.getWarnings();
 
   return {
     success: true,
@@ -109,6 +117,7 @@ function buildSuccessResponse(params: {
       features: config.getFeatures(),
       global: config.getGlobal(),
     },
+    ...(warnings.length > 0 ? { warnings: [...warnings] } : {}),
   };
 }
 

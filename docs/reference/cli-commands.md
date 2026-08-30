@@ -97,6 +97,10 @@ rulesync update --force
 
 > **Deprecated feature:** `ignore` remains available to existing projects throughout Rulesync 14.x, but new projects should use `permissions`. Any removal will be decided separately and will not occur before a future major release.
 
+## JSON Output
+
+The global `--json` flag makes a command print a single result document and nothing else. Because that document is the whole of the output, warnings that would otherwise go to standard error are carried inside it: they appear as `data.warnings`, an array of strings, and the key is omitted when nothing warned. `--silent` suppresses them there as it does on the console.
+
 ## Generate Command
 
 The `generate` command reads source files from one or more rulesync source trees (default: `<cwd>/.rulesync`; configurable via `--input-roots`) and writes AI tool configuration files to the output directories.

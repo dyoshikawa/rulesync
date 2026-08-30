@@ -16,6 +16,12 @@ export type Logger = {
   configure(options: { verbose: boolean; silent: boolean }): void;
   readonly verbose: boolean;
   readonly silent: boolean;
+  /**
+   * True when the logger hands the warnings it is given back to its caller
+   * instead of writing them somewhere. Such a logger reports even while
+   * `silent`, so `warnOnceWithFallback` still spends the run's token on it.
+   */
+  readonly retainsWarnings?: boolean;
   readonly jsonMode: boolean;
   captureData(key: string, value: unknown): void;
   getJsonData(): Record<string, unknown>;
@@ -113,11 +119,15 @@ export class ConsoleLogger extends BaseLogger implements Logger {
 /**
  * JsonLogger - structured JSON output to stdout/stderr
  *
- * All console output methods (info, success, warn, debug) are no-ops.
+ * The console output methods (info, success, debug) are no-ops. `warn` is not:
+ * a diagnostic that only reached the console would be invisible to a `--json`
+ * consumer, which reads the document and nothing else, so warnings are
+ * collected and emitted under `data.warnings` instead.
  */
 export class JsonLogger extends BaseLogger implements Logger {
   private _jsonOutputDone = false;
   private _jsonData: Record<string, unknown> = {};
+  private readonly _warnings: string[] = [];
   private readonly _commandName: string;
   private readonly _version: string;
 
@@ -161,7 +171,12 @@ export class JsonLogger extends BaseLogger implements Logger {
     };
 
     if (success) {
-      output.data = this._jsonData;
+      // `warnings` is the logger's own key rather than a captured one, so a
+      // command that captures data of its own never has to know about it.
+      output.data =
+        this._warnings.length > 0
+          ? { ...this._jsonData, warnings: [...this._warnings] }
+          : this._jsonData;
     } else if (error) {
       output.error = {
         code: error.code,
@@ -192,8 +207,11 @@ export class JsonLogger extends BaseLogger implements Logger {
     // Suppress console output in JSON mode
   }
 
-  warn(_message: string, ..._args: unknown[]): void {
-    // Suppress console output in JSON mode
+  warn(message: string, ...args: unknown[]): void {
+    // `--silent` asks for no diagnostics at all, which the document honors as
+    // the console does; otherwise the warning is kept for `data.warnings`.
+    if (this._silent) return;
+    this._warnings.push([message, ...args.map((arg) => String(arg))].join(" "));
   }
 
   error(message: string | Error, code?: string, ..._args: unknown[]): void {
@@ -269,8 +287,40 @@ export function warnWithFallback(logger: Logger | undefined, message: string): v
  * varies with what the user should do next does not.
  */
 export function warnOnceWithFallback(logger: Logger | undefined, message: string): void {
+  const destination = logger ?? fallbackLogger;
+  // A silent logger reports nothing, so claiming the token for it would spend a
+  // once-per-run warning on a run nobody saw. That matters in a long-lived
+  // process — an MCP server reads with a silent logger — where the next read,
+  // through a logger that does report, would otherwise stay quiet about the
+  // same file.
+  if (destination.silent && destination.retainsWarnings !== true) {
+    return;
+  }
   if (!claimWarnOnce(message)) {
     return;
   }
-  warnWithFallback(logger, message);
+  destination.warn(message);
+}
+
+/**
+ * A `ConsoleLogger` that keeps the warnings it is given.
+ *
+ * A caller with no console to write to — an MCP tool answering over stdio, where
+ * the server's stderr never reaches the agent — can hand this in and put what
+ * was reported into its own result, so a diagnostic about the files it just read
+ * is something the agent can act on rather than something it never hears.
+ */
+export class WarningCollectingLogger extends ConsoleLogger {
+  readonly retainsWarnings = true;
+
+  private readonly warnings: string[] = [];
+
+  override warn(message: string, ...args: unknown[]): void {
+    this.warnings.push([message, ...args.map((arg) => String(arg))].join(" "));
+    super.warn(message, ...args);
+  }
+
+  getWarnings(): readonly string[] {
+    return this.warnings;
+  }
 }
