@@ -341,7 +341,7 @@ describe("promptSkillSelection", () => {
     checkboxMock.mockResolvedValue([]);
     // A 120-column window split down the middle. The prompt draws a pointer, a
     // checkbox and a space in front of the label and nothing at all in front of
-    // the line a label wraps onto, so 57 columns is what a row has to spare.
+    // the line a label wraps onto, so 55 columns is what a row has to spare.
     setTerminalWidth(60);
     const padded = `pdf${" ".repeat(100)}pdf`;
 
@@ -355,9 +355,9 @@ describe("promptSkillSelection", () => {
     // subtracted the wrong prefix would fail here instead of passing by being
     // shorter than it had to be.
     expect(choices[0]?.name).toBe(
-      `[!] carries more whitespace than the \u2026 \u2014 pdf${" ".repeat(12)}\u2026`,
+      `[!] carries more whitespace than th\u2026 \u2014 pdf${" ".repeat(12)}\u2026`,
     );
-    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(57);
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(55);
     expect(choices[0]?.value).toBe(padded);
   });
 
@@ -373,7 +373,7 @@ describe("promptSkillSelection", () => {
       preselectedSkills: [],
     });
 
-    const shortened = "a".repeat(52);
+    const shortened = "a".repeat(50);
     expect(checkboxMock).toHaveBeenCalledWith(
       expect.objectContaining({
         choices: [
@@ -448,6 +448,27 @@ describe("promptSkillSelection", () => {
     // The row is unreadable at that width, and the value behind it is not: what
     // is checked is still the directory the label stands for.
     expect(choices[1]?.value).toBe(cyrillic);
+  });
+
+  it("should shorten a name padded with the joiners the renderer spends a column on", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // The zero-width joiners are the only invisible characters a name may carry
+    // and still be offered — a word written with one is written the way its
+    // script writes it — and the prompt's own renderer counts each of them as a
+    // column. A name of 39 Arabic letters and 38 joiners is drawn in 39 columns
+    // and wrapped as if it were 77, which is a forged row underneath it unless
+    // the budget counts them the way the renderer does.
+    const joined = `${"\u0627\u200c".repeat(38)}\u0627`;
+
+    await promptSkillSelection({ availableSkills: [joined], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBeLessThanOrEqual(72);
+    expect(choices[0]?.name.endsWith("\u2026")).toBe(true);
+    expect(choices[0]?.value).toBe(joined);
   });
 
   it("should convert ExitPromptError (Ctrl+C) into SkillSelectionCancelledError", async () => {

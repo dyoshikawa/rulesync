@@ -39,9 +39,11 @@
  * the Hangul fillers at two, where this counts one and none: a name carrying
  * either is refused outright by `hasDeceptiveHiddenCharacters` — the tab as a
  * control character, the fillers as characters that draw as nothing — and never
- * becomes a row to be measured. Where this is used to lay out text of the
- * tool's own rather than to bound an untrusted name, the difference is a column
- * of alignment and not a forged row.
+ * becomes a row to be measured. The two joiners are the invisible characters
+ * that check lets through, so they are counted below rather than left to the
+ * zero-width rule. Where this is used to lay out text of the tool's own rather
+ * than to bound an untrusted name, the difference is a column of alignment and
+ * not a forged row.
  *
  * The wide planes are taken whole rather than range by range — Tangut, Khitan
  * and Nushu together are U+17000–U+18DFF, and the kana supplements are
@@ -72,6 +74,30 @@ const COMBINING_MARK_PATTERN = /[\p{Mn}\p{Me}]/u;
 
 /** The characters that take no width at all, marks aside. */
 const ZERO_WIDTH_CHARACTERS_PATTERN = /[\p{Cf}\p{Default_Ignorable_Code_Point}]/u;
+
+/**
+ * The zero-width joiner and its non-joining twin, which the renderer spends a
+ * column on apiece.
+ *
+ * A terminal draws neither, and every other character that draws as nothing is
+ * counted at nothing here. These two are the exception because they are the
+ * only invisible characters `hasDeceptiveHiddenCharacters` lets through — a
+ * Persian or Indic name spells a word with one, and an emoji is a chain of them
+ * — so they are the only ones an attacker can put in a name that reaches the
+ * prompt. `fast-string-width`, which is where the prompt's own wrapping is
+ * decided, counts each of them as a column, and 40 of them in a name is 40
+ * columns of budget this would otherwise hand over for free: enough for a name
+ * measured at 39 columns to be drawn at 77 and wrap a forged row underneath
+ * itself.
+ *
+ * The cost is that an emoji built from a chain is overstated by a column per
+ * joiner, on top of the two columns per component it is already overstated by.
+ * Overstating shortens a label that did not need it; understating lets one
+ * wrap.
+ */
+// Alternatives rather than a class: a class holding two joiners side by side is
+// what `no-misleading-character-class` exists to catch.
+const RENDERER_COUNTED_JOINERS = /\u200c|\u200d/u;
 
 /**
  * How many marks a single character is allowed to carry for free.
@@ -106,6 +132,9 @@ function widthInContext(params: { character: string; precedingMarks: number }): 
   }
   if (isCombiningMark(character)) {
     return precedingMarks < FREE_MARKS_PER_CHARACTER ? 0 : 1;
+  }
+  if (RENDERER_COUNTED_JOINERS.test(character)) {
+    return 1;
   }
   if (ZERO_WIDTH_CHARACTERS_PATTERN.test(character)) {
     return 0;

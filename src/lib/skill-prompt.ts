@@ -51,22 +51,23 @@ const MAX_SKILL_LABEL_WIDTH = 72;
  * What the prompt draws in front of a label, in columns.
  *
  * `@inquirer/checkbox` renders each row as `${cursor}${checkbox} ${name}` (its
- * `renderItem`, as of 5.2.2): one column for the pointer, one for the box, and
- * one for the space between the box and the label. Nothing is drawn in front of
- * a continuation line, so a label that overruns the row paints its tail flush
- * against the left margin, which is exactly where a padded name wants it.
+ * `renderItem`, as of 5.2.2): the pointer, the box, and the space between the
+ * box and the label. Nothing is drawn in front of a continuation line, so a
+ * label that overruns the row paints its tail flush against the left margin,
+ * which is exactly where a padded name wants it.
  *
- * The pointer and the box are counted at one column each, which is what
- * `displayWidthOf` counts them as: the box is East Asian Ambiguous, and this
- * project counts the ambiguous characters as one column, the width a terminal
- * running a Latin font draws them in. A terminal configured to draw them wide
- * spends two columns more on the row than this counts, and the budget is that
- * much too generous there; the count follows the project's rule rather than
- * taking a second opinion here, and the label is cut to its budget in one
- * place, so what the two columns cost is the tail of a name and not a promise
- * made anywhere else.
+ * The widest the three can come to rather than the width they usually are.
+ * `@inquirer/figures` draws the pointer and the box as `❯` and `◯` where the
+ * terminal has the font for them and as `>` and `( )` where it does not — the
+ * Linux console, and Windows conhost outside Terminal — and the fallback box
+ * alone is three columns. The Unicode pair is East Asian Ambiguous, which this
+ * project counts at one column apiece and a terminal set to draw ambiguous
+ * characters wide draws at two. Both ends of that come to five, so five is what
+ * is reserved: a budget that is two columns short is a row that wraps, and two
+ * columns spent on a prefix that turned out to be narrower is two characters of
+ * a name.
  */
-const CHOICE_PREFIX_WIDTH = 3;
+const CHOICE_PREFIX_WIDTH = 5;
 
 /**
  * The width to assume when the terminal does not say how wide it is.
@@ -94,9 +95,9 @@ const MIN_SHORTENED_NAME_WIDTH = 16;
  * How wide a label may be in the terminal it is about to be drawn in.
  *
  * The cap above is not enough on its own: `@inquirer/core` breaks every
- * rendered row at the real terminal width, and the three columns of pointer and
+ * rendered row at the real terminal width, and the columns of pointer and
  * checkbox come out of that width without being repeated on the continuation
- * line. In anything narrower than 75 columns — a 120-column window split in
+ * line. In anything narrower than 77 columns — a 120-column window split in
  * half is 60 — a 72-column label wraps, and the second line a name can paint
  * beneath itself is back, carrying no note, since a name padded with ordinary
  * visible characters is not confusable with anything.

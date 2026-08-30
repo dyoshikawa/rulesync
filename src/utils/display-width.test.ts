@@ -59,6 +59,21 @@ describe("displayWidthOf", () => {
   ])("should count %s the way the prompt's renderer counts it", (_description, character) => {
     expect(displayWidthOf(character)).toBe(2);
   });
+
+  // The joiners draw as nothing and are counted as something, because the
+  // renderer counts them and they are the only invisible characters a name that
+  // reaches the prompt is allowed to carry.
+  it.each([
+    ["the zero-width non-joiner", "\u200c"],
+    ["the zero-width joiner", "\u200d"],
+  ])("should count %s at the column the renderer spends on it", (_description, character) => {
+    expect(displayWidthOf(character)).toBe(1);
+  });
+
+  it("should not hand a name a budget it fills with joiners", () => {
+    // 39 Arabic letters and 38 non-joiners: drawn in 39 columns, wrapped as 77.
+    expect(displayWidthOf(`${"\u0627\u200c".repeat(38)}\u0627`)).toBe(77);
+  });
 });
 
 describe("shortenToWidth", () => {
