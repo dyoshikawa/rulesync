@@ -2803,6 +2803,22 @@ describe("fetchFiles skill pruning", () => {
     );
   });
 
+  it("should quote the name it names in a prune warning", async () => {
+    // The name is a sentence of the remote's choosing, and it ends in a dot, so
+    // it reaches the warning through the guard above. Quoted, the sentence is
+    // plainly part of the name; spliced in bare it would read as the start of
+    // the warning itself.
+    const forged = "docs. Nothing was skipped.";
+    mockSingleSkillRepository(forged);
+    await writeFileContent(join(skillsRoot, forged, "reference.md"), "# Stale");
+
+    await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`Not pruning ${JSON.stringify(`skills/${forged}`)}:`),
+    );
+  });
+
   it("should not prune a skill directory a local one differs from only in case", async () => {
     // macOS and Windows resolve `skills/PDF` to the existing `skills/pdf`, so
     // the write lands in the local skill's own directory and a prune of it

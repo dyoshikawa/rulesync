@@ -854,8 +854,8 @@ async function pruneDirectory(params: {
     // enough that a fetched tree stays well inside it, since the remote walk
     // fails outright rather than truncating when it runs past its own.
     logger.warn(
-      `Not pruning below ${stripControlCharacters(relativeDirPath)}: it is more than ` +
-        `${MAX_RECURSION_DEPTH} directories deep.`,
+      `Not pruning below ${JSON.stringify(stripControlCharacters(relativeDirPath))}: it is ` +
+        `more than ${MAX_RECURSION_DEPTH} directories deep.`,
     );
     return "kept";
   }
@@ -867,8 +867,9 @@ async function pruneDirectory(params: {
   // directory swapped for a link between the two reads.
   if (await isSymbolicLink(dirPath)) {
     logger.warn(
-      `Not pruning ${stripControlCharacters(relativeDirPath)}: it is a symbolic link, and its ` +
-        `target is outside what this fetch may delete from. Remove unwanted files by hand.`,
+      `Not pruning ${JSON.stringify(stripControlCharacters(relativeDirPath))}: it is a ` +
+        `symbolic link, and its target is outside what this fetch may delete from. Remove ` +
+        `unwanted files by hand.`,
     );
     return "kept";
   }
@@ -1072,18 +1073,18 @@ async function pruneStaleSkillFiles(params: {
     // from one upstream dropped — so nothing here is judged stale.
     if (remoteDir === undefined) {
       logger.warn(
-        `Not pruning ${stripControlCharacters(skillDir)}: the remote directory it was fetched ` +
-          `from could not be worked out, so there is nothing to judge the local files against. ` +
-          `Remove unwanted files by hand.`,
+        `Not pruning ${JSON.stringify(stripControlCharacters(skillDir))}: the remote ` +
+          `directory it was fetched from could not be worked out, so there is nothing to judge ` +
+          `the local files against. Remove unwanted files by hand.`,
       );
       continue;
     }
 
     if (hasPathAtOrUnder(incompleteRemoteDirs, remoteDir)) {
       logger.warn(
-        `Not pruning ${stripControlCharacters(skillDir)}: the remote listing for it came back ` +
-          `incomplete, so a stale local file cannot be told apart from one the listing left out. ` +
-          `Remove unwanted files by hand.`,
+        `Not pruning ${JSON.stringify(stripControlCharacters(skillDir))}: the remote listing ` +
+          `for it came back incomplete, so a stale local file cannot be told apart from one the ` +
+          `listing left out. Remove unwanted files by hand.`,
       );
       continue;
     }
@@ -1106,9 +1107,9 @@ async function pruneStaleSkillFiles(params: {
     // file the fetch wrote there is matched by identity rather than by name.
     if (/[.\s]$/.test(skillDir) || /~\d+(?:\.[^.]*)?$/.test(skillDir)) {
       logger.warn(
-        `Not pruning ${stripControlCharacters(skillDir)}: its name is one some systems resolve ` +
-          `to a different directory, so it may not be the directory this name reads as. Remove ` +
-          `unwanted files by hand.`,
+        `Not pruning ${JSON.stringify(stripControlCharacters(skillDir))}: its name is one ` +
+          `some systems resolve to a different directory, so it may not be the directory this ` +
+          `name reads as. Remove unwanted files by hand.`,
       );
       continue;
     }
@@ -1138,10 +1139,10 @@ async function pruneStaleSkillFiles(params: {
     );
     if (variant !== undefined) {
       logger.warn(
-        `Not pruning ${stripControlCharacters(skillDir)}: ${SKILLS_DIR_PREFIX}` +
-          `${stripControlCharacters(variant)} is also there and differs only in ways some ` +
-          `filesystems ignore, so this name may not be the directory it reads as. Remove ` +
-          `unwanted files by hand.`,
+        `Not pruning ${JSON.stringify(stripControlCharacters(skillDir))}: ` +
+          `${JSON.stringify(`${SKILLS_DIR_PREFIX}${stripControlCharacters(variant)}`)} is also ` +
+          `there and differs only in ways some filesystems ignore, so this name may not be the ` +
+          `directory it reads as. Remove unwanted files by hand.`,
       );
       continue;
     }
