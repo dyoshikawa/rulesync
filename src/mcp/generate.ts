@@ -15,27 +15,25 @@ import { formatError } from "../utils/error.js";
 import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
 import { truncateText } from "../utils/truncate.js";
-import { type McpResultCounts } from "./types.js";
+import { type McpResultCounts, type McpWarnings, warningsField } from "./types.js";
 
 /**
- * A logger that keeps what it reports as errors.
+ * Keeps the reasons a `.rulesync/` source would not load, so the failure this
+ * tool reports can name them.
  *
  * Over stdio MCP the server's own stderr does not reach the calling agent, so
  * a failure that is only logged is a failure the agent cannot act on. Holding
  * the messages lets the tool answer with the specific reason a source could not
  * be read — which file, and what was wrong with it — rather than just the fact
  * that something was.
- */
-/**
- * Keeps the reasons a `.rulesync/` source would not load, so the failure this
- * tool reports can name them.
  *
  * Only the tagged lines are kept. Collecting every `error()` would fold in
  * whatever else the run happened to log — one line per target for an unrelated
  * tool config, say — and the agent reading the response would have to guess
- * which of them explains the failure.
+ * which of them explains the failure. Warnings are the base class's job; this
+ * one adds the error channel to it.
  */
-class CollectingLogger extends WarningCollectingLogger {
+class ErrorCollectingLogger extends WarningCollectingLogger {
   private readonly errors: string[] = [];
   private omittedErrors = 0;
 
@@ -118,16 +116,8 @@ export type McpGenerateResult = {
     simulateSubagents: boolean;
     simulateSkills: boolean;
   };
-  /**
-   * Diagnostics raised during the run. The MCP server writes nothing to a
-   * console the caller can see, so anything worth acting on has to travel in
-   * the result itself. Present on failures too, since a run that warned and
-   * then failed is exactly when the warnings matter. Omitted when there is
-   * nothing to report.
-   */
-  warnings?: string[];
   error?: string;
-};
+} & McpWarnings;
 
 /**
  * Execute the rulesync generate command via MCP
@@ -137,56 +127,61 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
   // Declared outside the `try` because the source-load failure below is
   // reported by throwing, and a run that warns and then fails is exactly when
   // the caller needs to hear what it warned about.
-  const logger = new CollectingLogger({ verbose: false, silent: true });
+  const logger = new ErrorCollectingLogger({ verbose: false, silent: true });
 
   try {
-    // Resolve config with MCP parameters taking precedence
-    // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
-    // In MCP context, options act as CLI options (highest priority)
-    const config = await ConfigResolver.resolve({
-      targets: options.targets as RulesyncTargets | undefined,
-      features: options.features as RulesyncFeatures | undefined,
-      delete: options.delete,
-      global: options.global,
-      simulateCommands: options.simulateCommands,
-      simulateSubagents: options.simulateSubagents,
-      simulateSkills: options.simulateSkills,
-      // Always use default outputRoots (process.cwd()) and configPath
-      // verbose and silent are meaningless in MCP context
-      verbose: false,
-      silent: true,
-    });
-
-    const inputRoots = config.getInputRoots();
-    const inputRootInspection = await inspectInputRoots(inputRoots);
-
-    if (inputRootInspection.message !== undefined) {
-      throw new Error(inputRootInspection.message);
-    }
-
-    // Adopt the shared fallback too: warnings raised on paths that never
-    // received a logger would otherwise go to a stderr the calling agent
-    // cannot read.
-    const generateResult = await withFallbackLoggerTarget({
+    // The whole run adopts the shared fallback, config resolution included:
+    // warnings raised on paths that never received a logger would otherwise go
+    // to a stderr the calling agent cannot read. Resolution is inside rather
+    // than before it because that is where a config file's own contradictions
+    // are reported — `global: true` quietly downgraded to project scope
+    // changes where the run writes.
+    return await withFallbackLoggerTarget({
       logger,
-      operation: () => generate({ config, logger }),
+      operation: async () => {
+        // Resolve config with MCP parameters taking precedence
+        // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
+        // In MCP context, options act as CLI options (highest priority)
+        const config = await ConfigResolver.resolve({
+          targets: options.targets as RulesyncTargets | undefined,
+          features: options.features as RulesyncFeatures | undefined,
+          delete: options.delete,
+          global: options.global,
+          simulateCommands: options.simulateCommands,
+          simulateSubagents: options.simulateSubagents,
+          simulateSkills: options.simulateSkills,
+          // Always use default outputRoots (process.cwd()) and configPath
+          // verbose and silent are meaningless in MCP context
+          verbose: false,
+          silent: true,
+        });
+
+        const inputRoots = config.getInputRoots();
+        const inputRootInspection = await inspectInputRoots(inputRoots);
+
+        if (inputRootInspection.message !== undefined) {
+          throw new Error(inputRootInspection.message);
+        }
+
+        const generateResult = await generate({ config, logger });
+
+        // A source that could not be read writes nothing, and every count in
+        // the result reads zero for it — the same shape as a run that had
+        // nothing to do. Reporting that as success would tell the agent its
+        // edit was applied.
+        const sourceLoadFailureMessage = formatSourceLoadFailure(generateResult);
+        if (sourceLoadFailureMessage !== undefined) {
+          throw new Error([sourceLoadFailureMessage, ...logger.getErrors()].join("\n"));
+        }
+
+        return buildSuccessResponse({ generateResult, config, logger });
+      },
     });
-
-    // A source that could not be read writes nothing, and every count in the
-    // result reads zero for it — the same shape as a run that had nothing to
-    // do. Reporting that as success would tell the agent its edit was applied.
-    const sourceLoadFailureMessage = formatSourceLoadFailure(generateResult);
-    if (sourceLoadFailureMessage !== undefined) {
-      throw new Error([sourceLoadFailureMessage, ...logger.getErrors()].join("\n"));
-    }
-
-    return buildSuccessResponse({ generateResult, config, logger });
   } catch (error) {
-    const warnings = logger.getWarnings();
     return {
       success: false,
       error: formatError(error),
-      ...(warnings.length > 0 ? { warnings } : {}),
+      ...warningsField(logger),
     };
   }
 }
@@ -218,12 +213,11 @@ function buildGenerateMessage(params: { totalCount: number; config: Config }): s
 function buildSuccessResponse(params: {
   generateResult: GenerateResult;
   config: Config;
-  logger: CollectingLogger;
+  logger: ErrorCollectingLogger;
 }): McpGenerateResult {
   const { generateResult, config, logger } = params;
 
   const totalCount = calculateTotalCount(generateResult);
-  const warnings = logger.getWarnings();
 
   return {
     success: true,
@@ -250,7 +244,7 @@ function buildSuccessResponse(params: {
       simulateSubagents: config.getSimulateSubagents(),
       simulateSkills: config.getSimulateSkills(),
     },
-    ...(warnings.length > 0 ? { warnings } : {}),
+    ...warningsField(logger),
   };
 }
 
@@ -262,7 +256,7 @@ export const generateTools = {
   executeGenerate: {
     name: "executeGenerate",
     description:
-      "Execute the rulesync generate command to create output files for AI tools. Uses rulesync.jsonc settings by default, but options can override them. Idempotent: only files whose content changed are written, so a totalCount of 0 means the outputs are already up to date (a successful no-op), not a failure. See the 'message' field for a human-readable summary.",
+      "Execute the rulesync generate command to create output files for AI tools. Uses rulesync.jsonc settings by default, but options can override them. Idempotent: only files whose content changed are written, so a totalCount of 0 means the outputs are already up to date (a successful no-op), not a failure. See the 'message' field for a human-readable summary. A 'warnings' array of strings is present, on success and on failure alike, when the run had something worth acting on to report.",
     parameters: generateToolSchemas.executeGenerate,
     execute: async (options: GenerateOptions = {}): Promise<string> => {
       const result = await executeGenerate(options);

@@ -512,8 +512,8 @@ describe("JsonLogger warnings", () => {
 
     const warnings = output.warnings as string[];
 
-    expect(warnings[0]).toHaveLength(1000 + "… (truncated)".length);
-    expect(warnings[0]).toMatch(/… \(truncated\)$/);
+    expect(warnings[0]).toHaveLength(1000 + "…(truncated)".length);
+    expect(warnings[0]).toMatch(/…\(truncated\)$/);
   });
 
   it("stops once the warnings add up to the total budget, well before the count limit", () => {
@@ -526,9 +526,29 @@ describe("JsonLogger warnings", () => {
     const warnings = output.warnings as string[];
     const reported = warnings.slice(0, -1);
 
-    // Nine 900-character lines fit under 8,000; the tenth is what crosses it.
-    expect(reported).toHaveLength(9);
-    expect(warnings.at(-1)).toBe("… and 11 more warning(s) not reported");
+    // Eight 902-character lines fit under 8,000; the ninth is what would cross
+    // it, so the budget is a ceiling rather than a line the last entry steps
+    // over.
+    expect(reported).toHaveLength(8);
+    expect(reported.join("").length).toBeLessThanOrEqual(8_000);
+    expect(warnings.at(-1)).toBe("… and 12 more warning(s) not reported");
+  });
+
+  it("counts what it dropped in distinct diagnostics, not in copies of one", () => {
+    const output = captureJsonOutput((logger) => {
+      for (let i = 0; i < 20; i++) {
+        logger.warn(`${i} ${"y".repeat(900)}`);
+      }
+      // The same line 50 times over, the way a warning repeated per tool target
+      // arrives. Counting each copy would say "and 62 more" for 13 diagnostics.
+      for (let i = 0; i < 50; i++) {
+        logger.warn(`dropped, and dropped again ${"z".repeat(900)}`);
+      }
+    });
+
+    const warnings = output.warnings as string[];
+
+    expect(warnings.at(-1)).toBe("… and 13 more warning(s) not reported");
   });
 
   it("keeps one copy of a line a run repeats per tool target", () => {

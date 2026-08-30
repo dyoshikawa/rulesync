@@ -177,6 +177,23 @@ This is a test rule file.
       ]);
     });
 
+    it("reports a warning raised where no logger was threaded through", async () => {
+      // `ConfigResolver` warns through the shared fallback rather than through
+      // a logger the caller handed it, and it runs before the import proper. A
+      // scope that started later would leave this one on a stderr the calling
+      // agent never sees, and the missing `warnings` key would read as
+      // "nothing was wrong" about an output scope that silently changed.
+      await writeFileContent(
+        join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+        JSON.stringify({ global: true, inputRoot: "." }),
+      );
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Claude Code Rules\n");
+
+      const result = await executeImport({ target: "claudecode", features: ["rules"] });
+
+      expect(result.warnings).toEqual([expect.stringContaining('Ignoring "global: true"')]);
+    });
+
     it("omits the warnings key when the import had nothing to report", async () => {
       await writeFileContent(join(testDir, "CLAUDE.md"), "# Claude Code Rules\n");
 

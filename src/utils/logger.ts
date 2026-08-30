@@ -85,7 +85,7 @@ class WarningCollection {
     const kept = truncateText({
       text: line,
       maxLength: MAX_COLLECTED_WARNING_LENGTH,
-      suffix: "… (truncated)",
+      suffix: "…(truncated)",
     });
 
     // A plain `warn` repeats per tool target, so without this the budget below
@@ -96,8 +96,13 @@ class WarningCollection {
     }
     if (
       this.lines.length >= MAX_COLLECTED_WARNINGS ||
-      this.totalLength >= MAX_COLLECTED_TOTAL_LENGTH
+      this.totalLength + kept.length > MAX_COLLECTED_TOTAL_LENGTH
     ) {
+      // Recorded as seen even though it was dropped, so the count below stays a
+      // count of distinct diagnostics. A line that repeats per tool target
+      // would otherwise be counted once per copy, and "and 300 more" would
+      // describe twelve.
+      this.seen.add(kept);
       this.omitted++;
       return;
     }

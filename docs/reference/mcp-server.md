@@ -19,7 +19,7 @@ The `permissions` feature operates on `.rulesync/permissions.jsonc` and the `hoo
 
 ### Warnings from `generate` / `run`, `import` / `run`, and `convert` / `run`
 
-The server writes nothing to a console the calling agent can read, so a diagnostic raised while reading the source tool's files, or while generating — for example, that a machine-local overrides file such as `.factory/settings.local.json` was read into files rulesync commits — travels back in the result instead, as a `warnings` array of strings. The field is omitted when the operation had nothing to report, and is present on failures too, since a run that warned and then failed is exactly when the warnings matter. At most 100 warnings are returned, each truncated to 1,000 characters and 8,000 characters in total.
+The server writes nothing to a console the calling agent can read, so a diagnostic raised while reading the source tool's files, or while generating — for example, that a machine-local overrides file such as `.factory/settings.local.json` was read into files rulesync commits — travels back in the result instead, as a `warnings` array of strings. The field is omitted when the operation had nothing to report, and is present on failures too, since a run that warned and then failed is exactly when the warnings matter. At most 100 warnings are returned, each truncated to 1,000 characters and 8,000 characters in total; a run that exceeds any of those limits says so in a final entry rather than growing the result without bound. These three operations are the only ones that report warnings — the `list` / `get` / `put` / `delete` operations read and write `.rulesync/` files that the caller can inspect for itself, and say nothing.
 
 ### `skill` other files
 
