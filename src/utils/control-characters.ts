@@ -1,13 +1,14 @@
 /**
  * Matches C0 controls, DEL, the C1 range (which includes the 8-bit CSI
- * introducer U+009B), the bidirectional overrides and isolates, and the Unicode
- * line and paragraph separators, and the plain LRM/RLM/ALM marks. A name or value
- * copied out of an untrusted config file, a fetched repository, or a tool's own
- * settings file must never reach the terminal with these intact: they let the
- * text forge log lines, reorder what is printed around them, or inject escape
- * sequences. LRM, RLM and the Arabic letter mark open no bidi scope of their
- * own, but they still reorder the neutral characters beside them, so they go too — a diagnostic line is not the
- * place to preserve the typography of a right-to-left name.
+ * introducer U+009B), the bidirectional overrides and isolates, the Unicode
+ * line and paragraph separators, and the plain LRM/RLM/ALM marks. A name or
+ * value copied out of an untrusted config file, a fetched repository, or a
+ * tool's own settings file must never reach the terminal with these intact:
+ * they let the text forge log lines, reorder what is printed around them, or
+ * inject escape sequences. LRM, RLM and the Arabic letter mark open no bidi
+ * scope of their own, but they still reorder the neutral characters beside
+ * them, so they go too — a diagnostic line is not the place to preserve the
+ * typography of a right-to-left name.
  */
 const CONTROL_CHARACTERS_PATTERN =
   // oxlint-disable-next-line no-control-regex

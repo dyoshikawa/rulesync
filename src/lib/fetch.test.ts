@@ -2317,6 +2317,47 @@ describe("fetchFiles skill pruning", () => {
     mockClientInstance.getFileContent.mockResolvedValue("# Skill");
   }
 
+  /**
+   * A repository with a single skill of the given name, whose only file is
+   * SKILL.md. The tests that pin how a remote skill name is read back differ
+   * only in that name.
+   */
+  function mockSingleSkillRepository(name: string): void {
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name,
+              path: `skills/${name}`,
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === `skills/${name}`) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `skills/${name}/SKILL.md`,
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+  }
+
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
     vi.spyOn(process, "cwd").mockReturnValue(testDir);
@@ -2496,38 +2537,7 @@ describe("fetchFiles skill pruning", () => {
     // `skills/.\evil/SKILL.md` is written as a directory literally called
     // `.\evil`, but reads back as the skill `.`, whose directory is the whole
     // of `skills/` — so the prune would empty every skill on disk.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: ".\\evil",
-              path: "skills/.\\evil",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/.\\evil") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/.\\evil/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository(".\\evil");
     const mine = join(skillsRoot, "alpha", "SKILL.md");
     await writeFileContent(mine, "# Mine");
 
@@ -2541,38 +2551,7 @@ describe("fetchFiles skill pruning", () => {
   it("should skip a remote path whose backslash targets another skill", async () => {
     // `skills/victim\evil/` is written as its own directory, but reads back as
     // the skill `victim`, whose local directory this run never wrote.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "victim\\evil",
-              path: "skills/victim\\evil",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/victim\\evil") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/victim\\evil/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("victim\\evil");
     const victim = join(skillsRoot, "victim", "notes.md");
     await writeFileContent(victim, "# Mine");
 
@@ -2588,38 +2567,7 @@ describe("fetchFiles skill pruning", () => {
     // another spelling of `pdf`, so the fetch would write into the user's own
     // `pdf` skill while the prune, which compares names, treats it as a skill
     // this run never wrote.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "pdf::$INDEX_ALLOCATION",
-              path: "skills/pdf::$INDEX_ALLOCATION",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/pdf::$INDEX_ALLOCATION") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/pdf::$INDEX_ALLOCATION/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("pdf::$INDEX_ALLOCATION");
     const victim = join(skillsRoot, "pdf", "notes.md");
     await writeFileContent(victim, "# Mine");
 
@@ -2800,38 +2748,7 @@ describe("fetchFiles skill pruning", () => {
   it("should not prune a skill directory named like a Windows short name", async () => {
     // `REPORT~1` opens whatever long name it stands for on a volume that
     // generates short names, so it may not be the directory it reads as.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "REPORT~1",
-              path: "skills/REPORT~1",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/REPORT~1") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/REPORT~1/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("REPORT~1");
     const stale = join(skillsRoot, "REPORT~1", "reference.md");
     await writeFileContent(stale, "# Stale");
 
@@ -2848,38 +2765,7 @@ describe("fetchFiles skill pruning", () => {
     // macOS and Windows resolve `skills/PDF` to the existing `skills/pdf`, so
     // the write lands in the local skill's own directory and a prune of it
     // would judge that skill's files stale.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "PDF",
-              path: "skills/PDF",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/PDF") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/PDF/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("PDF");
     const localFile = join(skillsRoot, "pdf", "SKILL.md");
     await writeFileContent(localFile, "# Local skill");
 
@@ -2898,38 +2784,7 @@ describe("fetchFiles skill pruning", () => {
     // composed letter, exactly as a case variant would.
     const composed = "caf\u00e9";
     const decomposed = "cafe\u0301";
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: decomposed,
-              path: `skills/${decomposed}`,
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === `skills/${decomposed}`) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `skills/${decomposed}/SKILL.md`,
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository(decomposed);
     const localFile = join(skillsRoot, composed, "SKILL.md");
     await writeFileContent(localFile, "# Local skill");
 
@@ -2945,38 +2800,7 @@ describe("fetchFiles skill pruning", () => {
   it("should prune a skill directory whose name only contains a tilde", async () => {
     // `~2` in the middle of a name is not the short-name shape, so the guard
     // above it must not claim this directory.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "data~2parser",
-              path: "skills/data~2parser",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/data~2parser") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/data~2parser/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("data~2parser");
     const stale = join(skillsRoot, "data~2parser", "reference.md");
     await writeFileContent(stale, "# Stale");
 
@@ -2989,38 +2813,7 @@ describe("fetchFiles skill pruning", () => {
   it("should not prune a skill directory whose name ends in a dot", async () => {
     // Windows resolves `skills/dotted.` to `skills/dotted`, so the prune would
     // empty one directory while the summary named another.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "dotted.",
-              path: "skills/dotted.",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/dotted.") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/dotted./SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("dotted.");
     const stale = join(skillsRoot, "dotted.", "reference.md");
     await writeFileContent(stale, "# Stale");
 

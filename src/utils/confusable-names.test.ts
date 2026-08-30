@@ -6,6 +6,8 @@ import { describeConfusableNames, mixedScriptsOf } from "./confusable-names.js";
 const CYRILLIC_COPY = "\u0441\u043e\u0440\u0443";
 /** "good" with both o's replaced by the Cyrillic o, U+043E. */
 const HALF_CYRILLIC_GOOD = "g\u043e\u043ed";
+/** The note both halves of a lookalike pair are given. */
+const TWIN_NOTE = "another entry differs from it only by lookalike letters";
 
 describe("mixedScriptsOf", () => {
   it.each([
@@ -103,10 +105,9 @@ describe("describeConfusableNames", () => {
     // pair is only visible by comparing the two against each other.
     const notes = describeConfusableNames(["copy", CYRILLIC_COPY]);
 
-    expect(notes.get("copy")).toBe("another entry differs from it only by lookalike letters");
+    expect(notes.get("copy")).toBe(TWIN_NOTE);
     expect(notes.get(CYRILLIC_COPY)).toBe(
-      "another entry differs from it only by lookalike letters; " +
-        "reads as Latin letters but is written in Cyrillic",
+      `${TWIN_NOTE}; reads as Latin letters but is written in Cyrillic`,
     );
   });
 
@@ -163,10 +164,9 @@ describe("describeConfusableNames", () => {
     const notes = describeConfusableNames(["good", HALF_CYRILLIC_GOOD]);
 
     expect(notes.get(HALF_CYRILLIC_GOOD)).toBe(
-      "another entry differs from it only by lookalike letters; " +
-        "mixes characters from Cyrillic and Latin",
+      `${TWIN_NOTE}; mixes characters from Cyrillic and Latin`,
     );
-    expect(notes.get("good")).toBe("another entry differs from it only by lookalike letters");
+    expect(notes.get("good")).toBe(TWIN_NOTE);
   });
 
   it("should list three scripts as a sentence rather than a chain of ands", () => {
@@ -211,52 +211,47 @@ describe("describeConfusableNames", () => {
     const armenian = "c\u0585py";
     const notes = describeConfusableNames(["copy", armenian]);
 
-    expect(notes.get("copy")).toBe("another entry differs from it only by lookalike letters");
-    expect(notes.get(armenian)).toBe(
-      "another entry differs from it only by lookalike letters; " +
-        "mixes characters from Armenian and Latin",
-    );
+    expect(notes.get("copy")).toBe(TWIN_NOTE);
+    expect(notes.get(armenian)).toBe(`${TWIN_NOTE}; mixes characters from Armenian and Latin`);
   });
 
   it("should note a twin that never leaves the Latin alphabet", () => {
-    const twin = "another entry differs from it only by lookalike letters";
     // A digit for a letter, a capital I for an l, the script g (U+0261) and the
     // dotless i (U+0131): four ways to spell a name in characters this project
     // already uses, none of which changes what the name looks like.
     expect(describeConfusableNames(["copy", "c0py"])).toEqual(
       new Map([
-        ["copy", twin],
-        ["c0py", twin],
+        ["copy", TWIN_NOTE],
+        ["c0py", TWIN_NOTE],
       ]),
     );
     expect(describeConfusableNames(["rules", "ruIes"])).toEqual(
       new Map([
-        ["rules", twin],
-        ["ruIes", twin],
+        ["rules", TWIN_NOTE],
+        ["ruIes", TWIN_NOTE],
       ]),
     );
     expect(describeConfusableNames(["git", "\u0261it"])).toEqual(
       new Map([
-        ["git", twin],
-        ["\u0261it", twin],
+        ["git", TWIN_NOTE],
+        ["\u0261it", TWIN_NOTE],
       ]),
     );
     expect(describeConfusableNames(["git", "g\u0131t"])).toEqual(
       new Map([
-        ["git", twin],
-        ["g\u0131t", twin],
+        ["git", TWIN_NOTE],
+        ["g\u0131t", TWIN_NOTE],
       ]),
     );
   });
 
   it("should note a twin the compatibility normalization would have hidden", () => {
-    const twin = "another entry differs from it only by lookalike letters";
     // U+2160 ROMAN NUMERAL ONE normalizes to a capital I, which is read as an
     // l — a pairing only visible to a fold that runs after the normalization.
     expect(describeConfusableNames(["list", "\u2160ist"])).toEqual(
       new Map([
-        ["list", twin],
-        ["\u2160ist", twin],
+        ["list", TWIN_NOTE],
+        ["\u2160ist", TWIN_NOTE],
       ]),
     );
   });
@@ -271,12 +266,7 @@ describe("describeConfusableNames", () => {
   });
 
   it("should still report a word whose every letter is drawn as a Latin one", () => {
-    // "copy" spelled in Cyrillic, written as escapes: the point of the name is
-    // that it cannot be told from the Latin word on sight, and a reviewer
-    // reading this file is owed the same warning the prompt gives.
-    const cyrillicCopy = "\u0441\u043e\u0440\u0443";
-
-    expect(describeConfusableNames([cyrillicCopy]).get(cyrillicCopy)).toBe(
+    expect(describeConfusableNames([CYRILLIC_COPY]).get(CYRILLIC_COPY)).toBe(
       "reads as Latin letters but is written in Cyrillic",
     );
   });
@@ -296,26 +286,19 @@ describe("describeConfusableNames", () => {
     // third is the one the reader has no other way to notice.
     const notes = describeConfusableNames(["copy", "copy ", "c\u043epy"]);
 
-    expect(notes.get("copy")).toBe(
-      "another entry has the same display form; " +
-        "another entry differs from it only by lookalike letters",
-    );
-    expect(notes.get("c\u043epy")).toBe(
-      "another entry differs from it only by lookalike letters; " +
-        "mixes characters from Cyrillic and Latin",
-    );
+    expect(notes.get("copy")).toBe(`another entry has the same display form; ${TWIN_NOTE}`);
+    expect(notes.get("c\u043epy")).toBe(`${TWIN_NOTE}; mixes characters from Cyrillic and Latin`);
   });
 
   it("should note a twin that only replaces the hyphen", () => {
-    const twin = "another entry differs from it only by lookalike letters";
     // Nearly every name here is kebab-case, so the separator is the one
     // character that can be swapped without touching a letter. U+2010 HYPHEN is
     // drawn exactly as the ASCII one, belongs to no script, and survives the
     // compatibility normalization untouched.
     expect(describeConfusableNames(["code-review", "code\u2010review"])).toEqual(
       new Map([
-        ["code-review", twin],
-        ["code\u2010review", twin],
+        ["code-review", TWIN_NOTE],
+        ["code\u2010review", TWIN_NOTE],
       ]),
     );
   });
@@ -328,12 +311,10 @@ describe("describeConfusableNames", () => {
   });
 
   it("should note a twin that only replaces the apostrophe", () => {
-    const twin = "another entry differs from it only by lookalike letters";
-
     expect(describeConfusableNames(["let's-go", "let\u2019s-go"])).toEqual(
       new Map([
-        ["let's-go", twin],
-        ["let\u2019s-go", twin],
+        ["let's-go", TWIN_NOTE],
+        ["let\u2019s-go", TWIN_NOTE],
       ]),
     );
   });

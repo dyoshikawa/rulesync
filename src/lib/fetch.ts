@@ -48,6 +48,7 @@ import {
   createTempDirectory,
   fileExists,
   isFileNotFoundError,
+  isFileSystemError,
   removeTempDirectory,
   toPosixPath,
   writeFileContent,
@@ -289,7 +290,9 @@ type SkillPathClass =
   | { readonly kind: "skill"; readonly name: string };
 
 /** Where a skill directory sits, under the output base path and in the remote. */
-const SKILLS_DIR_PREFIX = "skills/";
+const SKILLS_DIR_NAME = "skills";
+/** The same directory as the head of a POSIX path, for prefix comparisons. */
+const SKILLS_DIR_PREFIX = `${SKILLS_DIR_NAME}/`;
 
 /**
  * The one `non-skill` verdict, shared by every caller that reaches it. It is
@@ -675,7 +678,7 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
  */
 async function readSkillRootNames(outputBasePath: string): Promise<string[]> {
   try {
-    const entries = await readdir(join(outputBasePath, SKILLS_DIR_PREFIX), {
+    const entries = await readdir(join(outputBasePath, SKILLS_DIR_NAME), {
       withFileTypes: true,
     });
     // Directories only: a skill is a directory, and a file beside them shares
@@ -1199,15 +1202,6 @@ async function pruneStaleSkillFiles(params: {
  */
 function isSymbolicLinkLoopError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ELOOP";
-}
-
-/**
- * Whether the error came from the filesystem rather than from the walk itself.
- * Node stamps every `fs` rejection with a `code`, so its presence is what tells
- * an I/O failure apart from a programming error raised in the same call.
- */
-function isFileSystemError(error: unknown): boolean {
-  return error instanceof Error && "code" in error && typeof error.code === "string";
 }
 
 /**
