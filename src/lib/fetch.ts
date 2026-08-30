@@ -1894,6 +1894,12 @@ export function formatFetchSummary(summary: FetchSummary): string {
     // fetched one it never went through the checks on a remote path. An escape
     // sequence in it could rewrite or erase the lines around it, and the lines
     // around it are the record of what this command deleted.
+    // Not quoted, unlike the same paths in the log lines: this is a listing of
+    // one path per line rather than a sentence a name could prefix, and quoting
+    // every row would put a pair of marks on names that are almost always
+    // ordinary. The cost is that a name ending in something shaped like the
+    // status column can be misread as one — within its own row only, since the
+    // strip above leaves it nothing to end the line with.
     lines.push(`  ${icon} ${stripControlCharacters(file.relativePath)} ${statusText}`);
   }
 

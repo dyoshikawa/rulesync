@@ -1,7 +1,7 @@
 import { chmod, link, lstat, symlink } from "node:fs/promises";
 import { join, posix } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -2817,7 +2817,9 @@ describe("fetchFiles skill pruning", () => {
     expect(summary.deleted).toBe(0);
     expect(await fileExists(join(skillsRoot, forged, "reference.md"))).toBe(true);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining(`Not pruning ${JSON.stringify(`skills/${forged}`)}:`),
+      expect.stringContaining(
+        `Not pruning ${JSON.stringify(`skills/${forged}`)}: its name is one some systems resolve`,
+      ),
     );
   });
 
@@ -2837,19 +2839,21 @@ describe("fetchFiles skill pruning", () => {
       const staleDir = join(skillsRoot, forged, "reference");
       await writeFileContent(join(staleDir, "stale.md"), "# Stale");
       await chmod(staleDir, 0o500);
-
-      try {
-        const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
-
-        expect(summary.deleted).toBe(0);
-        expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining(
-            `Stopped partway through pruning ${JSON.stringify(`skills/${forged}`)}.`,
-          ),
-        );
-      } finally {
+      // Registered with the runner rather than left to a `finally`, so the mode
+      // is put back even if this test is cut short before its body ends.
+      onTestFinished(async () => {
         await chmod(staleDir, 0o700);
-      }
+      });
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.deleted).toBe(0);
+      expect(await fileExists(join(staleDir, "stale.md"))).toBe(true);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Stopped partway through pruning ${JSON.stringify(`skills/${forged}`)}.`,
+        ),
+      );
     },
   );
 
