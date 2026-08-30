@@ -1,3 +1,4 @@
+import { caseFoldIdentity } from "../types/feature-processor.js";
 import { stripHiddenCharacters } from "./control-characters.js";
 
 /**
@@ -482,7 +483,41 @@ function foldLookalikes(text: string): string {
  * The case is dropped last, once both folds have had the case they need.
  */
 function latinSkeletonOf(name: string): string {
-  return foldLookalikes(normalizedFormOf(foldLookalikes(name))).toLowerCase();
+  return foldLatinDigraphs(foldLookalikes(normalizedFormOf(foldLookalikes(name))).toLowerCase());
+}
+
+/**
+ * The letter pairs that are drawn as a single other letter once they are set
+ * side by side: `rn` for `m`, `vv` for `w`, `cl` for `d`.
+ *
+ * The tables above map one character onto one character, which is what the
+ * confusable data of UTS #39 is mostly made of, and it is why `dep1oy` is
+ * caught while `forrnat` is not — the imitation there is not a letter drawn as
+ * another letter but two letters drawn as one, and `format` beside it is plain
+ * ASCII in a single script, so no other check has anything to say about the
+ * pair either. Only the direction that loses information is folded, so both
+ * spellings converge on the shorter one and a name that already holds the
+ * single letter is left as it is.
+ */
+const LATIN_DIGRAPH_LOOKALIKES: ReadonlyArray<readonly [string, string]> = [
+  ["rn", "m"],
+  ["vv", "w"],
+  ["cl", "d"],
+];
+
+/**
+ * `form` with each of those pairs replaced by the letter it is drawn as.
+ *
+ * Run on the lowercased skeleton, after the single-character folds and the
+ * normalization, so that a pair spelled with lookalikes of its own — a Cyrillic
+ * `с` in front of an `l` — is folded here too rather than only the ASCII
+ * spelling of it.
+ */
+function foldLatinDigraphs(form: string): string {
+  return LATIN_DIGRAPH_LOOKALIKES.reduce(
+    (folded, [pair, letter]) => folded.split(pair).join(letter),
+    form,
+  );
 }
 
 /**
@@ -608,12 +643,25 @@ function countComparableForms(forms: ReadonlyArray<{ displayForm: string; skelet
  * — a repository publishing `dep1oy` alone, against a `deploy` the user has had
  * for months — is a list with nothing to compare, and every check stays quiet.
  *
- * A local name spelled exactly like one on the list is dropped from the
- * comparison first: that is the skill being updated rather than one imitating
- * it, and a second fetch of the same repository would otherwise mark every row
- * it refreshes. Where both a listed name and a local one collide, the listed one
- * is named — it is the pair a reader can compare on screen — and the row carries
- * one reason either way.
+ * A local name that names the same directory as one on the list is dropped from
+ * the comparison first: that is the skill being updated rather than one
+ * imitating it, and a second fetch of the same repository would otherwise mark
+ * every row it refreshes. Same directory is decided by `caseFoldIdentity`, the
+ * form the rest of the tool compares skill names in, so a local `pdf` beside a
+ * listed `PDF` and a name stored decomposed beside the composed spelling of it
+ * are both taken for the skill they refresh. That is deliberately wider than
+ * exact equality: macOS answers to either spelling, macOS and Windows ignore the
+ * case, and a mark that fires on every fetch for every accented or Japanese name
+ * on such a volume would bury the one that means something. Where the two really
+ * are separate directories the prune guard says so after the write, naming the
+ * variant it found beside the one it was asked to prune.
+ *
+ * Wider than that it does not go: a fullwidth `ｐｄｆ` is a second directory on
+ * every filesystem, and stays a collision.
+ *
+ * Where both a listed name and a local one collide, the listed one is named — it
+ * is the pair a reader can compare on screen — and the row carries one reason
+ * either way.
  *
  * Names absent from the returned map carry no note. Duplicates in `names` are
  * folded first, so a list that repeats a name does not report that name as
@@ -621,14 +669,16 @@ function countComparableForms(forms: ReadonlyArray<{ displayForm: string; skelet
  */
 export function describeConfusableNames(params: {
   names: string[];
-  localNames?: string[];
+  localNames: string[];
 }): Map<string, string> {
-  const { names, localNames = [] } = params;
+  const { names, localNames } = params;
   const entries = [...new Set(names)].map((name) => ({ name, ...comparableFormsOf(name) }));
-  const listed = new Set(entries.map((entry) => entry.name));
+  const listedIdentities = new Set(entries.map((entry) => caseFoldIdentity(entry.name)));
   const counts = countComparableForms(entries);
   const localCounts = countComparableForms(
-    [...new Set(localNames)].filter((name) => !listed.has(name)).map(comparableFormsOf),
+    [...new Set(localNames)]
+      .filter((name) => !listedIdentities.has(caseFoldIdentity(name)))
+      .map(comparableFormsOf),
   );
 
   const notes = new Map<string, string>();

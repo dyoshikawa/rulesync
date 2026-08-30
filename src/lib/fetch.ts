@@ -684,15 +684,30 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
  * disk is how a case-insensitive filesystem shows itself, since a write to
  * `skills/PDF` lands in an existing `skills/pdf` and leaves the old name behind
  * in the listing.
+ *
+ * `followingLinks` decides whether a symlink standing where a skill directory
+ * would be counts as one. `readdir` reports the link rather than what it points
+ * at, so the two callers want different answers: a prune walks the names it is
+ * given and deleting through a link would reach outside the tree, while a
+ * comparison of names against names only ever reads the name, and a skill kept
+ * as a link into a shared tree — an ordinary arrangement in a monorepo — is a
+ * skill the user has. Missing it there would quietly turn the check off for
+ * exactly the people who arranged their skills that way.
  */
-async function readSkillRootNames(outputBasePath: string): Promise<string[]> {
+async function readSkillRootNames(params: {
+  outputBasePath: string;
+  followingLinks: boolean;
+}): Promise<string[]> {
+  const { outputBasePath, followingLinks } = params;
   try {
     const entries = await readdir(join(outputBasePath, SKILLS_DIR_NAME), {
       withFileTypes: true,
     });
     // Directories only: a skill is a directory, and a file beside them shares
     // no name with one it could be mistaken for.
-    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    return entries
+      .filter((entry) => entry.isDirectory() || (followingLinks && entry.isSymbolicLink()))
+      .map((entry) => entry.name);
   } catch {
     // No skills directory, or one that cannot be read: nothing to compare
     // against, and a prune that cannot read the tree fails on its
@@ -1077,7 +1092,7 @@ async function pruneStaleSkillFiles(params: {
     }
   }
 
-  const localSkillNames = await readSkillRootNames(outputBasePath);
+  const localSkillNames = await readSkillRootNames({ outputBasePath, followingLinks: false });
 
   const deleted: FetchFileResult[] = [];
   for (const [skillDir, remoteDir] of [...skillDirs].toSorted(([a], [b]) => (a < b ? -1 : 1))) {
@@ -1397,7 +1412,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     interactive,
     // Read before anything is written, so the comparison is against the skills
     // the user had rather than against the ones this run is about to add.
-    localSkillNames: await readSkillRootNames(outputBasePath),
+    localSkillNames: await readSkillRootNames({ outputBasePath, followingLinks: true }),
     logger,
   });
 
@@ -1651,7 +1666,7 @@ async function fetchAndConvertToolFiles(params: {
       files: collectedFiles,
       requestedSkills,
       interactive,
-      localSkillNames: await readSkillRootNames(outputBasePath),
+      localSkillNames: await readSkillRootNames({ outputBasePath, followingLinks: true }),
       logger,
     });
 

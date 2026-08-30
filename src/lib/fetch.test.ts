@@ -1822,6 +1822,33 @@ describe("fetchFiles with skill selection", () => {
     });
   });
 
+  it("should count a local skill kept as a symlink", async () => {
+    // A skill linked into a shared tree is a skill the user has: `readdir`
+    // reports the link rather than the directory behind it, so a filter that
+    // asked only for directories would turn the comparison off for anyone who
+    // arranges their skills this way.
+    const shared = join(testDir, "shared-skills", "deploy");
+    await ensureDir(shared);
+    await ensureDir(join(testDir, ".rulesync", "skills"));
+    await symlink(shared, join(testDir, ".rulesync", "skills", "deploy"), "dir");
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
   it("should count the lookalike names it does not spell out", async () => {
     // Six pairs, each a name and the same name with a capital I for the l:
     // twelve noted names, of which the warning spells out ten.
@@ -1864,6 +1891,26 @@ describe("fetchFiles with skill selection", () => {
         outputRoot: testDir,
       }),
     ).rejects.toThrow('Unknown skill(s): "no-such-skill"');
+  });
+
+  it("should read the local skill names in the tool-target conversion flow too", async () => {
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { target: "claudecode", interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
   });
 
   it("should apply the interactive selection in the tool-target conversion flow too", async () => {
