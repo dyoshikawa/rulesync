@@ -56,14 +56,17 @@ const MAX_SKILL_LABEL_WIDTH = 72;
  * label that overruns the row paints its tail flush against the left margin,
  * which is exactly where a padded name wants it.
  *
- * The widest the three can come to rather than the width they usually are.
- * `@inquirer/figures` draws the pointer and the box as `❯` and `◯` where the
- * terminal has the font for them and as `>` and `( )` where it does not — the
- * Linux console, and the older Windows console outside Terminal — and the
- * fallback box alone is three columns. The Unicode pair is East Asian Ambiguous, which this
- * project counts at one column apiece and a terminal set to draw ambiguous
- * characters wide draws at two. Both ends of that come to five, so five is what
- * is reserved: a budget that is two columns short is a row that wraps, and two
+ * The widest the three can come to rather than the width they usually are, and
+ * what sets that is the fallback. `@inquirer/figures` draws the pointer and the
+ * box as `❯` and `◯` where the terminal has the font for them and as `>` and
+ * `( )` where it does not — the Linux console, and the older Windows console
+ * outside Terminal — and the fallback box alone is three columns, for five in
+ * all. The Unicode spelling comes to four at its widest: of the three glyphs
+ * only `◯` is East Asian Ambiguous, which this project counts at one column and
+ * a terminal set to draw the ambiguous characters wide draws at two, while the
+ * pointer `❯` and the checked box `◉` are Neutral and stay at one either way.
+ *
+ * Five, then, because a budget two columns short is a row that wraps, and two
  * columns spent on a prefix that turned out to be narrower is two characters of
  * a name.
  */

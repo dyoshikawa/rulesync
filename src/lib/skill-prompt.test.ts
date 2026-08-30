@@ -466,9 +466,26 @@ describe("promptSkillSelection", () => {
       name: string;
       value: string;
     }>;
-    expect(displayWidthOf(choices[0]?.name ?? "")).toBeLessThanOrEqual(72);
-    expect(choices[0]?.name.endsWith("\u2026")).toBe(true);
+    // To the column, like its siblings: a bound would be met by counting a
+    // joiner at two columns, or at five, as readily as at the one the renderer
+    // spends on it.
+    expect(choices[0]?.name).toBe(`${"\u0627\u200c".repeat(35)}\u0627\u2026`);
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(72);
     expect(choices[0]?.value).toBe(joined);
+  });
+
+  it("should count the joiners against a narrow terminal's budget too", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // The two fixes meet here: the joiners are counted, and the budget is the
+    // pane's own width less the widest prefix the prompt can draw.
+    setTerminalWidth(60);
+    const joined = `${"\u0627\u200c".repeat(38)}\u0627`;
+
+    await promptSkillSelection({ availableSkills: [joined], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
+    expect(choices[0]?.name).toBe(`${"\u0627\u200c".repeat(27)}\u2026`);
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(55);
   });
 
   it("should convert ExitPromptError (Ctrl+C) into SkillSelectionCancelledError", async () => {
