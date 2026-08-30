@@ -39,10 +39,13 @@ export type Logger = {
   info(message: string, ...args: unknown[]): void;
   success(message: string, ...args: unknown[]): void;
   /**
-   * Must complete synchronously. `fallbackLogger` guards against a target that
-   * forwards back to it with a module-level flag, and a `warn` that awaited
-   * would hold that flag across the yield — sending a concurrent MCP request's
-   * warning to the console instead of to the logger that request adopted.
+   * Must complete synchronously, and must not raise a warning of its own
+   * through `fallbackLogger`. Both follow from the module-level flag the
+   * forwarder uses to break a target that leads back to it: a `warn` that
+   * awaited would hold the flag across the yield, sending a concurrent MCP
+   * request's warning to the console instead of to the logger that request
+   * adopted, and a nested warning would be diverted the same way, since the
+   * flag cannot tell it apart from the loop it exists to cut.
    */
   warn(message: string, ...args: unknown[]): void;
   error(message: string | Error, code?: string, ...args: unknown[]): void;
