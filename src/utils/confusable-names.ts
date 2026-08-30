@@ -510,7 +510,10 @@ function latinSkeletonOf(name: string): string {
  * classic three. `cl` opens too many ordinary words — `clean`, `clear`,
  * `clone`, `cli` — and folding it would report `clone` against a `done` the
  * user happens to have, on a fetch where nothing is wrong. The two that are
- * left are pairs a name has little other reason to hold.
+ * left cost far less: `modern` folding onto `modem` is the one pair of ordinary
+ * words either of them makes, and a note on that pair costs a reader a glance,
+ * where `clone` against `done` would be a note on a fetch anyone who keeps a
+ * skill called `done` would see.
  */
 const LATIN_DIGRAPH_LOOKALIKES: ReadonlyArray<readonly [string, string]> = [
   ["rn", "m"],

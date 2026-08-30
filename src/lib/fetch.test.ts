@@ -41,13 +41,14 @@ const { directoryExistsMock } = vi.hoisted(() => ({
 // the stand-in calls the real implementation unless a test says otherwise.
 vi.mock("../utils/file.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../utils/file.js")>();
-  directoryExistsMock.mockImplementation(actual.directoryExists);
   return { ...actual, directoryExists: directoryExistsMock };
 });
 
 const realDirectoryExists = (
   await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js")
 ).directoryExists;
+
+directoryExistsMock.mockImplementation(realDirectoryExists);
 
 /**
  * Makes `directoryExists` answer `folds` for `path` and the truth for

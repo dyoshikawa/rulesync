@@ -691,10 +691,14 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
 /**
  * The names the local skills directory holds, or none when it is not there.
  *
- * Read once per fetch and only to compare names against each other: what is on
- * disk is how a case-insensitive filesystem shows itself, since a write to
- * `skills/PDF` lands in an existing `skills/pdf` and leaves the old name behind
- * in the listing.
+ * Read only to compare names against each other: what is on disk is how a
+ * case-insensitive filesystem shows itself, since a write to `skills/PDF` lands
+ * in an existing `skills/pdf` and leaves the old name behind in the listing.
+ *
+ * Read twice per fetch, and the two readings are of different moments on
+ * purpose: the comparison reads before anything is written, so that it sees the
+ * skills the user already had rather than the ones this run is adding, and the
+ * prune reads after the writes, so that it sees what the run left behind.
  *
  * A symlink standing where a skill directory would be counts as one. `readdir`
  * reports the link rather than what it points at, and a skill kept as a link
@@ -713,8 +717,9 @@ async function readSkillRootNames(outputBasePath: string): Promise<string[]> {
     // Directories and every symlink, whatever it points at: nothing here
     // follows a link, so what is behind one cannot be asked about, and a name
     // counted that turns out to be a link to a file only ever makes the
-    // comparison say more than it had to. Sorted so that the order the names
-    // are compared in is the listing's rather than the filesystem's.
+    // comparison say more than it had to. Sorted so that the one of these names
+    // a run reports — the prune's variant warning below picks the first that
+    // matches — is the same name on every filesystem.
     return entries
       .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
       .map((entry) => entry.name)
@@ -763,6 +768,7 @@ async function localSkillNamesToCompare(params: {
   for (const localName of localNames) {
     // Only the spellings that differ: an identical one is the refresh case, and
     // it is the listing's own business rather than the filesystem's.
+    const localReading = readingFormOf(localName);
     const twins = (listedByIdentity.get(caseFoldIdentity(localName)) ?? []).filter(
       (name) =>
         name !== localName &&
@@ -776,7 +782,7 @@ async function localSkillNamesToCompare(params: {
         // agree — `pdf` beside `PDF`, a composed name beside its decomposed
         // spelling — the local name has nothing left to say that the twin does
         // not say in its place.
-        readingFormOf(name) === readingFormOf(localName),
+        readingFormOf(name) === localReading,
     );
     // One at a time and stopping at the first yes: a listing is free to hold
     // thousands of spellings of one name, and the first that resolves settles
