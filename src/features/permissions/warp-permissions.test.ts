@@ -123,21 +123,49 @@ describe("WarpPermissions", () => {
       expect(profiles[DENYLIST_KEY]).toBeUndefined();
     });
 
-    it("writes an all-tools deny into the denylist that outranks the bash allow", async () => {
+    it("withholds the bash allow an all-tools deny blocks, without touching the denylist", async () => {
+      const logger = createMockLogger();
+
       const perms = await WarpPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: rulesyncPermissions({
           "*": { "rm -rf .*": "deny" },
           bash: { "rm -rf .*": "allow", "git .*": "allow" },
         }),
+        logger,
         global: true,
       });
 
       const profiles = profilesOf(perms.getFileContent());
-      // Warp's denylist wins over its allowlist, so the blocked command stays
-      // blocked even though the bash category allows it.
-      expect(profiles[DENYLIST_KEY]).toEqual(["rm -rf .*"]);
-      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*", "rm -rf .*"]);
+      // Writing any denylist replaces Warp's built-in default one, so an
+      // all-tools pattern — which need not name a command at all — withholds
+      // the allow it covers instead of being written there.
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
+      expect(profiles[DENYLIST_KEY]).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("were not written there"));
+    });
+
+    it("keeps Warp's built-in denylist when only the all-tools category denies", async () => {
+      const logger = createMockLogger();
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "secrets/**": "deny" },
+          bash: { "git .*": "allow" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      // `secrets/**` matches no command and is not even a valid regex; writing
+      // it would trade Warp's built-in denylist for an inert entry.
+      expect(profiles[DENYLIST_KEY]).toBeUndefined();
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("built-in default denylist"),
+      );
     });
 
     it("withholds a bash allow that the all-tools category asks about", async () => {

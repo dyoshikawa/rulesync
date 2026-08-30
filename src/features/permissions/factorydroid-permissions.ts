@@ -14,7 +14,11 @@ import { readFactorydroidSettingsWithLocalOverlay } from "../../utils/factorydro
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { collectShellCommandRules, partitionCommandRules } from "./shell-command-categories.js";
+import {
+  collectShellCommandRules,
+  partitionCommandRules,
+  warnAboutUnwrittenCommandRules,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -47,10 +51,13 @@ type FactorydroidSettingsJson = {
  *
  * rulesync's canonical `permission.bash` patterns map directly: `allow` →
  * `commandAllowlist`, `deny` → `commandDenylist`. Factory Droid has no separate
- * "ask" list (any command not in the allowlist already prompts), so `ask`
- * rules are intentionally dropped. The allow/deny lists only model shell
- * commands, so categories other than `bash` cannot be represented and are
- * skipped (with a warning when they carry `deny` rules, to surface the gap).
+ * "ask" list (any command not in the allowlist already prompts), so `ask` rules
+ * write nothing — they only withhold the allow rules they cover, since the
+ * stricter rule wins whatever its width. The all-tools `*` category contributes
+ * its restricting rules too, because a rule written there covers shell commands
+ * as well. The allow/deny lists only model shell commands, so categories other
+ * than `bash` and `*` cannot be represented and are skipped (with a warning
+ * when they carry `deny` rules, to surface the gap).
  *
  * Factory Droid also has a stronger `commandBlocklist` tier — commands that can
  * never run, not even under full autonomy — plus other security controls
@@ -238,21 +245,20 @@ function convertRulesyncToFactorydroidPermissions({
   logger?: Logger;
 }): { allow: string[]; deny: string[] } {
   const { rules, foreignDenyCategories } = collectShellCommandRules(config.permission);
-  for (const category of foreignDenyCategories) {
-    logger?.warn(
-      `Factory Droid only models shell-command permissions (commandAllowlist/commandDenylist); ` +
-        `'${category}' deny rules cannot be represented and were skipped.`,
-    );
-  }
-
-  const { allow, deny, shadowedAllowPatterns } = partitionCommandRules(rules);
-  if (shadowedAllowPatterns.length > 0) {
-    logger?.warn(
-      `Factory Droid was not given the allow rule(s) for ` +
-        `${shadowedAllowPatterns.join(", ")} because the same pattern(s) are asked about ` +
-        `elsewhere in .rulesync/permissions.jsonc, and 'ask' outranks 'allow'.`,
-    );
-  }
+  // Factory Droid's denylist is an ordinary command list that adds to nothing
+  // it ships with, so an all-tools `*` deny can be written there verbatim.
+  const { allow, deny, shadowedAllowPatterns, unwrittenDenyPatterns } = partitionCommandRules({
+    rules,
+    writesAllToolsDeny: true,
+  });
+  warnAboutUnwrittenCommandRules({
+    toolLabel: "Factory Droid",
+    surfaceLabel: "commandAllowlist/commandDenylist",
+    foreignDenyCategories,
+    shadowedAllowPatterns,
+    unwrittenDenyPatterns,
+    logger,
+  });
 
   return { allow, deny };
 }

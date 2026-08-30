@@ -12,6 +12,7 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   collectShellCommandRules,
+  createShadowedAllowTest,
   SHELL_PERMISSION_CATEGORY,
 } from "./shell-command-categories.js";
 import {
@@ -73,11 +74,11 @@ function translateClinePermissions(
   // Cline does not document a deny-priority, so a pattern the config restricts
   // must not be written to `allow` at all — leaving it there would hand the
   // decision to an undocumented tie-break.
-  const restrictedPatterns = new Set(
-    rules.filter(([, action]) => action !== "allow").map(([pattern]) => pattern),
+  const isShadowed = createShadowedAllowTest(
+    rules.filter(({ action }) => action !== "allow").map(({ pattern }) => pattern),
   );
 
-  for (const [pattern, action] of rules) {
+  for (const { pattern, action } of rules) {
     if (action === "ask") {
       // Cline has no `ask` semantics. Translate to `deny` for fail-closed safety so the
       // protective intent of the rule is preserved instead of being silently dropped.
@@ -89,7 +90,7 @@ function translateClinePermissions(
       deny.push(pattern);
       continue;
     }
-    if (restrictedPatterns.has(pattern)) {
+    if (isShadowed(pattern)) {
       shadowedAllowPatterns.push(pattern);
       continue;
     }

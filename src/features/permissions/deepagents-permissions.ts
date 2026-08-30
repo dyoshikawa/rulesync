@@ -112,7 +112,9 @@ const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
  * This surface is **global only** — dcode reads no project-level config file,
  * so there is nothing to write into a repository.
  *
- * Only the canonical `bash` category maps, and only its `allow` rules:
+ * Only `allow` rules map, and only from the canonical `bash` category — the
+ * all-tools `*` category contributes its restricting rules instead, since a rule
+ * written there covers shell commands too (see `collectShellCommandRules`):
  *
  * - A pattern is reduced to its executable token, because that is all dcode
  *   matches on — `git *`, `git:*`, `git commit:*` and a bare `git` all become
@@ -443,7 +445,7 @@ function warnAboutUnwrittenBashRules({
     warnWithFallback(
       logger,
       `deepagents-cli has no command denylist — a command it does not auto-approve is asked ` +
-        `about, not blocked — so ${unenforcedDeny.length} bash deny rule(s) from ` +
+        `about, not blocked — so ${unenforcedDeny.length} command deny rule(s) from ` +
         `.rulesync/permissions.jsonc were skipped and those commands remain runnable on ` +
         `approval.`,
     );
@@ -814,7 +816,7 @@ function convertRulesyncToDeepagentsAllowList({
     );
   }
 
-  for (const [pattern, action] of rules) {
+  for (const { pattern, action } of rules) {
     if (action === "deny") {
       denyPatterns.push(pattern);
       continue;

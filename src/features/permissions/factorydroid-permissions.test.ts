@@ -79,7 +79,7 @@ describe("FactorydroidPermissions", () => {
     it("should drop ask rules (Factory Droid prompts by default)", async () => {
       const rulesyncPermissions = buildRulesyncPermissions({
         permission: {
-          bash: { "git *": "allow", "*": "ask" },
+          bash: { "git *": "allow", "npm publish": "ask" },
         },
       });
 
@@ -131,6 +131,27 @@ describe("FactorydroidPermissions", () => {
       const json = JSON.parse(instance.getFileContent());
       expect(json.commandAllowlist).toEqual(["git *"]);
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("npm *"));
+    });
+
+    it("should withhold every allow a catch-all ask covers", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          bash: { "git *": "allow", "*": "ask" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // The stricter rule wins whatever its width, so auto-approving `git`
+      // beside an ask on everything would answer the prompt the author wanted.
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("stricter rule wins"));
     });
 
     it("should ignore the all-tools category's allow rules", async () => {

@@ -16,7 +16,11 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { collectShellCommandRules, partitionCommandRules } from "./shell-command-categories.js";
+import {
+  collectShellCommandRules,
+  partitionCommandRules,
+  warnAboutUnwrittenCommandRules,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -127,9 +131,13 @@ function warpSettingsDir(): string {
  * allowlist, `deny` → denylist). Warp matches commands with regular
  * expressions, so patterns are emitted verbatim — author canonical `bash`
  * patterns as regexes when targeting Warp (mirrors the Zed permissions
- * adapter). Warp has no per-command "ask" list, so `ask` rules are dropped; and
- * the command lists only model shell commands, so non-`bash` categories are
- * skipped (with a warning when they carry `deny` rules).
+ * adapter). Warp has no per-command "ask" list, so `ask` rules write nothing —
+ * they only withhold the allow rules they cover, since the stricter rule wins
+ * whatever its width. The all-tools `*` category is read for its restricting
+ * rules as well, but those only withhold allows too: writing any denylist
+ * **replaces** Warp's built-in default one, and a `*` pattern need not name a
+ * command at all. Categories other than `bash` and `*` are skipped (with a
+ * warning when they carry `deny` rules).
  *
  * Warp's `[agents.profiles]` table also exposes file-read/read-only autonomy
  * knobs that do not fit the canonical `allow | ask | deny` per-command model:
@@ -454,10 +462,14 @@ function mergeIntoDefaultExecutionProfile({
 
 /**
  * Convert rulesync permissions config to Warp command allow/deny regex lists.
- * The `bash` category maps, and so do the restricting rules of the all-tools
- * `*` category — a `deny` written there covers shell commands too, and skipping
- * it would auto-approve a command the file blocks. Other categories are dropped
- * (with a warning when they carry `deny` rules).
+ * The `bash` category maps to both lists. The all-tools `*` category's
+ * restricting rules are read too — a rule written there covers shell commands
+ * as well, and ignoring it would auto-approve a command the file blocks — but
+ * they only *withhold* the allow rules they cover: Warp's denylist is a regex
+ * list that replaces the tool's built-in default one, so writing a pattern
+ * there that may not even name a command would cost more protection than it
+ * adds. Other categories are dropped (with a warning when they carry `deny`
+ * rules).
  */
 function convertRulesyncToWarpPermissions({
   config,
@@ -467,21 +479,21 @@ function convertRulesyncToWarpPermissions({
   logger?: Logger;
 }): { allow: string[]; deny: string[] } {
   const { rules, foreignDenyCategories } = collectShellCommandRules(config.permission);
-  for (const category of foreignDenyCategories) {
-    logger?.warn(
-      `Warp only models shell-command permissions (agent_mode_command_execution_allowlist/denylist); ` +
-        `'${category}' deny rules cannot be represented and were skipped.`,
-    );
-  }
-
-  const { allow, deny, shadowedAllowPatterns } = partitionCommandRules(rules);
-  if (shadowedAllowPatterns.length > 0) {
-    logger?.warn(
-      `Warp was not given the allow rule(s) for ` +
-        `${shadowedAllowPatterns.join(", ")} because the same pattern(s) are asked about ` +
-        `elsewhere in .rulesync/permissions.jsonc, and 'ask' outranks 'allow'.`,
-    );
-  }
+  // Warp's denylist is a regex list that replaces the tool's built-in default
+  // one, so an all-tools `*` pattern — which may not even name a command —
+  // withholds the allow rules it covers instead of being written there.
+  const { allow, deny, shadowedAllowPatterns, unwrittenDenyPatterns } = partitionCommandRules({
+    rules,
+    writesAllToolsDeny: false,
+  });
+  warnAboutUnwrittenCommandRules({
+    toolLabel: "Warp",
+    surfaceLabel: "agent_mode_command_execution_allowlist/denylist",
+    foreignDenyCategories,
+    shadowedAllowPatterns,
+    unwrittenDenyPatterns,
+    logger,
+  });
 
   return { allow, deny };
 }
