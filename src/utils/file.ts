@@ -13,7 +13,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 
 import { kebabCase } from "es-toolkit";
 import { globbySync, isGitIgnoredSync } from "globby";
@@ -609,6 +609,30 @@ async function realFileIdentity(filePath: string): Promise<string> {
     // entry still counts (and is still deduplicated against identical literals).
     return toPosixPath(filePath);
   }
+}
+
+/**
+ * Whether the file `targetPath` really denotes sits outside `rootPath`. Unlike
+ * `pathEscapesRoot`, which reads a path as it is spelled, this resolves every link
+ * on both sides first, so a name that sits inside the root but is a link pointing
+ * out of it is reported as the escape it is. Both sides fall back to their literal
+ * path when they cannot be resolved, which reports an escape rather than hiding one.
+ */
+export async function resolvedPathEscapesRoot({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<boolean> {
+  const [realRootPath, realTargetPath] = await Promise.all([
+    realFileIdentity(rootPath),
+    realFileIdentity(targetPath),
+  ]);
+  // Both sides are posix-separated by `realFileIdentity`, so the comparison has to be
+  // too -- the native `relative` would read a posix path as one segment on Windows.
+  const relativePath = posix.relative(realRootPath, realTargetPath);
+  return relativePath === ".." || relativePath.startsWith("../") || posix.isAbsolute(relativePath);
 }
 
 /**

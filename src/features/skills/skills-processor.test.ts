@@ -1534,6 +1534,42 @@ Broken YAML`,
       },
     );
 
+    it.skipIf(process.platform === "win32")(
+      "should refuse a nested skills directory the scan reports at a link out of the project",
+      async () => {
+        // The rewrite needs no `..` to move the path. A directory named `a\\b` is
+        // reported at `a/b`, every segment of which is a name a directory can
+        // have, and `a/b` here is a symbolic link out of the project. The scan
+        // sets `followSymbolicLinks: false`, so it never meant to reach it.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await ensureDir(join(outputRoot, "a"));
+        await writeFileContent(
+          join(outputRoot, "a\\b", ".claude", "skills", "decoy", "SKILL.md"),
+          "---\nname: decoy\ndescription: Decoy description\n---\nDecoy body",
+        );
+        const outsideDir = join(testDir, "outside-home");
+        await writeFileContent(
+          join(outsideDir, ".claude", "skills", "private-skill", "SKILL.md"),
+          "---\nname: private-skill\ndescription: Private description\n---\nPrivate body",
+        );
+        await symlink(outsideDir, join(outputRoot, "a", "b"));
+
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        expect(toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName())).not.toContain(
+          "private-skill",
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("it resolves outside the project"),
+        );
+      },
+    );
+
     it("should still abort import for non-lenient tools when a declared-root skill is invalid", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),

@@ -15,7 +15,7 @@ import {
   directoryExists,
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
-  pathEscapesRoot,
+  resolvedPathEscapesRoot,
   splitPathSegments,
   toPosixPath,
 } from "../../utils/file.js";
@@ -52,9 +52,12 @@ import {
  * `x\\..\\y` at `x/../y`, which lands on a different real directory inside it.
  * Only the first is caught by asking whether the path is there, so a path
  * carrying a segment no directory name can be — `.` or `..` — is refused
- * outright, which covers all three. Left in, the skills under the directory
- * that was really named would never appear, and in the second shape somebody
- * else's would appear in their place.
+ * outright, which covers all three. A fourth needs no `..` at all: `a\\b` is
+ * reported at `a/b`, and `a/b` may be a symbolic link the scan deliberately
+ * did not follow, so containment is taken from the resolved paths as well.
+ * Left in, the skills under the directory that was really named would never
+ * appear, and in every shape but the first somebody else's would appear in
+ * their place.
  */
 async function unusableNestedSkillsRootReason({
   outputRoot,
@@ -75,10 +78,11 @@ async function unusableNestedSkillsRootReason({
       "directory name above it contains a backslash."
     );
   }
-  // A backstop on the invariant rather than a fourth shape: the scan is rooted
-  // at `outputRoot`, so a path with no rewritten segment left in it cannot lead
-  // anywhere else. An import root outside the project is never one it found.
-  if (pathEscapesRoot(relative(outputRoot, dirPath))) {
+  // The rewrite does not need a `..` to move the path: a name really spelled `a\\b`
+  // is reported at `a/b`, and if `a/b` is a symbolic link out of the project the two
+  // checks above both pass. The scan itself sets `followSymbolicLinks: false`, so a
+  // link is never a root it meant to find -- resolve both sides and say so.
+  if (await resolvedPathEscapesRoot({ rootPath: outputRoot, targetPath: dirPath })) {
     return "it resolves outside the project.";
   }
   return undefined;

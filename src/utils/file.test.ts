@@ -38,6 +38,7 @@ import {
   removeDirectory,
   removeFile,
   removeTempDirectory,
+  resolvedPathEscapesRoot,
   runWithDirectoryRollback,
   resolvePath,
   toKebabCaseFilename,
@@ -803,6 +804,50 @@ describe("file utilities", () => {
           expect(await listFilePathsRecursively(root)).toEqual([join(`l${levelCount}`, "leaf.md")]);
         },
       );
+    });
+
+    describe("resolvedPathEscapesRoot", () => {
+      it("should not report a directory that really sits under the root", async () => {
+        const root = join(testDir, "root");
+        const target = join(root, "nested", "deep");
+        await ensureDir(target);
+
+        expect(await resolvedPathEscapesRoot({ rootPath: root, targetPath: target })).toBe(false);
+      });
+
+      it("should report a path spelled outside the root", async () => {
+        const root = join(testDir, "root");
+        const target = join(testDir, "outside");
+        await ensureDir(root);
+        await ensureDir(target);
+
+        expect(await resolvedPathEscapesRoot({ rootPath: root, targetPath: target })).toBe(true);
+      });
+
+      it.skipIf(process.platform === "win32")(
+        "should report a name under the root that links out of it",
+        async () => {
+          // The name is spelled inside the root, so reading the path alone says
+          // it is contained; only resolving the link shows where it leads.
+          const root = join(testDir, "root");
+          const outside = join(testDir, "outside");
+          await ensureDir(root);
+          await ensureDir(outside);
+          const target = join(root, "link");
+          await symlink(outside, target);
+
+          expect(await resolvedPathEscapesRoot({ rootPath: root, targetPath: target })).toBe(true);
+        },
+      );
+
+      it("should report a target that cannot be resolved rather than pass it", async () => {
+        const root = join(testDir, "root");
+        await ensureDir(root);
+
+        expect(
+          await resolvedPathEscapesRoot({ rootPath: root, targetPath: join(testDir, "missing") }),
+        ).toBe(true);
+      });
     });
 
     describe("findFilesByGlobs", () => {
