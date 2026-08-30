@@ -176,6 +176,21 @@ Review carefully.`;
       expect(subagent.getBody()).toBe("Review carefully.");
     });
 
+    it("should reject a maxTurns that is not a positive integer", async () => {
+      await writeFileContent(
+        join(testDir, ".zcode", "agents", "fractional.md"),
+        `---\nname: fractional\ndescription: d\nmaxTurns: 2.5\n---\n\nBody`,
+      );
+      await expect(
+        ZcodeSubagent.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: "fractional.md",
+          global: true,
+          validate: true,
+        }),
+      ).rejects.toThrow();
+    });
+
     it("should throw for invalid frontmatter", async () => {
       await writeFileContent(
         join(testDir, ".zcode", "agents", "bad.md"),

@@ -30,7 +30,7 @@ const ZcodeSubagentFrontmatterSchema = z.looseObject({
   color: z.optional(z.string()),
   tools: z.optional(z.array(z.string())),
   disallowedTools: z.optional(z.array(z.string())),
-  maxTurns: z.optional(z.number()),
+  maxTurns: z.optional(z.number().check(z.int(), z.positive())),
   injectAgentsMd: z.optional(z.boolean()),
   mcpServers: z.optional(z.array(z.string())),
 });
