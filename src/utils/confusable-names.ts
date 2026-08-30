@@ -408,14 +408,16 @@ const REPEATED_WHITESPACE_PATTERN = /\s\s/u;
  * draws as one gap however many blanks are in it. Between them they are what
  * lets a name be padded to reach under the row beneath it.
  *
- * A single blank that is merely not the plain space — a no-break space, an
- * ideographic one — is deliberately not this check's business. It is drawn, and
- * it is a substitution rather than an extent, so the name it imitates is one
- * the display-form check already reports the pair of; marking it here would put
- * a warning on `設定 ガイド` written with the ideographic space, which is an
- * ordinary name written the ordinary way. The tab and the other blank control
- * characters are not here either:
- * a name carrying one is refused outright before it is ever offered.
+ * A single blank inside a name that is merely not the plain space — a no-break
+ * space, an ideographic one — is deliberately not this check's business. It is
+ * drawn, and it is a substitution rather than an extent, so the name it
+ * imitates is one the display-form check already reports the pair of; marking
+ * it here would put a warning on `設定 ガイド` written with the ideographic
+ * space, which is an ordinary name written the ordinary way. At an edge it is
+ * marked like any other blank, since there what is at stake is not which
+ * character was chosen but that the name reaches past where it appears to end.
+ * The tab and the other blank control characters are not here either: a name
+ * carrying one is refused outright before it is ever offered.
  *
  * A name with a twin already carries a note, since the two share a display
  * form. This is for the one without: nothing else on the list says that the
@@ -556,7 +558,8 @@ export function mixedScriptsOf(name: string): string[] | undefined {
 }
 
 /**
- * Note, per name, why it may not be told apart from another name on sight.
+ * Note, per name, why it may not be told apart on sight from what it appears to
+ * be.
  *
  * This is display-only: it never removes a name from a list or changes what a
  * name stands for. Two directories whose names differ only in code points the

@@ -165,6 +165,10 @@ describe("describeConfusableNames", () => {
     ["a name that begins with a space", " pdf"],
     ["a name with a doubled space", "pdf  reader"],
     ["a name with a doubled ideographic space", "pdf\u3000\u3000reader"],
+    // The blank a name inside is spared for is marked at an edge all the same:
+    // there the question is not which blank was chosen but that the name
+    // reaches past where it appears to end.
+    ["a name that ends in an ideographic space", "\u8a2d\u5b9a\u3000"],
   ])("should note %s with nothing to compare it to", (_label, name) => {
     // No twin on the list, so nothing else says the row reaches past what can
     // be seen of it.
