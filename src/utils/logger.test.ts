@@ -714,14 +714,33 @@ describe("withFallbackLoggerTarget", () => {
   });
 
   it("does not recurse when the adopted target forwards back to the forwarder", async () => {
-    // What `hooks-processor.ts` builds: a wrapper that prefixes the tool target
-    // and hands the rest to the logger it was given. Given the forwarder, it is
-    // an adopted target that leads straight back here, and the identity check
-    // above does not see it.
+    // The shape `hooks-processor.ts` builds: a wrapper that prefixes the tool
+    // target onto warnings and delegates the rest — including the four state
+    // members, as getters, which is what makes them lead back here too. Given
+    // the forwarder, it is an adopted target that returns straight to it, and
+    // the identity check in `withFallbackLoggerTarget` does not see it.
     const wrapper: Logger = {
-      ...fallbackLogger,
-      warn: (message: string, ...args: unknown[]) =>
-        fallbackLogger.warn(`For claudecode: ${message}`, ...args),
+      configure: (options) => fallbackLogger.configure(options),
+      get verbose() {
+        return fallbackLogger.verbose;
+      },
+      get silent() {
+        return fallbackLogger.silent;
+      },
+      get reportsWhileSilent() {
+        return fallbackLogger.reportsWhileSilent;
+      },
+      get jsonMode() {
+        return fallbackLogger.jsonMode;
+      },
+      captureData: (key, value) => fallbackLogger.captureData(key, value),
+      getJsonData: () => fallbackLogger.getJsonData(),
+      outputJson: (success, error) => fallbackLogger.outputJson(success, error),
+      info: (message, ...args) => fallbackLogger.info(message, ...args),
+      success: (message, ...args) => fallbackLogger.success(message, ...args),
+      warn: (message, ...args) => fallbackLogger.warn(`For claudecode: ${message}`, ...args),
+      error: (message, code, ...args) => fallbackLogger.error(message, code, ...args),
+      debug: (message, ...args) => fallbackLogger.debug(message, ...args),
     };
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -729,14 +748,20 @@ describe("withFallbackLoggerTarget", () => {
       await withFallbackLoggerTarget({
         logger: wrapper,
         operation: async () => {
-          warnWithFallback(undefined, "a diagnostic");
+          // `warnOnceWithFallback` reads these two before it warns, so they are
+          // the members a guard on the writing side alone would miss.
+          expect(fallbackLogger.silent).toBe(false);
+          expect(fallbackLogger.reportsWhileSilent).toBe(false);
+          warnOnceWithFallback(undefined, "a diagnostic");
+          warnWithFallback(undefined, "another diagnostic");
         },
       });
 
-      // Once, on the console the warning would have reached with nothing
+      // Twice, on the console the warnings would have reached with nothing
       // adopted — rather than a stack overflow.
-      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledTimes(2);
       expect(warnSpy.mock.calls[0]?.[0]).toContain("For claudecode: a diagnostic");
+      expect(warnSpy.mock.calls[1]?.[0]).toContain("For claudecode: another diagnostic");
     } finally {
       warnSpy.mockRestore();
     }
@@ -798,18 +823,29 @@ describe("withFallbackLoggerTarget", () => {
     const collector = new WarningCollectingLogger({ verbose: true, silent: false });
     const infoSpy = vi.spyOn(collector, "info");
     const successSpy = vi.spyOn(collector, "success");
+    // `ConsoleLogger.debug` writes to stdout too, so the forwarder drops it for
+    // the same reason — and a verbose run is what would otherwise let it write.
+    const debugSpy = vi.spyOn(collector, "debug");
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await withFallbackLoggerTarget({
-      logger: collector,
-      operation: async () => {
-        fallbackLogger.info("progress");
-        fallbackLogger.success("done");
-        fallbackLogger.warn("a diagnostic still travels");
-      },
-    });
+    try {
+      await withFallbackLoggerTarget({
+        logger: collector,
+        operation: async () => {
+          fallbackLogger.info("progress");
+          fallbackLogger.success("done");
+          fallbackLogger.debug("a detail");
+          fallbackLogger.warn("a diagnostic still travels");
+        },
+      });
+    } finally {
+      logSpy.mockRestore();
+    }
 
     expect(infoSpy).not.toHaveBeenCalled();
     expect(successSpy).not.toHaveBeenCalled();
+    expect(debugSpy).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
     expect(collector.getWarnings()).toEqual(["a diagnostic still travels"]);
   });
 });

@@ -38,6 +38,12 @@ export type Logger = {
   outputJson(success: boolean, error?: JsonErrorInfo): void;
   info(message: string, ...args: unknown[]): void;
   success(message: string, ...args: unknown[]): void;
+  /**
+   * Must complete synchronously. `fallbackLogger` guards against a target that
+   * forwards back to it with a module-level flag, and a `warn` that awaited
+   * would hold that flag across the yield — sending a concurrent MCP request's
+   * warning to the console instead of to the logger that request adopted.
+   */
   warn(message: string, ...args: unknown[]): void;
   error(message: string | Error, code?: string, ...args: unknown[]): void;
   debug(message: string, ...args: unknown[]): void;
@@ -399,16 +405,24 @@ function currentFallbackTarget(): Logger {
  */
 let forwarding = false;
 
-function forwardToFallbackTarget(forward: (target: Logger) => void): void {
+/**
+ * Reads from, or writes to, whichever logger the running operation adopted,
+ * with the wrapper case above cut off at one hop.
+ *
+ * Every member of the forwarder goes through here, not just the two that write:
+ * `warnOnceWithFallback` reads `silent` and `reportsWhileSilent` before it ever
+ * calls `warn`, so a guard on the writing side alone would still be reached
+ * through a getter that never returns.
+ */
+function throughFallbackTarget<T>(use: (target: Logger) => T): T {
   if (forwarding) {
     // The adopted target leads back here, so this call would never terminate.
-    // The console it would have reached without an adoption is where it goes.
-    forward(defaultFallbackTarget);
-    return;
+    // The console it would have reached without an adoption is what answers.
+    return use(defaultFallbackTarget);
   }
   forwarding = true;
   try {
-    forward(currentFallbackTarget());
+    return use(currentFallbackTarget());
   } finally {
     forwarding = false;
   }
@@ -436,16 +450,16 @@ export const fallbackLogger: Logger = {
     defaultFallbackTarget.configure(options);
   },
   get verbose(): boolean {
-    return currentFallbackTarget().verbose;
+    return throughFallbackTarget((target) => target.verbose);
   },
   get silent(): boolean {
-    return currentFallbackTarget().silent;
+    return throughFallbackTarget((target) => target.silent);
   },
   get reportsWhileSilent(): boolean {
-    return currentFallbackTarget().reportsWhileSilent;
+    return throughFallbackTarget((target) => target.reportsWhileSilent);
   },
   get jsonMode(): boolean {
-    return currentFallbackTarget().jsonMode;
+    return throughFallbackTarget((target) => target.jsonMode);
   },
   // The forwarder carries diagnostics, not a command's result. Forwarding these
   // would let a call from a path that has no logger of its own decide the shape
@@ -456,24 +470,26 @@ export const fallbackLogger: Logger = {
     return {};
   },
   outputJson(_success: boolean, _error?: JsonErrorInfo): void {},
-  // `info` and `success` narrate a command's progress on stdout, which is the
-  // one stream an MCP server speaking JSON-RPC over stdio cannot have anything
-  // else written to. Nothing calls them through the forwarder, and a path with
-  // no logger of its own has no progress to narrate — only diagnostics, which
-  // `warn` and `debug` carry.
+  // `info`, `success` and `debug` all write to stdout, which is the one stream
+  // an MCP server speaking JSON-RPC over stdio cannot have anything else
+  // written to. Nothing calls any of them through the forwarder, and a path
+  // with no logger of its own has no progress to narrate — only diagnostics,
+  // which `warn` carries. `debug` is silent today merely because the `mcp`
+  // subcommand registers no `--verbose`; that is a coincidence to be relied on,
+  // not a design.
   info(_message: string, ..._args: unknown[]): void {},
   success(_message: string, ..._args: unknown[]): void {},
   warn(message: string, ...args: unknown[]): void {
-    forwardToFallbackTarget((target) => target.warn(message, ...args));
+    throughFallbackTarget((target) => {
+      target.warn(message, ...args);
+    });
   },
   // Errors go to the console rather than to an adopted logger, for the same
   // reason: `JsonLogger.error` writes the failure document.
   error(message: string | Error, code?: string, ...args: unknown[]): void {
     defaultFallbackTarget.error(message, code, ...args);
   },
-  debug(message: string, ...args: unknown[]): void {
-    forwardToFallbackTarget((target) => target.debug(message, ...args));
-  },
+  debug(_message: string, ..._args: unknown[]): void {},
 };
 
 /**
@@ -494,7 +510,7 @@ export async function withFallbackLoggerTarget<T>({
   // Forwarding the forwarder to itself would recurse forever; a caller that
   // passes it can only have meant "leave the fallback where it is". A wrapper
   // *around* `fallbackLogger` does not match here, so the forwarder guards
-  // against coming back to itself as well (see `forwardToFallbackTarget`) —
+  // against coming back to itself as well (see `throughFallbackTarget`) —
   // this check only saves the scope that would otherwise be entered for a
   // target that changes nothing.
   if (logger === fallbackLogger) {

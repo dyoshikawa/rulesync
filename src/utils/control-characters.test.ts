@@ -132,12 +132,14 @@ describe("stripControlCharactersKeepingLineFeeds", () => {
   });
 
   it("should still remove what reorders or escapes", () => {
-    expect(stripControlCharactersKeepingLineFeeds("a\u001b[31mb\u202ec\u009bd")).toBe("a[31mbcd");
+    expect(stripControlCharactersKeepingLineFeeds("one\u001b[31m two\u202e three\u009b four")).toBe(
+      "one[31m two three four",
+    );
   });
 
   it("should remove a carriage return, which paints over the line already written", () => {
-    expect(stripControlCharactersKeepingLineFeeds("real message\rforged")).toBe(
-      "real messageforged",
+    expect(stripControlCharactersKeepingLineFeeds("real message\r painted over")).toBe(
+      "real message painted over",
     );
   });
 });

@@ -175,10 +175,10 @@ describe("formatError", () => {
   });
 
   it("should bound and strip a thrown value that is not an Error", () => {
-    const formatted = formatError(`plain\u202e${"y".repeat(50_000)}`);
+    const formatted = formatError(`plain \u202e${"y".repeat(50_000)}`);
 
     expect(formatted.length).toBeLessThan(8_100);
-    expect(formatted.startsWith("plainy")).toBe(true);
+    expect(formatted.startsWith("plain y")).toBe(true);
   });
 
   it("should strip the control characters JSON.stringify leaves intact in an issue", () => {

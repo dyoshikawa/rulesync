@@ -347,15 +347,25 @@ export const gitignoreCommand = async (
   }
 
   if (gitignoreResult.entriesRemoved.length > 0) {
-    logger.warn(
-      "The following entries were removed from the rulesync-managed block in .gitignore and are no longer gitignored by rulesync:",
-    );
-    // Console-only: `data.entriesRemoved` already holds the same list under
-    // `--json`, and the warnings array is bounded — spending it one entry at a
-    // time would push the diagnostics that have nowhere else to go out of the
-    // document. The sentences around this loop stay, since they are the part no
-    // captured key carries.
-    if (!logger.jsonMode) {
+    // The list itself goes to the console only: `data.entriesRemoved` already
+    // holds it under `--json`, and the warnings array is bounded — spending it
+    // one entry at a time would push the diagnostics that have nowhere else to
+    // go out of the document. The sentence that introduces it changes with it,
+    // since one ending in a colon promises a list that would never arrive.
+    if (logger.jsonMode) {
+      logger.warn(
+        `${gitignoreResult.entriesRemoved.length} ${
+          gitignoreResult.entriesRemoved.length === 1 ? "entry" : "entries"
+        } listed under "entriesRemoved" ${
+          gitignoreResult.entriesRemoved.length === 1 ? "was" : "were"
+        } removed from the rulesync-managed block in .gitignore and ${
+          gitignoreResult.entriesRemoved.length === 1 ? "is" : "are"
+        } no longer gitignored by rulesync.`,
+      );
+    } else {
+      logger.warn(
+        "The following entries were removed from the rulesync-managed block in .gitignore and are no longer gitignored by rulesync:",
+      );
       for (const entry of gitignoreResult.entriesRemoved) {
         logger.warn(`  ${entry}`);
       }

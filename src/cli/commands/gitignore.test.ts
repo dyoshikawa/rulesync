@@ -364,6 +364,12 @@ dist/`;
       expect(jsonLogger.warn).toHaveBeenCalledWith(expect.stringContaining("no longer gitignored"));
       expect(jsonLogger.warn).toHaveBeenCalledWith(expect.stringContaining("may contain secrets"));
       expect(jsonLogger.warn).not.toHaveBeenCalledWith("  **/.obsolete/config.toml");
+      // Points at the captured key rather than ending in a colon with nothing
+      // under it, and counts what the reader will find there.
+      expect(jsonLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('1 entry listed under "entriesRemoved" was removed'),
+      );
+      expect(jsonLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining("following"));
     });
 
     it("should take a retired entry spelling back out of the file", async () => {
