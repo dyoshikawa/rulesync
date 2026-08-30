@@ -778,10 +778,17 @@ async function localSkillNamesToCompare(params: {
         // not say in its place.
         readingFormOf(name) === readingFormOf(localName),
     );
-    const folded = await Promise.all(
-      twins.map((name) => directoryExists(join(outputBasePath, SKILLS_DIR_NAME, name))),
-    );
-    if (!folded.includes(true)) {
+    // One at a time and stopping at the first yes: a listing is free to hold
+    // thousands of spellings of one name, and the first that resolves settles
+    // the question for all of them.
+    let folded = false;
+    for (const twin of twins) {
+      if (await directoryExists(join(outputBasePath, SKILLS_DIR_NAME, twin))) {
+        folded = true;
+        break;
+      }
+    }
+    if (!folded) {
       kept.push(localName);
     }
   }
