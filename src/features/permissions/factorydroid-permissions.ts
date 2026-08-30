@@ -14,6 +14,7 @@ import { readFactorydroidSettingsWithLocalOverlay } from "../../utils/factorydro
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { collectShellCommandRules, partitionCommandRules } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -224,8 +225,10 @@ export class FactorydroidPermissions extends ToolPermissions {
 
 /**
  * Convert rulesync permissions config to Factory Droid allow/deny command lists.
- * Only the `bash` category maps; `ask` rules and non-`bash` categories are
- * dropped (the latter with a warning when they carry `deny` rules).
+ * The `bash` category maps, and so do the restricting rules of the all-tools
+ * `*` category — a `deny` written there covers shell commands too, and skipping
+ * it would auto-approve a command the file blocks. Other categories are dropped
+ * (with a warning when they carry `deny` rules).
  */
 function convertRulesyncToFactorydroidPermissions({
   config,
@@ -234,34 +237,21 @@ function convertRulesyncToFactorydroidPermissions({
   config: PermissionsConfig;
   logger?: Logger;
 }): { allow: string[]; deny: string[] } {
-  const allow: string[] = [];
-  const deny: string[] = [];
+  const { rules, foreignDenyCategories } = collectShellCommandRules(config.permission);
+  for (const category of foreignDenyCategories) {
+    logger?.warn(
+      `Factory Droid only models shell-command permissions (commandAllowlist/commandDenylist); ` +
+        `'${category}' deny rules cannot be represented and were skipped.`,
+    );
+  }
 
-  for (const [category, rules] of Object.entries(config.permission)) {
-    if (category !== "bash") {
-      const hasDeny = Object.values(rules).some((action) => action === "deny");
-      if (hasDeny && logger) {
-        logger.warn(
-          `Factory Droid only models shell-command permissions (commandAllowlist/commandDenylist); ` +
-            `'${category}' deny rules cannot be represented and were skipped.`,
-        );
-      }
-      continue;
-    }
-    for (const [pattern, action] of Object.entries(rules)) {
-      switch (action) {
-        case "allow":
-          allow.push(pattern);
-          break;
-        case "deny":
-          deny.push(pattern);
-          break;
-        case "ask":
-          // Factory Droid prompts by default for any command not in the
-          // allowlist, so there is no separate "ask" list to populate.
-          break;
-      }
-    }
+  const { allow, deny, shadowedAllowPatterns } = partitionCommandRules(rules);
+  if (shadowedAllowPatterns.length > 0) {
+    logger?.warn(
+      `Factory Droid was not given the allow rule(s) for ` +
+        `${shadowedAllowPatterns.join(", ")} because the same pattern(s) are asked about ` +
+        `elsewhere in .rulesync/permissions.jsonc, and 'ask' outranks 'allow'.`,
+    );
   }
 
   return { allow, deny };

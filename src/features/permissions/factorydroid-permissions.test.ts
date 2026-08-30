@@ -93,6 +93,63 @@ describe("FactorydroidPermissions", () => {
       expect(json.commandDenylist).toBeUndefined();
     });
 
+    it("should write an all-tools deny into commandDenylist over a bash allow", async () => {
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "rm -rf *": "deny" },
+          bash: { "rm -rf *": "allow", "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      // The denylist wins over the allowlist in Factory Droid, so the command
+      // the file blocks stays blocked.
+      expect(json.commandDenylist).toEqual(["rm -rf *"]);
+      expect(json.commandAllowlist).toEqual(["git *", "rm -rf *"]);
+    });
+
+    it("should withhold a bash allow that the all-tools category asks about", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "npm *": "ask" },
+          bash: { "npm *": "allow", "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("npm *"));
+    });
+
+    it("should ignore the all-tools category's allow rules", async () => {
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "src/**": "allow" },
+          bash: { "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toEqual(["git *"]);
+    });
+
     it("should preserve other keys in an existing settings.json", async () => {
       const settingsDir = join(testDir, ".factory");
       await ensureDir(settingsDir);

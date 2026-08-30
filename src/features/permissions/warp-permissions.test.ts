@@ -123,6 +123,55 @@ describe("WarpPermissions", () => {
       expect(profiles[DENYLIST_KEY]).toBeUndefined();
     });
 
+    it("writes an all-tools deny into the denylist that outranks the bash allow", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "rm -rf .*": "deny" },
+          bash: { "rm -rf .*": "allow", "git .*": "allow" },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      // Warp's denylist wins over its allowlist, so the blocked command stays
+      // blocked even though the bash category allows it.
+      expect(profiles[DENYLIST_KEY]).toEqual(["rm -rf .*"]);
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*", "rm -rf .*"]);
+    });
+
+    it("withholds a bash allow that the all-tools category asks about", async () => {
+      const logger = createMockLogger();
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "npm .*": "ask" },
+          bash: { "npm .*": "allow", "git .*": "allow" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("npm .*"));
+    });
+
+    it("ignores the all-tools category's allow rules", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "src/**": "allow" },
+          bash: { "git .*": "allow" },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
+    });
+
     it("overlays the warp override's file-read/read-only autonomy keys onto agents.profiles", async () => {
       const perms = await WarpPermissions.fromRulesyncPermissions({
         outputRoot: testDir,

@@ -409,6 +409,60 @@ describe("DeepagentsPermissions", () => {
       );
     });
 
+    it("warns when an all-tools deny's executable ends up auto-approved anyway", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { "*": { "rm *": "deny" }, bash: { "rm *": "allow" } } },
+        logger,
+      });
+
+      // A rule under `*` covers shell commands too, so reading only `bash`
+      // would auto-approve the very command the file denies without saying so.
+      expect(allowListOf(content)).toEqual(["rm"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("are not merely unenforced"),
+      );
+    });
+
+    it("refuses to write `all` when the all-tools category denies commands", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { "*": { "rm -rf *": "deny" }, bash: { "*": "allow" } } },
+        logger,
+      });
+
+      expect(smolToml.parse(content).shell).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("was not written as allow_list"),
+      );
+    });
+
+    it("warns when an all-tools ask's executable ends up auto-approved", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { "*": { "npm publish": "ask" }, bash: { "npm *": "allow" } } },
+        logger,
+      });
+
+      expect(allowListOf(content)).toEqual(["npm"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("the generated allow_list auto-approves commands they cover"),
+      );
+    });
+
+    it("ignores the all-tools category's allow rules", async () => {
+      const content = await generate({
+        config: { permission: { "*": { "src/**": "allow" }, bash: { "git *": "allow" } } },
+      });
+
+      // `src/**` is a path, not a command; carrying it into the allow_list
+      // would grant something the author never said about commands.
+      expect(allowListOf(content)).toEqual(["git"]);
+    });
+
     it("warns when an ask rule's executable ends up auto-approved", async () => {
       const logger = createMockLogger();
 

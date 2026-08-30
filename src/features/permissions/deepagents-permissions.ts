@@ -14,6 +14,7 @@ import { parseCommaSeparatedList } from "../../utils/parse-comma-separated-list.
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { collectShellCommandRules } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -781,7 +782,9 @@ function toExecutableToken(pattern: string): { token: string; widened: boolean }
 
 /**
  * Convert rulesync permissions config to dcode's `[shell].allow_list`. Only
- * `bash` `allow` rules map; everything else is skipped, with a warning
+ * `allow` rules map — from the `bash` category, and never from the all-tools
+ * `*` one, whose restricting rules still count against them (see
+ * `collectShellCommandRules`). Everything else is skipped, with a warning
  * wherever the skip loses a restriction rather than a redundancy.
  */
 function convertRulesyncToDeepagentsAllowList({
@@ -800,58 +803,52 @@ function convertRulesyncToDeepagentsAllowList({
   const sentinelPatterns: string[] = [];
   const askPatterns: string[] = [];
   const denyPatterns: string[] = [];
-  let hasForeignDeny = false;
   let requestedAllowAll = false;
 
-  for (const [category, rules] of Object.entries(config.permission)) {
-    if (category !== "bash") {
-      const hasDeny = Object.values(rules).some((action) => action === "deny");
-      if (hasDeny) {
-        hasForeignDeny = true;
-        warnWithFallback(
-          logger,
-          `deepagents-cli only models shell-command permissions ([shell].allow_list), so ` +
-            `'${category}' deny rules cannot be represented and were skipped.`,
-        );
-      }
+  const { rules, foreignDenyCategories } = collectShellCommandRules(config.permission);
+  for (const category of foreignDenyCategories) {
+    warnWithFallback(
+      logger,
+      `deepagents-cli only models shell-command permissions ([shell].allow_list), so ` +
+        `'${category}' deny rules cannot be represented and were skipped.`,
+    );
+  }
+
+  for (const [pattern, action] of rules) {
+    if (action === "deny") {
+      denyPatterns.push(pattern);
       continue;
     }
-    for (const [pattern, action] of Object.entries(rules)) {
-      if (action === "deny") {
-        denyPatterns.push(pattern);
-        continue;
-      }
-      if (action === "ask") {
-        askPatterns.push(pattern);
-        continue;
-      }
-      // `*`, `*:*` and `* *` are the same rule — "every command, any
-      // arguments" — spelled the three ways the canonical format allows.
-      if (leadingToken(pattern) === "*" && meansAnyArguments(pattern)) {
-        requestedAllowAll = true;
-        continue;
-      }
-      const reduced = toExecutableToken(pattern);
-      if (!reduced) {
-        unmatchablePatterns.push(pattern);
-        continue;
-      }
-      // `all` and `recommended` are read as sentinels rather than as command
-      // names, so a pattern that reduces to one of them cannot be written: it
-      // would either allow every command or splice in a list rulesync did not
-      // author.
-      if (
-        reduced.token.toLowerCase() === ALLOW_ALL_SENTINEL ||
-        reduced.token.toLowerCase() === RECOMMENDED_SENTINEL
-      ) {
-        sentinelPatterns.push(pattern);
-        continue;
-      }
-      if (reduced.widened) {
-        widenedPatterns.push(pattern);
-      }
-      allowed.push(reduced.token);
+    if (action === "ask") {
+      askPatterns.push(pattern);
+      continue;
     }
+    // `*`, `*:*` and `* *` are the same rule — "every command, any
+    // arguments" — spelled the three ways the canonical format allows.
+    if (leadingToken(pattern) === "*" && meansAnyArguments(pattern)) {
+      requestedAllowAll = true;
+      continue;
+    }
+    const reduced = toExecutableToken(pattern);
+    if (!reduced) {
+      unmatchablePatterns.push(pattern);
+      continue;
+    }
+    // `all` and `recommended` are read as sentinels rather than as command
+    // names, so a pattern that reduces to one of them cannot be written: it
+    // would either allow every command or splice in a list rulesync did not
+    // author.
+    if (
+      reduced.token.toLowerCase() === ALLOW_ALL_SENTINEL ||
+      reduced.token.toLowerCase() === RECOMMENDED_SENTINEL
+    ) {
+      sentinelPatterns.push(pattern);
+      continue;
+    }
+    if (reduced.widened) {
+      widenedPatterns.push(pattern);
+    }
+    allowed.push(reduced.token);
   }
 
   // `all` does not merely allow everything: it also turns off dcode's
@@ -859,7 +856,7 @@ function convertRulesyncToDeepagentsAllowList({
   // something would hand the user a weaker setup than dcode's own default in
   // the name of a rule meant to restrict it. Deny wins that conflict, and the
   // `*` allow is dropped instead.
-  const hasDenyRule = hasForeignDeny || denyPatterns.length > 0;
+  const hasDenyRule = foreignDenyCategories.length > 0 || denyPatterns.length > 0;
   const allowAll = requestedAllowAll && !hasDenyRule;
   // Upstream rejects the whole option when `all` shares the list, and every
   // other entry is redundant beside it anyway.
