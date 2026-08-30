@@ -10,6 +10,11 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  collectShellCommandRules,
+  SHELL_PERMISSION_CATEGORY,
+} from "./shell-command-categories.js";
+import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
@@ -42,43 +47,56 @@ type ClineTranslationResult = {
   deny: string[];
   droppedCategories: string[];
   translatedAskPatterns: string[];
+  shadowedAllowPatterns: string[];
 };
 
 /**
  * Translate rulesync permission categories into Cline allow/deny command lists.
- * Non-bash categories and `ask` rules are tracked separately so a single
- * translation notice can be surfaced by the caller.
+ * The `bash` category maps, and so do the restricting rules of the all-tools
+ * `*` category — a rule written there covers shell commands too. Other
+ * categories and `ask` rules are tracked separately so a single translation
+ * notice can be surfaced by the caller.
  */
 function translateClinePermissions(
   permission: PermissionsConfig["permission"],
 ): ClineTranslationResult {
   const allow: string[] = [];
   const deny: string[] = [];
-  const droppedCategories: string[] = [];
   const translatedAskPatterns: string[] = [];
+  const shadowedAllowPatterns: string[] = [];
 
-  for (const [category, rules] of Object.entries(permission)) {
-    if (category !== "bash") {
-      droppedCategories.push(category);
+  const droppedCategories = Object.keys(permission).filter(
+    (category) =>
+      category !== SHELL_PERMISSION_CATEGORY && category !== ALL_TOOLS_PERMISSION_CATEGORY,
+  );
+  const { rules } = collectShellCommandRules(permission);
+  // Cline does not document a deny-priority, so a pattern the config restricts
+  // must not be written to `allow` at all — leaving it there would hand the
+  // decision to an undocumented tie-break.
+  const restrictedPatterns = new Set(
+    rules.filter(([, action]) => action !== "allow").map(([pattern]) => pattern),
+  );
+
+  for (const [pattern, action] of rules) {
+    if (action === "ask") {
+      // Cline has no `ask` semantics. Translate to `deny` for fail-closed safety so the
+      // protective intent of the rule is preserved instead of being silently dropped.
+      translatedAskPatterns.push(pattern);
+      deny.push(pattern);
       continue;
     }
-    for (const [pattern, action] of Object.entries(rules)) {
-      if (action === "ask") {
-        // Cline has no `ask` semantics. Translate to `deny` for fail-closed safety so the
-        // protective intent of the rule is preserved instead of being silently dropped.
-        translatedAskPatterns.push(pattern);
-        deny.push(pattern);
-        continue;
-      }
-      if (action === "allow") {
-        allow.push(pattern);
-      } else if (action === "deny") {
-        deny.push(pattern);
-      }
+    if (action === "deny") {
+      deny.push(pattern);
+      continue;
     }
+    if (restrictedPatterns.has(pattern)) {
+      shadowedAllowPatterns.push(pattern);
+      continue;
+    }
+    allow.push(pattern);
   }
 
-  return { allow, deny, droppedCategories, translatedAskPatterns };
+  return { allow, deny, droppedCategories, translatedAskPatterns, shadowedAllowPatterns };
 }
 
 /**
@@ -90,13 +108,19 @@ function translateClinePermissions(
 function warnClineTranslationNotices({
   droppedCategories,
   translatedAskPatterns,
+  shadowedAllowPatterns,
   logger,
 }: {
   droppedCategories: string[];
   translatedAskPatterns: string[];
+  shadowedAllowPatterns: string[];
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
-  if (droppedCategories.length === 0 && translatedAskPatterns.length === 0) {
+  if (
+    droppedCategories.length === 0 &&
+    translatedAskPatterns.length === 0 &&
+    shadowedAllowPatterns.length === 0
+  ) {
     return;
   }
   const parts: string[] = [];
@@ -110,6 +134,13 @@ function warnClineTranslationNotices({
     parts.push(
       `'ask' rules for bash patterns [${translatedAskPatterns.join(", ")}] translated to ` +
         `'deny' for fail-closed safety, since Cline lacks 'ask'`,
+    );
+  }
+  if (shadowedAllowPatterns.length > 0) {
+    parts.push(
+      `'allow' rules for [${shadowedAllowPatterns.join(", ")}] withheld because the same ` +
+        `patterns are restricted elsewhere in the config, and Cline documents no ` +
+        `deny-priority`,
     );
   }
   logger?.warn(`WARNING: Cline command permissions translation notice: ${parts.join("; ")}.`);
@@ -188,11 +219,15 @@ export class ClinePermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const { allow, deny, droppedCategories, translatedAskPatterns } = translateClinePermissions(
-      config.permission,
-    );
+    const { allow, deny, droppedCategories, translatedAskPatterns, shadowedAllowPatterns } =
+      translateClinePermissions(config.permission);
 
-    warnClineTranslationNotices({ droppedCategories, translatedAskPatterns, logger });
+    warnClineTranslationNotices({
+      droppedCategories,
+      translatedAskPatterns,
+      shadowedAllowPatterns,
+      logger,
+    });
 
     const dedupedAllow = uniq(allow.toSorted());
     const dedupedDeny = uniq(deny.toSorted());
