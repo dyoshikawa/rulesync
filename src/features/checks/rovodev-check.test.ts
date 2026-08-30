@@ -106,6 +106,10 @@ describe("RovodevCheck", () => {
       });
 
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("rulesync did not write"));
+      // The tool's own name and target come from this adapter's config rather
+      // than from a literal in the message, so the message is read back whole.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Rovo Dev checks:"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("--targets rovodev"));
     });
 
     it("should stay quiet when the existing file is only generated sections", async () => {

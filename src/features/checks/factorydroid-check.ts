@@ -3,6 +3,7 @@ import {
   FACTORYDROID_REVIEW_GUIDELINES_DIR_PATH,
 } from "../../constants/factorydroid-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { type ToolTarget } from "../../types/tool-targets.js";
 import { AggregatedToolCheck, type AggregatedToolCheckConfig } from "./aggregated-tool-check.js";
 import { type ToolCheckSettablePaths } from "./tool-check.js";
 
@@ -62,11 +63,19 @@ function stripSkillFrontmatter(fileContent: string): string {
   }
 }
 
-function handWrittenWarning({ filePath }: { filePath: string }): string {
+function handWrittenWarning({
+  filePath,
+  displayName,
+  toolTarget,
+}: {
+  filePath: string;
+  displayName: string;
+  toolTarget: ToolTarget;
+}): string {
   return (
-    `Factory Droid checks: ${filePath} holds instructions rulesync did not write, so it is ` +
-    `left as it is and no checks were generated for Factory Droid. Run ` +
-    `\`rulesync import --targets factorydroid --features checks\` to bring them into ` +
+    `${displayName} checks: ${filePath} holds instructions rulesync did not write, so it is ` +
+    `left as it is and no checks were generated for ${displayName}. Run ` +
+    `\`rulesync import --targets ${toolTarget} --features checks\` to bring them into ` +
     `\`.rulesync/checks/\` and then delete the file, so the next generate writes it back ` +
     `from there; delete it outright if you no longer want it, or rename the directory if ` +
     `it is an ordinary skill rather than review guidelines. Importing alone leaves this ` +

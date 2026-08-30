@@ -18,18 +18,6 @@ import {
   type ToolCheckFromRulesyncChecksParams,
 } from "./tool-check.js";
 
-/**
- * What generating does to a file that holds instructions rulesync did not
- * write, which is the one place the three aggregated adapters genuinely differ.
- *
- * `replace` warns and writes anyway: the path is one only the tool's reviewer
- * reads, so rewriting it replaces review instructions with review instructions.
- * `skip` warns and writes nothing: the path is shared with something else — an
- * ordinary skill directory, say — so a file there may have nothing to do with
- * reviews and rulesync cannot rebuild what it would overwrite.
- */
-export type AggregatedCheckHandWrittenPolicy = "replace" | "skip";
-
 export type AggregatedToolCheckConfig = {
   /**
    * The tool's name as it appears in messages this base builds — "Rovo Dev"
@@ -44,18 +32,36 @@ export type AggregatedToolCheckConfig = {
    * output path can also hold something that is not just check sections.
    */
   transformImportedContent?: (fileContent: string) => string;
-} & (
-  | { handWrittenPreamble: "replace" }
-  | {
-      handWrittenPreamble: "skip";
-      /**
-       * Required for `skip` because the message has to say what to do about a
-       * file that keeps blocking generation, which is tool-specific. The
-       * `replace` wording is uniform and this base writes it.
-       */
-      handWrittenWarning: (params: { filePath: string }) => string;
-    }
-);
+} &
+  /**
+   * What generating does to a file that holds instructions rulesync did not
+   * write, which is the one place the three adapters genuinely differ.
+   *
+   * `replace` warns and writes anyway: the path is one only the tool's reviewer
+   * reads, so rewriting it replaces review instructions with review
+   * instructions.
+   */
+  (
+    | { handWrittenPreamble: "replace" }
+    /**
+     * `skip` warns and writes nothing: the path is shared with something else —
+     * an ordinary skill directory, say — so a file there may have nothing to do
+     * with reviews and rulesync cannot rebuild what it would overwrite.
+     */
+    | {
+        handWrittenPreamble: "skip";
+        /**
+         * Required for `skip` because the message has to say what to do about a
+         * file that keeps blocking generation, which is tool-specific. The
+         * `replace` wording is uniform and this base writes it.
+         */
+        handWrittenWarning: (params: {
+          filePath: string;
+          displayName: string;
+          toolTarget: ToolTarget;
+        }) => string;
+      }
+  );
 
 /**
  * Shared skeleton for the checks adapters whose output is a single aggregated
@@ -130,8 +136,10 @@ export class AggregatedToolCheck extends ToolCheck {
 
   /**
    * Ownership guard the processor consults before it deletes anything for this
-   * tool. Every one of these paths is a file the tool's own documentation tells
-   * users to hand-write, so anything in it that rulesync did not write is not
+   * tool. Every one of these paths is one a user may well have written by hand
+   * — the tool's own documentation says to for the two review-instruction
+   * files, and the third is an ordinary skill directory shared with Droid's
+   * skill loader — so anything in it that rulesync did not write is not
    * rulesync's to remove — dropping the last check targeting the tool must not
    * take somebody's review instructions with it. Deletion is therefore allowed
    * only for a file that is nothing but generated sections: one that carries no
@@ -180,7 +188,13 @@ export class AggregatedToolCheck extends ToolCheck {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     if (hasHandWrittenPreamble(existingContent)) {
       if (config.handWrittenPreamble === "skip") {
-        logger?.warn(config.handWrittenWarning({ filePath }));
+        logger?.warn(
+          config.handWrittenWarning({
+            filePath,
+            displayName: config.displayName,
+            toolTarget: config.toolTarget,
+          }),
+        );
         return [];
       }
       logger?.warn(
