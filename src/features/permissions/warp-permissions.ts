@@ -471,6 +471,47 @@ function mergeIntoDefaultExecutionProfile({
  * adds. Other categories are dropped (with a warning when they carry `deny`
  * rules).
  */
+/**
+ * Approximate a Warp command pattern as a glob, so restrictions and allow rules
+ * can be compared for coverage by `createShadowedAllowTest`.
+ *
+ * Warp matches commands with regular expressions, and a glob reader would
+ * misread the ordinary spellings: `.*` — Warp's catch-all — is a literal dot
+ * followed by a wildcard, `[rf]` is a character class in one language and plain
+ * text in the other, and an unanchored regex covers every command that merely
+ * contains it. The rewrite therefore only ever widens what a pattern covers:
+ * every regex wildcard, quantifier, group and class becomes `*`, and a missing
+ * `^`/`$` anchor becomes one too. Both sides are widened, so a pattern that is
+ * really a glob (an all-tools `*` rule need not be written for Warp at all)
+ * still compares sensibly, and an inexact reading withholds an allow rather
+ * than writing one the config restricts.
+ */
+function warpCommandPatternToGlob(pattern: string): string {
+  const anchoredStart = pattern.startsWith("^");
+  const anchoredEnd = pattern.endsWith("$") && !pattern.endsWith("\\$");
+  const body = pattern.slice(anchoredStart ? 1 : 0, anchoredEnd ? -1 : undefined);
+
+  let glob = "";
+  for (let index = 0; index < body.length; index++) {
+    const character = body.charAt(index);
+    if (character === "\\") {
+      // `charAt` past the end is the empty string, so a trailing backslash
+      // widens like any other escape it cannot spell.
+      const escaped = body.charAt(index + 1);
+      index++;
+      glob += escaped === "" || escaped === "*" || escaped === "?" ? "*" : escaped;
+      continue;
+    }
+    if (character === "." || "*+?()[]{}|^$".includes(character)) {
+      glob += "*";
+      continue;
+    }
+    glob += character;
+  }
+
+  return `${anchoredStart ? "" : "*"}${glob}${anchoredEnd ? "" : "*"}`;
+}
+
 function convertRulesyncToWarpPermissions({
   config,
   logger,
@@ -478,13 +519,16 @@ function convertRulesyncToWarpPermissions({
   config: PermissionsConfig;
   logger?: Logger;
 }): { allow: string[]; deny: string[] } {
-  const { rules, foreignDenyCategories } = collectShellCommandRules(config.permission);
+  const { rules, foreignDenyCategories, ignoredAllToolsAllowPatterns } = collectShellCommandRules(
+    config.permission,
+  );
   // Warp's denylist is a regex list that replaces the tool's built-in default
   // one, so an all-tools `*` pattern — which may not even name a command —
   // withholds the allow rules it covers instead of being written there.
   const { allow, deny, shadowedAllowPatterns, unwrittenDenyPatterns } = partitionCommandRules({
     rules,
     writesAllToolsDeny: false,
+    normalizePattern: warpCommandPatternToGlob,
   });
   warnAboutUnwrittenCommandRules({
     toolLabel: "Warp",
@@ -492,6 +536,10 @@ function convertRulesyncToWarpPermissions({
     foreignDenyCategories,
     shadowedAllowPatterns,
     unwrittenDenyPatterns,
+    unwrittenDenyReason:
+      "writing any denylist replaces Warp's built-in default one, and a pattern written " +
+      "under '*' need not be a command at all.",
+    ignoredAllToolsAllowPatterns,
     logger,
   });
 

@@ -131,14 +131,20 @@ describe("ClinePermissions", () => {
       }),
     });
 
+    const logger = createMockLogger();
     const instance = await ClinePermissions.fromRulesyncPermissions({
       outputRoot: testDir,
       rulesyncPermissions,
+      logger,
     });
 
-    // `src/**` is a path, not a command.
+    // `src/**` is a path, not a command — but the skip is reported, so the
+    // rule is not dropped in silence.
     const content = JSON.parse(instance.getFileContent());
     expect(content.allow).toEqual(["git *"]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("'allow' rules for [src/**] under the all-tools '*' category"),
+    );
   });
 
   it("should preserve user-added denies in the existing file (additive deny)", async () => {

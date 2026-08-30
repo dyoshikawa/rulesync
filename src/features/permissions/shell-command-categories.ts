@@ -1,6 +1,6 @@
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { compileGlob } from "../../utils/glob.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 
 /** The canonical category that names a shell command's permissions. */
 export const SHELL_PERMISSION_CATEGORY = "bash";
@@ -32,6 +32,11 @@ export type ShellCommandRules = {
    * warning an adapter emits about a restriction it cannot express at all.
    */
   foreignDenyCategories: string[];
+  /**
+   * All-tools `allow` patterns deliberately left out of `rules`, so an adapter
+   * can report what it dropped rather than dropping it in silence.
+   */
+  ignoredAllToolsAllowPatterns: string[];
 };
 
 /**
@@ -56,6 +61,7 @@ export function collectShellCommandRules(
 ): ShellCommandRules {
   const rules: ShellCommandRule[] = [];
   const foreignDenyCategories: string[] = [];
+  const ignoredAllToolsAllowPatterns: string[] = [];
 
   for (const [category, categoryRules] of Object.entries(permission)) {
     if (category === SHELL_PERMISSION_CATEGORY) {
@@ -67,6 +73,7 @@ export function collectShellCommandRules(
     if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
       for (const [pattern, action] of Object.entries(categoryRules)) {
         if (action === "allow") {
+          ignoredAllToolsAllowPatterns.push(pattern);
           continue;
         }
         rules.push({ pattern, action, fromAllToolsCategory: true });
@@ -78,7 +85,7 @@ export function collectShellCommandRules(
     }
   }
 
-  return { rules, foreignDenyCategories };
+  return { rules, foreignDenyCategories, ignoredAllToolsAllowPatterns };
 }
 
 /**
@@ -91,18 +98,37 @@ export function collectShellCommandRules(
  * `npm publish` is covered by an allowed `npm *`. Comparing only identical
  * spellings would let the most ordinary catch-all (`{"*": {"*": "ask"}}`)
  * disappear without a word.
+ *
+ * Identical spellings are still compared as strings first, because a glob is not
+ * guaranteed to match itself: `compileGlob("rm -[rf]*")` reads `[rf]` as a
+ * character class, so it does not match the literal text `rm -[rf]*`. Without
+ * the string test, a bracket anywhere in the pattern would silently switch the
+ * whole check off — and a bracket is an ordinary spelling for a tool that
+ * matches commands with regular expressions.
+ *
+ * `normalizePattern` rewrites both sides before they are compared, for a tool
+ * whose patterns are not globs. It must only ever widen what a pattern covers,
+ * so an inexact reading withholds an allow rather than writing one the config
+ * restricts — see `warpCommandPatternToGlob`.
  */
 export function createShadowedAllowTest(
   restrictingPatterns: readonly string[],
+  {
+    normalizePattern = (pattern: string) => pattern,
+  }: { normalizePattern?: (pattern: string) => string } = {},
 ): (allowPattern: string) => boolean {
-  const restrictions = restrictingPatterns.map((pattern) => ({
-    pattern,
-    covers: compileGlob(pattern),
-  }));
+  const restrictions = restrictingPatterns.map((pattern) => {
+    const normalized = normalizePattern(pattern);
+    return { pattern, normalized, covers: compileGlob(normalized) };
+  });
 
   return (allowPattern) => {
-    const allowCovers = compileGlob(allowPattern);
-    return restrictions.some(({ pattern, covers }) => covers(allowPattern) || allowCovers(pattern));
+    const normalizedAllow = normalizePattern(allowPattern);
+    const allowCovers = compileGlob(normalizedAllow);
+    return restrictions.some(
+      ({ pattern, normalized, covers }) =>
+        pattern === allowPattern || covers(normalizedAllow) || allowCovers(normalized),
+    );
   };
 }
 
@@ -137,16 +163,26 @@ export type CommandListPartition = {
  * Warp's built-in default one, so an inert `secrets/**` entry there would trade
  * the tool's own protection for a rule that matches no command. Where the deny
  * cannot be written it withholds the allow rules it covers instead, which
- * restricts in the same direction without touching the denylist. A deny that
- * *is* written needs no such treatment, because the tool's own denylist already
- * outranks its allowlist.
+ * restricts in the same direction without touching the denylist.
+ *
+ * An all-tools deny that *is* written withholds too, because the tool's
+ * deny-beats-allow precedence only protects the commands the pattern actually
+ * matches — and a pattern written under `*` need not name a command at all, so
+ * `{"*": {"secrets/**": "deny"}}` can reach the denylist as an entry that
+ * matches nothing. A `bash` deny needs no such treatment: it is a command
+ * pattern by construction, and the tool's own denylist outranks its allowlist.
+ *
+ * `normalizePattern` is handed to `createShadowedAllowTest` for a tool whose
+ * patterns are not globs.
  */
 export function partitionCommandRules({
   rules,
   writesAllToolsDeny,
+  normalizePattern,
 }: {
   rules: readonly ShellCommandRule[];
   writesAllToolsDeny: boolean;
+  normalizePattern?: (pattern: string) => string;
 }): CommandListPartition {
   const deny: string[] = [];
   const unwrittenDenyPatterns: string[] = [];
@@ -156,17 +192,20 @@ export function partitionCommandRules({
     if (action === "allow") {
       continue;
     }
-    if (action === "deny" && (writesAllToolsDeny || !fromAllToolsCategory)) {
-      deny.push(pattern);
-      continue;
-    }
     if (action === "deny") {
-      unwrittenDenyPatterns.push(pattern);
+      if (writesAllToolsDeny || !fromAllToolsCategory) {
+        deny.push(pattern);
+        if (!fromAllToolsCategory) {
+          continue;
+        }
+      } else {
+        unwrittenDenyPatterns.push(pattern);
+      }
     }
     restrictingPatterns.push(pattern);
   }
 
-  const isShadowed = createShadowedAllowTest(restrictingPatterns);
+  const isShadowed = createShadowedAllowTest(restrictingPatterns, { normalizePattern });
   const allow: string[] = [];
   const shadowedAllowPatterns: string[] = [];
   for (const { pattern, action } of rules) {
@@ -193,7 +232,9 @@ export function warnAboutUnwrittenCommandRules({
   surfaceLabel,
   foreignDenyCategories,
   shadowedAllowPatterns,
-  unwrittenDenyPatterns,
+  unwrittenDenyPatterns = [],
+  unwrittenDenyReason,
+  ignoredAllToolsAllowPatterns = [],
   logger,
 }: {
   /** The tool's display name, e.g. `Warp`. */
@@ -202,26 +243,45 @@ export function warnAboutUnwrittenCommandRules({
   surfaceLabel: string;
   foreignDenyCategories: readonly string[];
   shadowedAllowPatterns: readonly string[];
-  unwrittenDenyPatterns: readonly string[];
+  unwrittenDenyPatterns?: readonly string[];
+  /**
+   * Why this tool's denylist cannot carry an all-tools pattern, as a sentence
+   * fragment. Required once `unwrittenDenyPatterns` is non-empty, since the
+   * reason is the tool's, not this module's.
+   */
+  unwrittenDenyReason?: string;
+  ignoredAllToolsAllowPatterns?: readonly string[];
   logger?: Logger;
 }): void {
   for (const category of foreignDenyCategories) {
-    logger?.warn(
+    warnWithFallback(
+      logger,
       `${toolLabel} only models shell-command permissions (${surfaceLabel}); ` +
         `'${category}' deny rules cannot be represented and were skipped.`,
     );
   }
   if (unwrittenDenyPatterns.length > 0) {
-    logger?.warn(
-      `${toolLabel} matches commands with regular expressions, and writing any denylist ` +
-        `replaces its built-in default one, so the all-tools '*' deny rule(s) for ` +
-        `${unwrittenDenyPatterns.join(", ")} were not written there — a pattern from that ` +
-        `category need not be a command at all. The allow rules they cover were withheld ` +
-        `instead; write them under 'bash' as regexes to have them enforced as commands.`,
+    warnWithFallback(
+      logger,
+      `${toolLabel} did not write the all-tools '*' deny rule(s) for ` +
+        `${unwrittenDenyPatterns.join(", ")} into its denylist${
+          unwrittenDenyReason === undefined ? "" : ` — ${unwrittenDenyReason}`
+        } They restrict only by withholding the allow rules they cover; write them under ` +
+        `'bash' to have them enforced as commands.`,
+    );
+  }
+  if (ignoredAllToolsAllowPatterns.length > 0) {
+    warnWithFallback(
+      logger,
+      `${toolLabel} reads the all-tools '*' category for its deny and ask rules only, so the ` +
+        `allow rule(s) for ${ignoredAllToolsAllowPatterns.join(", ")} were skipped — a pattern ` +
+        `written under '*' need not be a command. Write them under 'bash' to auto-approve ` +
+        `them as commands.`,
     );
   }
   if (shadowedAllowPatterns.length > 0) {
-    logger?.warn(
+    warnWithFallback(
+      logger,
       `${toolLabel} was not given the allow rule(s) for ${shadowedAllowPatterns.join(", ")} ` +
         `because .rulesync/permissions.jsonc restricts the same commands elsewhere, and the ` +
         `stricter rule wins whatever its width.`,

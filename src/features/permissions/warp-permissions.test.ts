@@ -142,7 +142,79 @@ describe("WarpPermissions", () => {
       // the allow it covers instead of being written there.
       expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
       expect(profiles[DENYLIST_KEY]).toBeUndefined();
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("were not written there"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("did not write the all-tools '*' deny rule(s) for rm -rf .*"),
+      );
+    });
+
+    it("withholds a regex allow the all-tools deny covers", async () => {
+      const logger = createMockLogger();
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { rm: "deny" },
+          // `.*` is Warp's catch-all, not a literal dot beside a wildcard, so
+          // the restriction covers it however narrowly the deny is spelled.
+          bash: { ".*": "allow" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("was not given the allow rule(s) for .*"),
+      );
+    });
+
+    it("withholds an allow that a wider unanchored ask covers", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          // An unanchored regex matches anywhere in the command, so `^npm `
+          // covers `^npm publish` even though neither glob covers the other.
+          bash: { "^npm ": "ask", "^npm publish": "allow", "git .*": "allow" },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
+    });
+
+    it("withholds an allow spelled with a character class, which no glob matches", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "rm -[rf]*": "deny" },
+          bash: { "rm -[rf]*": "allow", "git .*": "allow" },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
+      expect(profiles[DENYLIST_KEY]).toBeUndefined();
+    });
+
+    it("reports the all-tools allow rules it read past", async () => {
+      const logger = createMockLogger();
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "git .*": "allow" },
+          bash: { "ls .*": "allow" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["ls .*"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("deny and ask rules only"));
     });
 
     it("keeps Warp's built-in denylist when only the all-tools category denies", async () => {

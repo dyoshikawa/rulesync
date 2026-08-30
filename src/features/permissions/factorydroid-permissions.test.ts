@@ -93,7 +93,8 @@ describe("FactorydroidPermissions", () => {
       expect(json.commandDenylist).toBeUndefined();
     });
 
-    it("should write an all-tools deny into commandDenylist over a bash allow", async () => {
+    it("should write an all-tools deny into commandDenylist and withhold the allow it covers", async () => {
+      const logger = createMockLogger();
       const rulesyncPermissions = buildRulesyncPermissions({
         permission: {
           "*": { "rm -rf *": "deny" },
@@ -104,13 +105,37 @@ describe("FactorydroidPermissions", () => {
       const instance = await FactorydroidPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions,
+        logger,
       });
 
       const json = JSON.parse(instance.getFileContent());
       // The denylist wins over the allowlist in Factory Droid, so the command
-      // the file blocks stays blocked.
+      // the file blocks stays blocked — but the deny-beats-allow order only
+      // reaches the commands the pattern matches, and a pattern written under
+      // `*` need not name a command at all, so the allow is withheld too.
       expect(json.commandDenylist).toEqual(["rm -rf *"]);
-      expect(json.commandAllowlist).toEqual(["git *", "rm -rf *"]);
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("was not given the allow rule(s) for rm -rf *"),
+      );
+    });
+
+    it("should withhold an allow spelled with a character class, which no glob matches", async () => {
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "curl -[sS]*": "ask" },
+          bash: { "curl -[sS]*": "allow", "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(json.commandDenylist).toBeUndefined();
     });
 
     it("should withhold a bash allow that the all-tools category asks about", async () => {

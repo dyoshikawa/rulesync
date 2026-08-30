@@ -453,14 +453,21 @@ describe("DeepagentsPermissions", () => {
       );
     });
 
-    it("ignores the all-tools category's allow rules", async () => {
+    it("ignores the all-tools category's allow rules, and says so", async () => {
+      const logger = createMockLogger();
+
       const content = await generate({
         config: { permission: { "*": { "src/**": "allow" }, bash: { "git *": "allow" } } },
+        logger,
       });
 
       // `src/**` is a path, not a command; carrying it into the allow_list
-      // would grant something the author never said about commands.
+      // would grant something the author never said about commands. The skip
+      // is still reported, so the rule is not dropped in silence.
       expect(allowListOf(content)).toEqual(["git"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("deepagents-cli reads the all-tools '*' category"),
+      );
     });
 
     it("warns when an ask rule's executable ends up auto-approved", async () => {

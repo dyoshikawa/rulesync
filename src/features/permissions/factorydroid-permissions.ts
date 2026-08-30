@@ -55,7 +55,9 @@ type FactorydroidSettingsJson = {
  * write nothing — they only withhold the allow rules they cover, since the
  * stricter rule wins whatever its width. The all-tools `*` category contributes
  * its restricting rules too, because a rule written there covers shell commands
- * as well. The allow/deny lists only model shell commands, so categories other
+ * as well: its `deny` rules are written to `commandDenylist` *and* withhold the
+ * allow rules they cover, since the denylist only outranks the allowlist for
+ * the commands the pattern actually matches. The allow/deny lists only model shell commands, so categories other
  * than `bash` and `*` cannot be represented and are skipped (with a warning
  * when they carry `deny` rules, to surface the gap).
  *
@@ -244,10 +246,14 @@ function convertRulesyncToFactorydroidPermissions({
   config: PermissionsConfig;
   logger?: Logger;
 }): { allow: string[]; deny: string[] } {
-  const { rules, foreignDenyCategories } = collectShellCommandRules(config.permission);
+  const { rules, foreignDenyCategories, ignoredAllToolsAllowPatterns } = collectShellCommandRules(
+    config.permission,
+  );
   // Factory Droid's denylist is an ordinary command list that adds to nothing
-  // it ships with, so an all-tools `*` deny can be written there verbatim.
-  const { allow, deny, shadowedAllowPatterns, unwrittenDenyPatterns } = partitionCommandRules({
+  // it ships with, so an all-tools `*` deny can be written there verbatim — and
+  // still withholds the allow rules it covers, since such a pattern need not
+  // name a command for the tool's deny-beats-allow order to reach it.
+  const { allow, deny, shadowedAllowPatterns } = partitionCommandRules({
     rules,
     writesAllToolsDeny: true,
   });
@@ -256,7 +262,7 @@ function convertRulesyncToFactorydroidPermissions({
     surfaceLabel: "commandAllowlist/commandDenylist",
     foreignDenyCategories,
     shadowedAllowPatterns,
-    unwrittenDenyPatterns,
+    ignoredAllToolsAllowPatterns,
     logger,
   });
 

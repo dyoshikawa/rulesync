@@ -14,7 +14,10 @@ import { parseCommaSeparatedList } from "../../utils/parse-comma-separated-list.
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { collectShellCommandRules } from "./shell-command-categories.js";
+import {
+  collectShellCommandRules,
+  warnAboutUnwrittenCommandRules,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -807,14 +810,21 @@ function convertRulesyncToDeepagentsAllowList({
   const denyPatterns: string[] = [];
   let requestedAllowAll = false;
 
-  const { rules, foreignDenyCategories } = collectShellCommandRules(config.permission);
-  for (const category of foreignDenyCategories) {
-    warnWithFallback(
-      logger,
-      `deepagents-cli only models shell-command permissions ([shell].allow_list), so ` +
-        `'${category}' deny rules cannot be represented and were skipped.`,
-    );
-  }
+  const { rules, foreignDenyCategories, ignoredAllToolsAllowPatterns } = collectShellCommandRules(
+    config.permission,
+  );
+  // Shared with the other command-only adapters so a rule dropped in one is
+  // worded the same way in all. `shadowedAllowPatterns` is empty here because
+  // dcode reports a collision rather than withholding the allow — see
+  // `warnAboutUnwrittenBashRules`.
+  warnAboutUnwrittenCommandRules({
+    toolLabel: "deepagents-cli",
+    surfaceLabel: "[shell].allow_list",
+    foreignDenyCategories,
+    shadowedAllowPatterns: [],
+    ignoredAllToolsAllowPatterns,
+    logger,
+  });
 
   for (const { pattern, action } of rules) {
     if (action === "deny") {

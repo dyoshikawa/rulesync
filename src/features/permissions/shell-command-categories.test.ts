@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import {
   collectShellCommandRules,
   createShadowedAllowTest,
   partitionCommandRules,
+  warnAboutUnwrittenCommandRules,
 } from "./shell-command-categories.js";
 
 const bashRule = (pattern: string, action: PermissionAction) => ({
@@ -80,8 +82,21 @@ describe("collectShellCommandRules", () => {
     expect(foreignDenyCategories).toEqual(["write", "mcp__github"]);
   });
 
+  it("reports the all-tools allow patterns it read past", () => {
+    const { rules, ignoredAllToolsAllowPatterns } = collectShellCommandRules({
+      "*": { "git *": "allow", "rm *": "deny" },
+    });
+
+    expect(rules).toEqual([{ pattern: "rm *", action: "deny", fromAllToolsCategory: true }]);
+    expect(ignoredAllToolsAllowPatterns).toEqual(["git *"]);
+  });
+
   it("returns nothing for an empty config", () => {
-    expect(collectShellCommandRules({})).toEqual({ rules: [], foreignDenyCategories: [] });
+    expect(collectShellCommandRules({})).toEqual({
+      rules: [],
+      foreignDenyCategories: [],
+      ignoredAllToolsAllowPatterns: [],
+    });
   });
 });
 
@@ -141,15 +156,28 @@ describe("partitionCommandRules", () => {
     expect(shadowedAllowPatterns).toEqual(["git *"]);
   });
 
-  it("keeps an allow that a written deny names, because the denylist outranks it", () => {
+  it("keeps an allow that a written bash deny names, because the denylist outranks it", () => {
     const { allow, deny, shadowedAllowPatterns } = partitionCommandRules({
-      rules: [allToolsRule("rm *", "deny"), bashRule("rm *", "allow")],
+      rules: [bashRule("rm *", "deny"), bashRule("rm *", "allow")],
       writesAllToolsDeny: true,
     });
 
     expect(allow).toEqual(["rm *"]);
     expect(deny).toEqual(["rm *"]);
     expect(shadowedAllowPatterns).toEqual([]);
+  });
+
+  it("withholds the allow an all-tools deny covers even when the deny is written", () => {
+    // The tool's deny-beats-allow order only reaches the commands the pattern
+    // matches, and a pattern written under `*` need not name a command at all.
+    const { allow, deny, shadowedAllowPatterns } = partitionCommandRules({
+      rules: [allToolsRule("rm *", "deny"), bashRule("rm *", "allow"), bashRule("git *", "allow")],
+      writesAllToolsDeny: true,
+    });
+
+    expect(allow).toEqual(["git *"]);
+    expect(deny).toEqual(["rm *"]);
+    expect(shadowedAllowPatterns).toEqual(["rm *"]);
   });
 
   it("withholds instead of writing when the denylist cannot carry an all-tools pattern", () => {
@@ -179,5 +207,82 @@ describe("partitionCommandRules", () => {
 
     expect(deny).toEqual(["rm -rf .*"]);
     expect(unwrittenDenyPatterns).toEqual(["secrets/**"]);
+  });
+});
+
+describe("createShadowedAllowTest with a bracket pattern", () => {
+  it("matches an identical spelling a glob does not match against itself", () => {
+    // `compileGlob` reads `[rf]` as a character class, so the compiled pattern
+    // does not match its own text. Comparing the strings keeps a bracket
+    // anywhere in the pattern from switching the whole check off.
+    const isShadowed = createShadowedAllowTest(["rm -[rf]*"]);
+
+    expect(isShadowed("rm -[rf]*")).toBe(true);
+    expect(isShadowed("git status")).toBe(false);
+  });
+});
+
+describe("createShadowedAllowTest with a normalizer", () => {
+  it("reads both sides through the normalizer", () => {
+    // Stands in for Warp's regex-to-glob widening: without it, `.*` is a
+    // literal dot beside a wildcard rather than the catch-all it really is.
+    const isShadowed = createShadowedAllowTest(["rm"], {
+      normalizePattern: (pattern) => pattern.replaceAll(".*", "*"),
+    });
+
+    expect(isShadowed(".*")).toBe(true);
+    expect(isShadowed("git status")).toBe(false);
+  });
+});
+
+const warnedBy = (
+  overrides: Partial<Parameters<typeof warnAboutUnwrittenCommandRules>[0]>,
+): string[] => {
+  const logger = createMockLogger();
+  warnAboutUnwrittenCommandRules({
+    toolLabel: "Warp",
+    surfaceLabel: "commandAllowlist/commandDenylist",
+    foreignDenyCategories: [],
+    shadowedAllowPatterns: [],
+    logger,
+    ...overrides,
+  });
+  return logger.warn.mock.calls.map(([message]) => String(message));
+};
+
+describe("warnAboutUnwrittenCommandRules", () => {
+  it("says nothing when every rule was written", () => {
+    expect(warnedBy({})).toEqual([]);
+  });
+
+  it("names each category whose deny rules the command lists cannot carry", () => {
+    const warnings = warnedBy({ foreignDenyCategories: ["write", "webfetch"] });
+
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain("'write' deny rules cannot be represented");
+    expect(warnings[1]).toContain("'webfetch' deny rules cannot be represented");
+  });
+
+  it("gives the tool's own reason for a deny it could not write", () => {
+    const warnings = warnedBy({
+      unwrittenDenyPatterns: ["secrets/**"],
+      unwrittenDenyReason: "its denylist replaces the built-in one.",
+    });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("secrets/**");
+    expect(warnings[0]).toContain("its denylist replaces the built-in one.");
+  });
+
+  it("reports the all-tools allow rules it read past", () => {
+    expect(warnedBy({ ignoredAllToolsAllowPatterns: ["git *"] })).toEqual([
+      expect.stringContaining("deny and ask rules only"),
+    ]);
+  });
+
+  it("reports the allow rules a restriction withheld", () => {
+    expect(warnedBy({ shadowedAllowPatterns: ["git *"] })).toEqual([
+      expect.stringContaining("was not given the allow rule(s) for git *"),
+    ]);
   });
 });

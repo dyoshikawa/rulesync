@@ -49,6 +49,7 @@ type ClineTranslationResult = {
   droppedCategories: string[];
   translatedAskPatterns: string[];
   shadowedAllowPatterns: string[];
+  ignoredAllToolsAllowPatterns: string[];
 };
 
 /**
@@ -70,7 +71,7 @@ function translateClinePermissions(
     (category) =>
       category !== SHELL_PERMISSION_CATEGORY && category !== ALL_TOOLS_PERMISSION_CATEGORY,
   );
-  const { rules } = collectShellCommandRules(permission);
+  const { rules, ignoredAllToolsAllowPatterns } = collectShellCommandRules(permission);
   // Cline does not document a deny-priority, so a pattern the config restricts
   // must not be written to `allow` at all — leaving it there would hand the
   // decision to an undocumented tie-break.
@@ -97,7 +98,14 @@ function translateClinePermissions(
     allow.push(pattern);
   }
 
-  return { allow, deny, droppedCategories, translatedAskPatterns, shadowedAllowPatterns };
+  return {
+    allow,
+    deny,
+    droppedCategories,
+    translatedAskPatterns,
+    shadowedAllowPatterns,
+    ignoredAllToolsAllowPatterns,
+  };
 }
 
 /**
@@ -110,17 +118,20 @@ function warnClineTranslationNotices({
   droppedCategories,
   translatedAskPatterns,
   shadowedAllowPatterns,
+  ignoredAllToolsAllowPatterns,
   logger,
 }: {
   droppedCategories: string[];
   translatedAskPatterns: string[];
   shadowedAllowPatterns: string[];
+  ignoredAllToolsAllowPatterns: string[];
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
   if (
     droppedCategories.length === 0 &&
     translatedAskPatterns.length === 0 &&
-    shadowedAllowPatterns.length === 0
+    shadowedAllowPatterns.length === 0 &&
+    ignoredAllToolsAllowPatterns.length === 0
   ) {
     return;
   }
@@ -140,8 +151,15 @@ function warnClineTranslationNotices({
   if (shadowedAllowPatterns.length > 0) {
     parts.push(
       `'allow' rules for [${shadowedAllowPatterns.join(", ")}] withheld because the same ` +
-        `patterns are restricted elsewhere in the config, and Cline documents no ` +
+        `commands are restricted elsewhere in the config, and Cline documents no ` +
         `deny-priority`,
+    );
+  }
+  if (ignoredAllToolsAllowPatterns.length > 0) {
+    parts.push(
+      `'allow' rules for [${ignoredAllToolsAllowPatterns.join(", ")}] under the all-tools '*' ` +
+        `category skipped (only its deny and ask rules are read, since a pattern written ` +
+        `there need not be a command); write them under 'bash' to auto-approve them`,
     );
   }
   logger?.warn(`WARNING: Cline command permissions translation notice: ${parts.join("; ")}.`);
@@ -220,13 +238,20 @@ export class ClinePermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const { allow, deny, droppedCategories, translatedAskPatterns, shadowedAllowPatterns } =
-      translateClinePermissions(config.permission);
+    const {
+      allow,
+      deny,
+      droppedCategories,
+      translatedAskPatterns,
+      shadowedAllowPatterns,
+      ignoredAllToolsAllowPatterns,
+    } = translateClinePermissions(config.permission);
 
     warnClineTranslationNotices({
       droppedCategories,
       translatedAskPatterns,
       shadowedAllowPatterns,
+      ignoredAllToolsAllowPatterns,
       logger,
     });
 
