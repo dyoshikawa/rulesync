@@ -37,8 +37,10 @@ import {
   readJsonFile,
   removeDirectory,
   removeFile,
+  posixRelativePathEscapesRoot,
   removeTempDirectory,
   resolvedPathEscapesRoot,
+  resolvedRelativePath,
   runWithDirectoryRollback,
   resolvePath,
   toKebabCaseFilename,
@@ -892,6 +894,75 @@ describe("file utilities", () => {
 
         expect(
           await resolvedPathEscapesRoot({ rootPath: root, targetPath: join(testDir, "missing") }),
+        ).toBe(true);
+      });
+    });
+
+    describe("resolvedRelativePath", () => {
+      it("should give the path from the root to a directory really under it", async () => {
+        const root = join(testDir, "root");
+        const target = join(root, "nested", "deep");
+        await ensureDir(target);
+
+        expect(await resolvedRelativePath({ rootPath: root, targetPath: target })).toBe(
+          "nested/deep",
+        );
+      });
+
+      it("should give an empty path for the root itself", async () => {
+        const root = join(testDir, "root");
+        await ensureDir(root);
+
+        expect(await resolvedRelativePath({ rootPath: root, targetPath: root })).toBe("");
+      });
+
+      it.skipIf(process.platform === "win32")(
+        "should give the path the link leads to rather than the one it is spelled at",
+        async () => {
+          // The name is spelled two levels down inside the root; what it denotes
+          // sits one level down, under an entirely different name.
+          const root = join(testDir, "root");
+          const real = join(root, "real");
+          await ensureDir(real);
+          await ensureDir(join(root, "parent"));
+          await symlink(real, join(root, "parent", "link"));
+
+          expect(
+            await resolvedRelativePath({
+              rootPath: root,
+              targetPath: join(root, "parent", "link"),
+            }),
+          ).toBe("real");
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should climb out of the root when the link leads out of it",
+        async () => {
+          const root = join(testDir, "root");
+          const outside = join(testDir, "outside");
+          await ensureDir(root);
+          await ensureDir(outside);
+          await symlink(outside, join(root, "link"));
+
+          expect(
+            await resolvedRelativePath({ rootPath: root, targetPath: join(root, "link") }),
+          ).toBe("../outside");
+        },
+      );
+
+      it("should fall back to the literal path when the target cannot be resolved", async () => {
+        // Unresolvable has to read as an escape rather than as containment, so the
+        // literal path is kept instead of the question going unanswered.
+        const root = await realpath(testDir);
+
+        expect(
+          posixRelativePathEscapesRoot(
+            await resolvedRelativePath({
+              rootPath: join(root, "root"),
+              targetPath: join(root, "missing"),
+            }),
+          ),
         ).toBe(true);
       });
     });

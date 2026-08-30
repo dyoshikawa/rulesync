@@ -1706,6 +1706,77 @@ Broken YAML`,
       },
     );
 
+    it.skipIf(process.platform === "win32")(
+      "should refuse a nested skills directory that resolves to no skills directory at all",
+      async () => {
+        // `a\\b` is reported at `a/b`, and `a/b/.claude/skills` here is a link
+        // into the dependency tree. What it resolves to no longer ends with the
+        // `.claude/skills` tail, so the segments above that tail -- the ones the
+        // exclusion rules judge -- are not the ones a fixed-length strip takes.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await writeFileContent(
+          join(outputRoot, "node_modules", "skills", "evil-skill", "SKILL.md"),
+          "---\nname: evil-skill\ndescription: Evil description\n---\nEvil body",
+        );
+        await writeFileContent(
+          join(outputRoot, "a\\b", ".claude", "skills", "decoy", "SKILL.md"),
+          "---\nname: decoy\ndescription: Decoy description\n---\nDecoy body",
+        );
+        await ensureDir(join(outputRoot, "a", "b", ".claude"));
+        await symlink(
+          join(outputRoot, "node_modules", "skills"),
+          join(outputRoot, "a", "b", ".claude", "skills"),
+        );
+
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        expect(toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName())).not.toContain(
+          "evil-skill",
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            'it resolves to "node_modules/skills", which is not a .claude/skills directory',
+          ),
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should refuse a nested skills directory that resolves onto the project root",
+      async () => {
+        // The shallowest shape of the same link: the project root's own relative
+        // path is empty, so it escapes nothing, and reading it as a skills tree
+        // would hand every directory in the project to the importer as a skill.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await writeFileContent(join(outputRoot, "some-dir", "notes.md"), "Not a skill at all");
+        await writeFileContent(
+          join(outputRoot, "a\\b", ".claude", "skills", "decoy", "SKILL.md"),
+          "---\nname: decoy\ndescription: Decoy description\n---\nDecoy body",
+        );
+        await ensureDir(join(outputRoot, "a", "b", ".claude"));
+        await symlink(outputRoot, join(outputRoot, "a", "b", ".claude", "skills"));
+
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        expect(toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName())).not.toContain(
+          "some-dir",
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("which is not a .claude/skills directory"),
+        );
+      },
+    );
+
     it("should still abort import for non-lenient tools when a declared-root skill is invalid", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),

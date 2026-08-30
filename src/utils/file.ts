@@ -637,6 +637,18 @@ export async function resolvedRelativePath({
 }
 
 /**
+ * Whether a posix relative path -- one {@link resolvedRelativePath} returned, or any
+ * built the same way -- leads out of the root it was taken against.
+ *
+ * Exported so a caller that already holds the relative path can ask this of the very
+ * path it goes on to read, instead of resolving both sides a second time and judging
+ * a result it then has to trust is the same one.
+ */
+export function posixRelativePathEscapesRoot(relativePath: string): boolean {
+  return relativePath === ".." || relativePath.startsWith("../") || posix.isAbsolute(relativePath);
+}
+
+/**
  * Whether the file `targetPath` really denotes sits outside `rootPath`. Unlike
  * `pathEscapesRoot`, which reads a path as it is spelled, this resolves every link
  * on both sides first, so a name that sits inside the root but is a link pointing
@@ -650,8 +662,7 @@ export async function resolvedPathEscapesRoot({
   rootPath: string;
   targetPath: string;
 }): Promise<boolean> {
-  const relativePath = await resolvedRelativePath({ rootPath, targetPath });
-  return relativePath === ".." || relativePath.startsWith("../") || posix.isAbsolute(relativePath);
+  return posixRelativePathEscapesRoot(await resolvedRelativePath({ rootPath, targetPath }));
 }
 
 /**
