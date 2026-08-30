@@ -59,8 +59,8 @@ const MAX_SKILL_LABEL_WIDTH = 72;
  * The widest the three can come to rather than the width they usually are.
  * `@inquirer/figures` draws the pointer and the box as `❯` and `◯` where the
  * terminal has the font for them and as `>` and `( )` where it does not — the
- * Linux console, and Windows conhost outside Terminal — and the fallback box
- * alone is three columns. The Unicode pair is East Asian Ambiguous, which this
+ * Linux console, and the older Windows console outside Terminal — and the
+ * fallback box alone is three columns. The Unicode pair is East Asian Ambiguous, which this
  * project counts at one column apiece and a terminal set to draw ambiguous
  * characters wide draws at two. Both ends of that come to five, so five is what
  * is reserved: a budget that is two columns short is a row that wraps, and two
