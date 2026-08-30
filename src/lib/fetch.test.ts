@@ -1822,6 +1822,52 @@ describe("fetchFiles with skill selection", () => {
     });
   });
 
+  it("should judge a case variant of a local skill by what the filesystem does with it", async () => {
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    // Whether `Deploy` is a second directory or another way of spelling the one
+    // that is already there is the filesystem's answer to give, not the
+    // listing's: macOS and Windows fold the pair, Linux does not.
+    const folds = await directoryExists(join(testDir, ".rulesync", "skills", "Deploy"));
+    mockSkillRepositoryWithSkills(["Deploy"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["Deploy", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: folds ? [] : ["deploy"],
+    });
+  });
+
+  it("should keep comparing against a local skill the listing does not name", async () => {
+    // Only the ambiguous pairs are asked about. A local skill with no
+    // case-folded twin on the list is compared against whatever the list holds.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockSkillRepositoryWithSkills(["dep1oy"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["dep1oy", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
   it("should count a local skill kept as a symlink", async () => {
     // A skill linked into a shared tree is a skill the user has: `readdir`
     // reports the link rather than the directory behind it, so a filter that

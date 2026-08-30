@@ -1,4 +1,4 @@
-import { caseFoldIdentity } from "../types/feature-processor.js";
+// cspell:ignore forrnat -- a lookalike spelling named in the documentation below
 import { stripHiddenCharacters } from "./control-characters.js";
 
 /**
@@ -488,7 +488,7 @@ function latinSkeletonOf(name: string): string {
 
 /**
  * The letter pairs that are drawn as a single other letter once they are set
- * side by side: `rn` for `m`, `vv` for `w`, `cl` for `d`.
+ * side by side: `rn` for `m`, `vv` for `w`.
  *
  * The tables above map one character onto one character, which is what the
  * confusable data of UTS #39 is mostly made of, and it is why `dep1oy` is
@@ -498,11 +498,23 @@ function latinSkeletonOf(name: string): string {
  * pair either. Only the direction that loses information is folded, so both
  * spellings converge on the shorter one and a name that already holds the
  * single letter is left as it is.
+ *
+ * A pair is one column wider than the letter it imitates, which is the same
+ * objection that keeps the em dash out of the tables above. It is not the same
+ * situation: the em dash is judged beside the hyphen it imitates, both drawn on
+ * screen, where a difference in width is a difference a reader can see, while
+ * the name a pair imitates is a skill on disk that no row shows. Counting the
+ * columns of a name is no help when there is nothing to count them against.
+ *
+ * `cl` for `d` is deliberately not on the list, though it is the third of the
+ * classic three. `cl` opens too many ordinary words — `clean`, `clear`,
+ * `clone`, `cli` — and folding it would report `clone` against a `done` the
+ * user happens to have, on a fetch where nothing is wrong. The two that are
+ * left are pairs a name has little other reason to hold.
  */
 const LATIN_DIGRAPH_LOOKALIKES: ReadonlyArray<readonly [string, string]> = [
   ["rn", "m"],
   ["vv", "w"],
-  ["cl", "d"],
 ];
 
 /**
@@ -643,21 +655,14 @@ function countComparableForms(forms: ReadonlyArray<{ displayForm: string; skelet
  * — a repository publishing `dep1oy` alone, against a `deploy` the user has had
  * for months — is a list with nothing to compare, and every check stays quiet.
  *
- * A local name that names the same directory as one on the list is dropped from
- * the comparison first: that is the skill being updated rather than one
- * imitating it, and a second fetch of the same repository would otherwise mark
- * every row it refreshes. Same directory is decided by `caseFoldIdentity`, the
- * form the rest of the tool compares skill names in, so a local `pdf` beside a
- * listed `PDF` and a name stored decomposed beside the composed spelling of it
- * are both taken for the skill they refresh. That is deliberately wider than
- * exact equality: macOS answers to either spelling, macOS and Windows ignore the
- * case, and a mark that fires on every fetch for every accented or Japanese name
- * on such a volume would bury the one that means something. Where the two really
- * are separate directories the prune guard says so after the write, naming the
- * variant it found beside the one it was asked to prune.
- *
- * Wider than that it does not go: a fullwidth `ｐｄｆ` is a second directory on
- * every filesystem, and stays a collision.
+ * A local name spelled exactly like one on the list is dropped from the
+ * comparison first: that is the skill being updated rather than one imitating
+ * it, and a second fetch of the same repository would otherwise mark every row
+ * it refreshes. Only that much is decided here, because only that much can be
+ * decided from the names alone. Whether a local `pdf` is also the directory a
+ * listed `PDF` would be written into is a question about the filesystem, not
+ * about the spellings, and the caller answers it before handing the names over
+ * — see `readSkillRootNames` and its caller in `fetch.ts`.
  *
  * Where both a listed name and a local one collide, the listed one is named — it
  * is the pair a reader can compare on screen — and the row carries one reason
@@ -673,12 +678,10 @@ export function describeConfusableNames(params: {
 }): Map<string, string> {
   const { names, localNames } = params;
   const entries = [...new Set(names)].map((name) => ({ name, ...comparableFormsOf(name) }));
-  const listedIdentities = new Set(entries.map((entry) => caseFoldIdentity(entry.name)));
+  const listed = new Set(entries.map((entry) => entry.name));
   const counts = countComparableForms(entries);
   const localCounts = countComparableForms(
-    [...new Set(localNames)]
-      .filter((name) => !listedIdentities.has(caseFoldIdentity(name)))
-      .map(comparableFormsOf),
+    [...new Set(localNames)].filter((name) => !listed.has(name)).map(comparableFormsOf),
   );
 
   const notes = new Map<string, string>();

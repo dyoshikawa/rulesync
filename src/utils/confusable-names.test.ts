@@ -1,3 +1,4 @@
+// cspell:ignore eploy forrnat revievv -- deliberate lookalike spellings used as fixtures
 import { describe, expect, it } from "vitest";
 
 import { describeConfusableNames, mixedScriptsOf } from "./confusable-names.js";
@@ -450,16 +451,15 @@ describe("describeConfusableNames", () => {
     );
   });
 
-  it("should not report a local name that differs only in case or composition", () => {
-    // Both spellings name one directory on the filesystems that fold them, so
-    // this is the skill the row refreshes rather than one imitating it. Marking
-    // it would mark every accented or Japanese name on a volume that stores
-    // them decomposed, on every fetch.
+  it("should report a local name that differs only in case or composition", () => {
+    // Whether these name one directory is a question about the filesystem, and
+    // the caller settles it before the names get here: what reaches this
+    // function is a local skill it has already decided is a separate directory.
     expect(describeConfusableNames({ names: ["Deploy"], localNames: ["deploy"] })).toEqual(
-      new Map(),
+      new Map([["Deploy", "a local skill has the same display form"]]),
     );
     expect(describeConfusableNames({ names: ["caf\u00e9"], localNames: ["cafe\u0301"] })).toEqual(
-      new Map(),
+      new Map([["caf\u00e9", "a local skill has the same display form"]]),
     );
   });
 
@@ -483,6 +483,13 @@ describe("describeConfusableNames", () => {
         ["review", "another entry differs from it only by lookalike letters"],
       ]),
     );
+  });
+
+  it("should leave the pairs that open ordinary words alone", () => {
+    // `cl` for `d` is the third of the classic three and is not folded: it
+    // opens too many words to tell an imitation from a name.
+    expect(describeConfusableNames({ names: ["clone"], localNames: ["done"] })).toEqual(new Map());
+    expect(describeConfusableNames({ names: ["cli"], localNames: ["di"] })).toEqual(new Map());
   });
 
   it("should not describe the local names themselves", () => {

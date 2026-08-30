@@ -36,7 +36,7 @@ import type {
   ParsedSource,
 } from "../types/fetch.js";
 import type { ToolTarget } from "../types/tool-targets.js";
-import { describeConfusableNames } from "../utils/confusable-names.js";
+import { describeConfusableNames, readingFormOf } from "../utils/confusable-names.js";
 import {
   hasDeceptiveHiddenCharacters,
   stripControlCharacters,
@@ -46,6 +46,7 @@ import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
   createTempDirectory,
+  directoryExists,
   fileExists,
   isFileNotFoundError,
   isFileSystemError,
@@ -476,10 +477,10 @@ async function applySkillSelection(params: {
   files: CollectedFile[];
   requestedSkills: string[];
   interactive: boolean;
-  localSkillNames: string[];
+  outputBasePath: string;
   logger: Logger;
 }): Promise<CollectedFile[]> {
-  const { files, requestedSkills, interactive, localSkillNames, logger } = params;
+  const { files, requestedSkills, interactive, outputBasePath, logger } = params;
 
   // Without --skills and without --interactive there is no selection to apply:
   // every skill the repository publishes is fetched. The unsafe names are still
@@ -488,6 +489,13 @@ async function applySkillSelection(params: {
   const selectsEverything = requestedSkills.length === 0 && !interactive;
 
   const availableSkills = listAvailableSkills(files);
+  // Read before anything is written, so the comparison is against the skills
+  // the user had rather than against the ones this run is about to add.
+  const localSkillNames = await localSkillNamesToCompare({
+    outputBasePath,
+    localNames: await readSkillRootNames(outputBasePath),
+    listedNames: availableSkills,
+  });
 
   let selectedSkills: string[] = [];
   if (!selectsEverything) {
@@ -685,28 +693,22 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
  * `skills/PDF` lands in an existing `skills/pdf` and leaves the old name behind
  * in the listing.
  *
- * `followingLinks` decides whether a symlink standing where a skill directory
- * would be counts as one. `readdir` reports the link rather than what it points
- * at, so the two callers want different answers: a prune walks the names it is
- * given and deleting through a link would reach outside the tree, while a
- * comparison of names against names only ever reads the name, and a skill kept
- * as a link into a shared tree — an ordinary arrangement in a monorepo — is a
- * skill the user has. Missing it there would quietly turn the check off for
- * exactly the people who arranged their skills that way.
+ * A symlink standing where a skill directory would be counts as one. `readdir`
+ * reports the link rather than what it points at, and a skill kept as a link
+ * into a shared tree — an ordinary arrangement in a monorepo — is a skill the
+ * user has. Both callers only ever read the names: nothing here follows a link,
+ * and the prune walk's own guard is what keeps a delete from reaching through
+ * one.
  */
-async function readSkillRootNames(params: {
-  outputBasePath: string;
-  followingLinks: boolean;
-}): Promise<string[]> {
-  const { outputBasePath, followingLinks } = params;
+async function readSkillRootNames(outputBasePath: string): Promise<string[]> {
   try {
     const entries = await readdir(join(outputBasePath, SKILLS_DIR_NAME), {
       withFileTypes: true,
     });
-    // Directories only: a skill is a directory, and a file beside them shares
-    // no name with one it could be mistaken for.
+    // Directories and links to them: a skill is a directory, and a file beside
+    // them shares no name with one it could be mistaken for.
     return entries
-      .filter((entry) => entry.isDirectory() || (followingLinks && entry.isSymbolicLink()))
+      .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
       .map((entry) => entry.name);
   } catch {
     // No skills directory, or one that cannot be read: nothing to compare
@@ -714,6 +716,71 @@ async function readSkillRootNames(params: {
     // own terms below rather than being stopped short here.
     return [];
   }
+}
+
+/**
+ * The local skill names an incoming listing is worth being compared against.
+ *
+ * A name the fetch would write into is the skill being refreshed rather than
+ * one imitating it, and marking it would put a note on a row that is doing
+ * exactly what the user asked. An identical spelling is that case and
+ * `describeConfusableNames` drops it on its own. The spellings that differ only
+ * in case, or only in how the name is composed in Unicode, are the ones no
+ * comparison of names can settle: `skills/PDF` is `skills/pdf` on macOS and
+ * Windows and a second directory on Linux, so the same pair is a quiet refresh
+ * on one machine and two directories that read alike on another.
+ *
+ * So the filesystem is asked, once per ambiguous pair. A listed name that is
+ * absent from the listing but resolves to a directory anyway is a name this
+ * filesystem folds onto one of the entries, and the local name it folds onto is
+ * dropped; where it resolves to nothing, the two are separate directories and
+ * the local name stays in the comparison. Dropping it also asks that the two
+ * read alike, so that a local name a second entry imitates keeps its place on
+ * the comparison even while the first entry refreshes it. That the listed name comes from the
+ * remote repository is safe to join here without a further check: it case-folds
+ * onto a name `readdir` returned, and no separator survives being folded into
+ * one that holds none.
+ */
+async function localSkillNamesToCompare(params: {
+  outputBasePath: string;
+  localNames: string[];
+  listedNames: string[];
+}): Promise<string[]> {
+  const { outputBasePath, localNames, listedNames } = params;
+  const localSpellings = new Set(localNames);
+  const listedByIdentity = new Map<string, string[]>();
+  for (const name of listedNames) {
+    const identity = caseFoldIdentity(name);
+    listedByIdentity.set(identity, [...(listedByIdentity.get(identity) ?? []), name]);
+  }
+
+  const kept: string[] = [];
+  for (const localName of localNames) {
+    // Only the spellings that differ: an identical one is the refresh case, and
+    // it is the listing's own business rather than the filesystem's.
+    const twins = (listedByIdentity.get(caseFoldIdentity(localName)) ?? []).filter(
+      (name) =>
+        name !== localName &&
+        // A twin that is on the local listing too is a directory of its own, so
+        // it says nothing about what this name folds onto.
+        !localSpellings.has(name) &&
+        // And it has to read alike as well as fold alike, or dropping the local
+        // name would hide more than the refresh: `API` folds onto a listed
+        // `api`, but it reads as `APl`, so a listing that also carried `AP1`
+        // would lose the only name that name imitates. Where the two forms
+        // agree — `pdf` beside `PDF`, a composed name beside its decomposed
+        // spelling — the local name has nothing left to say that the twin does
+        // not say in its place.
+        readingFormOf(name) === readingFormOf(localName),
+    );
+    const folded = await Promise.all(
+      twins.map((name) => directoryExists(join(outputBasePath, SKILLS_DIR_NAME, name))),
+    );
+    if (!folded.includes(true)) {
+      kept.push(localName);
+    }
+  }
+  return kept;
 }
 
 /**
@@ -1092,7 +1159,7 @@ async function pruneStaleSkillFiles(params: {
     }
   }
 
-  const localSkillNames = await readSkillRootNames({ outputBasePath, followingLinks: false });
+  const localSkillNames = await readSkillRootNames(outputBasePath);
 
   const deleted: FetchFileResult[] = [];
   for (const [skillDir, remoteDir] of [...skillDirs].toSorted(([a], [b]) => (a < b ? -1 : 1))) {
@@ -1410,9 +1477,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     files: collectedFiles,
     requestedSkills,
     interactive,
-    // Read before anything is written, so the comparison is against the skills
-    // the user had rather than against the ones this run is about to add.
-    localSkillNames: await readSkillRootNames({ outputBasePath, followingLinks: true }),
+    outputBasePath,
     logger,
   });
 
@@ -1666,7 +1731,7 @@ async function fetchAndConvertToolFiles(params: {
       files: collectedFiles,
       requestedSkills,
       interactive,
-      localSkillNames: await readSkillRootNames({ outputBasePath, followingLinks: true }),
+      outputBasePath,
       logger,
     });
 

@@ -1,3 +1,4 @@
+// cspell:ignore lette revievv -- a lookalike fixture and a label cut mid-word on purpose
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { displayWidthOf } from "../utils/display-width.js";
@@ -318,6 +319,30 @@ describe("promptSkillSelection", () => {
       "[!] a local skill differs from it only by lookalike letters \u2014 dep1oy",
     );
     expect(choices[0]?.value).toBe("dep1oy");
+  });
+
+  it("should number the rows a folded letter pair reads alike", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // `vv` folds onto `w`, so both rows carry the same note and the same
+    // reading. The numbers are what says there are two of them.
+    await promptSkillSelection({
+      availableSkills: ["review", "revievv"],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(choices[0]?.name).toBe(
+      "(1) [!] another entry differs from it only by lookalike letters \u2014 review",
+    );
+    // One column longer than the row above it, so its reasons are cut by one.
+    expect(choices[1]?.name).toBe(
+      "(2) [!] another entry differs from it only by lookalike lette\u2026 \u2014 revievv",
+    );
+    expect(choices[1]?.value).toBe("revievv");
   });
 
   it("should not offer the local skill names as rows of their own", async () => {
