@@ -1391,6 +1391,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     expect(summary.files).toEqual([{ relativePath: "skills/skill-b/SKILL.md", status: "created" }]);
   });
@@ -1410,6 +1411,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: ["skill-a"],
+      localSkillNames: [],
     });
   });
 
@@ -1467,6 +1469,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     const relativePaths = summary.files.map((f) => f.relativePath).toSorted();
     expect(relativePaths).toEqual(["skills/README.md", "skills/skill-a/SKILL.md"]);
@@ -1488,6 +1491,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     expect(summary.files).toEqual([]);
     // Nothing is left of the name to print, so the warning says so rather than
@@ -1539,6 +1543,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     expect(summary.files.map((f) => f.relativePath)).toEqual(["skills/skill-a/SKILL.md"]);
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"pdf"'));
@@ -1760,6 +1765,63 @@ describe("fetchFiles with skill selection", () => {
     expect(warning).not.toContain('"copy"');
   });
 
+  it("should judge a fetched name against the skills already in the output directory", async () => {
+    // The attack the remote listing cannot show: the repository publishes only
+    // the imitation, so there is no twin beside it to compare, and the name is
+    // plain ASCII in one script. What it reads like is a skill the user has
+    // had all along.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockSkillRepositoryWithSkills(["dep1oy"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath)).toContain("skills/dep1oy/SKILL.md");
+    const warning = logger.warn.mock.calls
+      .map(([message]) => String(message))
+      .find((message) => message.includes("may not be told apart on sight"));
+    expect(warning).toContain("a local skill differs from it only by lookalike letters");
+    expect(warning).toContain('"dep1oy"');
+  });
+
+  it("should not mark a fetched name against the local skill of the same name", async () => {
+    // The ordinary case: fetching the same repository a second time refreshes
+    // the skills it wrote the first time. Every row would carry a note if a
+    // local name spelled exactly like a remote one counted as a collision.
+    await ensureDir(join(testDir, ".rulesync", "skills", "skill-a"));
+    mockMultiSkillRepository();
+
+    await fetchFiles({ logger, source: "owner/repo", options: {}, outputRoot: testDir });
+
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("may not be told apart on sight"),
+    );
+  });
+
+  it("should pass the local skill names to the interactive prompt", async () => {
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
   it("should count the lookalike names it does not spell out", async () => {
     // Six pairs, each a name and the same name with a capital I for the l:
     // twelve noted names, of which the warning spells out ten.
@@ -1819,6 +1881,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
   });
 

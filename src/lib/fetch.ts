@@ -476,9 +476,10 @@ async function applySkillSelection(params: {
   files: CollectedFile[];
   requestedSkills: string[];
   interactive: boolean;
+  localSkillNames: string[];
   logger: Logger;
 }): Promise<CollectedFile[]> {
-  const { files, requestedSkills, interactive, logger } = params;
+  const { files, requestedSkills, interactive, localSkillNames, logger } = params;
 
   // Without --skills and without --interactive there is no selection to apply:
   // every skill the repository publishes is fetched. The unsafe names are still
@@ -516,6 +517,7 @@ async function applySkillSelection(params: {
         selectedSkills = await promptSkillSelection({
           availableSkills,
           preselectedSkills: requestedSkills,
+          localSkillNames,
         });
         if (selectedSkills.length === 0) {
           logger.warn("No skills were selected in the interactive prompt; skipping all skills.");
@@ -555,6 +557,7 @@ async function applySkillSelection(params: {
     const confusable = formatConfusableSkillsWarning({
       fetched: listAvailableSkills(selected),
       available: availableSkills,
+      localSkillNames,
     });
     if (confusable !== undefined) {
       logger.warn(confusable);
@@ -590,23 +593,27 @@ function formatCappedList(params: { items: string[]; separator: string }): strin
  *
  * The same notes the interactive prompt puts beside a row, for the runs that
  * have no prompt to put them beside — judged the way the prompt judges them,
- * against every name the repository publishes rather than against the few a
- * `--skills` run picked out of them. It changes nothing about what is fetched:
- * a name that reads like another is still a name the user asked for, on a path
- * where there is nobody to ask.
+ * against every name the repository publishes and every skill already in the
+ * output directory, rather than against the few a `--skills` run picked out of
+ * them. It changes nothing about what is fetched: a name that reads like
+ * another is still a name the user asked for, on a path where there is nobody
+ * to ask.
  */
 function formatConfusableSkillsWarning(params: {
   fetched: string[];
   available: string[];
+  localSkillNames: string[];
 }): string | undefined {
-  const { fetched, available } = params;
+  const { fetched, available, localSkillNames } = params;
   // Judged against everything the repository publishes, listed for what this
   // run writes. A name is confusable with another name, and the other one need
   // not have been selected: `--skills c0py` fetches one directory, and that the
   // repository also publishes `copy` is exactly what the user has to be told.
   const fetchedNames = new Set(fetched);
   const notes = new Map(
-    [...describeConfusableNames(available)].filter(([name]) => fetchedNames.has(name)),
+    [...describeConfusableNames({ names: available, localNames: localSkillNames })].filter(
+      ([name]) => fetchedNames.has(name),
+    ),
   );
   if (notes.size === 0) {
     return undefined;
@@ -616,8 +623,9 @@ function formatConfusableSkillsWarning(params: {
     .map(([name, note]) => `${JSON.stringify(stripControlCharacters(name))} (${note})`);
   return (
     `Some fetched skill names may not be told apart on sight from what they appear to be \u2014 ` +
-    `either from another name the source repository publishes, which this run may not have ` +
-    `fetched, or from the plainer name the row itself reads as: ` +
+    `from another name the source repository publishes, which this run may not have fetched, ` +
+    `from a skill already in the output directory, or from the plainer name the row itself ` +
+    `reads as: ` +
     `${formatCappedList({ items: described, separator: "; " })}. ` +
     `Check that each is the skill you meant to fetch.`
   );
@@ -1327,6 +1335,8 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     intendedRootDir: outputRoot,
   });
 
+  const outputBasePath = join(outputRoot, outputDir);
+
   // Initialize GitHub client
   const token = GitHubClient.resolveToken(options.token);
   const client = new GitHubClient({ token });
@@ -1385,6 +1395,9 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     files: collectedFiles,
     requestedSkills,
     interactive,
+    // Read before anything is written, so the comparison is against the skills
+    // the user had rather than against the ones this run is about to add.
+    localSkillNames: await readSkillRootNames(outputBasePath),
     logger,
   });
 
@@ -1392,9 +1405,6 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     logger.warn(`No files found matching enabled features: ${enabledFeatures.join(", ")}`);
     return emptyFetchSummary({ source: `${parsed.owner}/${parsed.repo}`, ref });
   }
-
-  // Process files in parallel with concurrency control
-  const outputBasePath = join(outputRoot, outputDir);
 
   // Validate paths and check file sizes first (synchronous checks)
   for (const { relativePath, size } of filesToFetch) {
@@ -1614,6 +1624,8 @@ async function fetchAndConvertToolFiles(params: {
     logger,
   } = params;
 
+  const outputBasePath = join(outputRoot, outputDir);
+
   // Create a unique temporary directory
   const tempDir = await createTempDirectory();
   logger.debug(`Created temp directory: ${tempDir}`);
@@ -1639,6 +1651,7 @@ async function fetchAndConvertToolFiles(params: {
       files: collectedFiles,
       requestedSkills,
       interactive,
+      localSkillNames: await readSkillRootNames(outputBasePath),
       logger,
     });
 
@@ -1678,7 +1691,6 @@ async function fetchAndConvertToolFiles(params: {
     );
 
     // Convert fetched files to rulesync format
-    const outputBasePath = join(outputRoot, outputDir);
     const { converted, convertedPaths } = await convertFetchedFilesToRulesync({
       tempDir,
       outputDir: outputBasePath,

@@ -55,6 +55,7 @@ describe("promptSkillSelection", () => {
     const selected = await promptSkillSelection({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
 
     expect(checkboxMock).toHaveBeenCalledWith({
@@ -74,6 +75,7 @@ describe("promptSkillSelection", () => {
     const selected = await promptSkillSelection({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: ["skill-b"],
+      localSkillNames: [],
     });
 
     expect(checkboxMock).toHaveBeenCalledWith({
@@ -96,6 +98,7 @@ describe("promptSkillSelection", () => {
     await promptSkillSelection({
       availableSkills: ["skill", lookalike],
       preselectedSkills: [],
+      localSkillNames: [],
     });
 
     // The value is still the real name, so a checked box writes the directory
@@ -129,7 +132,11 @@ describe("promptSkillSelection", () => {
     // so the whole row is the name.
     const long = `pdf${"o".repeat(100)}`;
 
-    await promptSkillSelection({ availableSkills: [long], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [long],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     // The value is untouched, so the shortened label still selects the skill it
     // names.
@@ -147,7 +154,11 @@ describe("promptSkillSelection", () => {
     // the only thing that says the row reaches past what can be seen of it.
     const padded = `pdf${" ".repeat(100)}pdf`;
 
-    await promptSkillSelection({ availableSkills: [padded], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [padded],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     expect(checkboxMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -169,7 +180,11 @@ describe("promptSkillSelection", () => {
     const long = `pdf${"o".repeat(100)}`;
     const notedNames = ["skill", "Skill", long];
 
-    await promptSkillSelection({ availableSkills: notedNames, preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: notedNames,
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
     for (const choice of choices) {
@@ -186,7 +201,11 @@ describe("promptSkillSelection", () => {
     // this one wrap and paint a second row of its own.
     const wide = `pdf${"\u3000".repeat(60)}pdf`;
 
-    await promptSkillSelection({ availableSkills: [wide], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [wide],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
       name: string;
@@ -204,7 +223,11 @@ describe("promptSkillSelection", () => {
     const first = `${shared}-official`;
     const second = `${shared}-not-official`;
 
-    await promptSkillSelection({ availableSkills: [first, second], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [first, second],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     // The number leads the row, so it is not left sitting past the untrusted
     // half of the label, and the name is cut to leave room for it.
@@ -226,6 +249,7 @@ describe("promptSkillSelection", () => {
     await promptSkillSelection({
       availableSkills: [`${shared}-official`, `${shared}-not-official`],
       preselectedSkills: [],
+      localSkillNames: [],
     });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
@@ -241,7 +265,11 @@ describe("promptSkillSelection", () => {
     // which marked row is which.
     const hidden = "pd\u200bf";
 
-    await promptSkillSelection({ availableSkills: ["pdf", hidden], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: ["pdf", hidden],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
       name: string;
@@ -258,7 +286,11 @@ describe("promptSkillSelection", () => {
     checkboxMock.mockResolvedValue([]);
     const impostor = "[!] mixes characters from Cyrillic and Latin \u2014 pdf";
 
-    await promptSkillSelection({ availableSkills: [impostor], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [impostor],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
       name: string;
@@ -268,6 +300,42 @@ describe("promptSkillSelection", () => {
     expect(choices[0]?.value).toBe(impostor);
   });
 
+  it("should mark a name that reads like a skill the user already has", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // The source repository publishes the imitation and nothing else, so there
+    // is no row beside it to compare: what it reads like is on disk.
+    await promptSkillSelection({
+      availableSkills: ["dep1oy"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(choices[0]?.name).toBe(
+      "[!] a local skill differs from it only by lookalike letters \u2014 dep1oy",
+    );
+    expect(choices[0]?.value).toBe("dep1oy");
+  });
+
+  it("should not offer the local skill names as rows of their own", async () => {
+    checkboxMock.mockResolvedValue([]);
+    await promptSkillSelection({
+      availableSkills: ["pdf"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy", "pdf"],
+    });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    // The local `pdf` is the skill this row would refresh, so it marks nothing.
+    expect(choices).toEqual([expect.objectContaining({ name: "pdf", value: "pdf" })]);
+  });
+
   it("should mark a name that spells the prompt's own marks in lookalikes", async () => {
     checkboxMock.mockResolvedValue([]);
     // The same imitation drawn out of characters the ASCII spelling does not
@@ -275,7 +343,11 @@ describe("promptSkillSelection", () => {
     // parentheses is the number this list would have printed there.
     const impostor = "(l) [\u01c3] another entry has the same display form \u2014 pdf";
 
-    await promptSkillSelection({ availableSkills: [impostor], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [impostor],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
       name: string;
@@ -291,7 +363,11 @@ describe("promptSkillSelection", () => {
     // shape a reader takes for the plain pair this list opens a warning with.
     const impostor = "\u2045!\u2046 another entry has the same display form \u2014 pdf";
 
-    await promptSkillSelection({ availableSkills: [impostor], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [impostor],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
       name: string;
@@ -308,7 +384,11 @@ describe("promptSkillSelection", () => {
     // the numbers say they are two rows.
     const script = "\u0261it";
 
-    await promptSkillSelection({ availableSkills: ["git", script], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: ["git", script],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
       name: string;
@@ -327,7 +407,11 @@ describe("promptSkillSelection", () => {
     const latin = "[!] a-o";
     const cyrillic = "[!] a-\u043e";
 
-    await promptSkillSelection({ availableSkills: [latin, cyrillic], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [latin, cyrillic],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
       name: string;
@@ -345,7 +429,11 @@ describe("promptSkillSelection", () => {
     setTerminalWidth(60);
     const padded = `pdf${" ".repeat(100)}pdf`;
 
-    await promptSkillSelection({ availableSkills: [padded], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [padded],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
       name: string;
@@ -371,6 +459,7 @@ describe("promptSkillSelection", () => {
     await promptSkillSelection({
       availableSkills: [`${shared}-official`, `${shared}-not-official`],
       preselectedSkills: [],
+      localSkillNames: [],
     });
 
     const shortened = "a".repeat(50);
@@ -391,7 +480,11 @@ describe("promptSkillSelection", () => {
     setTerminalWidth(undefined);
     const long = `pdf${"o".repeat(100)}`;
 
-    await promptSkillSelection({ availableSkills: [long], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [long],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
     expect(choices[0]?.name).toBe(`pdf${"o".repeat(68)}\u2026`);
@@ -406,7 +499,11 @@ describe("promptSkillSelection", () => {
     setTerminalWidth(0);
     const long = `pdf${"o".repeat(100)}`;
 
-    await promptSkillSelection({ availableSkills: [long], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [long],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
     expect(choices[0]?.name).toBe(`pdf${"o".repeat(68)}\u2026`);
@@ -420,7 +517,11 @@ describe("promptSkillSelection", () => {
     setTerminalWidth(10);
     const long = `pdf${"o".repeat(100)}`;
 
-    await promptSkillSelection({ availableSkills: [long], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [long],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
     expect(choices[0]?.name).toBe(`pdf${"o".repeat(12)}\u2026`);
@@ -436,7 +537,11 @@ describe("promptSkillSelection", () => {
     const latin = `pdf${"x".repeat(40)}`;
     const cyrillic = `pdf${"x".repeat(39)}\u0445`;
 
-    await promptSkillSelection({ availableSkills: [latin, cyrillic], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [latin, cyrillic],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
       name: string;
@@ -460,7 +565,11 @@ describe("promptSkillSelection", () => {
     // the budget counts them the way the renderer does.
     const joined = `${"\u0627\u200c".repeat(38)}\u0627`;
 
-    await promptSkillSelection({ availableSkills: [joined], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [joined],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
       name: string;
@@ -481,7 +590,11 @@ describe("promptSkillSelection", () => {
     setTerminalWidth(60);
     const joined = `${"\u0627\u200c".repeat(38)}\u0627`;
 
-    await promptSkillSelection({ availableSkills: [joined], preselectedSkills: [] });
+    await promptSkillSelection({
+      availableSkills: [joined],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
     expect(choices[0]?.name).toBe(`${"\u0627\u200c".repeat(27)}\u2026`);
@@ -494,7 +607,11 @@ describe("promptSkillSelection", () => {
     checkboxMock.mockRejectedValue(exitError);
 
     await expect(
-      promptSkillSelection({ availableSkills: ["skill-a"], preselectedSkills: [] }),
+      promptSkillSelection({
+        availableSkills: ["skill-a"],
+        preselectedSkills: [],
+        localSkillNames: [],
+      }),
     ).rejects.toBeInstanceOf(SkillSelectionCancelledError);
   });
 
@@ -502,7 +619,11 @@ describe("promptSkillSelection", () => {
     checkboxMock.mockRejectedValue(new Error("terminal exploded"));
 
     await expect(
-      promptSkillSelection({ availableSkills: ["skill-a"], preselectedSkills: [] }),
+      promptSkillSelection({
+        availableSkills: ["skill-a"],
+        preselectedSkills: [],
+        localSkillNames: [],
+      }),
     ).rejects.toThrow("terminal exploded");
   });
 });
