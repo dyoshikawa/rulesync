@@ -93,7 +93,7 @@ describe("FactorydroidPermissions", () => {
       expect(json.commandDenylist).toBeUndefined();
     });
 
-    it("should write an all-tools deny into commandDenylist and keep the allow beside it", async () => {
+    it("should write an all-tools deny into commandDenylist and withhold the allow it covers", async () => {
       const logger = createMockLogger();
       const rulesyncPermissions = buildRulesyncPermissions({
         permission: {
@@ -109,14 +109,34 @@ describe("FactorydroidPermissions", () => {
       });
 
       const json = JSON.parse(instance.getFileContent());
-      // The denylist wins over the allowlist in Factory Droid, so the command
-      // the file blocks stays blocked — and the category the deny was written
-      // under does not change that, so the allow is written as it stands.
+      // The deny is written, where the denylist outranks the allowlist for the
+      // commands it names — and it withholds the allow it covers as well, since
+      // a pattern under `*` need not name a command for the entry to be read.
       expect(json.commandDenylist).toEqual(["rm -rf *"]);
-      expect(json.commandAllowlist).toEqual(["git *", "rm -rf *"]);
-      expect(logger.warn).not.toHaveBeenCalledWith(
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("was not given the allow rule(s)"),
       );
+    });
+
+    it("should withhold a catch-all allow that an all-tools deny of a path covers", async () => {
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "secrets/**": "deny" },
+          bash: { "*": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      // `secrets/**` names no command, so writing it alone beside an allowed
+      // `*` would auto-approve every command the deny meant to hold back.
+      expect(json.commandDenylist).toEqual(["secrets/**"]);
+      expect(json.commandAllowlist).toBeUndefined();
     });
 
     it("should write an all-tools deny that names no command at all", async () => {

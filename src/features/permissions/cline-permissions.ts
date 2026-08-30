@@ -73,15 +73,20 @@ function translateClinePermissions(
   );
   const { rules, ignoredAllToolsAllowPatterns } = collectShellCommandRules(permission);
   // Cline has no `ask` list, so an `ask` rule has to land somewhere else, and
-  // where depends on the category that wrote it. An all-tools `*` ask withholds
-  // the `allow` rules it covers, the way Warp and Factory Droid handle theirs:
-  // a pattern written under `*` need not name a command, and denying it outright
-  // would turn the ordinary catch-all `{"*": {"*": "ask"}}` into a block on every
-  // command — one Cline's additive `deny` merge would then keep forever. A `deny`
-  // needs no such treatment whatever wrote it: it reaches Cline's own `deny` list,
-  // which outranks the `allow` beside it.
+  // where depends on the category that wrote it. A `bash` rule is a command
+  // pattern by construction: its `ask` becomes a `deny`, and its `deny` is
+  // written as it stands, where Cline's documented deny-priority enforces it and
+  // the allow rules beside it keep working.
+  //
+  // A rule under the all-tools `*` need not name a command at all — `secrets/**`
+  // there denies a path — so neither list can be trusted to enforce it: such an
+  // entry matches no command. Both its `ask` and its `deny` therefore withhold
+  // the `allow` rules they cover instead (the `deny` is still written, for the
+  // case where it *is* a command). Translating the `ask` to `deny` outright would
+  // turn the ordinary catch-all `{"*": {"*": "ask"}}` into a block on every
+  // command — one Cline's additive `deny` merge would then keep forever.
   const isShadowed = createShadowedAllowTest(
-    rules.filter(({ action, fromAllToolsCategory }) => action === "ask" && fromAllToolsCategory),
+    rules.filter(({ fromAllToolsCategory }) => fromAllToolsCategory),
   );
 
   for (const { pattern, action, fromAllToolsCategory } of rules) {
@@ -160,8 +165,8 @@ function warnClineTranslationNotices({
   if (shadowedAllowPatterns.length > 0) {
     parts.push(
       `'allow' rules for [${shadowedAllowPatterns.join(", ")}] withheld because the ` +
-        `all-tools '*' category asks about the same commands, and Cline has no 'ask' list ` +
-        `to prompt from`,
+        `all-tools '*' category restricts the same commands, and a pattern written there ` +
+        `need not name a command Cline's own lists can act on`,
     );
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {
@@ -279,9 +284,9 @@ export class ClinePermissions extends ToolPermissions {
       logger?.warn(
         `Cline command permissions: pattern(s) ${collisions
           .map((p) => `'${p}'`)
-          .join(", ")} appear in both 'allow' and 'deny'. Cline's evaluation order is not ` +
-          `documented to guarantee deny-priority; the resulting behavior is undefined. ` +
-          `Consider removing the duplicate rule from rulesync.`,
+          .join(", ")} appear in both 'allow' and 'deny'. Cline documents that deny rules ` +
+          `always take precedence, so the 'allow' entry has no effect. ` +
+          `Consider removing the duplicate rule.`,
       );
     }
 

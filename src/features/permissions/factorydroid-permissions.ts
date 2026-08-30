@@ -55,9 +55,11 @@ type FactorydroidSettingsJson = {
  * write nothing — they only withhold the allow rules they cover, since the
  * stricter rule wins whatever its width. The all-tools `*` category contributes
  * its restricting rules too, because a rule written there covers shell commands
- * as well: its `deny` rules are written to `commandDenylist` *and* withhold the
- * allow rules they cover, since the denylist only outranks the allowlist for
- * the commands the pattern actually matches. The allow/deny lists only model shell commands, so categories other
+ * as well. They withhold the allow rules they cover the way a `bash` `ask`
+ * does, because a pattern written under `*` need not name a command at all: a
+ * `deny` there is written to `commandDenylist` too, for the case where it *is*
+ * one, but an entry naming no command enforces nothing by itself.
+ * The allow/deny lists only model shell commands, so categories other
  * than `bash` and `*` cannot be represented and are skipped (with a warning
  * when they carry `deny` rules, to surface the gap).
  *
@@ -250,9 +252,11 @@ function convertRulesyncToFactorydroidPermissions({
     config.permission,
   );
   // Factory Droid's denylist is an ordinary command list that adds to nothing
-  // it ships with, so an all-tools `*` deny can be written there verbatim — and
-  // still withholds the allow rules it covers, since such a pattern need not
-  // name a command for the tool's deny-beats-allow order to reach it.
+  // it ships with, so an all-tools `*` deny can be written there verbatim,
+  // where the deny-beats-allow order enforces it for whatever commands it does
+  // name. It withholds the allow rules it covers all the same: a pattern under
+  // `*` such as `secrets/**` names no command, so the entry alone would leave
+  // the very access the author denied auto-approved by the allowlist.
   const { allow, deny, shadowedAllowPatterns } = partitionCommandRules({
     rules,
     writesAllToolsDeny: true,

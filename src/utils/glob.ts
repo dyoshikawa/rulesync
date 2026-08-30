@@ -208,17 +208,39 @@ function isAllStars(steps: readonly GlobStep[], index: number): boolean {
 }
 
 /**
- * The most cells the intersection walk will fill. Past it the two patterns are
- * reported as intersecting without being walked: the product of two lengths
- * grows quadratically, and a pattern long enough to reach this is pathological
- * rather than a command anybody typed. Answering `true` withholds an `allow`,
- * which is the direction that fails closed.
+ * The most work the intersection walk will do, counted in cells times the cost
+ * of one. Past it the two patterns are reported as intersecting without being
+ * walked: the product of two lengths grows quadratically, and a pattern long
+ * enough to reach this is pathological rather than a command anybody typed.
+ * Answering `true` withholds an `allow`, which is the direction that fails
+ * closed.
  */
 const MAX_INTERSECTION_CELLS = 1_000_000;
 
 /**
+ * What one cell can cost, as a multiplier on the cell count. A literal met by a
+ * `[a-z...]` class walks that class's ranges, so a single class carrying
+ * thousands of them turns a walk that looks affordable by cell count alone into
+ * a quadratic one — which is why the budget is spent on cells times this rather
+ * than on cells.
+ */
+function maxRangeCount(steps: readonly GlobStep[]): number {
+  let most = 0;
+  for (const step of steps) {
+    if (step.kind === "class" && step.ranges.length > most) {
+      most = step.ranges.length;
+    }
+  }
+  return most;
+}
+
+/**
  * Whether any one value matches both globs — that is, whether the two patterns
- * overlap at all.
+ * overlap at all. The answer is exact up to `MAX_INTERSECTION_CELLS`; a pair
+ * longer than that is reported as overlapping without being compared, so a
+ * caller that reads a `true` as a reason to restrict stays on the safe side and
+ * one that would read it as a reason to permit must not use this. What a pair
+ * costs counts the ranges a `[a-z]` class carries, not only the two lengths.
  *
  * This answers the question an adapter really has when it holds a restriction
  * and an `allow`: is there a command both of them name? Asking instead whether
@@ -240,7 +262,8 @@ export function globsIntersect(left: string, right: string): boolean {
   // row — `columns` below is its length.
   const [rows, columns] =
     leftSteps.length >= rightSteps.length ? [leftSteps, rightSteps] : [rightSteps, leftSteps];
-  if (rows.length * columns.length > MAX_INTERSECTION_CELLS) {
+  const cellCost = 1 + maxRangeCount(rows) + maxRangeCount(columns);
+  if (rows.length * columns.length * cellCost > MAX_INTERSECTION_CELLS) {
     return true;
   }
 

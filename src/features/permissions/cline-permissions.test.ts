@@ -92,7 +92,33 @@ describe("ClinePermissions", () => {
     expect(message).toContain("rm *");
   });
 
-  it("should deny a command the all-tools category blocks and keep the bash allow", async () => {
+  it("should keep the wider allow beside a narrow bash deny", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "git *": "allow", "git push *": "deny" },
+        },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // A `bash` pattern names a command, so Cline's documented deny-priority
+    // carves the narrow deny out of the wider allow.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual(["git *"]);
+    expect(content.deny).toEqual(["git push *"]);
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("withheld because"));
+  });
+
+  it("should write an all-tools deny and withhold the allow it covers", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -111,13 +137,13 @@ describe("ClinePermissions", () => {
       logger,
     });
 
-    // A rule under `*` covers shell commands too, so it reaches Cline's `deny`
-    // list — which outranks the `allow` beside it, exactly as a `bash` deny of
-    // the same spelling would.
+    // A pattern under `*` need not name a command — `secrets/**` there denies a
+    // path — so the deny is written *and* withholds the allow it covers, since
+    // an entry naming no command would leave that allow auto-approving.
     const content = JSON.parse(instance.getFileContent());
-    expect(content.allow).toEqual(["git *", "rm *"]);
+    expect(content.allow).toEqual(["git *"]);
     expect(content.deny).toEqual(["rm *"]);
-    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("withheld because"));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("withheld because"));
   });
 
   it("should withhold the allow an all-tools ask covers instead of denying it", async () => {

@@ -462,10 +462,13 @@ function mergeIntoDefaultExecutionProfile({
 
 /**
  * Read a `[...]` class starting at its `[` and return the index just past its
- * `]`, or `undefined` when it never closes. Regex class rules apply: a `]` in
- * the first position is a member rather than the terminator, a backslash
- * escapes the character after it, and classes do not nest — a `[` inside one is
- * an ordinary member, which is why counting brackets would run past the end.
+ * `]`, or `undefined` when it cannot be read that simply. Regex class rules
+ * apply: a `]` in the first position is a member rather than the terminator and
+ * a backslash escapes the character after it. A nested `[` gives up: Rust's
+ * `regex` crate — the engine Warp matches with — reads `[a[b]c]` as one class
+ * built by set operations, so stopping at the first `]` would leave `c]` behind
+ * as text the glob then requires. Giving up widens the whole pattern instead,
+ * which is the only safe direction here.
  */
 function skipRegexClass(body: string, start: number): number | undefined {
   let index = start + 1;
@@ -480,6 +483,9 @@ function skipRegexClass(body: string, start: number): number | undefined {
     if (character === "\\") {
       index += 2;
       continue;
+    }
+    if (character === "[") {
+      return undefined;
     }
     if (character === "]") {
       return index + 1;
@@ -530,14 +536,18 @@ function skipRegexGroup(body: string, start: number): number | undefined {
   return undefined;
 }
 
-/** Read a `{2,3}` quantifier starting at its `{`, or `undefined` when unclosed. */
+/**
+ * Read a `{2,3}` quantifier starting at its `{`, or `undefined` when what
+ * follows is not one. The shape is checked rather than scanned to the next `}`,
+ * because a `{` that spells no repetition is a literal to the regex engine —
+ * `{a|b}` is an alternation in braces, and reading it as a quantifier would skip
+ * past the `|` that has to widen the whole pattern.
+ */
+const QUANTIFIER = /^\{\d+(,\d*)?\}/;
+
 function skipQuantifier(body: string, start: number): number | undefined {
-  for (let index = start + 1; index < body.length; index++) {
-    if (body.charAt(index) === "}") {
-      return index + 1;
-    }
-  }
-  return undefined;
+  const match = QUANTIFIER.exec(body.slice(start));
+  return match === null ? undefined : start + match[0].length;
 }
 
 /**

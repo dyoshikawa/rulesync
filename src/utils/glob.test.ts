@@ -124,6 +124,18 @@ describe("globsIntersect", () => {
     expect(performance.now() - start).toBeLessThan(1000);
   });
 
+  it("counts the ranges a class carries against the walk's budget", () => {
+    // Few steps, but each cell would scan every range: the budget has to see
+    // that cost, or a pattern like this walks for hours.
+    const ranges = Array.from({ length: 20_000 }, (_, index) => {
+      const character = String.fromCodePoint(0x3000 + index);
+      return `${character}-${character}`;
+    }).join("");
+    const started = performance.now();
+    expect(globsIntersect(`[${ranges}]`, "z".repeat(200))).toBe(true);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
   it("gives up and says yes on a pair too long to walk", () => {
     // Past the cell budget the pair is reported as intersecting without being
     // walked, so a pathological pattern withholds an allow instead of costing

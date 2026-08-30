@@ -165,12 +165,15 @@ export type CommandListPartition = {
  * cannot be written it withholds the allow rules it covers instead, which
  * restricts in the same direction without touching the denylist.
  *
- * A deny that *is* written withholds nothing, whichever category wrote it: the
- * tool's denylist outranks its allowlist, so the commands the two rules share
- * are blocked where the author asked and the rest of the allow keeps working.
- * Withholding there would make the same intent behave differently depending on
- * the category it was written under — `{"*": {"git push *": "deny"}}` beside an
- * allowed `git *` would drop the allowlist that `{"bash": ...}` keeps.
+ * A `bash` deny withholds nothing: it names a command by construction, so the
+ * denylist entry enforces it wherever the tool's deny-beats-allow order applies,
+ * and a narrow deny keeps carving an exception out of a wider allow (`git *`
+ * allowed, `git push *` denied). An all-tools `*` deny withholds all the same,
+ * even where it is written: a pattern under `*` need not name a command —
+ * `secrets/**` there denies a path — so as a denylist entry it may match nothing
+ * at all, and leaving an overlapping allow beside it would auto-approve the very
+ * commands the author meant to stop. Over-restricting a `*` deny that *was* a
+ * command pattern is reported; failing open would not be.
  *
  * `normalizePattern` is handed to `createShadowedAllowTest` for a tool whose
  * patterns are not globs.
@@ -198,9 +201,14 @@ export function partitionCommandRules({
         // Written into the denylist, where the tool's own deny-beats-allow
         // precedence enforces it against the very commands it names.
         deny.push(pattern);
+      } else {
+        unwrittenDenyPatterns.push(pattern);
+      }
+      if (!fromAllToolsCategory) {
+        // A `bash` pattern is a command, so that denylist entry is the whole
+        // enforcement — the allow rules beside it stay.
         continue;
       }
-      unwrittenDenyPatterns.push(pattern);
     }
     restrictions.push(rule);
   }

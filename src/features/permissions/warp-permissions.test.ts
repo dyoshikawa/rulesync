@@ -237,6 +237,12 @@ describe("WarpPermissions", () => {
       // The `{` never closes, so everything after it — the `|` included — is
       // unreadable as a quantifier.
       ["^npm run build{|^sudo ", "^sudo apt install$"],
+      // `{a|b}` spells no repetition, so the regex engine reads the braces as
+      // literals and the `|` as the alternation it is.
+      ["^npm run build{a|b}|^sudo ", "^sudo apt install$"],
+      // Rust's regex crate builds one class out of `[a[b]c]`, so stopping at the
+      // first `]` would leave `c]|^sudo ` behind as text.
+      ["^git [a[b]c]|^sudo ", "^sudo apt install$"],
     ])("withholds an allow the second half of %s reaches", async (restriction, allowed) => {
       const perms = await WarpPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
