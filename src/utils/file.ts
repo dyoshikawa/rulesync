@@ -946,14 +946,15 @@ export async function listFileNames(
  * directory below it, since a subtree silently missing from the result is the
  * same mistake one level down.
  *
- * A directory link is followed like any other directory, and only a link that
- * leads back into the chain the walk is already inside ends there, so a link
- * pointing at an ancestor cannot loop. A link pointing sideways, at a directory
- * the walk reaches elsewhere too, is reported under both names rather than
- * under whichever the walk happened to reach first -- the same rule the files
- * follow, and the same reason {@link findFilesByGlobs} keeps a file's real path
- * rather than an alias: no name on disk goes missing from the result.
- * `nameFilter` narrows the files, not the directories the walk descends into.
+ * A directory link is followed like any other directory, but each real
+ * directory is walked only once, so neither a cycle nor a mesh of links can
+ * make the walk repeat itself. The name a twice-reachable directory is reported
+ * under is the one nearest the root, and the first in sorted order among those:
+ * the walk goes breadth-first, so a directory link named `aaa` two levels down
+ * cannot take the place of the `zzz` it points at one level up -- the same
+ * preference for the real location over an alias that
+ * {@link findFilesByGlobs} applies to its own results. `nameFilter` narrows the
+ * files, not the directories the walk descends into.
  */
 export async function listFilePathsRecursively(
   dirPath: string,
@@ -968,29 +969,41 @@ export async function listFilePathsRecursively(
     return [];
   }
   const filePaths: string[] = [];
-  // The chain of directories the walk is currently inside, not every directory
-  // it has ever seen: a directory reached twice by two different names is two
-  // results, and only a directory reached from inside itself is a cycle.
-  const ancestorIdentities = new Set<string>();
-  const walk = async (currentPath: string, prefix: string): Promise<void> => {
-    const identity = await realFileIdentity(currentPath);
-    if (ancestorIdentities.has(identity)) {
-      return;
+  // Every real directory already walked. Keeping the whole set, rather than
+  // only the chain above the current directory, is what bounds the work: links
+  // that alias one another turn the tree into a graph, and a walk that took
+  // every distinct route through it would cost one traversal per route --
+  // exponential in the number of aliases, from a handful of real directories.
+  const walkedIdentities = new Set<string>();
+  // Level by level, sorted within each level, so the name a directory ends up
+  // reported under is decided by the tree rather than by readdir order.
+  let level = [{ currentPath: dirPath, prefix: "" }];
+  while (level.length > 0) {
+    const nextLevel: Array<{ currentPath: string; prefix: string }> = [];
+    for (const { currentPath, prefix } of level.toSorted((a, b) =>
+      a.prefix < b.prefix ? -1 : a.prefix > b.prefix ? 1 : 0,
+    )) {
+      const identity = await realFileIdentity(currentPath);
+      if (walkedIdentities.has(identity)) {
+        continue;
+      }
+      walkedIdentities.add(identity);
+      const [fileNames, dirNames] = await Promise.all([
+        listFileNames(currentPath, { followSymbolicLinks, includeHidden, nameFilter }),
+        listSubdirectoryNames(currentPath, { followSymbolicLinks, includeHidden }),
+      ]);
+      for (const fileName of fileNames) {
+        filePaths.push(prefix === "" ? fileName : join(prefix, fileName));
+      }
+      for (const dirName of dirNames) {
+        nextLevel.push({
+          currentPath: join(currentPath, dirName),
+          prefix: prefix === "" ? dirName : join(prefix, dirName),
+        });
+      }
     }
-    ancestorIdentities.add(identity);
-    const [fileNames, dirNames] = await Promise.all([
-      listFileNames(currentPath, { followSymbolicLinks, includeHidden, nameFilter }),
-      listSubdirectoryNames(currentPath, { followSymbolicLinks, includeHidden }),
-    ]);
-    for (const fileName of fileNames) {
-      filePaths.push(prefix === "" ? fileName : join(prefix, fileName));
-    }
-    for (const dirName of dirNames) {
-      await walk(join(currentPath, dirName), prefix === "" ? dirName : join(prefix, dirName));
-    }
-    ancestorIdentities.delete(identity);
-  };
-  await walk(dirPath, "");
+    level = nextLevel;
+  }
   return filePaths.toSorted();
 }
 

@@ -25,7 +25,6 @@ import {
   fileExists,
   listFilePathsRecursively,
   readFileContent,
-  splitPathSegments,
   removeFileStrict,
   removeDirectoryStrict,
   runWithDirectoryRollback,
@@ -336,7 +335,9 @@ const CURATED_RULES_SUBDIR_NAME = posix.relative(
  * The curated subtree is named rather than left to the walk's hidden-entry
  * rule, which happens to cover it today only because the name starts with a
  * dot. Reading a fetched rule as a local one is not a small mistake: it would
- * take precedence over its own source and never be refreshed again.
+ * take precedence over its own source and never be refreshed again. The prefix
+ * is matched with the native separator alone, since a backslash inside a name
+ * is the very thing the walk exists to preserve.
  */
 async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   const rulesDir = join(projectRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
@@ -345,7 +346,7 @@ async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   });
   return new Set(
     relativePaths
-      .filter((relativePath) => splitPathSegments(relativePath)[0] !== CURATED_RULES_SUBDIR_NAME)
+      .filter((relativePath) => !relativePath.startsWith(`${CURATED_RULES_SUBDIR_NAME}${sep}`))
       .map((relativePath) => relativePath.replace(/\.md$/i, "")),
   );
 }

@@ -753,21 +753,39 @@ describe("file utilities", () => {
       );
 
       it.skipIf(process.platform === "win32")(
-        "should report a directory two names reach under both of them",
+        "should report a directory two names reach under the one nearest the root",
         async () => {
-          // Only a cycle ends the walk. A link pointing sideways is a second
-          // name for the same file, and dropping either one would hide a path
-          // that is really there -- for local rule names, a rule the project
-          // holds under a name the walk never reported.
+          // The walk goes level by level, so the directory's own name is
+          // reached before the link aliasing it from further down, and the file
+          // keeps the path it really has rather than one through the link.
           const root = join(testDir, "root");
           await writeFileContent(join(root, "target", "y.md"), "content");
           await ensureDir(join(root, "a"));
           await symlink(join(root, "target"), join(root, "a", "link"));
 
-          expect(await listFilePathsRecursively(root)).toEqual([
-            join("a", "link", "y.md"),
-            join("target", "y.md"),
-          ]);
+          expect(await listFilePathsRecursively(root)).toEqual([join("target", "y.md")]);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should walk a mesh of aliasing links once per directory",
+        async () => {
+          // Two names for every level, each linking on to the next: a walk that
+          // took each route separately would visit 2^N paths to reach N real
+          // directories, so an ordinary shared rules directory linked in from a
+          // few places would be enough to hang `fetch`.
+          const root = join(testDir, "root");
+          const levelCount = 12;
+          for (let level = 0; level < levelCount; level++) {
+            for (const name of ["p", "q"]) {
+              const levelDir = join(root, `l${level}`, name);
+              await ensureDir(levelDir);
+              await symlink(join(root, `l${level + 1}`), join(levelDir, "next"));
+            }
+          }
+          await writeFileContent(join(root, `l${levelCount}`, "leaf.md"), "content");
+
+          expect(await listFilePathsRecursively(root)).toEqual([join(`l${levelCount}`, "leaf.md")]);
         },
       );
     });
