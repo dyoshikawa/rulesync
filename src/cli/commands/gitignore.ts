@@ -350,8 +350,15 @@ export const gitignoreCommand = async (
     logger.warn(
       "The following entries were removed from the rulesync-managed block in .gitignore and are no longer gitignored by rulesync:",
     );
-    for (const entry of gitignoreResult.entriesRemoved) {
-      logger.warn(`  ${entry}`);
+    // Console-only: `data.entriesRemoved` already holds the same list under
+    // `--json`, and the warnings array is bounded — spending it one entry at a
+    // time would push the diagnostics that have nowhere else to go out of the
+    // document. The sentences around this loop stay, since they are the part no
+    // captured key carries.
+    if (!logger.jsonMode) {
+      for (const entry of gitignoreResult.entriesRemoved) {
+        logger.warn(`  ${entry}`);
+      }
     }
     logger.warn(
       "Review these paths before committing — user-managed settings files may contain secrets.",

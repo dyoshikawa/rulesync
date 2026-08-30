@@ -22,6 +22,29 @@ export function stripControlCharacters(text: string): string {
 }
 
 /**
+ * The same set with the line feed left in.
+ *
+ * `stripControlCharacters` takes newlines out because a diagnostic is one line
+ * and a name that carries one can forge a second. An error message is not: a
+ * lock file names the process holding it over several lines, and the MCP
+ * `generate` failure lists one unreadable source per line. Removing the line
+ * feed there would run those into a single unreadable sentence, so only the
+ * characters that reorder or escape go — the carriage return included, since
+ * on its own it paints over the line already written.
+ */
+const CONTROL_CHARACTERS_EXCEPT_LINE_FEED_PATTERN =
+  // oxlint-disable-next-line no-control-regex
+  /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069\u2028\u2029]/g;
+
+/**
+ * Removes every control character from `text` except the line feed, so a
+ * message written to be read over several lines still is.
+ */
+export function stripControlCharactersKeepingLineFeeds(text: string): string {
+  return text.replace(CONTROL_CHARACTERS_EXCEPT_LINE_FEED_PATTERN, "");
+}
+
+/**
  * Matches the characters that take no width of their own.
  *
  * `Default_Ignorable_Code_Point` is the Unicode property for exactly this — the

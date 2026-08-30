@@ -69,6 +69,18 @@ const MAX_COLLECTED_WARNING_LENGTH = 1_000;
 const MAX_COLLECTED_TOTAL_LENGTH = 8_000;
 
 /**
+ * How many distinct warnings the de-duplication remembers.
+ *
+ * The record has to outlive the reported lines — a line dropped for want of
+ * budget must not be counted again the next time the same diagnostic repeats —
+ * so it grows with the number of distinct warnings a run raises rather than
+ * with the number reported. Bounded for the same reason everything else here
+ * is: past this many, later repeats are counted rather than recognized, which
+ * inflates the trailing count but cannot grow the record without end.
+ */
+const MAX_DEDUPLICATED_WARNINGS = MAX_COLLECTED_WARNINGS * 10;
+
+/**
  * A bounded list of warning lines.
  */
 class WarningCollection {
@@ -102,7 +114,9 @@ class WarningCollection {
       // count of distinct diagnostics. A line that repeats per tool target
       // would otherwise be counted once per copy, and "and 300 more" would
       // describe twelve.
-      this.seen.add(kept);
+      if (this.seen.size < MAX_DEDUPLICATED_WARNINGS) {
+        this.seen.add(kept);
+      }
       this.omitted++;
       return;
     }
@@ -374,6 +388,33 @@ function currentFallbackTarget(): Logger {
 }
 
 /**
+ * True while the forwarder is inside a call it is forwarding.
+ *
+ * The adopted target is supposed to be something other than the forwarder, but
+ * a wrapper *around* it — `hooks-processor.ts` returns one that prefixes the
+ * tool target onto every warning — passes the identity check in
+ * {@link withFallbackLoggerTarget} and would forward straight back here. A
+ * plain module-level flag is enough because the forwarding is synchronous: the
+ * call returns before anything else can run.
+ */
+let forwarding = false;
+
+function forwardToFallbackTarget(forward: (target: Logger) => void): void {
+  if (forwarding) {
+    // The adopted target leads back here, so this call would never terminate.
+    // The console it would have reached without an adoption is where it goes.
+    forward(defaultFallbackTarget);
+    return;
+  }
+  forwarding = true;
+  try {
+    forward(currentFallbackTarget());
+  } finally {
+    forwarding = false;
+  }
+}
+
+/**
  * Shared fallback logger for code paths that have no command logger threaded
  * through (module-level translators, `warnWithFallback(undefined, ...)`).
  *
@@ -423,7 +464,7 @@ export const fallbackLogger: Logger = {
   info(_message: string, ..._args: unknown[]): void {},
   success(_message: string, ..._args: unknown[]): void {},
   warn(message: string, ...args: unknown[]): void {
-    currentFallbackTarget().warn(message, ...args);
+    forwardToFallbackTarget((target) => target.warn(message, ...args));
   },
   // Errors go to the console rather than to an adopted logger, for the same
   // reason: `JsonLogger.error` writes the failure document.
@@ -431,7 +472,7 @@ export const fallbackLogger: Logger = {
     defaultFallbackTarget.error(message, code, ...args);
   },
   debug(message: string, ...args: unknown[]): void {
-    currentFallbackTarget().debug(message, ...args);
+    forwardToFallbackTarget((target) => target.debug(message, ...args));
   },
 };
 
@@ -451,10 +492,11 @@ export async function withFallbackLoggerTarget<T>({
   operation: () => Promise<T>;
 }): Promise<T> {
   // Forwarding the forwarder to itself would recurse forever; a caller that
-  // passes it can only have meant "leave the fallback where it is". The guard
-  // is identity-only, so a wrapper *around* `fallbackLogger` — the object
-  // literal in `hooks-processor.ts`, say — must never be adopted as a target;
-  // nothing does that today, and doing it would recurse rather than be ignored.
+  // passes it can only have meant "leave the fallback where it is". A wrapper
+  // *around* `fallbackLogger` does not match here, so the forwarder guards
+  // against coming back to itself as well (see `forwardToFallbackTarget`) —
+  // this check only saves the scope that would otherwise be entered for a
+  // target that changes nothing.
   if (logger === fallbackLogger) {
     return await operation();
   }

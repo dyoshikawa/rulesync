@@ -116,6 +116,8 @@ The key is omitted when nothing warned, and `--silent` suppresses warnings there
 
 At most 100 warnings are reported, each truncated to 1,000 characters and 8,000 characters in total; a run that exceeds any of those limits says so in a final entry rather than growing the document without bound.
 
+Because that budget is finite, the array carries the diagnostics a run has no other way to report — not a restatement of what `data` already holds. A command that lists something under a captured key writes the list there and warns only about what the list does not say.
+
 ## Generate Command
 
 The `generate` command reads source files from one or more rulesync source trees (default: `<cwd>/.rulesync`; configurable via `--input-roots`) and writes AI tool configuration files to the output directories.

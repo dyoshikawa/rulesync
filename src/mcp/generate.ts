@@ -11,6 +11,7 @@ import {
 import { type RulesyncFeatures } from "../types/features.js";
 import { ErrorCodes } from "../types/json-output.js";
 import { type RulesyncTargets } from "../types/tool-targets.js";
+import { stripControlCharactersKeepingLineFeeds } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
@@ -35,6 +36,7 @@ import { type McpResultCounts, type McpWarnings, warningsField } from "./types.j
  */
 class ErrorCollectingLogger extends WarningCollectingLogger {
   private readonly errors: string[] = [];
+  private errorsLength = 0;
   private omittedErrors = 0;
 
   override error(message: string | Error, code?: string, ...args: unknown[]): void {
@@ -45,17 +47,24 @@ class ErrorCollectingLogger extends WarningCollectingLogger {
   }
 
   private collect(message: string): void {
-    if (this.errors.length >= MAX_COLLECTED_ERRORS) {
+    // Stripped here as well as in `formatError`, which is where most of these
+    // messages have already been through: a raw `logger.error` call tagged with
+    // the same code has not, and these lines are read by an agent rather than
+    // printed.
+    const kept = truncateText({
+      text: stripControlCharactersKeepingLineFeeds(message),
+      maxLength: MAX_COLLECTED_ERROR_LENGTH,
+      suffix: "…(truncated)",
+    });
+    if (
+      this.errors.length >= MAX_COLLECTED_ERRORS ||
+      this.errorsLength + kept.length > MAX_COLLECTED_ERRORS_TOTAL_LENGTH
+    ) {
       this.omittedErrors++;
       return;
     }
-    this.errors.push(
-      truncateText({
-        text: message,
-        maxLength: MAX_COLLECTED_ERROR_LENGTH,
-        suffix: "…(truncated)",
-      }),
-    );
+    this.errors.push(kept);
+    this.errorsLength += kept.length;
   }
 
   getErrors(): readonly string[] {
@@ -77,6 +86,13 @@ class ErrorCollectingLogger extends WarningCollectingLogger {
  */
 const MAX_COLLECTED_ERRORS = 20;
 const MAX_COLLECTED_ERROR_LENGTH = 1_000;
+/**
+ * The binding limit, as it is for the collected warnings: the joined lines
+ * become one `Error` message, and `formatError` bounds that in turn. Keeping
+ * the sum under its bound is what makes the trailing "and N more" line survive
+ * the join rather than being the part that gets truncated away.
+ */
+const MAX_COLLECTED_ERRORS_TOTAL_LENGTH = 4_000;
 
 /**
  * Schema for generate options

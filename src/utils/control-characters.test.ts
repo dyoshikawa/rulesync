@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   hasDeceptiveHiddenCharacters,
   stripControlCharacters,
+  stripControlCharactersKeepingLineFeeds,
   stripHiddenCharacters,
   stripInvisibleCharacters,
 } from "./control-characters.js";
@@ -120,5 +121,23 @@ describe("hasDeceptiveHiddenCharacters", () => {
     ["a variation selector on a Han character", "\u8a2d\ufe00"],
   ])("should reject %s", (_label, name) => {
     expect(hasDeceptiveHiddenCharacters(name)).toBe(true);
+  });
+});
+
+describe("stripControlCharactersKeepingLineFeeds", () => {
+  it("should keep a line feed, since some messages are written over more than one line", () => {
+    expect(stripControlCharactersKeepingLineFeeds("held by pid 42\nsince 10:00")).toBe(
+      "held by pid 42\nsince 10:00",
+    );
+  });
+
+  it("should still remove what reorders or escapes", () => {
+    expect(stripControlCharactersKeepingLineFeeds("a\u001b[31mb\u202ec\u009bd")).toBe("a[31mbcd");
+  });
+
+  it("should remove a carriage return, which paints over the line already written", () => {
+    expect(stripControlCharactersKeepingLineFeeds("real message\rforged")).toBe(
+      "real messageforged",
+    );
   });
 });

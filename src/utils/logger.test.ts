@@ -713,6 +713,35 @@ describe("withFallbackLoggerTarget", () => {
     expect(collector.getWarnings()).toEqual(["still the outer target"]);
   });
 
+  it("does not recurse when the adopted target forwards back to the forwarder", async () => {
+    // What `hooks-processor.ts` builds: a wrapper that prefixes the tool target
+    // and hands the rest to the logger it was given. Given the forwarder, it is
+    // an adopted target that leads straight back here, and the identity check
+    // above does not see it.
+    const wrapper: Logger = {
+      ...fallbackLogger,
+      warn: (message: string, ...args: unknown[]) =>
+        fallbackLogger.warn(`For claudecode: ${message}`, ...args),
+    };
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      await withFallbackLoggerTarget({
+        logger: wrapper,
+        operation: async () => {
+          warnWithFallback(undefined, "a diagnostic");
+        },
+      });
+
+      // Once, on the console the warning would have reached with nothing
+      // adopted — rather than a stack overflow.
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0]?.[0]).toContain("For claudecode: a diagnostic");
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it("gives each operation its own once-per-run bookkeeping", async () => {
     const first = new WarningCollectingLogger({ verbose: false, silent: true });
     const second = new WarningCollectingLogger({ verbose: false, silent: true });
