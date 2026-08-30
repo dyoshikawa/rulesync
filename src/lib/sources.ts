@@ -347,8 +347,8 @@ const CURATED_RULES_SUBDIR_NAME = posix.basename(CURATED_RULES_FEATURE_SUBDIR);
  * dot. Reading a fetched rule as a local one is not a small mistake: it would
  * take precedence over its own source and never be refreshed again. Its own
  * first segment is compared, not a prefix of the path, so a rule really named
- * `.curatedish/x.md` is left alone -- and a backslash inside a name, the very
- * thing the walk exists to preserve, cannot split a segment in two.
+ * `.curated-notes/x.md` is left alone -- and a backslash inside a name, the
+ * very thing the walk exists to preserve, cannot split a segment in two.
  */
 async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   const rulesDir = join(projectRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
