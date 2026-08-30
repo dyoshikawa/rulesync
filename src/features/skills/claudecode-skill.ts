@@ -1,4 +1,4 @@
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -59,6 +59,12 @@ import {
  * own, so refusing it would lose `y`'s skills rather than protect anything. The
  * skills under the directory that was really named are unreachable either way:
  * no path the scan can report leads back to a name holding a backslash.
+ *
+ * That last shape is the one case the scan cannot warn about. `a\\b` reported
+ * at `a/b`, where `a/b` is itself a real directory, is indistinguishable from
+ * the ordinary root `a/b` -- both are spelled the same and both are there -- so
+ * the skills under `a\\b` are dropped without a word. Nothing in the path says
+ * a second directory was ever involved.
  */
 async function unusableNestedSkillsRootReason({
   outputRoot,
@@ -401,15 +407,24 @@ export class ClaudecodeSkill extends ToolSkill {
     // scanned twice and every skill under it reported as a duplicate name.
     const seenRelativeDirPaths = new Set<string>();
     for (const dirPath of filteredDirPaths) {
-      const reason = await unusableNestedSkillsRootReason({ outputRoot, dirPath });
+      // Normalized before anything is asked of it, so the path that is checked is
+      // the one that is later read. A `..` the rewrite left in has to be folded
+      // away either way -- `relative` folds it silently when the root is recorded,
+      // and `x/../y` answers to nothing when `x` itself does not exist, though the
+      // `y` it names may be a real root the scan reports under no other spelling.
+      const scannedDirPath = resolve(dirPath);
+      const reason = await unusableNestedSkillsRootReason({
+        outputRoot,
+        dirPath: scannedDirPath,
+      });
       if (reason !== undefined) {
         logger?.warn(
-          `Skipping the nested Claude Code skills directory ${JSON.stringify(stripControlCharacters(dirPath))}: ` +
+          `Skipping the nested Claude Code skills directory ${JSON.stringify(stripControlCharacters(scannedDirPath))}: ` +
             `${reason} Its skills are not imported.`,
         );
         continue;
       }
-      const relativeDirPath = relative(outputRoot, dirPath);
+      const relativeDirPath = relative(outputRoot, scannedDirPath);
       if (seenRelativeDirPaths.has(relativeDirPath)) {
         continue;
       }

@@ -29,7 +29,6 @@ import {
   removeFileStrict,
   removeDirectoryStrict,
   runWithDirectoryRollback,
-  splitPathSegments,
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -347,8 +346,9 @@ const CURATED_RULES_SUBDIR_NAME = posix.basename(CURATED_RULES_FEATURE_SUBDIR);
  * dot. Reading a fetched rule as a local one is not a small mistake: it would
  * take precedence over its own source and never be refreshed again. Its own
  * first segment is compared, not a prefix of the path, so a rule really named
- * `.curated-notes/x.md` is left alone -- and a backslash inside a name, the
- * very thing the walk exists to preserve, cannot split a segment in two.
+ * `.curated-notes/x.md` is left alone. The split is on the native separator
+ * alone: the walk joins with it, and a backslash inside a name -- the very
+ * thing the walk exists to preserve -- must not divide a segment in two.
  */
 async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   const rulesDir = join(projectRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
@@ -357,7 +357,7 @@ async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   });
   return new Set(
     relativePaths
-      .filter((relativePath) => splitPathSegments(relativePath)[0] !== CURATED_RULES_SUBDIR_NAME)
+      .filter((relativePath) => relativePath.split(sep)[0] !== CURATED_RULES_SUBDIR_NAME)
       .map((relativePath) => relativePath.replace(/\.md$/, "")),
   );
 }

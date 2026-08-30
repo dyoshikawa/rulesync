@@ -1532,6 +1532,35 @@ Broken YAML`,
     );
 
     it.skipIf(process.platform === "win32")(
+      "should still import a directory the rewritten spelling reaches through no real name",
+      async () => {
+        // The same substitution, with nothing named `x` on disk: `x/../y` then
+        // answers to nothing, so asking whether the path is there would refuse
+        // it -- and `y`, which the scan reports under no other spelling, would
+        // go with it. Folding the `..` away first is what keeps `y`.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await writeFileContent(
+          join(outputRoot, "x\\..\\y", ".claude", "skills", "shadowed", "SKILL.md"),
+          "---\nname: shadowed\ndescription: Shadowed description\n---\nShadowed body",
+        );
+        await writeFileContent(
+          join(outputRoot, "y", ".claude", "skills", "sibling", "SKILL.md"),
+          "---\nname: sibling\ndescription: Sibling description\n---\nSibling body",
+        );
+
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        expect(toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName())).toContain("sibling");
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
       "should refuse a nested skills directory the scan reports at a link out of the project",
       async () => {
         // The rewrite needs no `..` to move the path. A directory named `a\\b` is
