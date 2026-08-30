@@ -393,6 +393,42 @@ function normalizedFormOf(name: string): string {
     .trim();
 }
 
+/** Whitespace at either end of a name, which the row it is drawn on shows none of. */
+const EDGE_WHITESPACE_PATTERN = /^\s|\s$/u;
+
+/** Two blanks running, which the row draws as the one gap it draws for any number. */
+const REPEATED_WHITESPACE_PATTERN = /\s\s/u;
+
+/**
+ * Whether the name carries more whitespace than the row it is printed on shows.
+ *
+ * Two shapes, and both are about how much rather than which: whitespace at an
+ * edge, where `pdf ` and `pdf` end at the same column and the space is only
+ * found by the cursor landing past the name, and a run of it, which a terminal
+ * draws as one gap however many blanks are in it. Between them they are what
+ * lets a name be padded to reach under the row beneath it.
+ *
+ * A single blank inside a name that is merely not the plain space — a no-break
+ * space, an ideographic one — is deliberately not this check's business. It is
+ * drawn, and it is a substitution rather than an extent, so the name it
+ * imitates is one the display-form check already reports the pair of; marking
+ * it here would put a warning on `設定 ガイド` written with the ideographic
+ * space, which is an ordinary name written the ordinary way. At an edge it is
+ * marked like any other blank, since there what is at stake is not which
+ * character was chosen but that the name reaches past where it appears to end.
+ * The tab and the other blank control characters are not here either: a name
+ * carrying one is refused outright before it is ever offered.
+ *
+ * A name with a twin already carries a note, since the two share a display
+ * form. This is for the one without: nothing else on the list says that the
+ * name reaches past what can be seen of it, and a name padded to sit under
+ * another row is padded whether or not that other row is on the same list.
+ */
+function hasWhitespaceThatDoesNotShow(name: string): boolean {
+  const shown = stripHiddenCharacters(name);
+  return EDGE_WHITESPACE_PATTERN.test(shown) || REPEATED_WHITESPACE_PATTERN.test(shown);
+}
+
 /**
  * The form of `name` a terminal draws: what two pieces of text have to share to
  * be the same thing on screen rather than the same thing to `===`.
@@ -522,7 +558,8 @@ export function mixedScriptsOf(name: string): string[] | undefined {
 }
 
 /**
- * Note, per name, why it may not be told apart from another name on sight.
+ * Note, per name, why it may not be told apart on sight from what it appears to
+ * be.
  *
  * This is display-only: it never removes a name from a list or changes what a
  * name stands for. Two directories whose names differ only in code points the
@@ -530,15 +567,16 @@ export function mixedScriptsOf(name: string): string[] | undefined {
  * still writes exactly what was picked — the note is there so the picker can
  * tell that two entries which look identical are not.
  *
- * Four things are reported: two names with the same display form, two names
- * that read the same once the lookalike letters are matched up, a name spelled
- * entirely in letters that read as Latin ones, and a name that mixes scripts it
- * has no ordinary reason to. None of the four is a complete answer — the
- * lookalike tables hold the common pairs rather than all of them, a name
- * written entirely in a script the tables do not map is compared against
- * nothing, and a hand-picked pair of unrelated-looking names from one script
- * escapes every check — so the note is a prompt to look closer, not a guarantee
- * that unmarked entries are distinct.
+ * Five things are reported: two names with the same display form, two names
+ * that read the same once the lookalike letters are matched up, a name that
+ * carries more whitespace than the row shows, a name spelled entirely in
+ * letters that read as Latin ones, and a name that mixes scripts it has no
+ * ordinary reason to. None of the five is a complete answer — the lookalike
+ * tables hold the common pairs rather than all of them, a name written entirely
+ * in a script the tables do not map is compared against nothing, and a
+ * hand-picked pair of unrelated-looking names from one script escapes every
+ * check — so the note is a prompt to look closer, not a guarantee that unmarked
+ * entries are distinct.
  *
  * Names absent from the returned map carry no note. Duplicates in `names` are
  * folded first, so a list that repeats a name does not report that name as
@@ -570,6 +608,9 @@ export function describeConfusableNames(names: string[]): Map<string, string> {
     // same string, and the third is the one worth naming.
     if ((skeletonCounts.get(entry.skeleton) ?? 0) > sameDisplayForm) {
       reasons.push("another entry differs from it only by lookalike letters");
+    }
+    if (hasWhitespaceThatDoesNotShow(entry.name)) {
+      reasons.push("carries more whitespace than the row shows");
     }
     // The display form is what a reader sees, so it is what the script checks
     // are asked about: a circled or fullwidth letter carries the script of the
