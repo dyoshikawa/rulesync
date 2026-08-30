@@ -412,8 +412,9 @@ const REPEATED_WHITESPACE_PATTERN = /\s\s/u;
  * ideographic one — is deliberately not this check's business. It is drawn, and
  * it is a substitution rather than an extent, so the name it imitates is one
  * the display-form check already reports the pair of; marking it here would put
- * a warning on `設定　ガイド`, which is an ordinary name written the ordinary
- * way. The tab and the other blank control characters are not here either:
+ * a warning on `設定 ガイド` written with the ideographic space, which is an
+ * ordinary name written the ordinary way. The tab and the other blank control
+ * characters are not here either:
  * a name carrying one is refused outright before it is ever offered.
  *
  * A name with a twin already carries a note, since the two share a display
