@@ -631,6 +631,23 @@ describe("file utilities", () => {
         },
       );
 
+      it.skipIf(process.platform === "win32")(
+        "should keep the same name the glob keeps when the alias is the nested one",
+        async () => {
+          // The mirror of the case above: the real file is at the top of the walk
+          // and the alias is nested. The name has to be the real one either way,
+          // or the set of names disagrees with the set the loader's glob builds.
+          const root = join(testDir, "root");
+          await writeFileContent(join(root, "coding.md"), "content");
+          await ensureDir(join(root, "aaa"));
+          await symlink(join(root, "coding.md"), join(root, "aaa", "coding.md"));
+
+          expect(await listFilePathsRecursively(root, { deduplicateByFileIdentity: true })).toEqual(
+            ["coding.md"],
+          );
+        },
+      );
+
       it("should leave hidden entries out unless asked for them", async () => {
         // The glob these replaced ran with `dot: false`. Callers sweep what they
         // are given, so a `.git` beside the entries must not appear by default.

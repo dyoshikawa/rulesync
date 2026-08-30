@@ -612,6 +612,31 @@ async function realFileIdentity(filePath: string): Promise<string> {
 }
 
 /**
+ * Where the file `targetPath` really denotes sits relative to the one `rootPath`
+ * does, with every link on both sides resolved. Posix-separated, because the
+ * resolved paths it is built from are; a caller that splits it must split on `/`
+ * alone, which is also the only separator a real name can never contain.
+ *
+ * Both sides fall back to their literal path when they cannot be resolved, so an
+ * unresolvable path reads as an escape rather than as a contained one.
+ */
+export async function resolvedRelativePath({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<string> {
+  const [realRootPath, realTargetPath] = await Promise.all([
+    realFileIdentity(rootPath),
+    realFileIdentity(targetPath),
+  ]);
+  // Both sides are posix-separated by `realFileIdentity`, so the comparison has to be
+  // too -- the native `relative` would read a posix path as one segment on Windows.
+  return posix.relative(realRootPath, realTargetPath);
+}
+
+/**
  * Whether the file `targetPath` really denotes sits outside `rootPath`. Unlike
  * `pathEscapesRoot`, which reads a path as it is spelled, this resolves every link
  * on both sides first, so a name that sits inside the root but is a link pointing
@@ -625,13 +650,7 @@ export async function resolvedPathEscapesRoot({
   rootPath: string;
   targetPath: string;
 }): Promise<boolean> {
-  const [realRootPath, realTargetPath] = await Promise.all([
-    realFileIdentity(rootPath),
-    realFileIdentity(targetPath),
-  ]);
-  // Both sides are posix-separated by `realFileIdentity`, so the comparison has to be
-  // too -- the native `relative` would read a posix path as one segment on Windows.
-  const relativePath = posix.relative(realRootPath, realTargetPath);
+  const relativePath = await resolvedRelativePath({ rootPath, targetPath });
   return relativePath === ".." || relativePath.startsWith("../") || posix.isAbsolute(relativePath);
 }
 
@@ -1069,18 +1088,26 @@ async function deduplicateRelativePathsByFileIdentity({
   dirPath: string;
   relativePaths: string[];
 }): Promise<string[]> {
+  // Folded on absolute paths, exactly the shape `findFilesByGlobs` folds, and
+  // relativized only afterwards. `chooseRepresentative` scores a candidate by the
+  // segments it shares with the file's identity, and only an absolute path can
+  // share all of its own: a relative one that names a file at the top of the walk
+  // scores a single segment, which any alias of the same basename ties -- leaving
+  // the choice to sort order, and the two sides free to disagree about the name a
+  // file has.
   const candidatesByFile = new Map<string, string[]>();
   for (const relativePath of relativePaths.toSorted()) {
-    const identity = await realFileIdentity(join(dirPath, relativePath));
+    const absolutePath = join(dirPath, relativePath);
+    const identity = await realFileIdentity(absolutePath);
     const candidates = candidatesByFile.get(identity);
     if (candidates === undefined) {
-      candidatesByFile.set(identity, [relativePath]);
+      candidatesByFile.set(identity, [absolutePath]);
     } else {
-      candidates.push(relativePath);
+      candidates.push(absolutePath);
     }
   }
   return [...candidatesByFile.entries()]
-    .map(([identity, candidates]) => chooseRepresentative(candidates, identity))
+    .map(([identity, candidates]) => relative(dirPath, chooseRepresentative(candidates, identity)))
     .toSorted();
 }
 

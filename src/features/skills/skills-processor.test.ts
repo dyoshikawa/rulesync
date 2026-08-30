@@ -1646,6 +1646,66 @@ Broken YAML`,
       },
     );
 
+    it.skipIf(process.platform === "win32")(
+      "should refuse a nested skills directory that reaches an excluded tree through a link",
+      async () => {
+        // No `..` is needed to reach the dependency tree: `a\\b` is reported at
+        // `a/b`, and `a/b` here is a link into `node_modules`. Folding the path
+        // is not enough -- the exclusion has to be judged on what it resolves to.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await ensureDir(join(outputRoot, "a"));
+        await writeFileContent(
+          join(outputRoot, "node_modules", "pkg", ".claude", "skills", "dep-skill", "SKILL.md"),
+          "---\nname: dep-skill\ndescription: Dependency description\n---\nDependency body",
+        );
+        await writeFileContent(
+          join(outputRoot, "a\\b", ".claude", "skills", "decoy", "SKILL.md"),
+          "---\nname: decoy\ndescription: Decoy description\n---\nDecoy body",
+        );
+        await symlink(join(outputRoot, "node_modules", "pkg"), join(outputRoot, "a", "b"));
+
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        expect(toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName())).not.toContain(
+          "dep-skill",
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            'it resolves inside "node_modules", which the nested scan excludes',
+          ),
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should not read the project's own skills directory as a nested root",
+      async () => {
+        // A directory named `x\\..` is reported at `x/..`, which folds onto the
+        // project root and so names the tool's own skills directory. A nested
+        // root is imported leniently, which would downgrade an invalid skill of
+        // the project's own from an error to a warning.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await writeFileContent(
+          join(outputRoot, ".claude", "skills", "own-skill", "SKILL.md"),
+          "---\nname: own-skill\ndescription: Own description\n---\nOwn body",
+        );
+        await writeFileContent(
+          join(outputRoot, "x\\..", ".claude", "skills", "decoy", "SKILL.md"),
+          "---\nname: decoy\ndescription: Decoy description\n---\nDecoy body",
+        );
+
+        const roots = await ClaudecodeSkill.getConfiguredImportRoots({ outputRoot, logger });
+
+        expect(roots.map((root) => root.relativeDirPath)).not.toContain(join(".claude", "skills"));
+      },
+    );
+
     it("should still abort import for non-lenient tools when a declared-root skill is invalid", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
