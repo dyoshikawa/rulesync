@@ -110,6 +110,16 @@ const MIN_SHORTENED_NAME_WIDTH = 16;
  * the environment before it falls back to 80, which this does not; a prompt is
  * refused outright without a TTY, and a TTY answers before either is asked.)
  *
+ * `process.stdout` is the same stream the renderer measures because `checkbox`
+ * is called without an `output` option and `@inquirer/core` defaults the
+ * readline output to it. A caller that passes one would decouple the budget
+ * from the width the rows are broken at.
+ *
+ * Read once, before the prompt opens, where the renderer re-measures on every
+ * render: a window narrowed while the picker is up puts the labels back over
+ * the wrap point until it is closed and reopened. Recorded rather than solved,
+ * since the checkbox API offers no way to relabel a prompt in flight.
+ *
  * The floor is the one a name is kept to anyway, and below it there is nothing
  * left to shorten toward: a label cut past that point is an ellipsis and little
  * else, and a list of rows that cannot be told apart at all is worse than one
@@ -178,9 +188,11 @@ function formatSkillChoiceLabel(params: {
   });
   // Cut as a whole once the pieces are laid out: each is kept to what it was
   // given, but a budget too small for the marker, the separator and a mark of
-  // the cut on either side is one none of them can give any more back to. The
-  // last cut is what holds the bound at every width, the numbered rows — whose
-  // budget is this one less the number in front of it — included.
+  // the cut on either side is one none of them can give any more back to. This
+  // is the cut that holds the bound, at any budget of a column or more — the
+  // numbered rows, whose budget is this one less the number in front of them,
+  // included. The clamp above it decides which piece gives way rather than
+  // whether one does: the name yields and the marker and the separator do not.
   return shortenToWidth({
     text: `${NOTE_MARKER}${shownNote}${NOTE_SEPARATOR}${shownName}`,
     budget,

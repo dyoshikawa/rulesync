@@ -167,8 +167,10 @@ const SHORTENING_ELLIPSIS = "\u2026";
  * the budget has room for the mark of the cut and nothing before it.
  *
  * Exported because a caller composing several shortened pieces into one line
- * has to leave room for it, and the width of the mark is this module's business
- * rather than something to be counted again at the other end.
+ * has to leave room for it to decide which of them gives way, and the width of
+ * the mark is this module's business rather than something to be counted again
+ * at the other end. Leaving room for it is not what bounds the line: cutting
+ * the composed line is.
  */
 export const ELLIPSIS_WIDTH = 1;
 
