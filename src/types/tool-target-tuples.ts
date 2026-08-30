@@ -183,6 +183,7 @@ export const subagentsProcessorToolTargetTuple = [
   "rovodev",
   "takt",
   "vibe",
+  "zcode",
 ] as const;
 
 export const skillsProcessorToolTargetTuple = [

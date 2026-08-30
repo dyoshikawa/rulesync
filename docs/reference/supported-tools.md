@@ -46,7 +46,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Replit                    | replit             |  ✅   |        |          |          |           | ✅ 🌏  |       |             |        |
 | Pi Coding Agent           | pi                 | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Zed                       | zed                | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |          |           | ✅ 🌏  |       |    ✅ 🌏    |        |
-| ZCode (Z.ai)              | zcode              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  |       |             |        |
+| ZCode (Z.ai)              | zcode              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |    🌏     | ✅ 🌏  |       |             |        |
 
 <!-- SUPPORTED_TOOLS_DOCS:END -->
 

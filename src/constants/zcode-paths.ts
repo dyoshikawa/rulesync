@@ -42,3 +42,13 @@ export const ZCODE_CONFIG_FILE_NAME = "config.json";
 export const ZCODE_GLOBAL_CONFIG_DIR_PATH = join(ZCODE_DIR, "cli");
 export const ZCODE_MCP_CONFIG_KEY = "mcp";
 export const ZCODE_MCP_SERVERS_KEY = "servers";
+
+// Subagents: Markdown files with YAML frontmatter, one per subagent, named
+// after the agent. Global scope only — the current Beta "manages global /
+// user-level subagents stored under `~/.zcode/agents/`", and creating
+// workspace / project-level subagents "is not available yet", so rulesync
+// writes this path under the home directory and emits nothing for a project.
+// The relative path is still spelled against `.zcode/` so it lines up with
+// every other ZCode asset if the workspace scope ships later.
+// @see https://zcode.z.ai/en/docs/subagents
+export const ZCODE_AGENTS_DIR_PATH = join(ZCODE_DIR, "agents");

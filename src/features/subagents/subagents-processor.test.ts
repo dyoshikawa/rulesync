@@ -1288,6 +1288,7 @@ Second global content`;
         "rovodev",
         "takt",
         "vibe",
+        "zcode",
       ]);
     });
 

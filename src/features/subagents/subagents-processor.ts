@@ -65,6 +65,7 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 import { VibeSubagent } from "./vibe-subagent.js";
+import { ZcodeSubagent } from "./zcode-subagent.js";
 import { ZoocodeSubagent } from "./zoocode-subagent.js";
 
 /**
@@ -114,6 +115,8 @@ type ToolSubagentFactory = {
     }): Promise<boolean>;
   };
   meta: {
+    /** Whether the tool supports project-level subagents */
+    supportsProject: boolean;
     /** Whether the tool supports simulated subagents (embedded in rules) */
     supportsSimulated: boolean;
     /** Whether the tool supports global (user-level) subagents */
@@ -142,7 +145,12 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "agentsmd",
     {
       class: AgentsmdSubagent,
-      meta: { supportsSimulated: true, supportsGlobal: false, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: true,
+        supportsGlobal: false,
+        filePattern: "*.md",
+      },
     },
   ],
   [
@@ -153,14 +161,24 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // `~/.gemini/config/agents/` (global).
       // https://antigravity.google/docs/subagents
       class: AntigravityCliSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
     "antigravity-ide",
     {
       class: AntigravityIdeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
@@ -170,7 +188,12 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // project-scope artifact the user stages globally themselves.
       // https://antigravity.google/docs/cli/plugins
       class: AntigravityPluginSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
+      },
     },
   ],
   [
@@ -180,28 +203,48 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // .augment/agents/ (project) and ~/.augment/agents/ (global).
       // https://docs.augmentcode.com/cli/subagents
       class: AugmentcodeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
     "claudecode",
     {
       class: ClaudecodeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
     "claudecode-plugin",
     {
       class: ClaudecodePluginSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
+      },
     },
   ],
   [
     "claudecode-legacy",
     {
       class: ClaudecodeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
@@ -213,14 +256,24 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // https://github.com/cline/cline/blob/main/apps/vscode/src/core/task/tools/subagent/AgentConfigLoader.ts
       class: ClineSubagent,
       // isYamlFile() upstream accepts .yml alongside .yaml, so import scans both.
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.{yaml,yml}" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.{yaml,yml}",
+      },
     },
   ],
   [
     "codexcli",
     {
       class: CodexCliSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.toml" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.toml",
+      },
     },
   ],
   [
@@ -230,7 +283,12 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // VS Code Copilot custom agents support both project (.github/agents/) and
       // user-profile/global (~/.copilot/agents/) scopes.
       // Reference: https://code.visualstudio.com/docs/copilot/agents/custom-agents
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
@@ -240,14 +298,24 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // Copilot CLI custom agents support both project (.github/agents/) and
       // user/global (~/.copilot/agents/) scopes natively.
       // Reference: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.agent.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.agent.md",
+      },
     },
   ],
   [
     "cursor",
     {
       class: CursorSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
@@ -260,6 +328,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // one level and match the per-agent AGENTS.md file.
       // https://github.com/langchain-ai/deepagents/blob/main/libs/code/deepagents_code/subagents.py
       meta: {
+        supportsProject: true,
         supportsSimulated: false,
         // dcode discovers user-level subagents in `~/.deepagents/<agent_name>/agents/`.
         supportsGlobal: true,
@@ -277,6 +346,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // https://docs.devin.ai/cli/subagents
       class: DevinSubagent,
       meta: {
+        supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: join("*", "AGENT.md"),
@@ -290,7 +360,12 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // .factory/droids/ (project) and ~/.factory/droids/ (global).
       // https://docs.factory.ai/cli/configuration/custom-droids
       class: FactorydroidSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
@@ -300,7 +375,12 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // Custom agents are Markdown files under .goose/agents/ (project) and
       // ~/.config/goose/agents/ (global); the old sub-recipe YAML surface was
       // never read by Goose's agent discovery.
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
@@ -308,6 +388,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     {
       class: HermesagentSubagent,
       meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsSimulated: false,
         filePattern: "*.json",
@@ -318,21 +399,36 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "grokcli",
     {
       class: GrokcliSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
     "junie",
     {
       class: JunieSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
     "kiro",
     {
       class: KiroSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: "*.json" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.json",
+      },
     },
   ],
   [
@@ -342,7 +438,12 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "kiro-cli",
     {
       class: KiroCliSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.json" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.json",
+      },
     },
   ],
   [
@@ -351,14 +452,24 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "kiro-ide",
     {
       class: KiroIdeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
     "kilo",
     {
       class: KiloSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
@@ -366,6 +477,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     {
       class: KimiCodeSubagent,
       meta: {
+        supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: join("**", "*.md"),
@@ -376,7 +488,12 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "opencode",
     {
       class: OpenCodeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
@@ -385,7 +502,12 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // Qwen Code subagents are native Markdown + YAML frontmatter under
       // `.qwen/agents/` (project) and `~/.qwen/agents/` (user/global).
       class: QwencodeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
@@ -398,6 +520,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SUBAGENT_PROFILES.md
       class: ReasonixSubagent,
       meta: {
+        supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: join("*", "SKILL.md"),
@@ -412,7 +535,12 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // subagent into that file's `customModes` array.
       // https://roocodeinc.github.io/Roo-Code/features/custom-modes
       class: RooSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: ".roomodes" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: ".roomodes",
+      },
     },
   ],
   [
@@ -423,28 +551,65 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
       // the `zoocode:` frontmatter section.
       // https://docs.zoocode.dev/features/custom-modes
       class: ZoocodeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: false, filePattern: ".roomodes" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: ".roomodes",
+      },
     },
   ],
   [
     "rovodev",
     {
       class: RovodevSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
     "takt",
     {
       class: TaktSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.md" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
   [
     "vibe",
     {
       class: VibeSubagent,
-      meta: { supportsSimulated: false, supportsGlobal: true, filePattern: "*.toml" },
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.toml",
+      },
+    },
+  ],
+  [
+    "zcode",
+    {
+      // ZCode subagents are Markdown files with YAML frontmatter under
+      // `~/.zcode/agents/`. Global only: the current Beta manages user-level
+      // subagents there, and workspace/project-level ones are "not available
+      // yet".
+      // https://zcode.z.ai/en/docs/subagents
+      class: ZcodeSubagent,
+      meta: {
+        supportsProject: false,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
     },
   ],
 ]);
@@ -466,7 +631,10 @@ const defaultGetFactory: GetFactory = (target) => {
 // Derive tool target arrays from factory metadata
 const allToolTargetKeys = [...toolSubagentFactories.keys()];
 
-export const subagentsProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
+export const subagentsProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolSubagentFactories.get(target);
+  return factory?.meta.supportsProject ?? false;
+});
 
 export const subagentsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter(
   (target) => {
