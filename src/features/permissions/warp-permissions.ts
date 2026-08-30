@@ -569,6 +569,40 @@ function skipBracketedConstruct(body: string, start: number, open: string): numb
 }
 
 /**
+ * Read the tail of a `\\x` / `\\u` escape — the hex run of `\\x20`, or the
+ * braced `\\x{263A}` form — and return the index just past it. Such an escape
+ * spells one character across several, so consuming only its introducer would
+ * leave the hex digits behind as literal atoms and *narrow* the glob, the one
+ * direction the rewrite must never take. Over-consuming only widens, so an
+ * unterminated brace swallows the rest of the pattern.
+ */
+function skipHexEscapeTail(body: string, start: number): number {
+  if (body.charAt(start) === "{") {
+    const closing = body.indexOf("}", start);
+    return closing === -1 ? body.length : closing + 1;
+  }
+  let index = start;
+  while (index < body.length && /^[0-9A-Fa-f]$/.test(body.charAt(index))) {
+    index += 1;
+  }
+  return index;
+}
+
+/**
+ * Read the escape that opens at `start` — the `\\` and whatever it spells — and
+ * say where it ends and which atom it stands for.
+ */
+function readEscape(body: string, start: number): { next: number; atom: string } {
+  // `charAt` past the end is the empty string, so a trailing backslash widens
+  // like any other escape it cannot spell.
+  const escaped = body.charAt(start + 1);
+  if (escaped === "x" || escaped === "u") {
+    return { next: skipHexEscapeTail(body, start + 2), atom: "*" };
+  }
+  return { next: start + 2, atom: escapedCharacterWidens(escaped) ? "*" : escaped };
+}
+
+/**
  * Whether an escaped character has to widen to `*` rather than stand for
  * itself: a letter or a digit spells a class (`\s`, `\d`, `\w`), a glob
  * metacharacter would be read as a wildcard or a class by the comparison
@@ -662,11 +696,9 @@ function warpCommandPatternToGlob(pattern: string): string {
       return "*";
     }
     if (character === "\\") {
-      // `charAt` past the end is the empty string, so a trailing backslash
-      // widens like any other escape it cannot spell.
-      const escaped = body.charAt(index + 1);
-      index += 2;
-      atoms.push(escapedCharacterWidens(escaped) ? "*" : escaped);
+      const escape = readEscape(body, index);
+      index = escape.next;
+      atoms.push(escape.atom);
       continue;
     }
     if (character === "[" || character === "(" || character === "{") {
@@ -719,17 +751,19 @@ function convertRulesyncToWarpPermissions({
   // Warp's denylist is a regex list that replaces the tool's built-in default
   // one, so an all-tools `*` pattern — which may not even name a command —
   // withholds the allow rules it covers instead of being written there.
-  const { allow, deny, shadowedAllowPatterns, unwrittenDenyPatterns } = partitionCommandRules({
-    rules,
-    writesAllToolsDeny: false,
-    normalizePattern: warpCommandPatternToGlob,
-  });
+  const { allow, deny, shadowedAllowPatterns, unwrittenDenyPatterns, unenforcedAskPatterns } =
+    partitionCommandRules({
+      rules,
+      writesAllToolsDeny: false,
+      normalizePattern: warpCommandPatternToGlob,
+    });
   warnAboutUnwrittenCommandRules({
     toolLabel: "Warp",
     surfaceLabel: "agent_mode_command_execution_allowlist/denylist",
     foreignDenyCategories,
     shadowedAllowPatterns,
     unwrittenDenyPatterns,
+    unenforcedAskPatterns,
     unwrittenDenyReason:
       "Writing any denylist replaces Warp's built-in default one, and a pattern written " +
       "under '*' need not be a command at all.",

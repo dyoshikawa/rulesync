@@ -224,7 +224,38 @@ describe("ClinePermissions", () => {
     const content = JSON.parse(instance.getFileContent());
     expect(content.deny).toEqual(["secrets/**"]);
     expect(content.allow).toEqual(["git *"]);
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("withheld no allow rule"));
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("withheld none of the allow rules beside them"),
+    );
+  });
+
+  it("should report an all-tools ask that withheld nothing rather than dropping it in silence", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "secrets/**": "ask" },
+        },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // An all-tools `ask` is written to neither list and is deliberately not
+    // translated to `deny`, so withholding an allow is the only trace it can
+    // leave. With no allow beside it there is no trace at all.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual([]);
+    expect(content.deny).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("'ask' rules for [secrets/**]"),
+    );
   });
 
   it("should ignore the all-tools category's allow rules", async () => {

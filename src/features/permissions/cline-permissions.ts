@@ -12,6 +12,7 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   collectShellCommandRules,
+  collectUnenforcedAllToolsDenyPatterns,
   createShadowingRestrictionsTest,
   SHELL_PERMISSION_CATEGORY,
 } from "./shell-command-categories.js";
@@ -54,6 +55,7 @@ type ClineTranslationResult = {
    * rule, so nothing observed says they name a command Cline can block.
    */
   unenforcedAllToolsDenyPatterns: string[];
+  unenforcedAllToolsAskPatterns: string[];
   ignoredAllToolsAllowPatterns: string[];
 };
 
@@ -94,11 +96,13 @@ function translateClinePermissions(
     rules.filter(({ fromAllToolsCategory }) => fromAllToolsCategory),
   );
   const allToolsDenyPatterns: string[] = [];
+  const allToolsAskPatterns: string[] = [];
   const withholdingPatterns = new Set<string>();
 
   for (const { pattern, action, fromAllToolsCategory } of rules) {
     if (action === "ask") {
       if (fromAllToolsCategory) {
+        allToolsAskPatterns.push(pattern);
         continue;
       }
       // A `bash` ask is a command pattern by construction. Translate it to `deny`
@@ -129,7 +133,14 @@ function translateClinePermissions(
   // A `*` deny that overlapped some allow rule restricts whatever it names. One
   // that overlapped none may be a path pattern sitting in a command denylist,
   // where it blocks nothing — the author wrote it to stop something, so say so.
-  const unenforcedAllToolsDenyPatterns = uniq(allToolsDenyPatterns).filter(
+  const unenforcedAllToolsDenyPatterns = collectUnenforcedAllToolsDenyPatterns({
+    rules,
+    writtenAllToolsDenyPatterns: allToolsDenyPatterns,
+    withholdingPatterns,
+  });
+  // A `*` ask is written to neither list, so withholding an allow rule is the
+  // only trace it can leave; one that withheld none vanished without a word.
+  const unenforcedAllToolsAskPatterns = uniq(allToolsAskPatterns).filter(
     (pattern) => !withholdingPatterns.has(pattern),
   );
 
@@ -140,6 +151,7 @@ function translateClinePermissions(
     translatedAskPatterns,
     shadowedAllowPatterns,
     unenforcedAllToolsDenyPatterns,
+    unenforcedAllToolsAskPatterns,
     ignoredAllToolsAllowPatterns,
   };
 }
@@ -155,6 +167,7 @@ function warnClineTranslationNotices({
   translatedAskPatterns,
   shadowedAllowPatterns,
   unenforcedAllToolsDenyPatterns,
+  unenforcedAllToolsAskPatterns,
   ignoredAllToolsAllowPatterns,
   logger,
 }: {
@@ -162,6 +175,7 @@ function warnClineTranslationNotices({
   translatedAskPatterns: string[];
   shadowedAllowPatterns: string[];
   unenforcedAllToolsDenyPatterns: string[];
+  unenforcedAllToolsAskPatterns: string[];
   ignoredAllToolsAllowPatterns: string[];
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
@@ -170,6 +184,7 @@ function warnClineTranslationNotices({
     translatedAskPatterns.length === 0 &&
     shadowedAllowPatterns.length === 0 &&
     unenforcedAllToolsDenyPatterns.length === 0 &&
+    unenforcedAllToolsAskPatterns.length === 0 &&
     ignoredAllToolsAllowPatterns.length === 0
   ) {
     return;
@@ -199,9 +214,19 @@ function warnClineTranslationNotices({
   if (unenforcedAllToolsDenyPatterns.length > 0) {
     parts.push(
       `'deny' rules for [${unenforcedAllToolsDenyPatterns.join(", ")}] under the all-tools '*' ` +
-        `category written into the denylist as they stand, where they withheld no allow rule — ` +
-        `a pattern written there need not name a command, and a denylist entry that names none ` +
-        `blocks nothing; write it under 'bash' if it is a command pattern`,
+        `category written into the denylist as they stand, where they withheld none of the ` +
+        `allow rules beside them — a pattern written there need not name a command, and a ` +
+        `denylist entry that names none blocks nothing; write it under 'bash' too if it is a ` +
+        `command pattern`,
+    );
+  }
+  if (unenforcedAllToolsAskPatterns.length > 0) {
+    parts.push(
+      `'ask' rules for [${unenforcedAllToolsAskPatterns.join(", ")}] under the all-tools '*' ` +
+        `category dropped: Cline has no 'ask' list, and unlike a 'bash' ask they are not ` +
+        `translated to 'deny' — a pattern written there need not name a command, so denying it ` +
+        `outright could block far more than the author asked about — and they withheld none of ` +
+        `the allow rules beside them; write them under 'bash' if they are command patterns`,
     );
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {
@@ -294,6 +319,7 @@ export class ClinePermissions extends ToolPermissions {
       translatedAskPatterns,
       shadowedAllowPatterns,
       unenforcedAllToolsDenyPatterns,
+      unenforcedAllToolsAskPatterns,
       ignoredAllToolsAllowPatterns,
     } = translateClinePermissions(config.permission);
 
@@ -302,6 +328,7 @@ export class ClinePermissions extends ToolPermissions {
       translatedAskPatterns,
       shadowedAllowPatterns,
       unenforcedAllToolsDenyPatterns,
+      unenforcedAllToolsAskPatterns,
       ignoredAllToolsAllowPatterns,
       logger,
     });

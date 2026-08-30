@@ -230,6 +230,29 @@ describe("WarpPermissions", () => {
       expect(profiles[ALLOWLIST_KEY]).toEqual(["^ls -la$"]);
     });
 
+    it("withholds an allow a hex escape reaches, digits and all", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // `\x20` and `\u0020` each spell the space of the allow beside
+            // them across several characters. Reading only the `\x` would
+            // leave `20` behind as a literal and *narrow* the rewrite, so the
+            // restriction would stop covering the command it names.
+            "^git\\x20push$": "ask",
+            "^npm\\u0020publish$": "ask",
+            "^git push$": "allow",
+            "^npm publish$": "allow",
+            "^ls -la$": "allow",
+          },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^ls -la$"]);
+    });
+
     it.each([
       // The class holds a `[` of its own, so counting brackets would run past
       // the `]` and swallow the `|` that makes this two patterns.

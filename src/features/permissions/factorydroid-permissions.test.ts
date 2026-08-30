@@ -162,7 +162,78 @@ describe("FactorydroidPermissions", () => {
       // reported rather than left to be discovered.
       expect(json.commandDenylist).toEqual(["secrets/**"]);
       expect(json.commandAllowlist).toEqual(["git *"]);
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("withheld no allow rule"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("withheld none of the allow rules beside them"),
+      );
+    });
+
+    it("should not call an all-tools deny unenforced when there was no allow rule to withhold", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "rm -rf *": "deny" },
+          bash: { "curl *": "deny" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // Nothing was allowed, so withholding nothing says nothing about whether
+      // `rm -rf *` names a command — and it plainly does. Reporting it here
+      // would call a working denylist entry inert.
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandDenylist).toEqual(["curl *", "rm -rf *"]);
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("withheld none of the allow rules beside them"),
+      );
+    });
+
+    it("should not call an all-tools deny unenforced when the same pattern is written under bash", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "rm -rf /tmp/x": "deny" },
+          bash: { "rm -rf /tmp/x": "deny", "git *": "allow" },
+        },
+      });
+
+      await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // The author wrote the same pattern under `bash`, so it is a command on
+      // their own word; advising them to write it there would be nonsense.
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("withheld none of the allow rules beside them"),
+      );
+    });
+
+    it("should report an ask rule that wrote nothing and withheld nothing", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          bash: { "npm publish": "ask", "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // Factory Droid has no ask tier, so an `ask` can only be honored by
+      // withholding an allow it covers. This one covers none, so the rule left
+      // no trace at all — which the author should hear rather than discover.
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("has no ask tier"));
     });
 
     it("should withhold an allow spelled with a character class, which no glob matches", async () => {

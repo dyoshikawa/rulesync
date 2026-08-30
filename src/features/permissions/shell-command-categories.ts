@@ -180,11 +180,47 @@ export type CommandListPartition = {
   unwrittenDenyPatterns: string[];
   /**
    * All-tools `deny` patterns that were written into the denylist and withheld
-   * no `allow` rule, so nothing observed says they name a command the tool can
-   * act on — see `warnAboutUnwrittenCommandRules`.
+   * none of the `allow` rules beside them, so nothing observed says they name a
+   * command the tool can act on — see `warnAboutUnwrittenCommandRules`.
    */
   unenforcedAllToolsDenyPatterns: string[];
+  /**
+   * `ask` patterns that withheld no `allow` rule. An `ask` has no list of its
+   * own here, so withholding is the only trace it can leave: one that withheld
+   * nothing left none at all — see `warnAboutUnwrittenCommandRules`.
+   */
+  unenforcedAskPatterns: string[];
 };
+
+/**
+ * Which of the all-tools `*` deny patterns written into the denylist look like
+ * they may not name a command at all.
+ *
+ * "Withheld no allow rule" alone does not say that: a config with no `allow`
+ * rules has nothing to withhold, and a pattern the author also wrote under
+ * `bash` is a command on their own word. Both are excluded, so what remains is
+ * a `*` pattern that had allow rules to overlap, overlapped none of them, and
+ * is claimed as a command nowhere else — the shape `secrets/**` has.
+ */
+export function collectUnenforcedAllToolsDenyPatterns({
+  rules,
+  writtenAllToolsDenyPatterns,
+  withholdingPatterns,
+}: {
+  rules: readonly ShellCommandRule[];
+  writtenAllToolsDenyPatterns: readonly string[];
+  withholdingPatterns: ReadonlySet<string>;
+}): string[] {
+  if (!rules.some(({ action }) => action === "allow")) {
+    return [];
+  }
+  const shellPatterns = new Set(
+    rules.filter(({ fromAllToolsCategory }) => !fromAllToolsCategory).map(({ pattern }) => pattern),
+  );
+  return uniq(writtenAllToolsDenyPatterns).filter(
+    (pattern) => !withholdingPatterns.has(pattern) && !shellPatterns.has(pattern),
+  );
+}
 
 /**
  * Split shell-command rules into the allow and deny lists of a tool that models
@@ -230,6 +266,7 @@ export function partitionCommandRules({
   const unwrittenDenyPatterns: string[] = [];
   const restrictions: ShellCommandRule[] = [];
   const writtenAllToolsDenyPatterns: string[] = [];
+  const askPatterns: string[] = [];
 
   for (const rule of rules) {
     const { pattern, action, fromAllToolsCategory } = rule;
@@ -240,6 +277,7 @@ export function partitionCommandRules({
       // An `ask` has no list of its own anywhere, so it can only be honored by
       // withholding the allow rules it covers.
       restrictions.push(rule);
+      askPatterns.push(pattern);
       continue;
     }
     if (writesAllToolsDeny || !fromAllToolsCategory) {
@@ -280,20 +318,19 @@ export function partitionCommandRules({
     allow.push(pattern);
   }
 
-  // A `*` deny that overlapped some allow rule is doing work whatever it names.
-  // One that overlapped none may be a path pattern sitting in a command
-  // denylist, matching nothing and enforcing nothing — worth a word, since the
-  // author wrote it to stop something.
-  const unenforcedAllToolsDenyPatterns = uniq(writtenAllToolsDenyPatterns).filter(
-    (pattern) => !withholdingPatterns.has(pattern),
-  );
-
   return {
     allow,
     deny,
     shadowedAllowPatterns,
     unwrittenDenyPatterns,
-    unenforcedAllToolsDenyPatterns,
+    unenforcedAllToolsDenyPatterns: collectUnenforcedAllToolsDenyPatterns({
+      rules,
+      writtenAllToolsDenyPatterns,
+      withholdingPatterns,
+    }),
+    // Withholding is all an `ask` can do here, so one that withheld nothing
+    // left no trace of the author's rule at all.
+    unenforcedAskPatterns: uniq(askPatterns).filter((pattern) => !withholdingPatterns.has(pattern)),
   };
 }
 
@@ -310,6 +347,7 @@ export function warnAboutUnwrittenCommandRules({
   unwrittenDenyPatterns = [],
   unwrittenDenyReason,
   unenforcedAllToolsDenyPatterns = [],
+  unenforcedAskPatterns = [],
   ignoredAllToolsAllowPatterns = [],
   logger,
 }: {
@@ -327,6 +365,7 @@ export function warnAboutUnwrittenCommandRules({
    */
   unwrittenDenyReason?: string;
   unenforcedAllToolsDenyPatterns?: readonly string[];
+  unenforcedAskPatterns?: readonly string[];
   ignoredAllToolsAllowPatterns?: readonly string[];
   logger?: Logger;
 }): void {
@@ -351,10 +390,19 @@ export function warnAboutUnwrittenCommandRules({
     warnWithFallback(
       logger,
       `${toolLabel} wrote the all-tools '*' deny rule(s) for ` +
-        `${unenforcedAllToolsDenyPatterns.join(", ")} into its denylist as they stand, and they ` +
-        `withheld no allow rule. A pattern written under '*' need not name a command — ` +
-        `'secrets/**' there denies a path — and a denylist entry that names none blocks ` +
-        `nothing; write it under 'bash' if it is a command pattern.`,
+        `${unenforcedAllToolsDenyPatterns.join(", ")} into its denylist as they stand, but they ` +
+        `withheld none of the allow rules beside them. A pattern written under '*' need not ` +
+        `name a command — 'secrets/**' there denies a path — and a denylist entry that names ` +
+        `none blocks nothing; write it under 'bash' too if it is a command pattern.`,
+    );
+  }
+  if (unenforcedAskPatterns.length > 0) {
+    warnWithFallback(
+      logger,
+      `${toolLabel} has no ask tier (${surfaceLabel}), so the ask rule(s) for ` +
+        `${unenforcedAskPatterns.join(", ")} wrote nothing, and they withheld none of the allow ` +
+        `rules beside them either. ${toolLabel} still prompts for whatever its allowlist does ` +
+        `not cover; write them under 'bash' as deny rules to block them outright.`,
     );
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {
