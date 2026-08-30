@@ -196,21 +196,26 @@ export function partitionCommandRules({
     if (action === "allow") {
       continue;
     }
-    if (action === "deny") {
-      if (writesAllToolsDeny || !fromAllToolsCategory) {
-        // Written into the denylist, where the tool's own deny-beats-allow
-        // precedence enforces it against the very commands it names.
-        deny.push(pattern);
-      } else {
-        unwrittenDenyPatterns.push(pattern);
-      }
-      if (!fromAllToolsCategory) {
-        // A `bash` pattern is a command, so that denylist entry is the whole
-        // enforcement — the allow rules beside it stay.
-        continue;
-      }
+    if (action !== "deny") {
+      // An `ask` has no list of its own anywhere, so it can only be honored by
+      // withholding the allow rules it covers.
+      restrictions.push(rule);
+      continue;
     }
-    restrictions.push(rule);
+    if (writesAllToolsDeny || !fromAllToolsCategory) {
+      // Written into the denylist, where the tool's own deny-beats-allow
+      // precedence enforces it against the very commands it names.
+      deny.push(pattern);
+    } else {
+      unwrittenDenyPatterns.push(pattern);
+    }
+    if (fromAllToolsCategory) {
+      // A pattern under `*` need not name a command, so the denylist entry may
+      // enforce nothing; it withholds the allow rules it covers as well.
+      restrictions.push(rule);
+    }
+    // A `bash` pattern is a command, so that denylist entry is the whole
+    // enforcement — the allow rules beside it stay.
   }
 
   const isShadowed = createShadowedAllowTest(restrictions, { normalizePattern });

@@ -543,11 +543,15 @@ function skipRegexGroup(body: string, start: number): number | undefined {
  * `{a|b}` is an alternation in braces, and reading it as a quantifier would skip
  * past the `|` that has to widen the whole pattern.
  */
-const QUANTIFIER = /^\{\d+(,\d*)?\}/;
+const QUANTIFIER = /\{\d+(,\d*)?\}/y;
 
 function skipQuantifier(body: string, start: number): number | undefined {
-  const match = QUANTIFIER.exec(body.slice(start));
-  return match === null ? undefined : start + match[0].length;
+  // Sticky rather than anchored against a slice: the scan asks this at every
+  // `{` in the pattern, and copying the rest of the body each time would make
+  // reading one pattern quadratic in its length.
+  QUANTIFIER.lastIndex = start;
+  const match = QUANTIFIER.exec(body);
+  return match === null ? undefined : QUANTIFIER.lastIndex;
 }
 
 /**

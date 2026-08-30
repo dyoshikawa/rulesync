@@ -255,6 +255,24 @@ describe("WarpPermissions", () => {
       expect(profilesOf(perms.getFileContent())[ALLOWLIST_KEY]).toBeUndefined();
     });
 
+    it("keeps an allow a repetition quantifier cannot reach", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // `{2}` *is* a quantifier, so reading it leaves a pattern about
+            // `npm` alone — widening it to `*` because a brace looked
+            // unreadable would withhold every allow beside it.
+            "^npm run build{2}$": "ask",
+            "^sudo apt install$": "allow",
+          },
+        }),
+        global: true,
+      });
+
+      expect(profilesOf(perms.getFileContent())[ALLOWLIST_KEY]).toEqual(["^sudo apt install$"]);
+    });
+
     it("withholds an allow that only an escaped bracket keeps apart", async () => {
       const perms = await WarpPermissions.fromRulesyncPermissions({
         outputRoot: testDir,

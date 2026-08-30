@@ -166,7 +166,9 @@ function warnClineTranslationNotices({
     parts.push(
       `'allow' rules for [${shadowedAllowPatterns.join(", ")}] withheld because the ` +
         `all-tools '*' category restricts the same commands, and a pattern written there ` +
-        `need not name a command Cline's own lists can act on`,
+        `need not name a command Cline's own lists can act on. Cline's allowlist is a gate — ` +
+        `once set, only the commands matching it run without approval — so withholding every ` +
+        `entry leaves every command asking`,
     );
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {

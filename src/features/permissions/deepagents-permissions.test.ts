@@ -342,7 +342,7 @@ describe("DeepagentsPermissions", () => {
 
       // `shlex.split` drops the backslash, so dcode compares `git` either way.
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("\\git push run without a prompt"),
+        expect.stringContaining("ask rule(s) \\git push were withheld from allow_list"),
       );
     });
 
@@ -357,7 +357,7 @@ describe("DeepagentsPermissions", () => {
       // The quotes come off before the glob is walked, so the odd spelling does
       // not hide the collision with `npm`.
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("are not merely unenforced"),
+        expect.stringContaining('deny rule(s) "npm*" publish were withheld from allow_list'),
       );
     });
 
@@ -370,7 +370,7 @@ describe("DeepagentsPermissions", () => {
       });
 
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('"git" push run without a prompt'),
+        expect.stringContaining('ask rule(s) "git" push were withheld from allow_list'),
       );
     });
 
@@ -390,7 +390,7 @@ describe("DeepagentsPermissions", () => {
       );
     });
 
-    it("warns when a deny rule's executable ends up auto-approved anyway", async () => {
+    it("withholds the allow whose executable a deny rule covers", async () => {
       const logger = createMockLogger();
 
       const content = await generate({
@@ -398,18 +398,37 @@ describe("DeepagentsPermissions", () => {
         logger,
       });
 
-      expect(allowListOf(content)).toEqual(["git"]);
+      // dcode has no denylist to settle the collision in, so writing `git`
+      // would auto-approve the `git push` this config denies. Dropping it
+      // leaves `git` prompting, which is the closest dcode comes to a deny.
+      expect(allowListOf(content)).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("are not merely unenforced"),
+        expect.stringContaining("deny rule(s) git push were withheld from allow_list"),
       );
       // The generic "asked about, not blocked" wording would be wrong here:
-      // `git push` is not asked about either.
+      // the allow that covered `git push` is gone, so nothing was skipped.
       expect(logger.warn).not.toHaveBeenCalledWith(
         expect.stringContaining("has no command denylist"),
       );
     });
 
-    it("warns when an all-tools deny's executable ends up auto-approved anyway", async () => {
+    it("keeps the allow rules a deny rule does not cover", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "git *": "allow", "ls *": "allow", "git push": "deny" } } },
+        logger,
+      });
+
+      // Only the colliding executable goes: withholding the whole list would
+      // punish rules the deny rule says nothing about.
+      expect(allowListOf(content)).toEqual(["ls"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("deny rule(s) git push were withheld from allow_list"),
+      );
+    });
+
+    it("withholds the allow an all-tools deny covers", async () => {
       const logger = createMockLogger();
 
       const content = await generate({
@@ -419,9 +438,9 @@ describe("DeepagentsPermissions", () => {
 
       // A rule under `*` covers shell commands too, so reading only `bash`
       // would auto-approve the very command the file denies without saying so.
-      expect(allowListOf(content)).toEqual(["rm"]);
+      expect(allowListOf(content)).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("are not merely unenforced"),
+        expect.stringContaining("deny rule(s) rm * were withheld from allow_list"),
       );
     });
 
@@ -439,7 +458,7 @@ describe("DeepagentsPermissions", () => {
       );
     });
 
-    it("warns when an all-tools ask's executable ends up auto-approved", async () => {
+    it("withholds the allow an all-tools ask covers", async () => {
       const logger = createMockLogger();
 
       const content = await generate({
@@ -447,9 +466,9 @@ describe("DeepagentsPermissions", () => {
         logger,
       });
 
-      expect(allowListOf(content)).toEqual(["npm"]);
+      expect(allowListOf(content)).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("the generated allow_list auto-approves commands they cover"),
+        expect.stringContaining("ask rule(s) npm publish were withheld from allow_list"),
       );
     });
 
@@ -470,7 +489,7 @@ describe("DeepagentsPermissions", () => {
       );
     });
 
-    it("warns when an ask rule's executable ends up auto-approved", async () => {
+    it("withholds the allow whose executable an ask rule covers", async () => {
       const logger = createMockLogger();
 
       const content = await generate({
@@ -478,9 +497,11 @@ describe("DeepagentsPermissions", () => {
         logger,
       });
 
-      expect(allowListOf(content)).toEqual(["npm"]);
+      // Auto-approving `npm` would run the `npm publish` the author wanted to
+      // be asked about, so the allow gives way to the stricter rule.
+      expect(allowListOf(content)).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("the generated allow_list auto-approves commands they cover"),
+        expect.stringContaining("ask rule(s) npm publish were withheld from allow_list"),
       );
     });
 
@@ -521,10 +542,10 @@ describe("DeepagentsPermissions", () => {
       });
 
       // The ask's executable is a glob, so it collides with every allowed name
-      // it matches — the reduction hands that collision to the allow.
-      expect(allowListOf(content)).toEqual(["npm"]);
+      // it matches — each of those entries is withheld.
+      expect(allowListOf(content)).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("npm* publish run without a prompt"),
+        expect.stringContaining("ask rule(s) npm* publish were withheld from allow_list"),
       );
     });
 
@@ -537,10 +558,10 @@ describe("DeepagentsPermissions", () => {
       });
 
       // The two spellings mean the same thing, so the ask cancels the allow
-      // outright rather than narrowing it — and dcode keeps the allow.
-      expect(allowListOf(content)).toEqual(["npm"]);
+      // outright rather than narrowing it.
+      expect(allowListOf(content)).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("npm:* run without a prompt"),
+        expect.stringContaining("ask rule(s) npm:* were withheld from allow_list"),
       );
     });
 
@@ -552,8 +573,10 @@ describe("DeepagentsPermissions", () => {
         logger,
       });
 
-      expect(allowListOf(content)).toEqual(["npm"]);
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("npm run without a prompt"));
+      expect(allowListOf(content)).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("ask rule(s) npm were withheld from allow_list"),
+      );
     });
 
     it("catches a blanket ask, which the allow beside it does not narrow", async () => {
@@ -565,9 +588,11 @@ describe("DeepagentsPermissions", () => {
       });
 
       // Canonically the stricter rule wins whatever its width, so this asks
-      // about `git` too — and dcode auto-approves it.
-      expect(allowListOf(content)).toEqual(["git"]);
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("* run without a prompt"));
+      // about `git` too — and the allow beside it gives way.
+      expect(allowListOf(content)).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("ask rule(s) * were withheld from allow_list"),
+      );
     });
 
     it("catches a deny whose executable is itself a glob", async () => {
@@ -579,14 +604,14 @@ describe("DeepagentsPermissions", () => {
       });
 
       // `*` is only the widest spelling of a glob executable; `npm*` covers the
-      // generated `npm` just as surely, so the same warning has to fire.
-      expect(allowListOf(content)).toEqual(["npm"]);
+      // generated `npm` just as surely, so it is withheld all the same.
+      expect(allowListOf(content)).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("are not merely unenforced"),
+        expect.stringContaining("deny rule(s) npm* were withheld from allow_list"),
       );
     });
 
-    it("warns that a blanket deny is what the allow_list overrides", async () => {
+    it("withholds every allow a blanket deny covers", async () => {
       const logger = createMockLogger();
 
       const content = await generate({
@@ -594,15 +619,15 @@ describe("DeepagentsPermissions", () => {
         logger,
       });
 
-      // The widest deny an author can write is the one the reduction inverts:
-      // `git` runs with no prompt at all, not merely "on approval".
-      expect(allowListOf(content)).toEqual(["git"]);
+      // The widest deny an author can write covers the whole list, so nothing
+      // is auto-approved and dcode asks before every command.
+      expect(allowListOf(content)).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("are not merely unenforced"),
+        expect.stringContaining("deny rule(s) * were withheld from allow_list"),
       );
     });
 
-    it("blames the sentinel, not the allow_list, when everything is auto-approved", async () => {
+    it("refuses to write `all` when an ask rule asks to be prompted", async () => {
       const logger = createMockLogger();
 
       const content = await generate({
@@ -610,11 +635,12 @@ describe("DeepagentsPermissions", () => {
         logger,
       });
 
-      // `allow_list = ["all"]` holds no executable name, so the wording that
-      // points at one would send the author looking for a rule that is not there.
-      expect(allowListOf(content)).toEqual(["all"]);
+      // `all` approves every command unseen and switches the dangerous-pattern
+      // check off with it, which is the opposite of what an `ask` asks for — so
+      // the sentinel gives way exactly as it does to a deny rule.
+      expect(smolToml.parse(content).shell).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('allow_list = ["all"] auto-approves every command'),
+        expect.stringContaining("your config asks before running commands"),
       );
     });
 
