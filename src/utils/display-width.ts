@@ -23,6 +23,17 @@
  * Ambiguous-width characters are counted as one column, which is what a
  * terminal running a Latin font does.
  *
+ * Two of the ranges are here for a narrower reason: nothing may be counted
+ * narrower here than the prompt's own renderer counts it, or a label that fits
+ * the budget wraps anyway and paints the second row the budget exists to
+ * prevent. `@inquirer/core` measures with `fast-string-width`, which takes the
+ * whole of `Script=Hangul` as wide and every `Emoji_Modifier_Base` as an emoji.
+ * So the Hangul jamo are taken to U+11FF rather than stopping at the leading
+ * consonants, and the modifier bases are named beside the emoji: U+261D, U+26F9
+ * and the two hands of U+270C–U+270D are `Emoji` without being
+ * `Emoji_Presentation`, and were the only characters outside Hangul this
+ * counted at one column while the renderer counted two.
+ *
  * The wide planes are taken whole rather than range by range — Tangut, Khitan
  * and Nushu together are U+17000–U+18DFF, and the kana supplements are
  * U+1AFF0–U+1B2FF — because a gap between two of them is exactly the character
@@ -36,7 +47,7 @@
  * instead silently swallows thirty thousand code points that are not wide.
  */
 const WIDE_CHARACTERS_PATTERN =
-  /\p{Emoji_Presentation}|[\u2329\u232a\u2630-\u2637\u268a-\u268f\u4dc0-\u4dff]|[\u1100-\u115f\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\ua960-\ua97f\uac00-\ud7a3\ud7b0-\ud7fb\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6]|[\u{16fe0}-\u{16ff6}]|[\u{17000}-\u{18dff}]|[\u{1aff0}-\u{1b2ff}]|[\u{1f000}-\u{1faff}]|[\u{20000}-\u{3fffd}]/u;
+  /\p{Emoji_Presentation}|\p{Emoji_Modifier_Base}|[\u2329\u232a\u2630-\u2637\u268a-\u268f\u4dc0-\u4dff]|[\u1100-\u11ff\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\ua960-\ua97f\uac00-\ud7a3\ud7b0-\ud7fb\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6]|[\u{16fe0}-\u{16ff6}]|[\u{17000}-\u{18dff}]|[\u{1aff0}-\u{1b2ff}]|[\u{1f000}-\u{1faff}]|[\u{20000}-\u{3fffd}]/u;
 
 /**
  * U+FE0F VARIATION SELECTOR-16, which takes no width of its own but asks the

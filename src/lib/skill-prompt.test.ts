@@ -426,6 +426,30 @@ describe("promptSkillSelection", () => {
     expect(choices[0]?.name).toBe(`pdf${"o".repeat(12)}\u2026`);
   });
 
+  it("should keep a noted label inside a terminal too narrow to seat it", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // Sixteen columns is the floor, and a marker, a separator and a note will
+    // not fit beside a whole name in it. The name gives way rather than the
+    // label running past the row: a label wider than the row wraps onto a line
+    // the prompt draws no checkbox on, which is the row a padded name wants.
+    setTerminalWidth(19);
+    const latin = `pdf${"x".repeat(40)}`;
+    const cyrillic = `pdf${"x".repeat(39)}\u0445`;
+
+    await promptSkillSelection({ availableSkills: [latin, cyrillic], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(choices[0]?.name).toBe("(1) [!] \u2026 \u2014 pdf\u2026");
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(16);
+    expect(displayWidthOf(choices[1]?.name ?? "")).toBe(16);
+    // The row is unreadable at that width, and the value behind it is not: what
+    // is checked is still the directory the label stands for.
+    expect(choices[1]?.value).toBe(cyrillic);
+  });
+
   it("should convert ExitPromptError (Ctrl+C) into SkillSelectionCancelledError", async () => {
     const exitError = new Error("User force closed the prompt");
     exitError.name = "ExitPromptError";

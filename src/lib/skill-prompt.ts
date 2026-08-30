@@ -77,9 +77,18 @@ const FALLBACK_TERMINAL_WIDTH = 80;
 /**
  * How much of a name survives however long the note in front of it is. A name
  * cut to nothing would leave the picker choosing between rows it cannot tell
- * apart at all, which is worse than a label that wraps.
+ * apart at all, which is worse than a name cut short.
+ *
+ * It is what a name is given where there is that much to give: in a terminal
+ * too narrow for both, the row is shared out rather than overrun, since a label
+ * wider than its budget wraps onto a line that carries no marker of the
+ * prompt's own — which is the row this whole module exists to keep a name from
+ * painting.
  */
 const MIN_SHORTENED_NAME_WIDTH = 16;
+
+/** The one column a note cut down to nothing is still drawn in. */
+const ELLIPSIS_WIDTH = 1;
 
 /**
  * How wide a label may be in the terminal it is about to be drawn in.
@@ -98,12 +107,12 @@ const MIN_SHORTENED_NAME_WIDTH = 16;
  * turns it into the same 80 this does, so taking it literally would budget
  * against a width the renderer never uses.
  *
- * Below about two dozen columns the floor takes over, and a noted label runs
- * past what is returned here: the name keeps its `MIN_SHORTENED_NAME_WIDTH`
- * whatever is left for it, and the note in front of it is cut to an ellipsis
- * rather than to nothing. That is the deliberate end of the trade — a row of
- * rows that cannot be told apart at all is worse than a row that wraps, and in
- * a terminal that narrow it wraps whatever this returns.
+ * The floor is the one a name is kept to anyway, and below it there is nothing
+ * left to shorten toward: a label cut past that point is an ellipsis and little
+ * else, and a list of rows that cannot be told apart at all is worse than one
+ * whose rows are too long for the window. In a terminal that narrow the row
+ * wraps whatever this returns, so the floor is where the shortening stops
+ * rather than a width anything is promised to fit in.
  */
 function skillLabelBudget(): number {
   const terminalWidth = process.stdout.columns || FALLBACK_TERMINAL_WIDTH;
@@ -134,6 +143,13 @@ const NOTE_SEPARATOR = " \u2014 ";
  * note, and the reasons are ordered by weight, so a cut takes them from the
  * tail: the marker survives every time, and so does the beginning of the first
  * reason.
+ *
+ * The name is given `MIN_SHORTENED_NAME_WIDTH` columns however long the note
+ * is, but never more than the row has left after the marker, the separator and
+ * the one column a cut note is still drawn in. That upper hand is what keeps
+ * the label inside its budget in a terminal too narrow to seat both: the label
+ * is always the width it was budgeted or less, so it never wraps onto a line
+ * the prompt draws no marker on.
  */
 function formatSkillChoiceLabel(params: {
   name: string;
@@ -147,7 +163,10 @@ function formatSkillChoiceLabel(params: {
   const available = budget - displayWidthOf(NOTE_MARKER) - displayWidthOf(NOTE_SEPARATOR);
   const shownName = shortenToWidth({
     text: name,
-    budget: Math.max(available - displayWidthOf(note), MIN_SHORTENED_NAME_WIDTH),
+    budget: Math.min(
+      Math.max(available - displayWidthOf(note), MIN_SHORTENED_NAME_WIDTH),
+      Math.max(available - ELLIPSIS_WIDTH, 0),
+    ),
   });
   const shownNote = shortenToWidth({
     text: note,

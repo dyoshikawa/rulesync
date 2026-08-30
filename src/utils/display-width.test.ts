@@ -56,6 +56,20 @@ describe("shortenToWidth", () => {
     expect(shortenToWidth({ text: "abcdef", budget: 4 })).toBe("abc…");
   });
 
+  // `@inquirer/core` measures the rows it wraps with `fast-string-width`, which
+  // takes the whole of `Script=Hangul` as wide and every `Emoji_Modifier_Base`
+  // as an emoji. Counting either of them narrower here would hand a label a
+  // budget it does not fit in, and the row it wraps onto carries no checkbox of
+  // the prompt's own.
+  it.each([
+    ["a Hangul vowel jamo", "\u1161"],
+    ["a Hangul final jamo", "\u11a8"],
+    ["the pointing hand, an emoji base drawn as text by default", "\u261d"],
+    ["the victory hand", "\u270c"],
+  ])("should count %s the way the prompt's renderer counts it", (_description, character) => {
+    expect(displayWidthOf(character)).toBe(2);
+  });
+
   it("should count wide characters as the two columns they occupy", () => {
     // Four ideographs are eight columns; a budget of five leaves room for two
     // of them plus the ellipsis.
