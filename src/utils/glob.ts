@@ -176,3 +176,87 @@ function matchesParsedGlob(steps: readonly GlobStep[], value: string): boolean {
   }
   return remaining === steps.length;
 }
+
+/** Whether two single-character steps can both match one same character. */
+function stepsShareACharacter(left: GlobStep, right: GlobStep): boolean {
+  if (left.kind === "any" || right.kind === "any") {
+    return true;
+  }
+  if (left.kind === "literal" && right.kind === "literal") {
+    return left.character === right.character;
+  }
+  if (left.kind === "literal") {
+    return matchesGlobStep(right, left.character);
+  }
+  if (right.kind === "literal") {
+    return matchesGlobStep(left, right.character);
+  }
+  // Two classes. Reading whether their members overlap would mean expanding
+  // ranges, so they are assumed to overlap: over-reporting an intersection
+  // only withholds an `allow`, which is the safe direction.
+  return true;
+}
+
+/** Whether every step from `index` on can match the empty string. */
+function isAllStars(steps: readonly GlobStep[], index: number): boolean {
+  for (let step = index; step < steps.length; step++) {
+    if (steps[step]?.kind !== "star") {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Whether any one value matches both globs — that is, whether the two patterns
+ * overlap at all.
+ *
+ * This answers the question an adapter really has when it holds a restriction
+ * and an `allow`: is there a command both of them name? Asking instead whether
+ * either pattern covers the other's *text* misses the ordinary crossing pair —
+ * `* --force` and `git *` cover none of each other's spellings, yet they share
+ * every `git … --force` command.
+ *
+ * The two step lists are walked as a table rather than by backtracking, so the
+ * cost is the product of the two pattern lengths and no input makes it blow up.
+ * Where a `[...]` class meets another `[...]` class the answer is assumed to be
+ * yes, which over-reports rather than misses.
+ */
+export function globsIntersect(left: string, right: string): boolean {
+  const leftSteps = parseGlob(left);
+  const rightSteps = parseGlob(right);
+  // `table[i][j]` — can the steps from `i` and from `j` on produce one same
+  // remaining string? Filled from the end so each cell reads finished ones.
+  const table: boolean[][] = Array.from({ length: leftSteps.length + 1 }, () =>
+    Array.from({ length: rightSteps.length + 1 }, () => false),
+  );
+  for (let i = leftSteps.length; i >= 0; i--) {
+    for (let j = rightSteps.length; j >= 0; j--) {
+      const row = table[i];
+      if (row === undefined) {
+        continue;
+      }
+      if (i === leftSteps.length) {
+        row[j] = isAllStars(rightSteps, j);
+        continue;
+      }
+      if (j === rightSteps.length) {
+        row[j] = isAllStars(leftSteps, i);
+        continue;
+      }
+      const leftStep = leftSteps[i];
+      const rightStep = rightSteps[j];
+      if (leftStep === undefined || rightStep === undefined) {
+        continue;
+      }
+      if (leftStep.kind === "star" || rightStep.kind === "star") {
+        // A `*` either matches nothing and steps aside, or swallows whatever
+        // one character the other side produces next.
+        row[j] = (table[i + 1]?.[j] ?? false) || (row[j + 1] ?? false);
+        continue;
+      }
+      row[j] = stepsShareACharacter(leftStep, rightStep) && (table[i + 1]?.[j + 1] ?? false);
+    }
+  }
+  return table[0]?.[0] ?? false;
+}

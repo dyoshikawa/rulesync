@@ -104,16 +104,64 @@ describe("createShadowedAllowTest", () => {
   it("compares the two patterns in both directions", () => {
     // The stricter rule wins whatever its width, so a broad restriction covers
     // a narrow allow and a broad allow is covered by a narrow restriction.
-    const isShadowed = createShadowedAllowTest(["*", "npm publish"]);
+    const isShadowed = createShadowedAllowTest([
+      allToolsRule("*", "ask"),
+      bashRule("npm publish", "ask"),
+    ]);
 
     expect(isShadowed("git *")).toBe(true);
     expect(isShadowed("npm *")).toBe(true);
   });
 
+  it("catches a restriction that crosses an allow without covering it", () => {
+    // Neither pattern's text matches the other, yet every `git ... --force`
+    // command matches both — which is the pair the author meant to restrict.
+    const isShadowed = createShadowedAllowTest([allToolsRule("* --force", "ask")]);
+
+    expect(isShadowed("git *")).toBe(true);
+  });
+
   it("leaves an allow no restriction reaches alone", () => {
-    const isShadowed = createShadowedAllowTest(["npm publish"]);
+    const isShadowed = createShadowedAllowTest([bashRule("npm publish", "ask")]);
 
     expect(isShadowed("git *")).toBe(false);
+  });
+});
+
+describe("createShadowedAllowTest with a bracket pattern", () => {
+  it("matches an identical spelling a glob does not match against itself", () => {
+    // `compileGlob` reads `[rf]` as a character class, so the compiled pattern
+    // does not match its own text. Comparing the strings keeps a bracket
+    // anywhere in the pattern from switching the whole check off.
+    const isShadowed = createShadowedAllowTest([bashRule("rm -[rf]*", "deny")]);
+
+    expect(isShadowed("rm -[rf]*")).toBe(true);
+    expect(isShadowed("git status")).toBe(false);
+  });
+});
+
+describe("createShadowedAllowTest with a normalizer", () => {
+  it("reads a tool-language pattern through the normalizer", () => {
+    // Stands in for Warp's regex-to-glob widening: without it, `.*` is a
+    // literal dot beside a wildcard rather than the catch-all it really is.
+    const isShadowed = createShadowedAllowTest([bashRule("rm", "ask")], {
+      normalizePattern: (pattern) => pattern.replaceAll(".*", "*"),
+    });
+
+    expect(isShadowed(".*")).toBe(true);
+    expect(isShadowed("git status")).toBe(false);
+  });
+
+  it("leaves an all-tools pattern alone, since it is a glob already", () => {
+    // Under `*` the pattern is canonical, so its `.` is the character it looks
+    // like. Widening it as if it were written in the tool's own language would
+    // shadow `rm x` as well, which the author never restricted.
+    const isShadowed = createShadowedAllowTest([allToolsRule("rm .*", "deny")], {
+      normalizePattern: (pattern) => pattern.replaceAll(".*", "*"),
+    });
+
+    expect(isShadowed("rm x")).toBe(false);
+    expect(isShadowed("rm .y")).toBe(true);
   });
 });
 
@@ -207,31 +255,6 @@ describe("partitionCommandRules", () => {
 
     expect(deny).toEqual(["rm -rf .*"]);
     expect(unwrittenDenyPatterns).toEqual(["secrets/**"]);
-  });
-});
-
-describe("createShadowedAllowTest with a bracket pattern", () => {
-  it("matches an identical spelling a glob does not match against itself", () => {
-    // `compileGlob` reads `[rf]` as a character class, so the compiled pattern
-    // does not match its own text. Comparing the strings keeps a bracket
-    // anywhere in the pattern from switching the whole check off.
-    const isShadowed = createShadowedAllowTest(["rm -[rf]*"]);
-
-    expect(isShadowed("rm -[rf]*")).toBe(true);
-    expect(isShadowed("git status")).toBe(false);
-  });
-});
-
-describe("createShadowedAllowTest with a normalizer", () => {
-  it("reads both sides through the normalizer", () => {
-    // Stands in for Warp's regex-to-glob widening: without it, `.*` is a
-    // literal dot beside a wildcard rather than the catch-all it really is.
-    const isShadowed = createShadowedAllowTest(["rm"], {
-      normalizePattern: (pattern) => pattern.replaceAll(".*", "*"),
-    });
-
-    expect(isShadowed(".*")).toBe(true);
-    expect(isShadowed("git status")).toBe(false);
   });
 });
 

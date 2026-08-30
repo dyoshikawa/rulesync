@@ -460,6 +460,104 @@ function mergeIntoDefaultExecutionProfile({
   }
 }
 
+/** Skip a balanced `(...)` or `[...]` run, or to the end when it never closes. */
+function skipBalancedRun(body: string, start: number, open: string, close: string): number {
+  let depth = 0;
+  for (let index = start; index < body.length; index++) {
+    const character = body.charAt(index);
+    if (character === "\\") {
+      index++;
+      continue;
+    }
+    if (character === open) {
+      depth++;
+      continue;
+    }
+    if (character === close) {
+      depth--;
+      if (depth <= 0) {
+        return index + 1;
+      }
+    }
+  }
+  return body.length;
+}
+
+/**
+ * Approximate a Warp command pattern as a glob, so restrictions and allow rules
+ * can be compared by `createShadowedAllowTest`.
+ *
+ * Warp matches commands with regular expressions, and a glob reader would
+ * misread the ordinary spellings: `.*` — Warp's catch-all — is a literal dot
+ * followed by a wildcard, `[rf]` is a character class in one language and plain
+ * text in the other, and an unanchored regex covers every command that merely
+ * contains it. The rewrite therefore only ever widens what a pattern covers, so
+ * an inexact reading withholds an allow rather than writing one the config
+ * restricts.
+ *
+ * Widening means a construct is replaced whole rather than character by
+ * character, because the characters inside it are not literals of the command:
+ * a class (`[rf]`), a group (`(sudo )?`), a character escape (`\s`) and a
+ * missing `^`/`$` anchor all become `*`, and a quantifier (`?`, `*`, `+`,
+ * `{2}`) widens the atom in front of it — `git commits?` covers `git commit`,
+ * so its glob has to as well. A top-level `|` makes the whole pattern `*`,
+ * since the two alternatives are not one sequence. Both sides of a comparison
+ * are widened, so a pattern that is really a glob still compares sensibly.
+ */
+function warpCommandPatternToGlob(pattern: string): string {
+  const anchoredStart = pattern.startsWith("^");
+  const anchoredEnd = pattern.endsWith("$") && !pattern.endsWith("\\$");
+  const body = pattern.slice(anchoredStart ? 1 : 0, anchoredEnd ? -1 : undefined);
+
+  // One entry per regex atom, so a quantifier can reach back and widen the atom
+  // it repeats instead of leaving it behind as a required literal.
+  const atoms: string[] = [];
+  const widenLastAtom = (): void => {
+    if (atoms.length === 0) {
+      atoms.push("*");
+      return;
+    }
+    atoms[atoms.length - 1] = "*";
+  };
+
+  let index = 0;
+  while (index < body.length) {
+    const character = body.charAt(index);
+    if (character === "|") {
+      return "*";
+    }
+    if (character === "\\") {
+      // `charAt` past the end is the empty string, so a trailing backslash
+      // widens like any other escape it cannot spell. A letter or digit after
+      // the backslash is a character class (`\s`, `\d`, `\w`), not a literal.
+      const escaped = body.charAt(index + 1);
+      index += 2;
+      atoms.push(/^[A-Za-z0-9*?]$/.test(escaped) || escaped === "" ? "*" : escaped);
+      continue;
+    }
+    if (character === "[" || character === "(") {
+      index = skipBalancedRun(body, index, character, character === "[" ? "]" : ")");
+      atoms.push("*");
+      continue;
+    }
+    if (character === "{") {
+      index = skipBalancedRun(body, index, "{", "}");
+      widenLastAtom();
+      continue;
+    }
+    if (character === "*" || character === "+" || character === "?") {
+      index += 1;
+      widenLastAtom();
+      continue;
+    }
+    index += 1;
+    atoms.push(character === "." || ")]}^$".includes(character) ? "*" : character);
+  }
+
+  const glob = atoms.join("");
+  return `${anchoredStart ? "" : "*"}${glob}${anchoredEnd ? "" : "*"}`;
+}
+
 /**
  * Convert rulesync permissions config to Warp command allow/deny regex lists.
  * The `bash` category maps to both lists. The all-tools `*` category's
@@ -471,47 +569,6 @@ function mergeIntoDefaultExecutionProfile({
  * adds. Other categories are dropped (with a warning when they carry `deny`
  * rules).
  */
-/**
- * Approximate a Warp command pattern as a glob, so restrictions and allow rules
- * can be compared for coverage by `createShadowedAllowTest`.
- *
- * Warp matches commands with regular expressions, and a glob reader would
- * misread the ordinary spellings: `.*` — Warp's catch-all — is a literal dot
- * followed by a wildcard, `[rf]` is a character class in one language and plain
- * text in the other, and an unanchored regex covers every command that merely
- * contains it. The rewrite therefore only ever widens what a pattern covers:
- * every regex wildcard, quantifier, group and class becomes `*`, and a missing
- * `^`/`$` anchor becomes one too. Both sides are widened, so a pattern that is
- * really a glob (an all-tools `*` rule need not be written for Warp at all)
- * still compares sensibly, and an inexact reading withholds an allow rather
- * than writing one the config restricts.
- */
-function warpCommandPatternToGlob(pattern: string): string {
-  const anchoredStart = pattern.startsWith("^");
-  const anchoredEnd = pattern.endsWith("$") && !pattern.endsWith("\\$");
-  const body = pattern.slice(anchoredStart ? 1 : 0, anchoredEnd ? -1 : undefined);
-
-  let glob = "";
-  for (let index = 0; index < body.length; index++) {
-    const character = body.charAt(index);
-    if (character === "\\") {
-      // `charAt` past the end is the empty string, so a trailing backslash
-      // widens like any other escape it cannot spell.
-      const escaped = body.charAt(index + 1);
-      index++;
-      glob += escaped === "" || escaped === "*" || escaped === "?" ? "*" : escaped;
-      continue;
-    }
-    if (character === "." || "*+?()[]{}|^$".includes(character)) {
-      glob += "*";
-      continue;
-    }
-    glob += character;
-  }
-
-  return `${anchoredStart ? "" : "*"}${glob}${anchoredEnd ? "" : "*"}`;
-}
-
 function convertRulesyncToWarpPermissions({
   config,
   logger,
@@ -537,7 +594,7 @@ function convertRulesyncToWarpPermissions({
     shadowedAllowPatterns,
     unwrittenDenyPatterns,
     unwrittenDenyReason:
-      "writing any denylist replaces Warp's built-in default one, and a pattern written " +
+      "Writing any denylist replaces Warp's built-in default one, and a pattern written " +
       "under '*' need not be a command at all.",
     ignoredAllToolsAllowPatterns,
     logger,

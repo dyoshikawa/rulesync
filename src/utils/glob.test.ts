@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { compileGlob, globToAnchoredRegexSource, matchesGlob } from "./glob.js";
+import { compileGlob, globToAnchoredRegexSource, globsIntersect, matchesGlob } from "./glob.js";
 
 const matches = (glob: string, value: string): boolean =>
   new RegExp(globToAnchoredRegexSource(glob)).test(value);
@@ -77,5 +77,50 @@ describe("compileGlob", () => {
 
     expect(matchesCompiled("git-a")).toBe(true);
     expect(matchesCompiled("npm")).toBe(false);
+  });
+});
+
+describe("globsIntersect", () => {
+  it("finds the commands two crossing patterns share", () => {
+    // Neither pattern's text matches the other, yet `git push --force` matches
+    // both — the pair a coverage test misses.
+    expect(globsIntersect("* --force", "git *")).toBe(true);
+    expect(globsIntersect("*sudo*", "bash -c *")).toBe(true);
+  });
+
+  it("sees a wider pattern from either side", () => {
+    expect(globsIntersect("*", "git *")).toBe(true);
+    expect(globsIntersect("npm *", "npm publish")).toBe(true);
+    expect(globsIntersect("npm publish", "npm *")).toBe(true);
+  });
+
+  it("says no when nothing matches both", () => {
+    expect(globsIntersect("npm publish", "git *")).toBe(false);
+    expect(globsIntersect("secrets/**", "git *")).toBe(false);
+    expect(globsIntersect("rm -rf *", "git status")).toBe(false);
+  });
+
+  it("lets a star stand for nothing at all", () => {
+    expect(globsIntersect("a*b", "ab")).toBe(true);
+    expect(globsIntersect("*", "")).toBe(true);
+    expect(globsIntersect("", "a")).toBe(false);
+  });
+
+  it("reads `?` and `[...]` as the characters they admit", () => {
+    expect(globsIntersect("rm -?", "rm -r")).toBe(true);
+    expect(globsIntersect("rm -[rf]", "rm -r")).toBe(true);
+    expect(globsIntersect("rm -[rf]", "rm -x")).toBe(false);
+    // Two classes are assumed to overlap rather than expanded, which
+    // over-reports rather than missing a restriction.
+    expect(globsIntersect("rm -[rf]", "rm -[x]")).toBe(true);
+  });
+
+  it("stays fast on the patterns that make a regex blow up", () => {
+    const start = performance.now();
+    // Two patterns that must end on different characters share nothing, and
+    // the answer comes from a table rather than from backtracking.
+    expect(globsIntersect("*a*a*a*a*a*a*a*a*b", "*a*a*a*a*a*a*a*a*c")).toBe(false);
+    expect(globsIntersect("*a*a*a*a*a*a*a*a*b", "*a*a*a*a*a*a*a*a*b*")).toBe(true);
+    expect(performance.now() - start).toBeLessThan(1000);
   });
 });

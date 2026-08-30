@@ -1,5 +1,5 @@
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
-import { compileGlob } from "../../utils/glob.js";
+import { globsIntersect } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 
 /** The canonical category that names a shell command's permissions. */
@@ -90,44 +90,44 @@ export function collectShellCommandRules(
 
 /**
  * Build the test an adapter applies to an `allow` pattern before writing it:
- * does any restriction it cannot write cover the same commands?
+ * does any restriction it cannot write name some of the same commands?
  *
  * Canonically the stricter rule wins **whatever its width** — rulesync collapses
- * colliding rules as `deny > ask > allow` — so the two patterns are compared in
- * both directions: an `ask` on `*` covers an allowed `git *`, and an `ask` on
- * `npm publish` is covered by an allowed `npm *`. Comparing only identical
- * spellings would let the most ordinary catch-all (`{"*": {"*": "ask"}}`)
- * disappear without a word.
+ * colliding rules as `deny > ask > allow` — so the two patterns are compared by
+ * asking whether any one command matches both. Width does not enter into it: an
+ * `ask` on `*` overlaps an allowed `git *`, an `ask` on `npm publish` overlaps
+ * an allowed `npm *`, and an `ask` on `* --force` overlaps an allowed `git *`
+ * on every `git ... --force` command even though neither pattern covers the
+ * other's spelling. Comparing only identical spellings would let the most
+ * ordinary catch-all (`{"*": {"*": "ask"}}`) disappear without a word.
  *
- * Identical spellings are still compared as strings first, because a glob is not
- * guaranteed to match itself: `compileGlob("rm -[rf]*")` reads `[rf]` as a
- * character class, so it does not match the literal text `rm -[rf]*`. Without
- * the string test, a bracket anywhere in the pattern would silently switch the
- * whole check off — and a bracket is an ordinary spelling for a tool that
- * matches commands with regular expressions.
+ * Identical spellings are still compared as strings first, as a shortcut past
+ * the walk for the commonest case.
  *
- * `normalizePattern` rewrites both sides before they are compared, for a tool
- * whose patterns are not globs. It must only ever widen what a pattern covers,
- * so an inexact reading withholds an allow rather than writing one the config
- * restricts — see `warpCommandPatternToGlob`.
+ * `normalizePattern` rewrites a pattern written in the tool's own language into
+ * the widest glob it could stand for, for a tool whose patterns are not globs.
+ * It reaches the `bash` rules and the `allow` rules, which is where such a
+ * pattern is written; an all-tools `*` pattern is canonical — it is read by
+ * every tool, so it is a glob already — and is compared as it stands. The
+ * rewrite must only ever widen what a pattern covers, so an inexact reading
+ * withholds an allow rather than writing one the config restricts — see
+ * `warpCommandPatternToGlob`.
  */
 export function createShadowedAllowTest(
-  restrictingPatterns: readonly string[],
+  restrictions: readonly Pick<ShellCommandRule, "pattern" | "fromAllToolsCategory">[],
   {
     normalizePattern = (pattern: string) => pattern,
   }: { normalizePattern?: (pattern: string) => string } = {},
 ): (allowPattern: string) => boolean {
-  const restrictions = restrictingPatterns.map((pattern) => {
-    const normalized = normalizePattern(pattern);
-    return { pattern, normalized, covers: compileGlob(normalized) };
-  });
+  const normalized = restrictions.map(({ pattern, fromAllToolsCategory }) => ({
+    pattern,
+    glob: fromAllToolsCategory ? pattern : normalizePattern(pattern),
+  }));
 
   return (allowPattern) => {
-    const normalizedAllow = normalizePattern(allowPattern);
-    const allowCovers = compileGlob(normalizedAllow);
-    return restrictions.some(
-      ({ pattern, normalized, covers }) =>
-        pattern === allowPattern || covers(normalizedAllow) || allowCovers(normalized),
+    const allowGlob = normalizePattern(allowPattern);
+    return normalized.some(
+      ({ pattern, glob }) => pattern === allowPattern || globsIntersect(glob, allowGlob),
     );
   };
 }
@@ -186,9 +186,10 @@ export function partitionCommandRules({
 }): CommandListPartition {
   const deny: string[] = [];
   const unwrittenDenyPatterns: string[] = [];
-  const restrictingPatterns: string[] = [];
+  const restrictions: ShellCommandRule[] = [];
 
-  for (const { pattern, action, fromAllToolsCategory } of rules) {
+  for (const rule of rules) {
+    const { pattern, action, fromAllToolsCategory } = rule;
     if (action === "allow") {
       continue;
     }
@@ -202,10 +203,10 @@ export function partitionCommandRules({
         unwrittenDenyPatterns.push(pattern);
       }
     }
-    restrictingPatterns.push(pattern);
+    restrictions.push(rule);
   }
 
-  const isShadowed = createShadowedAllowTest(restrictingPatterns, { normalizePattern });
+  const isShadowed = createShadowedAllowTest(restrictions, { normalizePattern });
   const allow: string[] = [];
   const shadowedAllowPatterns: string[] = [];
   for (const { pattern, action } of rules) {
@@ -264,8 +265,8 @@ export function warnAboutUnwrittenCommandRules({
     warnWithFallback(
       logger,
       `${toolLabel} did not write the all-tools '*' deny rule(s) for ` +
-        `${unwrittenDenyPatterns.join(", ")} into its denylist${
-          unwrittenDenyReason === undefined ? "" : ` — ${unwrittenDenyReason}`
+        `${unwrittenDenyPatterns.join(", ")} into its denylist.${
+          unwrittenDenyReason === undefined ? "" : ` ${unwrittenDenyReason}`
         } They restrict only by withholding the allow rules they cover; write them under ` +
         `'bash' to have them enforced as commands.`,
     );

@@ -120,6 +120,27 @@ describe("FactorydroidPermissions", () => {
       );
     });
 
+    it("should write an all-tools deny that names no command at all", async () => {
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "secrets/**": "deny" },
+          bash: { "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      // `secrets/**` matches no command, so the entry is inert — but dropping
+      // it would lose the rule on a later import, and it costs nothing to keep.
+      // It reaches no command, so it withholds no allow either.
+      expect(json.commandDenylist).toEqual(["secrets/**"]);
+      expect(json.commandAllowlist).toEqual(["git *"]);
+    });
+
     it("should withhold an allow spelled with a character class, which no glob matches", async () => {
       const rulesyncPermissions = buildRulesyncPermissions({
         permission: {

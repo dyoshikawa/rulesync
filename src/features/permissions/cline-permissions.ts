@@ -72,11 +72,14 @@ function translateClinePermissions(
       category !== SHELL_PERMISSION_CATEGORY && category !== ALL_TOOLS_PERMISSION_CATEGORY,
   );
   const { rules, ignoredAllToolsAllowPatterns } = collectShellCommandRules(permission);
-  // Cline does not document a deny-priority, so a pattern the config restricts
-  // must not be written to `allow` at all — leaving it there would hand the
-  // decision to an undocumented tie-break.
+  // A restriction written under the all-tools `*` category reaches Cline's
+  // `deny` list, but a pattern written there need not name a command at all, so
+  // the entry can sit in the file matching nothing while the `allow` beside it
+  // auto-approves the command the config restricts. Such an `allow` is withheld
+  // instead. A `bash` restriction needs no such treatment: it is a command
+  // pattern by construction, so the `deny` entry it produces does its own work.
   const isShadowed = createShadowedAllowTest(
-    rules.filter(({ action }) => action !== "allow").map(({ pattern }) => pattern),
+    rules.filter(({ fromAllToolsCategory }) => fromAllToolsCategory),
   );
 
   for (const { pattern, action } of rules) {
@@ -150,9 +153,9 @@ function warnClineTranslationNotices({
   }
   if (shadowedAllowPatterns.length > 0) {
     parts.push(
-      `'allow' rules for [${shadowedAllowPatterns.join(", ")}] withheld because the same ` +
-        `commands are restricted elsewhere in the config, and Cline documents no ` +
-        `deny-priority`,
+      `'allow' rules for [${shadowedAllowPatterns.join(", ")}] withheld because the ` +
+        `all-tools '*' category restricts the same commands, and a pattern written there ` +
+        `need not be a command Cline's 'deny' list can catch`,
     );
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {
