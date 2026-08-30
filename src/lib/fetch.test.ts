@@ -29,6 +29,46 @@ vi.mock("./skill-prompt.js", () => ({
   isInteractiveTerminal: isInteractiveTerminalMock,
 }));
 
+const { directoryExistsMock } = vi.hoisted(() => ({
+  directoryExistsMock: vi.fn(),
+}));
+
+// Only `directoryExists` is stood in for, and only so a test can answer the one
+// question the filesystem under CI cannot: whether `skills/Deploy` resolves to
+// the `skills/deploy` that is already there. macOS and Windows say yes and
+// Linux says no, so the folding branch of `localSkillNamesToCompare` would
+// otherwise never run in this suite. Every other export stays the real one, and
+// the stand-in calls the real implementation unless a test says otherwise.
+vi.mock("../utils/file.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/file.js")>();
+  directoryExistsMock.mockImplementation(actual.directoryExists);
+  return { ...actual, directoryExists: directoryExistsMock };
+});
+
+const realDirectoryExists = (
+  await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js")
+).directoryExists;
+
+/**
+ * Makes `directoryExists` answer `folds` for `path` and the truth for
+ * everything else, so that a test can put the fetch on a filesystem that folds
+ * a spelling onto a directory it already holds — or on one that does not.
+ *
+ * Both directions are pinned rather than only the folding one, because the
+ * volume the suite runs on is not known to be either: a case-sensitive checkout
+ * and a case-insensitive one both happen, and a test that read the real answer
+ * would assert something different on each.
+ */
+function mockCaseFoldedLookup(params: { path: string; folds: boolean }): void {
+  const { path, folds } = params;
+  directoryExistsMock.mockImplementation(async (candidate: string) =>
+    candidate === path ? folds : realDirectoryExists(candidate),
+  );
+  onTestFinished(() => {
+    directoryExistsMock.mockImplementation(realDirectoryExists);
+  });
+}
+
 vi.mock("./github-client.js", () => ({
   GitHubClient: class MockGitHubClient {
     static resolveToken = vi.fn();
@@ -1822,12 +1862,12 @@ describe("fetchFiles with skill selection", () => {
     });
   });
 
-  it("should judge a case variant of a local skill by what the filesystem does with it", async () => {
-    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+  it("should drop a local skill a case variant on the list would be written into", async () => {
     // Whether `Deploy` is a second directory or another way of spelling the one
     // that is already there is the filesystem's answer to give, not the
-    // listing's: macOS and Windows fold the pair, Linux does not.
-    const folds = await directoryExists(join(testDir, ".rulesync", "skills", "Deploy"));
+    // listing's: macOS and Windows fold the pair, Linux does not. Here it folds.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockCaseFoldedLookup({ path: join(testDir, ".rulesync", "skills", "Deploy"), folds: true });
     mockSkillRepositoryWithSkills(["Deploy"]);
     isInteractiveTerminalMock.mockReturnValue(true);
     promptSkillSelectionMock.mockResolvedValue([]);
@@ -1842,7 +1882,55 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["Deploy", "skill-a", "skill-b"],
       preselectedSkills: [],
-      localSkillNames: folds ? [] : ["deploy"],
+      localSkillNames: [],
+    });
+  });
+
+  it("should keep a local skill a case variant on the list is a second directory from", async () => {
+    // The same pair on a filesystem that keeps them apart: two directories, so
+    // the local one still has something to say about the names on offer.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockCaseFoldedLookup({ path: join(testDir, ".rulesync", "skills", "Deploy"), folds: false });
+    mockSkillRepositoryWithSkills(["Deploy"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["Deploy", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
+  it("should keep a local skill a second entry imitates even where the first folds onto it", async () => {
+    // `api` is the local `API` under another spelling on a folding filesystem,
+    // but it does not read like it: `API` reads as `APl`, which is what `AP1`
+    // imitates. Dropping the local name for the refresh would take the only
+    // name that mark is made against off the comparison.
+    await ensureDir(join(testDir, ".rulesync", "skills", "API"));
+    mockCaseFoldedLookup({ path: join(testDir, ".rulesync", "skills", "api"), folds: true });
+    mockSkillRepositoryWithSkills(["api", "AP1"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["AP1", "api", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["API"],
     });
   });
 

@@ -23,7 +23,10 @@ import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
-import { caseFoldIdentity } from "../types/feature-processor.js";
+import {
+  caseFoldIdentity,
+  groupSpellingsByCaseFoldedIdentity,
+} from "../types/feature-processor.js";
 import type { Feature } from "../types/features.js";
 import { ALL_FEATURES } from "../types/features.js";
 import type { FetchTarget } from "../types/fetch-targets.js";
@@ -696,20 +699,26 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
  * A symlink standing where a skill directory would be counts as one. `readdir`
  * reports the link rather than what it points at, and a skill kept as a link
  * into a shared tree — an ordinary arrangement in a monorepo — is a skill the
- * user has. Both callers only ever read the names: nothing here follows a link,
- * and the prune walk's own guard is what keeps a delete from reaching through
- * one.
+ * user has. The link is counted without asking what is behind it, so a link to
+ * a file is counted too: both callers only ever read the names, and a name too
+ * many can only make the comparison mention a pair it need not have, or keep
+ * the prune from deleting something. Nothing here follows a link, and the prune
+ * walk's own guard is what keeps a delete from reaching through one.
  */
 async function readSkillRootNames(outputBasePath: string): Promise<string[]> {
   try {
     const entries = await readdir(join(outputBasePath, SKILLS_DIR_NAME), {
       withFileTypes: true,
     });
-    // Directories and links to them: a skill is a directory, and a file beside
-    // them shares no name with one it could be mistaken for.
+    // Directories and every symlink, whatever it points at: nothing here
+    // follows a link, so what is behind one cannot be asked about, and a name
+    // counted that turns out to be a link to a file only ever makes the
+    // comparison say more than it had to. Sorted so that the order the names
+    // are compared in is the listing's rather than the filesystem's.
     return entries
       .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
-      .map((entry) => entry.name);
+      .map((entry) => entry.name)
+      .toSorted();
   } catch {
     // No skills directory, or one that cannot be read: nothing to compare
     // against, and a prune that cannot read the tree fails on its
@@ -748,11 +757,7 @@ async function localSkillNamesToCompare(params: {
 }): Promise<string[]> {
   const { outputBasePath, localNames, listedNames } = params;
   const localSpellings = new Set(localNames);
-  const listedByIdentity = new Map<string, string[]>();
-  for (const name of listedNames) {
-    const identity = caseFoldIdentity(name);
-    listedByIdentity.set(identity, [...(listedByIdentity.get(identity) ?? []), name]);
-  }
+  const listedByIdentity = groupSpellingsByCaseFoldedIdentity(listedNames);
 
   const kept: string[] = [];
   for (const localName of localNames) {
