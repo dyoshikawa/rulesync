@@ -157,9 +157,9 @@ describe("globsIntersect", () => {
 
 describe("parsedGlobsIntersect with a shared budget", () => {
   it("answers without walking once the run has spent its budget", () => {
-    // One pair of one-character patterns costs one cell, so this budget pays
-    // for exactly one comparison.
-    const budget = createIntersectionBudget(1);
+    // One pair of one-character patterns costs one cell plus the flat charge
+    // every pair carries, so this budget pays for exactly one comparison.
+    const budget = createIntersectionBudget(65);
     const left = parseGlobPattern("a");
     const right = parseGlobPattern("b");
 
@@ -167,6 +167,22 @@ describe("parsedGlobsIntersect with a shared budget", () => {
     // Past the budget the answer is `true` without a walk — the direction that
     // withholds an allow rather than writing one the config restricts.
     expect(parsedGlobsIntersect(left, right, budget)).toBe(true);
+  });
+
+  it("runs out on the number of pairs, not only on how long each walk is", () => {
+    // Every pair of these costs a single cell, so a budget spent on cells alone
+    // would never end however many pairs were asked — which is the shape a
+    // config of n short restrictions against n short allow rules has.
+    const budget = createIntersectionBudget();
+    const left = parseGlobPattern("a");
+    const right = parseGlobPattern("b");
+
+    let asked = 0;
+    while (!parsedGlobsIntersect(left, right, budget)) {
+      asked += 1;
+      expect(asked).toBeLessThan(1_000_000);
+    }
+    expect(asked).toBeLessThan(200_000);
   });
 
   it("leaves a caller that passes no budget bounded only by the per-pair cap", () => {

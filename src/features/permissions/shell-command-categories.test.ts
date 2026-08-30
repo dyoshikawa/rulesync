@@ -151,6 +151,28 @@ describe("createShadowingRestrictionsTest with many long patterns", () => {
     // allow rule is withheld rather than written.
     expect(answers.at(-1)?.length).toBe(restrictions.length);
   });
+
+});
+
+describe("createShadowingRestrictionsTest with many short patterns", () => {
+  it("stays bounded on the number of pairs, not only on how long each walk is", () => {
+    // Three thousand short restrictions against three thousand short allow
+    // rules is nine million comparisons that each walk a couple of cells: cheap
+    // one at a time, minutes together. The budget has to end on the count of
+    // pairs as well as on the length of each.
+    const restrictions = Array.from({ length: 3000 }, (_, index) =>
+      bashRule(`*q${index}*z`, "ask"),
+    );
+    const shadowing = createShadowingRestrictionsTest(restrictions);
+
+    const start = performance.now();
+    const answers = Array.from({ length: 3000 }, (_, index) => shadowing(`c${index} arg`));
+
+    expect(performance.now() - start).toBeLessThan(5000);
+    // Once the budget is gone every allow rule left is withheld rather than
+    // written — the fail-closed answer.
+    expect(answers.at(-1)?.length).toBe(restrictions.length);
+  });
 });
 
 describe("createShadowingRestrictionsTest with a bracket pattern", () => {

@@ -3,6 +3,7 @@ import { uniq } from "es-toolkit";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import {
   createIntersectionBudget,
+  type IntersectionBudget,
   parseGlobPattern,
   parsedGlobsIntersect,
 } from "../../utils/glob.js";
@@ -142,19 +143,28 @@ export function createShadowingRestrictionsTest(
   restrictions: readonly Pick<ShellCommandRule, "pattern" | "fromAllToolsCategory">[],
   {
     normalizePattern = (pattern: string) => pattern,
-  }: { normalizePattern?: (pattern: string) => string } = {},
+    budget = createIntersectionBudget(),
+  }: { normalizePattern?: (pattern: string) => string; budget?: IntersectionBudget } = {},
 ): (allowPattern: string) => string[] {
   // Each restriction is parsed once for the whole run rather than once per
   // allow rule it is compared against, and the walks share one budget: the
   // caller asks this as many times as it holds allow rules, so a cap on a
-  // single pair would bound none of the run.
+  // single pair would bound none of the run. Pass a budget in to see whether it
+  // ran out; leave it out for a run of its own.
   const normalized = restrictions.map(({ pattern, fromAllToolsCategory }) => ({
     pattern,
     glob: parseGlobPattern(fromAllToolsCategory ? pattern : normalizePattern(pattern)),
   }));
-  const budget = createIntersectionBudget();
 
   return (allowPattern) => {
+    if (budget.remaining === 0) {
+      // Out of budget every comparison answers "intersects", so the whole list
+      // withholds this allow. Saying so without walking it once per restriction
+      // matters: asking anyway is the restriction-times-allow enumeration the
+      // budget exists to stop, and it costs the same whether or not each pair
+      // is walked.
+      return normalized.map(({ pattern }) => pattern);
+    }
     const allowGlob = parseGlobPattern(normalizePattern(allowPattern));
     return normalized
       .filter(
@@ -190,6 +200,11 @@ export type CommandListPartition = {
    * nothing left none at all — see `warnAboutUnwrittenCommandRules`.
    */
   unenforcedAskPatterns: string[];
+  /**
+   * Whether the run ran out of comparison budget, so every allow rule left was
+   * withheld without being compared — see `createIntersectionBudget`.
+   */
+  intersectionBudgetExhausted: boolean;
 };
 
 /**
@@ -299,7 +314,11 @@ export function partitionCommandRules({
     // enforcement — the allow rules beside it stay.
   }
 
-  const shadowingRestrictions = createShadowingRestrictionsTest(restrictions, { normalizePattern });
+  const budget = createIntersectionBudget();
+  const shadowingRestrictions = createShadowingRestrictionsTest(restrictions, {
+    normalizePattern,
+    budget,
+  });
   const allow: string[] = [];
   const shadowedAllowPatterns: string[] = [];
   const withholdingPatterns = new Set<string>();
@@ -331,6 +350,7 @@ export function partitionCommandRules({
     // Withholding is all an `ask` can do here, so one that withheld nothing
     // left no trace of the author's rule at all.
     unenforcedAskPatterns: uniq(askPatterns).filter((pattern) => !withholdingPatterns.has(pattern)),
+    intersectionBudgetExhausted: budget.remaining === 0,
   };
 }
 
@@ -349,6 +369,7 @@ export function warnAboutUnwrittenCommandRules({
   unenforcedAllToolsDenyPatterns = [],
   unenforcedAskPatterns = [],
   ignoredAllToolsAllowPatterns = [],
+  intersectionBudgetExhausted = false,
   logger,
 }: {
   /** The tool's display name, e.g. `Warp`. */
@@ -367,8 +388,19 @@ export function warnAboutUnwrittenCommandRules({
   unenforcedAllToolsDenyPatterns?: readonly string[];
   unenforcedAskPatterns?: readonly string[];
   ignoredAllToolsAllowPatterns?: readonly string[];
+  intersectionBudgetExhausted?: boolean;
   logger?: Logger;
 }): void {
+  if (intersectionBudgetExhausted) {
+    warnWithFallback(
+      logger,
+      `${toolLabel} reached the limit on how much work one generation may spend comparing ` +
+        `.rulesync/permissions.jsonc's allow rules against its deny and ask rules, so the ` +
+        `allow rules left over were withheld rather than compared — the safe answer, but a ` +
+        `wider one than the file asks for. Write fewer or shorter command patterns to have ` +
+        `them all compared.`,
+    );
+  }
   for (const category of foreignDenyCategories) {
     warnWithFallback(
       logger,

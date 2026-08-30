@@ -751,12 +751,18 @@ function convertRulesyncToWarpPermissions({
   // Warp's denylist is a regex list that replaces the tool's built-in default
   // one, so an all-tools `*` pattern — which may not even name a command —
   // withholds the allow rules it covers instead of being written there.
-  const { allow, deny, shadowedAllowPatterns, unwrittenDenyPatterns, unenforcedAskPatterns } =
-    partitionCommandRules({
-      rules,
-      writesAllToolsDeny: false,
-      normalizePattern: warpCommandPatternToGlob,
-    });
+  const {
+    allow,
+    deny,
+    shadowedAllowPatterns,
+    unwrittenDenyPatterns,
+    unenforcedAskPatterns,
+    intersectionBudgetExhausted,
+  } = partitionCommandRules({
+    rules,
+    writesAllToolsDeny: false,
+    normalizePattern: warpCommandPatternToGlob,
+  });
   warnAboutUnwrittenCommandRules({
     toolLabel: "Warp",
     surfaceLabel: "agent_mode_command_execution_allowlist/denylist",
@@ -768,6 +774,7 @@ function convertRulesyncToWarpPermissions({
       "Writing any denylist replaces Warp's built-in default one, and a pattern written " +
       "under '*' need not be a command at all.",
     ignoredAllToolsAllowPatterns,
+    intersectionBudgetExhausted,
     logger,
   });
 

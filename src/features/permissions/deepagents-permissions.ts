@@ -8,7 +8,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { compileGlob } from "../../utils/glob.js";
+import { compileGlob, createIntersectionBudget } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { parseCommaSeparatedList } from "../../utils/parse-comma-separated-list.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
@@ -391,6 +391,12 @@ function partitionRestrictingRules({
   withheldTokens: Set<string>;
 } {
   const allowedTokens = new Set(allowList);
+  // Every glob-spelled restriction is matched against every allowed name, so
+  // the work is restrictions times entries — a product neither side's length
+  // bounds. One budget is spent down across the run and, once it is gone, a
+  // pattern is taken to collide with the whole list: withholding every entry
+  // restricts rather than auto-approving one the config asks about.
+  const budget = createIntersectionBudget();
   const collidingTokens = (pattern: string): string[] => {
     // Nothing was written, so nothing collides with anything: every deny is
     // merely unenforced, which is what the caller's sentence already says.
@@ -410,6 +416,12 @@ function partitionRestrictingRules({
       // repository can carry, and `*a*a*a*a*b` as `^.*a.*a.*a.*a.*b$` costs
       // minutes against a long enough name. Parsed once for the whole list, so
       // the pattern's own length is paid once rather than per entry.
+      const cost = allowList.length * (1 + leading.length);
+      if (cost > budget.remaining) {
+        budget.remaining = 0;
+        return [...allowList];
+      }
+      budget.remaining -= cost;
       const matches = compileGlob(leading);
       return allowList.filter((token) => matches(token));
     }

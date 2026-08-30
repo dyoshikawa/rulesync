@@ -228,6 +228,17 @@ const MAX_INTERSECTION_CELLS = 1_000_000;
  */
 const MAX_TOTAL_INTERSECTION_CELLS = 10_000_000;
 
+/**
+ * What a pair costs before a single cell of it is walked: parsing the pattern
+ * the caller holds on one side, dispatching, sizing the table. Charging only
+ * cells would leave the *number* of pairs unbounded — a pair of one-step
+ * patterns walks a single cell, so n short restrictions against n short allow
+ * rules is n squared comparisons that never spend the budget down however many
+ * of them there are. Charging a floor per pair puts pair count and walk length
+ * on the same exhaustible resource.
+ */
+const INTERSECTION_PAIR_COST = 64;
+
 /** What a run of comparisons has left to spend; see `createIntersectionBudget`. */
 export type IntersectionBudget = { remaining: number };
 
@@ -319,14 +330,15 @@ export function parsedGlobsIntersect(
     return true;
   }
   if (budget !== undefined) {
-    if (cost > budget.remaining) {
+    const charge = cost + INTERSECTION_PAIR_COST;
+    if (charge > budget.remaining) {
       // Spent to the last cell rather than left at whatever fell short of this
       // pair: a cheaper pair later must not slip through a budget this one
       // already ended.
       budget.remaining = 0;
       return true;
     }
-    budget.remaining -= cost;
+    budget.remaining -= charge;
   }
 
   // `row[j]` — can the steps from the current row index and from `j` on produce

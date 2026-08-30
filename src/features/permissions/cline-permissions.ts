@@ -8,6 +8,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { createIntersectionBudget } from "../../utils/glob.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
@@ -57,6 +58,7 @@ type ClineTranslationResult = {
   unenforcedAllToolsDenyPatterns: string[];
   unenforcedAllToolsAskPatterns: string[];
   ignoredAllToolsAllowPatterns: string[];
+  intersectionBudgetExhausted: boolean;
 };
 
 /**
@@ -92,8 +94,10 @@ function translateClinePermissions(
   // case where it *is* a command). Translating the `ask` to `deny` outright would
   // turn the ordinary catch-all `{"*": {"*": "ask"}}` into a block on every
   // command — one Cline's additive `deny` merge would then keep forever.
+  const budget = createIntersectionBudget();
   const shadowingRestrictions = createShadowingRestrictionsTest(
     rules.filter(({ fromAllToolsCategory }) => fromAllToolsCategory),
+    { budget },
   );
   const allToolsDenyPatterns: string[] = [];
   const allToolsAskPatterns: string[] = [];
@@ -153,6 +157,7 @@ function translateClinePermissions(
     unenforcedAllToolsDenyPatterns,
     unenforcedAllToolsAskPatterns,
     ignoredAllToolsAllowPatterns,
+    intersectionBudgetExhausted: budget.remaining === 0,
   };
 }
 
@@ -169,6 +174,7 @@ function warnClineTranslationNotices({
   unenforcedAllToolsDenyPatterns,
   unenforcedAllToolsAskPatterns,
   ignoredAllToolsAllowPatterns,
+  intersectionBudgetExhausted,
   logger,
 }: {
   droppedCategories: string[];
@@ -177,6 +183,7 @@ function warnClineTranslationNotices({
   unenforcedAllToolsDenyPatterns: string[];
   unenforcedAllToolsAskPatterns: string[];
   ignoredAllToolsAllowPatterns: string[];
+  intersectionBudgetExhausted: boolean;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
   if (
@@ -185,7 +192,8 @@ function warnClineTranslationNotices({
     shadowedAllowPatterns.length === 0 &&
     unenforcedAllToolsDenyPatterns.length === 0 &&
     unenforcedAllToolsAskPatterns.length === 0 &&
-    ignoredAllToolsAllowPatterns.length === 0
+    ignoredAllToolsAllowPatterns.length === 0 &&
+    !intersectionBudgetExhausted
   ) {
     return;
   }
@@ -234,6 +242,15 @@ function warnClineTranslationNotices({
       `'allow' rules for [${ignoredAllToolsAllowPatterns.join(", ")}] under the all-tools '*' ` +
         `category skipped (only its deny and ask rules are read, since a pattern written ` +
         `there need not be a command); write them under 'bash' to auto-approve them`,
+    );
+  }
+  if (intersectionBudgetExhausted) {
+    parts.push(
+      `the limit on how much work one generation may spend comparing allow rules against the ` +
+        `all-tools '*' category's deny and ask rules was reached, so the allow rules left over ` +
+        `were withheld rather than compared — the safe answer, but a wider one than ` +
+        `.rulesync/permissions.jsonc asks for; write fewer or shorter command patterns to have ` +
+        `them all compared`,
     );
   }
   logger?.warn(`WARNING: Cline command permissions translation notice: ${parts.join("; ")}.`);
@@ -321,6 +338,7 @@ export class ClinePermissions extends ToolPermissions {
       unenforcedAllToolsDenyPatterns,
       unenforcedAllToolsAskPatterns,
       ignoredAllToolsAllowPatterns,
+      intersectionBudgetExhausted,
     } = translateClinePermissions(config.permission);
 
     warnClineTranslationNotices({
@@ -330,6 +348,7 @@ export class ClinePermissions extends ToolPermissions {
       unenforcedAllToolsDenyPatterns,
       unenforcedAllToolsAskPatterns,
       ignoredAllToolsAllowPatterns,
+      intersectionBudgetExhausted,
       logger,
     });
 
