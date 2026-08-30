@@ -1167,11 +1167,11 @@ async function pruneStaleSkillFiles(params: {
       // filesystem error is absorbed: anything else is a defect in the walk, and
       // one that turned into a warning would take a skipped prune with it
       // quietly. `isFileSystemError` recognizes an I/O failure by its `errno`
-      // code, so a `code` of another shape — `ERR_FS_EISDIR`, or the `UNKNOWN`
-      // libuv falls back to — is rethrown rather than warned about. That is the
-      // side to err on here: a prune silently skipped is worse than a fetch that
-      // says why it stopped. The message is stripped too, since a filesystem
-      // error carries the local path it failed on.
+      // code, so a `code` of another shape — the `UNKNOWN` libuv falls back to
+      // for a system error it cannot translate — is rethrown rather than warned
+      // about. That is the side to err on here: a prune silently skipped is
+      // worse than a fetch that says why it stopped. The message is stripped
+      // too, since a filesystem error carries the local path it failed on.
       if (!isFileSystemError(error)) {
         throw error;
       }
