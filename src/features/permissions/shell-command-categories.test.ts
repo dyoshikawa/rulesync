@@ -170,7 +170,7 @@ describe("createShadowingRestrictionsTest with many short patterns", () => {
     // `b` is not `a`, so a compared pair withholds nothing...
     expect(answers[0]).toEqual([]);
     // ...and once the budget is gone every allow rule left is withheld instead,
-    // uncompared — the fail-closed answer.
+    // without being compared at all — the fail-closed answer.
     expect(answers.at(-1)?.length).toBe(restrictions.length);
   });
 });
