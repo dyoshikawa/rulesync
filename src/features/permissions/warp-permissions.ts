@@ -738,8 +738,14 @@ function warpCommandPatternToGlob(pattern: string): string {
       widenLastAtom();
       continue;
     }
-    index += 1;
-    atoms.push(character === "." || ")]}^$".includes(character) ? "*" : character);
+    // A character outside the BMP is two UTF-16 units, and pushing them as two
+    // atoms would let a following quantifier widen the low surrogate alone,
+    // leaving the high one behind as a literal that matches nothing — a
+    // narrowing, the one direction this rewrite must never take.
+    const codePoint = body.codePointAt(index);
+    const atom = codePoint === undefined ? character : String.fromCodePoint(codePoint);
+    index += atom.length;
+    atoms.push(atom === "." || ")]}^$".includes(atom) ? "*" : atom);
   }
 
   const glob = atoms.join("");
@@ -769,12 +775,18 @@ function convertRulesyncToWarpPermissions({
   // Warp's denylist is a regex list that replaces the tool's built-in default
   // one, so an all-tools `*` pattern — which may not even name a command —
   // withholds the allow rules it covers instead of being written there.
-  const { allow, deny, shadowedAllowPatterns, unwrittenDenyPatterns, intersectionBudgetExhausted } =
-    partitionCommandRules({
-      rules,
-      writesAllToolsDeny: false,
-      normalizePattern: warpCommandPatternToGlob,
-    });
+  const {
+    allow,
+    deny,
+    shadowedAllowPatterns,
+    unwrittenDenyPatterns,
+    unenforcedAllToolsAskPatterns,
+    intersectionBudgetExhausted,
+  } = partitionCommandRules({
+    rules,
+    writesAllToolsDeny: false,
+    normalizePattern: warpCommandPatternToGlob,
+  });
   warnAboutUnwrittenCommandRules({
     toolLabel: "Warp",
     surfaceLabel: "agent_mode_command_execution_allowlist/denylist",
@@ -784,6 +796,7 @@ function convertRulesyncToWarpPermissions({
     unwrittenDenyReason:
       "Writing any denylist replaces Warp's built-in default one, and a pattern written " +
       "under '*' need not be a command at all.",
+    unenforcedAllToolsAskPatterns,
     ignoredAllToolsAllowPatterns,
     intersectionBudgetExhausted,
     logger,

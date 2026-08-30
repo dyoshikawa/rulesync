@@ -4,7 +4,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import {
   collectShellCommandRules,
-  collectUnenforcedAllToolsDenyPatterns,
+  collectUnenforcedAllToolsPatterns,
   createShadowingRestrictionsTest,
   partitionCommandRules,
   warnAboutUnwrittenCommandRules,
@@ -24,7 +24,7 @@ const allToolsRule = (pattern: string, action: PermissionAction) => ({
 
 describe("collectShellCommandRules", () => {
   it("collects every bash rule in the order it was written", () => {
-    const { rules, foreignDenyCategories } = collectShellCommandRules({
+    const { rules, foreignRestrictingCategories } = collectShellCommandRules({
       bash: { "git *": "allow", "npm *": "ask", "rm -rf *": "deny" },
     });
 
@@ -33,7 +33,7 @@ describe("collectShellCommandRules", () => {
       bashRule("npm *", "ask"),
       bashRule("rm -rf *", "deny"),
     ]);
-    expect(foreignDenyCategories).toEqual([]);
+    expect(foreignRestrictingCategories).toEqual([]);
   });
 
   it("collects the all-tools category's restricting rules", () => {
@@ -51,12 +51,14 @@ describe("collectShellCommandRules", () => {
     ]);
   });
 
-  it("does not report the all-tools category as a foreign deny", () => {
+  it("does not report the all-tools category as a foreign restriction", () => {
     // It is no longer a restriction the adapters cannot express, so the
     // "cannot be represented" warning must not name it.
-    const { foreignDenyCategories } = collectShellCommandRules({ "*": { "rm *": "deny" } });
+    const { foreignRestrictingCategories } = collectShellCommandRules({
+      "*": { "rm *": "deny", "npm *": "ask" },
+    });
 
-    expect(foreignDenyCategories).toEqual([]);
+    expect(foreignRestrictingCategories).toEqual([]);
   });
 
   it("never collects the all-tools category's allow rules", () => {
@@ -71,8 +73,8 @@ describe("collectShellCommandRules", () => {
     expect(rules).toEqual([bashRule("git *", "allow")]);
   });
 
-  it("reports only the other categories that carry a deny rule", () => {
-    const { rules, foreignDenyCategories } = collectShellCommandRules({
+  it("reports only the other categories that carry a deny or an ask rule", () => {
+    const { rules, foreignRestrictingCategories } = collectShellCommandRules({
       read: { "src/**": "allow" },
       write: { "secrets/**": "deny" },
       webfetch: { "*": "ask" },
@@ -80,7 +82,8 @@ describe("collectShellCommandRules", () => {
     });
 
     expect(rules).toEqual([]);
-    expect(foreignDenyCategories).toEqual(["write", "mcp__github"]);
+    // `read` carries only an allow, so it restricts nothing and is left out.
+    expect(foreignRestrictingCategories).toEqual(["write", "webfetch", "mcp__github"]);
   });
 
   it("reports the all-tools allow patterns it read past", () => {
@@ -95,7 +98,6 @@ describe("collectShellCommandRules", () => {
   it("returns nothing for an empty config", () => {
     expect(collectShellCommandRules({})).toEqual({
       rules: [],
-      foreignDenyCategories: [],
       foreignRestrictingCategories: [],
       ignoredAllToolsAllowPatterns: [],
     });
@@ -156,21 +158,19 @@ describe("createShadowingRestrictionsTest with many long patterns", () => {
 
 describe("createShadowingRestrictionsTest with many short patterns", () => {
   it("stays bounded on the number of pairs, not only on how long each walk is", () => {
-    // Three thousand short restrictions against three thousand short allow
-    // rules is nine million comparisons that each walk a couple of cells: cheap
-    // one at a time, minutes together. The budget has to end on the count of
-    // pairs as well as on the length of each.
-    const restrictions = Array.from({ length: 3000 }, (_, index) =>
-      bashRule(`*q${index}*z`, "ask"),
-    );
+    // Five hundred one-step restrictions against five hundred one-step allow
+    // rules is a quarter of a million comparisons walking a single cell each —
+    // a fraction of the run-wide cell budget however many of them there are, so
+    // only a charge per pair can end this run.
+    const restrictions = Array.from({ length: 500 }, () => bashRule("a", "ask"));
     const shadowing = createShadowingRestrictionsTest(restrictions);
 
-    const start = performance.now();
-    const answers = Array.from({ length: 3000 }, (_, index) => shadowing(`c${index} arg`));
+    const answers = Array.from({ length: 500 }, () => shadowing("b"));
 
-    expect(performance.now() - start).toBeLessThan(5000);
-    // Once the budget is gone every allow rule left is withheld rather than
-    // written — the fail-closed answer.
+    // `b` is not `a`, so a compared pair withholds nothing...
+    expect(answers[0]).toEqual([]);
+    // ...and once the budget is gone every allow rule left is withheld instead,
+    // uncompared — the fail-closed answer.
     expect(answers.at(-1)?.length).toBe(restrictions.length);
   });
 });
@@ -334,12 +334,12 @@ const warnedBy = (
   return logger.warn.mock.calls.map(([message]) => String(message));
 };
 
-describe("collectUnenforcedAllToolsDenyPatterns", () => {
+describe("collectUnenforcedAllToolsPatterns", () => {
   it("names an all-tools deny that had allow rules to cover and covered none", () => {
     expect(
-      collectUnenforcedAllToolsDenyPatterns({
+      collectUnenforcedAllToolsPatterns({
         rules: [bashRule("git *", "allow"), allToolsRule("secrets/**", "deny")],
-        writtenAllToolsDenyPatterns: ["secrets/**"],
+        allToolsPatterns: ["secrets/**"],
         withholdingPatterns: new Set(),
       }),
     ).toEqual(["secrets/**"]);
@@ -347,9 +347,9 @@ describe("collectUnenforcedAllToolsDenyPatterns", () => {
 
   it("says nothing when the deny withheld an allow, since it does name a command", () => {
     expect(
-      collectUnenforcedAllToolsDenyPatterns({
+      collectUnenforcedAllToolsPatterns({
         rules: [bashRule("git *", "allow"), allToolsRule("git push *", "deny")],
-        writtenAllToolsDenyPatterns: ["git push *"],
+        allToolsPatterns: ["git push *"],
         withholdingPatterns: new Set(["git push *"]),
       }),
     ).toEqual([]);
@@ -359,9 +359,9 @@ describe("collectUnenforcedAllToolsDenyPatterns", () => {
     // With nothing to cover, covering nothing says nothing about whether the
     // pattern names a command — the report would be a guess.
     expect(
-      collectUnenforcedAllToolsDenyPatterns({
+      collectUnenforcedAllToolsPatterns({
         rules: [allToolsRule("secrets/**", "deny")],
-        writtenAllToolsDenyPatterns: ["secrets/**"],
+        allToolsPatterns: ["secrets/**"],
         withholdingPatterns: new Set(),
       }),
     ).toEqual([]);
@@ -371,16 +371,28 @@ describe("collectUnenforcedAllToolsDenyPatterns", () => {
     // The author already spelled it as a command, so the advice the warning
     // would give is one they have followed.
     expect(
-      collectUnenforcedAllToolsDenyPatterns({
+      collectUnenforcedAllToolsPatterns({
         rules: [
           bashRule("git *", "allow"),
           bashRule("secrets/**", "deny"),
           allToolsRule("secrets/**", "deny"),
         ],
-        writtenAllToolsDenyPatterns: ["secrets/**"],
+        allToolsPatterns: ["secrets/**"],
         withholdingPatterns: new Set(),
       }),
     ).toEqual([]);
+  });
+
+  it("names an all-tools ask on the same terms as a deny", () => {
+    // Withholding is the only way a `*` ask restricts these tools, so one that
+    // withheld nothing raises the same question a deny does.
+    expect(
+      collectUnenforcedAllToolsPatterns({
+        rules: [bashRule("git *", "allow"), allToolsRule("secrets/**", "ask")],
+        allToolsPatterns: ["secrets/**"],
+        withholdingPatterns: new Set(),
+      }),
+    ).toEqual(["secrets/**"]);
   });
 });
 
@@ -413,6 +425,12 @@ describe("warnAboutUnwrittenCommandRules", () => {
   it("reports the all-tools allow rules it read past", () => {
     expect(warnedBy({ ignoredAllToolsAllowPatterns: ["git *"] })).toEqual([
       expect.stringContaining("deny and ask rules only"),
+    ]);
+  });
+
+  it("reports an all-tools ask that withheld nothing, in the words the deny gets", () => {
+    expect(warnedBy({ unenforcedAllToolsAskPatterns: ["secrets/**"] })).toEqual([
+      expect.stringContaining("need not name a command"),
     ]);
   });
 

@@ -261,6 +261,7 @@ function convertRulesyncToFactorydroidPermissions({
     deny,
     shadowedAllowPatterns,
     unenforcedAllToolsDenyPatterns,
+    unenforcedAllToolsAskPatterns,
     intersectionBudgetExhausted,
   } = partitionCommandRules({
     rules,
@@ -272,6 +273,7 @@ function convertRulesyncToFactorydroidPermissions({
     foreignRestrictingCategories,
     shadowedAllowPatterns,
     unenforcedAllToolsDenyPatterns,
+    unenforcedAllToolsAskPatterns,
     ignoredAllToolsAllowPatterns,
     intersectionBudgetExhausted,
     logger,

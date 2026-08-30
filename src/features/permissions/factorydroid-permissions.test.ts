@@ -236,6 +236,29 @@ describe("FactorydroidPermissions", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("should report an all-tools ask that withheld nothing, as it may name no command", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "secrets/**": "ask" },
+          bash: { "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // Withholding is the only way a `*` ask restricts Factory Droid, and a
+      // path pattern withholds nothing — the same complaint the `*` deny above
+      // earns, since neither is a command Factory Droid's lists can act on.
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("need not name a command"));
+    });
+
     it("should withhold an allow spelled with a character class, which no glob matches", async () => {
       const rulesyncPermissions = buildRulesyncPermissions({
         permission: {

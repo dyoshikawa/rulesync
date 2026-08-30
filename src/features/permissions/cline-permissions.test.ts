@@ -229,7 +229,36 @@ describe("ClinePermissions", () => {
     );
   });
 
-  it("should say nothing about an all-tools ask that withheld nothing", async () => {
+  it("should report an all-tools ask that withheld nothing, as it may name no command", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "secrets/**": "ask" },
+          bash: { "git *": "allow" },
+        },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // An all-tools `ask` is written to neither list and is deliberately not
+    // translated to `deny`; withholding is all it can do. `secrets/**` is a path,
+    // so it withheld the `git *` allow no more than it names a command — the
+    // author asked for something Cline's command lists cannot give them.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual(["git *"]);
+    expect(content.deny).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("need not name a command"));
+  });
+
+  it("should say nothing about an all-tools ask when there is no allow to withhold", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -247,10 +276,8 @@ describe("ClinePermissions", () => {
       logger,
     });
 
-    // An all-tools `ask` is written to neither list and is deliberately not
-    // translated to `deny`; it only withholds. Cline's `allow` array is a gate,
-    // so with nothing withheld every command still prompts — exactly what the
-    // ask asked for, and nothing to warn about.
+    // With no allow rule to cover, covering none says nothing about whether the
+    // pattern is a command, so there is nothing to report.
     const content = JSON.parse(instance.getFileContent());
     expect(content.allow).toEqual([]);
     expect(content.deny).toEqual([]);

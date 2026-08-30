@@ -251,12 +251,37 @@ describe("WarpPermissions", () => {
             "^\\U00000067it push$": "ask",
             "^\\pLit pull$": "ask",
             "^\\p{Latin}it fetch$": "ask",
+            // The negated forms `\\PL` / `\\P{...}` spell a class the same way.
+            "^\\PLit stash$": "ask",
+            "^\\P{Greek}it clone$": "ask",
             "^git push$": "allow",
             "^npm publish$": "allow",
             "^yarn add$": "allow",
             "^pnpm add$": "allow",
             "^git pull$": "allow",
             "^git fetch$": "allow",
+            "^git stash$": "allow",
+            "^git clone$": "allow",
+            "^ls -la$": "allow",
+          },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^ls -la$"]);
+    });
+
+    it("withholds an allow a quantifier on an astral character reaches", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // The emoji is two UTF-16 units. Widening only the second would
+            // leave the first behind as a literal no command holds, so the
+            // restriction would stop covering the allow below it.
+            "^rm \u{1F600}?x$": "ask",
+            "^rm x$": "allow",
             "^ls -la$": "allow",
           },
         }),
@@ -403,6 +428,27 @@ describe("WarpPermissions", () => {
       const profiles = profilesOf(perms.getFileContent());
       expect(profiles[ALLOWLIST_KEY]).toEqual(["^git .*$"]);
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("^npm .*$"));
+    });
+
+    it("reports an all-tools ask that withheld nothing, as it may name no command", async () => {
+      const logger = createMockLogger();
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          // A regex written under `*` is read as a glob here, so `.*--force`
+          // wants a literal leading `.` and reaches no command. Warp has no ask
+          // list to write it to either, which leaves the rule doing nothing.
+          "*": { ".*--force": "ask" },
+          bash: { "^git push --force$": "allow" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^git push --force$"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("need not name a command"));
     });
 
     it("reads an all-tools pattern as the glob it is, not as a Warp regex", async () => {

@@ -35,14 +35,9 @@ export type ShellCommandRules = {
   /** The rules that govern shell commands, in the order the source file wrote them. */
   rules: ShellCommandRule[];
   /**
-   * Categories that are neither `bash` nor `*` and carry a `deny` rule, for the
-   * warning an adapter emits about a restriction it cannot express at all.
-   */
-  foreignDenyCategories: string[];
-  /**
    * Categories that are neither `bash` nor `*` and carry a `deny` **or** an
-   * `ask`, for an adapter that has to know whether the config restricts
-   * anything at all — a foreign `ask` restricts as surely as a foreign `deny`.
+   * `ask`, for the warning an adapter emits about a restriction it cannot
+   * express at all — a foreign `ask` restricts as surely as a foreign `deny`.
    */
   foreignRestrictingCategories: string[];
   /**
@@ -73,7 +68,6 @@ export function collectShellCommandRules(
   permission: PermissionsConfig["permission"],
 ): ShellCommandRules {
   const rules: ShellCommandRule[] = [];
-  const foreignDenyCategories: string[] = [];
   const foreignRestrictingCategories: string[] = [];
   const ignoredAllToolsAllowPatterns: string[] = [];
 
@@ -95,9 +89,6 @@ export function collectShellCommandRules(
       continue;
     }
     const actions = Object.values(categoryRules);
-    if (actions.some((action) => action === "deny")) {
-      foreignDenyCategories.push(category);
-    }
     if (actions.some((action) => action === "deny" || action === "ask")) {
       foreignRestrictingCategories.push(category);
     }
@@ -105,7 +96,6 @@ export function collectShellCommandRules(
 
   return {
     rules,
-    foreignDenyCategories,
     foreignRestrictingCategories,
     ignoredAllToolsAllowPatterns,
   };
@@ -195,6 +185,12 @@ export type CommandListPartition = {
    */
   unenforcedAllToolsDenyPatterns: string[];
   /**
+   * All-tools `ask` patterns that withheld none of the `allow` rules beside
+   * them and are not written under `bash` either, so nothing observed says they
+   * name a command — see `warnAboutUnwrittenCommandRules`.
+   */
+  unenforcedAllToolsAskPatterns: string[];
+  /**
    * Whether the run ran out of comparison budget, so every allow rule left was
    * withheld without being compared — see `createIntersectionBudget`.
    */
@@ -202,22 +198,25 @@ export type CommandListPartition = {
 };
 
 /**
- * Which of the all-tools `*` deny patterns written into the denylist look like
- * they may not name a command at all.
+ * Which of the given all-tools `*` restrictions look like they may not name a
+ * command at all — the question a `deny` and an `ask` written there both raise.
  *
- * "Withheld no allow rule" alone does not say that: a config with no `allow`
+ * "Withheld no allow rule" alone does not answer it: a config with no `allow`
  * rules has nothing to withhold, and a pattern the author also wrote under
  * `bash` is a command on their own word. Both are excluded, so what remains is
  * a `*` pattern that had allow rules to overlap, overlapped none of them, and
  * is claimed as a command nowhere else — the shape `secrets/**` has.
+ *
+ * A `bash` restriction never belongs here: it names a command by construction,
+ * so overlapping no allow rule says nothing is wrong with it.
  */
-export function collectUnenforcedAllToolsDenyPatterns({
+export function collectUnenforcedAllToolsPatterns({
   rules,
-  writtenAllToolsDenyPatterns,
+  allToolsPatterns,
   withholdingPatterns,
 }: {
   rules: readonly ShellCommandRule[];
-  writtenAllToolsDenyPatterns: readonly string[];
+  allToolsPatterns: readonly string[];
   withholdingPatterns: ReadonlySet<string>;
 }): string[] {
   if (!rules.some(({ action }) => action === "allow")) {
@@ -226,7 +225,7 @@ export function collectUnenforcedAllToolsDenyPatterns({
   const shellPatterns = new Set(
     rules.filter(({ fromAllToolsCategory }) => !fromAllToolsCategory).map(({ pattern }) => pattern),
   );
-  return uniq(writtenAllToolsDenyPatterns).filter(
+  return uniq(allToolsPatterns).filter(
     (pattern) => !withholdingPatterns.has(pattern) && !shellPatterns.has(pattern),
   );
 }
@@ -275,6 +274,7 @@ export function partitionCommandRules({
   const unwrittenDenyPatterns: string[] = [];
   const restrictions: ShellCommandRule[] = [];
   const writtenAllToolsDenyPatterns: string[] = [];
+  const allToolsAskPatterns: string[] = [];
 
   for (const rule of rules) {
     const { pattern, action, fromAllToolsCategory } = rule;
@@ -283,10 +283,14 @@ export function partitionCommandRules({
     }
     if (action !== "deny") {
       // An `ask` has no list of its own anywhere, so it can only be honored by
-      // withholding the allow rules it covers. One that withholds nothing needs
-      // no report: these tools prompt for whatever their allowlist does not
-      // cover, so an `ask` no `allow` overlaps is already honored as written.
+      // withholding the allow rules it covers. A `bash` ask that withholds
+      // nothing is still honored — these tools prompt for whatever their
+      // allowlist does not cover — but one written under `*` may simply name no
+      // command, which is worth saying.
       restrictions.push(rule);
+      if (fromAllToolsCategory) {
+        allToolsAskPatterns.push(pattern);
+      }
       continue;
     }
     if (writesAllToolsDeny || !fromAllToolsCategory) {
@@ -336,9 +340,14 @@ export function partitionCommandRules({
     deny,
     shadowedAllowPatterns,
     unwrittenDenyPatterns,
-    unenforcedAllToolsDenyPatterns: collectUnenforcedAllToolsDenyPatterns({
+    unenforcedAllToolsDenyPatterns: collectUnenforcedAllToolsPatterns({
       rules,
-      writtenAllToolsDenyPatterns,
+      allToolsPatterns: writtenAllToolsDenyPatterns,
+      withholdingPatterns,
+    }),
+    unenforcedAllToolsAskPatterns: collectUnenforcedAllToolsPatterns({
+      rules,
+      allToolsPatterns: allToolsAskPatterns,
       withholdingPatterns,
     }),
     intersectionBudgetExhausted: budget.remaining === 0,
@@ -358,6 +367,7 @@ export function warnAboutUnwrittenCommandRules({
   unwrittenDenyPatterns = [],
   unwrittenDenyReason,
   unenforcedAllToolsDenyPatterns = [],
+  unenforcedAllToolsAskPatterns = [],
   ignoredAllToolsAllowPatterns = [],
   intersectionBudgetExhausted = false,
   logger,
@@ -381,6 +391,7 @@ export function warnAboutUnwrittenCommandRules({
    */
   unwrittenDenyReason?: string;
   unenforcedAllToolsDenyPatterns?: readonly string[];
+  unenforcedAllToolsAskPatterns?: readonly string[];
   ignoredAllToolsAllowPatterns?: readonly string[];
   intersectionBudgetExhausted?: boolean;
   logger?: Logger;
@@ -420,6 +431,16 @@ export function warnAboutUnwrittenCommandRules({
         `withheld none of the allow rules beside them. A pattern written under '*' need not ` +
         `name a command — 'secrets/**' there denies a path — and a denylist entry that names ` +
         `none blocks nothing; write it under 'bash' too if it is a command pattern.`,
+    );
+  }
+  if (unenforcedAllToolsAskPatterns.length > 0) {
+    warnWithFallback(
+      logger,
+      `${toolLabel} has no ask tier (${surfaceLabel}), so the all-tools '*' ask rule(s) for ` +
+        `${unenforcedAllToolsAskPatterns.join(", ")} restrict only by withholding the allow ` +
+        `rules they cover — and they covered none. A pattern written under '*' need not name ` +
+        `a command, so nothing observed says these ones do; write them under 'bash' if they ` +
+        `are command patterns.`,
     );
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {

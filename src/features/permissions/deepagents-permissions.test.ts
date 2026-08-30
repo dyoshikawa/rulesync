@@ -567,6 +567,50 @@ describe("DeepagentsPermissions", () => {
       );
     });
 
+    it("catches a restriction that names arguments rather than an executable", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: {
+          permission: { bash: { "kubectl *": "allow" }, "*": { "*delete*": "deny" } },
+        },
+        logger,
+      });
+
+      // An allowed `kubectl` runs `kubectl delete pod foo` unasked, so the deny
+      // covers commands the entry auto-approves even though it names no
+      // executable of its own — reading only its first token would write the
+      // allow and drop the guardrail in silence.
+      expect(allowListOf(content)).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("deny rule(s) *delete* were withheld from allow_list"),
+      );
+    });
+
+    it("catches an argument-only ask beside the allow it covers", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: { bash: { "docker *": "allow", "*--privileged*": "ask" } } },
+        logger,
+      });
+
+      expect(allowListOf(content)).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("ask rule(s) *--privileged* were withheld from allow_list"),
+      );
+    });
+
+    it("keeps an allow whose commands a restriction on other arguments never reaches", async () => {
+      const content = await generate({
+        config: { permission: { bash: { "git *": "allow", "npm publish *": "deny" } } },
+      });
+
+      // `npm publish *` matches nothing `git` runs, so the allow stands — the
+      // collision test withholds what a restriction covers, not everything.
+      expect(allowListOf(content)).toEqual(["git"]);
+    });
+
     it("catches a bare-executable ask", async () => {
       const logger = createMockLogger();
 
