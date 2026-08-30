@@ -15,6 +15,24 @@ import {
 } from "../utils/file.js";
 import { warnOnceWithFallback } from "../utils/logger.js";
 
+/**
+ * Whether `name` is a path rather than a single name.
+ *
+ * Both separators are rejected on every platform: a backslash is a legal
+ * character in a POSIX name, but a name carrying one is a path the moment it
+ * reaches Windows, and `AiDir` names travel between the two — most tools take
+ * one straight from a skill's frontmatter.
+ *
+ * Exported because the checks that run *before* a name reaches `AiDir` — so
+ * that an unusable name is reported and skipped rather than thrown over — have
+ * to reject exactly the set this guard does. Two spellings of one rule drift
+ * apart the moment either is tightened, and the pre-filter drifting narrower
+ * turns a reported name back into a failed run.
+ */
+export function containsPathSeparator(name: string): boolean {
+  return name.includes(path.sep) || name.includes("/") || name.includes("\\");
+}
+
 export type ValidationResult =
   | {
       success: true;
@@ -724,7 +742,7 @@ export abstract class AiDir {
     global = false,
   }: AiDirParams) {
     // Security check: ensure dirName doesn't contain path separators
-    if (dirName.includes(path.sep) || dirName.includes("/") || dirName.includes("\\")) {
+    if (containsPathSeparator(dirName)) {
       throw new Error(`Directory name cannot contain path separators: dirName="${dirName}"`);
     }
 
@@ -814,7 +832,7 @@ export abstract class AiDir {
     // Both separators, on every platform — a backslash is a legal character in
     // a POSIX name, but a name carrying one is a path once it reaches Windows.
     const name = mainFile.name;
-    if (name === "" || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
+    if (name === "" || name === "." || name === ".." || containsPathSeparator(name)) {
       return undefined;
     }
     return path.join(this.getDirPath(), name);

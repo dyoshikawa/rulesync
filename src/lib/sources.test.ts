@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,7 +13,6 @@ import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   directoryExists,
   fileExists,
-  findFilesByGlobs,
   listSubdirectoryNames,
   readFileContent,
   removeDirectoryStrict as removeDirectory,
@@ -66,7 +66,6 @@ vi.mock("../utils/file.js", async (importOriginal) => {
     directoryExists: directoryExistsMock,
     directoryExistsStrict: directoryExistsMock,
     fileExists: vi.fn(),
-    findFilesByGlobs: vi.fn(),
     listSubdirectoryNames: vi.fn(),
     readFileContent: vi.fn(),
     removeDirectoryStrict: vi.fn(),
@@ -79,6 +78,18 @@ vi.mock("../utils/file.js", async (importOriginal) => {
 });
 
 const logger = createMockLogger();
+
+/**
+ * Write a rule the project holds itself. The local rules are read off the disk
+ * rather than through a mocked lister, so the precedence they take over a
+ * source's rule of the same name is decided by a file that is really there.
+ */
+async function writeLocalRule(params: { projectRoot: string; name: string }): Promise<void> {
+  const { projectRoot, name } = params;
+  const rulesDir = join(projectRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
+  await mkdir(rulesDir, { recursive: true });
+  await writeFile(join(rulesDir, `${name}.md`), `# ${name}\n`, "utf8");
+}
 
 vi.mock("./git-client.js", () => ({
   GitClientError: class GitClientError extends Error {
@@ -154,7 +165,6 @@ describe("resolveAndFetchSources", () => {
     // Default: no curated dir, no local skills
     vi.mocked(directoryExists).mockResolvedValue(false);
     vi.mocked(fileExists).mockResolvedValue(false);
-    vi.mocked(findFilesByGlobs).mockResolvedValue([]);
     vi.mocked(listSubdirectoryNames).mockResolvedValue([]);
     vi.mocked(readFileContent).mockResolvedValue("");
     vi.mocked(removeDirectory).mockResolvedValue(undefined);
@@ -640,9 +650,7 @@ describe("resolveAndFetchSources", () => {
   });
 
   it("should let a local rule override a curated rule with the same name", async () => {
-    vi.mocked(findFilesByGlobs).mockResolvedValue([
-      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "testing-guidelines.md"),
-    ]);
+    await writeLocalRule({ projectRoot: testDir, name: "testing-guidelines" });
     mockClientInstance.listDirectory.mockResolvedValue([
       {
         name: "testing-guidelines.md",
@@ -692,9 +700,7 @@ describe("resolveAndFetchSources", () => {
     });
     vi.mocked(directoryExists).mockImplementation(async (path) => path === curatedSkillDir);
     vi.mocked(fileExists).mockImplementation(async (path) => path === curatedRulePath);
-    vi.mocked(findFilesByGlobs).mockResolvedValue([
-      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "testing-guidelines.md"),
-    ]);
+    await writeLocalRule({ projectRoot: testDir, name: "testing-guidelines" });
 
     const result = await resolveAndFetchSources({
       logger,
@@ -1486,9 +1492,7 @@ describe("resolveAndFetchSources", () => {
         },
       },
     });
-    vi.mocked(findFilesByGlobs).mockResolvedValue([
-      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "testing-guidelines.md"),
-    ]);
+    await writeLocalRule({ projectRoot: testDir, name: "testing-guidelines" });
     mockClientInstance.listDirectory.mockResolvedValue([
       {
         name: "testing-guidelines.md",

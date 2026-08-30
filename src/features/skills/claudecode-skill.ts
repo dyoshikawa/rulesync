@@ -9,12 +9,15 @@ import {
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
+  directoryExists,
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
   toPosixPath,
 } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import {
   NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
   NESTED_SCAN_EXCLUDED_ROOT_DIRS,
@@ -316,9 +319,11 @@ export class ClaudecodeSkill extends ToolSkill {
   static async getConfiguredImportRoots({
     outputRoot,
     global = false,
+    logger,
   }: {
     outputRoot: string;
     global?: boolean;
+    logger?: Logger;
   }): Promise<Array<{ outputRoot: string; relativeDirPath: string }>> {
     if (global) {
       return [];
@@ -345,10 +350,25 @@ export class ClaudecodeSkill extends ToolSkill {
       rootDir: outputRoot,
       filePaths: dirPaths,
     }).toSorted();
-    return filteredDirPaths.map((dirPath) => ({
-      outputRoot,
-      relativeDirPath: relative(outputRoot, dirPath),
-    }));
+    const roots: Array<{ outputRoot: string; relativeDirPath: string }> = [];
+    for (const dirPath of filteredDirPaths) {
+      // A recursive glob cannot be swapped for a walk here the way a flat one
+      // can, so the path it hands back is checked instead: globby reads a
+      // backslash as a path separator and rewrites it, so a nested root below a
+      // directory named `back\\slash` is reported at `back/slash`, which
+      // nothing on disk answers to. The import would skip it without a word,
+      // and the skills below it would simply never appear.
+      if (!(await directoryExists(dirPath))) {
+        logger?.warn(
+          `Skipping the nested Claude Code skills directory ${JSON.stringify(stripControlCharacters(dirPath))}: ` +
+            "it could not be read under the path the scan reports, which happens when a " +
+            "directory name above it contains a backslash. Its skills are not imported.",
+        );
+        continue;
+      }
+      roots.push({ outputRoot, relativeDirPath: relative(outputRoot, dirPath) });
+    }
+    return roots;
   }
 
   getFrontmatter(): ClaudecodeSkillFrontmatter {

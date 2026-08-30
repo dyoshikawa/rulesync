@@ -22,7 +22,7 @@ import {
   directoryExistsStrict,
   findFilesByGlobs,
   isFileSystemError,
-  listDirectoryFiles,
+  listDirectoryEntryNames,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
@@ -809,7 +809,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       return [];
     }
 
-    const entries = await listDirectoryFiles(subagentsDir);
+    const entries = await listDirectoryEntryNames(subagentsDir);
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {

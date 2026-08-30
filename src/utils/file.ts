@@ -564,7 +564,16 @@ export async function isSymlink(filepath: string): Promise<boolean> {
   }
 }
 
-export async function listDirectoryFiles(dir: string): Promise<string[]> {
+/**
+ * Every entry name directly under `dir`, of whatever kind, in the order the
+ * filesystem reports them.
+ *
+ * Named for what it returns, because {@link listFileNames} sits beside it and
+ * answers a narrower question: this one reports directories and links as well
+ * as files, and reads an unreadable directory as an empty one instead of
+ * failing. Picking this where the other was meant brings both of those back.
+ */
+export async function listDirectoryEntryNames(dir: string): Promise<string[]> {
   try {
     return await readdir(dir);
   } catch {
@@ -603,13 +612,38 @@ async function realFileIdentity(filePath: string): Promise<string> {
 }
 
 /**
+ * How many trailing segments `filePath` and `identity` have in common.
+ *
+ * A path that walked through no link at all shares all of its own segments with
+ * the file's identity; one that walked through a link named differently from
+ * its target parts from the identity at that segment and shares only what
+ * follows it. Counting from the end rather than testing the two for equality is
+ * what lets the comparison hold for a path that is not itself resolved: a
+ * relative glob, or one whose root leads through a link of its own, gives every
+ * candidate the same unresolved prefix, and only the segments below it decide.
+ */
+function sharedTrailingSegments(filePath: string, identity: string): number {
+  const left = splitPathSegments(toPosixPath(filePath));
+  const right = splitPathSegments(identity);
+  let shared = 0;
+  while (
+    shared < left.length &&
+    shared < right.length &&
+    left[left.length - 1 - shared] === right[right.length - 1 - shared]
+  ) {
+    shared++;
+  }
+  return shared;
+}
+
+/**
  * Pick the one path that represents a file among the paths that resolve to it.
  *
- * The path that walked through no link at all wins outright: it is already the real one,
- * so it equals the file's identity. That keeps the real location of a file as the path
- * callers see, rather than an alias that happens to sort first -- a directory link named
- * `aaa` pointing at `zzz` must not make `zzz/x.md` disappear, and a cycle must not replace
- * `sub/note.md` with the same file reached back through the cycle.
+ * The path that walked through no link at all wins outright: it shares every one of its
+ * segments with the file's identity, which no alias does. That keeps the real location of
+ * a file as the path callers see, rather than an alias that happens to sort first -- a
+ * directory link named `aaa` pointing at `zzz` must not make `zzz/x.md` disappear, and a
+ * cycle must not replace `sub/note.md` with the same file reached back through the cycle.
  * Failing that, the fewest dot-prefixed segments wins: when only links are on offer, the
  * named one represents the entry rather than a hidden alias that a hidden-entry rule may
  * then drop, taking the named path's content with it. `candidates` arrives in sorted
@@ -617,11 +651,10 @@ async function realFileIdentity(filePath: string): Promise<string> {
  */
 function chooseRepresentative(candidates: string[], identity: string): string {
   return candidates.reduce((best, candidate) => {
-    if (toPosixPath(best) === identity) {
-      return best;
-    }
-    if (toPosixPath(candidate) === identity) {
-      return candidate;
+    const bestShared = sharedTrailingSegments(best, identity);
+    const candidateShared = sharedTrailingSegments(candidate, identity);
+    if (candidateShared !== bestShared) {
+      return candidateShared > bestShared ? candidate : best;
     }
     return countHiddenSegments(candidate) < countHiddenSegments(best) ? candidate : best;
   });
@@ -896,6 +929,60 @@ export async function listFileNames(
     includeHidden: options.includeHidden ?? false,
     nameFilter: options.nameFilter,
   });
+}
+
+/**
+ * The paths of every file below `dirPath`, relative to it, walked rather than
+ * globbed.
+ *
+ * The recursive counterpart of {@link listFileNames}, and there for the same
+ * reason: globby reads a backslash as a path separator and rewrites it in the
+ * paths it returns, so a file named `back\\slash.md` comes back as
+ * `back/slash.md` — a path that belongs to no file, under a name that belongs
+ * to no file either.
+ *
+ * A root that is not there is an empty root. A root that is there but cannot be
+ * read is reported, so it is never mistaken for an empty one — as is a
+ * directory below it, since a subtree silently missing from the result is the
+ * same mistake one level down.
+ *
+ * Each real directory is walked once, so a link pointing back at an ancestor
+ * ends the walk instead of looping. `nameFilter` narrows the files, not the
+ * directories the walk descends into.
+ */
+export async function listFilePathsRecursively(
+  dirPath: string,
+  options: {
+    followSymbolicLinks?: boolean;
+    includeHidden?: boolean;
+    nameFilter?: (name: string) => boolean;
+  } = {},
+): Promise<string[]> {
+  const { followSymbolicLinks = true, includeHidden = false, nameFilter } = options;
+  if (!(await directoryExists(dirPath))) {
+    return [];
+  }
+  const filePaths: string[] = [];
+  const walked = new Set<string>();
+  const walk = async (currentPath: string, prefix: string): Promise<void> => {
+    const identity = await realFileIdentity(currentPath);
+    if (walked.has(identity)) {
+      return;
+    }
+    walked.add(identity);
+    const [fileNames, dirNames] = await Promise.all([
+      listFileNames(currentPath, { followSymbolicLinks, includeHidden, nameFilter }),
+      listSubdirectoryNames(currentPath, { followSymbolicLinks, includeHidden }),
+    ]);
+    for (const fileName of fileNames) {
+      filePaths.push(prefix === "" ? fileName : join(prefix, fileName));
+    }
+    for (const dirName of dirNames) {
+      await walk(join(currentPath, dirName), prefix === "" ? dirName : join(prefix, dirName));
+    }
+  };
+  await walk(dirPath, "");
+  return filePaths.toSorted();
 }
 
 export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {

@@ -1436,6 +1436,36 @@ Broken YAML`,
       ).toBeUndefined();
     });
 
+    it.skipIf(process.platform === "win32")(
+      "should report a nested skills directory the scan cannot name",
+      async () => {
+        // The nested scan is a recursive glob, and globby reads a backslash as
+        // a path separator: the directory below `back\\slash` comes back as
+        // `back/slash/...`, which nothing on disk answers to. The import cannot
+        // recover the root from that, but it says so rather than dropping the
+        // skills in it without a word.
+        const logger = createMockLogger();
+        const nestedDir = join(testDir, "back\\slash", ".claude", "skills", "deploy");
+        await writeFileContent(
+          join(nestedDir, "SKILL.md"),
+          "---\nname: deploy\ndescription: Deploy description\n---\nDeploy body",
+        );
+
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        expect(toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName())).not.toContain(
+          "deploy",
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("could not be read under the path the scan reports"),
+        );
+      },
+    );
+
     it("should still abort import for non-lenient tools when a declared-root skill is invalid", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),

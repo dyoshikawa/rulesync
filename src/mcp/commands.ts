@@ -12,7 +12,7 @@ import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
   ensureDir,
-  listDirectoryFiles,
+  listDirectoryEntryNames,
   removeFile,
   writeFileContent,
 } from "../utils/file.js";
@@ -36,7 +36,7 @@ async function listCommands(): Promise<
   const commandsDir = join(process.cwd(), RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
 
   try {
-    const files = await listDirectoryFiles(commandsDir);
+    const files = await listDirectoryEntryNames(commandsDir);
     const mdFiles = files.filter((file) => file.endsWith(".md"));
 
     const commands = await Promise.all(

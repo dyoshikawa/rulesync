@@ -18,7 +18,7 @@ import {
   directoryExistsStrict,
   findFilesByGlobs,
   isFileSystemError,
-  listDirectoryFiles,
+  listDirectoryEntryNames,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AmpCheck } from "./amp-check.js";
@@ -298,7 +298,7 @@ export class ChecksProcessor extends FeatureProcessor {
       return [];
     }
 
-    const entries = await listDirectoryFiles(checksDir);
+    const entries = await listDirectoryEntryNames(checksDir);
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
 
     if (mdFiles.length === 0) {

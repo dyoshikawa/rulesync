@@ -9,7 +9,7 @@ vi.mock("../utils/file.js", () => ({
   removeTempDirectory: vi.fn(),
   directoryExists: vi.fn(),
   isSymlink: vi.fn().mockResolvedValue(false),
-  listDirectoryFiles: vi.fn(),
+  listDirectoryEntryNames: vi.fn(),
   getFileSize: vi.fn(),
   readFileContent: vi.fn(),
 }));
@@ -19,7 +19,7 @@ import {
   directoryExists,
   getFileSize,
   isSymlink,
-  listDirectoryFiles,
+  listDirectoryEntryNames,
   readFileContent,
   removeTempDirectory,
 } from "../utils/file.js";
@@ -230,7 +230,7 @@ describe("git-client", () => {
       vi.mocked(directoryExists).mockImplementation(
         async (p: string) => p.endsWith("skills") || p.endsWith("skill-a"),
       );
-      vi.mocked(listDirectoryFiles).mockImplementation(async (d: string) => {
+      vi.mocked(listDirectoryEntryNames).mockImplementation(async (d: string) => {
         if (d.endsWith("skills")) return ["skill-a"];
         if (d.endsWith("skill-a")) return ["file.md"];
         return [];
@@ -330,7 +330,7 @@ describe("git-client", () => {
       vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
       vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
       vi.mocked(directoryExists).mockImplementation(async (p: string) => p.endsWith("skills"));
-      vi.mocked(listDirectoryFiles).mockResolvedValue([".git", "file.md"]);
+      vi.mocked(listDirectoryEntryNames).mockResolvedValue([".git", "file.md"]);
       vi.mocked(getFileSize).mockResolvedValue(10);
       vi.mocked(readFileContent).mockResolvedValue("content");
 
@@ -348,7 +348,7 @@ describe("git-client", () => {
       vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
       vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
       vi.mocked(directoryExists).mockImplementation(async (p: string) => p.endsWith("skills"));
-      vi.mocked(listDirectoryFiles).mockResolvedValue(["link", "file.md"]);
+      vi.mocked(listDirectoryEntryNames).mockResolvedValue(["link", "file.md"]);
       vi.mocked(isSymlink).mockImplementation(async (p: string) => p.endsWith("link"));
       vi.mocked(getFileSize).mockResolvedValue(10);
       vi.mocked(readFileContent).mockResolvedValue("content");
@@ -371,7 +371,7 @@ describe("git-client", () => {
         vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
         vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
         vi.mocked(directoryExists).mockResolvedValue(true);
-        vi.mocked(listDirectoryFiles).mockResolvedValue([]);
+        vi.mocked(listDirectoryEntryNames).mockResolvedValue([]);
 
         await fetchSkillFiles({
           url: "https://example.com/repo.git",
@@ -403,7 +403,7 @@ describe("git-client", () => {
         // files so the walk terminates quickly.
         return p === "/tmp/test";
       });
-      vi.mocked(listDirectoryFiles).mockResolvedValue(["root-file.md"]);
+      vi.mocked(listDirectoryEntryNames).mockResolvedValue(["root-file.md"]);
       vi.mocked(getFileSize).mockResolvedValue(10);
       vi.mocked(readFileContent).mockResolvedValue("content");
 
@@ -429,7 +429,7 @@ describe("git-client", () => {
       vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
       // Every entry is a directory, creating infinite depth
       vi.mocked(directoryExists).mockResolvedValue(true);
-      vi.mocked(listDirectoryFiles).mockResolvedValue(["nested"]);
+      vi.mocked(listDirectoryEntryNames).mockResolvedValue(["nested"]);
 
       await expect(
         fetchSkillFiles({

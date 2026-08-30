@@ -1,4 +1,4 @@
-import { join, posix, relative, resolve, sep } from "node:path";
+import { join, posix, resolve, sep } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
 
@@ -23,7 +23,7 @@ import {
   checkPathTraversal,
   directoryExists,
   fileExists,
-  findFilesByGlobs,
+  listFilePathsRecursively,
   readFileContent,
   removeFileStrict,
   removeDirectoryStrict,
@@ -316,18 +316,24 @@ function getSourceFilters(sourceEntry: SourceEntry): {
   };
 }
 
+/**
+ * The names of the rules the project holds itself, which take precedence over
+ * the rules a source offers under the same name.
+ *
+ * Walked rather than globbed: globby reads a backslash as a path separator and
+ * rewrites it in the paths it returns, so a rule file named `back\\slash.md`
+ * would be recorded as the rule `back/slash`, which is not the name of any rule
+ * on disk — a remote rule of that name would then be skipped in favour of a
+ * local rule that does not exist. Hidden entries stay out of the walk, which is
+ * what keeps `.curated`, the fetched copy of the remote rules, from being read
+ * as local.
+ */
 async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   const rulesDir = join(projectRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
-  const files = await findFilesByGlobs(join(rulesDir, "**", "*.md"));
-  const localNames = new Set<string>();
-  for (const file of files) {
-    const relativePath = relative(rulesDir, file);
-    if (relativePath.startsWith(`.curated${sep}`)) {
-      continue;
-    }
-    localNames.add(relativePath.replace(/\.md$/i, ""));
-  }
-  return localNames;
+  const relativePaths = await listFilePathsRecursively(rulesDir, {
+    nameFilter: (name) => name.toLowerCase().endsWith(".md"),
+  });
+  return new Set(relativePaths.map((relativePath) => relativePath.replace(/\.md$/i, "")));
 }
 
 export async function getInstalledSourceSkillNames({

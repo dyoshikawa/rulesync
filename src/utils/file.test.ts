@@ -28,8 +28,9 @@ import {
   isFileNotFoundError,
   isFileSystemError,
   isPresentButUnresolvable,
-  listDirectoryFiles,
+  listDirectoryEntryNames,
   listFileNames,
+  listFilePathsRecursively,
   listSubdirectoryNames,
   readFileBufferOrNull,
   readFileContent,
@@ -498,7 +499,7 @@ describe("file utilities", () => {
   });
 
   describe("directory listing", () => {
-    describe("listDirectoryFiles", () => {
+    describe("listDirectoryEntryNames", () => {
       beforeEach(async () => {
         await writeFileContent(join(testDir, "file1.txt"), "content1");
         await writeFileContent(join(testDir, "file2.md"), "content2");
@@ -506,7 +507,7 @@ describe("file utilities", () => {
       });
 
       it("should list files and directories", async () => {
-        const files = await listDirectoryFiles(testDir);
+        const files = await listDirectoryEntryNames(testDir);
 
         expect(files).toContain("file1.txt");
         expect(files).toContain("file2.md");
@@ -515,7 +516,7 @@ describe("file utilities", () => {
       });
 
       it("should return empty array for non-existent directory", async () => {
-        const files = await listDirectoryFiles(join(testDir, "nonexistent"));
+        const files = await listDirectoryEntryNames(join(testDir, "nonexistent"));
         expect(files).toEqual([]);
       });
     });
@@ -681,6 +682,72 @@ describe("file utilities", () => {
       it("should reject a directory it cannot read", async () => {
         await expect(listSubdirectoryNames(join(testDir, "missing"))).rejects.toThrow();
       });
+    });
+
+    describe("listFilePathsRecursively", () => {
+      it("should return every file below the root, relative to it and sorted", async () => {
+        const root = join(testDir, "root");
+        await writeFileContent(join(root, "top.md"), "content");
+        await writeFileContent(join(root, "nested", "deep.md"), "content");
+        await writeFileContent(join(root, "nested", "deeper", "deepest.md"), "content");
+
+        expect(await listFilePathsRecursively(root)).toEqual([
+          join("nested", "deep.md"),
+          join("nested", "deeper", "deepest.md"),
+          "top.md",
+        ]);
+      });
+
+      it("should spell a name the way the filesystem does", async () => {
+        // The reason this exists rather than a `**` glob: globby reads the
+        // backslash as a separator and reports the file at `back/slash.md`,
+        // a path that belongs to no file.
+        const root = join(testDir, "root");
+        await writeFileContent(join(root, "back\\slash.md"), "content");
+
+        expect(await listFilePathsRecursively(root)).toEqual(["back\\slash.md"]);
+      });
+
+      it("should leave hidden entries out unless asked for them", async () => {
+        const root = join(testDir, "root");
+        await writeFileContent(join(root, "plain.md"), "content");
+        await writeFileContent(join(root, ".hidden.md"), "content");
+        await writeFileContent(join(root, ".curated", "fetched.md"), "content");
+
+        expect(await listFilePathsRecursively(root)).toEqual(["plain.md"]);
+        expect(await listFilePathsRecursively(root, { includeHidden: true })).toEqual([
+          join(".curated", "fetched.md"),
+          ".hidden.md",
+          "plain.md",
+        ]);
+      });
+
+      it("should narrow the files without narrowing the walk", async () => {
+        const root = join(testDir, "root");
+        await writeFileContent(join(root, "notes.txt"), "content");
+        await writeFileContent(join(root, "sub", "rule.md"), "content");
+
+        expect(
+          await listFilePathsRecursively(root, {
+            nameFilter: (name) => name.endsWith(".md"),
+          }),
+        ).toEqual([join("sub", "rule.md")]);
+      });
+
+      it("should read a root that is not there as an empty one", async () => {
+        expect(await listFilePathsRecursively(join(testDir, "missing"))).toEqual([]);
+      });
+
+      it.skipIf(process.platform === "win32")(
+        "should walk each directory once when a link points back at an ancestor",
+        async () => {
+          const root = join(testDir, "root");
+          await writeFileContent(join(root, "sub", "note.md"), "content");
+          await symlink(root, join(root, "sub", "loop"));
+
+          expect(await listFilePathsRecursively(root)).toEqual([join("sub", "note.md")]);
+        },
+      );
     });
 
     describe("findFilesByGlobs", () => {
@@ -956,6 +1023,27 @@ describe("file utilities", () => {
           });
 
           expect(results).toEqual([join(realSubDir, "x.md")]);
+        });
+
+        it("should represent a file by its real path when the glob leads through a link", async () => {
+          // Testing a candidate against the identity `realpath` returns only
+          // settles it for an already resolved path. Reached through a link of
+          // its own — the shape a linked checkout or a `/tmp` that is itself a
+          // link produces — no candidate equals the identity, and the alias
+          // would win the tie-break and hide `zzz` again.
+          const aliasDir = join(testDir, "real-over-alias-via-link");
+          const realSubDir = join(aliasDir, "zzz");
+          await writeFileContent(join(realSubDir, "x.md"), "content");
+          await symlink(realSubDir, join(aliasDir, "aaa"));
+          const viaLink = join(testDir, "via-link");
+          await symlink(aliasDir, viaLink);
+
+          const results = await findFilesByGlobs(join(viaLink, "**", "*"), {
+            type: "file",
+            dot: true,
+          });
+
+          expect(results).toEqual([join(viaLink, "zzz", "x.md")]);
         });
 
         it("should represent a file by its flat real path rather than through a cycle", async () => {
