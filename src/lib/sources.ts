@@ -328,9 +328,15 @@ const CURATED_RULES_SUBDIR_NAME = posix.relative(
  *
  * Walked rather than globbed: globby reads a backslash as a path separator and
  * rewrites it in the paths it returns, so a rule file named `back\\slash.md`
- * would be recorded as the rule `back/slash`, which is not the name of any rule
- * on disk — a remote rule of that name would then be skipped in favour of a
- * local rule that does not exist.
+ * would be recorded as the rule `back/slash`, a name no rule on disk has. No
+ * remote rule can be named that either — `isValidRuleName` rejects a separator
+ * — so nothing is skipped over it today; the set simply has to say what the
+ * project holds, since that is the whole question it answers.
+ *
+ * The `.md` test is case-sensitive to match the glob that loads the rules, so a
+ * name can only land in this set if a rule of that name really loads. A
+ * `NOTES.MD` counted here but not loaded there would shadow the remote `NOTES`
+ * and leave the project with neither.
  *
  * The curated subtree is named rather than left to the walk's hidden-entry
  * rule, which happens to cover it today only because the name starts with a
@@ -342,12 +348,12 @@ const CURATED_RULES_SUBDIR_NAME = posix.relative(
 async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   const rulesDir = join(projectRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
   const relativePaths = await listFilePathsRecursively(rulesDir, {
-    nameFilter: (name) => name.toLowerCase().endsWith(".md"),
+    nameFilter: (name) => name.endsWith(".md"),
   });
   return new Set(
     relativePaths
       .filter((relativePath) => !relativePath.startsWith(`${CURATED_RULES_SUBDIR_NAME}${sep}`))
-      .map((relativePath) => relativePath.replace(/\.md$/i, "")),
+      .map((relativePath) => relativePath.replace(/\.md$/, "")),
   );
 }
 

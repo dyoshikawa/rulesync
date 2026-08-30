@@ -948,13 +948,20 @@ export async function listFileNames(
  *
  * A directory link is followed like any other directory, but each real
  * directory is walked only once, so neither a cycle nor a mesh of links can
- * make the walk repeat itself. The name a twice-reachable directory is reported
- * under is the one nearest the root, and the first in sorted order among those:
- * the walk goes breadth-first, so a directory link named `aaa` two levels down
- * cannot take the place of the `zzz` it points at one level up -- the same
- * preference for the real location over an alias that
- * {@link findFilesByGlobs} applies to its own results. `nameFilter` narrows the
- * files, not the directories the walk descends into.
+ * make the walk repeat itself -- taking every distinct route through a graph of
+ * aliases would cost one traversal per route, which a handful of links is
+ * enough to make hopeless. The name a twice-reachable directory is reported
+ * under is therefore whichever the walk reaches first, and the walk goes level
+ * by level with each level sorted, so that is the shortest path to it and the
+ * first in sorted order among equals. Note the difference from
+ * {@link findFilesByGlobs}, which resolves each of its results and keeps the
+ * real one: here a link nearer the root than the directory it points at stands
+ * in for it. `nameFilter` narrows the files, not the directories the walk
+ * descends into.
+ *
+ * The cost is one round of `readdir` per directory, taken in sequence, and the
+ * whole of a level is held at once, so residency follows the widest level
+ * rather than the deepest path.
  */
 export async function listFilePathsRecursively(
   dirPath: string,

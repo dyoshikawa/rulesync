@@ -768,6 +768,21 @@ describe("file utilities", () => {
       );
 
       it.skipIf(process.platform === "win32")(
+        "should report a directory under a link that reaches it before its own name does",
+        async () => {
+          // The other side of walking level by level, and the difference from
+          // `findFilesByGlobs`, which resolves its results and keeps the real
+          // path: a link one level up is reached first and stands in for the
+          // directory it points at, which is two levels down.
+          const root = join(testDir, "root");
+          await writeFileContent(join(root, "a", "target", "y.md"), "content");
+          await symlink(join(root, "a", "target"), join(root, "link"));
+
+          expect(await listFilePathsRecursively(root)).toEqual([join("link", "y.md")]);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
         "should walk a mesh of aliasing links once per directory",
         async () => {
           // Two names for every level, each linking on to the next: a walk that

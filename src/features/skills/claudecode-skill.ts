@@ -16,6 +16,7 @@ import {
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
   pathEscapesRoot,
+  splitPathSegments,
   toPosixPath,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -37,6 +38,51 @@ import {
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
+
+/**
+ * Why a nested skills directory the scan reported cannot be used as an import
+ * root, or `undefined` when it can be.
+ *
+ * A recursive glob cannot be swapped for a walk the way a flat one can, so the
+ * path it hands back is checked instead. globby reads a backslash as a path
+ * separator and rewrites it, and what the rewritten path then means depends on
+ * the name it came from: a root below `back\\slash` is reported at
+ * `back/slash`, which nothing answers to; one below `x\\..\\..` at `x/../..`,
+ * which climbs out of the project through a real sibling `x/`; one below
+ * `x\\..\\y` at `x/../y`, which lands on a different real directory inside it.
+ * Only the first is caught by asking whether the path is there, so a path
+ * carrying a segment no directory name can be — `.` or `..` — is refused
+ * outright, which covers all three. Left in, the skills under the directory
+ * that was really named would never appear, and in the second shape somebody
+ * else's would appear in their place.
+ */
+async function unusableNestedSkillsRootReason({
+  outputRoot,
+  dirPath,
+}: {
+  outputRoot: string;
+  dirPath: string;
+}): Promise<string | undefined> {
+  if (splitPathSegments(dirPath).some((segment) => segment === "." || segment === "..")) {
+    return (
+      "the path the scan reports is not the directory's own, which happens when a " +
+      "directory name above it contains a backslash."
+    );
+  }
+  if (!(await directoryExists(dirPath))) {
+    return (
+      "it could not be read under the path the scan reports, most often because a " +
+      "directory name above it contains a backslash."
+    );
+  }
+  // A backstop on the invariant rather than a fourth shape: the scan is rooted
+  // at `outputRoot`, so a path with no rewritten segment left in it cannot lead
+  // anywhere else. An import root outside the project is never one it found.
+  if (pathEscapesRoot(relative(outputRoot, dirPath))) {
+    return "it resolves outside the project.";
+  }
+  return undefined;
+}
 
 export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
@@ -353,35 +399,15 @@ export class ClaudecodeSkill extends ToolSkill {
     }).toSorted();
     const roots: Array<{ outputRoot: string; relativeDirPath: string }> = [];
     for (const dirPath of filteredDirPaths) {
-      // A recursive glob cannot be swapped for a walk here the way a flat one
-      // can, so the path it hands back is checked instead: globby reads a
-      // backslash as a path separator and rewrites it, so a nested root below a
-      // directory named `back\\slash` is reported at `back/slash`, which
-      // nothing on disk answers to. The import would skip it without a word,
-      // and the skills below it would simply never appear.
-      if (!(await directoryExists(dirPath))) {
+      const reason = await unusableNestedSkillsRootReason({ outputRoot, dirPath });
+      if (reason !== undefined) {
         logger?.warn(
           `Skipping the nested Claude Code skills directory ${JSON.stringify(stripControlCharacters(dirPath))}: ` +
-            "it could not be read under the path the scan reports, most often because a " +
-            "directory name above it contains a backslash. Its skills are not imported.",
+            `${reason} Its skills are not imported.`,
         );
         continue;
       }
-      // The same rewrite can also produce a path that resolves, just not where
-      // the scan looked: a directory named `x\\..\\..` is reported as
-      // `x/../..`, which climbs out of the project next to a real `x/`. An
-      // import root outside the scanned tree is never one the scan found, so it
-      // is refused rather than followed.
-      const relativeDirPath = relative(outputRoot, dirPath);
-      if (pathEscapesRoot(relativeDirPath)) {
-        logger?.warn(
-          `Skipping the nested Claude Code skills directory ${JSON.stringify(stripControlCharacters(dirPath))}: ` +
-            "it resolves outside the project, which happens when a directory name above it " +
-            "contains a backslash. Its skills are not imported.",
-        );
-        continue;
-      }
-      roots.push({ outputRoot, relativeDirPath });
+      roots.push({ outputRoot, relativeDirPath: relative(outputRoot, dirPath) });
     }
     return roots;
   }

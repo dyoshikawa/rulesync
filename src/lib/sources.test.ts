@@ -699,6 +699,32 @@ describe("resolveAndFetchSources", () => {
     expect(result.fetchedRuleCount).toBe(1);
   });
 
+  it("should not let a file with an upper-case extension shadow a remote rule", async () => {
+    // The glob that loads the rules matches `*.md` case-sensitively, so a
+    // `NOTES.MD` is not a rule. Counting it here would skip the remote rule of
+    // that name and leave the project with neither.
+    const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+    await mkdir(rulesDir, { recursive: true });
+    await writeFile(join(rulesDir, "testing-guidelines.MD"), "# not a rule\n", "utf8");
+    mockClientInstance.listDirectory.mockResolvedValue([
+      {
+        name: "testing-guidelines.md",
+        path: "rules/testing-guidelines.md",
+        type: "file",
+        size: 100,
+      },
+    ]);
+    mockClientInstance.getFileContent.mockResolvedValue("remote content");
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo", rules: ["testing-guidelines"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedRuleCount).toBe(1);
+  });
+
   it("should remove a formerly owned curated rule even when a local rule has the same name", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     const curatedRulePath = join(

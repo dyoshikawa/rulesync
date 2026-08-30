@@ -1495,7 +1495,41 @@ Broken YAML`,
           "leaked",
         );
         expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining("it resolves outside the project"),
+          expect.stringContaining("is not the directory's own"),
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should refuse a nested skills directory the scan reports at another directory",
+      async () => {
+        // The third shape of the same rewrite: `x\\..\\y` is reported at
+        // `x/../y`, which is inside the project and real, but belongs to `y`.
+        // Importing it would scan `y` twice and the directory that was really
+        // named not at all.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await ensureDir(join(outputRoot, "x"));
+        await writeFileContent(
+          join(outputRoot, "x\\..\\y", ".claude", "skills", "shadowed", "SKILL.md"),
+          "---\nname: shadowed\ndescription: Shadowed description\n---\nShadowed body",
+        );
+        await writeFileContent(
+          join(outputRoot, "y", ".claude", "skills", "sibling", "SKILL.md"),
+          "---\nname: sibling\ndescription: Sibling description\n---\nSibling body",
+        );
+
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        expect(toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName())).not.toContain(
+          "shadowed",
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("is not the directory's own"),
         );
       },
     );

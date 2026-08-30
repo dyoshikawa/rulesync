@@ -18,10 +18,11 @@ import { warnOnceWithFallback } from "../utils/logger.js";
 /**
  * Whether `name` is a path rather than a single name.
  *
- * Both separators are rejected on every platform: a backslash is a legal
- * character in a POSIX name, but a name carrying one is a path the moment it
- * reaches Windows, and `AiDir` names travel between the two — most tools take
- * one straight from a skill's frontmatter.
+ * Both separators are rejected on every platform, which is why neither
+ * `path.sep` nor the platform is consulted: a backslash is a legal character in
+ * a POSIX name, but a name carrying one is a path the moment it reaches
+ * Windows, and `AiDir` names travel between the two — most tools take one
+ * straight from a skill's frontmatter.
  *
  * Exported because the checks that run *before* a name reaches `AiDir` — so
  * that an unusable name is reported and skipped rather than thrown over — have
@@ -30,7 +31,7 @@ import { warnOnceWithFallback } from "../utils/logger.js";
  * turns a reported name back into a failed run.
  */
 export function containsPathSeparator(name: string): boolean {
-  return name.includes(path.sep) || name.includes("/") || name.includes("\\");
+  return name.includes("/") || name.includes("\\");
 }
 
 export type ValidationResult =
