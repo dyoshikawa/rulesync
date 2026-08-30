@@ -394,6 +394,28 @@ function normalizedFormOf(name: string): string {
 }
 
 /**
+ * Whether the name carries whitespace the row it is printed on does not show.
+ *
+ * Whitespace at either edge is the plain case: `pdf ` and `pdf` are one row on
+ * screen, and the space is only found by the cursor landing past the name. A
+ * doubled run and a no-break space go the same way — a terminal draws a gap,
+ * not a count of what is in it — so all of them are asked as one question, by
+ * collapsing the whitespace the way {@link normalizedFormOf} does and seeing
+ * whether anything moved. The tab and the other blank control characters are
+ * not among them: they are stripped rather than collapsed, having already been
+ * refused by the check that reads a name before it is offered at all.
+ *
+ * A name with a twin already carries a note, since the two share a display
+ * form. This is for the one without: nothing else on the list says that the
+ * name reaches past what can be seen of it, and a name padded to sit under
+ * another row is padded whether or not that other row is on the same list.
+ */
+function hasUndrawnWhitespace(name: string): boolean {
+  const shown = stripHiddenCharacters(name);
+  return shown !== shown.replace(WHITESPACE_RUN_PATTERN, " ").trim();
+}
+
+/**
  * The form of `name` a terminal draws: what two pieces of text have to share to
  * be the same thing on screen rather than the same thing to `===`.
  */
@@ -530,10 +552,11 @@ export function mixedScriptsOf(name: string): string[] | undefined {
  * still writes exactly what was picked — the note is there so the picker can
  * tell that two entries which look identical are not.
  *
- * Four things are reported: two names with the same display form, two names
- * that read the same once the lookalike letters are matched up, a name spelled
- * entirely in letters that read as Latin ones, and a name that mixes scripts it
- * has no ordinary reason to. None of the four is a complete answer — the
+ * Five things are reported: two names with the same display form, two names
+ * that read the same once the lookalike letters are matched up, a name whose
+ * whitespace is not drawn where it sits, a name spelled entirely in letters
+ * that read as Latin ones, and a name that mixes scripts it has no ordinary
+ * reason to. None of the five is a complete answer — the
  * lookalike tables hold the common pairs rather than all of them, a name
  * written entirely in a script the tables do not map is compared against
  * nothing, and a hand-picked pair of unrelated-looking names from one script
@@ -570,6 +593,9 @@ export function describeConfusableNames(names: string[]): Map<string, string> {
     // same string, and the third is the one worth naming.
     if ((skeletonCounts.get(entry.skeleton) ?? 0) > sameDisplayForm) {
       reasons.push("another entry differs from it only by lookalike letters");
+    }
+    if (hasUndrawnWhitespace(entry.name)) {
+      reasons.push("carries whitespace that is not drawn where it sits");
     }
     // The display form is what a reader sees, so it is what the script checks
     // are asked about: a circled or fullwidth letter carries the script of the

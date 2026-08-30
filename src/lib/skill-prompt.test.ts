@@ -95,17 +95,39 @@ describe("promptSkillSelection", () => {
 
   it("should shorten a name too long to fit on one line", async () => {
     checkboxMock.mockResolvedValue([]);
-    // Long enough to wrap on any terminal, and padded so the wrapped part could
-    // be drawn to look like a second entry.
-    const padded = `pdf${" ".repeat(100)}pdf`;
+    // Long enough to wrap on any terminal, and nothing else the matter with it,
+    // so the whole row is the name.
+    const long = `pdf${"o".repeat(100)}`;
 
-    await promptSkillSelection({ availableSkills: [padded], preselectedSkills: [] });
+    await promptSkillSelection({ availableSkills: [long], preselectedSkills: [] });
 
     // The value is untouched, so the shortened label still selects the skill it
     // names.
     expect(checkboxMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        choices: [{ name: `pdf${" ".repeat(68)}\u2026`, value: padded, checked: false }],
+        choices: [{ name: `pdf${"o".repeat(68)}\u2026`, value: long, checked: false }],
+      }),
+    );
+  });
+
+  it("should mark a name padded with the whitespace that hides the padding", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // Padded so the wrapped part could be drawn to look like a second entry.
+    // The run of spaces is drawn as one gap however long it is, so the note is
+    // the only thing that says the row reaches past what can be seen of it.
+    const padded = `pdf${" ".repeat(100)}pdf`;
+
+    await promptSkillSelection({ availableSkills: [padded], preselectedSkills: [] });
+
+    expect(checkboxMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        choices: [
+          {
+            name: `[!] carries whitespace that is not drawn where it si\u2026 \u2014 pdf${" ".repeat(12)}\u2026`,
+            value: padded,
+            checked: false,
+          },
+        ],
       }),
     );
   });

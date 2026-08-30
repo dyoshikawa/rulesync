@@ -92,6 +92,13 @@ describe("hasDeceptiveHiddenCharacters", () => {
     ["an emoji with a variation selector", "\u2764\ufe0f"],
     // Devanagari writes a half form with a ZWNJ after the virama.
     ["an Indic name written with ZWNJ", "\u0915\u094d\u200c\u0937"],
+    // The keycap sequences of UTS #51: the base is a digit or an ASCII sign
+    // rather than a pictograph, so nothing but the shape of the whole sequence
+    // tells them apart from a padded name.
+    ["a digit keycap", "1\ufe0f\u20e3"],
+    ["a hash keycap", "#\ufe0f\u20e3"],
+    ["an asterisk keycap", "*\ufe0f\u20e3"],
+    ["a keycap at the end of a longer name", "step1\ufe0f\u20e3"],
   ])("should accept %s", (_label, name) => {
     expect(hasDeceptiveHiddenCharacters(name)).toBe(false);
   });
@@ -119,6 +126,16 @@ describe("hasDeceptiveHiddenCharacters", () => {
     ["a joiner between Hangul characters", "\ud55c\u200d\uae00"],
     ["a joiner between Cyrillic letters", "\u043f\u0440\u0430\u0432\u200d\u0438\u043b\u0430"],
     ["a variation selector on a Han character", "\u8a2d\ufe00"],
+    // A keycap base and a selector with no enclosing keycap behind them is the
+    // padding the exception is written not to cover.
+    ["a variation selector on a digit with no keycap", "pdf1\ufe0f"],
+    // The enclosing keycap draws a box around whatever precedes it, but only
+    // the twelve bases of ED-14 make a keycap sequence; a letter with one is a
+    // name padded with a selector.
+    ["an enclosing keycap on a letter", "a\ufe0f\u20e3"],
+    // U+FE0E asks for the text form, which is not the sequence ED-14 spells,
+    // and a name is not the place to guess at what a near miss meant.
+    ["a keycap written with the text presentation selector", "1\ufe0e\u20e3"],
   ])("should reject %s", (_label, name) => {
     expect(hasDeceptiveHiddenCharacters(name)).toBe(true);
   });

@@ -1585,6 +1585,29 @@ describe("fetchFiles with skill selection", () => {
     expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("hidden characters"));
   });
 
+  it("should fetch a name that is an emoji keycap", async () => {
+    // U+0031 U+FE0F U+20E3: the digit, the variation selector that asks for its
+    // emoji form, and the enclosing keycap that draws the box. The base is a
+    // digit rather than a pictograph, so nothing but the shape of the whole
+    // sequence tells this from a name padded with a variation selector.
+    const keycapName = "1\ufe0f\u20e3";
+    mockSkillRepositoryWithSkills([keycapName]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((f) => f.relativePath).toSorted()).toEqual([
+      `skills/${keycapName}/SKILL.md`,
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("hidden characters"));
+  });
+
   it("should not fetch a skill directory whose name is nothing but blank space", async () => {
     // Every character shows something \u2014 an ideographic space shows a gap \u2014 so
     // nothing here is hidden; the row the prompt would draw is still blank.

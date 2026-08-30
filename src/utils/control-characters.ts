@@ -101,6 +101,41 @@ const ZERO_WIDTH_JOINER_PATTERN = /\u200c|\u200d/u;
 const VARIATION_SELECTOR_PATTERN = /[\u{fe00}-\u{fe0f}]|[\u{e0100}-\u{e01ef}]/u;
 
 /**
+ * The shape of an emoji keycap, spelled as UTS #51 spells it:
+ * `Emoji_Keycap_Sequence := [0-9#*] FE0F 20E3`.
+ *
+ * The twelve bases are the only ASCII characters Unicode gives the `Emoji`
+ * property to, and not one of them is a pictograph — `1` is a digit and `#` is
+ * punctuation — so the joining list below cannot see the sequence, and a
+ * directory named `1\u{fe0f}\u{20e3}` would be turned away as a digit padded
+ * with a variation selector. It is not padding: the selector is what asks for
+ * the emoji form of the digit, and the enclosing keycap behind it is what draws
+ * the box around it. Both neighbors are required, which is what keeps the
+ * exception to the sequence rather than handing it to every digit in every
+ * name: `pdf1` with a variation selector and no keycap after it is padding
+ * still, and is refused still.
+ *
+ * @see https://www.unicode.org/reports/tr51/#def_emoji_keycap_sequence
+ */
+const KEYCAP_BASE_PATTERN = /[0-9#*]/u;
+const EMOJI_PRESENTATION_SELECTOR = "\u{fe0f}";
+const COMBINING_ENCLOSING_KEYCAP = "\u{20e3}";
+
+function isKeycapSequence(params: {
+  base: string | undefined;
+  selector: string;
+  following: string | undefined;
+}): boolean {
+  const { base, selector, following } = params;
+  return (
+    base !== undefined &&
+    KEYCAP_BASE_PATTERN.test(base) &&
+    selector === EMOJI_PRESENTATION_SELECTOR &&
+    following === COMBINING_ENCLOSING_KEYCAP
+  );
+}
+
+/**
  * The characters a joiner has work to do beside: the scripts whose words are
  * written with one, and the pictographs an emoji sequence is built from.
  *
@@ -136,6 +171,10 @@ const INVISIBLE_CHARACTER_PATTERN = new RegExp(INVISIBLE_CHARACTERS_PATTERN.sour
  * selector is held only to the character before it, which is the one it selects
  * a form for, and which is why an emoji name may end in one.
  *
+ * The keycap sequence is the one emoji the joining list cannot recognize on its
+ * own, since what it is built on is a digit or an ASCII sign rather than a
+ * pictograph, so it is matched whole instead.
+ *
  * Han is not on the joining list, so an ideographic variation sequence — a Han
  * character followed by one of U+E0100 onward — is refused along with the rest.
  * That is the intended trade: no skill directory here is named with one, and
@@ -160,6 +199,15 @@ export function hasDeceptiveHiddenCharacters(text: string): boolean {
       return false;
     }
     if (VARIATION_SELECTOR_PATTERN.test(character)) {
+      if (
+        isKeycapSequence({
+          base: characters[index - 1],
+          selector: character,
+          following: characters[index + 1],
+        })
+      ) {
+        return false;
+      }
       return !joinsCharacter(characters[index - 1]);
     }
     if (!ZERO_WIDTH_JOINER_PATTERN.test(character)) {

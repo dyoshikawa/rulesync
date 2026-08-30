@@ -15,6 +15,8 @@ const HALF_CYRILLIC_GOOD = "g\u043e\u043ed";
 const TWIN_NOTE = "another entry differs from it only by lookalike letters";
 /** The note both halves of a pair that prints identically are given. */
 const SAME_FORM_NOTE = "another entry has the same display form";
+/** The note a name whose whitespace does not show is given. */
+const WHITESPACE_NOTE = "carries whitespace that is not drawn where it sits";
 
 describe("mixedScriptsOf", () => {
   it.each([
@@ -149,12 +151,34 @@ describe("describeConfusableNames", () => {
 
   it("should fold whitespace differences into the display form", () => {
     // A padded name and a plain one occupy the same row on screen once the
-    // terminal has drawn them, so they are reported as the pair they are.
+    // terminal has drawn them, so they are reported as the pair they are. The
+    // padded one is told which half of the pair it is, too.
     const padded = "pdf  ";
     const notes = describeConfusableNames(["pdf", padded]);
 
     expect(notes.get("pdf")).toBe(SAME_FORM_NOTE);
-    expect(notes.get(padded)).toBe(SAME_FORM_NOTE);
+    expect(notes.get(padded)).toBe(`${SAME_FORM_NOTE}; ${WHITESPACE_NOTE}`);
+  });
+
+  it.each([
+    ["a name that ends in a space", "pdf "],
+    ["a name that begins with a space", " pdf"],
+    ["a name with a doubled space", "pdf  reader"],
+    // A no-break space and an ideographic space are drawn as a gap like any
+    // other, so a name carrying one is a second directory under a row that
+    // reads as the plain name.
+    ["a name written with a no-break space", "pdf\u00a0reader"],
+    ["a name written with an ideographic space", "pdf\u3000reader"],
+  ])("should note %s with nothing to compare it to", (_label, name) => {
+    // No twin on the list, so nothing else says the row reaches past what can
+    // be seen of it.
+    expect(describeConfusableNames([name])).toEqual(new Map([[name, WHITESPACE_NOTE]]));
+  });
+
+  it("should leave the single spaces inside a name alone", () => {
+    // A gap a terminal draws exactly as it is written says nothing a reader
+    // cannot already see.
+    expect(describeConfusableNames(["pdf reader"])).toEqual(new Map());
   });
 
   it("should not note names that differ within a single script", () => {
