@@ -2,12 +2,19 @@ import { describe, expect, it } from "vitest";
 
 import { describeConfusableNames, mixedScriptsOf } from "./confusable-names.js";
 
-/** "copy" spelled entirely in Cyrillic: U+0441 U+043E U+0440 U+0443. */
+/**
+ * "copy" spelled entirely in Cyrillic: U+0441 U+043E U+0440 U+0443. Written as
+ * escapes on purpose — the point of the name is that it cannot be told from the
+ * Latin word on sight, and a reviewer reading this file is owed the same
+ * warning the prompt gives.
+ */
 const CYRILLIC_COPY = "\u0441\u043e\u0440\u0443";
 /** "good" with both o's replaced by the Cyrillic o, U+043E. */
 const HALF_CYRILLIC_GOOD = "g\u043e\u043ed";
 /** The note both halves of a lookalike pair are given. */
 const TWIN_NOTE = "another entry differs from it only by lookalike letters";
+/** The note both halves of a pair that prints identically are given. */
+const SAME_FORM_NOTE = "another entry has the same display form";
 
 describe("mixedScriptsOf", () => {
   it.each([
@@ -77,8 +84,8 @@ describe("describeConfusableNames", () => {
   it("should note both entries that share a display form", () => {
     const notes = describeConfusableNames(["Skill", "skill"]);
 
-    expect(notes.get("Skill")).toBe("another entry has the same display form");
-    expect(notes.get("skill")).toBe("another entry has the same display form");
+    expect(notes.get("Skill")).toBe(SAME_FORM_NOTE);
+    expect(notes.get("skill")).toBe(SAME_FORM_NOTE);
   });
 
   it("should fold compatibility forms when comparing display forms", () => {
@@ -86,8 +93,8 @@ describe("describeConfusableNames", () => {
     const fullwidth = "\uff50\uff44\uff46";
     const notes = describeConfusableNames(["pdf", fullwidth]);
 
-    expect(notes.get("pdf")).toBe("another entry has the same display form");
-    expect(notes.get(fullwidth)).toBe("another entry has the same display form");
+    expect(notes.get("pdf")).toBe(SAME_FORM_NOTE);
+    expect(notes.get(fullwidth)).toBe(SAME_FORM_NOTE);
   });
 
   it("should fold invisible characters when comparing display forms", () => {
@@ -96,8 +103,8 @@ describe("describeConfusableNames", () => {
     const invisible = "pd\u200bf";
     const notes = describeConfusableNames(["pdf", invisible]);
 
-    expect(notes.get("pdf")).toBe("another entry has the same display form");
-    expect(notes.get(invisible)).toBe("another entry has the same display form");
+    expect(notes.get("pdf")).toBe(SAME_FORM_NOTE);
+    expect(notes.get(invisible)).toBe(SAME_FORM_NOTE);
   });
 
   it("should note a name spelled entirely in another script beside its twin", () => {
@@ -146,8 +153,8 @@ describe("describeConfusableNames", () => {
     const padded = "pdf  ";
     const notes = describeConfusableNames(["pdf", padded]);
 
-    expect(notes.get("pdf")).toBe("another entry has the same display form");
-    expect(notes.get(padded)).toBe("another entry has the same display form");
+    expect(notes.get("pdf")).toBe(SAME_FORM_NOTE);
+    expect(notes.get(padded)).toBe(SAME_FORM_NOTE);
   });
 
   it("should not note names that differ within a single script", () => {
@@ -194,8 +201,8 @@ describe("describeConfusableNames", () => {
     const hangulFiller = "pd\u3164f";
     const notes = describeConfusableNames(["pdf", hangulFiller]);
 
-    expect(notes.get("pdf")).toBe("another entry has the same display form");
-    expect(notes.get(hangulFiller)).toBe("another entry has the same display form");
+    expect(notes.get("pdf")).toBe(SAME_FORM_NOTE);
+    expect(notes.get(hangulFiller)).toBe(SAME_FORM_NOTE);
   });
 
   it("should not call two names of the same length twins when nothing links them", () => {
@@ -286,7 +293,7 @@ describe("describeConfusableNames", () => {
     // third is the one the reader has no other way to notice.
     const notes = describeConfusableNames(["copy", "copy ", "c\u043epy"]);
 
-    expect(notes.get("copy")).toBe(`another entry has the same display form; ${TWIN_NOTE}`);
+    expect(notes.get("copy")).toBe(`${SAME_FORM_NOTE}; ${TWIN_NOTE}`);
     expect(notes.get("c\u043epy")).toBe(`${TWIN_NOTE}; mixes characters from Cyrillic and Latin`);
   });
 
