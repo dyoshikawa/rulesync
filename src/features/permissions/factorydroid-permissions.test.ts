@@ -214,7 +214,7 @@ describe("FactorydroidPermissions", () => {
       );
     });
 
-    it("should report an ask rule that wrote nothing and withheld nothing", async () => {
+    it("should say nothing about an ask that withheld nothing, since it is honored as written", async () => {
       const logger = createMockLogger();
       const rulesyncPermissions = buildRulesyncPermissions({
         permission: {
@@ -228,12 +228,12 @@ describe("FactorydroidPermissions", () => {
         logger,
       });
 
-      // Factory Droid has no ask tier, so an `ask` can only be honored by
-      // withholding an allow it covers. This one covers none, so the rule left
-      // no trace at all — which the author should hear rather than discover.
+      // Factory Droid prompts for whatever its allowlist does not cover, so an
+      // `ask` no allow rule overlaps is already honored exactly as written.
+      // Warning about it would tell the author to fix a rule that works.
       const json = JSON.parse(instance.getFileContent());
       expect(json.commandAllowlist).toEqual(["git *"]);
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("has no ask tier"));
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should withhold an allow spelled with a character class, which no glob matches", async () => {

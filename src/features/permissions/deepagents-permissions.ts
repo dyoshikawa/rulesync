@@ -873,12 +873,8 @@ function convertRulesyncToDeepagentsAllowList({
   const denyPatterns: string[] = [];
   let requestedAllowAll = false;
 
-  const {
-    rules,
-    foreignDenyCategories,
-    foreignRestrictingCategories,
-    ignoredAllToolsAllowPatterns,
-  } = collectShellCommandRules(config.permission);
+  const { rules, foreignRestrictingCategories, ignoredAllToolsAllowPatterns } =
+    collectShellCommandRules(config.permission);
   // Shared with the other command-only adapters so a rule dropped in one is
   // worded the same way in all. `shadowedAllowPatterns` is empty here because
   // dcode reduces every pattern to an executable name, so the allow entries a
@@ -887,7 +883,7 @@ function convertRulesyncToDeepagentsAllowList({
   warnAboutUnwrittenCommandRules({
     toolLabel: "deepagents-cli",
     surfaceLabel: "[shell].allow_list",
-    foreignDenyCategories,
+    foreignRestrictingCategories,
     shadowedAllowPatterns: [],
     ignoredAllToolsAllowPatterns,
     logger,

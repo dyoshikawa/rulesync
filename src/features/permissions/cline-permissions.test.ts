@@ -229,7 +229,7 @@ describe("ClinePermissions", () => {
     );
   });
 
-  it("should report an all-tools ask that withheld nothing rather than dropping it in silence", async () => {
+  it("should say nothing about an all-tools ask that withheld nothing", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -248,14 +248,13 @@ describe("ClinePermissions", () => {
     });
 
     // An all-tools `ask` is written to neither list and is deliberately not
-    // translated to `deny`, so withholding an allow is the only trace it can
-    // leave. With no allow beside it there is no trace at all.
+    // translated to `deny`; it only withholds. Cline's `allow` array is a gate,
+    // so with nothing withheld every command still prompts — exactly what the
+    // ask asked for, and nothing to warn about.
     const content = JSON.parse(instance.getFileContent());
     expect(content.allow).toEqual([]);
     expect(content.deny).toEqual([]);
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("'ask' rules for [secrets/**]"),
-    );
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it("should ignore the all-tools category's allow rules", async () => {

@@ -241,8 +241,22 @@ describe("WarpPermissions", () => {
             // restriction would stop covering the command it names.
             "^git\\x20push$": "ask",
             "^npm\\u0020publish$": "ask",
+            // The braced forms spell the same space, and their digits sit
+            // behind a `}` rather than being counted one by one.
+            "^yarn\\x{20}add$": "ask",
+            "^pnpm\\u{20}add$": "ask",
+            // Rust's regex crate also spells a code point as `\\U00000067`
+            // and a Unicode class as `\\pL` / `\\p{L}`. Widening only the
+            // introducer would leave `00000067` or `L` behind as literals.
+            "^\\U00000067it push$": "ask",
+            "^\\pLit pull$": "ask",
+            "^\\p{Latin}it fetch$": "ask",
             "^git push$": "allow",
             "^npm publish$": "allow",
+            "^yarn add$": "allow",
+            "^pnpm add$": "allow",
+            "^git pull$": "allow",
+            "^git fetch$": "allow",
             "^ls -la$": "allow",
           },
         }),

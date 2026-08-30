@@ -56,7 +56,6 @@ type ClineTranslationResult = {
    * rule, so nothing observed says they name a command Cline can block.
    */
   unenforcedAllToolsDenyPatterns: string[];
-  unenforcedAllToolsAskPatterns: string[];
   ignoredAllToolsAllowPatterns: string[];
   intersectionBudgetExhausted: boolean;
 };
@@ -100,13 +99,14 @@ function translateClinePermissions(
     { budget },
   );
   const allToolsDenyPatterns: string[] = [];
-  const allToolsAskPatterns: string[] = [];
   const withholdingPatterns = new Set<string>();
 
   for (const { pattern, action, fromAllToolsCategory } of rules) {
     if (action === "ask") {
       if (fromAllToolsCategory) {
-        allToolsAskPatterns.push(pattern);
+        // Withholding the allow rules it covers is all a `*` ask does here, and
+        // one that withholds none needs no report: Cline's `allow` array is a
+        // gate, so a command no allow rule covers already prompts.
         continue;
       }
       // A `bash` ask is a command pattern by construction. Translate it to `deny`
@@ -142,11 +142,6 @@ function translateClinePermissions(
     writtenAllToolsDenyPatterns: allToolsDenyPatterns,
     withholdingPatterns,
   });
-  // A `*` ask is written to neither list, so withholding an allow rule is the
-  // only trace it can leave; one that withheld none vanished without a word.
-  const unenforcedAllToolsAskPatterns = uniq(allToolsAskPatterns).filter(
-    (pattern) => !withholdingPatterns.has(pattern),
-  );
 
   return {
     allow,
@@ -155,7 +150,6 @@ function translateClinePermissions(
     translatedAskPatterns,
     shadowedAllowPatterns,
     unenforcedAllToolsDenyPatterns,
-    unenforcedAllToolsAskPatterns,
     ignoredAllToolsAllowPatterns,
     intersectionBudgetExhausted: budget.remaining === 0,
   };
@@ -172,7 +166,6 @@ function warnClineTranslationNotices({
   translatedAskPatterns,
   shadowedAllowPatterns,
   unenforcedAllToolsDenyPatterns,
-  unenforcedAllToolsAskPatterns,
   ignoredAllToolsAllowPatterns,
   intersectionBudgetExhausted,
   logger,
@@ -181,7 +174,6 @@ function warnClineTranslationNotices({
   translatedAskPatterns: string[];
   shadowedAllowPatterns: string[];
   unenforcedAllToolsDenyPatterns: string[];
-  unenforcedAllToolsAskPatterns: string[];
   ignoredAllToolsAllowPatterns: string[];
   intersectionBudgetExhausted: boolean;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
@@ -191,7 +183,6 @@ function warnClineTranslationNotices({
     translatedAskPatterns.length === 0 &&
     shadowedAllowPatterns.length === 0 &&
     unenforcedAllToolsDenyPatterns.length === 0 &&
-    unenforcedAllToolsAskPatterns.length === 0 &&
     ignoredAllToolsAllowPatterns.length === 0 &&
     !intersectionBudgetExhausted
   ) {
@@ -226,15 +217,6 @@ function warnClineTranslationNotices({
         `allow rules beside them — a pattern written there need not name a command, and a ` +
         `denylist entry that names none blocks nothing; write it under 'bash' too if it is a ` +
         `command pattern`,
-    );
-  }
-  if (unenforcedAllToolsAskPatterns.length > 0) {
-    parts.push(
-      `'ask' rules for [${unenforcedAllToolsAskPatterns.join(", ")}] under the all-tools '*' ` +
-        `category dropped: Cline has no 'ask' list, and unlike a 'bash' ask they are not ` +
-        `translated to 'deny' — a pattern written there need not name a command, so denying it ` +
-        `outright could block far more than the author asked about — and they withheld none of ` +
-        `the allow rules beside them; write them under 'bash' if they are command patterns`,
     );
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {
@@ -336,7 +318,6 @@ export class ClinePermissions extends ToolPermissions {
       translatedAskPatterns,
       shadowedAllowPatterns,
       unenforcedAllToolsDenyPatterns,
-      unenforcedAllToolsAskPatterns,
       ignoredAllToolsAllowPatterns,
       intersectionBudgetExhausted,
     } = translateClinePermissions(config.permission);
@@ -346,7 +327,6 @@ export class ClinePermissions extends ToolPermissions {
       translatedAskPatterns,
       shadowedAllowPatterns,
       unenforcedAllToolsDenyPatterns,
-      unenforcedAllToolsAskPatterns,
       ignoredAllToolsAllowPatterns,
       intersectionBudgetExhausted,
       logger,

@@ -248,9 +248,8 @@ function convertRulesyncToFactorydroidPermissions({
   config: PermissionsConfig;
   logger?: Logger;
 }): { allow: string[]; deny: string[] } {
-  const { rules, foreignDenyCategories, ignoredAllToolsAllowPatterns } = collectShellCommandRules(
-    config.permission,
-  );
+  const { rules, foreignRestrictingCategories, ignoredAllToolsAllowPatterns } =
+    collectShellCommandRules(config.permission);
   // Factory Droid's denylist is an ordinary command list that adds to nothing
   // it ships with, so an all-tools `*` deny can be written there verbatim,
   // where the deny-beats-allow order enforces it for whatever commands it does
@@ -262,7 +261,6 @@ function convertRulesyncToFactorydroidPermissions({
     deny,
     shadowedAllowPatterns,
     unenforcedAllToolsDenyPatterns,
-    unenforcedAskPatterns,
     intersectionBudgetExhausted,
   } = partitionCommandRules({
     rules,
@@ -271,10 +269,9 @@ function convertRulesyncToFactorydroidPermissions({
   warnAboutUnwrittenCommandRules({
     toolLabel: "Factory Droid",
     surfaceLabel: "commandAllowlist/commandDenylist",
-    foreignDenyCategories,
+    foreignRestrictingCategories,
     shadowedAllowPatterns,
     unenforcedAllToolsDenyPatterns,
-    unenforcedAskPatterns,
     ignoredAllToolsAllowPatterns,
     intersectionBudgetExhausted,
     logger,

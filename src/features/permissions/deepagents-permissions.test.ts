@@ -218,7 +218,9 @@ describe("DeepagentsPermissions", () => {
         logger,
       });
 
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'read' deny rules"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("'read' deny and ask rules"),
+      );
     });
 
     it("merges into an existing config.toml and leaves unrelated tables alone", async () => {

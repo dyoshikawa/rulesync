@@ -4,6 +4,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import {
   collectShellCommandRules,
+  collectUnenforcedAllToolsDenyPatterns,
   createShadowingRestrictionsTest,
   partitionCommandRules,
   warnAboutUnwrittenCommandRules,
@@ -151,7 +152,6 @@ describe("createShadowingRestrictionsTest with many long patterns", () => {
     // allow rule is withheld rather than written.
     expect(answers.at(-1)?.length).toBe(restrictions.length);
   });
-
 });
 
 describe("createShadowingRestrictionsTest with many short patterns", () => {
@@ -326,7 +326,7 @@ const warnedBy = (
   warnAboutUnwrittenCommandRules({
     toolLabel: "Warp",
     surfaceLabel: "commandAllowlist/commandDenylist",
-    foreignDenyCategories: [],
+    foreignRestrictingCategories: [],
     shadowedAllowPatterns: [],
     logger,
     ...overrides,
@@ -334,17 +334,69 @@ const warnedBy = (
   return logger.warn.mock.calls.map(([message]) => String(message));
 };
 
+describe("collectUnenforcedAllToolsDenyPatterns", () => {
+  it("names an all-tools deny that had allow rules to cover and covered none", () => {
+    expect(
+      collectUnenforcedAllToolsDenyPatterns({
+        rules: [bashRule("git *", "allow"), allToolsRule("secrets/**", "deny")],
+        writtenAllToolsDenyPatterns: ["secrets/**"],
+        withholdingPatterns: new Set(),
+      }),
+    ).toEqual(["secrets/**"]);
+  });
+
+  it("says nothing when the deny withheld an allow, since it does name a command", () => {
+    expect(
+      collectUnenforcedAllToolsDenyPatterns({
+        rules: [bashRule("git *", "allow"), allToolsRule("git push *", "deny")],
+        writtenAllToolsDenyPatterns: ["git push *"],
+        withholdingPatterns: new Set(["git push *"]),
+      }),
+    ).toEqual([]);
+  });
+
+  it("says nothing when the config has no allow rules to withhold", () => {
+    // With nothing to cover, covering nothing says nothing about whether the
+    // pattern names a command — the report would be a guess.
+    expect(
+      collectUnenforcedAllToolsDenyPatterns({
+        rules: [allToolsRule("secrets/**", "deny")],
+        writtenAllToolsDenyPatterns: ["secrets/**"],
+        withholdingPatterns: new Set(),
+      }),
+    ).toEqual([]);
+  });
+
+  it("says nothing when the same pattern is written under 'bash' as well", () => {
+    // The author already spelled it as a command, so the advice the warning
+    // would give is one they have followed.
+    expect(
+      collectUnenforcedAllToolsDenyPatterns({
+        rules: [
+          bashRule("git *", "allow"),
+          bashRule("secrets/**", "deny"),
+          allToolsRule("secrets/**", "deny"),
+        ],
+        writtenAllToolsDenyPatterns: ["secrets/**"],
+        withholdingPatterns: new Set(),
+      }),
+    ).toEqual([]);
+  });
+});
+
 describe("warnAboutUnwrittenCommandRules", () => {
   it("says nothing when every rule was written", () => {
     expect(warnedBy({})).toEqual([]);
   });
 
-  it("names each category whose deny rules the command lists cannot carry", () => {
-    const warnings = warnedBy({ foreignDenyCategories: ["write", "webfetch"] });
+  it("names each category whose restricting rules the command lists cannot carry", () => {
+    // A foreign `ask` restricts as surely as a foreign `deny`, so both are
+    // named — reporting only the denies would drop an ask in silence.
+    const warnings = warnedBy({ foreignRestrictingCategories: ["write", "webfetch"] });
 
     expect(warnings).toHaveLength(2);
-    expect(warnings[0]).toContain("'write' deny rules cannot be represented");
-    expect(warnings[1]).toContain("'webfetch' deny rules cannot be represented");
+    expect(warnings[0]).toContain("'write' deny and ask rules cannot be represented");
+    expect(warnings[1]).toContain("'webfetch' deny and ask rules cannot be represented");
   });
 
   it("gives the tool's own reason for a deny it could not write", () => {

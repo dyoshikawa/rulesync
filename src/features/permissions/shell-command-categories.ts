@@ -195,12 +195,6 @@ export type CommandListPartition = {
    */
   unenforcedAllToolsDenyPatterns: string[];
   /**
-   * `ask` patterns that withheld no `allow` rule. An `ask` has no list of its
-   * own here, so withholding is the only trace it can leave: one that withheld
-   * nothing left none at all — see `warnAboutUnwrittenCommandRules`.
-   */
-  unenforcedAskPatterns: string[];
-  /**
    * Whether the run ran out of comparison budget, so every allow rule left was
    * withheld without being compared — see `createIntersectionBudget`.
    */
@@ -281,7 +275,6 @@ export function partitionCommandRules({
   const unwrittenDenyPatterns: string[] = [];
   const restrictions: ShellCommandRule[] = [];
   const writtenAllToolsDenyPatterns: string[] = [];
-  const askPatterns: string[] = [];
 
   for (const rule of rules) {
     const { pattern, action, fromAllToolsCategory } = rule;
@@ -290,9 +283,10 @@ export function partitionCommandRules({
     }
     if (action !== "deny") {
       // An `ask` has no list of its own anywhere, so it can only be honored by
-      // withholding the allow rules it covers.
+      // withholding the allow rules it covers. One that withholds nothing needs
+      // no report: these tools prompt for whatever their allowlist does not
+      // cover, so an `ask` no `allow` overlaps is already honored as written.
       restrictions.push(rule);
-      askPatterns.push(pattern);
       continue;
     }
     if (writesAllToolsDeny || !fromAllToolsCategory) {
@@ -347,27 +341,23 @@ export function partitionCommandRules({
       writtenAllToolsDenyPatterns,
       withholdingPatterns,
     }),
-    // Withholding is all an `ask` can do here, so one that withheld nothing
-    // left no trace of the author's rule at all.
-    unenforcedAskPatterns: uniq(askPatterns).filter((pattern) => !withholdingPatterns.has(pattern)),
     intersectionBudgetExhausted: budget.remaining === 0,
   };
 }
 
 /**
  * Report, for one command-only tool, every canonical rule its two lists could
- * not carry. The three adapters that share `partitionCommandRules` share this
- * reporting too, so a rule dropped in one is worded the same way in all.
+ * not carry. Every command-only adapter shares this reporting, so a rule
+ * dropped in one is worded the same way in all.
  */
 export function warnAboutUnwrittenCommandRules({
   toolLabel,
   surfaceLabel,
-  foreignDenyCategories,
+  foreignRestrictingCategories,
   shadowedAllowPatterns,
   unwrittenDenyPatterns = [],
   unwrittenDenyReason,
   unenforcedAllToolsDenyPatterns = [],
-  unenforcedAskPatterns = [],
   ignoredAllToolsAllowPatterns = [],
   intersectionBudgetExhausted = false,
   logger,
@@ -376,7 +366,12 @@ export function warnAboutUnwrittenCommandRules({
   toolLabel: string;
   /** The keys the tool reads, e.g. `commandAllowlist/commandDenylist`. */
   surfaceLabel: string;
-  foreignDenyCategories: readonly string[];
+  /**
+   * Categories the tool cannot express that carry a `deny` **or** an `ask`. Both
+   * restrict, so both are reported — naming only the denies would leave a
+   * foreign `ask` dropped in silence.
+   */
+  foreignRestrictingCategories: readonly string[];
   shadowedAllowPatterns: readonly string[];
   unwrittenDenyPatterns?: readonly string[];
   /**
@@ -386,7 +381,6 @@ export function warnAboutUnwrittenCommandRules({
    */
   unwrittenDenyReason?: string;
   unenforcedAllToolsDenyPatterns?: readonly string[];
-  unenforcedAskPatterns?: readonly string[];
   ignoredAllToolsAllowPatterns?: readonly string[];
   intersectionBudgetExhausted?: boolean;
   logger?: Logger;
@@ -401,11 +395,11 @@ export function warnAboutUnwrittenCommandRules({
         `them all compared.`,
     );
   }
-  for (const category of foreignDenyCategories) {
+  for (const category of foreignRestrictingCategories) {
     warnWithFallback(
       logger,
       `${toolLabel} only models shell-command permissions (${surfaceLabel}); ` +
-        `'${category}' deny rules cannot be represented and were skipped.`,
+        `'${category}' deny and ask rules cannot be represented and were skipped.`,
     );
   }
   if (unwrittenDenyPatterns.length > 0) {
@@ -426,15 +420,6 @@ export function warnAboutUnwrittenCommandRules({
         `withheld none of the allow rules beside them. A pattern written under '*' need not ` +
         `name a command — 'secrets/**' there denies a path — and a denylist entry that names ` +
         `none blocks nothing; write it under 'bash' too if it is a command pattern.`,
-    );
-  }
-  if (unenforcedAskPatterns.length > 0) {
-    warnWithFallback(
-      logger,
-      `${toolLabel} has no ask tier (${surfaceLabel}), so the ask rule(s) for ` +
-        `${unenforcedAskPatterns.join(", ")} wrote nothing, and they withheld none of the allow ` +
-        `rules beside them either. ${toolLabel} still prompts for whatever its allowlist does ` +
-        `not cover; write them under 'bash' as deny rules to block them outright.`,
     );
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {

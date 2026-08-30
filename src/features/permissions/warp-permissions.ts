@@ -589,6 +589,20 @@ function skipHexEscapeTail(body: string, start: number): number {
 }
 
 /**
+ * Read the tail of a `\\p` / `\\P` Unicode-class escape — the braced `\\p{Greek}`
+ * form, or the one-letter `\\pL` shorthand — and return the index just past it.
+ * Like a hex escape, it spells its class across more than one character, so
+ * leaving the shorthand letter behind would narrow the glob.
+ */
+function skipUnicodeClassTail(body: string, start: number): number {
+  if (body.charAt(start) === "{") {
+    const closing = body.indexOf("}", start);
+    return closing === -1 ? body.length : closing + 1;
+  }
+  return Math.min(start + 1, body.length);
+}
+
+/**
  * Read the escape that opens at `start` — the `\\` and whatever it spells — and
  * say where it ends and which atom it stands for.
  */
@@ -596,8 +610,13 @@ function readEscape(body: string, start: number): { next: number; atom: string }
   // `charAt` past the end is the empty string, so a trailing backslash widens
   // like any other escape it cannot spell.
   const escaped = body.charAt(start + 1);
-  if (escaped === "x" || escaped === "u") {
+  // Rust's regex crate — which Warp matches with — spells a code point as
+  // `\\x41`, `\\u0041` or `\\U00000041`, braced or not.
+  if (escaped === "x" || escaped === "u" || escaped === "U") {
     return { next: skipHexEscapeTail(body, start + 2), atom: "*" };
+  }
+  if (escaped === "p" || escaped === "P") {
+    return { next: skipUnicodeClassTail(body, start + 2), atom: "*" };
   }
   return { next: start + 2, atom: escapedCharacterWidens(escaped) ? "*" : escaped };
 }
@@ -745,31 +764,23 @@ function convertRulesyncToWarpPermissions({
   config: PermissionsConfig;
   logger?: Logger;
 }): { allow: string[]; deny: string[] } {
-  const { rules, foreignDenyCategories, ignoredAllToolsAllowPatterns } = collectShellCommandRules(
-    config.permission,
-  );
+  const { rules, foreignRestrictingCategories, ignoredAllToolsAllowPatterns } =
+    collectShellCommandRules(config.permission);
   // Warp's denylist is a regex list that replaces the tool's built-in default
   // one, so an all-tools `*` pattern — which may not even name a command —
   // withholds the allow rules it covers instead of being written there.
-  const {
-    allow,
-    deny,
-    shadowedAllowPatterns,
-    unwrittenDenyPatterns,
-    unenforcedAskPatterns,
-    intersectionBudgetExhausted,
-  } = partitionCommandRules({
-    rules,
-    writesAllToolsDeny: false,
-    normalizePattern: warpCommandPatternToGlob,
-  });
+  const { allow, deny, shadowedAllowPatterns, unwrittenDenyPatterns, intersectionBudgetExhausted } =
+    partitionCommandRules({
+      rules,
+      writesAllToolsDeny: false,
+      normalizePattern: warpCommandPatternToGlob,
+    });
   warnAboutUnwrittenCommandRules({
     toolLabel: "Warp",
     surfaceLabel: "agent_mode_command_execution_allowlist/denylist",
-    foreignDenyCategories,
+    foreignRestrictingCategories,
     shadowedAllowPatterns,
     unwrittenDenyPatterns,
-    unenforcedAskPatterns,
     unwrittenDenyReason:
       "Writing any denylist replaces Warp's built-in default one, and a pattern written " +
       "under '*' need not be a command at all.",
