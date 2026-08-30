@@ -99,7 +99,22 @@ rulesync update --force
 
 ## JSON Output
 
-The global `--json` flag makes a command print a single result document and nothing else. Because that document is the whole of the output, warnings that would otherwise go to standard error are carried inside it: they appear as `data.warnings`, an array of strings, and the key is omitted when nothing warned. `--silent` suppresses them there as it does on the console.
+The global `--json` flag makes a command print a single result document and nothing else. Because that document is the whole of the output, warnings that would otherwise go to standard error are carried inside it, as a top-level `warnings` array of strings:
+
+```json
+{
+  "success": true,
+  "timestamp": "2025-01-01T00:00:00.000Z",
+  "command": "import",
+  "version": "x.y.z",
+  "warnings": [".factory/settings.local.json is a machine-local overrides file …"],
+  "data": { "…": "…" }
+}
+```
+
+The key is omitted when nothing warned, and `--silent` suppresses warnings there as it does on the console. `warnings` sits beside `data` rather than inside it so a command's own captured keys can never collide with it, and it is reported on the failure document too, where a diagnostic about the input is often what explains the failure.
+
+At most 100 warnings are reported, each truncated to 2,000 characters; a run that exceeds either limit says so in a final entry rather than growing the document without bound.
 
 ## Generate Command
 

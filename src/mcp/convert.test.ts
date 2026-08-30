@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { writeFileContent } from "../utils/file.js";
+import { ensureDir, writeFileContent } from "../utils/file.js";
 import { convertTools, executeConvert, type McpConvertResult } from "./convert.js";
 
 describe("MCP Convert Tools", () => {
@@ -67,6 +67,38 @@ describe("MCP Convert Tools", () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toMatch(/Plugin packaging target .* is not supported by convert/);
+    });
+
+    it("carries a diagnostic back in the result, as convert reads the same files import does", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ commandAllowlist: ["git *"] }),
+      );
+
+      const result = await executeConvert({
+        from: "factorydroid",
+        to: ["cursor"],
+        features: ["permissions"],
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.warnings).toEqual([
+        expect.stringContaining("settings.local.json is a machine-local overrides file"),
+      ]);
+    });
+
+    it("omits the warnings key when the conversion had nothing to report", async () => {
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Claude Code Rules\n");
+
+      const result = await executeConvert({
+        from: "claudecode",
+        to: ["cursor"],
+        features: ["rules"],
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.warnings).toBeUndefined();
     });
 
     it("should succeed with valid from and to", async () => {

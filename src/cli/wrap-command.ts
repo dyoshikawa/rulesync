@@ -4,10 +4,10 @@ import { CLIError } from "../types/json-output.js";
 import { formatError } from "../utils/error.js";
 import {
   ConsoleLogger,
-  fallbackLogger,
   JsonLogger,
   Logger,
   warnOnConflictingFlags,
+  withFallbackLoggerTarget,
 } from "../utils/logger.js";
 
 export function createLogger({
@@ -65,11 +65,19 @@ export function wrapCommand({
     };
     warnOnConflictingFlags({ ...cliLoggerOptions, jsonMode: logger.jsonMode });
     logger.configure(cliLoggerOptions);
-    fallbackLogger.configure(cliLoggerOptions);
 
     try {
-      await handler(logger, options, globalOpts, positionalArgs);
-      logger.outputJson(true);
+      // Adopt the shared fallback for the duration of the command, so a warning
+      // raised on a path with no logger threaded through lands wherever this
+      // command's other diagnostics land — inside the `--json` document rather
+      // than on a stderr that a `--json` consumer never reads.
+      await withFallbackLoggerTarget({
+        logger,
+        operation: async () => {
+          await handler(logger, options, globalOpts, positionalArgs);
+          logger.outputJson(true);
+        },
+      });
     } catch (error) {
       const code = error instanceof CLIError ? error.code : errorCode;
       const errorArg = error instanceof Error ? error : formatError(error);

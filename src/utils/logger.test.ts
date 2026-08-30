@@ -429,13 +429,26 @@ describe("JsonLogger warnings", () => {
     const output = captureJsonOutput((logger) => {
       logger.captureData("test", "data");
       logger.warn("machine-local settings were skipped");
-      logger.warn("unknown key", "foo", 42);
+      logger.warn("unknown key %s (%d)", "foo", 42);
     });
 
-    expect(output.data).toEqual({
-      test: "data",
-      warnings: ["machine-local settings were skipped", "unknown key foo 42"],
+    expect(output.warnings).toEqual([
+      "machine-local settings were skipped",
+      "unknown key foo (42)",
+    ]);
+    // Beside `data`, never inside it: a command that captures a `warnings` key
+    // of its own must not be able to collide with the logger's.
+    expect(output.data).toEqual({ test: "data" });
+  });
+
+  it("does not let a captured `warnings` key and the logger's own overwrite each other", () => {
+    const output = captureJsonOutput((logger) => {
+      logger.captureData("warnings", ["captured by the command"]);
+      logger.warn("raised by the logger");
     });
+
+    expect(output.data).toEqual({ warnings: ["captured by the command"] });
+    expect(output.warnings).toEqual(["raised by the logger"]);
   });
 
   it("omits the key entirely when nothing warned", () => {
@@ -443,6 +456,7 @@ describe("JsonLogger warnings", () => {
       logger.captureData("test", "data");
     });
 
+    expect(output.warnings).toBeUndefined();
     expect(output.data).toEqual({ test: "data" });
   });
 
@@ -452,7 +466,53 @@ describe("JsonLogger warnings", () => {
       logger.warn("machine-local settings were skipped");
     });
 
+    expect(output.warnings).toBeUndefined();
     expect(output.data).toEqual({});
+  });
+
+  it("reports warnings on the failure document too, where they often explain the failure", () => {
+    const logger = new JsonLogger({ command: "test", version: "1.0.0" });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      logger.warn("machine-local settings were skipped");
+      logger.outputJson(false, { code: "IMPORT_FAILED", message: "boom" });
+
+      const output = JSON.parse(errorSpy.mock.calls[0]![0] as string);
+
+      expect(output.success).toBe(false);
+      expect(output.warnings).toEqual(["machine-local settings were skipped"]);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("bounds what a single run can push into the document", () => {
+    const output = captureJsonOutput((logger) => {
+      for (let index = 0; index < 105; index++) {
+        logger.warn(`warning ${index}`);
+      }
+      logger.warn("x".repeat(3000));
+    });
+
+    const warnings = output.warnings as string[];
+
+    expect(warnings).toHaveLength(101);
+    expect(warnings[99]).toBe("warning 99");
+    // The over-long line never made it in, so its own length is not what grew
+    // the document; only the count of what was dropped is reported.
+    expect(warnings[100]).toBe("… and 6 more warning(s) not reported");
+  });
+
+  it("truncates a single over-long warning rather than carrying it whole", () => {
+    const output = captureJsonOutput((logger) => {
+      logger.warn("x".repeat(3000));
+    });
+
+    const warnings = output.warnings as string[];
+
+    expect(warnings[0]).toHaveLength(2000 + "… (truncated)".length);
+    expect(warnings[0]).toMatch(/… \(truncated\)$/);
   });
 });
 

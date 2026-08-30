@@ -6,7 +6,7 @@ import { importFromTool, type ImportResult } from "../lib/import.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
-import { WarningCollectingLogger } from "../utils/logger.js";
+import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
 import { type McpResultCounts } from "./types.js";
 
@@ -76,7 +76,14 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
     const tool = config.getTargets()[0] as ToolTarget;
 
     const logger = new WarningCollectingLogger({ verbose: false, silent: true });
-    const importResult = await importFromTool({ config, tool, logger });
+    // Adopt the shared fallback too: warnings raised on paths that never
+    // received a logger would otherwise go to a stderr the calling agent
+    // cannot read, and the absence of a `warnings` key would read as "nothing
+    // was wrong".
+    const importResult = await withFallbackLoggerTarget({
+      logger,
+      operation: () => importFromTool({ config, tool, logger }),
+    });
 
     return buildSuccessResponse({ importResult, config, tool, logger });
   } catch (error) {
@@ -117,7 +124,7 @@ function buildSuccessResponse(params: {
       features: config.getFeatures(),
       global: config.getGlobal(),
     },
-    ...(warnings.length > 0 ? { warnings: [...warnings] } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }
 

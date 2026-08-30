@@ -6,7 +6,7 @@ import { convertFromTool, type ConvertResult } from "../lib/convert.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { ALL_TOOL_TARGETS, type ToolTarget, ToolTargetSchema } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
-import { ConsoleLogger } from "../utils/logger.js";
+import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
 import { type McpResultCounts } from "./types.js";
 
@@ -38,6 +38,13 @@ export type McpConvertResult = {
     global: boolean;
     dryRun: boolean;
   };
+  /**
+   * Diagnostics raised while reading the source tool's files. `convert` reads
+   * them through the same path as `import`, and the MCP server writes nothing
+   * to a console the caller can see, so anything worth acting on has to travel
+   * in the result itself. Omitted when there is nothing to report.
+   */
+  warnings?: string[];
   error?: string;
 };
 
@@ -103,10 +110,13 @@ export async function executeConvert(options: ConvertOptions): Promise<McpConver
       silent: true,
     });
 
-    const logger = new ConsoleLogger({ verbose: false, silent: true });
-    const convertResult = await convertFromTool({ config, fromTool, toTools, logger });
+    const logger = new WarningCollectingLogger({ verbose: false, silent: true });
+    const convertResult = await withFallbackLoggerTarget({
+      logger,
+      operation: () => convertFromTool({ config, fromTool, toTools, logger }),
+    });
 
-    return buildSuccessResponse({ convertResult, config, fromTool, toTools });
+    return buildSuccessResponse({ convertResult, config, fromTool, toTools, logger });
   } catch (error) {
     return {
       success: false,
@@ -120,10 +130,12 @@ function buildSuccessResponse(params: {
   config: Config;
   fromTool: ToolTarget;
   toTools: ToolTarget[];
+  logger: WarningCollectingLogger;
 }): McpConvertResult {
-  const { convertResult, config, fromTool, toTools } = params;
+  const { convertResult, config, fromTool, toTools, logger } = params;
 
   const totalCount = calculateTotalCount(convertResult);
+  const warnings = logger.getWarnings();
 
   return {
     success: true,
@@ -146,6 +158,7 @@ function buildSuccessResponse(params: {
       global: config.getGlobal(),
       dryRun: config.isPreviewMode(),
     },
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }
 

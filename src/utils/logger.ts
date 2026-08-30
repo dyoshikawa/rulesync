@@ -1,3 +1,5 @@
+import { format } from "node:util";
+
 import { CLIError, ErrorCodes, JsonOutput } from "../types/json-output.js";
 import { isEnvTest } from "./vitest.js";
 import { claimWarnOnce } from "./warned-once.js";
@@ -17,11 +19,16 @@ export type Logger = {
   readonly verbose: boolean;
   readonly silent: boolean;
   /**
-   * True when the logger hands the warnings it is given back to its caller
-   * instead of writing them somewhere. Such a logger reports even while
-   * `silent`, so `warnOnceWithFallback` still spends the run's token on it.
+   * True when the logger still reports the warnings it is given while `silent`
+   * — because it hands them back to its caller instead of writing them to a
+   * console the `--silent` flag speaks for. `warnOnceWithFallback` spends the
+   * run's once-per-message token only on a logger that reports.
+   *
+   * Required rather than optional so every implementation, and every object
+   * literal that wraps one, has to answer the question; a wrapper that quietly
+   * inherited `false` would drop its target's warnings.
    */
-  readonly retainsWarnings?: boolean;
+  readonly reportsWhileSilent: boolean;
   readonly jsonMode: boolean;
   captureData(key: string, value: unknown): void;
   getJsonData(): Record<string, unknown>;
@@ -32,6 +39,53 @@ export type Logger = {
   error(message: string | Error, code?: string, ...args: unknown[]): void;
   debug(message: string, ...args: unknown[]): void;
 };
+
+/**
+ * Formats a log line the way `console.warn` would, so a warning that is handed
+ * back to a caller reads the same as the one that reaches a terminal.
+ */
+function formatLogLine(message: string, args: unknown[]): string {
+  return args.length === 0 ? message : format(message, ...args);
+}
+
+/**
+ * How many warnings a collecting logger keeps, and how long each one may be.
+ *
+ * Collected warnings travel to places a console line does not — a `--json`
+ * document that another program parses, an MCP result that an agent reads as
+ * context — so the amount a repository's own configuration can push through
+ * has to be bounded. A config with thousands of odd keys is a plausible
+ * accident; either limit turns it into a short, honest report rather than a
+ * multi-megabyte one.
+ */
+const MAX_COLLECTED_WARNINGS = 100;
+const MAX_COLLECTED_WARNING_LENGTH = 2_000;
+
+/**
+ * A bounded list of warning lines.
+ */
+class WarningCollection {
+  private readonly lines: string[] = [];
+  private omitted = 0;
+
+  add(message: string, args: unknown[]): void {
+    if (this.lines.length >= MAX_COLLECTED_WARNINGS) {
+      this.omitted++;
+      return;
+    }
+    const line = formatLogLine(message, args);
+    this.lines.push(
+      line.length > MAX_COLLECTED_WARNING_LENGTH
+        ? `${line.slice(0, MAX_COLLECTED_WARNING_LENGTH)}… (truncated)`
+        : line,
+    );
+  }
+
+  toArray(): string[] {
+    if (this.omitted === 0) return [...this.lines];
+    return [...this.lines, `… and ${this.omitted} more warning(s) not reported`];
+  }
+}
 
 /**
  * Base class for shared verbose/silent state and configuration logic
@@ -51,6 +105,10 @@ abstract class BaseLogger {
 
   get silent(): boolean {
     return this._silent;
+  }
+
+  get reportsWhileSilent(): boolean {
+    return false;
   }
 
   // Silent always wins over verbose, regardless of where each value came
@@ -122,12 +180,15 @@ export class ConsoleLogger extends BaseLogger implements Logger {
  * The console output methods (info, success, debug) are no-ops. `warn` is not:
  * a diagnostic that only reached the console would be invisible to a `--json`
  * consumer, which reads the document and nothing else, so warnings are
- * collected and emitted under `data.warnings` instead.
+ * collected and emitted as the document's top-level `warnings` array instead.
+ * Top-level rather than inside `data` so it can never collide with a key a
+ * command captured, and so it survives on the failure document too — the case
+ * where a diagnostic about the input is most likely to explain the failure.
  */
 export class JsonLogger extends BaseLogger implements Logger {
   private _jsonOutputDone = false;
   private _jsonData: Record<string, unknown> = {};
-  private readonly _warnings: string[] = [];
+  private readonly _warnings = new WarningCollection();
   private readonly _commandName: string;
   private readonly _version: string;
 
@@ -170,13 +231,13 @@ export class JsonLogger extends BaseLogger implements Logger {
       version: this._version,
     };
 
+    const warnings = this._warnings.toArray();
+    if (warnings.length > 0) {
+      output.warnings = warnings;
+    }
+
     if (success) {
-      // `warnings` is the logger's own key rather than a captured one, so a
-      // command that captures data of its own never has to know about it.
-      output.data =
-        this._warnings.length > 0
-          ? { ...this._jsonData, warnings: [...this._warnings] }
-          : this._jsonData;
+      output.data = this._jsonData;
     } else if (error) {
       output.error = {
         code: error.code,
@@ -209,9 +270,9 @@ export class JsonLogger extends BaseLogger implements Logger {
 
   warn(message: string, ...args: unknown[]): void {
     // `--silent` asks for no diagnostics at all, which the document honors as
-    // the console does; otherwise the warning is kept for `data.warnings`.
+    // the console does; otherwise the warning is kept for `warnings`.
     if (this._silent) return;
-    this._warnings.push([message, ...args.map((arg) => String(arg))].join(" "));
+    this._warnings.add(message, args);
   }
 
   error(message: string | Error, code?: string, ..._args: unknown[]): void {
@@ -261,13 +322,94 @@ export function warnOnConflictingFlags({
 }
 
 /**
+ * Where `fallbackLogger` currently sends what it is given. Defaults to a plain
+ * console logger, which is what a code path with no command logger threaded
+ * through would otherwise have used.
+ */
+let fallbackTarget: Logger = new ConsoleLogger();
+
+/**
  * Shared fallback logger for code paths that have no command logger threaded
  * through (module-level translators, `warnWithFallback(undefined, ...)`).
- * `wrapCommand` configures it from CLI flags and `ConfigResolver.resolve`
- * re-configures it from the resolved config, so `silent`/`verbose` settings
- * are honored even on paths where the command logger is not available.
+ *
+ * It is a thin forwarder rather than a logger of its own so that the command
+ * currently running can adopt it: `wrapCommand` points it at the command
+ * logger, which is how a warning raised deep in a translator still reaches a
+ * `--json` document or an MCP result instead of being written to a console
+ * that nobody in those modes is reading. Modules that captured a reference to
+ * `fallbackLogger` at import time follow the redirection too, which a
+ * swapped-out binding would not give us.
  */
-export const fallbackLogger: Logger = new ConsoleLogger();
+export const fallbackLogger: Logger = {
+  configure(options: { verbose: boolean; silent: boolean }): void {
+    fallbackTarget.configure(options);
+  },
+  get verbose(): boolean {
+    return fallbackTarget.verbose;
+  },
+  get silent(): boolean {
+    return fallbackTarget.silent;
+  },
+  get reportsWhileSilent(): boolean {
+    return fallbackTarget.reportsWhileSilent;
+  },
+  get jsonMode(): boolean {
+    return fallbackTarget.jsonMode;
+  },
+  captureData(key: string, value: unknown): void {
+    fallbackTarget.captureData(key, value);
+  },
+  getJsonData(): Record<string, unknown> {
+    return fallbackTarget.getJsonData();
+  },
+  outputJson(success: boolean, error?: JsonErrorInfo): void {
+    fallbackTarget.outputJson(success, error);
+  },
+  info(message: string, ...args: unknown[]): void {
+    fallbackTarget.info(message, ...args);
+  },
+  success(message: string, ...args: unknown[]): void {
+    fallbackTarget.success(message, ...args);
+  },
+  warn(message: string, ...args: unknown[]): void {
+    fallbackTarget.warn(message, ...args);
+  },
+  error(message: string | Error, code?: string, ...args: unknown[]): void {
+    fallbackTarget.error(message, code, ...args);
+  },
+  debug(message: string, ...args: unknown[]): void {
+    fallbackTarget.debug(message, ...args);
+  },
+};
+
+/**
+ * Run `operation` with `fallbackLogger` pointed at `logger`, so warnings raised
+ * where no logger was threaded through end up in the same place as the rest of
+ * that operation's diagnostics.
+ *
+ * The redirection is scoped rather than set once and left: the target is
+ * process-global, and a long-lived process (the MCP server) that left it
+ * pointing at a finished request's logger would send the next request's
+ * warnings somewhere nobody reads. The previous target is restored even if the
+ * operation throws.
+ */
+export async function withFallbackLoggerTarget<T>({
+  logger,
+  operation,
+}: {
+  logger: Logger;
+  operation: () => Promise<T>;
+}): Promise<T> {
+  const previous = fallbackTarget;
+  // Forwarding the forwarder to itself would recurse forever; a caller that
+  // passes it can only have meant "leave the fallback alone".
+  fallbackTarget = logger === fallbackLogger ? previous : logger;
+  try {
+    return await operation();
+  } finally {
+    fallbackTarget = previous;
+  }
+}
 
 /**
  * Emit a warning through `logger.warn` if a logger is supplied, otherwise
@@ -293,7 +435,7 @@ export function warnOnceWithFallback(logger: Logger | undefined, message: string
   // process — an MCP server reads with a silent logger — where the next read,
   // through a logger that does report, would otherwise stay quiet about the
   // same file.
-  if (destination.silent && destination.retainsWarnings !== true) {
+  if (destination.silent && !destination.reportsWhileSilent) {
     return;
   }
   if (!claimWarnOnce(message)) {
@@ -311,16 +453,18 @@ export function warnOnceWithFallback(logger: Logger | undefined, message: string
  * is something the agent can act on rather than something it never hears.
  */
 export class WarningCollectingLogger extends ConsoleLogger {
-  readonly retainsWarnings = true;
+  private readonly warnings = new WarningCollection();
 
-  private readonly warnings: string[] = [];
+  override get reportsWhileSilent(): boolean {
+    return true;
+  }
 
   override warn(message: string, ...args: unknown[]): void {
-    this.warnings.push([message, ...args.map((arg) => String(arg))].join(" "));
+    this.warnings.add(message, args);
     super.warn(message, ...args);
   }
 
-  getWarnings(): readonly string[] {
-    return this.warnings;
+  getWarnings(): string[] {
+    return this.warnings.toArray();
   }
 }

@@ -364,7 +364,7 @@ function emitPassthroughFields<TValue>({
       // so an authored value can be valid and still unusable here.
       warn?.(
         `Dropping "${canonical}" from a "${hookType}" hook on "${eventName}": ` +
-          `${JSON.stringify(value)} is not a value this tool can express as "${tool}".`,
+          `${quoteValueForWarning(value)} is not a value this tool can express as "${tool}".`,
       );
     }
   }
@@ -490,6 +490,24 @@ const isImportableNumber: PassthroughValidator = ({ value, canonical }) =>
  * closed enum lists its members; a rule carrying its own message (the
  * control-character check behind `safeString`) reuses it.
  */
+/**
+ * How much of a rejected value a diagnostic quotes.
+ *
+ * The warnings below name the value so the reader can find the entry they are
+ * about, but the fields they cover hold command lines, URLs and headers — the
+ * shapes most likely to carry a credential. Those diagnostics no longer stop at
+ * a terminal: they travel into a `--json` document and into an MCP result that
+ * an agent reads as context. Quote only enough to recognize the entry.
+ */
+const MAX_QUOTED_VALUE_LENGTH = 60;
+
+function quoteValueForWarning(value: unknown): string {
+  const encoded = JSON.stringify(value) ?? String(value);
+  return encoded.length > MAX_QUOTED_VALUE_LENGTH
+    ? `${encoded.slice(0, MAX_QUOTED_VALUE_LENGTH)}…(truncated)`
+    : encoded;
+}
+
 function describeScalarConstraint({
   canonical,
   value,
@@ -520,7 +538,7 @@ const describeInvalidScalar = ({
   canonical: string;
   value: unknown;
 }): string =>
-  `Dropping "${tool}" (${JSON.stringify(value)}) while importing a hook: ` +
+  `Dropping "${tool}" (${quoteValueForWarning(value)}) while importing a hook: ` +
   `${describeScalarConstraint({ canonical, value })} Importing it would fail validation on the ` +
   `next run.`;
 
@@ -586,7 +604,7 @@ function emitGroupPassthroughFields({
     if (!carried.every(agrees)) {
       logger?.warn(
         `"${tool}" belongs to the whole matcher group on "${eventName}" hooks, so every hook in ` +
-          `this group gets ${JSON.stringify(first)} — including any that asked for something ` +
+          `this group gets ${quoteValueForWarning(first)} — including any that asked for something ` +
           `else, or for nothing.`,
       );
     }
@@ -1208,7 +1226,7 @@ function describeGroupSkipReason({
     if (!isGroupPassthroughValue(value, valueType)) {
       return (
         `Skipping the hooks of a matcher group while importing: its "${tool}" ` +
-        `(${JSON.stringify(value)}) is unusable, and these hooks run only where it matches. ` +
+        `(${quoteValueForWarning(value)}) is unusable, and these hooks run only where it matches. ` +
         `Importing them without it would widen when they fire, so they are skipped.`
       );
     }
@@ -1235,7 +1253,7 @@ function describeHookSkipReason({
       continue;
     }
     return (
-      `Skipping a hook while importing: its "${field}" (${JSON.stringify(value)}) is unusable — ` +
+      `Skipping a hook while importing: its "${field}" (${quoteValueForWarning(value)}) is unusable — ` +
       `${describeScalarConstraint({ canonical: field, value })} Keeping the hook without it would ` +
       `change what it does, so the whole hook is skipped.`
     );

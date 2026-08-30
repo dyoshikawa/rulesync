@@ -146,10 +146,14 @@ This is a test rule file.
         JSON.stringify({ commandAllowlist: ["git *"] }),
       );
 
-      const first = await executeImport({ target: "factorydroid", features: ["permissions"] });
+      await executeImport({ target: "factorydroid", features: ["permissions"] });
       const second = await executeImport({ target: "factorydroid", features: ["permissions"] });
 
-      expect(second.warnings).toEqual(first.warnings);
+      // Asserted positively: a once-per-run warning that the first call had
+      // spent for the whole process would leave this empty rather than equal.
+      expect(second.warnings).toEqual([
+        expect.stringContaining("settings.local.json is a machine-local overrides file"),
+      ]);
     });
 
     it("omits the warnings key when the import had nothing to report", async () => {
