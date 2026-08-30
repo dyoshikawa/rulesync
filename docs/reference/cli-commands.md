@@ -114,7 +114,7 @@ The global `--json` flag makes a command print a single result document and noth
 
 The key is omitted when nothing warned, and `--silent` suppresses warnings there as it does on the console. `warnings` sits beside `data` rather than inside it so a command's own captured keys can never collide with it, and it is reported on the failure document too, where a diagnostic about the input is often what explains the failure.
 
-At most 100 warnings are reported, each truncated to 2,000 characters; a run that exceeds either limit says so in a final entry rather than growing the document without bound.
+At most 100 warnings are reported, each truncated to 1,000 characters and 8,000 characters in total; a run that exceeds any of those limits says so in a final entry rather than growing the document without bound.
 
 ## Generate Command
 

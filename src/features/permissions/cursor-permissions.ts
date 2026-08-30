@@ -12,6 +12,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -215,7 +216,7 @@ function asCursorPermissionEntryArray(
       result.push(item);
     } else {
       logger?.warn(
-        `Cursor CLI permissions${fieldLabel ? `.${fieldLabel}` : ""} contains a non-string entry; dropping ${JSON.stringify(item)}.`,
+        `Cursor CLI permissions${fieldLabel ? `.${fieldLabel}` : ""} contains a non-string entry; dropping ${quoteValueForWarning(item)}.`,
       );
     }
   }

@@ -188,4 +188,19 @@ describe("readSettingsWithLocalOverlay", () => {
 
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"a[31mb"'));
   });
+
+  it("should stop naming keys once there are more than the sentence needs", async () => {
+    await write("settings.json", "{}");
+    const keys = Object.fromEntries(
+      Array.from({ length: 25 }, (_, index) => [`key${String(index).padStart(2, "0")}`, index]),
+    );
+    await write("settings.local.json", JSON.stringify(keys));
+    const logger = createMockLogger();
+
+    await read({ logger });
+
+    const message = logger.warn.mock.calls[0]![0] as string;
+    expect(message).toContain('"key19" and 5 more');
+    expect(message).not.toContain('"key20"');
+  });
 });

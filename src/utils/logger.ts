@@ -1,8 +1,10 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { format } from "node:util";
 
 import { CLIError, ErrorCodes, JsonOutput } from "../types/json-output.js";
+import { stripControlCharacters } from "./control-characters.js";
 import { isEnvTest } from "./vitest.js";
-import { claimWarnOnce } from "./warned-once.js";
+import { claimWarnOnce, withWarnOnceScope } from "./warned-once.js";
 
 export type JsonErrorInfo = {
   code: string;
@@ -44,41 +46,62 @@ export type Logger = {
  * Formats a log line the way `console.warn` would, so a warning that is handed
  * back to a caller reads the same as the one that reaches a terminal.
  */
-function formatLogLine(message: string, args: unknown[]): string {
+function formatLogLine({ message, args }: { message: string; args: unknown[] }): string {
   return args.length === 0 ? message : format(message, ...args);
 }
 
 /**
- * How many warnings a collecting logger keeps, and how long each one may be.
+ * How much a collecting logger keeps: at most this many warnings, each at most
+ * this long, and no more than this in total.
  *
  * Collected warnings travel to places a console line does not — a `--json`
  * document that another program parses, an MCP result that an agent reads as
- * context — so the amount a repository's own configuration can push through
- * has to be bounded. A config with thousands of odd keys is a plausible
- * accident; either limit turns it into a short, honest report rather than a
- * multi-megabyte one.
+ * context — and their text quotes files rulesync did not write. So the amount a
+ * repository can push through has to be bounded twice over: a config with
+ * thousands of odd keys is a plausible accident, and a report sized in hundreds
+ * of kilobytes is a generous budget for text aimed at whoever reads it next.
+ * The total is the binding limit; the per-line and per-count limits keep one
+ * enormous warning, or one enormous number of them, from being the whole of it.
  */
 const MAX_COLLECTED_WARNINGS = 100;
-const MAX_COLLECTED_WARNING_LENGTH = 2_000;
+const MAX_COLLECTED_WARNING_LENGTH = 1_000;
+const MAX_COLLECTED_TOTAL_LENGTH = 8_000;
 
 /**
  * A bounded list of warning lines.
  */
 class WarningCollection {
   private readonly lines: string[] = [];
+  private readonly seen = new Set<string>();
+  private totalLength = 0;
   private omitted = 0;
 
-  add(message: string, args: unknown[]): void {
-    if (this.lines.length >= MAX_COLLECTED_WARNINGS) {
+  add({ message, args }: { message: string; args: unknown[] }): void {
+    // `JSON.stringify` escapes C0 only, so a value quoted into a warning can
+    // still carry a bidirectional override or a C1 introducer that reorders or
+    // forges the line when whatever reads the document prints it.
+    const line = stripControlCharacters(formatLogLine({ message, args }));
+    const kept =
+      line.length > MAX_COLLECTED_WARNING_LENGTH
+        ? `${line.slice(0, MAX_COLLECTED_WARNING_LENGTH)}… (truncated)`
+        : line;
+
+    // A plain `warn` repeats per tool target, so without this the budget below
+    // could be spent entirely on copies of one line while every distinct later
+    // diagnostic is reported only as a count.
+    if (this.seen.has(kept)) {
+      return;
+    }
+    if (
+      this.lines.length >= MAX_COLLECTED_WARNINGS ||
+      this.totalLength >= MAX_COLLECTED_TOTAL_LENGTH
+    ) {
       this.omitted++;
       return;
     }
-    const line = formatLogLine(message, args);
-    this.lines.push(
-      line.length > MAX_COLLECTED_WARNING_LENGTH
-        ? `${line.slice(0, MAX_COLLECTED_WARNING_LENGTH)}… (truncated)`
-        : line,
-    );
+    this.seen.add(kept);
+    this.lines.push(kept);
+    this.totalLength += kept.length;
   }
 
   toArray(): string[] {
@@ -272,7 +295,7 @@ export class JsonLogger extends BaseLogger implements Logger {
     // `--silent` asks for no diagnostics at all, which the document honors as
     // the console does; otherwise the warning is kept for `warnings`.
     if (this._silent) return;
-    this._warnings.add(message, args);
+    this._warnings.add({ message, args });
   }
 
   error(message: string | Error, code?: string, ..._args: unknown[]): void {
@@ -322,63 +345,85 @@ export function warnOnConflictingFlags({
 }
 
 /**
- * Where `fallbackLogger` currently sends what it is given. Defaults to a plain
- * console logger, which is what a code path with no command logger threaded
- * through would otherwise have used.
+ * Where `fallbackLogger` sends what it is given, scoped to the operation that
+ * adopted it.
+ *
+ * An `AsyncLocalStorage` rather than a plain variable because the target is
+ * per-operation, not per-process: a long-lived MCP server can have two requests
+ * in flight at once, and a save/restore pair would let the first one to finish
+ * hand the still-running request's warnings back to a console nobody reads.
+ * Each operation sees only its own store.
  */
-let fallbackTarget: Logger = new ConsoleLogger();
+const fallbackTargetStorage = new AsyncLocalStorage<Logger>();
+
+/**
+ * Where warnings go outside any adopted scope: a plain console logger, which is
+ * what a code path with no logger threaded through would otherwise have used.
+ */
+const defaultFallbackTarget: Logger = new ConsoleLogger();
+
+function currentFallbackTarget(): Logger {
+  return fallbackTargetStorage.getStore() ?? defaultFallbackTarget;
+}
 
 /**
  * Shared fallback logger for code paths that have no command logger threaded
  * through (module-level translators, `warnWithFallback(undefined, ...)`).
  *
- * It is a thin forwarder rather than a logger of its own so that the command
+ * It is a thin forwarder rather than a logger of its own so that the operation
  * currently running can adopt it: `wrapCommand` points it at the command
  * logger, which is how a warning raised deep in a translator still reaches a
- * `--json` document or an MCP result instead of being written to a console
- * that nobody in those modes is reading. Modules that captured a reference to
+ * `--json` document or an MCP result instead of being written to a console that
+ * nobody in those modes is reading. Modules that captured a reference to
  * `fallbackLogger` at import time follow the redirection too, which a
  * swapped-out binding would not give us.
  */
 export const fallbackLogger: Logger = {
+  // Configures the default target rather than an adopted one. An adopted logger
+  // belongs to the operation that handed it over and is configured by it; what
+  // `wrapCommand` and `ConfigResolver` are keeping in sync here is where
+  // warnings go when nothing has been adopted — which is what `rulesync mcp
+  // --silent` leaves in place for the lifetime of the server.
   configure(options: { verbose: boolean; silent: boolean }): void {
-    fallbackTarget.configure(options);
+    defaultFallbackTarget.configure(options);
   },
   get verbose(): boolean {
-    return fallbackTarget.verbose;
+    return currentFallbackTarget().verbose;
   },
   get silent(): boolean {
-    return fallbackTarget.silent;
+    return currentFallbackTarget().silent;
   },
   get reportsWhileSilent(): boolean {
-    return fallbackTarget.reportsWhileSilent;
+    return currentFallbackTarget().reportsWhileSilent;
   },
   get jsonMode(): boolean {
-    return fallbackTarget.jsonMode;
+    return currentFallbackTarget().jsonMode;
   },
-  captureData(key: string, value: unknown): void {
-    fallbackTarget.captureData(key, value);
-  },
+  // The forwarder carries diagnostics, not a command's result. Forwarding these
+  // would let a call from a path that has no logger of its own decide the shape
+  // of someone else's `--json` document — `outputJson` in particular is
+  // once-only, so a stray call would suppress the real one for good.
+  captureData(_key: string, _value: unknown): void {},
   getJsonData(): Record<string, unknown> {
-    return fallbackTarget.getJsonData();
+    return {};
   },
-  outputJson(success: boolean, error?: JsonErrorInfo): void {
-    fallbackTarget.outputJson(success, error);
-  },
+  outputJson(_success: boolean, _error?: JsonErrorInfo): void {},
   info(message: string, ...args: unknown[]): void {
-    fallbackTarget.info(message, ...args);
+    currentFallbackTarget().info(message, ...args);
   },
   success(message: string, ...args: unknown[]): void {
-    fallbackTarget.success(message, ...args);
+    currentFallbackTarget().success(message, ...args);
   },
   warn(message: string, ...args: unknown[]): void {
-    fallbackTarget.warn(message, ...args);
+    currentFallbackTarget().warn(message, ...args);
   },
+  // Errors go to the console rather than to an adopted logger, for the same
+  // reason: `JsonLogger.error` writes the failure document.
   error(message: string | Error, code?: string, ...args: unknown[]): void {
-    fallbackTarget.error(message, code, ...args);
+    defaultFallbackTarget.error(message, code, ...args);
   },
   debug(message: string, ...args: unknown[]): void {
-    fallbackTarget.debug(message, ...args);
+    currentFallbackTarget().debug(message, ...args);
   },
 };
 
@@ -387,11 +432,8 @@ export const fallbackLogger: Logger = {
  * where no logger was threaded through end up in the same place as the rest of
  * that operation's diagnostics.
  *
- * The redirection is scoped rather than set once and left: the target is
- * process-global, and a long-lived process (the MCP server) that left it
- * pointing at a finished request's logger would send the next request's
- * warnings somewhere nobody reads. The previous target is restored even if the
- * operation throws.
+ * The redirection lasts exactly as long as the operation and is invisible to
+ * anything running beside it.
  */
 export async function withFallbackLoggerTarget<T>({
   logger,
@@ -400,15 +442,19 @@ export async function withFallbackLoggerTarget<T>({
   logger: Logger;
   operation: () => Promise<T>;
 }): Promise<T> {
-  const previous = fallbackTarget;
   // Forwarding the forwarder to itself would recurse forever; a caller that
-  // passes it can only have meant "leave the fallback alone".
-  fallbackTarget = logger === fallbackLogger ? previous : logger;
-  try {
+  // passes it can only have meant "leave the fallback where it is". The guard
+  // is identity-only, so a wrapper *around* `fallbackLogger` — the object
+  // literal in `hooks-processor.ts`, say — must never be adopted as a target;
+  // nothing does that today, and doing it would recurse rather than be ignored.
+  if (logger === fallbackLogger) {
     return await operation();
-  } finally {
-    fallbackTarget = previous;
   }
+  // An operation with its own logger also gets its own once-per-run
+  // bookkeeping: two MCP requests in flight at once must not spend each
+  // other's tokens, or one result would go silent about a diagnostic that
+  // applies to it too.
+  return await fallbackTargetStorage.run(logger, () => withWarnOnceScope(operation));
 }
 
 /**
@@ -460,7 +506,7 @@ export class WarningCollectingLogger extends ConsoleLogger {
   }
 
   override warn(message: string, ...args: unknown[]): void {
-    this.warnings.add(message, args);
+    this.warnings.add({ message, args });
     super.warn(message, ...args);
   }
 

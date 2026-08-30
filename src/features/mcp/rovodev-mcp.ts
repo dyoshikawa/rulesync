@@ -12,6 +12,7 @@ import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
   ROVODEV_CONFIG_SHARED_FILE_KEY,
@@ -455,7 +456,7 @@ async function warnAtDocumentedDefault({
   const { pointer, configLabel, mcpLabel } = pointerLabels(true);
   const displaced = await describeDisplacedGlobalServers({ outputRoot });
   logger?.warn(
-    `Rovo Dev MCP: leaving mcp.mcpConfigPath as ${JSON.stringify(existing)} in ${configLabel}. ` +
+    `Rovo Dev MCP: leaving mcp.mcpConfigPath as ${quoteValueForWarning(existing)} in ${configLabel}. ` +
       `That is the default Atlassian's settings reference documents, so it may be Rovo Dev's ` +
       `own value rather than one you chose — and while it stands, the generated ${mcpLabel} is ` +
       `never read. ` +
@@ -571,7 +572,7 @@ async function applyMcpConfigPointer({
     envVarMcpFileSpellings({ fileName: ROVODEV_MCP_FILE_NAME }).includes(normalizedExisting)
   ) {
     logger?.warn(
-      `Rovo Dev MCP: mcp.mcpConfigPath in ${configLabel} is ${JSON.stringify(existing)}. That ` +
+      `Rovo Dev MCP: mcp.mcpConfigPath in ${configLabel} is ${quoteValueForWarning(existing)}. That ` +
         `names ${mcpLabel} only if Rovo Dev expands environment variables in this setting, ` +
         `which Atlassian does not document — if it does not, the path resolves literally and ` +
         `Rovo Dev reads no MCP servers at all. Write "${pointer}" instead, the form its own ` +
@@ -581,7 +582,7 @@ async function applyMcpConfigPointer({
   }
 
   logger?.warn(
-    `Rovo Dev MCP: leaving mcp.mcpConfigPath as ${JSON.stringify(existing)} in ${configLabel}. ` +
+    `Rovo Dev MCP: leaving mcp.mcpConfigPath as ${quoteValueForWarning(existing)} in ${configLabel}. ` +
       `Rovo Dev reads MCP servers from that path, so the generated ${mcpLabel} is unused until ` +
       `it is set to "${pointer}".`,
   );

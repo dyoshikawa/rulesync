@@ -7,6 +7,7 @@ import {
   JsonLogger,
   warnOnConflictingFlags,
   warnOnceWithFallback,
+  withFallbackLoggerTarget,
   WarningCollectingLogger,
   warnWithFallback,
 } from "./logger.js";
@@ -511,8 +512,45 @@ describe("JsonLogger warnings", () => {
 
     const warnings = output.warnings as string[];
 
-    expect(warnings[0]).toHaveLength(2000 + "… (truncated)".length);
+    expect(warnings[0]).toHaveLength(1000 + "… (truncated)".length);
     expect(warnings[0]).toMatch(/… \(truncated\)$/);
+  });
+
+  it("stops once the warnings add up to the total budget, well before the count limit", () => {
+    const output = captureJsonOutput((logger) => {
+      for (let i = 0; i < 20; i++) {
+        logger.warn(`${i} ${"y".repeat(900)}`);
+      }
+    });
+
+    const warnings = output.warnings as string[];
+    const reported = warnings.slice(0, -1);
+
+    // Nine 900-character lines fit under 8,000; the tenth is what crosses it.
+    expect(reported).toHaveLength(9);
+    expect(warnings.at(-1)).toBe("… and 11 more warning(s) not reported");
+  });
+
+  it("keeps one copy of a line a run repeats per tool target", () => {
+    const output = captureJsonOutput((logger) => {
+      logger.warn("the same diagnostic");
+      logger.warn("the same diagnostic");
+      logger.warn("a different one");
+    });
+
+    // Without this, a warning repeated once per target could spend the whole
+    // budget and leave every distinct later diagnostic to a bare count.
+    expect(output.warnings).toEqual(["the same diagnostic", "a different one"]);
+  });
+
+  it("strips control characters from a warning, so a quoted value cannot forge lines", () => {
+    const output = captureJsonOutput((logger) => {
+      logger.warn("read %s from it", '"\u202eevil\u0007"');
+    });
+
+    const warnings = output.warnings as string[];
+
+    expect(warnings[0]).toBe('read "evil" from it');
   });
 });
 
@@ -545,6 +583,165 @@ describe("WarningCollectingLogger", () => {
       expect(warnSpy).toHaveBeenCalledOnce();
     } finally {
       warnSpy.mockRestore();
+    }
+  });
+});
+
+/** A promise paired with the function that settles it, to order two operations. */
+function createGate(): { reached: Promise<void>; release: () => void } {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  return { reached: promise, release: resolve };
+}
+
+/** Raise the same once-per-run warning inside an operation of its own. */
+function runInScope(logger: WarningCollectingLogger): Promise<void> {
+  return withFallbackLoggerTarget({
+    logger,
+    operation: async () => {
+      warnOnceWithFallback(undefined, "read a machine-local overrides file");
+    },
+  });
+}
+
+describe("withFallbackLoggerTarget", () => {
+  it("routes a warning raised without a logger to the adopted logger", async () => {
+    const collector = new WarningCollectingLogger({ verbose: false, silent: true });
+
+    await withFallbackLoggerTarget({
+      logger: collector,
+      operation: async () => {
+        warnWithFallback(undefined, "raised deep in the run");
+      },
+    });
+
+    expect(collector.getWarnings()).toEqual(["raised deep in the run"]);
+  });
+
+  it("keeps two overlapping operations from stealing each other's warnings", async () => {
+    // A save-and-restore implementation would pass the simple case above and
+    // fail here: the operation that finishes first would restore the target
+    // out from under the one still running.
+    const first = new WarningCollectingLogger({ verbose: false, silent: true });
+    const second = new WarningCollectingLogger({ verbose: false, silent: true });
+    const firstGate = createGate();
+    const secondGate = createGate();
+
+    // Both operations are open at once, and the one that started first is also
+    // the one that finishes first — the interleaving a save-and-restore pair
+    // gets wrong, because its "previous" target is the state from before
+    // either began.
+    const firstRun = withFallbackLoggerTarget({
+      logger: first,
+      operation: async () => {
+        await firstGate.reached;
+        warnWithFallback(undefined, "from the first operation");
+      },
+    });
+    const secondRun = withFallbackLoggerTarget({
+      logger: second,
+      operation: async () => {
+        await secondGate.reached;
+        warnWithFallback(undefined, "from the second operation");
+      },
+    });
+    firstGate.release();
+    await firstRun;
+    secondGate.release();
+    await secondRun;
+
+    expect(first.getWarnings()).toEqual(["from the first operation"]);
+    expect(second.getWarnings()).toEqual(["from the second operation"]);
+  });
+
+  it("restores the console once the operation is over, including when it throws", async () => {
+    const collector = new WarningCollectingLogger({ verbose: false, silent: true });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      await expect(
+        withFallbackLoggerTarget({
+          logger: collector,
+          operation: async () => {
+            throw new Error("boom");
+          },
+        }),
+      ).rejects.toThrow("boom");
+
+      warnWithFallback(undefined, "after the operation");
+
+      expect(collector.getWarnings()).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith("after the operation");
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("treats the forwarder itself as 'leave the fallback where it is'", async () => {
+    const collector = new WarningCollectingLogger({ verbose: false, silent: true });
+
+    await withFallbackLoggerTarget({
+      logger: collector,
+      operation: () =>
+        withFallbackLoggerTarget({
+          logger: fallbackLogger,
+          operation: async () => {
+            warnWithFallback(undefined, "still the outer target");
+          },
+        }),
+    });
+
+    expect(collector.getWarnings()).toEqual(["still the outer target"]);
+  });
+
+  it("gives each operation its own once-per-run bookkeeping", async () => {
+    const first = new WarningCollectingLogger({ verbose: false, silent: true });
+    const second = new WarningCollectingLogger({ verbose: false, silent: true });
+    await Promise.all([runInScope(first), runInScope(second)]);
+
+    // Sharing one set would leave whichever ran second silent about a
+    // diagnostic that applies to its own run just as much.
+    expect(first.getWarnings()).toEqual(["read a machine-local overrides file"]);
+    expect(second.getWarnings()).toEqual(["read a machine-local overrides file"]);
+  });
+
+  it("configures the default target, not whichever logger is adopted", async () => {
+    const collector = new WarningCollectingLogger({ verbose: false, silent: true });
+
+    await withFallbackLoggerTarget({
+      logger: collector,
+      operation: async () => {
+        fallbackLogger.configure({ verbose: true, silent: true });
+      },
+    });
+
+    // The adopted logger belongs to the operation that handed it over; only the
+    // console the forwarder falls back to is `wrapCommand`'s to silence.
+    expect(collector.verbose).toBe(false);
+    expect(fallbackLogger.silent).toBe(true);
+
+    fallbackLogger.configure({ verbose: false, silent: false });
+  });
+
+  it("carries diagnostics only, leaving the adopted logger's JSON document alone", async () => {
+    const jsonLogger = new JsonLogger({ command: "test", version: "1.0.0" });
+    const outputSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      await withFallbackLoggerTarget({
+        logger: jsonLogger,
+        operation: async () => {
+          // `outputJson` is once-only, so forwarding it would let a call from a
+          // path with no logger of its own suppress the command's real output.
+          fallbackLogger.captureData("stolen", true);
+          fallbackLogger.outputJson(true);
+        },
+      });
+
+      expect(outputSpy).not.toHaveBeenCalled();
+      expect(fallbackLogger.getJsonData()).toEqual({});
+      expect(jsonLogger.getJsonData()).toEqual({});
+    } finally {
+      outputSpy.mockRestore();
     }
   });
 });

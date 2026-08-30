@@ -42,7 +42,9 @@ export type McpConvertResult = {
    * Diagnostics raised while reading the source tool's files. `convert` reads
    * them through the same path as `import`, and the MCP server writes nothing
    * to a console the caller can see, so anything worth acting on has to travel
-   * in the result itself. Omitted when there is nothing to report.
+   * in the result itself. Present on failures too, since a run that warned and
+   * then threw is exactly when the caller needs to hear it. Omitted when there
+   * is nothing to report.
    */
   warnings?: string[];
   error?: string;
@@ -63,6 +65,11 @@ function parseToolTarget(value: string, label: string): ToolTarget {
  * Configuration priority: MCP Parameters > rulesync.local.jsonc > rulesync.jsonc > Default values
  */
 export async function executeConvert(options: ConvertOptions): Promise<McpConvertResult> {
+  // Declared outside the `try` so a run that warns and then fails still reports
+  // what it warned about. A failed import that had already read a
+  // machine-local overrides file is exactly when the caller needs to hear it.
+  const logger = new WarningCollectingLogger({ verbose: false, silent: true });
+
   try {
     // Validate from
     if (!options.from) {
@@ -110,7 +117,6 @@ export async function executeConvert(options: ConvertOptions): Promise<McpConver
       silent: true,
     });
 
-    const logger = new WarningCollectingLogger({ verbose: false, silent: true });
     const convertResult = await withFallbackLoggerTarget({
       logger,
       operation: () => convertFromTool({ config, fromTool, toTools, logger }),
@@ -118,9 +124,11 @@ export async function executeConvert(options: ConvertOptions): Promise<McpConver
 
     return buildSuccessResponse({ convertResult, config, fromTool, toTools, logger });
   } catch (error) {
+    const warnings = logger.getWarnings();
     return {
       success: false,
       error: formatError(error),
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
   }
 }

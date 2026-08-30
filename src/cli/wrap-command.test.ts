@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 
 import { createMockLogger, type MockLogger } from "../test-utils/mock-logger.js";
 import { CLIError } from "../types/json-output.js";
-import { JsonLogger, Logger, warnWithFallback } from "../utils/logger.js";
+import { fallbackLogger, JsonLogger, Logger, warnWithFallback } from "../utils/logger.js";
 import { createLogger, wrapCommand } from "./wrap-command.js";
 
 type CommandHandler = (
@@ -175,6 +175,26 @@ describe("wrapCommand", () => {
       const output = JSON.parse(logSpy.mock.calls[0]![0] as string);
 
       expect(output.warnings).toBeUndefined();
+    });
+
+    it("carries --silent to the console the fallback keeps after the command returns", async () => {
+      const { wrapped } = createWrappedCommand(
+        {
+          // `rulesync mcp` returns from its handler while the server it started
+          // keeps running, so warnings raised later fall back to that console
+          // rather than to any adopted logger. `--silent` has to reach it.
+          handler: vi.fn() as unknown as CommandHandler,
+        },
+        mockLoggerFactory,
+      );
+
+      try {
+        await wrapped({}, createMockCommand({ silent: true }));
+
+        expect(fallbackLogger.silent).toBe(true);
+      } finally {
+        fallbackLogger.configure({ verbose: false, silent: false });
+      }
     });
   });
 

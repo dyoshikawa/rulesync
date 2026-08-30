@@ -88,6 +88,28 @@ describe("MCP Convert Tools", () => {
       ]);
     });
 
+    it("still reports the warnings when the conversion fails part-way through", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ commandAllowlist: ["git *"] }),
+      );
+      // A file where the destination directory has to go: the read (and its
+      // warning) succeeds, the write that follows cannot.
+      await writeFileContent(join(testDir, ".cursor"), "not a directory");
+
+      const result = await executeConvert({
+        from: "factorydroid",
+        to: ["cursor"],
+        features: ["permissions"],
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.warnings).toEqual([
+        expect.stringContaining("settings.local.json is a machine-local overrides file"),
+      ]);
+    });
+
     it("omits the warnings key when the conversion had nothing to report", async () => {
       await writeFileContent(join(testDir, "CLAUDE.md"), "# Claude Code Rules\n");
 

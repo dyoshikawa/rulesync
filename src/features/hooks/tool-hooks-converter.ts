@@ -12,6 +12,7 @@ import {
 } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 
 type ToolMatcherEntry = {
@@ -490,24 +491,6 @@ const isImportableNumber: PassthroughValidator = ({ value, canonical }) =>
  * closed enum lists its members; a rule carrying its own message (the
  * control-character check behind `safeString`) reuses it.
  */
-/**
- * How much of a rejected value a diagnostic quotes.
- *
- * The warnings below name the value so the reader can find the entry they are
- * about, but the fields they cover hold command lines, URLs and headers — the
- * shapes most likely to carry a credential. Those diagnostics no longer stop at
- * a terminal: they travel into a `--json` document and into an MCP result that
- * an agent reads as context. Quote only enough to recognize the entry.
- */
-const MAX_QUOTED_VALUE_LENGTH = 60;
-
-function quoteValueForWarning(value: unknown): string {
-  const encoded = JSON.stringify(value) ?? String(value);
-  return encoded.length > MAX_QUOTED_VALUE_LENGTH
-    ? `${encoded.slice(0, MAX_QUOTED_VALUE_LENGTH)}…(truncated)`
-    : encoded;
-}
-
 function describeScalarConstraint({
   canonical,
   value,

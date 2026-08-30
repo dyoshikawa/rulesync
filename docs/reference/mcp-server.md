@@ -17,9 +17,9 @@ The single `rulesyncTool` multiplexes by `feature` and `operation`:
 
 The `permissions` feature operates on `.rulesync/permissions.jsonc` and the `hooks` feature operates on `.rulesync/hooks.jsonc`. Both accept a `content` string (valid JSONC) on `put`.
 
-### Warnings from `import` / `run` and `convert` / `run`
+### Warnings from `generate` / `run`, `import` / `run`, and `convert` / `run`
 
-The server writes nothing to a console the calling agent can read, so a diagnostic raised while reading the source tool's files — for example, that a machine-local overrides file such as `.factory/settings.local.json` was read into files rulesync commits — travels back in the result instead, as a `warnings` array of strings. The field is omitted when the operation had nothing to report. At most 100 warnings are returned, each truncated to 2,000 characters.
+The server writes nothing to a console the calling agent can read, so a diagnostic raised while reading the source tool's files, or while generating — for example, that a machine-local overrides file such as `.factory/settings.local.json` was read into files rulesync commits — travels back in the result instead, as a `warnings` array of strings. The field is omitted when the operation had nothing to report, and is present on failures too, since a run that warned and then failed is exactly when the warnings matter. At most 100 warnings are returned, each truncated to 1,000 characters and 8,000 characters in total.
 
 ### `skill` other files
 

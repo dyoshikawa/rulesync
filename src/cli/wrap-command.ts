@@ -4,6 +4,7 @@ import { CLIError } from "../types/json-output.js";
 import { formatError } from "../utils/error.js";
 import {
   ConsoleLogger,
+  fallbackLogger,
   JsonLogger,
   Logger,
   warnOnConflictingFlags,
@@ -65,6 +66,10 @@ export function wrapCommand({
     };
     warnOnConflictingFlags({ ...cliLoggerOptions, jsonMode: logger.jsonMode });
     logger.configure(cliLoggerOptions);
+    // Also the default fallback target, which is where warnings go once the
+    // adopted scope below closes — `rulesync mcp` returns from its handler
+    // while the server it started keeps running, so `--silent` has to reach it.
+    fallbackLogger.configure(cliLoggerOptions);
 
     try {
       // Adopt the shared fallback for the duration of the command, so a warning

@@ -40,7 +40,9 @@ export type McpImportResult = {
   /**
    * Diagnostics raised while reading the tool's files. The MCP server writes
    * nothing to a console the caller can see, so anything worth acting on has to
-   * travel in the result itself. Omitted when there is nothing to report.
+   * travel in the result itself. Present on failures too, since a run that
+   * warned and then threw is exactly when the caller needs to hear it. Omitted
+   * when there is nothing to report.
    */
   warnings?: string[];
   error?: string;
@@ -51,6 +53,11 @@ export type McpImportResult = {
  * Configuration priority: MCP Parameters > rulesync.local.jsonc > rulesync.jsonc > Default values
  */
 export async function executeImport(options: ImportOptions): Promise<McpImportResult> {
+  // Declared outside the `try` so a run that warns and then fails still reports
+  // what it warned about. A failed import that had already read a
+  // machine-local overrides file is exactly when the caller needs to hear it.
+  const logger = new WarningCollectingLogger({ verbose: false, silent: true });
+
   try {
     // Validate target
     if (!options.target) {
@@ -75,7 +82,6 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
 
     const tool = config.getTargets()[0] as ToolTarget;
 
-    const logger = new WarningCollectingLogger({ verbose: false, silent: true });
     // Adopt the shared fallback too: warnings raised on paths that never
     // received a logger would otherwise go to a stderr the calling agent
     // cannot read, and the absence of a `warnings` key would read as "nothing
@@ -87,9 +93,11 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
 
     return buildSuccessResponse({ importResult, config, tool, logger });
   } catch (error) {
+    const warnings = logger.getWarnings();
     return {
       success: false,
       error: formatError(error),
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
   }
 }

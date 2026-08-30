@@ -12,7 +12,7 @@ import { type RulesyncFeatures } from "../types/features.js";
 import { ErrorCodes } from "../types/json-output.js";
 import { type RulesyncTargets } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
-import { ConsoleLogger } from "../utils/logger.js";
+import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
 import { type McpResultCounts } from "./types.js";
 
@@ -34,7 +34,7 @@ import { type McpResultCounts } from "./types.js";
  * tool config, say — and the agent reading the response would have to guess
  * which of them explains the failure.
  */
-class CollectingLogger extends ConsoleLogger {
+class CollectingLogger extends WarningCollectingLogger {
   private readonly errors: string[] = [];
 
   override error(message: string | Error, code?: string, ...args: unknown[]): void {
@@ -87,6 +87,14 @@ export type McpGenerateResult = {
     simulateSubagents: boolean;
     simulateSkills: boolean;
   };
+  /**
+   * Diagnostics raised during the run. The MCP server writes nothing to a
+   * console the caller can see, so anything worth acting on has to travel in
+   * the result itself. Present on failures too, since a run that warned and
+   * then failed is exactly when the warnings matter. Omitted when there is
+   * nothing to report.
+   */
+  warnings?: string[];
   error?: string;
 };
 
@@ -95,6 +103,11 @@ export type McpGenerateResult = {
  * Configuration priority: MCP Parameters > rulesync.local.jsonc > rulesync.jsonc > Default values
  */
 export async function executeGenerate(options: GenerateOptions = {}): Promise<McpGenerateResult> {
+  // Declared outside the `try` because the source-load failure below is
+  // reported by throwing, and a run that warns and then fails is exactly when
+  // the caller needs to hear what it warned about.
+  const logger = new CollectingLogger({ verbose: false, silent: true });
+
   try {
     // Resolve config with MCP parameters taking precedence
     // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
@@ -120,8 +133,13 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
       throw new Error(inputRootInspection.message);
     }
 
-    const logger = new CollectingLogger({ verbose: false, silent: true });
-    const generateResult = await generate({ config, logger });
+    // Adopt the shared fallback too: warnings raised on paths that never
+    // received a logger would otherwise go to a stderr the calling agent
+    // cannot read.
+    const generateResult = await withFallbackLoggerTarget({
+      logger,
+      operation: () => generate({ config, logger }),
+    });
 
     // A source that could not be read writes nothing, and every count in the
     // result reads zero for it — the same shape as a run that had nothing to
@@ -131,11 +149,13 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
       throw new Error([sourceLoadFailureMessage, ...logger.getErrors()].join("\n"));
     }
 
-    return buildSuccessResponse({ generateResult, config });
+    return buildSuccessResponse({ generateResult, config, logger });
   } catch (error) {
+    const warnings = logger.getWarnings();
     return {
       success: false,
       error: formatError(error),
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
   }
 }
@@ -167,10 +187,12 @@ function buildGenerateMessage(params: { totalCount: number; config: Config }): s
 function buildSuccessResponse(params: {
   generateResult: GenerateResult;
   config: Config;
+  logger: CollectingLogger;
 }): McpGenerateResult {
-  const { generateResult, config } = params;
+  const { generateResult, config, logger } = params;
 
   const totalCount = calculateTotalCount(generateResult);
+  const warnings = logger.getWarnings();
 
   return {
     success: true,
@@ -197,6 +219,7 @@ function buildSuccessResponse(params: {
       simulateSubagents: config.getSimulateSubagents(),
       simulateSkills: config.getSimulateSkills(),
     },
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }
 
