@@ -1,7 +1,7 @@
 import checkbox from "@inquirer/checkbox";
 
 import { describeConfusableNames, readingFormOf } from "../utils/confusable-names.js";
-import { displayWidthOf, shortenToWidth } from "../utils/display-width.js";
+import { ELLIPSIS_WIDTH, displayWidthOf, shortenToWidth } from "../utils/display-width.js";
 
 /**
  * Thrown when the user cancels the interactive skill selection (e.g. Ctrl+C).
@@ -29,7 +29,7 @@ const SKILL_PROMPT_SHORTCUTS = {
 } as const;
 
 /**
- * How wide a label the prompt draws, in terminal columns.
+ * The widest label the prompt draws, in terminal columns.
  *
  * A directory name can be 255 bytes long, which wraps across several lines of a
  * terminal and lets a name padded with spaces paint what looks like another
@@ -41,15 +41,102 @@ const SKILL_PROMPT_SHORTCUTS = {
  * Columns rather than characters, because the two part ways precisely where an
  * attacker would want them to: 66 ideographic spaces are 66 characters and 132
  * columns, so a limit counted in characters would wave them through.
+ *
+ * A ceiling rather than the budget itself: the terminal has the other half of
+ * the say, and `skillLabelBudget` takes the smaller of the two.
  */
 const MAX_SKILL_LABEL_WIDTH = 72;
 
 /**
+ * What the prompt draws in front of a label, in columns.
+ *
+ * `@inquirer/checkbox` renders each row as `${cursor}${checkbox} ${name}` (its
+ * `renderItem`, as of 5.2.2): the pointer, the box, and the space between the
+ * box and the label. Nothing is drawn in front of a continuation line, so a
+ * label that overruns the row paints its tail flush against the left margin,
+ * which is exactly where a padded name wants it.
+ *
+ * The widest the three can come to rather than the width they usually are, and
+ * what sets that is the fallback. `@inquirer/figures` draws the pointer and the
+ * box as `❯` and `◯` where the terminal has the font for them and as `>` and
+ * `( )` where it does not — the Linux console, and the older Windows console
+ * outside Terminal — and the fallback box alone is three columns, for five in
+ * all. The Unicode spelling comes to four at its widest: of the three glyphs
+ * only `◯` is East Asian Ambiguous, which this project counts at one column and
+ * a terminal set to draw the ambiguous characters wide draws at two, while the
+ * pointer `❯` and the checked box `◉` are Neutral and stay at one either way.
+ *
+ * Five, then, because a budget two columns short is a row that wraps, and two
+ * columns spent on a prefix that turned out to be narrower is two characters of
+ * a name.
+ */
+const CHOICE_PREFIX_WIDTH = 5;
+
+/**
+ * The width to assume when the terminal does not say how wide it is.
+ *
+ * The same 80 that `@inquirer/core` falls back to when it wraps the rows
+ * (`readlineWidth`, by way of `cli-width`), so the budget is derived from the
+ * width the rows are actually broken at rather than from a second guess.
+ */
+const FALLBACK_TERMINAL_WIDTH = 80;
+
+/**
  * How much of a name survives however long the note in front of it is. A name
  * cut to nothing would leave the picker choosing between rows it cannot tell
- * apart at all, which is worse than a label that wraps.
+ * apart at all, which is worse than a name cut short.
+ *
+ * It is what a name is given where there is that much to give: in a terminal
+ * too narrow for both, the row is shared out rather than overrun, since a label
+ * wider than its budget wraps onto a line that carries no marker of the
+ * prompt's own — which is the row this whole module exists to keep a name from
+ * painting.
  */
 const MIN_SHORTENED_NAME_WIDTH = 16;
+
+/**
+ * How wide a label may be in the terminal it is about to be drawn in.
+ *
+ * The cap above is not enough on its own: `@inquirer/core` breaks every
+ * rendered row at the real terminal width, and the columns of pointer and
+ * checkbox come out of that width without being repeated on the continuation
+ * line. In anything narrower than 77 columns — a 120-column window split in
+ * half is 60 — a 72-column label wraps, and the second line a name can paint
+ * beneath itself is back, carrying no note, since a name padded with ordinary
+ * visible characters is not confusable with anything.
+ *
+ * A width of zero is treated as no width at all rather than as a terminal three
+ * columns narrower than nothing. A TTY reports it while it is being resized,
+ * and `cli-width` — which is what decides where the rows are actually broken —
+ * turns it into the same 80 this does, so taking it literally would budget
+ * against a width the renderer never uses. (`cli-width` reads `CLI_WIDTH` from
+ * the environment before it falls back to 80, which this does not; a prompt is
+ * refused outright without a TTY, and a TTY answers before either is asked.)
+ *
+ * `process.stdout` is the same stream the renderer measures because `checkbox`
+ * is called without an `output` option and `@inquirer/core` defaults the
+ * readline output to it. A caller that passes one would decouple the budget
+ * from the width the rows are broken at.
+ *
+ * Read once, before the prompt opens, where the renderer re-measures on every
+ * render: a window narrowed while the picker is up puts the labels back over
+ * the wrap point until it is closed and reopened. Recorded rather than solved,
+ * since the checkbox API offers no way to relabel a prompt in flight.
+ *
+ * The floor is the one a name is kept to anyway, and below it there is nothing
+ * left to shorten toward: a label cut past that point is an ellipsis and little
+ * else, and a list of rows that cannot be told apart at all is worse than one
+ * whose rows are too long for the window. In a terminal that narrow the row
+ * wraps whatever this returns, so the floor is where the shortening stops
+ * rather than a width anything is promised to fit in.
+ */
+function skillLabelBudget(): number {
+  const terminalWidth = process.stdout.columns || FALLBACK_TERMINAL_WIDTH;
+  return Math.max(
+    Math.min(MAX_SKILL_LABEL_WIDTH, terminalWidth - CHOICE_PREFIX_WIDTH),
+    MIN_SHORTENED_NAME_WIDTH,
+  );
+}
 
 /** Marks the label as carrying the tool's own warning rather than a name. */
 const NOTE_MARKER = "[!] ";
@@ -72,6 +159,14 @@ const NOTE_SEPARATOR = " \u2014 ";
  * note, and the reasons are ordered by weight, so a cut takes them from the
  * tail: the marker survives every time, and so does the beginning of the first
  * reason.
+ *
+ * The name is given `MIN_SHORTENED_NAME_WIDTH` columns however long the note
+ * is, but never more than the row has left after the marker, the separator and
+ * the one column a cut note is still drawn in. That is what shares out a
+ * terminal too narrow to seat both, and the composed label is cut to the budget
+ * on the way out, so what is returned is the width it was budgeted or less
+ * however the pieces fall — a wider label wraps onto a line the prompt draws no
+ * marker on, which is the row this module exists to keep a name from painting.
  */
 function formatSkillChoiceLabel(params: {
   name: string;
@@ -85,13 +180,26 @@ function formatSkillChoiceLabel(params: {
   const available = budget - displayWidthOf(NOTE_MARKER) - displayWidthOf(NOTE_SEPARATOR);
   const shownName = shortenToWidth({
     text: name,
-    budget: Math.max(available - displayWidthOf(note), MIN_SHORTENED_NAME_WIDTH),
+    budget: Math.min(
+      Math.max(available - displayWidthOf(note), MIN_SHORTENED_NAME_WIDTH),
+      Math.max(available - ELLIPSIS_WIDTH, 0),
+    ),
   });
   const shownNote = shortenToWidth({
     text: note,
     budget: available - displayWidthOf(shownName),
   });
-  return `${NOTE_MARKER}${shownNote}${NOTE_SEPARATOR}${shownName}`;
+  // Cut as a whole once the pieces are laid out: each is kept to what it was
+  // given, but a budget too small for the marker, the separator and a mark of
+  // the cut on either side is one none of them can give any more back to. This
+  // is the cut that holds the bound, at any budget of a column or more — the
+  // numbered rows, whose budget is this one less the number in front of them,
+  // included. The clamp above it decides which piece gives way rather than
+  // whether one does: the name yields and the marker and the separator do not.
+  return shortenToWidth({
+    text: `${NOTE_MARKER}${shownNote}${NOTE_SEPARATOR}${shownName}`,
+    budget,
+  });
 }
 
 /**
@@ -145,8 +253,9 @@ function numberPrefixOf(position: number): string {
 function formatSkillChoiceLabels(params: {
   names: string[];
   notes: ReadonlyMap<string, string>;
+  budget: number;
 }): string[] {
-  const { names, notes } = params;
+  const { names, notes, budget } = params;
   // Both notes when both apply: a name can read like another entry and open
   // with the tool's own markup at once, and dropping either reason would leave
   // the row explained by half of what is wrong with it.
@@ -162,7 +271,7 @@ function formatSkillChoiceLabels(params: {
     formatSkillChoiceLabel({
       name,
       note: notesByIndex[index],
-      budget: MAX_SKILL_LABEL_WIDTH,
+      budget,
     }),
   );
   const readings = labels.map((label) => readingFormOf(label));
@@ -179,7 +288,7 @@ function formatSkillChoiceLabels(params: {
     return `${prefix}${formatSkillChoiceLabel({
       name,
       note: notesByIndex[index],
-      budget: MAX_SKILL_LABEL_WIDTH - displayWidthOf(prefix),
+      budget: budget - displayWidthOf(prefix),
     })}`;
   });
 }
@@ -205,7 +314,11 @@ export async function promptSkillSelection(params: {
   // be drawn identically. The labels carry the note that says so, and are made
   // distinct from each other; `value` stays the real name, so what is written
   // is still exactly what was checked.
-  const labels = formatSkillChoiceLabels({ names: availableSkills, notes: confusableNotes });
+  const labels = formatSkillChoiceLabels({
+    names: availableSkills,
+    notes: confusableNotes,
+    budget: skillLabelBudget(),
+  });
 
   try {
     return await checkbox({

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { displayWidthOf } from "../utils/display-width.js";
 import {
@@ -15,7 +15,37 @@ vi.mock("@inquirer/checkbox", () => ({
   default: checkboxMock,
 }));
 
+/**
+ * What `process.stdout.columns` was before a test pinned it. A pipe has no such
+ * property at all, which is why the descriptor is kept rather than the value.
+ */
+const originalColumns = Object.getOwnPropertyDescriptor(process.stdout, "columns");
+
+/**
+ * Pin the width the labels are budgeted against, so what the assertions expect
+ * does not depend on the window the test run happens to sit in. `undefined`
+ * stands for the terminal that does not say how wide it is, which is what the
+ * prompt sees when its output is a pipe.
+ */
+function setTerminalWidth(columns: number | undefined): void {
+  Object.defineProperty(process.stdout, "columns", { value: columns, configurable: true });
+}
+
 describe("promptSkillSelection", () => {
+  beforeEach(() => {
+    // 80 columns leaves 77 for the label, so the 72-column ceiling is what the
+    // tests below are measuring against.
+    setTerminalWidth(80);
+  });
+
+  afterEach(() => {
+    if (originalColumns === undefined) {
+      delete (process.stdout as { columns?: number }).columns;
+      return;
+    }
+    Object.defineProperty(process.stdout, "columns", originalColumns);
+  });
+
   // The `shortcuts` assertions below are the point of this test as much as the
   // unchecked boxes are: starting from an empty selection is only reasonable
   // because <a> makes "fetch everything" one keystroke away.
@@ -305,6 +335,157 @@ describe("promptSkillSelection", () => {
     }>;
     expect(choices[1]?.name).toMatch(/begins the way this list marks its own rows; another/u);
     expect(choices[1]?.value).toBe(cyrillic);
+  });
+
+  it("should fit the label to a terminal narrower than the widest one it draws", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // A 120-column window split down the middle. The prompt draws a pointer, a
+    // checkbox and a space in front of the label and nothing at all in front of
+    // the line a label wraps onto, so 55 columns is what a row has to spare.
+    setTerminalWidth(60);
+    const padded = `pdf${" ".repeat(100)}pdf`;
+
+    await promptSkillSelection({ availableSkills: [padded], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    // Asserted to the column rather than as an upper bound, so a budget that
+    // subtracted the wrong prefix would fail here instead of passing by being
+    // shorter than it had to be.
+    expect(choices[0]?.name).toBe(
+      `[!] carries more whitespace than th\u2026 \u2014 pdf${" ".repeat(12)}\u2026`,
+    );
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(55);
+    expect(choices[0]?.value).toBe(padded);
+  });
+
+  it("should fit a numbered label to the narrow terminal too", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // The number is drawn in front of a label that was already cut to fit, so
+    // it has to come out of the same width rather than be added to it.
+    setTerminalWidth(60);
+    const shared = "a".repeat(71);
+
+    await promptSkillSelection({
+      availableSkills: [`${shared}-official`, `${shared}-not-official`],
+      preselectedSkills: [],
+    });
+
+    const shortened = "a".repeat(50);
+    expect(checkboxMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        choices: [
+          { name: `(1) ${shortened}\u2026`, value: `${shared}-official`, checked: false },
+          { name: `(2) ${shortened}\u2026`, value: `${shared}-not-official`, checked: false },
+        ],
+      }),
+    );
+  });
+
+  it("should assume the width its own renderer assumes when the terminal is silent", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // A pipe carries no width, and the renderer wraps at 80 when asked one it
+    // cannot answer, so the label is budgeted against the same 80.
+    setTerminalWidth(undefined);
+    const long = `pdf${"o".repeat(100)}`;
+
+    await promptSkillSelection({ availableSkills: [long], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(68)}\u2026`);
+  });
+
+  it("should treat a width of zero as a terminal that did not answer", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // A TTY reports zero columns while it is being resized. The renderer breaks
+    // the rows at 80 in that case rather than at nothing, so the budget has to
+    // land on the same 80 — read literally, it would cut every name down to the
+    // floor while the row it is drawn on has room for the whole 72.
+    setTerminalWidth(0);
+    const long = `pdf${"o".repeat(100)}`;
+
+    await promptSkillSelection({ availableSkills: [long], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(68)}\u2026`);
+  });
+
+  it("should keep a name readable in a terminal too narrow for any label", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // Nothing fits in ten columns, and a row cut to an ellipsis is worse than a
+    // row that wraps: the floor is the width a name keeps however little room
+    // the terminal gives it.
+    setTerminalWidth(10);
+    const long = `pdf${"o".repeat(100)}`;
+
+    await promptSkillSelection({ availableSkills: [long], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(12)}\u2026`);
+  });
+
+  it("should keep a noted label inside a terminal too narrow to seat it", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // Sixteen columns is the floor, and a marker, a separator and a note will
+    // not fit beside a whole name in it. The name gives way rather than the
+    // label running past the row: a label wider than the row wraps onto a line
+    // the prompt draws no checkbox on, which is the row a padded name wants.
+    setTerminalWidth(19);
+    const latin = `pdf${"x".repeat(40)}`;
+    const cyrillic = `pdf${"x".repeat(39)}\u0445`;
+
+    await promptSkillSelection({ availableSkills: [latin, cyrillic], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    expect(choices[0]?.name).toBe("(1) [!] \u2026 \u2014 pdf\u2026");
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(16);
+    expect(displayWidthOf(choices[1]?.name ?? "")).toBe(16);
+    // The row is unreadable at that width, and the value behind it is not: what
+    // is checked is still the directory the label stands for.
+    expect(choices[1]?.value).toBe(cyrillic);
+  });
+
+  it("should shorten a name padded with the joiners the renderer spends a column on", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // The zero-width joiners are the only invisible characters a name may carry
+    // and still be offered — a word written with one is written the way its
+    // script writes it — and the prompt's own renderer counts each of them as a
+    // column. A name of 39 Arabic letters and 38 joiners is drawn in 39 columns
+    // and wrapped as if it were 77, which is a forged row underneath it unless
+    // the budget counts them the way the renderer does.
+    const joined = `${"\u0627\u200c".repeat(38)}\u0627`;
+
+    await promptSkillSelection({ availableSkills: [joined], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    // To the column, like its siblings: a bound would be met by counting a
+    // joiner at two columns, or at five, as readily as at the one the renderer
+    // spends on it.
+    expect(choices[0]?.name).toBe(`${"\u0627\u200c".repeat(35)}\u0627\u2026`);
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(72);
+    expect(choices[0]?.value).toBe(joined);
+  });
+
+  it("should count the joiners against a narrow terminal's budget too", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // The two fixes meet here: the joiners are counted, and the budget is the
+    // pane's own width less the widest prefix the prompt can draw.
+    setTerminalWidth(60);
+    const joined = `${"\u0627\u200c".repeat(38)}\u0627`;
+
+    await promptSkillSelection({ availableSkills: [joined], preselectedSkills: [] });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
+    expect(choices[0]?.name).toBe(`${"\u0627\u200c".repeat(27)}\u2026`);
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(55);
   });
 
   it("should convert ExitPromptError (Ctrl+C) into SkillSelectionCancelledError", async () => {
