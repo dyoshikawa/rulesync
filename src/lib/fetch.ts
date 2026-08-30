@@ -902,7 +902,9 @@ async function pruneDirectory(params: {
       }
       await rm(entryPath, { force: true });
       deleted.push({ relativePath: entryRelativePath, status: "deleted" });
-      logger.debug(`Deleted stale skill entry: ${stripControlCharacters(entryRelativePath)}`);
+      logger.debug(
+        `Deleted stale skill entry: ${JSON.stringify(stripControlCharacters(entryRelativePath))}`,
+      );
       continue;
     }
 
@@ -940,7 +942,9 @@ async function pruneDirectory(params: {
         throw error;
       }
       deleted.push({ relativePath: `${entryRelativePath}/`, status: "deleted" });
-      logger.debug(`Removed stale skill directory: ${stripControlCharacters(entryRelativePath)}`);
+      logger.debug(
+        `Removed stale skill directory: ${JSON.stringify(stripControlCharacters(entryRelativePath))}`,
+      );
       continue;
     }
 
@@ -960,7 +964,9 @@ async function pruneDirectory(params: {
 
     await rm(entryPath, { force: true });
     deleted.push({ relativePath: entryRelativePath, status: "deleted" });
-    logger.debug(`Deleted stale skill file: ${stripControlCharacters(entryRelativePath)}`);
+    logger.debug(
+      `Deleted stale skill file: ${JSON.stringify(stripControlCharacters(entryRelativePath))}`,
+    );
   }
 
   return survivors > 0 ? "kept" : "emptied";
@@ -1180,7 +1186,7 @@ async function pruneStaleSkillFiles(params: {
       // "Stopped partway", not "did not prune": entries deleted before the
       // failure are already recorded, and the summary lists them.
       logger.warn(
-        `Stopped partway through pruning ${stripControlCharacters(skillDir)}. ` +
+        `Stopped partway through pruning ${JSON.stringify(stripControlCharacters(skillDir))}. ` +
           `${stripControlCharacters(formatError(error))}`,
       );
     }
@@ -1338,9 +1344,9 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   // Resolve ref to use
   const ref = resolvedRef ?? (await client.getDefaultBranch(parsed.owner, parsed.repo));
   // A default branch name is chosen by the remote repository, and git allows
-  // characters in it that reorder a terminal line, so it is stripped like every
-  // other remote-controlled string this command prints.
-  logger.debug(`Using ref: ${stripControlCharacters(ref)}`);
+  // characters in it that reorder a terminal line, so it is stripped and quoted
+  // like every other remote-controlled string this command prints.
+  logger.debug(`Using ref: ${JSON.stringify(stripControlCharacters(ref))}`);
 
   // If target is a tool format, use conversion flow
   if (isToolTarget(target)) {
@@ -1410,7 +1416,9 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
       const exists = await fileExists(localPath);
 
       if (exists && conflictStrategy === "skip") {
-        logger.debug(`Skipping existing file: ${stripControlCharacters(relativePath)}`);
+        logger.debug(
+          `Skipping existing file: ${JSON.stringify(stripControlCharacters(relativePath))}`,
+        );
         return { relativePath, status: "skipped" as const };
       }
 
@@ -1420,7 +1428,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
       await writeFileContent(localPath, content);
 
       const status = exists ? ("overwritten" as const) : ("created" as const);
-      logger.debug(`Wrote: ${stripControlCharacters(relativePath)} (${status})`);
+      logger.debug(`Wrote: ${JSON.stringify(stripControlCharacters(relativePath))} (${status})`);
       return { relativePath, status };
     }),
   );
@@ -1512,7 +1520,7 @@ async function collectFeatureFiles(params: {
           } catch (error) {
             // Only skip 404 errors (file not found), re-throw other errors
             if (isNotFoundError(error)) {
-              logger.debug(`File not found: ${stripControlCharacters(fullPath)}`);
+              logger.debug(`File not found: ${JSON.stringify(stripControlCharacters(fullPath))}`);
             } else {
               throw error;
             }
@@ -1552,7 +1560,7 @@ async function collectFeatureFiles(params: {
         // Check for 404 errors (feature not found)
         if (isNotFoundError(error)) {
           // Feature directory/file not found, skip silently
-          logger.debug(`Feature not found: ${stripControlCharacters(fullPath)}`);
+          logger.debug(`Feature not found: ${JSON.stringify(stripControlCharacters(fullPath))}`);
           return collected;
         }
         throw error;
