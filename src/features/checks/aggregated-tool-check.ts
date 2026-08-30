@@ -136,11 +136,10 @@ export class AggregatedToolCheck extends ToolCheck {
 
   /**
    * Ownership guard the processor consults before it deletes anything for this
-   * tool. Every one of these paths is one a user may well have written by hand
-   * — the tool's own documentation says to for the two review-instruction
-   * files, and the third is an ordinary skill directory shared with Droid's
-   * skill loader — so anything in it that rulesync did not write is not
-   * rulesync's to remove — dropping the last check targeting the tool must not
+   * tool. Every one of these paths is one a user may well have written by hand,
+   * whether because the tool documents it as the place to write review
+   * instructions or because it is shared with something else the tool loads, so
+   * anything in it that rulesync did not write is not rulesync's to remove — dropping the last check targeting the tool must not
    * take somebody's review instructions with it. Deletion is therefore allowed
    * only for a file that is nothing but generated sections: one that carries no
    * marker at all, or that carries hand-written text ahead of the first marker,

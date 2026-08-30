@@ -85,6 +85,34 @@ describe("CursorCheck.fromRulesyncCheck", () => {
 });
 
 describe("CursorCheck.fromRulesyncChecks", () => {
+  it("names Cursor when it warns about replacing hand-written instructions", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      await writeFileContent(
+        join(testDir, CURSOR_DIR, CURSOR_BUGBOT_FILE_NAME),
+        "Hand-written review notes.\n",
+      );
+      const logger = createMockLogger();
+
+      const [check] = await CursorCheck.fromRulesyncChecks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
+        rulesyncChecks: [rulesyncCheck({ name: "style", body: "Prefer const." })],
+        logger,
+      });
+
+      // Written anyway — `.cursor/BUGBOT.md` is a path only the reviewer reads.
+      expect(check?.getFileContent()).toContain("Prefer const.");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("rulesync did not write"));
+      // The tool's own name and target come from this adapter's config rather
+      // than from a literal in the message, so the message is read back whole.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Cursor checks:"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("--targets cursor"));
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("collapses every check into one marked-up BUGBOT.md", async () => {
     const [check] = await CursorCheck.fromRulesyncChecks({
       relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
@@ -328,29 +356,6 @@ describe("CursorCheck.canDeleteAuxiliaryFiles", () => {
 
   afterEach(async () => {
     await cleanup();
-  });
-
-  it("names Cursor when it warns about replacing hand-written instructions", async () => {
-    await writeFileContent(
-      join(testDir, CURSOR_DIR, CURSOR_BUGBOT_FILE_NAME),
-      "Hand-written review notes.\n",
-    );
-    const logger = createMockLogger();
-
-    const [check] = await CursorCheck.fromRulesyncChecks({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
-      rulesyncChecks: [rulesyncCheck({ name: "style", body: "Prefer const." })],
-      logger,
-    });
-
-    // Written anyway — `.cursor/BUGBOT.md` is a path only the reviewer reads.
-    expect(check?.getFileContent()).toContain("Prefer const.");
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("rulesync did not write"));
-    // The tool's own name and target come from this adapter's config rather
-    // than from a literal in the message, so the message is read back whole.
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Cursor checks:"));
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("--targets cursor"));
   });
 
   it("refuses to delete a hand-written file carrying no marker", async () => {
