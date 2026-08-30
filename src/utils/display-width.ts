@@ -23,16 +23,25 @@
  * Ambiguous-width characters are counted as one column, which is what a
  * terminal running a Latin font does.
  *
- * Two of the ranges are here for a narrower reason: nothing may be counted
- * narrower here than the prompt's own renderer counts it, or a label that fits
- * the budget wraps anyway and paints the second row the budget exists to
- * prevent. `@inquirer/core` measures with `fast-string-width`, which takes the
- * whole of `Script=Hangul` as wide and every `Emoji_Modifier_Base` as an emoji.
- * So the Hangul jamo are taken to U+11FF rather than stopping at the leading
- * consonants, and the modifier bases are named beside the emoji: U+261D, U+26F9
- * and the two hands of U+270C–U+270D are `Emoji` without being
- * `Emoji_Presentation`, and were the only characters outside Hangul this
- * counted at one column while the renderer counted two.
+ * Two of the ranges are here for a narrower reason: a name the skill prompt can
+ * offer may not be counted narrower here than the prompt's own renderer counts
+ * it, or a label that fits the budget wraps anyway and paints the second row
+ * the budget exists to prevent. `@inquirer/core` measures with
+ * `fast-string-width`, which takes the whole of `Script=Hangul` as wide and
+ * every `Emoji_Modifier_Base` as an emoji. So the Hangul jamo are taken to
+ * U+11FF rather than stopping at the leading consonants, and the modifier bases
+ * are named beside the emoji: U+261D, U+26F9 and the two hands of U+270C–U+270D
+ * are `Emoji` without being `Emoji_Presentation`, and were the only characters
+ * outside Hangul this counted at one column while the renderer counted two.
+ *
+ * The rule is over the names that can reach the prompt, which is a smaller set
+ * than the characters that exist. The renderer counts a tab at eight columns and
+ * the Hangul fillers at two, where this counts one and none: a name carrying
+ * either is refused outright by `hasDeceptiveHiddenCharacters` — the tab as a
+ * control character, the fillers as characters that draw as nothing — and never
+ * becomes a row to be measured. Where this is used to lay out text of the
+ * tool's own rather than to bound an untrusted name, the difference is a column
+ * of alignment and not a forged row.
  *
  * The wide planes are taken whole rather than range by range — Tangut, Khitan
  * and Nushu together are U+17000–U+18DFF, and the kana supplements are
@@ -121,6 +130,19 @@ export function displayWidthOf(text: string): number {
   return width;
 }
 
+/** The mark a cut string ends in. */
+const SHORTENING_ELLIPSIS = "\u2026";
+
+/**
+ * The one column a cut string is drawn in at the very least: what is left when
+ * the budget has room for the mark of the cut and nothing before it.
+ *
+ * Exported because a caller composing several shortened pieces into one line
+ * has to leave room for it, and the width of the mark is this module's business
+ * rather than something to be counted again at the other end.
+ */
+export const ELLIPSIS_WIDTH = 1;
+
 /**
  * Cut `text` down to at most `budget` columns, marking the cut with an ellipsis.
  *
@@ -134,7 +156,7 @@ export function shortenToWidth(params: { text: string; budget: number }): string
   if (displayWidthOf(text) <= budget) {
     return text;
   }
-  const target = budget - 1;
+  const target = budget - ELLIPSIS_WIDTH;
   let width = 0;
   let marks = 0;
   const kept: string[] = [];
@@ -147,5 +169,5 @@ export function shortenToWidth(params: { text: string; budget: number }): string
     width += characterWidth;
     marks = isCombiningMark(character) ? marks + 1 : 0;
   }
-  return `${kept.join("")}…`;
+  return `${kept.join("")}${SHORTENING_ELLIPSIS}`;
 }

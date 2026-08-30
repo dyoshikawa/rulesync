@@ -1,7 +1,7 @@
 import checkbox from "@inquirer/checkbox";
 
 import { describeConfusableNames, readingFormOf } from "../utils/confusable-names.js";
-import { displayWidthOf, shortenToWidth } from "../utils/display-width.js";
+import { ELLIPSIS_WIDTH, displayWidthOf, shortenToWidth } from "../utils/display-width.js";
 
 /**
  * Thrown when the user cancels the interactive skill selection (e.g. Ctrl+C).
@@ -60,8 +60,11 @@ const MAX_SKILL_LABEL_WIDTH = 72;
  * `displayWidthOf` counts them as: the box is East Asian Ambiguous, and this
  * project counts the ambiguous characters as one column, the width a terminal
  * running a Latin font draws them in. A terminal configured to draw them wide
- * takes two more columns than this, which shortens what fits rather than
- * lengthening it.
+ * spends two columns more on the row than this counts, and the budget is that
+ * much too generous there; the count follows the project's rule rather than
+ * taking a second opinion here, and the label is cut to its budget in one
+ * place, so what the two columns cost is the tail of a name and not a promise
+ * made anywhere else.
  */
 const CHOICE_PREFIX_WIDTH = 3;
 
@@ -87,9 +90,6 @@ const FALLBACK_TERMINAL_WIDTH = 80;
  */
 const MIN_SHORTENED_NAME_WIDTH = 16;
 
-/** The one column a note cut down to nothing is still drawn in. */
-const ELLIPSIS_WIDTH = 1;
-
 /**
  * How wide a label may be in the terminal it is about to be drawn in.
  *
@@ -105,7 +105,9 @@ const ELLIPSIS_WIDTH = 1;
  * columns narrower than nothing. A TTY reports it while it is being resized,
  * and `cli-width` — which is what decides where the rows are actually broken —
  * turns it into the same 80 this does, so taking it literally would budget
- * against a width the renderer never uses.
+ * against a width the renderer never uses. (`cli-width` reads `CLI_WIDTH` from
+ * the environment before it falls back to 80, which this does not; a prompt is
+ * refused outright without a TTY, and a TTY answers before either is asked.)
  *
  * The floor is the one a name is kept to anyway, and below it there is nothing
  * left to shorten toward: a label cut past that point is an ellipsis and little
@@ -146,10 +148,11 @@ const NOTE_SEPARATOR = " \u2014 ";
  *
  * The name is given `MIN_SHORTENED_NAME_WIDTH` columns however long the note
  * is, but never more than the row has left after the marker, the separator and
- * the one column a cut note is still drawn in. That upper hand is what keeps
- * the label inside its budget in a terminal too narrow to seat both: the label
- * is always the width it was budgeted or less, so it never wraps onto a line
- * the prompt draws no marker on.
+ * the one column a cut note is still drawn in. That is what shares out a
+ * terminal too narrow to seat both, and the composed label is cut to the budget
+ * on the way out, so what is returned is the width it was budgeted or less
+ * however the pieces fall — a wider label wraps onto a line the prompt draws no
+ * marker on, which is the row this module exists to keep a name from painting.
  */
 function formatSkillChoiceLabel(params: {
   name: string;
@@ -172,7 +175,15 @@ function formatSkillChoiceLabel(params: {
     text: note,
     budget: available - displayWidthOf(shownName),
   });
-  return `${NOTE_MARKER}${shownNote}${NOTE_SEPARATOR}${shownName}`;
+  // Cut as a whole once the pieces are laid out: each is kept to what it was
+  // given, but a budget too small for the marker, the separator and a mark of
+  // the cut on either side is one none of them can give any more back to. The
+  // last cut is what holds the bound at every width, the numbered rows — whose
+  // budget is this one less the number in front of it — included.
+  return shortenToWidth({
+    text: `${NOTE_MARKER}${shownNote}${NOTE_SEPARATOR}${shownName}`,
+    budget,
+  });
 }
 
 /**

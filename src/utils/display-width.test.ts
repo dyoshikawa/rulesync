@@ -45,16 +45,6 @@ describe("displayWidthOf", () => {
   ])("should measure %s", (_label, text, expected) => {
     expect(displayWidthOf(text)).toBe(expected);
   });
-});
-
-describe("shortenToWidth", () => {
-  it("should leave a string that fits alone", () => {
-    expect(shortenToWidth({ text: "pdf", budget: 10 })).toBe("pdf");
-  });
-
-  it("should keep the ellipsis inside the budget", () => {
-    expect(shortenToWidth({ text: "abcdef", budget: 4 })).toBe("abc…");
-  });
 
   // `@inquirer/core` measures the rows it wraps with `fast-string-width`, which
   // takes the whole of `Script=Hangul` as wide and every `Emoji_Modifier_Base`
@@ -68,6 +58,16 @@ describe("shortenToWidth", () => {
     ["the victory hand", "\u270c"],
   ])("should count %s the way the prompt's renderer counts it", (_description, character) => {
     expect(displayWidthOf(character)).toBe(2);
+  });
+});
+
+describe("shortenToWidth", () => {
+  it("should leave a string that fits alone", () => {
+    expect(shortenToWidth({ text: "pdf", budget: 10 })).toBe("pdf");
+  });
+
+  it("should keep the ellipsis inside the budget", () => {
+    expect(shortenToWidth({ text: "abcdef", budget: 4 })).toBe("abc…");
   });
 
   it("should count wide characters as the two columns they occupy", () => {
