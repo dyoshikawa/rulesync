@@ -596,6 +596,21 @@ function countHiddenSegments(filePath: string): number {
 }
 
 /**
+ * A path the running platform produced, written posix-separated.
+ *
+ * Not {@link toPosixPath}, which rewrites every backslash whatever it means. That
+ * is right for a path a caller spelled, which may be spelled either way; it is
+ * wrong for one the platform handed back. On a posix platform a backslash is an
+ * ordinary character in a name, so rewriting it folds `a\b` onto `a/b` -- two
+ * different directories, and wherever the result is used as a file's identity the
+ * second one to be seen is taken for a repeat of the first and dropped. On
+ * Windows no name can hold a backslash, so the rewrite there is lossless.
+ */
+function nativePathToPosix(filePath: string): string {
+  return sep === "\\" ? filePath.replaceAll("\\", "/") : filePath;
+}
+
+/**
  * The real file a path denotes, posix-separated so it compares against the globby results
  * that produce it. Two paths share an identity when they resolve to the very same file --
  * a link beside its target, a link into a shared tree, or a cycle that walks back into an
@@ -603,11 +618,11 @@ function countHiddenSegments(filePath: string): number {
  */
 async function realFileIdentity(filePath: string): Promise<string> {
   try {
-    return toPosixPath(await realpath(filePath));
+    return nativePathToPosix(await realpath(filePath));
   } catch {
     // realpath can fail on a broken link or a race; fall back to the literal path so the
     // entry still counts (and is still deduplicated against identical literals).
-    return toPosixPath(filePath);
+    return nativePathToPosix(filePath);
   }
 }
 
@@ -677,7 +692,7 @@ export async function resolvedPathEscapesRoot({
  * same unresolved prefix, and only the segments below it decide.
  */
 function sharedTrailingSegments(filePath: string, identity: string): number {
-  const left = splitPathSegments(toPosixPath(filePath));
+  const left = splitPathSegments(nativePathToPosix(filePath));
   const right = splitPathSegments(identity);
   let shared = 0;
   while (
@@ -901,7 +916,7 @@ async function dedupeNamesByFileIdentity(params: {
     // `realFileIdentity` falls back to the literal path rather than failing, so
     // an entry whose identity cannot be read stands on its own here instead of
     // dropping out of the listing.
-    const identity = identities[index] ?? toPosixPath(join(dirPath, entry.name));
+    const identity = identities[index] ?? nativePathToPosix(join(dirPath, entry.name));
     const group = entriesByIdentity.get(identity);
     if (group === undefined) {
       entriesByIdentity.set(identity, [entry]);

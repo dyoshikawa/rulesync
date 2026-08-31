@@ -650,6 +650,24 @@ describe("file utilities", () => {
         },
       );
 
+      it.skipIf(process.platform === "win32")(
+        "should keep a directory whose name holds a backslash apart from the path it reads like",
+        async () => {
+          // A backslash is an ordinary character in a posix name, so `a\\b` and
+          // `a/b` are two different directories. Rewriting the separator while
+          // taking a file's identity folds them together, and whichever of the
+          // two the walk reaches second is then dropped as a repeat of the first.
+          const root = join(testDir, "root");
+          await writeFileContent(join(root, "a", "b", "real.md"), "real");
+          await writeFileContent(join(root, "a\\b", "literal.md"), "literal");
+
+          expect(await listFilePathsRecursively(root)).toEqual(["a/b/real.md", "a\\b/literal.md"]);
+          expect(await listFilePathsRecursively(root, { deduplicateByFileIdentity: true })).toEqual(
+            ["a/b/real.md", "a\\b/literal.md"],
+          );
+        },
+      );
+
       it("should leave hidden entries out unless asked for them", async () => {
         // The glob these replaced ran with `dot: false`. Callers sweep what they
         // are given, so a `.git` beside the entries must not appear by default.

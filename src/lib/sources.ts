@@ -1,4 +1,4 @@
-import { join, posix, resolve, sep } from "node:path";
+import { basename, join, posix, resolve, sep } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
 
@@ -322,8 +322,12 @@ function getSourceFilters(sourceEntry: SourceEntry): {
  * of remote rules. Taken as the last segment of the feature subdirectory rather
  * than by subtracting one path from another, so no separator spelling is
  * involved on either side.
+ *
+ * Split on the native separator, the one the constant was joined with and the one
+ * the path it is compared against is split on. The posix reading would leave the
+ * whole `rules\\.curated` on Windows, where it matches no segment at all.
  */
-const CURATED_RULES_SUBDIR_NAME = posix.basename(CURATED_RULES_FEATURE_SUBDIR);
+const CURATED_RULES_SUBDIR_NAME = basename(CURATED_RULES_FEATURE_SUBDIR);
 
 /**
  * The names of the rules the project holds itself, which take precedence over

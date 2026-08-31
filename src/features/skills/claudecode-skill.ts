@@ -150,8 +150,14 @@ async function checkNestedSkillsRoot({
     segments.slice(-CLAUDECODE_SKILLS_DIR_SEGMENTS.length).join("/") !==
     CLAUDECODE_SKILLS_DIR_POSIX_PATH
   ) {
+    // Named rather than quoted when it is the project root, whose relative path is
+    // the empty string and would otherwise be reported as a pair of quotes.
+    const resolvedDescription =
+      realRelativeDirPath === ""
+        ? "the project root"
+        : JSON.stringify(stripControlCharacters(realRelativeDirPath));
     return {
-      reason: `it resolves to ${JSON.stringify(stripControlCharacters(realRelativeDirPath))}, which is not a ${CLAUDECODE_SKILLS_DIR_POSIX_PATH} directory.`,
+      reason: `it resolves to ${resolvedDescription}, which is not a ${CLAUDECODE_SKILLS_DIR_POSIX_PATH} directory.`,
     };
   }
   const excludedSegment = excludedNestedScanSegment(aboveTailSegments);

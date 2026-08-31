@@ -1772,7 +1772,9 @@ Broken YAML`,
           "some-dir",
         );
         expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining("which is not a .claude/skills directory"),
+          expect.stringContaining(
+            "it resolves to the project root, which is not a .claude/skills directory",
+          ),
         );
       },
     );
