@@ -541,6 +541,22 @@ describe("serializeSharedConfig", () => {
     expect(result).toBe(JSON.stringify(document, null, 2));
   });
 
+  it("writes a file whole when the document it is taking is the large one", () => {
+    // The cost is a parse of the text as it stands when each edit lands, so a
+    // small file swelling to a large one is the same quadratic work as a large
+    // file being rewritten.
+    const servers: Record<string, unknown> = {};
+    for (let index = 0; index < 2000; index += 1) {
+      servers[`srv${index}`] = { type: "http", url: `https://example.com/${index}` };
+    }
+    const existingContent = ["{", "  // Server list", '  "servers": {}', "}"].join("\n");
+    const document = { servers };
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toBe(JSON.stringify(document, null, 2));
+  });
+
   it("keeps editing a large file when only a few of its keys change", () => {
     const servers: Record<string, unknown> = {};
     for (let index = 0; index < 400; index += 1) {

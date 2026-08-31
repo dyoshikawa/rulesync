@@ -600,9 +600,10 @@ function insertJsoncProperty({
  * repository that ships such a file is enough to reach that. Past this budget
  * the file is written whole instead — it loses its comments, the same as a
  * file rulesync cannot parse does, which is the better of the two outcomes
- * against a `generate` that looks like it has hung. The limit is a few tenths
- * of a second of editing; a hand-written config file is orders of magnitude
- * below it.
+ * against a `generate` that looks like it has hung. The limit is under a
+ * second of editing for a replacement and a second or two for an insert,
+ * which parses more; a hand-written config file is orders of magnitude below
+ * either.
  */
 const JSONC_EDIT_BUDGET_BYTES = 50_000_000;
 
@@ -774,11 +775,14 @@ export function serializeSharedConfig({
     return stringifySharedConfig({ format, document });
   }
 
-  if (
-    countJsoncEdits({ base, next: document }) * existingContent.length >
-    JSONC_EDIT_BUDGET_BYTES
-  ) {
-    return stringifySharedConfig({ format, document });
+  // Measured against whichever of the two documents is larger: an edit costs a
+  // parse of the text *at the time it is applied*, so a small file taking a
+  // large patch grows into the same quadratic cost that a large file taking a
+  // small patch starts in.
+  const whole = stringifySharedConfig({ format, document });
+  const span = Math.max(existingContent.length, whole.length);
+  if (countJsoncEdits({ base, next: document }) * span > JSONC_EDIT_BUDGET_BYTES) {
+    return whole;
   }
 
   return applyJsoncObjectEdits({
