@@ -246,6 +246,30 @@ security:
     });
   });
 
+  it("keeps the rest of a hand-edited provenance block when one of its keys is blank", () => {
+    // A blank category or pattern would fail the schema, and a failed parse
+    // falls back to an empty permission block — every recorded rule gone
+    // without a word. Filtering first keeps the loss to the blank key itself.
+    const imported = new HermesagentPermissions({
+      outputRoot: ".",
+      fileContent: JSON.stringify({
+        command_allowlist: [],
+        permissions: {
+          rulesync: {
+            permission: {
+              "  ": { "git *": "ask" },
+              read: { "  ": "ask", "shared/*": "ask" },
+            },
+          },
+        },
+      }),
+    })
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(imported.permission).toEqual({ read: { "shared/*": "ask" } });
+  });
+
   it("reconciles hand-edited native state over private provenance", () => {
     const imported = new HermesagentPermissions({
       outputRoot: ".",

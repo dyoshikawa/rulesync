@@ -19,11 +19,7 @@ import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { fileExistsStrict, readFileContent } from "../../utils/file.js";
-import {
-  droppedPollutionKeysError,
-  parseJsonc,
-  parseJsoncReportingDroppedKeys,
-} from "../../utils/jsonc.js";
+import { droppedPollutionKeysError, parseJsoncReportingDroppedKeys } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import {
@@ -439,13 +435,21 @@ export class RulesyncMcp extends RulesyncFile {
       let parsed: unknown;
 
       try {
-        parsed = parseJsonc(fileContent);
+        // The reporting parse, not the plain one: a merged config is
+        // re-serialized from these records, so a `__proto__` server dropped
+        // here would vanish without the single-root path's report ever running.
+        const { value, droppedKeys } = parseJsoncReportingDroppedKeys({ content: fileContent });
+        parsed = value;
 
         if (!isRecord(parsed)) {
           throw new Error("Expected a JSON object.");
         }
 
         if (validate) {
+          if (droppedKeys.length > 0) {
+            throw droppedPollutionKeysError({ sourcePath: filePath, droppedKeys });
+          }
+
           const result = RulesyncMcpFileSchema.safeParse(parsed);
 
           if (!result.success) {

@@ -1719,6 +1719,26 @@ describe("RulesyncMcp.fromRoots", () => {
     );
   });
 
+  it("should report a prototype-member server the merge parse dropped from an overlay", async () => {
+    // The merge path re-serializes from the parsed records, so without its own
+    // report the dropped server would vanish and the merged file would look
+    // like the user never wrote it.
+    const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+    const overlayRoot = join(testDir, ".rulesync.local");
+    await writeFileContent(
+      join(baseRoot, RULESYNC_MCP_FILE_NAME),
+      JSON.stringify({ mcpServers: { base: { command: "base" } } }),
+    );
+    await writeFileContent(
+      join(overlayRoot, RULESYNC_MCP_FILE_NAME),
+      '{"mcpServers": {"__proto__": {"command": "node"}}}',
+    );
+
+    await expect(RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] })).rejects.toThrow(
+      "mcpServers.__proto__",
+    );
+  });
+
   it("should reject an overlay MCP file whose JSON is not an object", async () => {
     const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
     const overlayRoot = join(testDir, ".rulesync.local");

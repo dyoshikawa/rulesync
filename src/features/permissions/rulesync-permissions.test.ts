@@ -897,6 +897,93 @@ describe("RulesyncPermissions", () => {
       });
     });
 
+    it("should drop a blank category so the imported file passes validation", () => {
+      // OpenCode and Kilo copy a category they do not recognize into the
+      // tool-scoped block verbatim, so a blank one in the user's own config
+      // reaches here. Reproducing it would write a source file the next
+      // generate refuses outright, taking every tool's permissions with it.
+      const logger = createMockLogger();
+
+      const fileContent = imported({
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          opencode: { permission: { "  ": "deny", external_directory: "deny" } },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({
+        permission: { bash: { "git *": "allow" } },
+        opencode: { permission: { external_directory: "deny" } },
+      });
+      expect(logger.warn.mock.calls[0]?.[0]).toContain("Dropped blank permission categories");
+      expect(logger.warn.mock.calls[0]?.[0]).toContain('1 in "opencode.permission"');
+      expect(
+        new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent,
+          validate: false,
+        }).validate().success,
+      ).toBe(true);
+    });
+
+    it("should drop a blank category from the shared block", () => {
+      const fileContent = imported({
+        fileContent: JSON.stringify({
+          permission: { "   ": { "git *": "allow" }, bash: { "npm *": "allow" } },
+        }),
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({ permission: { bash: { "npm *": "allow" } } });
+    });
+
+    it("should drop a blank category from Vibe's block even though its patterns are left alone", () => {
+      // The keys one level down are field names there, but the category names
+      // above them are category names like any other.
+      const fileContent = imported({
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          vibe: { permission: { "": { sensitive_patterns: [] }, bash: { "  ": [] } } },
+        }),
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({
+        permission: { bash: { "git *": "allow" } },
+        vibe: { permission: { bash: { "  ": [] } } },
+      });
+    });
+
+    it("should report dropped patterns and dropped categories separately", () => {
+      const logger = createMockLogger();
+
+      imported({
+        fileContent: JSON.stringify({
+          permission: { "": { "git *": "allow" }, bash: { "  ": "deny", "npm *": "allow" } },
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      expect(logger.warn.mock.calls[0]?.[0]).toContain('1 in "permission.bash"');
+      expect(logger.warn.mock.calls[1]?.[0]).toContain('1 in "permission"');
+    });
+
+    it("should keep a tool-scoped permission block that was already empty", () => {
+      // Nothing here was dropped from it, so it is not this filter's to remove.
+      const fileContent = imported({
+        fileContent: JSON.stringify({
+          permission: { bash: { "": "allow", "npm *": "allow" } },
+          claudecode: { permission: {} },
+        }),
+      });
+
+      expect(JSON.parse(fileContent)).toEqual({
+        permission: { bash: { "npm *": "allow" } },
+        claudecode: { permission: {} },
+      });
+    });
+
     it("should keep a category that was already empty", () => {
       // Nothing here was dropped from it, so it is not this filter's to remove.
       const fileContent = imported({
