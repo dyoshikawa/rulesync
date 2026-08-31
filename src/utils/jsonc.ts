@@ -126,7 +126,11 @@ export function droppedPollutionKeysError({
   droppedKeys: readonly string[];
 }): Error {
   return new Error(
-    `${sourcePath} uses ${droppedKeys.join(", ")} as ${droppedKeys.length === 1 ? "a key" : "keys"}. ` +
+    // The paths carry key names from the document, which for `rulesync fetch`
+    // came from a remote repository. `JSON.stringify` quotes each one and
+    // escapes its control characters, so a crafted key cannot forge extra
+    // lines in the message it is reported through.
+    `${sourcePath} uses ${droppedKeys.map((key) => JSON.stringify(key)).join(", ")} as ${droppedKeys.length === 1 ? "a key" : "keys"}. ` +
       `Rulesync removes __proto__, constructor and prototype from every source document it parses, because assigning them would reach the prototype chain instead of the object. ` +
       `They are therefore never written to any tool's config — rename them rather than leaving entries that silently do nothing.`,
   );

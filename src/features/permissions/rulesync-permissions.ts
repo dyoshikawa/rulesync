@@ -359,7 +359,9 @@ function stripBlankPermissionKeys(config: Record<string, unknown>): {
 }
 
 const summarizeDroppedCounts = (counts: Map<string, number>): string =>
-  [...counts.entries()].map(([path, count]) => `${count} in "${path}"`).join(", ");
+  // The paths embed category names read from the tool's own config, so they
+  // are quoted and control-escaped rather than interpolated raw.
+  [...counts.entries()].map(([path, count]) => `${count} in ${JSON.stringify(path)}`).join(", ");
 
 /**
  * Blank keys the filter removed, counted per block: patterns by the
@@ -397,7 +399,8 @@ function warnAboutDroppedKeys({
   sourcePath?: string;
   logger?: Logger;
 }): void {
-  const source = sourcePath === undefined ? "a tool's permission configuration" : `"${sourcePath}"`;
+  const source =
+    sourcePath === undefined ? "a tool's permission configuration" : JSON.stringify(sourcePath);
 
   if (removed.patterns.size > 0) {
     warnWithFallback(

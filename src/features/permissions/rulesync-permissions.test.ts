@@ -331,6 +331,27 @@ describe("RulesyncPermissions", () => {
       expect(instance.validate().success).toBe(false);
     });
 
+    it.each([["roo"], ["zoocode"]])(
+      "should reject a blank key in the %s tool-scoped block",
+      (toolKey) => {
+        // These two targets are permissions-capable and their blocks are read
+        // by the central merge, but they had no entry here, so `looseObject`
+        // let anything through and a blank pattern reached the generated file
+        // — wiping the deny list the tool's own config already had.
+        const instance = new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            [toolKey]: { permission: { bash: { "   ": "deny" } } },
+          }),
+          validate: false,
+        });
+
+        expect(instance.validate().success).toBe(false);
+      },
+    );
+
     it("should return successful validation result for valid config", () => {
       const instance = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -926,6 +947,22 @@ describe("RulesyncPermissions", () => {
           validate: false,
         }).validate().success,
       ).toBe(true);
+    });
+
+    it("should escape control characters in a category name it reports", () => {
+      // The block paths embed category names taken from the tool's own config.
+      const logger = createMockLogger();
+
+      imported({
+        fileContent: JSON.stringify({
+          permission: { "ba\nsh": { "  ": "deny", "git *": "allow" } },
+        }),
+        logger,
+      });
+
+      const warning = String(logger.warn.mock.calls[0]?.[0]);
+      expect(warning).not.toContain("\nsh");
+      expect(warning).toContain('1 in "permission.ba\\nsh"');
     });
 
     it("should drop a blank category from the shared block", () => {
