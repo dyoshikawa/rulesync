@@ -494,6 +494,45 @@ describe("serializeSharedConfig", () => {
     });
   });
 
+  it("finds the comma past a lone-CR note when removing a key", () => {
+    // The trivia scan has to end the note where the scanner does too: reading
+    // it to the next "\n" hides the comma, and the key goes without it.
+    const existingContent = '{\r  "gone": 1 // this server was retired\r  ,\r  "b": 2\r}\r';
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { b: 2 },
+      existingContent,
+    });
+
+    expect(result).toBe('{\r  "b": 2\r}\r');
+    expect(parseSharedConfig({ format: "jsonc", fileContent: result })).toEqual({ b: 2 });
+  });
+
+  it("reads the indentation of a lone-CR file", () => {
+    const existingContent = '{\r    "a": 1\r}';
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1, b: { c: 1 } },
+      existingContent,
+    });
+
+    expect(result).toBe('{\r    "a": 1,\r    "b": {\r        "c": 1\r    }\r}');
+  });
+
+  it("gives a single-line document the line ending it has none of yet", () => {
+    // The only case the detected `eol` decides: `modify` reads the ending off
+    // the document itself as soon as the document states one.
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1, b: 2 },
+      existingContent: '{"a": 1}',
+    });
+
+    expect(result).toBe(["{", '  "a": 1,', '  "b": 2', "}"].join("\n"));
+  });
+
   it("takes a removed key's line with it on a lone-CR file", () => {
     const existingContent = '{\r  "a": 1,\r  "gone": 2 // this server was retired\r}';
 

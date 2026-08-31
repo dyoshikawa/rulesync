@@ -197,6 +197,32 @@ export function stringifySharedConfig({
 }
 
 /**
+ * Where the line holding `from` starts and where the line starting at `from`
+ * ends: the nearest `\r` or `\n` in each direction, or the edge of the text.
+ *
+ * Both characters count in both directions, because the JSONC scanner treats
+ * either as a line break. A file written with lone CRs parses without an error
+ * and so reaches these paths, and a comment read only up to the next `\n`
+ * would run past its own line and take the closing brace — or a whole sibling
+ * key — with it.
+ */
+function endOfLineFrom({ text, from }: { text: string; from: number }): number {
+  for (let index = from; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "\n" || character === "\r") return index;
+  }
+  return text.length;
+}
+
+function startOfLineAt({ text, from }: { text: string; from: number }): number {
+  for (let index = from - 1; index >= 0; index -= 1) {
+    const character = text[index];
+    if (character === "\n" || character === "\r") return index + 1;
+  }
+  return 0;
+}
+
+/**
  * Read the indentation and line ending a JSONC document already uses, so
  * inserted properties match the surrounding file instead of imposing the
  * 2-space `JSON.stringify` shape on a file written with 4 spaces or tabs.
@@ -217,12 +243,14 @@ function detectJsoncFormattingOptions({
   text: string;
   root: JsoncNode;
 }): JsoncFormattingOptions {
+  // Only a document that states no line break of its own takes this `eol`:
+  // `modify` reads the rest off the text it is editing.
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
   const first = root.children?.[0];
   const indent =
     first === undefined
       ? ""
-      : text.slice(text.lastIndexOf("\n", first.offset - 1) + 1, first.offset);
+      : text.slice(startOfLineAt({ text, from: first.offset }), first.offset);
   if (indent === "" || !/^[ \t]+$/.test(indent)) {
     return { tabSize: 2, insertSpaces: true, eol };
   }
@@ -279,8 +307,7 @@ function skipJsoncTrivia({ text, from }: { text: string; from: number }): number
       continue;
     }
     if (char === "/" && text[index + 1] === "/") {
-      const lineEnd = text.indexOf("\n", index);
-      index = lineEnd === -1 ? text.length : lineEnd;
+      index = endOfLineFrom({ text, from: index });
       continue;
     }
     if (char === "/" && text[index + 1] === "*") {
@@ -291,23 +318,6 @@ function skipJsoncTrivia({ text, from }: { text: string; from: number }): number
     break;
   }
   return index;
-}
-
-/**
- * Where the line starting at `from` ends: the first `\r` or `\n`, or the end of
- * the text.
- *
- * Both count, because the JSONC scanner ends a line comment at either. A file
- * written with lone CRs parses without an error and so reaches this path, and
- * a comment read only up to the next `\n` would run past its own line and take
- * the closing brace — or a whole sibling key — with it.
- */
-function endOfLineFrom({ text, from }: { text: string; from: number }): number {
-  for (let index = from; index < text.length; index += 1) {
-    const character = text[index];
-    if (character === "\n" || character === "\r") return index;
-  }
-  return text.length;
 }
 
 /**
