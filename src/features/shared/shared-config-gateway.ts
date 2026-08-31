@@ -402,18 +402,38 @@ function removeJsoncProperty({ text, path }: { text: string; path: readonly stri
 }
 
 /**
- * Detach the note that follows the last property of the object at `path`.
+ * Where the comment written at `from` (past any spaces or tabs) ends, or
+ * `undefined` if what stands there is not a comment.
+ */
+function endOfNoteAt({ text, from }: { text: string; from: number }): number | undefined {
+  let cursor = from;
+  while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
+  if (text.startsWith("//", cursor)) {
+    const newline = text.indexOf("\n", cursor);
+    const end = newline === -1 ? text.length : newline;
+    return end > cursor && text[end - 1] === "\r" ? end - 1 : end;
+  }
+  if (text.startsWith("/*", cursor)) {
+    const closing = text.indexOf("*/", cursor + 2);
+    return closing === -1 ? undefined : closing + 2;
+  }
+  return undefined;
+}
+
+/**
+ * Detach the note written at the point where the object at `path` will take a
+ * new key: after its last property (and after the comma a trailing-comma file
+ * spells there), or just inside the `{` when it has no properties yet.
  *
- * `modify` inserts a new key after that property, and the edit it computes
- * starts at the property's end — in front of a note written after it on the
- * same line. Applying the edit therefore re-emits the note *after* the key
- * that was just inserted, so `"stale": {...} // retired` turns into a note
- * about a server rulesync has only now written. Lifting the note out before
- * the insert and putting it back afterwards keeps it on the property it
- * describes, matching what {@link endOfRemoval} does on the way out.
+ * `modify` computes its insert from exactly that point — in front of a note
+ * written there — so applying the edit unchanged re-emits the note *after* the
+ * key that was just inserted: `"stale": {...} // retired` turns into a note
+ * about a server rulesync has only now written, and `{ /* none yet *\/ }`
+ * turns into a note about the first entry rulesync puts in it. Lifting the
+ * note out before the insert and putting it back afterwards keeps it where its
+ * author wrote it, matching what {@link endOfRemoval} does on the way out.
  *
- * Returns `undefined` when there is no such note (or no property to hold one),
- * which is the common case.
+ * Returns `undefined` when there is no such note, which is the common case.
  */
 function detachTrailingNote({
   text,
@@ -421,54 +441,60 @@ function detachTrailingNote({
 }: {
   text: string;
   path: readonly string[];
-}): { text: string; note: string; anchorKey: string } | undefined {
+}): { text: string; note: string; anchorKey: string | undefined } | undefined {
   const root = parseTree(text, [], { allowTrailingComma: true });
   const object = root === undefined ? undefined : findNodeAtLocation(root, [...path]);
   if (object?.type !== "object") return undefined;
   const property = object.children?.at(-1);
   const anchorKey = property?.children?.[0]?.value;
-  if (property === undefined || typeof anchorKey !== "string") return undefined;
+  if (property !== undefined && typeof anchorKey !== "string") return undefined;
 
-  const end = property.offset + property.length;
-  let cursor = end;
-  while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
-  let noteEnd: number;
-  if (text.startsWith("//", cursor)) {
-    const newline = text.indexOf("\n", cursor);
-    noteEnd = newline === -1 ? text.length : newline;
-    if (noteEnd > cursor && text[noteEnd - 1] === "\r") noteEnd -= 1;
-  } else if (text.startsWith("/*", cursor)) {
-    const closing = text.indexOf("*/", cursor + 2);
-    if (closing === -1) return undefined;
-    noteEnd = closing + 2;
-  } else {
-    return undefined;
+  let cursor = property === undefined ? object.offset + 1 : property.offset + property.length;
+  if (property !== undefined) {
+    // Step over a comma the file already spells, so the note is lifted out
+    // without it and the property keeps its separator.
+    let comma = cursor;
+    while (text[comma] === " " || text[comma] === "\t") comma += 1;
+    if (text[comma] === ",") cursor = comma + 1;
   }
+  const noteStart = cursor;
+  const noteEnd = endOfNoteAt({ text, from: noteStart });
+  if (noteEnd === undefined) return undefined;
   return {
-    text: text.slice(0, end) + text.slice(noteEnd),
-    note: text.slice(end, noteEnd),
-    anchorKey,
+    text: text.slice(0, noteStart) + text.slice(noteEnd),
+    note: text.slice(noteStart, noteEnd),
+    anchorKey: typeof anchorKey === "string" ? anchorKey : undefined,
   };
 }
 
 /**
- * Put a note detached by {@link detachTrailingNote} back after the property it
- * describes, behind the comma the insert gave that property. Returns
- * `undefined` if the property can no longer be located, so the caller can fall
- * back to the plain insert rather than drop the note.
+ * Put a note detached by {@link detachTrailingNote} back where it was: after
+ * the property it describes (behind the comma the insert gave that property),
+ * or just inside the `{` of the object it was written in when there was no
+ * property to describe. Returns `undefined` if that place can no longer be
+ * located, so the caller can fall back to the plain insert rather than drop
+ * the note.
  */
 function reattachTrailingNote({
   text,
   path,
+  anchorKey,
   note,
 }: {
   text: string;
   path: readonly string[];
+  anchorKey: string | undefined;
   note: string;
 }): string | undefined {
   const root = parseTree(text, [], { allowTrailingComma: true });
-  const anchor = root === undefined ? undefined : findNodeAtLocation(root, [...path]);
+  const location = anchorKey === undefined ? [...path] : [...path, anchorKey];
+  const anchor = root === undefined ? undefined : findNodeAtLocation(root, location);
   if (anchor === undefined) return undefined;
+  if (anchorKey === undefined) {
+    if (anchor.type !== "object") return undefined;
+    const brace = anchor.offset + 1;
+    return text.slice(0, brace) + note + text.slice(brace);
+  }
   let cursor = anchor.offset + anchor.length;
   while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
   if (text[cursor] === ",") cursor += 1;
@@ -500,7 +526,8 @@ function insertJsoncProperty({
   if (detached === undefined) return write(text);
   const reattached = reattachTrailingNote({
     text: write(detached.text),
-    path: [...path, detached.anchorKey],
+    path,
+    anchorKey: detached.anchorKey,
     note: detached.note,
   });
   return reattached ?? write(text);

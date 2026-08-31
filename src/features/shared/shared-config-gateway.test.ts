@@ -388,6 +388,52 @@ describe("serializeSharedConfig", () => {
     expect(result).toBe(["{", '  "a": 1, // note about a', '  "b": 2', "}"].join("\n"));
   });
 
+  it("leaves an inserted key's anchor holding its note across a trailing comma", () => {
+    // The note sits after the comma in a file that spells one, so the insert
+    // point the note has to be lifted from is past the comma, not at the
+    // property's end.
+    const existingContent = ["{", '  "a": 1, // note about a', "}"].join("\n");
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1, b: 2 },
+      existingContent,
+    });
+
+    expect(result).toBe(["{", '  "a": 1, // note about a', '  "b": 2,', "}"].join("\n"));
+  });
+
+  it("takes a removed key's trailing note with it in a trailing-comma file", () => {
+    const existingContent = ["{", '  "a": 1,', '  "gone": 2, // this server was retired', "}"].join(
+      "\n",
+    );
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1, fresh: 3 },
+      existingContent,
+    });
+
+    expect(result).not.toContain("retired");
+    expect(result).toBe(["{", '  "a": 1,', '  "fresh": 3,', "}"].join("\n"));
+  });
+
+  it("leaves the note of an object that had nothing in it yet", () => {
+    // `{ /* none yet */ }` says something about the object, not about the
+    // first key rulesync puts in it.
+    const existingContent = ["{", '  "servers": { /* none yet */ }', "}"].join("\n");
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { servers: { docs: 1 } },
+      existingContent,
+    });
+
+    expect(result).toBe(
+      ["{", '  "servers": { /* none yet */', '    "docs": 1', "  }", "}"].join("\n"),
+    );
+  });
+
   it("leaves an inserted key's anchor holding a block-comment note", () => {
     const existingContent = ["{", '  "a": 1 /* note about a */', "}"].join("\n");
 
