@@ -570,6 +570,37 @@ describe("serializeSharedConfig", () => {
     expect(result).toBe(JSON.stringify(document, null, 2));
   });
 
+  it("writes a file whole when one key's new value is too large to re-indent", () => {
+    // A key the file does not state yet arrives as a single edit, however much
+    // of a document it carries, so counting edits alone would let a whole
+    // server list through — and `modify` re-indents what it writes in time
+    // quadratic in its length.
+    const servers: Record<string, unknown> = {};
+    for (let index = 0; index < 4000; index += 1) {
+      servers[`srv${index}`] = { type: "http", url: `https://example.com/${index}` };
+    }
+    const existingContent = ["{", "  // shared team config", '  "theme": "dark"', "}"].join("\n");
+    const document = { theme: "dark", mcp: servers };
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toBe(JSON.stringify(document, null, 2));
+  });
+
+  it("keeps editing a file taking a value it can still re-indent", () => {
+    const servers: Record<string, unknown> = {};
+    for (let index = 0; index < 200; index += 1) {
+      servers[`srv${index}`] = { type: "http", url: `https://example.com/${index}` };
+    }
+    const existingContent = ["{", "  // shared team config", '  "theme": "dark"', "}"].join("\n");
+    const document = { theme: "dark", mcp: servers };
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain("// shared team config");
+    expect(parse(result)).toEqual(document);
+  });
+
   it("keeps editing a large file when only a few of its keys change", () => {
     const servers: Record<string, unknown> = {};
     for (let index = 0; index < 400; index += 1) {
