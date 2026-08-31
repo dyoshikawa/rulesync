@@ -17,6 +17,7 @@ import type {
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -327,7 +328,9 @@ export class OpencodePermissions extends ToolPermissions {
 
   validate(): ValidationResult {
     try {
-      const json = JSON.parse(this.fileContent || "{}");
+      // Strict JSONC rather than JSON: the config may carry the user's
+      // comments, which the gateway preserves on write-back.
+      const json = parseJsoncStrict(this.fileContent || "{}");
       const result = OpencodePermissionsConfigSchema.safeParse(json);
       if (!result.success) {
         return { success: false, error: result.error };

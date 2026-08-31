@@ -14,6 +14,7 @@ import {
   mergeSharedConfigDeep,
   mergeSharedConfigShallow,
   parseSharedConfig,
+  serializeSharedConfig,
   SHARED_CONFIG_OWNERSHIP,
   stringifySharedConfig,
   TAKT_CONFIG_SHARED_FILE_KEY,
@@ -122,6 +123,164 @@ describe("stringifySharedConfig", () => {
     expect(toml).toBe('model = "hermes-3"\n');
     // Round-trips back through the toml codec.
     expect(parseSharedConfig({ format: "toml", fileContent: toml })).toEqual({ model: "hermes-3" });
+  });
+});
+
+const parse = (fileContent: string): Record<string, unknown> =>
+  parseSharedConfig({ format: "jsonc", fileContent });
+
+describe("serializeSharedConfig", () => {
+  const commented = [
+    "{",
+    "  // The comment the user wrote about their servers.",
+    '  "servers": {',
+    '    "kept": { "command": "node" }',
+    "  },",
+    "  // And the one about inputs.",
+    '  "inputs": []',
+    "}",
+  ].join("\n");
+
+  it("edits a JSONC document in place, keeping comments and untouched keys", () => {
+    const document = parse(commented);
+    document.servers = { fresh: { command: "bun" } };
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document,
+      existingContent: commented,
+    });
+
+    expect(result).toContain("// The comment the user wrote about their servers.");
+    expect(result).toContain("// And the one about inputs.");
+    expect(parse(result)).toEqual({ servers: { fresh: { command: "bun" } }, inputs: [] });
+  });
+
+  it("returns the existing text byte-identically when the document did not change", () => {
+    // The regeneration case: rulesync recomputes the same content it wrote last
+    // time, so the file must not be rewritten at all.
+    expect(
+      serializeSharedConfig({
+        format: "jsonc",
+        document: parse(commented),
+        existingContent: commented,
+      }),
+    ).toBe(commented);
+  });
+
+  it("recurses into a nested object instead of replacing it wholesale", () => {
+    const existingContent = [
+      "{",
+      '  "servers": {',
+      "    // Why this one is here.",
+      '    "kept": { "command": "node" },',
+      '    "stale": { "command": "old" }',
+      "  }",
+      "}",
+    ].join("\n");
+    const document = parse(existingContent);
+    document.servers = { kept: { command: "node" }, added: { command: "bun" } };
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain("// Why this one is here.");
+    expect(result).not.toContain("stale");
+    expect(parse(result)).toEqual({
+      servers: { kept: { command: "node" }, added: { command: "bun" } },
+    });
+  });
+
+  it("removes a key the document no longer carries", () => {
+    const document = parse(commented);
+    delete document.inputs;
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document,
+      existingContent: commented,
+    });
+
+    expect(parse(result)).toEqual({ servers: { kept: { command: "node" } } });
+  });
+
+  it("matches the file's own space indentation when inserting a key", () => {
+    const existingContent = ["{", '    "servers": {}', "}"].join("\n");
+    const document = parse(existingContent);
+    document.inputs = [];
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain('\n    "inputs": []');
+  });
+
+  it("matches the file's own tab indentation when inserting a key", () => {
+    const existingContent = ["{", '\t"servers": {}', "}"].join("\n");
+    const document = parse(existingContent);
+    document.inputs = [];
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain('\n\t"inputs": []');
+  });
+
+  it("keeps CRLF line endings when inserting a key", () => {
+    const existingContent = ["{", '  "servers": {}', "}"].join("\r\n");
+    const document = parse(existingContent);
+    document.inputs = [];
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain('\r\n  "inputs": []');
+    expect(result).not.toMatch(/[^\r]\n/);
+  });
+
+  it("falls back to the whole-document writer for an empty file", () => {
+    expect(
+      serializeSharedConfig({ format: "jsonc", document: { a: 1 }, existingContent: "  \n" }),
+    ).toBe(stringifySharedConfig({ format: "jsonc", document: { a: 1 } }));
+  });
+
+  it("falls back to the whole-document writer for content that does not parse", () => {
+    expect(
+      serializeSharedConfig({ format: "jsonc", document: { a: 1 }, existingContent: "{ oops" }),
+    ).toBe(stringifySharedConfig({ format: "jsonc", document: { a: 1 } }));
+  });
+
+  it("falls back to the whole-document writer for a non-object root", () => {
+    expect(
+      serializeSharedConfig({ format: "jsonc", document: { a: 1 }, existingContent: "[1, 2]" }),
+    ).toBe(stringifySharedConfig({ format: "jsonc", document: { a: 1 } }));
+  });
+
+  it("falls back to the whole-document writer when the file uses a prototype-pollution key", () => {
+    // Editing would leave the key in the file, because it is absent from every
+    // document rulesync parses and so never shows up as a difference. The
+    // whole-document writer drops it, which is what it has always done.
+    const existingContent = [
+      "{",
+      "  // kept only by the edit path",
+      '  "__proto__": { "a": 1 }',
+      "}",
+    ].join("\n");
+
+    const result = serializeSharedConfig({ format: "jsonc", document: { a: 1 }, existingContent });
+
+    expect(result).toBe(stringifySharedConfig({ format: "jsonc", document: { a: 1 } }));
+    expect(result).not.toContain("__proto__");
+  });
+
+  it("re-serializes every non-JSONC format", () => {
+    // YAML/TOML/JSON writers are unchanged: the existing content is ignored.
+    expect(
+      serializeSharedConfig({
+        format: "json",
+        document: { a: 1 },
+        existingContent: '{\n    "a": 2\n}',
+      }),
+    ).toBe(stringifySharedConfig({ format: "json", document: { a: 1 } }));
+    expect(
+      serializeSharedConfig({ format: "yaml", document: { a: 1 }, existingContent: "a: 2\n" }),
+    ).toBe(stringifySharedConfig({ format: "yaml", document: { a: 1 } }));
   });
 });
 
@@ -299,6 +458,34 @@ describe("applySharedConfigPatch", () => {
       provider_options: {
         codex: { base_url: "http://127.0.0.1:8080", network_access: true },
       },
+    });
+  });
+
+  it("preserves a JSONC file's comments end-to-end", () => {
+    // `.vscode/mcp.json` is the file VS Code's own "MCP: Add Server" scaffold
+    // writes a comment into, so a regeneration must not strip it.
+    const existingContent = [
+      "// For more info, visit https://aka.ms/vscode-add-mcp",
+      "{",
+      '  "inputs": [{ "id": "api-key", "type": "promptString" }],',
+      '  "servers": {',
+      "    // Retired, but the note explains why.",
+      '    "stale": { "command": "old" }',
+      "  }",
+      "}",
+    ].join("\n");
+
+    const result = applySharedConfigPatch({
+      fileKey: ".vscode/mcp.json",
+      feature: "mcp",
+      existingContent,
+      patch: { servers: { fresh: { command: "node" } } },
+    });
+
+    expect(result).toContain("// For more info, visit https://aka.ms/vscode-add-mcp");
+    expect(parseSharedConfig({ format: "jsonc", fileContent: result })).toEqual({
+      inputs: [{ id: "api-key", type: "promptString" }],
+      servers: { fresh: { command: "node" } },
     });
   });
 

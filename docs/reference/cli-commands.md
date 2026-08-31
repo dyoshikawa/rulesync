@@ -233,6 +233,12 @@ Some outputs are files Rulesync merges into rather than owns, because the tool (
 
 Because they stay committable, `generate` will not **create** one of them just to hold an empty payload: if Rulesync has nothing to contribute (e.g. no permissions map to that tool), the file is left absent instead of being written as `{}`. A file that already exists is always rewritten as usual, so nothing you authored is dropped. Every other generated file is written even when empty, since for a file Rulesync owns its existence is part of the output.
 
+### Comments in shared JSONC files are preserved
+
+Several of those shared files are JSONC rather than JSON, because the tools themselves put comments in them — VS Code's own "MCP: Add Server" scaffold opens `.vscode/mcp.json` with a comment line. `.vscode/settings.json`, `.vscode/mcp.json`, `.amp/settings.json`, `opencode.json(c)` and `kilo.json(c)` (with their global counterparts) are therefore written back as **edits to the existing text**: only the spans whose values actually changed are rewritten, so your comments, blank lines, and key order survive a regenerate, and a `generate` that computes the same content it wrote last time leaves the file byte-identical.
+
+Rulesync falls back to rewriting the whole document when there is nothing to preserve or nothing to edit against: an empty file, a file whose root is not an object, and a file using `__proto__`, `constructor` or `prototype` as a key (those keys are dropped from every document Rulesync parses, so they are removed rather than left behind). Files in the other formats — JSON, YAML, TOML — are re-serialized as before, so comments in `.codex/config.toml` or `reasonix.toml` are still not retained.
+
 ## Gitignore Command
 
 The `gitignore` command adds generated AI tool configuration files to `.gitignore`. By default, it emits entries only for the tools listed in the `targets` of your `rulesync.jsonc` (controlled by the `gitignoreTargetsOnly` option, which defaults to `true`). Set `gitignoreTargetsOnly` to `false` to emit entries for all supported tools instead. You can also filter the output per-invocation with `--targets` / `--features`, which take precedence over the config.

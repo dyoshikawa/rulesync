@@ -1,6 +1,12 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { uniq } from "es-toolkit";
 import { dump } from "js-yaml";
 import {
+  applyEdits,
+  type FormattingOptions as JsoncFormattingOptions,
+  modify,
+  type ModificationOptions as JsoncModificationOptions,
   parse as parseJsonc,
   type ParseError as JsoncParseError,
   printParseErrorCode,
@@ -15,6 +21,7 @@ import {
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
 import { formatError } from "../../utils/error.js";
+import { parseJsoncReportingDroppedKeys } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   omitPrototypePollutionKeys,
@@ -165,6 +172,149 @@ export function stringifySharedConfig({
     return stringifyToml(document);
   }
   return JSON.stringify(document, null, 2);
+}
+
+/**
+ * Read the indentation and line ending a JSONC document already uses, so
+ * inserted properties match the surrounding file instead of imposing the
+ * 2-space `JSON.stringify` shape on a file written with 4 spaces or tabs.
+ *
+ * The first indented line decides: in a config file that is one object of
+ * top-level keys, that line is a first-level property, so its leading
+ * whitespace is exactly one indent unit. A file with no indented line at all
+ * (a one-line object, or an empty one) falls back to the 2-space default the
+ * whole-document writer emits.
+ */
+function detectJsoncFormattingOptions(text: string): JsoncFormattingOptions {
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  for (const line of text.split(/\r?\n/)) {
+    const indent = /^([ \t]+)\S/.exec(line)?.[1];
+    if (indent === undefined) continue;
+    if (indent.includes("\t")) return { tabSize: 2, insertSpaces: false, eol };
+    return { tabSize: indent.length, insertSpaces: true, eol };
+  }
+  return { tabSize: 2, insertSpaces: true, eol };
+}
+
+/**
+ * Rewrite `text` so the object at `path` matches `next`, touching only the
+ * spans that actually differ from `base`.
+ *
+ * Each difference is applied on its own — `modify` computes an edit against
+ * the current text and `applyEdits` returns the text with that edit applied,
+ * which is then the input for the next difference, because every edit shifts
+ * the offsets the following ones would have been computed from. Nested objects
+ * present on both sides are recursed into rather than replaced wholesale, so a
+ * one-key change deep in the document leaves its siblings — and the comments
+ * attached to them — byte-identical.
+ */
+function applyJsoncObjectEdits({
+  text,
+  base,
+  next,
+  path,
+  options,
+}: {
+  text: string;
+  base: Record<string, unknown>;
+  next: SharedConfigDocument;
+  path: readonly string[];
+  options: JsoncModificationOptions;
+}): string {
+  let result = text;
+  for (const [key, value] of Object.entries(next)) {
+    // Never reachable through the gateway (both the parsed base and every
+    // merge policy drop these), but this walker writes straight into the
+    // user's file, so it does not rely on its callers to have done that.
+    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    const present = Object.hasOwn(base, key);
+    const previous = present ? base[key] : undefined;
+    if (value === undefined) {
+      // A key retracted by the merge policy. `JSON.stringify` drops it by
+      // omission; here it has to be deleted from the text explicitly.
+      if (present) result = applyEdits(result, modify(result, [...path, key], undefined, options));
+      continue;
+    }
+    if (isPlainObject(previous) && isPlainObject(value)) {
+      result = applyJsoncObjectEdits({
+        text: result,
+        base: previous,
+        next: value,
+        path: [...path, key],
+        options,
+      });
+      continue;
+    }
+    if (present && isDeepStrictEqual(previous, value)) continue;
+    result = applyEdits(result, modify(result, [...path, key], value, options));
+  }
+  for (const key of Object.keys(base)) {
+    if (!Object.hasOwn(next, key)) {
+      result = applyEdits(result, modify(result, [...path, key], undefined, options));
+    }
+  }
+  return result;
+}
+
+/**
+ * Serialize a document back over the file it was parsed from.
+ *
+ * For every format but JSONC this is {@link stringifySharedConfig}: those
+ * files carry no comments, so re-serializing loses nothing. A JSONC file does
+ * carry comments — `.vscode/settings.json` and `opencode.json` are hand-edited
+ * far more often than they are generated — and re-serializing would delete
+ * every one of them, along with the author's blank lines and key order. So a
+ * JSONC document is written back as a set of edits against the existing text:
+ * regions the merge did not change stay byte-identical, and a regeneration
+ * that changes nothing leaves the file untouched.
+ *
+ * The whole-document writer is still used when there is nothing to preserve or
+ * nothing to edit against:
+ *
+ * - an empty (or whitespace-only) file, which has no comments to keep;
+ * - a file that does not parse, or whose root is not an object — editing it
+ *   would mean guessing at the author's intent, and the callers that reach
+ *   here have already decided (via `invalidRootPolicy`) that such a file is
+ *   replaced;
+ * - a file using `__proto__`, `constructor` or `prototype` as a key. Those are
+ *   dropped from every document rulesync parses, so they are absent from
+ *   `document` and an edit-based write would silently leave them in the file
+ *   instead of removing them as the whole-document writer does.
+ */
+export function serializeSharedConfig({
+  format,
+  document,
+  existingContent,
+}: {
+  format: SharedConfigFormat;
+  document: SharedConfigDocument;
+  existingContent: string;
+}): string {
+  if (format !== "jsonc" || existingContent.trim() === "") {
+    return stringifySharedConfig({ format, document });
+  }
+
+  let base: unknown;
+  try {
+    const parsed = parseJsoncReportingDroppedKeys({ content: existingContent });
+    if (parsed.droppedKeys.length > 0) {
+      return stringifySharedConfig({ format, document });
+    }
+    base = parsed.value;
+  } catch {
+    return stringifySharedConfig({ format, document });
+  }
+  if (!isPlainObject(base)) {
+    return stringifySharedConfig({ format, document });
+  }
+
+  return applyJsoncObjectEdits({
+    text: existingContent,
+    base,
+    next: document,
+    path: [],
+    options: { formattingOptions: detectJsoncFormattingOptions(existingContent) },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -815,7 +965,10 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
 /**
  * Execute a feature's declared write to a gateway-managed shared file: parse
  * the existing content, merge the patch under the feature's declared policy,
- * and serialize. Throws when the file or feature is undeclared, when a
+ * and serialize it back over the existing content (see
+ * {@link serializeSharedConfig}, which keeps a JSONC file's comments and
+ * formatting outside the spans the merge actually changed). Throws when the
+ * file or feature is undeclared, when a
  * `replace-owned-keys` patch strays outside its owned keys, or when the
  * feature's policy is `custom` (those calls go to the named policy function
  * instead).
@@ -883,7 +1036,7 @@ export function applySharedConfigPatch({
         delete document[key];
       }
     }
-    return stringifySharedConfig({ format: declaration.format, document });
+    return serializeSharedConfig({ format: declaration.format, document, existingContent });
   }
 
   const merged = mergeSharedConfigDeep({ base, patch });
@@ -892,7 +1045,11 @@ export function applySharedConfigPatch({
       merged[key] = sanitizeSharedConfigValue(patch[key]);
     }
   }
-  return stringifySharedConfig({ format: declaration.format, document: merged });
+  return serializeSharedConfig({
+    format: declaration.format,
+    document: merged,
+    existingContent,
+  });
 }
 
 // ---------------------------------------------------------------------------
