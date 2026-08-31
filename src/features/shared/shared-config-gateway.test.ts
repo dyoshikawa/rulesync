@@ -541,6 +541,18 @@ describe("serializeSharedConfig", () => {
     expect(result).toBe(JSON.stringify(document, null, 2));
   });
 
+  it("writes a file whole when the editor refuses it", () => {
+    // jsonc-parser throws on an indentation width that lands exactly on the
+    // last slot of its formatting cache. A file rulesync cannot edit is
+    // written whole rather than allowed to stop the command.
+    const existingContent = `{\n${" ".repeat(198)}"mcp": {}\n}\n`;
+    const document = { mcp: { added: { type: "local" } } };
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(parseSharedConfig({ format: "jsonc", fileContent: result })).toEqual(document);
+  });
+
   it("writes a file whole when the document it is taking is the large one", () => {
     // The cost is a parse of the text as it stands when each edit lands, so a
     // small file swelling to a large one is the same quadratic work as a large

@@ -738,7 +738,9 @@ function applyJsoncObjectEdits({
  *   `prototype` as a key (see {@link statesUneditableKeys});
  * - a file so large, with so much of it changing, that editing it key by key
  *   would take longer than a user would wait (see
- *   {@link JSONC_EDIT_BUDGET_BYTES}).
+ *   {@link JSONC_EDIT_BUDGET_BYTES});
+ * - a file the editor itself refuses, which it answers with an exception
+ *   rather than a result.
  */
 export function serializeSharedConfig({
   format,
@@ -749,49 +751,62 @@ export function serializeSharedConfig({
   document: SharedConfigDocument;
   existingContent: string;
 }): string {
-  if (format !== "jsonc" || existingContent.trim() === "") {
-    return stringifySharedConfig({ format, document });
-  }
-
-  // One parse, as a syntax tree: it answers everything this path asks of the
-  // file — whether it is well-formed, what it says, where its indentation is,
-  // and whether it states a key an edit cannot be trusted with. Parsing the
-  // text again for the value would mean a second parser and a second
-  // sanitizer deciding what the document says, and the two silently drifting
-  // apart would make the diff below miss a change rulesync means to write.
-  const errors: JsoncParseError[] = [];
-  const root = parseTree(existingContent, errors, { allowTrailingComma: true });
-  if (
-    root === undefined ||
-    errors.length > 0 ||
-    root.type !== "object" ||
-    statesUneditableKeys(root)
-  ) {
-    return stringifySharedConfig({ format, document });
-  }
-
-  const base = sanitizeSharedConfigValue(getNodeValue(root));
-  if (!isPlainObject(base)) {
-    return stringifySharedConfig({ format, document });
-  }
-
-  // Measured against whichever of the two documents is larger: an edit costs a
-  // parse of the text *at the time it is applied*, so a small file taking a
-  // large patch grows into the same quadratic cost that a large file taking a
-  // small patch starts in.
   const whole = stringifySharedConfig({ format, document });
-  const span = Math.max(existingContent.length, whole.length);
-  if (countJsoncEdits({ base, next: document }) * span > JSONC_EDIT_BUDGET_BYTES) {
+  if (format !== "jsonc" || existingContent.trim() === "") {
     return whole;
   }
 
-  return applyJsoncObjectEdits({
-    text: existingContent,
-    base,
-    next: document,
-    path: [],
-    options: { formattingOptions: detectJsoncFormattingOptions({ text: existingContent, root }) },
-  });
+  // Everything the edit path can refuse answers with `whole`, exceptions
+  // included: jsonc-parser has edges of its own — an indentation width landing
+  // exactly on the last slot of its formatting cache throws a `TypeError`, a
+  // document nested deeper than its recursive parser throws a `RangeError` —
+  // and a file rulesync cannot edit is written whole, the same as a file it
+  // cannot parse. The comments are lost, the settings the caller means to
+  // write are not, and `generate` does not stop on a file it was only asked
+  // to update.
+  try {
+    // One parse, as a syntax tree: it answers everything this path asks of
+    // the file — whether it is well-formed, what it says, where its
+    // indentation is, and whether it states a key an edit cannot be trusted
+    // with. Parsing the text again for the value would mean a second parser
+    // and a second sanitizer deciding what the document says, and the two
+    // silently drifting apart would make the diff below miss a change
+    // rulesync means to write.
+    const errors: JsoncParseError[] = [];
+    const root = parseTree(existingContent, errors, { allowTrailingComma: true });
+    if (
+      root === undefined ||
+      errors.length > 0 ||
+      root.type !== "object" ||
+      statesUneditableKeys(root)
+    ) {
+      return whole;
+    }
+
+    const base = sanitizeSharedConfigValue(getNodeValue(root));
+    if (!isPlainObject(base)) {
+      return whole;
+    }
+
+    // Measured against whichever of the two documents is larger: an edit costs
+    // a parse of the text *at the time it is applied*, so a small file taking
+    // a large patch grows into the same quadratic cost that a large file
+    // taking a small patch starts in.
+    const span = Math.max(existingContent.length, whole.length);
+    if (countJsoncEdits({ base, next: document }) * span > JSONC_EDIT_BUDGET_BYTES) {
+      return whole;
+    }
+
+    return applyJsoncObjectEdits({
+      text: existingContent,
+      base,
+      next: document,
+      path: [],
+      options: { formattingOptions: detectJsoncFormattingOptions({ text: existingContent, root }) },
+    });
+  } catch {
+    return whole;
+  }
 }
 
 // ---------------------------------------------------------------------------
