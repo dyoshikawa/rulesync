@@ -123,6 +123,12 @@ describe("droppedPollutionKeysError", () => {
     expect(message).toContain('"mcpServers.alpha\\n[ok] safe.__proto__"');
   });
 
+  it("should quote the source path the same way it quotes the key paths", () => {
+    expect(
+      droppedPollutionKeysError({ sourcePath: "a b.jsonc", droppedKeys: ["x.__proto__"] }).message,
+    ).toContain('"a b.jsonc" uses');
+  });
+
   it("should name a single key as a key and several as keys", () => {
     expect(
       droppedPollutionKeysError({ sourcePath: "a.jsonc", droppedKeys: ["x.__proto__"] }).message,
