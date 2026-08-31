@@ -4,11 +4,14 @@ import { uniq } from "es-toolkit";
 import { dump } from "js-yaml";
 import {
   applyEdits,
+  findNodeAtLocation,
   type FormattingOptions as JsoncFormattingOptions,
   modify,
   type ModificationOptions as JsoncModificationOptions,
+  type Node as JsoncNode,
   parse as parseJsonc,
   type ParseError as JsoncParseError,
+  parseTree,
   printParseErrorCode,
 } from "jsonc-parser";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
@@ -179,21 +182,136 @@ export function stringifySharedConfig({
  * inserted properties match the surrounding file instead of imposing the
  * 2-space `JSON.stringify` shape on a file written with 4 spaces or tabs.
  *
- * The first indented line decides: in a config file that is one object of
- * top-level keys, that line is a first-level property, so its leading
- * whitespace is exactly one indent unit. A file with no indented line at all
- * (a one-line object, or an empty one) falls back to the 2-space default the
- * whole-document writer emits.
+ * The root object's first property decides, located through the syntax tree
+ * rather than by scanning for the first indented line: a file opening with a
+ * banner comment indents that comment's continuation lines too (` * ...`
+ * aligns at three columns), and reading the width off one of those would leave
+ * `modify` re-indenting the lines it touches to a width nothing else in the
+ * file uses. A property that does not start its own line — a one-line object,
+ * or an empty one — carries no indent to read, so those fall back to the
+ * 2-space default the whole-document writer emits.
  */
-function detectJsoncFormattingOptions(text: string): JsoncFormattingOptions {
+function detectJsoncFormattingOptions({
+  text,
+  root,
+}: {
+  text: string;
+  root: JsoncNode;
+}): JsoncFormattingOptions {
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
-  for (const line of text.split(/\r?\n/)) {
-    const indent = /^([ \t]+)\S/.exec(line)?.[1];
-    if (indent === undefined) continue;
-    if (indent.includes("\t")) return { tabSize: 2, insertSpaces: false, eol };
-    return { tabSize: indent.length, insertSpaces: true, eol };
+  const first = root.children?.[0];
+  const indent =
+    first === undefined
+      ? ""
+      : text.slice(text.lastIndexOf("\n", first.offset - 1) + 1, first.offset);
+  if (indent === "" || !/^[ \t]+$/.test(indent)) {
+    return { tabSize: 2, insertSpaces: true, eol };
   }
-  return { tabSize: 2, insertSpaces: true, eol };
+  if (indent.includes("\t")) return { tabSize: 2, insertSpaces: false, eol };
+  return { tabSize: indent.length, insertSpaces: true, eol };
+}
+
+/**
+ * Whether any object in the document states the same key twice.
+ *
+ * A duplicate key is legal JSON text that every reader resolves last-wins,
+ * while `modify` edits the *first* occurrence — so an edit-based write would
+ * land on the dead copy and leave the live one saying whatever it said before.
+ * For an owned key that is a silent ownership failure: a `deny` rulesync just
+ * wrote would sit above the `allow` the tool actually reads. The
+ * whole-document writer collapses duplicates, so those files go to it.
+ */
+function hasDuplicateJsoncKeys(node: JsoncNode): boolean {
+  if (node.type === "array") {
+    return (node.children ?? []).some((child) => hasDuplicateJsoncKeys(child));
+  }
+  if (node.type !== "object") return false;
+  const seen = new Set<string>();
+  for (const property of node.children ?? []) {
+    const key = property.children?.[0]?.value;
+    if (typeof key === "string") {
+      if (seen.has(key)) return true;
+      seen.add(key);
+    }
+    const value = property.children?.[1];
+    if (value !== undefined && hasDuplicateJsoncKeys(value)) return true;
+  }
+  return false;
+}
+
+/**
+ * The offset just past the whitespace and comments starting at `from`.
+ */
+function skipJsoncTrivia({ text, from }: { text: string; from: number }): number {
+  let index = from;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === " " || char === "\t" || char === "\n" || char === "\r") {
+      index += 1;
+      continue;
+    }
+    if (char === "/" && text[index + 1] === "/") {
+      const lineEnd = text.indexOf("\n", index);
+      index = lineEnd === -1 ? text.length : lineEnd;
+      continue;
+    }
+    if (char === "/" && text[index + 1] === "*") {
+      const commentEnd = text.indexOf("*/", index + 2);
+      index = commentEnd === -1 ? text.length : commentEnd + 2;
+      continue;
+    }
+    break;
+  }
+  return index;
+}
+
+/**
+ * Delete the property at `path` from `text`, taking its own line and its
+ * separating comma but nothing else.
+ *
+ * `modify(..., undefined)` would do this, but the range it deletes runs from
+ * the end of the *previous* property to the end of this one — or, for the
+ * first property of an object, all the way to where the *next* one starts. So
+ * removing one key takes the comments sitting between it and the keys around
+ * it, including the comment describing the key that survives.
+ * Deleting the property's own text instead leaves every comment in place; a
+ * comment written above a key rulesync removes is left behind rather than
+ * guessed at, which is the direction this whole path errs in.
+ */
+function removeJsoncProperty({ text, path }: { text: string; path: readonly string[] }): string {
+  const root = parseTree(text, [], { allowTrailingComma: true });
+  const property = root === undefined ? undefined : findNodeAtLocation(root, [...path])?.parent;
+  const object = property?.parent;
+  if (property?.type !== "property" || object?.type !== "object") {
+    // Already absent — nothing to delete.
+    return text;
+  }
+  const siblings = object.children ?? [];
+  const edits: { offset: number; length: number; content: string }[] = [];
+
+  let end = property.offset + property.length;
+  const afterProperty = skipJsoncTrivia({ text, from: end });
+  if (text[afterProperty] === ",") {
+    end = afterProperty + 1;
+  } else {
+    // No comma follows, so this is the last property: the comma separating it
+    // from the previous one has to go too, or the object is left holding a
+    // trailing comma that strict JSON readers reject.
+    const previous = siblings[siblings.indexOf(property) - 1];
+    if (previous !== undefined) {
+      const comma = skipJsoncTrivia({ text, from: previous.offset + previous.length });
+      if (text[comma] === ",") edits.push({ offset: comma, length: 1, content: "" });
+    }
+  }
+
+  let start = property.offset;
+  while (start > 0 && (text[start - 1] === " " || text[start - 1] === "\t")) start -= 1;
+  if (start > 0 && text[start - 1] === "\n") {
+    start -= 1;
+    if (start > 0 && text[start - 1] === "\r") start -= 1;
+  }
+  edits.push({ offset: start, length: end - start, content: "" });
+  return applyEdits(text, edits);
 }
 
 /**
@@ -207,6 +325,12 @@ function detectJsoncFormattingOptions(text: string): JsoncFormattingOptions {
  * present on both sides are recursed into rather than replaced wholesale, so a
  * one-key change deep in the document leaves its siblings — and the comments
  * attached to them — byte-identical.
+ *
+ * Every difference re-parses the document, so the cost is quadratic in the
+ * number of *changed* keys rather than in the file's size. These are config
+ * files whose managed sections hold tens of entries, and a regeneration that
+ * changes nothing costs one parse, so the shape is left simple rather than
+ * batched.
  */
 function applyJsoncObjectEdits({
   text,
@@ -232,7 +356,7 @@ function applyJsoncObjectEdits({
     if (value === undefined) {
       // A key retracted by the merge policy. `JSON.stringify` drops it by
       // omission; here it has to be deleted from the text explicitly.
-      if (present) result = applyEdits(result, modify(result, [...path, key], undefined, options));
+      if (present) result = removeJsoncProperty({ text: result, path: [...path, key] });
       continue;
     }
     if (isPlainObject(previous) && isPlainObject(value)) {
@@ -250,7 +374,7 @@ function applyJsoncObjectEdits({
   }
   for (const key of Object.keys(base)) {
     if (!Object.hasOwn(next, key)) {
-      result = applyEdits(result, modify(result, [...path, key], undefined, options));
+      result = removeJsoncProperty({ text: result, path: [...path, key] });
     }
   }
   return result;
@@ -276,10 +400,13 @@ function applyJsoncObjectEdits({
  *   would mean guessing at the author's intent, and the callers that reach
  *   here have already decided (via `invalidRootPolicy`) that such a file is
  *   replaced;
- * - a file using `__proto__`, `constructor` or `prototype` as a key. Those are
- *   dropped from every document rulesync parses, so they are absent from
- *   `document` and an edit-based write would silently leave them in the file
- *   instead of removing them as the whole-document writer does.
+ * - a file stating the same key twice, which every reader resolves last-wins
+ *   while an edit lands on the first copy (see {@link hasDuplicateJsoncKeys});
+ * - a file using `__proto__`, `constructor` or `prototype` as a key. Neither
+ *   survives into the parsed document — a nested one is dropped, a root-level
+ *   one leaves the root unusable — so an edit-based write would find no
+ *   difference to apply and leave the key in the file, where the
+ *   whole-document writer removes it.
  */
 export function serializeSharedConfig({
   format,
@@ -308,12 +435,19 @@ export function serializeSharedConfig({
     return stringifySharedConfig({ format, document });
   }
 
+  // Parsed a second time as a syntax tree: the value above cannot answer where
+  // the document's own indentation is, nor whether a key is stated twice.
+  const root = parseTree(existingContent, [], { allowTrailingComma: true });
+  if (root === undefined || root.type !== "object" || hasDuplicateJsoncKeys(root)) {
+    return stringifySharedConfig({ format, document });
+  }
+
   return applyJsoncObjectEdits({
     text: existingContent,
     base,
     next: document,
     path: [],
-    options: { formattingOptions: detectJsoncFormattingOptions(existingContent) },
+    options: { formattingOptions: detectJsoncFormattingOptions({ text: existingContent, root }) },
   });
 }
 

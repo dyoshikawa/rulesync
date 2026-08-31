@@ -399,4 +399,46 @@ describe("OpencodePermissions", () => {
 
     expect(rulesync.permission.bash).toEqual({ "*": "ask" });
   });
+  it("should read a commented opencode.jsonc and keep the comments when regenerating", async () => {
+    const commented = [
+      "{",
+      "  // Which model this project talks to.",
+      '  "model": "x",',
+      '  "permission": { "bash": "ask" }',
+      "}",
+    ].join("\n");
+    await writeFileContent(join(testDir, "opencode.jsonc"), commented);
+
+    const imported = await OpencodePermissions.fromFile({ outputRoot: testDir });
+    expect(imported.toRulesyncPermissions().getJson().permission.bash).toEqual({ "*": "ask" });
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+    });
+    const generated = await OpencodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    expect(generated.getFileContent()).toContain("// Which model this project talks to.");
+    expect(generated.getJson().permission).toEqual({ bash: { "git *": "allow" } });
+  });
+
+  it("should ignore a permission block reachable only through __proto__", async () => {
+    // `jsonc-parser` assigns keys with `obj[key] = value`, so a literal
+    // `"__proto__"` replaces the parsed object's prototype instead of becoming a
+    // key. Reading `permission` off the prototype would import rules the word
+    // "permission" never appears next to in the file.
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      '{ "__proto__": { "permission": { "bash": "allow" } } }',
+    );
+
+    const instance = await OpencodePermissions.fromFile({ outputRoot: testDir });
+
+    expect(instance.getJson().permission).toEqual({});
+  });
 });

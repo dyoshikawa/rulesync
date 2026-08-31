@@ -231,7 +231,118 @@ describe("serializeSharedConfig", () => {
     const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
 
     expect(result).toContain('\r\n  "inputs": []');
-    expect(result).not.toMatch(/[^\r]\n/);
+    // Every newline is part of a CRLF pair, including a would-be first byte.
+    expect(result.replaceAll("\r\n", "")).not.toContain("\n");
+  });
+
+  it("keeps CRLF line endings when rewriting a nested value", () => {
+    const existingContent = [
+      "{",
+      '  "servers": {',
+      "    // Why this one is here.",
+      '    "kept": { "command": "node" }',
+      "  }",
+      "}",
+    ].join("\r\n");
+    const document = parse(existingContent);
+    document.servers = { kept: { command: "node" }, added: { command: "bun" } };
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain("// Why this one is here.");
+    expect(result.replaceAll("\r\n", "")).not.toContain("\n");
+    expect(parse(result)).toEqual({
+      servers: { kept: { command: "node" }, added: { command: "bun" } },
+    });
+  });
+
+  it("indents against the first property, not a banner comment's own column", () => {
+    // The banner sits at column 0, so reading the line after `{` would report "no
+    // indentation" and re-indent the whole file with the default two spaces.
+    const existingContent = [
+      "{",
+      "// Managed by hand. Do not reformat.",
+      '\t"servers": {}',
+      "}",
+    ].join("\n");
+    const document = parse(existingContent);
+    document.inputs = [];
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain("// Managed by hand. Do not reformat.");
+    expect(result).toContain('\n\t"inputs": []');
+    expect(result).toContain('\n\t"servers": {}');
+  });
+
+  it("keeps the comment of the key that follows a removed one", () => {
+    const existingContent = ["{", '  "gone": 1,', "  // about b", '  "b": 2', "}"].join("\n");
+    const document = parse(existingContent);
+    delete document.gone;
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain("// about b");
+    expect(parse(result)).toEqual({ b: 2 });
+  });
+
+  it("drops the separating comma when the last property is removed", () => {
+    const existingContent = ["{", '  "a": 1, // trailing note about a', '  "gone": 2', "}"].join(
+      "\n",
+    );
+    const document = parse(existingContent);
+    delete document.gone;
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain("// trailing note about a");
+    expect(parse(result)).toEqual({ a: 1 });
+  });
+
+  it("keeps a lone comment when the only property is removed", () => {
+    const existingContent = ["{", "  // note", '  "gone": 1', "}"].join("\n");
+    const document = parse(existingContent);
+    delete document.gone;
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain("// note");
+    expect(parse(result)).toEqual({});
+  });
+
+  it("falls back to the whole-document writer when a key is stated twice", () => {
+    // `jsonc-parser` edits the first occurrence while the parsed value comes from
+    // the last one, so an in-place edit would land on the copy nothing reads and
+    // silently leave the effective value untouched.
+    const existingContent = [
+      "{",
+      '  "permission": { "bash": "allow" },',
+      '  "permission": { "bash": "deny" }',
+      "}",
+    ].join("\n");
+    const document = parse(existingContent);
+    document.permission = { bash: "ask" };
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toBe(
+      stringifySharedConfig({ format: "jsonc", document: { permission: { bash: "ask" } } }),
+    );
+    expect(parse(result)).toEqual({ permission: { bash: "ask" } });
+  });
+
+  it("falls back to the whole-document writer when a nested key is stated twice", () => {
+    const existingContent = ["{", '  "permission": { "bash": "allow", "bash": "deny" }', "}"].join(
+      "\n",
+    );
+    const document = parse(existingContent);
+    document.permission = { bash: "ask" };
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toBe(
+      stringifySharedConfig({ format: "jsonc", document: { permission: { bash: "ask" } } }),
+    );
   });
 
   it("falls back to the whole-document writer for an empty file", () => {
@@ -483,9 +594,37 @@ describe("applySharedConfigPatch", () => {
     });
 
     expect(result).toContain("// For more info, visit https://aka.ms/vscode-add-mcp");
+    // The note outlives the entry it describes: removing a key never reaches back
+    // over the line above it, so a comment is only ever dropped by the user.
+    expect(result).toContain("// Retired, but the note explains why.");
     expect(parseSharedConfig({ format: "jsonc", fileContent: result })).toEqual({
       inputs: [{ id: "api-key", type: "promptString" }],
       servers: { fresh: { command: "node" } },
+    });
+  });
+
+  it("preserves comments around a dotted owned key", () => {
+    // `amp.mcpServers` is one literal key, not a path: the editor must replace
+    // the key spelled with the dot and leave the comment beside it alone.
+    const existingContent = [
+      "{",
+      "  // Kept by hand: the editor settings this project shares.",
+      '  "amp.notifications.enabled": true,',
+      '  "amp.mcpServers": { "stale": { "command": "old" } }',
+      "}",
+    ].join("\n");
+
+    const result = applySharedConfigPatch({
+      fileKey: ".amp/settings.json",
+      feature: "mcp",
+      existingContent,
+      patch: { "amp.mcpServers": { fresh: { command: "node" } } },
+    });
+
+    expect(result).toContain("// Kept by hand: the editor settings this project shares.");
+    expect(parseSharedConfig({ format: "jsonc", fileContent: result })).toEqual({
+      "amp.notifications.enabled": true,
+      "amp.mcpServers": { fresh: { command: "node" } },
     });
   });
 

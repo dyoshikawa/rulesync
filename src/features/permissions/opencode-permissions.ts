@@ -19,6 +19,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -212,8 +213,17 @@ export class OpencodePermissions extends ToolPermissions {
       }
     }
 
-    const parsed = parseJsonc(fileContent ?? "{}");
-    const nextJson = { ...parsed, permission: parsed.permission ?? {} };
+    const parsed: unknown = parseJsonc(fileContent ?? "{}");
+    const record = isRecord(parsed) ? parsed : {};
+    const nextJson = {
+      ...record,
+      // Read as an own property rather than through the prototype chain:
+      // `jsonc-parser` assigns keys with `obj[key] = value`, so a literal
+      // `"__proto__": { "permission": ... }` in the config replaces this
+      // object's prototype, and `record.permission` would import a permission
+      // block that the word "permission" never appears next to in the file.
+      permission: Object.hasOwn(record, "permission") ? record.permission : {},
+    };
 
     return new OpencodePermissions({
       outputRoot,
