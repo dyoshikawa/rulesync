@@ -111,6 +111,28 @@ function parseStrict(content: string): unknown {
 }
 
 /**
+ * The error a source document should fail with when
+ * {@link parseJsoncReportingDroppedKeys} reports keys the parser removed.
+ *
+ * Shared by every source that reports them, so the three files a user can
+ * author explain the same removal the same way rather than each inventing its
+ * own wording.
+ */
+export function droppedPollutionKeysError({
+  sourcePath,
+  droppedKeys,
+}: {
+  sourcePath: string;
+  droppedKeys: readonly string[];
+}): Error {
+  return new Error(
+    `${sourcePath} uses ${droppedKeys.join(", ")} as ${droppedKeys.length === 1 ? "a key" : "keys"}. ` +
+      `Rulesync removes __proto__, constructor and prototype from every source document it parses, because assigning them would reach the prototype chain instead of the object. ` +
+      `They are therefore never written to any tool's config — rename them rather than leaving entries that silently do nothing.`,
+  );
+}
+
+/**
  * The same parse as {@link parseJsonc}, additionally reporting which
  * prototype-pollution keys were removed, as dotted paths
  * (`permission.bash.__proto__`).

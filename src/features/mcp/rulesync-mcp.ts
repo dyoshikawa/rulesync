@@ -19,7 +19,11 @@ import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { fileExistsStrict, readFileContent } from "../../utils/file.js";
-import { parseJsonc } from "../../utils/jsonc.js";
+import {
+  droppedPollutionKeysError,
+  parseJsonc,
+  parseJsoncReportingDroppedKeys,
+} from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import {
@@ -287,13 +291,21 @@ export function mergeMcpJsonOverlays({
 
 export class RulesyncMcp extends RulesyncFile {
   private readonly json: RulesyncMcpConfig;
+  /**
+   * Prototype-pollution keys the parser removed. They are dropped before the
+   * schema ever sees them, so without this record a server named `__proto__`
+   * would produce neither an error nor an entry in any generated file.
+   */
+  private readonly droppedKeys: readonly string[];
 
   constructor(params: RulesyncMcpParams) {
     super(params);
 
     // Sources may be authored as JSONC (`mcp.jsonc`); plain JSON is valid
     // JSONC, so both variants parse through the same strict parser.
-    this.json = parseJsonc(this.fileContent) as RulesyncMcpConfig;
+    const { value, droppedKeys } = parseJsoncReportingDroppedKeys({ content: this.fileContent });
+    this.json = value as RulesyncMcpConfig;
+    this.droppedKeys = droppedKeys;
 
     if (params.validate) {
       const result = this.validate();
@@ -323,6 +335,15 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   validate(): ValidationResult {
+    if (this.droppedKeys.length > 0) {
+      return {
+        success: false,
+        error: droppedPollutionKeysError({
+          sourcePath: this.getRelativePathFromCwd(),
+          droppedKeys: this.droppedKeys,
+        }),
+      };
+    }
     const result = RulesyncMcpFileSchema.safeParse(this.json);
     if (!result.success) {
       return { success: false, error: result.error };

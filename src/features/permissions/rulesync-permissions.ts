@@ -9,7 +9,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import {
-  isBlankPermissionPattern,
+  isBlankPermissionKey,
   type PermissionsConfig,
   RulesyncPermissionsFileSchema,
 } from "../../types/permissions.js";
@@ -17,7 +17,11 @@ import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { fileExistsStrict, readFileContent } from "../../utils/file.js";
-import { parseJsonc, parseJsoncReportingDroppedKeys } from "../../utils/jsonc.js";
+import {
+  droppedPollutionKeysError,
+  parseJsonc,
+  parseJsoncReportingDroppedKeys,
+} from "../../utils/jsonc.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import {
   RulesyncSourceNotFoundError,
@@ -78,15 +82,46 @@ export class RulesyncPermissions extends RulesyncFile {
     };
   }
 
+  /**
+   * The canonical document an importer produces from a tool's own config.
+   *
+   * Every importer has to run the blank-pattern filter over what it is about to
+   * write: the canonical schema rejects a blank pattern outright, so a source
+   * file carrying one would be refused by the very next `generate`. Building the
+   * imported document here rather than calling the filter beside each `new
+   * RulesyncPermissions(...)` is what keeps the next importer from forgetting
+   * it.
+   *
+   * `sourcePath` is the tool config being read, used only to name it if
+   * something is dropped.
+   */
+  static fromImportedFileContent({
+    outputRoot,
+    fileContent,
+    sourcePath,
+    logger,
+  }: {
+    outputRoot: string;
+    fileContent: string;
+    sourcePath?: string;
+    logger?: Logger;
+  }): RulesyncPermissions {
+    return new RulesyncPermissions({
+      outputRoot,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: withoutBlankPermissionPatterns({ fileContent, sourcePath, logger }),
+    });
+  }
+
   validate(): ValidationResult {
     if (this.droppedKeys.length > 0) {
       return {
         success: false,
-        error: new Error(
-          `${join(this.relativeDirPath, this.relativeFilePath)} uses ${this.droppedKeys.join(", ")} as ${this.droppedKeys.length === 1 ? "a key" : "keys"}. ` +
-            `Rulesync removes __proto__, constructor and prototype from every source document it parses, because assigning them would reach the prototype chain instead of the object. ` +
-            `They are therefore never written to any tool's config — rename them rather than leaving entries that silently do nothing.`,
-        ),
+        error: droppedPollutionKeysError({
+          sourcePath: this.getRelativePathFromCwd(),
+          droppedKeys: this.droppedKeys,
+        }),
       };
     }
     const result = RulesyncPermissionsFileSchema.safeParse(this.json);
@@ -198,6 +233,13 @@ export class RulesyncPermissions extends RulesyncFile {
 }
 
 /**
+ * Tool-scoped override keys whose `permission` block is not a category-to-
+ * pattern-map. Vibe alone keeps `{ sensitive_patterns: [...] }` objects there,
+ * so the blank-pattern filter must leave that block untouched.
+ */
+const NON_PATTERN_MAP_PERMISSION_OVERRIDE_KEYS: ReadonlySet<string> = new Set(["vibe"]);
+
+/**
  * Strip every blank permission pattern from an already-parsed canonical
  * document, reporting how many were dropped from each block.
  *
@@ -207,9 +249,14 @@ export class RulesyncPermissions extends RulesyncFile {
  * verbatim, so a blank pattern in the user's own config lands there. A category
  * whose value is not a rules map is left exactly as it is, which is what keeps
  * the tool-native shapes intact — OpenCode's and Kilo's bare action strings
- * (`"external_directory": "deny"`) have no pattern key to inspect, Vibe's
- * `sensitive_patterns` objects carry no blank key, and Kilo's `sandbox` is not a
- * `permission` block at all.
+ * (`"external_directory": "deny"`) have no pattern key to inspect, and Kilo's
+ * `sandbox` is not a `permission` block at all.
+ *
+ * Vibe is skipped outright: its `vibe.permission.<category>` values are
+ * `{ sensitive_patterns: [...] }` objects, so the keys inside them are field
+ * names rather than patterns. Walking them would drop a blank one and report it
+ * as a removed permission pattern, which is neither what it was nor something
+ * any translator would have read.
  */
 function stripBlankPermissionPatterns(config: Record<string, unknown>): {
   config: Record<string, unknown>;
@@ -232,7 +279,7 @@ function stripBlankPermissionPatterns(config: Record<string, unknown>): {
       }
       const kept: Record<string, unknown> = {};
       for (const [pattern, action] of Object.entries(rules)) {
-        if (isBlankPermissionPattern(pattern)) {
+        if (isBlankPermissionKey(pattern)) {
           const path = `${blockPath}.${category}`;
           removed.set(path, (removed.get(path) ?? 0) + 1);
           continue;
@@ -260,13 +307,34 @@ function stripBlankPermissionPatterns(config: Record<string, unknown>): {
     next.permission = filterBlock({ block: config.permission, blockPath: "permission" });
   }
   for (const [key, value] of Object.entries(config)) {
-    if (key === "permission" || !isRecord(value) || !isRecord(value.permission)) {
+    if (
+      key === "permission" ||
+      NON_PATTERN_MAP_PERMISSION_OVERRIDE_KEYS.has(key) ||
+      !isRecord(value) ||
+      !isRecord(value.permission)
+    ) {
       continue;
     }
-    next[key] = {
-      ...value,
-      permission: filterBlock({ block: value.permission, blockPath: `${key}.permission` }),
-    };
+    const permission = filterBlock({
+      block: value.permission,
+      blockPath: `${key}.permission`,
+    });
+    // A tool-scoped block the filter emptied loses its `permission` key rather
+    // than keeping `"permission": {}`. Generation already ignores an empty
+    // override, so the residue only misleads whoever opens the file next; and
+    // if nothing else was authored under the tool key, the key goes too.
+    const emptiedByFilter =
+      Object.keys(permission).length === 0 && Object.keys(value.permission).length > 0;
+    if (!emptiedByFilter) {
+      next[key] = { ...value, permission };
+      continue;
+    }
+    const { permission: _emptied, ...rest } = value;
+    if (Object.keys(rest).length === 0) {
+      delete next[key];
+      continue;
+    }
+    next[key] = rest;
   }
 
   return { config: next, removed };
@@ -284,18 +352,26 @@ function stripBlankPermissionPatterns(config: Record<string, unknown>): {
  * `logger` is optional because the import direction (`toRulesyncPermissions`)
  * takes no logger parameter; the shared `fallbackLogger` is configured from the
  * CLI flags and the resolved config, so `silent` is still honored.
+ *
+ * `sourcePath` names the tool config the patterns came out of. A single import
+ * run reads many tools, and the block paths alone (`permission.bash`) are the
+ * same for all of them, so without it the user is told something was dropped
+ * but not from where.
  */
 function warnAboutDroppedPatterns({
   removed,
+  sourcePath,
   logger,
 }: {
   removed: Map<string, number>;
+  sourcePath?: string;
   logger?: Logger;
 }): void {
   const summary = [...removed.entries()].map(([path, count]) => `${count} in "${path}"`).join(", ");
+  const source = sourcePath === undefined ? "a tool's permission configuration" : `"${sourcePath}"`;
   warnWithFallback(
     logger,
-    `Dropped blank permission patterns while reading a tool's permission configuration (${summary}). An empty or whitespace-only pattern matches everything, and tools disagree on what it means — some apply it to every command, others ignore it entirely — so it is not carried into the rulesync permissions config. If one of them was a blanket deny, the imported configuration now allows more than the file it came from; re-add it with a real pattern.`,
+    `Dropped blank permission patterns while reading ${source} (${summary}). An empty or whitespace-only pattern matches everything, and tools disagree on what it means — some apply it to every command, others ignore it entirely — so it is not carried into the rulesync permissions config. If one of them was a blanket deny, the imported configuration now allows more than the file it came from; re-add it with a real pattern.`,
   );
 }
 
@@ -309,11 +385,13 @@ function warnAboutDroppedPatterns({
  * would therefore write a source file that the very next `generate` refuses —
  * so it is removed here instead, and reported.
  */
-export function withoutBlankPermissionPatterns({
+function withoutBlankPermissionPatterns({
   fileContent,
+  sourcePath,
   logger,
 }: {
   fileContent: string;
+  sourcePath?: string;
   logger?: Logger;
 }): string {
   const parsed: unknown = parseJsonc(fileContent);
@@ -325,7 +403,7 @@ export function withoutBlankPermissionPatterns({
   if (removed.size === 0) {
     return fileContent;
   }
-  warnAboutDroppedPatterns({ removed, logger });
+  warnAboutDroppedPatterns({ removed, sourcePath, logger });
   return JSON.stringify(config, null, 2);
 }
 
@@ -338,16 +416,18 @@ export function withoutBlankPermissionPatterns({
  */
 export function withoutBlankPermissionPatternsIn({
   config,
+  sourcePath,
   logger,
 }: {
   config: Record<string, unknown>;
+  sourcePath?: string;
   logger?: Logger;
 }): Record<string, unknown> {
   const { config: filtered, removed } = stripBlankPermissionPatterns(config);
   if (removed.size === 0) {
     return config;
   }
-  warnAboutDroppedPatterns({ removed, logger });
+  warnAboutDroppedPatterns({ removed, sourcePath, logger });
   return filtered;
 }
 

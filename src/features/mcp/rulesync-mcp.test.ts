@@ -332,6 +332,40 @@ describe("RulesyncMcp", () => {
   });
 
   describe("validate", () => {
+    // A server named after a prototype member is removed by the parser before
+    // the schema can see it, so it used to produce neither an error nor an
+    // entry in any generated file. These pin the report that replaced that
+    // silence.
+    it("should reject a server named after a prototype member", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_MCP_FILE_NAME,
+        // Written as raw text: a `__proto__` key in an object literal sets the
+        // prototype instead of becoming a property, so it would never survive
+        // JSON.stringify to reach the parser under test.
+        fileContent: '{"mcpServers": {"__proto__": {"command": "node"}}}',
+        validate: false,
+      });
+
+      const result = rulesyncMcp.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain("mcpServers.__proto__");
+      expect(result.error?.message).toContain("rename them");
+    });
+
+    it("should throw from the constructor when validation is enabled", () => {
+      expect(
+        () =>
+          new RulesyncMcp({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_MCP_FILE_NAME,
+            fileContent: '{"mcpServers": {"constructor": {"command": "node"}}}',
+            validate: true,
+          }),
+      ).toThrow("mcpServers.constructor");
+    });
+
     it("should return successful validation result", () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
