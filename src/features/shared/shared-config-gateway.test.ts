@@ -550,6 +550,7 @@ describe("serializeSharedConfig", () => {
 
     const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
 
+    expect(result).toBe(JSON.stringify(document, null, 2));
     expect(parseSharedConfig({ format: "jsonc", fileContent: result })).toEqual(document);
   });
 
