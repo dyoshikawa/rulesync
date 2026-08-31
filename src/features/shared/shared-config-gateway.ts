@@ -243,15 +243,21 @@ function detectJsoncFormattingOptions({
   text: string;
   root: JsoncNode;
 }): JsoncFormattingOptions {
-  // Only a document that states no line break of its own takes this `eol`:
-  // `modify` reads the rest off the text it is editing.
-  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  // A document that states a line break of its own has `modify` read the
+  // ending off the text; this one is the fallback for the document that
+  // states none — which, having no line break at all, cannot be a CRLF file.
+  const eol = "\n";
   const first = root.children?.[0];
   const indent =
     first === undefined
       ? ""
       : text.slice(startOfLineAt({ text, from: first.offset }), first.offset);
-  if (indent === "" || !/^[ \t]+$/.test(indent)) {
+  // A width past this is not a style to match but a line to stop reading: an
+  // insert indented to it re-emits the whole run on every line it writes, so a
+  // file opening with a very long indent would be rewritten far larger than
+  // its author wrote it.
+  const widestReadableIndent = 8;
+  if (indent === "" || indent.length > widestReadableIndent || !/^[ \t]+$/.test(indent)) {
     return { tabSize: 2, insertSpaces: true, eol };
   }
   if (indent.includes("\t")) return { tabSize: 2, insertSpaces: false, eol };
@@ -585,6 +591,58 @@ function insertJsoncProperty({
 }
 
 /**
+ * How much work an edit-based write may cost, as the file's length times the
+ * number of keys that differ.
+ *
+ * Each changed key re-parses the whole file, so a file whose keys nearly all
+ * change costs quadratic work: an 823 KB `opencode.json` whose 6,400 servers
+ * are all replaced took 40 seconds to write as edits, and cloning a
+ * repository that ships such a file is enough to reach that. Past this budget
+ * the file is written whole instead — it loses its comments, the same as a
+ * file rulesync cannot parse does, which is the better of the two outcomes
+ * against a `generate` that looks like it has hung. The limit is a few tenths
+ * of a second of editing; a hand-written config file is orders of magnitude
+ * below it.
+ */
+const JSONC_EDIT_BUDGET_BYTES = 50_000_000;
+
+/**
+ * How many edits {@link applyJsoncObjectEdits} would make, deciding each key
+ * exactly the way it does — the two walk together, so a new case in one needs
+ * the same case here. Counting is a walk of the documents alone: no text is
+ * touched, so the budget above is spent on the write rather than on finding
+ * out how large the write is.
+ */
+function countJsoncEdits({
+  base,
+  next,
+}: {
+  base: Record<string, unknown>;
+  next: SharedConfigDocument;
+}): number {
+  let edits = 0;
+  for (const [key, value] of Object.entries(next)) {
+    if (isPrototypePollutionKey(key)) continue;
+    const present = Object.hasOwn(base, key);
+    const previous = present ? base[key] : undefined;
+    if (value === undefined) {
+      if (present) edits += 1;
+      continue;
+    }
+    if (isPlainObject(previous) && isPlainObject(value)) {
+      edits += countJsoncEdits({ base: previous, next: value });
+      continue;
+    }
+    if (present && isDeepStrictEqual(previous, value)) continue;
+    edits += 1;
+  }
+  for (const key of Object.keys(base)) {
+    if (!Object.hasOwn(next, key)) edits += 1;
+  }
+  return edits;
+}
+
+/**
  * Rewrite `text` so the object at `path` matches `next`, touching only the
  * spans that actually differ from `base`.
  *
@@ -599,7 +657,9 @@ function insertJsoncProperty({
  * Every difference re-parses the document, so the work is one parse of the
  * file per *changed* key rather than one parse overall. A regeneration that
  * changes nothing costs a single parse, and the files this runs on are config
- * files, so the shape is left simple rather than batched.
+ * files, so the shape is left simple rather than batched — with the file
+ * large enough and enough of it changing, the product of the two is what
+ * {@link JSONC_EDIT_BUDGET_BYTES} keeps off this path.
  */
 function applyJsoncObjectEdits({
   text,
@@ -674,7 +734,10 @@ function applyJsoncObjectEdits({
  *   here have already decided (via `invalidRootPolicy`) that such a file is
  *   replaced;
  * - a file stating the same key twice, or using `__proto__`, `constructor` or
- *   `prototype` as a key (see {@link statesUneditableKeys}).
+ *   `prototype` as a key (see {@link statesUneditableKeys});
+ * - a file so large, with so much of it changing, that editing it key by key
+ *   would take longer than a user would wait (see
+ *   {@link JSONC_EDIT_BUDGET_BYTES}).
  */
 export function serializeSharedConfig({
   format,
@@ -708,6 +771,13 @@ export function serializeSharedConfig({
 
   const base = sanitizeSharedConfigValue(getNodeValue(root));
   if (!isPlainObject(base)) {
+    return stringifySharedConfig({ format, document });
+  }
+
+  if (
+    countJsoncEdits({ base, next: document }) * existingContent.length >
+    JSONC_EDIT_BUDGET_BYTES
+  ) {
     return stringifySharedConfig({ format, document });
   }
 

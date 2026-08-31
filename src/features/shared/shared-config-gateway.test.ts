@@ -521,6 +521,65 @@ describe("serializeSharedConfig", () => {
     expect(result).toBe('{\r    "a": 1,\r    "b": {\r        "c": 1\r    }\r}');
   });
 
+  it("writes a file whole once editing it key by key would cost more than it saves", () => {
+    // Every changed key re-parses the file, so a large file with a large
+    // change is quadratic work. Past the budget the comments are given up
+    // rather than the responsiveness.
+    const stale: Record<string, unknown> = {};
+    for (let index = 0; index < 2000; index += 1) {
+      stale[`srv${index}`] = { type: "local", command: ["node", `server-${index}.js`] };
+    }
+    const existingContent = `{\n  // every server this workspace knows\n  "mcp": ${JSON.stringify(
+      stale,
+      null,
+      2,
+    )}\n}`;
+    const document = { mcp: { fresh: { type: "local", command: ["node"] } } };
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toBe(JSON.stringify(document, null, 2));
+  });
+
+  it("keeps editing a large file when only a few of its keys change", () => {
+    const servers: Record<string, unknown> = {};
+    for (let index = 0; index < 400; index += 1) {
+      servers[`srv${index}`] = { type: "local", command: ["node", `server-${index}.js`] };
+    }
+    const existingContent = `{\n  // every server this workspace knows\n  "mcp": ${JSON.stringify(
+      servers,
+      null,
+      2,
+    )}\n}`;
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { mcp: { ...servers, fresh: { type: "http" } } },
+      existingContent,
+    });
+
+    expect(result).toContain("// every server this workspace knows");
+    expect(result).toContain('"fresh"');
+  });
+
+  it("steps an indent too wide to be a style by the default width", () => {
+    // The formatter re-emits the indent it is given on every line it writes,
+    // so a file opening with a very long one is not a width to match.
+    const wide = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1, b: { c: 1 } },
+      existingContent: `{\n${" ".repeat(12)}"a": 1\n}`,
+    });
+    const readable = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1, b: { c: 1 } },
+      existingContent: `{\n${" ".repeat(8)}"a": 1\n}`,
+    });
+
+    expect(wide).toContain(`\n${" ".repeat(14)}"c": 1`);
+    expect(readable).toContain(`\n${" ".repeat(16)}"c": 1`);
+  });
+
   it("gives a single-line document the line ending it has none of yet", () => {
     // The only case the detected `eol` decides: `modify` reads the ending off
     // the document itself as soon as the document states one.
