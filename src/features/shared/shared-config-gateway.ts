@@ -421,8 +421,36 @@ function endOfNoteAt({ text, from }: { text: string; from: number }): number | u
 }
 
 /**
- * Detach the note written at the point where the object at `path` will take a
- * new key: after its last property (and after the comma a trailing-comma file
+ * Every comment written at `from`, as spans of `text`, each span running from
+ * where the previous one stopped so the whitespace between them is carried
+ * along. A comma is stepped over once (a file may spell one before its note,
+ * or after it) but never collected, because the separator belongs to the
+ * property rather than to its note. The run stops at the first thing that is
+ * neither: a newline ends it, so a comment on the next line is left alone.
+ */
+function notesAt({ text, from }: { text: string; from: number }): { start: number; end: number }[] {
+  const spans: { start: number; end: number }[] = [];
+  let cursor = from;
+  let steppedOverComma = false;
+  for (;;) {
+    const end = endOfNoteAt({ text, from: cursor });
+    if (end !== undefined) {
+      spans.push({ start: cursor, end });
+      cursor = end;
+      continue;
+    }
+    if (steppedOverComma) return spans;
+    let comma = cursor;
+    while (text[comma] === " " || text[comma] === "\t") comma += 1;
+    if (text[comma] !== ",") return spans;
+    steppedOverComma = true;
+    cursor = comma + 1;
+  }
+}
+
+/**
+ * Detach the notes written at the point where the object at `path` will take a
+ * new key: after its last property (and around the comma a trailing-comma file
  * spells there), or just inside the `{` when it has no properties yet.
  *
  * `modify` computes its insert from exactly that point — in front of a note
@@ -430,8 +458,9 @@ function endOfNoteAt({ text, from }: { text: string; from: number }): number | u
  * key that was just inserted: `"stale": {...} // retired` turns into a note
  * about a server rulesync has only now written, and `{ /* none yet *\/ }`
  * turns into a note about the first entry rulesync puts in it. Lifting the
- * note out before the insert and putting it back afterwards keeps it where its
- * author wrote it, matching what {@link endOfRemoval} does on the way out.
+ * notes out before the insert and putting them back afterwards keeps them
+ * where their author wrote them, matching what {@link endOfRemoval} does on
+ * the way out.
  *
  * Returns `undefined` when there is no such note, which is the common case.
  */
@@ -449,20 +478,19 @@ function detachTrailingNote({
   const anchorKey = property?.children?.[0]?.value;
   if (property !== undefined && typeof anchorKey !== "string") return undefined;
 
-  let cursor = property === undefined ? object.offset + 1 : property.offset + property.length;
-  if (property !== undefined) {
-    // Step over a comma the file already spells, so the note is lifted out
-    // without it and the property keeps its separator.
-    let comma = cursor;
-    while (text[comma] === " " || text[comma] === "\t") comma += 1;
-    if (text[comma] === ",") cursor = comma + 1;
+  const from = property === undefined ? object.offset + 1 : property.offset + property.length;
+  const spans = notesAt({ text, from });
+  if (spans.length === 0) return undefined;
+
+  // Only the comments are lifted out; a comma between them stays where the
+  // file spells it, so the file keeps its own trailing-comma style.
+  let stripped = text;
+  for (const span of spans.toReversed()) {
+    stripped = stripped.slice(0, span.start) + stripped.slice(span.end);
   }
-  const noteStart = cursor;
-  const noteEnd = endOfNoteAt({ text, from: noteStart });
-  if (noteEnd === undefined) return undefined;
   return {
-    text: text.slice(0, noteStart) + text.slice(noteEnd),
-    note: text.slice(noteStart, noteEnd),
+    text: stripped,
+    note: spans.map((span) => text.slice(span.start, span.end)).join(""),
     anchorKey: typeof anchorKey === "string" ? anchorKey : undefined,
   };
 }

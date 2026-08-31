@@ -403,6 +403,54 @@ describe("serializeSharedConfig", () => {
     expect(result).toBe(["{", '  "a": 1, // note about a', '  "b": 2,', "}"].join("\n"));
   });
 
+  it("leaves an inserted key's anchor holding every note written at the insert point", () => {
+    // Two notes around the comma: lifting only the first would leave the
+    // second where `modify` inserts, so it would come out describing the key
+    // rulesync has only now written.
+    const existingContent = [
+      "{",
+      '  "mcp": {',
+      '    "internal": 1 /* audited */, // reviewed, safe',
+      "  }",
+      "}",
+    ].join("\n");
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { mcp: { internal: 1, added: 2 } },
+      existingContent,
+    });
+
+    expect(result).toBe(
+      [
+        "{",
+        '  "mcp": {',
+        '    "internal": 1, /* audited */ // reviewed, safe',
+        '    "added": 2,',
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+  });
+
+  it("leaves an object that had nothing in it yet holding every note it carried", () => {
+    const existingContent = ["{", '  "mcp": { /* none yet */ /* ask ops first */ }', "}"].join(
+      "\n",
+    );
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { mcp: { added: 2 } },
+      existingContent,
+    });
+
+    expect(result).toBe(
+      ["{", '  "mcp": { /* none yet */ /* ask ops first */', '    "added": 2', "  }", "}"].join(
+        "\n",
+      ),
+    );
+  });
+
   it("takes a removed key's trailing note with it in a trailing-comma file", () => {
     const existingContent = ["{", '  "a": 1,', '  "gone": 2, // this server was retired', "}"].join(
       "\n",
