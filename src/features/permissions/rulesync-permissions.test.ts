@@ -10,9 +10,12 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import type { ValidationResult } from "../../types/ai-file.js";
+import { PermissionsConfigSchema } from "../../types/permissions.js";
+import { permissionsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
 import {
+  PERMISSION_OVERRIDE_KEY_ALIASES,
   RulesyncPermissions,
   type RulesyncPermissionsFromFileParams,
   type RulesyncPermissionsParams,
@@ -1052,5 +1055,26 @@ describe("RulesyncPermissions", () => {
 
       expect(warn).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe("PermissionsConfigSchema tool keys", () => {
+  it("should carry an entry for every permissions target's override key", () => {
+    // The schema is a `looseObject`, so a target missing from it is not a type
+    // error — its whole tool-scoped block simply goes unvalidated, and a blank
+    // pattern underneath reaches the generated file. `roo` and `zoocode` were
+    // missing exactly that way. This asserts the two lists cannot drift again.
+    const expected = [
+      ...new Set(
+        permissionsProcessorToolTargetTuple.map(
+          (toolTarget) => PERMISSION_OVERRIDE_KEY_ALIASES[toolTarget] ?? toolTarget,
+        ),
+      ),
+    ].toSorted();
+    const actual = Object.keys(PermissionsConfigSchema.shape)
+      .filter((key) => key !== "permission")
+      .toSorted();
+
+    expect(actual).toEqual(expected);
   });
 });

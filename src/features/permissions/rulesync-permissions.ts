@@ -241,7 +241,11 @@ export class RulesyncPermissions extends RulesyncFile {
  *
  * Typed as `ToolTarget` so a renamed target fails to compile here rather than
  * silently stopping to match, which would let the filter start deleting Vibe's
- * fields and reporting them as removed permission patterns.
+ * fields and reporting them as removed permission patterns. That only holds for
+ * targets whose override key is the target name itself: a target that aliases
+ * to another key (see `PERMISSION_OVERRIDE_KEY_ALIASES`) would have to be listed
+ * under the alias, which this type would reject. None of them is non-pattern-map
+ * today, so add that spelling only when one becomes so.
  */
 const NON_PATTERN_MAP_PERMISSION_OVERRIDE_KEYS: ReadonlySet<ToolTarget> = new Set<ToolTarget>([
   "vibe",
@@ -358,11 +362,6 @@ function stripBlankPermissionKeys(config: Record<string, unknown>): {
   return { config: next, removed: { patterns, categories } };
 }
 
-const summarizeDroppedCounts = (counts: Map<string, number>): string =>
-  // The paths embed category names read from the tool's own config, so they
-  // are quoted and control-escaped rather than interpolated raw.
-  [...counts.entries()].map(([path, count]) => `${count} in ${JSON.stringify(path)}`).join(", ");
-
 /**
  * Blank keys the filter removed, counted per block: patterns by the
  * `permission.<category>` path they sat under, categories by the block itself.
@@ -371,6 +370,11 @@ type DroppedBlankKeys = {
   patterns: Map<string, number>;
   categories: Map<string, number>;
 };
+
+const summarizeDroppedCounts = (counts: Map<string, number>): string =>
+  // The paths embed category names read from the tool's own config, so they
+  // are quoted and control-escaped rather than interpolated raw.
+  [...counts.entries()].map(([path, count]) => `${count} in ${JSON.stringify(path)}`).join(", ");
 
 /**
  * Report the dropped keys.
@@ -490,7 +494,7 @@ const NATIVE_PERMISSION_OVERRIDE_TARGETS: ReadonlySet<ToolTarget> = new Set([
  * Kiro IDE/CLI share the `kiro` block (they write the same agent config) and
  * Hermes Agent's established override key is `hermes`.
  */
-const PERMISSION_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
+export const PERMISSION_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   "kiro-cli": "kiro",
   "kiro-ide": "kiro",
   hermesagent: "hermes",

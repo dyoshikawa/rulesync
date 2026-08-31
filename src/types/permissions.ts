@@ -1090,7 +1090,7 @@ export type ZedPermissionsOverride = z.infer<typeof ZedPermissionsOverrideSchema
  *   "edit": { "*": "deny", "src/**": "allow" }
  * }
  */
-const PermissionsConfigSchema = z.looseObject({
+export const PermissionsConfigSchema = z.looseObject({
   permission: z.record(PermissionCategorySchema, PermissionRulesSchema),
   opencode: z.optional(OpencodePermissionsOverrideSchema),
   hermes: z.optional(HermesPermissionsOverrideSchema),

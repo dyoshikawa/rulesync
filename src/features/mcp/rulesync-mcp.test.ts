@@ -12,6 +12,7 @@ import {
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { droppedPollutionKeysError } from "../../utils/jsonc.js";
 import {
   mergeMcpJsonOverlays,
   RulesyncMcp,
@@ -1734,8 +1735,18 @@ describe("RulesyncMcp.fromRoots", () => {
       '{"mcpServers": {"__proto__": {"command": "node"}}}',
     );
 
-    await expect(RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] })).rejects.toThrow(
-      "mcpServers.__proto__",
+    const error = await RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] }).then(
+      () => undefined,
+      (thrown: unknown) => thrown,
+    );
+
+    // Named once, cwd-relative, the same way `validate()` names it on the
+    // single-root path — not wrapped in the parse-failure message as well.
+    expect(String((error as Error).message)).toBe(
+      droppedPollutionKeysError({
+        sourcePath: join(".rulesync.local", RULESYNC_MCP_FILE_NAME),
+        droppedKeys: ["mcpServers.__proto__"],
+      }).message,
     );
   });
 
