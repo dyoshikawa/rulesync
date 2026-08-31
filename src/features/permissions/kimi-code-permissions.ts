@@ -1,10 +1,6 @@
 import { join } from "node:path";
 
 import { KIMI_CODE_CONFIG_FILE_NAME } from "../../constants/kimi-code-paths.js";
-import {
-  RULESYNC_PERMISSIONS_FILE_NAME,
-  RULESYNC_RELATIVE_DIR_PATH,
-} from "../../constants/rulesync-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
@@ -24,7 +20,7 @@ import {
   parseSharedConfig,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
-import { RulesyncPermissions, withoutBlankPermissionPatterns } from "./rulesync-permissions.js";
+import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -432,25 +428,22 @@ export class KimiCodePermissions extends ToolPermissions {
       ...(nativeRules.length > 0 && { rules: nativeRules }),
       ...(tools && { tools }),
     };
-    return new RulesyncPermissions({
+    return RulesyncPermissions.fromImportedFileContent({
       outputRoot: getKimiCodeRulesyncOutputRoot({
         nativeOutputRoot: this.outputRoot,
         global: this.global,
       }),
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: withoutBlankPermissionPatterns({
-        fileContent: JSON.stringify(
-          {
-            permission,
-            ...(Object.keys(toolOverride).length > 0 && {
-              "kimi-code": toolOverride,
-            }),
-          },
-          null,
-          2,
-        ),
-      }),
+      sourcePath: this.getRelativePathFromCwd(),
+      fileContent: JSON.stringify(
+        {
+          permission,
+          ...(Object.keys(toolOverride).length > 0 && {
+            "kimi-code": toolOverride,
+          }),
+        },
+        null,
+        2,
+      ),
     });
   }
 

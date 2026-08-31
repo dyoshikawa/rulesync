@@ -12,7 +12,7 @@ import { type HooksConfig, HooksConfigSchema } from "../../types/hooks.js";
 import type { RulesyncFileFromFileParams, RulesyncFileParams } from "../../types/rulesync-file.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { fileExistsStrict, readFileContent } from "../../utils/file.js";
-import { parseJsonc } from "../../utils/jsonc.js";
+import { droppedPollutionKeysError, parseJsoncReportingDroppedKeys } from "../../utils/jsonc.js";
 import {
   RulesyncSourceNotFoundError,
   getRulesyncSourceCandidates,
@@ -30,13 +30,21 @@ export type RulesyncHooksSettablePaths = RulesyncSourceSettablePaths;
 
 export class RulesyncHooks extends RulesyncFile {
   private readonly json: HooksConfig;
+  /**
+   * Prototype-pollution keys the parser removed. They are dropped before the
+   * schema ever sees them, so without this record a hook keyed `constructor`
+   * would produce neither an error nor an entry in any generated file.
+   */
+  private readonly droppedKeys: readonly string[];
 
   constructor(params: RulesyncHooksParams) {
     super({ ...params });
 
     // Sources may be authored as JSONC (`hooks.jsonc`); plain JSON is valid
     // JSONC, so both variants parse through the same strict parser.
-    this.json = parseJsonc(this.fileContent) as HooksConfig;
+    const { value, droppedKeys } = parseJsoncReportingDroppedKeys({ content: this.fileContent });
+    this.json = value as HooksConfig;
+    this.droppedKeys = droppedKeys;
     if (params.validate) {
       const result = this.validate();
       if (!result.success) {
@@ -61,6 +69,15 @@ export class RulesyncHooks extends RulesyncFile {
   }
 
   validate(): ValidationResult {
+    if (this.droppedKeys.length > 0) {
+      return {
+        success: false,
+        error: droppedPollutionKeysError({
+          sourcePath: this.getRelativePathFromCwd(),
+          droppedKeys: this.droppedKeys,
+        }),
+      };
+    }
     const result = HooksConfigSchema.safeParse(this.json);
     if (!result.success) {
       return { success: false, error: result.error };

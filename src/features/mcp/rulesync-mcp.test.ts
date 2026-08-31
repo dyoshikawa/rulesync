@@ -12,6 +12,7 @@ import {
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { droppedPollutionKeysError } from "../../utils/jsonc.js";
 import {
   mergeMcpJsonOverlays,
   RulesyncMcp,
@@ -332,6 +333,40 @@ describe("RulesyncMcp", () => {
   });
 
   describe("validate", () => {
+    // A server named after a prototype member is removed by the parser before
+    // the schema can see it, so it used to produce neither an error nor an
+    // entry in any generated file. These pin the report that replaced that
+    // silence.
+    it("should reject a server named after a prototype member", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_MCP_FILE_NAME,
+        // Written as raw text: a `__proto__` key in an object literal sets the
+        // prototype instead of becoming a property, so it would never survive
+        // JSON.stringify to reach the parser under test.
+        fileContent: '{"mcpServers": {"__proto__": {"command": "node"}}}',
+        validate: false,
+      });
+
+      const result = rulesyncMcp.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain("mcpServers.__proto__");
+      expect(result.error?.message).toContain("rename them");
+    });
+
+    it("should throw from the constructor when validation is enabled", () => {
+      expect(
+        () =>
+          new RulesyncMcp({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_MCP_FILE_NAME,
+            fileContent: '{"mcpServers": {"constructor": {"command": "node"}}}',
+            validate: true,
+          }),
+      ).toThrow("mcpServers.constructor");
+    });
+
     it("should return successful validation result", () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -1682,6 +1717,38 @@ describe("RulesyncMcp.fromRoots", () => {
 
     await expect(RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] })).rejects.toThrow(
       join(overlayRoot, RULESYNC_MCP_FILE_NAME),
+    );
+  });
+
+  it("should report a prototype-member server the merge parse dropped from an overlay", async () => {
+    // The merge path re-serializes from the parsed records, so without its own
+    // report the dropped server would vanish and the merged file would look
+    // like the user never wrote it.
+    const baseRoot = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+    const overlayRoot = join(testDir, ".rulesync.local");
+    await writeFileContent(
+      join(baseRoot, RULESYNC_MCP_FILE_NAME),
+      JSON.stringify({ mcpServers: { base: { command: "base" } } }),
+    );
+    await writeFileContent(
+      join(overlayRoot, RULESYNC_MCP_FILE_NAME),
+      '{"mcpServers": {"__proto__": {"command": "node"}}}',
+    );
+
+    const error = await RulesyncMcp.fromRoots({ inputRoots: [baseRoot, overlayRoot] }).then(
+      () => undefined,
+      (thrown: unknown) => thrown,
+    );
+
+    // Named once, cwd-relative, the same way `validate()` names it on the
+    // single-root path — not wrapped in the parse-failure message as well.
+    expect(String((error as Error).message)).toBe(
+      droppedPollutionKeysError({
+        // Posix separators, matching how `validate()` names the same file on
+        // the single-root path.
+        sourcePath: `.rulesync.local/${RULESYNC_MCP_FILE_NAME}`,
+        droppedKeys: ["mcpServers.__proto__"],
+      }).message,
     );
   });
 

@@ -10,12 +10,13 @@ export const PermissionActionSchema = z.enum(["allow", "ask", "deny"]);
 export type PermissionAction = z.infer<typeof PermissionActionSchema>;
 
 /**
- * Whether a permission pattern is blank — empty, or only whitespace. Shared
- * with the import-side filter so the key the schema rejects and the key that
- * filter removes can never drift apart.
+ * Whether a key in a permission block — a category name or a pattern — is
+ * blank, that is empty or only whitespace. Shared with the import-side filter
+ * so the key the schema rejects and the key that filter removes can never
+ * drift apart.
  */
-export function isBlankPermissionPattern(pattern: string): boolean {
-  return pattern.trim().length === 0;
+export function isBlankPermissionKey(key: string): boolean {
+  return key.trim().length === 0;
 }
 
 /**
@@ -29,8 +30,24 @@ export function isBlankPermissionPattern(pattern: string): boolean {
  * the mistake surfaces once, on the source file.
  */
 const PermissionPatternSchema = z.string().check(
-  z.refine((pattern) => !isBlankPermissionPattern(pattern), {
+  z.refine((pattern) => !isBlankPermissionKey(pattern), {
     message: "Permission pattern must not be blank",
+  }),
+);
+
+/**
+ * A permission category key: the name of the tool surface a rules map applies
+ * to (`bash`, `edit`, `webfetch`, ...).
+ *
+ * Blank is rejected for the same reason a blank pattern is, one step up. Every
+ * translator reads categories by name, so `{"": {"git *": "allow"}}` reaches no
+ * tool at all and the rules under it are silently dead — the mistake is only
+ * visible as an entry missing from a generated config. Rejecting it here
+ * surfaces it on the source file instead.
+ */
+const PermissionCategorySchema = z.string().check(
+  z.refine((category) => !isBlankPermissionKey(category), {
+    message: "Permission category must not be blank",
   }),
 );
 
@@ -55,7 +72,7 @@ const PermissionRulesSchema = z.record(PermissionPatternSchema, PermissionAction
  * @example
  * { "claudecode": { "permission": { "bash": { "git push *": "deny" } } } }
  */
-const ToolScopedPermissionSchema = z.record(z.string(), PermissionRulesSchema);
+const ToolScopedPermissionSchema = z.record(PermissionCategorySchema, PermissionRulesSchema);
 
 /**
  * Generic tool-scoped override block for tools that have no tool-specific
@@ -122,7 +139,7 @@ const OpencodeOverridePermissionValueSchema = z.union([
  * { "permission": { "external_directory": "deny", "webfetch": "allow" } }
  */
 const OpencodePermissionsOverrideSchema = z.looseObject({
-  permission: z.optional(z.record(z.string(), OpencodeOverridePermissionValueSchema)),
+  permission: z.optional(z.record(PermissionCategorySchema, OpencodeOverridePermissionValueSchema)),
 });
 export type OpencodePermissionsOverride = z.infer<typeof OpencodePermissionsOverrideSchema>;
 
@@ -191,7 +208,7 @@ export type ClinePermissionsOverride = z.infer<typeof ClinePermissionsOverrideSc
  * @see https://kilo.ai/docs/getting-started/settings/sandboxing
  */
 const KiloPermissionsOverrideSchema = z.looseObject({
-  permission: z.optional(z.record(z.string(), OpencodeOverridePermissionValueSchema)),
+  permission: z.optional(z.record(PermissionCategorySchema, OpencodeOverridePermissionValueSchema)),
   sandbox: z.optional(z.looseObject({})),
 });
 export type KiloPermissionsOverride = z.infer<typeof KiloPermissionsOverrideSchema>;
@@ -267,7 +284,10 @@ export type ClaudecodePermissionsOverride = z.infer<typeof ClaudecodePermissions
  */
 const VibePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(
-    z.record(z.string(), z.looseObject({ sensitive_patterns: z.optional(z.array(z.string())) })),
+    z.record(
+      PermissionCategorySchema,
+      z.looseObject({ sensitive_patterns: z.optional(z.array(z.string())) }),
+    ),
   ),
   enabled_tools: z.optional(z.array(z.string())),
 });
@@ -1048,12 +1068,12 @@ export type ZedPermissionsOverride = z.infer<typeof ZedPermissionsOverrideSchema
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
- * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
- * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie`/`takt`/`amp`/
- * `antigravity-cli`/`augmentcode`/`kiro`/`codexcli`/`zed` keys are tool-scoped
- * overrides consumed only by their respective translator (see the matching
- * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
- * block and ignores them.
+ * The optional tool keys below are tool-scoped overrides consumed only by their
+ * respective translator (see the matching `*PermissionsOverrideSchema`); every
+ * other tool reads the shared `permission` block and ignores them. The set of
+ * keys is exactly `permissionsProcessorToolTargetTuple` mapped through
+ * `PERMISSION_OVERRIDE_KEY_ALIASES` — a test asserts that, so this comment does
+ * not enumerate them and go stale.
  *
  * Additionally, every permissions-capable tool accepts a canonical tool-scoped
  * `permission` block under its override key (`{toolname}.permission`, same
@@ -1070,8 +1090,8 @@ export type ZedPermissionsOverride = z.infer<typeof ZedPermissionsOverrideSchema
  *   "edit": { "*": "deny", "src/**": "allow" }
  * }
  */
-const PermissionsConfigSchema = z.looseObject({
-  permission: z.record(z.string(), PermissionRulesSchema),
+export const PermissionsConfigSchema = z.looseObject({
+  permission: z.record(PermissionCategorySchema, PermissionRulesSchema),
   opencode: z.optional(OpencodePermissionsOverrideSchema),
   hermes: z.optional(HermesPermissionsOverrideSchema),
   cline: z.optional(ClinePermissionsOverrideSchema),
@@ -1102,7 +1122,9 @@ const PermissionsConfigSchema = z.looseObject({
   goose: z.optional(CanonicalPermissionsOverrideSchema),
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),
   "kimi-code": z.optional(KimiCodePermissionsOverrideSchema),
+  roo: z.optional(CanonicalPermissionsOverrideSchema),
   rovodev: z.optional(CanonicalPermissionsOverrideSchema),
+  zoocode: z.optional(CanonicalPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;
 

@@ -56,6 +56,42 @@ describe("RulesyncHooks", () => {
     });
   });
 
+  describe("validate", () => {
+    // A hook keyed after a prototype member is removed by the parser before
+    // the schema can see it, so it used to produce neither an error nor an
+    // entry in any generated file. These pin the report that replaced that
+    // silence.
+    it("should reject a key named after a prototype member", () => {
+      const instance = new RulesyncHooks({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_HOOKS_FILE_NAME,
+        // Written as raw text: a `__proto__` key in an object literal sets the
+        // prototype instead of becoming a property, so it would never survive
+        // JSON.stringify to reach the parser under test.
+        fileContent: '{"hooks": {"__proto__": [{"command": "pnpm fmt"}]}}',
+        validate: false,
+      });
+
+      const result = instance.validate();
+
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain("hooks.__proto__");
+      expect(result.error?.message).toContain("rename them");
+    });
+
+    it("should throw from the constructor when validation is enabled", () => {
+      expect(
+        () =>
+          new RulesyncHooks({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_HOOKS_FILE_NAME,
+            fileContent: '{"hooks": {"constructor": [{"command": "pnpm fmt"}]}}',
+            validate: true,
+          }),
+      ).toThrow("hooks.constructor");
+    });
+  });
+
   describe("fromFile", () => {
     it("should load hooks.json", async () => {
       const jsonData = { hooks: { sessionStart: [{ command: "echo hi" }] } };

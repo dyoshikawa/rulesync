@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseJsonc, parseJsoncReportingDroppedKeys } from "./jsonc.js";
+import { droppedPollutionKeysError, parseJsonc, parseJsoncReportingDroppedKeys } from "./jsonc.js";
 
 describe("parseJsonc", () => {
   it("should parse plain JSON", () => {
@@ -107,5 +107,37 @@ describe("parseJsoncReportingDroppedKeys", () => {
     expect(() => parseJsoncReportingDroppedKeys({ content: "{ invalid json }" })).toThrow(
       SyntaxError,
     );
+  });
+});
+
+describe("droppedPollutionKeysError", () => {
+  it("should escape control characters in the reported key paths", () => {
+    // `rulesync fetch` runs this over a remote repository's source files, so
+    // the parent key names in these paths are chosen by whoever wrote them.
+    const message = droppedPollutionKeysError({
+      sourcePath: ".rulesync/mcp.jsonc",
+      droppedKeys: ["mcpServers.alpha\n[ok] safe.__proto__"],
+    }).message;
+
+    expect(message).not.toContain("\n[ok]");
+    expect(message).toContain('"mcpServers.alpha\\n[ok] safe.__proto__"');
+  });
+
+  it("should quote the source path the same way it quotes the key paths", () => {
+    expect(
+      droppedPollutionKeysError({ sourcePath: "a b.jsonc", droppedKeys: ["x.__proto__"] }).message,
+    ).toContain('"a b.jsonc" uses');
+  });
+
+  it("should name a single key as a key and several as keys", () => {
+    expect(
+      droppedPollutionKeysError({ sourcePath: "a.jsonc", droppedKeys: ["x.__proto__"] }).message,
+    ).toContain("as a key");
+    expect(
+      droppedPollutionKeysError({
+        sourcePath: "a.jsonc",
+        droppedKeys: ["x.__proto__", "y.prototype"],
+      }).message,
+    ).toContain("as keys");
   });
 });
