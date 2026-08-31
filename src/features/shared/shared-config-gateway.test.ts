@@ -451,6 +451,61 @@ describe("serializeSharedConfig", () => {
     );
   });
 
+  it("leaves an object that had nothing in it yet holding a line-comment note", () => {
+    const existingContent = ["{", '  "mcp": { // none yet', "  }", "}"].join("\n");
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { mcp: { added: 2 } },
+      existingContent,
+    });
+
+    expect(result).toBe(["{", '  "mcp": { // none yet', '    "added": 2', "  }", "}"].join("\n"));
+  });
+
+  it("ends a note at a lone CR, the way the JSONC scanner does", () => {
+    // A file written with old-Mac line endings parses without an error, so it
+    // reaches the editing path; a note read to the next "\n" would swallow the
+    // rest of the document.
+    const existingContent = '{\r  "a": 1 // note about a\r}';
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1, b: 2 },
+      existingContent,
+    });
+
+    expect(result).toBe('{\r  "a": 1, // note about a\r  "b": 2\r}');
+    expect(parseSharedConfig({ format: "jsonc", fileContent: result })).toEqual({ a: 1, b: 2 });
+  });
+
+  it("ends a nested note at a lone CR inside an otherwise LF file", () => {
+    const existingContent = '{\n  "s": {\n    "a": 1 // note about a\r  }\n}';
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { s: { a: 1, b: 2 } },
+      existingContent,
+    });
+
+    expect(result).toBe('{\n  "s": {\n    "a": 1, // note about a\n    "b": 2\r  }\n}');
+    expect(parseSharedConfig({ format: "jsonc", fileContent: result })).toEqual({
+      s: { a: 1, b: 2 },
+    });
+  });
+
+  it("takes a removed key's line with it on a lone-CR file", () => {
+    const existingContent = '{\r  "a": 1,\r  "gone": 2 // this server was retired\r}';
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1 },
+      existingContent,
+    });
+
+    expect(result).toBe('{\r  "a": 1\r}');
+  });
+
   it("takes a removed key's trailing note with it in a trailing-comma file", () => {
     const existingContent = ["{", '  "a": 1,', '  "gone": 2, // this server was retired', "}"].join(
       "\n",

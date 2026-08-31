@@ -26,10 +26,7 @@ import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
-import {
-  isPrototypePollutionKey,
-  PROTOTYPE_POLLUTION_KEYS,
-} from "../../utils/prototype-pollution.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 
@@ -261,7 +258,7 @@ function statesUneditableKeys(node: JsoncNode): boolean {
   for (const property of node.children ?? []) {
     const key = property.children?.[0]?.value;
     if (typeof key === "string") {
-      if (seen.has(key) || PROTOTYPE_POLLUTION_KEYS.has(key)) return true;
+      if (seen.has(key) || isPrototypePollutionKey(key)) return true;
       seen.add(key);
     }
     const value = property.children?.[1];
@@ -297,6 +294,23 @@ function skipJsoncTrivia({ text, from }: { text: string; from: number }): number
 }
 
 /**
+ * Where the line starting at `from` ends: the first `\r` or `\n`, or the end of
+ * the text.
+ *
+ * Both count, because the JSONC scanner ends a line comment at either. A file
+ * written with lone CRs parses without an error and so reaches this path, and
+ * a comment read only up to the next `\n` would run past its own line and take
+ * the closing brace — or a whole sibling key — with it.
+ */
+function endOfLineFrom({ text, from }: { text: string; from: number }): number {
+  for (let index = from; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "\n" || character === "\r") return index;
+  }
+  return text.length;
+}
+
+/**
  * Where the deletion of a property whose text ends at `end` should stop.
  *
  * A comment written after the property on its own line is that property's
@@ -307,9 +321,7 @@ function skipJsoncTrivia({ text, from }: { text: string; from: number }): number
  * the same line is not claimed: it may belong to either.
  */
 function endOfRemoval({ text, end }: { text: string; end: number }): number {
-  const newline = text.indexOf("\n", end);
-  let stop = newline === -1 ? text.length : newline;
-  if (stop > end && text[stop - 1] === "\r") stop -= 1;
+  const stop = endOfLineFrom({ text, from: end });
   const tail = text.slice(end, stop);
   const lineComment = /^[ \t]*\/\/[^\r\n]*$/;
   const blockComment = /^[ \t]*\/\*(?:[^*]|\*(?!\/))*\*\/[ \t]*$/;
@@ -349,8 +361,8 @@ function startOfRemoval({
   while (start > 0 && (text[start - 1] === " " || text[start - 1] === "\t")) start -= 1;
   if (start > 0 && text[start - 1] === "\n") {
     start -= 1;
-    if (start > 0 && text[start - 1] === "\r") start -= 1;
   }
+  if (start > 0 && text[start - 1] === "\r") start -= 1;
   return start;
 }
 
@@ -409,9 +421,7 @@ function endOfNoteAt({ text, from }: { text: string; from: number }): number | u
   let cursor = from;
   while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
   if (text.startsWith("//", cursor)) {
-    const newline = text.indexOf("\n", cursor);
-    const end = newline === -1 ? text.length : newline;
-    return end > cursor && text[end - 1] === "\r" ? end - 1 : end;
+    return endOfLineFrom({ text, from: cursor });
   }
   if (text.startsWith("/*", cursor)) {
     const closing = text.indexOf("*/", cursor + 2);
@@ -425,8 +435,11 @@ function endOfNoteAt({ text, from }: { text: string; from: number }): number | u
  * where the previous one stopped so the whitespace between them is carried
  * along. A comma is stepped over once (a file may spell one before its note,
  * or after it) but never collected, because the separator belongs to the
- * property rather than to its note. The run stops at the first thing that is
- * neither: a newline ends it, so a comment on the next line is left alone.
+ * property rather than to its note. So a file that writes a note on each side
+ * of its comma gets both of them back, in order, after the comma: the notes
+ * stay with the key they describe, and the comma keeps the place the file gave
+ * it. The run stops at the first thing that is neither: a newline ends it, so
+ * a comment on the next line is left alone.
  */
 function notesAt({ text, from }: { text: string; from: number }): { start: number; end: number }[] {
   const spans: { start: number; end: number }[] = [];
@@ -596,7 +609,7 @@ function applyJsoncObjectEdits({
     // Never reachable through the gateway (both the parsed base and every
     // merge policy drop these), but this walker writes straight into the
     // user's file, so it does not rely on its callers to have done that.
-    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    if (isPrototypePollutionKey(key)) continue;
     const present = Object.hasOwn(base, key);
     const previous = present ? base[key] : undefined;
     if (value === undefined) {
@@ -734,7 +747,7 @@ export function mergeSharedConfigDeep({
 }): SharedConfigDocument {
   const result: SharedConfigDocument = { ...base };
   for (const [key, patchValue] of Object.entries(patch)) {
-    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    if (isPrototypePollutionKey(key)) continue;
     if (patchValue === undefined) {
       // Retraction, spelled the same way `replace-owned-keys` spells it. Leaving
       // the key with an `undefined` value happens to disappear from YAML and
