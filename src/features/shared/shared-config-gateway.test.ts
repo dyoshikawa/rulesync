@@ -172,6 +172,23 @@ describe("stringifySharedConfig", () => {
 const parse = (fileContent: string): Record<string, unknown> =>
   parseSharedConfig({ format: "jsonc", fileContent });
 
+const urlBlock = ({ seed, size }: { seed: number; size: number }): Record<string, unknown> => {
+  const entries: Record<string, unknown> = {};
+  for (let index = 0; index < size; index += 1) {
+    entries[`k${seed}_${index}`] = `https://example.com/${seed}/${index}`;
+  }
+  return entries;
+};
+
+const nestObject = ({
+  depth,
+  value,
+}: {
+  depth: number;
+  value: Record<string, unknown>;
+}): Record<string, unknown> =>
+  depth === 0 ? value : { deeper: nestObject({ depth: depth - 1, value }) };
+
 describe("serializeSharedConfig", () => {
   const commented = [
     "{",
@@ -584,6 +601,35 @@ describe("serializeSharedConfig", () => {
 
     const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
 
+    expect(result).toBe(JSON.stringify(document, null, 2));
+  });
+
+  it("writes a file whole when several keys write too much between them", () => {
+    // Each key on its own is a write the file could afford; every edit
+    // re-indents against the text the ones before it left, so what has to be
+    // budgeted is their sum.
+    const document: Record<string, unknown> = { theme: "dark" };
+    for (let seed = 0; seed < 3; seed += 1) {
+      document[`block${seed}`] = urlBlock({ seed, size: 1800 });
+    }
+    const existingContent = ["{", "  // shared team config", '  "theme": "dark"', "}"].join("\n");
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toBe(JSON.stringify(document, null, 2));
+  });
+
+  it("writes a file whole when what it writes is nested deep enough to be indented wide", () => {
+    // The value reads as 100 KB on its own, but every one of its lines is
+    // written behind the indentation of the object holding it, so the text
+    // that reaches the file is more than twice that.
+    const leaf = urlBlock({ seed: 0, size: 2500 });
+    const document = nestObject({ depth: 30, value: { leaf } });
+    const existingContent = `${JSON.stringify(nestObject({ depth: 30, value: {} }), null, 2)}\n`;
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(JSON.stringify(leaf, null, 2).length).toBeLessThan(200_000);
     expect(result).toBe(JSON.stringify(document, null, 2));
   });
 

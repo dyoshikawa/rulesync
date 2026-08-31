@@ -608,37 +608,61 @@ function insertJsoncProperty({
 const JSONC_EDIT_BUDGET_BYTES = 50_000_000;
 
 /**
- * How much of a value a single edit may write.
+ * How much text the edits of one write may put into the file, all of them
+ * together.
  *
  * The budget above charges by the number of keys that differ, which prices an
  * insert of a whole subtree as one edit — but `modify` re-indents the text it
  * writes, and it does that in time quadratic in the length of that text: a
- * 129 KB value takes 56 ms, a 522 KB one 4.6 seconds, a 1 MB one 18. A config
- * file with no `mcp` key yet, handed a server list of thousands, is a single
- * edit of megabytes and would spend minutes inside the counted budget. Under
- * this width one edit stays well inside a tenth of a second, and the budget
- * bounds how many such edits a document may ask for.
+ * 127 KB value takes half a second to write, a 516 KB one 9 seconds, a 1 MB
+ * one 35. The cost is quadratic in the total as well as in each part, because
+ * every edit re-indents against the text the ones before it left, so a limit
+ * on the widest single value would let a handful of values just under it cost
+ * minutes between them. This is a limit on their sum, which holds the
+ * re-indenting to about a second whether it arrives as one value or twenty.
+ * A hand-written config file changes a few hundred bytes at a time.
  */
-const JSONC_EDIT_WIDEST_VALUE_BYTES = 128 * 1024;
+const JSONC_EDIT_WRITTEN_BYTES = 200_000;
+
+/**
+ * How much text one edit writes: the value as `modify` formats it, plus the
+ * indentation that formatting puts in front of every line of it.
+ *
+ * A value written deep in a document is written far wider than it reads on
+ * its own — a 114 KB server list nested 1,200 deep is 36 MB of text once
+ * every line of it carries 2,400 spaces — so measuring the value alone would
+ * miss the whole of what makes that write expensive.
+ */
+function measureJsoncWrite({ value, depth }: { value: unknown; depth: number }): number {
+  const formatted = JSON.stringify(value, null, 2) ?? "";
+  let lines = 1;
+  for (let at = formatted.indexOf("\n"); at !== -1; at = formatted.indexOf("\n", at + 1)) {
+    lines += 1;
+  }
+  return formatted.length + lines * 2 * depth;
+}
 
 /**
  * How much {@link applyJsoncObjectEdits} would write, deciding each key
  * exactly the way it does — the two walk together, so a new case in one needs
  * the same case here. It reports both how many edits there would be and how
- * much of a value the largest of them would write, because the two are
- * budgeted separately. Counting is a walk of the documents alone: no text is
- * touched, so the budgets above are spent on the write rather than on finding
- * out how large the write is.
+ * much text they would write between them, because the two are budgeted
+ * separately: one stands for the parse each edit costs, the other for the
+ * re-indenting each edit costs. Counting is a walk of the documents alone: no
+ * text is touched, so the budgets above are spent on the write rather than on
+ * finding out how large the write is.
  */
 function countJsoncEdits({
   base,
   next,
+  depth,
 }: {
   base: Record<string, unknown>;
   next: SharedConfigDocument;
-}): { edits: number; widest: number } {
+  depth: number;
+}): { edits: number; written: number } {
   let edits = 0;
-  let widest = 0;
+  let written = 0;
   for (const [key, value] of Object.entries(next)) {
     if (isPrototypePollutionKey(key)) continue;
     const present = Object.hasOwn(base, key);
@@ -648,19 +672,19 @@ function countJsoncEdits({
       continue;
     }
     if (isPlainObject(previous) && isPlainObject(value)) {
-      const nested = countJsoncEdits({ base: previous, next: value });
+      const nested = countJsoncEdits({ base: previous, next: value, depth: depth + 1 });
       edits += nested.edits;
-      widest = Math.max(widest, nested.widest);
+      written += nested.written;
       continue;
     }
     if (present && isDeepStrictEqual(previous, value)) continue;
     edits += 1;
-    widest = Math.max(widest, JSON.stringify(value)?.length ?? 0);
+    written += measureJsoncWrite({ value, depth: depth + 1 });
   }
   for (const key of Object.keys(base)) {
     if (!Object.hasOwn(next, key)) edits += 1;
   }
-  return { edits, widest };
+  return { edits, written };
 }
 
 /**
@@ -758,8 +782,9 @@ function applyJsoncObjectEdits({
  *   `prototype` as a key (see {@link statesUneditableKeys});
  * - a file so large, with so much of it changing, that editing it key by key
  *   would take longer than a user would wait (see
- *   {@link JSONC_EDIT_BUDGET_BYTES}), or a single value too large to re-indent
- *   (see {@link JSONC_EDIT_WIDEST_VALUE_BYTES});
+ *   {@link JSONC_EDIT_BUDGET_BYTES}), or changed keys that write more new text
+ *   between them than re-indenting can afford (see
+ *   {@link JSONC_EDIT_WRITTEN_BYTES});
  * - a file the editor itself refuses, which it answers with an exception
  *   rather than a result.
  */
@@ -814,11 +839,8 @@ export function serializeSharedConfig({
     // a large patch grows into the same quadratic cost that a large file
     // taking a small patch starts in.
     const span = Math.max(existingContent.length, whole.length);
-    const cost = countJsoncEdits({ base, next: document });
-    if (
-      cost.widest > JSONC_EDIT_WIDEST_VALUE_BYTES ||
-      cost.edits * span > JSONC_EDIT_BUDGET_BYTES
-    ) {
+    const cost = countJsoncEdits({ base, next: document, depth: 0 });
+    if (cost.written > JSONC_EDIT_WRITTEN_BYTES || cost.edits * span > JSONC_EDIT_BUDGET_BYTES) {
       return whole;
     }
 
