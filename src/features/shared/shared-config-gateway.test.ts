@@ -107,6 +107,49 @@ plugins:
     });
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
+
+  it("keeps the rest of a JSONC file that states a root-level pollution key", () => {
+    // `jsonc-parser` assigns `"__proto__"` with `obj[key] = value`, which
+    // replaces the root object's prototype instead of adding a key: the root
+    // stops being a plain object. Judging it before sanitizing would coerce
+    // the whole document to `{}` and silently drop every setting beside it.
+    const config = parseSharedConfig({
+      format: "jsonc",
+      fileContent: [
+        "{",
+        '  "model": "gpt",',
+        '  "__proto__": { "polluted": true },',
+        '  "mcp": { "docs": { "type": "local" } }',
+        "}",
+      ].join("\n"),
+    });
+
+    expect(config).toEqual({ model: "gpt", mcp: { docs: { type: "local" } } });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect((config as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it("keeps the siblings of a nested JSONC pollution key", () => {
+    const config = parseSharedConfig({
+      format: "jsonc",
+      fileContent: '{ "permission": { "__proto__": { "polluted": true }, "bash": "ask" } }',
+    });
+
+    expect(config).toEqual({ permission: { bash: "ask" } });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it("preserves the dates a TOML config states", () => {
+    // `smol-toml` resolves date-times to `TomlDate`. Sanitizing rebuilds every
+    // other object, so dates have to be passed through rather than flattened
+    // into an empty mapping.
+    const config = parseSharedConfig({
+      format: "toml",
+      fileContent: "released = 2020-01-02T00:00:00Z\n",
+    });
+
+    expect((config as { released: unknown }).released).toBeInstanceOf(Date);
+  });
 });
 
 describe("stringifySharedConfig", () => {
@@ -327,6 +370,90 @@ describe("serializeSharedConfig", () => {
 
     expect(result).not.toContain("retired");
     expect(result).toBe(["{", '  "a": 1,', '  "b": 3', "}"].join("\n"));
+  });
+
+  it("leaves an inserted key's anchor holding its own trailing note", () => {
+    // `modify` computes its insert from the end of the last property, in front
+    // of the note written after it: applying that edit unchanged would re-emit
+    // the note after the key just inserted, so a note about `a` would read as
+    // a note about `b`.
+    const existingContent = ["{", '  "a": 1 // note about a', "}"].join("\n");
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1, b: 2 },
+      existingContent,
+    });
+
+    expect(result).toBe(["{", '  "a": 1, // note about a', '  "b": 2', "}"].join("\n"));
+  });
+
+  it("leaves an inserted key's anchor holding a block-comment note", () => {
+    const existingContent = ["{", '  "a": 1 /* note about a */', "}"].join("\n");
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1, b: 2 },
+      existingContent,
+    });
+
+    expect(result).toBe(["{", '  "a": 1, /* note about a */', '  "b": 2', "}"].join("\n"));
+  });
+
+  it("leaves a nested insert's anchor holding its trailing note", () => {
+    const existingContent = [
+      "{",
+      '  "mcp": {',
+      '    "docs": 1 // note about docs',
+      "  }",
+      "}",
+    ].join("\n");
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { mcp: { docs: 1, fresh: 2 } },
+      existingContent,
+    });
+
+    expect(result).toBe(
+      ["{", '  "mcp": {', '    "docs": 1, // note about docs', '    "fresh": 2', "  }", "}"].join(
+        "\n",
+      ),
+    );
+  });
+
+  it("leaves an inserted key's anchor holding its trailing note on CRLF files", () => {
+    const existingContent = ["{", '  "a": 1 // note about a', "}"].join("\r\n");
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1, b: 2 },
+      existingContent,
+    });
+
+    expect(result).toBe(["{", '  "a": 1, // note about a', '  "b": 2', "}"].join("\r\n"));
+  });
+
+  it("leaves a comment written on its own line where the author put it", () => {
+    // Only the note sharing the anchor's line is claimed: a comment on its own
+    // line may describe the object, the key above it, or the key below it.
+    const existingContent = ["{", '  "a": 1', "  // own line", "}"].join("\n");
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { a: 1, b: 2 },
+      existingContent,
+    });
+
+    expect(result).toBe(["{", '  "a": 1,', '  "b": 2', "  // own line", "}"].join("\n"));
+  });
+
+  it("takes the trailing spaces of a removed key's line with it", () => {
+    const existingContent = ["{", '  "gone": 1,  ', '  "b": 2', "}"].join("\n");
+
+    const result = serializeSharedConfig({ format: "jsonc", document: { b: 2 }, existingContent });
+
+    expect(result).toBe(["{", '  "b": 2', "}"].join("\n"));
   });
 
   it("keeps a trailing note that a surviving sibling shares the line with", () => {
@@ -741,6 +868,32 @@ describe("applySharedConfigPatch", () => {
         mcp: { fresh: { type: "local", command: ["node"] } },
       });
     }
+  });
+
+  it("keeps the user keys of a file that states a prototype-pollution key", () => {
+    // The edit path bails out on such a file and the whole document is
+    // rewritten, dropping the pollution key — but everything the user
+    // legitimately wrote beside it has to survive that rewrite.
+    const result = applySharedConfigPatch({
+      fileKey: "opencode.json",
+      feature: "mcp",
+      existingContent: [
+        "{",
+        '  "model": "x",',
+        '  "__proto__": { "polluted": true },',
+        '  "permission": { "bash": "allow" }',
+        "}",
+      ].join("\n"),
+      patch: { mcp: { fresh: { type: "local", command: ["node"] } } },
+    });
+
+    expect(result).not.toContain("__proto__");
+    expect(parseSharedConfig({ format: "jsonc", fileContent: result })).toEqual({
+      model: "x",
+      permission: { bash: "allow" },
+      mcp: { fresh: { type: "local", command: ["node"] } },
+    });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 
   it("rejects writes to undeclared files and undeclared writer features", () => {

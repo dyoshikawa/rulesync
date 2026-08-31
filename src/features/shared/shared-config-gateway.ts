@@ -27,7 +27,7 @@ import type { Feature } from "../../types/features.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import {
-  omitPrototypePollutionKeys,
+  isPrototypePollutionKey,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
@@ -81,15 +81,32 @@ export type SharedConfigInvalidRootPolicy = "coerce-empty" | "error";
  */
 export type SharedConfigJsoncParseErrorsPolicy = "tolerate" | "error";
 
+/**
+ * Rebuild a parsed document without its prototype-pollution keys.
+ *
+ * Every object is rebuilt, not just the ones that are already plain: a literal
+ * `"__proto__"` is assigned with `obj[key] = value` by `jsonc-parser`, which
+ * *replaces the containing object's prototype* instead of adding a key. Such
+ * an object is no longer a plain object, and the injected value is reachable
+ * through it by plain property access while `Object.keys` and `JSON.stringify`
+ * show nothing — so leaving it as it came out of the parser would both hide a
+ * server or permission the file does not state and, at the root, cost the
+ * whole document (see {@link parseSharedConfig}). Rebuilding gives every
+ * object `Object.prototype` back and drops the injected value with the key.
+ *
+ * Dates are the one object the YAML and TOML parsers produce that is not a
+ * mapping, so they are passed through rather than flattened into `{}`.
+ */
 function sanitizeSharedConfigValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(sanitizeSharedConfigValue);
   }
-  if (!isPlainObject(value)) {
+  if (value === null || typeof value !== "object" || value instanceof Date) {
     return value;
   }
   const result: SharedConfigDocument = {};
-  for (const [key, nested] of Object.entries(omitPrototypePollutionKeys(value))) {
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    if (isPrototypePollutionKey(key)) continue;
     result[key] = sanitizeSharedConfigValue(nested);
   }
   return result;
@@ -146,13 +163,18 @@ export function parseSharedConfig({
   if (parsed === undefined || parsed === null) {
     return {};
   }
-  if (!isPlainObject(parsed)) {
+  // Sanitized before the root is judged, not after: a root-level `__proto__`
+  // leaves the parser holding an object whose prototype is the injected value,
+  // which `isPlainObject` rejects — and coercing that to `{}` would throw away
+  // every setting the file visibly states next to it.
+  const sanitized = sanitizeSharedConfigValue(parsed);
+  if (!isPlainObject(sanitized)) {
     if (invalidRootPolicy === "error") {
       throw new Error(`Failed to parse shared config${at}: expected a mapping at the root`);
     }
     return {};
   }
-  return sanitizeSharedConfigValue(parsed) as SharedConfigDocument;
+  return sanitized;
 }
 
 /**
@@ -291,7 +313,10 @@ function endOfRemoval({ text, end }: { text: string; end: number }): number {
   const tail = text.slice(end, stop);
   const lineComment = /^[ \t]*\/\/[^\r\n]*$/;
   const blockComment = /^[ \t]*\/\*(?:[^*]|\*(?!\/))*\*\/[ \t]*$/;
-  return lineComment.test(tail) || blockComment.test(tail) ? stop : end;
+  // Whitespace runs to the newline as well, so the line the property had to
+  // itself does not survive as a trailing-space stub on the line above it.
+  const blank = /^[ \t]*$/;
+  return lineComment.test(tail) || blockComment.test(tail) || blank.test(tail) ? stop : end;
 }
 
 /**
@@ -377,6 +402,111 @@ function removeJsoncProperty({ text, path }: { text: string; path: readonly stri
 }
 
 /**
+ * Detach the note that follows the last property of the object at `path`.
+ *
+ * `modify` inserts a new key after that property, and the edit it computes
+ * starts at the property's end — in front of a note written after it on the
+ * same line. Applying the edit therefore re-emits the note *after* the key
+ * that was just inserted, so `"stale": {...} // retired` turns into a note
+ * about a server rulesync has only now written. Lifting the note out before
+ * the insert and putting it back afterwards keeps it on the property it
+ * describes, matching what {@link endOfRemoval} does on the way out.
+ *
+ * Returns `undefined` when there is no such note (or no property to hold one),
+ * which is the common case.
+ */
+function detachTrailingNote({
+  text,
+  path,
+}: {
+  text: string;
+  path: readonly string[];
+}): { text: string; note: string; anchorKey: string } | undefined {
+  const root = parseTree(text, [], { allowTrailingComma: true });
+  const object = root === undefined ? undefined : findNodeAtLocation(root, [...path]);
+  if (object?.type !== "object") return undefined;
+  const property = object.children?.at(-1);
+  const anchorKey = property?.children?.[0]?.value;
+  if (property === undefined || typeof anchorKey !== "string") return undefined;
+
+  const end = property.offset + property.length;
+  let cursor = end;
+  while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
+  let noteEnd: number;
+  if (text.startsWith("//", cursor)) {
+    const newline = text.indexOf("\n", cursor);
+    noteEnd = newline === -1 ? text.length : newline;
+    if (noteEnd > cursor && text[noteEnd - 1] === "\r") noteEnd -= 1;
+  } else if (text.startsWith("/*", cursor)) {
+    const closing = text.indexOf("*/", cursor + 2);
+    if (closing === -1) return undefined;
+    noteEnd = closing + 2;
+  } else {
+    return undefined;
+  }
+  return {
+    text: text.slice(0, end) + text.slice(noteEnd),
+    note: text.slice(end, noteEnd),
+    anchorKey,
+  };
+}
+
+/**
+ * Put a note detached by {@link detachTrailingNote} back after the property it
+ * describes, behind the comma the insert gave that property. Returns
+ * `undefined` if the property can no longer be located, so the caller can fall
+ * back to the plain insert rather than drop the note.
+ */
+function reattachTrailingNote({
+  text,
+  path,
+  note,
+}: {
+  text: string;
+  path: readonly string[];
+  note: string;
+}): string | undefined {
+  const root = parseTree(text, [], { allowTrailingComma: true });
+  const anchor = root === undefined ? undefined : findNodeAtLocation(root, [...path]);
+  if (anchor === undefined) return undefined;
+  let cursor = anchor.offset + anchor.length;
+  while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
+  if (text[cursor] === ",") cursor += 1;
+  return text.slice(0, cursor) + note + text.slice(cursor);
+}
+
+/**
+ * Write `value` at `[...path, key]`, keeping the trailing note of the property
+ * the new key is inserted after (see {@link detachTrailingNote}). Replacing an
+ * existing key needs none of this: `modify` rewrites the value's own span and
+ * leaves every comment where it is.
+ */
+function insertJsoncProperty({
+  text,
+  path,
+  key,
+  value,
+  options,
+}: {
+  text: string;
+  path: readonly string[];
+  key: string;
+  value: unknown;
+  options: JsoncModificationOptions;
+}): string {
+  const write = (source: string): string =>
+    applyEdits(source, modify(source, [...path, key], value, options));
+  const detached = detachTrailingNote({ text, path });
+  if (detached === undefined) return write(text);
+  const reattached = reattachTrailingNote({
+    text: write(detached.text),
+    path: [...path, detached.anchorKey],
+    note: detached.note,
+  });
+  return reattached ?? write(text);
+}
+
+/**
  * Rewrite `text` so the object at `path` matches `next`, touching only the
  * spans that actually differ from `base`.
  *
@@ -388,11 +518,10 @@ function removeJsoncProperty({ text, path }: { text: string; path: readonly stri
  * one-key change deep in the document leaves its siblings — and the comments
  * attached to them — byte-identical.
  *
- * Every difference re-parses the document, so the cost is quadratic in the
- * number of *changed* keys rather than in the file's size. These are config
- * files whose managed sections hold tens of entries, and a regeneration that
- * changes nothing costs one parse, so the shape is left simple rather than
- * batched.
+ * Every difference re-parses the document, so the work is one parse of the
+ * file per *changed* key rather than one parse overall. A regeneration that
+ * changes nothing costs a single parse, and the files this runs on are config
+ * files, so the shape is left simple rather than batched.
  */
 function applyJsoncObjectEdits({
   text,
@@ -431,8 +560,12 @@ function applyJsoncObjectEdits({
       });
       continue;
     }
-    if (present && isDeepStrictEqual(previous, value)) continue;
-    result = applyEdits(result, modify(result, [...path, key], value, options));
+    if (present) {
+      if (isDeepStrictEqual(previous, value)) continue;
+      result = applyEdits(result, modify(result, [...path, key], value, options));
+      continue;
+    }
+    result = insertJsoncProperty({ text: result, path, key, value, options });
   }
   for (const key of Object.keys(base)) {
     if (!Object.hasOwn(next, key)) {
