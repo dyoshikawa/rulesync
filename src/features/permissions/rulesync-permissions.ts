@@ -85,12 +85,14 @@ export class RulesyncPermissions extends RulesyncFile {
   /**
    * The canonical document an importer produces from a tool's own config.
    *
-   * Every importer has to run the blank-pattern filter over what it is about to
-   * write: the canonical schema rejects a blank pattern outright, so a source
-   * file carrying one would be refused by the very next `generate`. Building the
-   * imported document here rather than calling the filter beside each `new
-   * RulesyncPermissions(...)` is what keeps the next importer from forgetting
-   * it.
+   * Every importer has to run the blank-key filter over what it is about to
+   * write: the canonical schema rejects a blank pattern and a blank category
+   * outright, so a source file carrying either would be refused by the very
+   * next `generate` — and that refusal takes the whole file with it, so one
+   * blank key imported from one tool stops every tool's permissions from being
+   * generated. Building the imported document here rather than calling the
+   * filter beside each `new RulesyncPermissions(...)` is what keeps the next
+   * importer from forgetting it.
    *
    * `sourcePath` is the tool config being read, used only to name it if
    * something is dropped.

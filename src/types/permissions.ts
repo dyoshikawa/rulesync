@@ -1068,12 +1068,12 @@ export type ZedPermissionsOverride = z.infer<typeof ZedPermissionsOverrideSchema
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
  *
- * The optional `opencode`/`hermes`/`cline`/`kilo`/`claudecode`/`vibe`/`cursor`/
- * `qwencode`/`reasonix`/`factorydroid`/`warp`/`junie`/`takt`/`amp`/
- * `antigravity-cli`/`augmentcode`/`kiro`/`codexcli`/`zed` keys are tool-scoped
- * overrides consumed only by their respective translator (see the matching
- * `*PermissionsOverrideSchema`); every other tool reads the shared `permission`
- * block and ignores them.
+ * The optional tool keys below are tool-scoped overrides consumed only by their
+ * respective translator (see the matching `*PermissionsOverrideSchema`); every
+ * other tool reads the shared `permission` block and ignores them. The set of
+ * keys is exactly `permissionsProcessorToolTargetTuple` mapped through
+ * `PERMISSION_OVERRIDE_KEY_ALIASES` — a test asserts that, so this comment does
+ * not enumerate them and go stale.
  *
  * Additionally, every permissions-capable tool accepts a canonical tool-scoped
  * `permission` block under its override key (`{toolname}.permission`, same

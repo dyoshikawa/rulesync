@@ -1744,7 +1744,9 @@ describe("RulesyncMcp.fromRoots", () => {
     // single-root path — not wrapped in the parse-failure message as well.
     expect(String((error as Error).message)).toBe(
       droppedPollutionKeysError({
-        sourcePath: join(".rulesync.local", RULESYNC_MCP_FILE_NAME),
+        // Posix separators, matching how `validate()` names the same file on
+        // the single-root path.
+        sourcePath: `.rulesync.local/${RULESYNC_MCP_FILE_NAME}`,
         droppedKeys: ["mcpServers.__proto__"],
       }).message,
     );

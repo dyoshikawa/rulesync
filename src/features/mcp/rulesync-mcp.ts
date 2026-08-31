@@ -18,7 +18,7 @@ import {
 import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { fileExistsStrict, readFileContent } from "../../utils/file.js";
+import { fileExistsStrict, readFileContent, toPosixPath } from "../../utils/file.js";
 import { droppedPollutionKeysError, parseJsoncReportingDroppedKeys } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
@@ -455,11 +455,12 @@ export class RulesyncMcp extends RulesyncFile {
 
       if (validate) {
         // Thrown outside the wrapper above: that message already names the
-        // file, and this one names it too. The path is made relative to match
-        // how the single-root path reports the same problem.
+        // file, and this one names it too. The path is made relative and posix
+        // to match how the single-root path reports the same problem, which
+        // goes through `getRelativePathFromCwd()`.
         if (droppedKeys.length > 0) {
           throw droppedPollutionKeysError({
-            sourcePath: relative(process.cwd(), filePath),
+            sourcePath: toPosixPath(relative(process.cwd(), filePath)),
             droppedKeys,
           });
         }
