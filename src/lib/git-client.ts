@@ -8,7 +8,7 @@ import {
   directoryExists,
   getFileSize,
   isSymlink,
-  listDirectoryFiles,
+  listDirectoryEntryNames,
   readFileContent,
   removeTempDirectory,
 } from "../utils/file.js";
@@ -240,7 +240,7 @@ async function walkDirectory(
     );
   }
   const results: Array<{ relativePath: string; content: string; size: number }> = [];
-  for (const name of await listDirectoryFiles(dir)) {
+  for (const name of await listDirectoryEntryNames(dir)) {
     if (name === ".git") continue;
     const fullPath = join(dir, name);
     if (await isSymlink(fullPath)) {

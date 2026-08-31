@@ -1,4 +1,4 @@
-import { join, relative } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -9,12 +9,18 @@ import {
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
+  directoryExists,
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
+  isHiddenPathSegment,
+  posixRelativePathEscapesRoot,
+  resolvedRelativePath,
   toPosixPath,
 } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import {
   NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
   NESTED_SCAN_EXCLUDED_ROOT_DIRS,
@@ -33,6 +39,140 @@ import {
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
+
+/**
+ * The `.claude/skills` tail every scanned root is expected to end with, written
+ * posix-separated so it can be compared against a resolved relative path, and
+ * split into its segments so what sits above it can be taken apart.
+ *
+ * Split here rather than through the shared helper: this is evaluated as the
+ * module loads, before a test that mocks the file utilities can supply one.
+ */
+const CLAUDECODE_SKILLS_DIR_SEGMENTS = CLAUDECODE_SKILLS_DIR_PATH.split(sep);
+const CLAUDECODE_SKILLS_DIR_POSIX_PATH = CLAUDECODE_SKILLS_DIR_SEGMENTS.join("/");
+
+/**
+ * The segment that puts `relativeDirPath` inside a tree the nested scan
+ * excludes, or `undefined` when none does. These are the same three rules the
+ * scan states as glob `ignore` patterns below -- dependency trees at any depth,
+ * build and vendoring directories at the project root, hidden directories other
+ * than the `.claude` being matched -- and the two have to be kept in step.
+ *
+ * Saying them twice is what a second pass costs. globby matches its patterns
+ * against the path it reports, before the `..` a rewritten directory name
+ * carries is folded away and before a link in the path is resolved. A root
+ * reported at `x/../node_modules/.claude/skills` matches none of the patterns
+ * and then leads to the dependency tree they name, so the decision has to be
+ * taken again on the path that is really read.
+ *
+ * The segments passed are the ones above the `.claude/skills` tail, taken from
+ * the resolved path: a directory name may hold a backslash -- the whole reason a
+ * path can arrive here misspelled -- so the split that produced them has to be on
+ * `/`, the one separator no name can contain. The tail itself is the part the
+ * glob matched and is not judged; `.claude` is hidden by definition and every
+ * root the scan reports ends with it.
+ */
+function excludedNestedScanSegment(segments: string[]): string | undefined {
+  return segments.find(
+    (segment, index) =>
+      NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.includes(segment) ||
+      (index === 0 && NESTED_SCAN_EXCLUDED_ROOT_DIRS.includes(segment)) ||
+      isHiddenPathSegment(segment),
+  );
+}
+
+/**
+ * Whether a nested skills directory the scan reported can be used as an import
+ * root: either the reason it cannot, or the path it resolves to relative to the
+ * project, which the caller uses to tell two spellings of one root apart.
+ *
+ * A recursive glob cannot be swapped for a walk the way a flat one can, so the
+ * path it hands back is checked instead. globby reads a backslash as a path
+ * separator and rewrites it, so a root below a directory really named
+ * `back\\slash` is reported at `back/slash`. Where that leads decides what to
+ * do with it, and the spelling alone does not say: `back/slash` usually answers
+ * to nothing, but `x\\..\\..\\outside` is reported at `x/../../outside`, which
+ * climbs out of the project through the real sibling `x/`, and `a\\b` at `a/b`,
+ * which may be a symbolic link out of the project that the scan — it passes
+ * `followSymbolicLinks: false` — never meant to reach. Both are refused by
+ * resolving the path rather than reading it.
+ *
+ * What is deliberately not refused is a rewritten path that stays inside the
+ * project, such as `x\\..\\y` reported at `x/../y`. It names a real directory
+ * `y`, and the scan reports that directory under this spelling *instead of* its
+ * own, so refusing it would lose `y`'s skills rather than protect anything. The
+ * skills under the directory that was really named are unreachable either way:
+ * no path the scan can report leads back to a name holding a backslash.
+ *
+ * That last shape is the one case the scan cannot warn about. `a\\b` reported
+ * at `a/b`, where `a/b` is itself a real directory, is indistinguishable from
+ * the ordinary root `a/b` -- both are spelled the same and both are there -- so
+ * the skills under `a\\b` are dropped without a word. Nothing in the path says
+ * a second directory was ever involved.
+ */
+async function checkNestedSkillsRoot({
+  outputRoot,
+  dirPath,
+}: {
+  outputRoot: string;
+  dirPath: string;
+}): Promise<{ reason: string } | { realRelativeDirPath: string }> {
+  if (!(await directoryExists(dirPath))) {
+    return {
+      reason:
+        "it could not be read under the path the scan reports, most often because a " +
+        "directory name above it contains a backslash.",
+    };
+  }
+  // Resolved once, and every question below asked of that one answer: a `..` the
+  // rewrite left in can climb out through a real sibling, a name that carries no
+  // `..` at all can still be a link that leads out, and a link inside an otherwise
+  // ordinary name reaches an excluded tree without any `..` either. All three look
+  // contained to a lexical test, and resolving separately per question would leave
+  // each free to judge a different path.
+  const realRelativeDirPath = await resolvedRelativePath({
+    rootPath: outputRoot,
+    targetPath: dirPath,
+  });
+  if (posixRelativePathEscapesRoot(realRelativeDirPath)) {
+    return { reason: "it resolves outside the project." };
+  }
+  const segments = realRelativeDirPath.split("/");
+  const aboveTailSegments = segments.slice(0, -CLAUDECODE_SKILLS_DIR_SEGMENTS.length);
+  // The tail is what the glob matched, but only on the reported path: a root
+  // reported below an ordinary name may resolve through a link to somewhere that
+  // is no skills directory at all -- the project root itself, at the extreme,
+  // whose relative path is empty and escapes nothing. Read as a skills tree, such
+  // a directory hands every child under it to the importer as a skill. Nothing
+  // legitimate is lost by refusing it: the scan does not follow symbolic links, so
+  // a root whose own `.claude/skills` is a link is never reported to begin with.
+  if (
+    segments.slice(-CLAUDECODE_SKILLS_DIR_SEGMENTS.length).join("/") !==
+    CLAUDECODE_SKILLS_DIR_POSIX_PATH
+  ) {
+    // Named rather than quoted when it is the project root, whose relative path is
+    // the empty string and would otherwise be reported as a pair of quotes.
+    const resolvedDescription =
+      realRelativeDirPath === ""
+        ? "the project root"
+        : JSON.stringify(stripControlCharacters(realRelativeDirPath));
+    return {
+      reason: `it resolves to ${resolvedDescription}, which is not a ${CLAUDECODE_SKILLS_DIR_POSIX_PATH} directory.`,
+    };
+  }
+  const excludedSegment = excludedNestedScanSegment(aboveTailSegments);
+  if (excludedSegment !== undefined) {
+    return {
+      reason: `it resolves inside ${JSON.stringify(stripControlCharacters(excludedSegment))}, which the nested scan excludes.`,
+    };
+  }
+  // The gitignore filter needs no such second pass, though it too runs on the
+  // reported paths. The scan de-duplicates by real file, and a directory's own
+  // name always beats an alias of it, so a link into a gitignored tree is folded
+  // onto the name the filter already judged. That only fails where the scan never
+  // reports the real name -- which is exactly the trees excluded above.
+  return { realRelativeDirPath };
+}
 
 export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
@@ -316,9 +456,11 @@ export class ClaudecodeSkill extends ToolSkill {
   static async getConfiguredImportRoots({
     outputRoot,
     global = false,
+    logger,
   }: {
     outputRoot: string;
     global?: boolean;
+    logger?: Logger;
   }): Promise<Array<{ outputRoot: string; relativeDirPath: string }>> {
     if (global) {
       return [];
@@ -345,10 +487,41 @@ export class ClaudecodeSkill extends ToolSkill {
       rootDir: outputRoot,
       filePaths: dirPaths,
     }).toSorted();
-    return filteredDirPaths.map((dirPath) => ({
-      outputRoot,
-      relativeDirPath: relative(outputRoot, dirPath),
-    }));
+    const roots: Array<{ outputRoot: string; relativeDirPath: string }> = [];
+    // A rewritten spelling, the directory's own, and a link to it can all name the
+    // same root, so the roots are told apart by where they resolve rather than by
+    // how they are spelled -- otherwise one root is scanned several times and every
+    // skill under it is reported as a duplicate name. The tool's own root is seeded
+    // here for the same reason: the glob cannot match it -- it requires a segment
+    // above the tail -- but a name like `x\..` resolves onto it, and a nested root
+    // is imported leniently, which would turn an invalid skill of the project's own
+    // into a warning instead of an error.
+    const seenRealRelativeDirPaths = new Set<string>([CLAUDECODE_SKILLS_DIR_POSIX_PATH]);
+    for (const dirPath of filteredDirPaths) {
+      // Normalized before anything is asked of it, so the path that is checked is
+      // the one that is later read. A `..` the rewrite left in has to be folded
+      // away either way -- `relative` folds it silently when the root is recorded,
+      // and `x/../y` answers to nothing when `x` itself does not exist, though the
+      // `y` it names may be a real root the scan reports under no other spelling.
+      const scannedDirPath = resolve(dirPath);
+      const check = await checkNestedSkillsRoot({
+        outputRoot,
+        dirPath: scannedDirPath,
+      });
+      if ("reason" in check) {
+        logger?.warn(
+          `Skipping the nested Claude Code skills directory ${JSON.stringify(stripControlCharacters(scannedDirPath))}: ` +
+            `${check.reason} Its skills are not imported.`,
+        );
+        continue;
+      }
+      if (seenRealRelativeDirPaths.has(check.realRelativeDirPath)) {
+        continue;
+      }
+      seenRealRelativeDirPaths.add(check.realRelativeDirPath);
+      roots.push({ outputRoot, relativeDirPath: relative(outputRoot, scannedDirPath) });
+    }
+    return roots;
   }
 
   getFrontmatter(): ClaudecodeSkillFrontmatter {

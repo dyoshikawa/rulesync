@@ -8,7 +8,12 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, listDirectoryFiles, removeFile, writeFileContent } from "../../utils/file.js";
+import {
+  ensureDir,
+  listDirectoryEntryNames,
+  removeFile,
+  writeFileContent,
+} from "../../utils/file.js";
 
 describe("MCP Server", () => {
   let testDir: string;
@@ -60,7 +65,7 @@ describe("MCP Server", () => {
 
       // Test reading the rules
       const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
-      const files = await listDirectoryFiles(rulesDir);
+      const files = await listDirectoryEntryNames(rulesDir);
       const mdFiles = files.filter((file) => file.endsWith(".md"));
 
       const rules = await Promise.all(
@@ -94,7 +99,7 @@ describe("MCP Server", () => {
     it("should return empty array when rules directory doesn't exist", async () => {
       // Don't create .rulesync/rules directory
       const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
-      const files = await listDirectoryFiles(rulesDir);
+      const files = await listDirectoryEntryNames(rulesDir);
       expect(files).toEqual([]);
     });
   });
@@ -232,14 +237,14 @@ describe("MCP Server", () => {
       await writeFileContent(rule.getFilePath(), rule.getFileContent());
 
       // Verify rule exists
-      const files = await listDirectoryFiles(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      const files = await listDirectoryEntryNames(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
       expect(files).toContain("delete-me.md");
 
       // Delete the rule
       await removeFile(rule.getFilePath());
 
       // Verify rule was deleted
-      const filesAfterDelete = await listDirectoryFiles(
+      const filesAfterDelete = await listDirectoryEntryNames(
         join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH),
       );
       expect(filesAfterDelete).not.toContain("delete-me.md");
