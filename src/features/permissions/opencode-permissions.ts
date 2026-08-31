@@ -222,7 +222,7 @@ export class OpencodePermissions extends ToolPermissions {
       // `"__proto__": { "permission": ... }` in the config replaces this
       // object's prototype, and `record.permission` would import a permission
       // block that the word "permission" never appears next to in the file.
-      permission: Object.hasOwn(record, "permission") ? record.permission : {},
+      permission: Object.hasOwn(record, "permission") ? (record.permission ?? {}) : {},
     };
 
     return new OpencodePermissions({

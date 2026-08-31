@@ -427,6 +427,14 @@ describe("OpencodePermissions", () => {
     expect(generated.getJson().permission).toEqual({ bash: { "git *": "allow" } });
   });
 
+  it("should treat an explicit null permission as an empty block", async () => {
+    await writeFileContent(join(testDir, "opencode.json"), '{ "permission": null }');
+
+    const instance = await OpencodePermissions.fromFile({ outputRoot: testDir });
+
+    expect(instance.getJson().permission).toEqual({});
+  });
+
   it("should ignore a permission block reachable only through __proto__", async () => {
     // `jsonc-parser` assigns keys with `obj[key] = value`, so a literal
     // `"__proto__"` replaces the parsed object's prototype instead of becoming a

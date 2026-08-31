@@ -6,6 +6,7 @@ import {
   applyEdits,
   findNodeAtLocation,
   type FormattingOptions as JsoncFormattingOptions,
+  getNodeValue,
   modify,
   type ModificationOptions as JsoncModificationOptions,
   type Node as JsoncNode,
@@ -24,7 +25,6 @@ import {
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
 import { formatError } from "../../utils/error.js";
-import { parseJsoncReportingDroppedKeys } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   omitPrototypePollutionKeys,
@@ -212,29 +212,38 @@ function detectJsoncFormattingOptions({
 }
 
 /**
- * Whether any object in the document states the same key twice.
+ * Whether the document states a key no edit-based write can be trusted with.
  *
- * A duplicate key is legal JSON text that every reader resolves last-wins,
- * while `modify` edits the *first* occurrence — so an edit-based write would
- * land on the dead copy and leave the live one saying whatever it said before.
- * For an owned key that is a silent ownership failure: a `deny` rulesync just
- * wrote would sit above the `allow` the tool actually reads. The
- * whole-document writer collapses duplicates, so those files go to it.
+ * Two kinds, both answered from the syntax tree because the parsed value no
+ * longer knows about either:
+ *
+ * - A key stated twice. That is legal JSON text which every reader resolves
+ *   last-wins, while `modify` edits the *first* occurrence — so an edit-based
+ *   write would land on the dead copy and leave the live one saying whatever
+ *   it said before. For an owned key that is a silent ownership failure: a
+ *   `deny` rulesync just wrote would sit above the `allow` the tool reads.
+ * - `__proto__`, `constructor` or `prototype`. None survives into the parsed
+ *   document — a nested one is dropped, a root-level `__proto__` replaces the
+ *   root's prototype — so an edit-based write would find no difference to
+ *   apply and leave the key in the file.
+ *
+ * The whole-document writer resolves duplicates last-wins and drops pollution
+ * keys, which is what it has always done, so those files go to it.
  */
-function hasDuplicateJsoncKeys(node: JsoncNode): boolean {
+function statesUneditableKeys(node: JsoncNode): boolean {
   if (node.type === "array") {
-    return (node.children ?? []).some((child) => hasDuplicateJsoncKeys(child));
+    return (node.children ?? []).some((child) => statesUneditableKeys(child));
   }
   if (node.type !== "object") return false;
   const seen = new Set<string>();
   for (const property of node.children ?? []) {
     const key = property.children?.[0]?.value;
     if (typeof key === "string") {
-      if (seen.has(key)) return true;
+      if (seen.has(key) || PROTOTYPE_POLLUTION_KEYS.has(key)) return true;
       seen.add(key);
     }
     const value = property.children?.[1];
-    if (value !== undefined && hasDuplicateJsoncKeys(value)) return true;
+    if (value !== undefined && statesUneditableKeys(value)) return true;
   }
   return false;
 }
@@ -266,6 +275,61 @@ function skipJsoncTrivia({ text, from }: { text: string; from: number }): number
 }
 
 /**
+ * Where the deletion of a property whose text ends at `end` should stop.
+ *
+ * A comment written after the property on its own line is that property's
+ * note — `"stale": {...}, // retired` says something about `stale` and nothing
+ * about the key above it. Leaving it behind would re-attach it to whichever
+ * property now ends that line, so a note about a server rulesync removed would
+ * read as a note about the one before it. A comment with a sibling after it on
+ * the same line is not claimed: it may belong to either.
+ */
+function endOfRemoval({ text, end }: { text: string; end: number }): number {
+  const newline = text.indexOf("\n", end);
+  let stop = newline === -1 ? text.length : newline;
+  if (stop > end && text[stop - 1] === "\r") stop -= 1;
+  const tail = text.slice(end, stop);
+  const lineComment = /^[ \t]*\/\/[^\r\n]*$/;
+  const blockComment = /^[ \t]*\/\*(?:[^*]|\*(?!\/))*\*\/[ \t]*$/;
+  return lineComment.test(tail) || blockComment.test(tail) ? stop : end;
+}
+
+/**
+ * Where the deletion of a property ending at `end` should begin.
+ *
+ * A property that has its line to itself is removed with the line: its
+ * indentation and the newline above it would otherwise be left as a blank gap.
+ * A property sharing its line with something else — a sibling, or the object's
+ * own `}` — is removed on its own, because swallowing the newline would splice
+ * whatever follows onto the line above, and a line comment up there would
+ * comment it out: a key rulesync means to write would vanish from the file, or
+ * the closing brace would, leaving the document unparsable.
+ */
+function startOfRemoval({
+  text,
+  propertyOffset,
+  end,
+}: {
+  text: string;
+  propertyOffset: number;
+  end: number;
+}): number {
+  let after = end;
+  while (text[after] === " " || text[after] === "\t") after += 1;
+  const endsTheLine = after >= text.length || text[after] === "\n" || text[after] === "\r";
+  if (!endsTheLine) {
+    return propertyOffset;
+  }
+  let start = propertyOffset;
+  while (start > 0 && (text[start - 1] === " " || text[start - 1] === "\t")) start -= 1;
+  if (start > 0 && text[start - 1] === "\n") {
+    start -= 1;
+    if (start > 0 && text[start - 1] === "\r") start -= 1;
+  }
+  return start;
+}
+
+/**
  * Delete the property at `path` from `text`, taking its own line and its
  * separating comma but nothing else.
  *
@@ -274,9 +338,11 @@ function skipJsoncTrivia({ text, from }: { text: string; from: number }): number
  * first property of an object, all the way to where the *next* one starts. So
  * removing one key takes the comments sitting between it and the keys around
  * it, including the comment describing the key that survives.
- * Deleting the property's own text instead leaves every comment in place; a
- * comment written above a key rulesync removes is left behind rather than
- * guessed at, which is the direction this whole path errs in.
+ * Deleting the property's own text instead leaves the comments around it in
+ * place. Only the note that follows the property on its own line goes with it
+ * (see {@link endOfRemoval}); a comment written on the line *above* is left
+ * behind rather than guessed at, which is the direction this whole path errs
+ * in.
  */
 function removeJsoncProperty({ text, path }: { text: string; path: readonly string[] }): string {
   const root = parseTree(text, [], { allowTrailingComma: true });
@@ -304,12 +370,8 @@ function removeJsoncProperty({ text, path }: { text: string; path: readonly stri
     }
   }
 
-  let start = property.offset;
-  while (start > 0 && (text[start - 1] === " " || text[start - 1] === "\t")) start -= 1;
-  if (start > 0 && text[start - 1] === "\n") {
-    start -= 1;
-    if (start > 0 && text[start - 1] === "\r") start -= 1;
-  }
+  end = endOfRemoval({ text, end });
+  const start = startOfRemoval({ text, propertyOffset: property.offset, end });
   edits.push({ offset: start, length: end - start, content: "" });
   return applyEdits(text, edits);
 }
@@ -400,13 +462,8 @@ function applyJsoncObjectEdits({
  *   would mean guessing at the author's intent, and the callers that reach
  *   here have already decided (via `invalidRootPolicy`) that such a file is
  *   replaced;
- * - a file stating the same key twice, which every reader resolves last-wins
- *   while an edit lands on the first copy (see {@link hasDuplicateJsoncKeys});
- * - a file using `__proto__`, `constructor` or `prototype` as a key. Neither
- *   survives into the parsed document — a nested one is dropped, a root-level
- *   one leaves the root unusable — so an edit-based write would find no
- *   difference to apply and leave the key in the file, where the
- *   whole-document writer removes it.
+ * - a file stating the same key twice, or using `__proto__`, `constructor` or
+ *   `prototype` as a key (see {@link statesUneditableKeys}).
  */
 export function serializeSharedConfig({
   format,
@@ -421,24 +478,25 @@ export function serializeSharedConfig({
     return stringifySharedConfig({ format, document });
   }
 
-  let base: unknown;
-  try {
-    const parsed = parseJsoncReportingDroppedKeys({ content: existingContent });
-    if (parsed.droppedKeys.length > 0) {
-      return stringifySharedConfig({ format, document });
-    }
-    base = parsed.value;
-  } catch {
-    return stringifySharedConfig({ format, document });
-  }
-  if (!isPlainObject(base)) {
+  // One parse, as a syntax tree: it answers everything this path asks of the
+  // file — whether it is well-formed, what it says, where its indentation is,
+  // and whether it states a key an edit cannot be trusted with. Parsing the
+  // text again for the value would mean a second parser and a second
+  // sanitizer deciding what the document says, and the two silently drifting
+  // apart would make the diff below miss a change rulesync means to write.
+  const errors: JsoncParseError[] = [];
+  const root = parseTree(existingContent, errors, { allowTrailingComma: true });
+  if (
+    root === undefined ||
+    errors.length > 0 ||
+    root.type !== "object" ||
+    statesUneditableKeys(root)
+  ) {
     return stringifySharedConfig({ format, document });
   }
 
-  // Parsed a second time as a syntax tree: the value above cannot answer where
-  // the document's own indentation is, nor whether a key is stated twice.
-  const root = parseTree(existingContent, [], { allowTrailingComma: true });
-  if (root === undefined || root.type !== "object" || hasDuplicateJsoncKeys(root)) {
+  const base = sanitizeSharedConfigValue(getNodeValue(root));
+  if (!isPlainObject(base)) {
     return stringifySharedConfig({ format, document });
   }
 

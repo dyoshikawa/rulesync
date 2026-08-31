@@ -310,6 +310,69 @@ describe("serializeSharedConfig", () => {
     expect(parse(result)).toEqual({});
   });
 
+  it("takes the removed key's own trailing note with it", () => {
+    // The note describes the key being removed, so leaving it would re-attach it
+    // to whichever key now ends that line.
+    const existingContent = [
+      "{",
+      '  "a": 1,',
+      '  "gone": 2, // this server was retired',
+      '  "b": 3',
+      "}",
+    ].join("\n");
+    const document = parse(existingContent);
+    delete document.gone;
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).not.toContain("retired");
+    expect(result).toBe(["{", '  "a": 1,', '  "b": 3', "}"].join("\n"));
+  });
+
+  it("keeps a trailing note that a surviving sibling shares the line with", () => {
+    const existingContent = ["{", '  "gone": 1, "b": 2 // about this line', "}"].join("\n");
+    const document = parse(existingContent);
+    delete document.gone;
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain("// about this line");
+    expect(parse(result)).toEqual({ b: 2 });
+  });
+
+  it("keeps a sibling that shares the removed key's line", () => {
+    // Taking the newline above would splice `"edit"` onto the comment line and
+    // comment out a permission rulesync means to write.
+    const existingContent = [
+      "{",
+      '  "permission": {',
+      "    // managed",
+      '    "bash": "deny", "edit": "allow"',
+      "  }",
+      "}",
+    ].join("\n");
+    const document = parse(existingContent);
+    document.permission = { edit: "allow" };
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain("// managed");
+    expect(parse(result)).toEqual({ permission: { edit: "allow" } });
+  });
+
+  it("keeps the object closed when the removed key shares its line with the brace", () => {
+    const existingContent = ["{", '  "kept": 0,', "  // note", '  "gone": 1 }'].join("\n");
+    const document = parse(existingContent);
+    delete document.gone;
+
+    const result = serializeSharedConfig({ format: "jsonc", document, existingContent });
+
+    expect(result).toContain("// note");
+    // The brace still closes the object rather than sitting inside the comment.
+    expect(result.split("\n").at(-1)?.trim()).toBe("}");
+    expect(parse(result)).toEqual({ kept: 0 });
+  });
+
   it("falls back to the whole-document writer when a key is stated twice", () => {
     // `jsonc-parser` edits the first occurrence while the parsed value comes from
     // the last one, so an in-place edit would land on the copy nothing reads and
@@ -626,6 +689,58 @@ describe("applySharedConfigPatch", () => {
       "amp.notifications.enabled": true,
       "amp.mcpServers": { fresh: { command: "node" } },
     });
+  });
+
+  it("retracts an owned key from .vscode/settings.json without touching the rest", () => {
+    // The file the issue names: a settings file that is mostly the user's, with
+    // one dotted key rulesync owns and, this run, no longer has anything to say
+    // about.
+    const existingContent = [
+      "{",
+      "  // Editor settings this project shares.",
+      '  "editor.formatOnSave": true,',
+      '  "chat.tools.terminal.autoApprove": { "ls": true }',
+      "}",
+    ].join("\n");
+
+    const result = applySharedConfigPatch({
+      fileKey: ".vscode/settings.json",
+      feature: "permissions",
+      existingContent,
+      patch: { "chat.tools.terminal.autoApprove": undefined },
+    });
+
+    expect(result).toBe(
+      ["{", "  // Editor settings this project shares.", '  "editor.formatOnSave": true', "}"].join(
+        "\n",
+      ),
+    );
+  });
+
+  it("preserves the comments of opencode.json and kilo.json", () => {
+    const existingContent = [
+      "{",
+      "  // The model this project talks to.",
+      '  "model": "x",',
+      '  "permission": { "bash": "allow" }',
+      "}",
+    ].join("\n");
+
+    for (const fileKey of ["opencode.json", "kilo.json"] as const) {
+      const result = applySharedConfigPatch({
+        fileKey,
+        feature: "mcp",
+        existingContent,
+        patch: { mcp: { fresh: { type: "local", command: ["node"] } } },
+      });
+
+      expect(result).toContain("// The model this project talks to.");
+      expect(parseSharedConfig({ format: "jsonc", fileContent: result })).toEqual({
+        model: "x",
+        permission: { bash: "allow" },
+        mcp: { fresh: { type: "local", command: ["node"] } },
+      });
+    }
   });
 
   it("rejects writes to undeclared files and undeclared writer features", () => {
