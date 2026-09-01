@@ -684,6 +684,37 @@ describe("ClaudecodePermissions", () => {
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("2 existing Read deny"));
     });
 
+    it("should say the all-tools '*' category names no Claude Code tool", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            "*": { "rm *": "deny" },
+            bash: { "*": "allow" },
+          },
+        }),
+      });
+
+      const mockLogger = createMockLogger();
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // A Claude Code rule names one tool, so `*(rm *)` matches none. The entry
+      // is kept because it carries the rule back on import, but an inert deny
+      // sitting beside a blanket allow is exactly what the author must hear
+      // about.
+      expect(content.permissions.deny).toEqual(["*(rm *)"]);
+      expect(content.permissions.allow).toEqual(["Bash"]);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("matches against no tool"),
+      );
+    });
+
     it("should not warn when permissions does not manage Read tool", async () => {
       const settingsDir = join(testDir, ".claude");
       await ensureDir(settingsDir);

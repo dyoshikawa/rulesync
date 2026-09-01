@@ -112,15 +112,373 @@ describe("WarpPermissions", () => {
       const perms = await WarpPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: rulesyncPermissions({
-          bash: { "git .*": "allow", "secret .*": "ask" },
+          // Anchored, so the `ask` and the `allow` name disjoint commands —
+          // an unanchored regex matches anywhere and would overlap both ways.
+          bash: { "^git .*$": "allow", "^secret .*$": "ask" },
           read: { "src/**": "allow" },
         }),
         global: true,
       });
 
       const profiles = profilesOf(perms.getFileContent());
-      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^git .*$"]);
       expect(profiles[DENYLIST_KEY]).toBeUndefined();
+    });
+
+    it("withholds the bash allow an all-tools deny blocks, without touching the denylist", async () => {
+      const logger = createMockLogger();
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          // A pattern under `*` is canonical, so it is written as a glob even
+          // for a tool whose own patterns are regexes.
+          "*": { "rm -rf *": "deny" },
+          bash: { "^rm -rf .*$": "allow", "^git .*$": "allow" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      // Writing any denylist replaces Warp's built-in default one, so an
+      // all-tools pattern — which need not name a command at all — withholds
+      // the allow it covers instead of being written there.
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^git .*$"]);
+      expect(profiles[DENYLIST_KEY]).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("did not write the all-tools '*' deny rule(s) for rm -rf *"),
+      );
+    });
+
+    it("withholds a regex allow the all-tools deny covers", async () => {
+      const logger = createMockLogger();
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { rm: "deny" },
+          // `.*` is Warp's catch-all, not a literal dot beside a wildcard, so
+          // the restriction covers it however narrowly the deny is spelled.
+          bash: { ".*": "allow" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("was not given the allow rule(s) for .*"),
+      );
+    });
+
+    it("withholds an allow that a wider unanchored ask covers", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          // An unanchored regex matches anywhere in the command, so `^npm `
+          // covers `^npm publish` even though neither glob covers the other.
+          bash: { "^npm ": "ask", "^npm publish": "allow", "^git .*$": "allow" },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^git .*$"]);
+    });
+
+    it("withholds an allow the character class in a restriction spells out", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          // `[rf]` is a class Warp expands, not the four characters a glob
+          // reads, so the ask reaches `rm -r` however differently it is spelled.
+          bash: { "^rm -[rf]$": "ask", "^rm -r$": "allow", "^git .*$": "allow" },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^git .*$"]);
+      expect(profiles[DENYLIST_KEY]).toBeUndefined();
+    });
+
+    it("withholds an allow a group, a quantifier or a character escape reaches", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // Each restriction covers the allow under it: an alternation, an
+            // optional group, an optional letter and `\s+` all stand for text
+            // the allow spells differently.
+            "^(git|npm) publish$": "ask",
+            "^(sudo )?shutdown$": "ask",
+            "^git commits?$": "ask",
+            "^npm\\s+install$": "ask",
+            "^npm publish$": "allow",
+            "^shutdown$": "allow",
+            "^git commit$": "allow",
+            "^npm install$": "allow",
+            "^ls -la$": "allow",
+          },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^ls -la$"]);
+    });
+
+    it("withholds an allow a hex escape reaches, digits and all", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // `\x20` and `\u0020` each spell the space of the allow beside
+            // them across several characters. Reading only the `\x` would
+            // leave `20` behind as a literal and *narrow* the rewrite, so the
+            // restriction would stop covering the command it names.
+            "^git\\x20push$": "ask",
+            "^npm\\u0020publish$": "ask",
+            // The braced forms spell the same space, and their digits sit
+            // behind a `}` rather than being counted one by one.
+            "^yarn\\x{20}add$": "ask",
+            "^pnpm\\u{20}add$": "ask",
+            // Rust's regex crate also spells a code point as `\\U00000067`
+            // and a Unicode class as `\\pL` / `\\p{L}`. Widening only the
+            // introducer would leave `00000067` or `L` behind as literals.
+            "^\\U00000067it push$": "ask",
+            "^\\pLit pull$": "ask",
+            "^\\p{Latin}it fetch$": "ask",
+            // The negated forms `\\PL` / `\\P{...}` spell a class the same way.
+            "^\\PLit stash$": "ask",
+            "^\\P{Greek}it clone$": "ask",
+            "^git push$": "allow",
+            "^npm publish$": "allow",
+            "^yarn add$": "allow",
+            "^pnpm add$": "allow",
+            "^git pull$": "allow",
+            "^git fetch$": "allow",
+            "^git stash$": "allow",
+            "^git clone$": "allow",
+            "^ls -la$": "allow",
+          },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^ls -la$"]);
+    });
+
+    it("withholds an allow a quantifier on an astral character reaches", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // The emoji is two UTF-16 units. Widening only the second would
+            // leave the first behind as a literal no command holds, so the
+            // restriction would stop covering the allow below it.
+            "^rm \u{1F600}?x$": "ask",
+            "^rm x$": "allow",
+            "^ls -la$": "allow",
+          },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^ls -la$"]);
+    });
+
+    it.each([
+      // The class holds a `[` of its own, so counting brackets would run past
+      // the `]` and swallow the `|` that makes this two patterns.
+      ["^git [^[]*|^rm ", "^rm -rf /tmp$"],
+      // The `{` never closes, so everything after it — the `|` included — is
+      // unreadable as a quantifier.
+      ["^npm run build{|^sudo ", "^sudo apt install$"],
+      // `{a|b}` spells no repetition, so the regex engine reads the braces as
+      // literals and the `|` as the alternation it is.
+      ["^npm run build{a|b}|^sudo ", "^sudo apt install$"],
+      // Rust's regex crate builds one class out of `[a[b]c]`, so stopping at the
+      // first `]` would leave `c]|^sudo ` behind as text.
+      ["^git [a[b]c]|^sudo ", "^sudo apt install$"],
+    ])("withholds an allow the second half of %s reaches", async (restriction, allowed) => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { [restriction]: "ask", [allowed]: "allow" },
+        }),
+        global: true,
+      });
+
+      expect(profilesOf(perms.getFileContent())[ALLOWLIST_KEY]).toBeUndefined();
+    });
+
+    it("keeps an allow a repetition quantifier cannot reach", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // `{2}` *is* a quantifier, so reading it leaves a pattern about
+            // `npm` alone — widening it to `*` because a brace looked
+            // unreadable would withhold every allow beside it.
+            "^npm run build{2}$": "ask",
+            "^sudo apt install$": "allow",
+          },
+        }),
+        global: true,
+      });
+
+      expect(profilesOf(perms.getFileContent())[ALLOWLIST_KEY]).toEqual(["^sudo apt install$"]);
+    });
+
+    it("withholds an allow a case-insensitive flag can reach", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // `(?i)` makes everything after it case-insensitive, so this asks
+            // about `RM -rf /` as much as about `rm -rf /`. Reading the group as
+            // just another atom would compare a glob that matches neither
+            // spelling of the allow beside it.
+            "(?i)rm": "ask",
+            "^RM -rf /$": "allow",
+          },
+        }),
+        global: true,
+      });
+
+      expect(profilesOf(perms.getFileContent())[ALLOWLIST_KEY]).toBeUndefined();
+    });
+
+    it("withholds an allow that only an escaped bracket keeps apart", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            // `\[ab\]` is the literal text `[ab]`, not a class of two letters:
+            // both patterns match the command `rm [ab]`.
+            "^rm \\[ab\\]$": "ask",
+            "^rm .ab.$": "allow",
+          },
+        }),
+        global: true,
+      });
+
+      expect(profilesOf(perms.getFileContent())[ALLOWLIST_KEY]).toBeUndefined();
+    });
+
+    it("reports the all-tools allow rules it read past", async () => {
+      const logger = createMockLogger();
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "git .*": "allow" },
+          bash: { "ls .*": "allow" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["ls .*"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("deny and ask rules only"));
+    });
+
+    it("keeps Warp's built-in denylist when only the all-tools category denies", async () => {
+      const logger = createMockLogger();
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "secrets/**": "deny" },
+          bash: { "^git .*$": "allow" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      // `secrets/**` matches no command and is not even a valid regex; writing
+      // it would trade Warp's built-in denylist for an inert entry.
+      expect(profiles[DENYLIST_KEY]).toBeUndefined();
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^git .*$"]);
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("built-in default denylist"),
+      );
+    });
+
+    it("withholds a bash allow that the all-tools category asks about", async () => {
+      const logger = createMockLogger();
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "npm *": "ask" },
+          bash: { "^npm .*$": "allow", "^git .*$": "allow" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^git .*$"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("^npm .*$"));
+    });
+
+    it("reports an all-tools ask that withheld nothing, as it may name no command", async () => {
+      const logger = createMockLogger();
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          // A regex written under `*` is read as a glob here, so `.*--force`
+          // wants a literal leading `.` and reaches no command. Warp has no ask
+          // list to write it to either, which leaves the rule doing nothing.
+          "*": { ".*--force": "ask" },
+          bash: { "^git push --force$": "allow" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^git push --force$"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("need not name a command"));
+    });
+
+    it("reads an all-tools pattern as the glob it is, not as a Warp regex", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          // Widening `secrets/**` as if it were an unanchored regex would make
+          // it cover every command that merely mentions `secrets`.
+          "*": { "secrets/**": "deny" },
+          bash: { "^git secrets --scan$": "allow" },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["^git secrets --scan$"]);
+    });
+
+    it("ignores the all-tools category's allow rules", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "src/**": "allow" },
+          bash: { "git .*": "allow" },
+        }),
+        global: true,
+      });
+
+      const profiles = profilesOf(perms.getFileContent());
+      expect(profiles[ALLOWLIST_KEY]).toEqual(["git .*"]);
     });
 
     it("overlays the warp override's file-read/read-only autonomy keys onto agents.profiles", async () => {

@@ -8,7 +8,15 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { createIntersectionBudget } from "../../utils/glob.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  collectShellCommandRules,
+  collectUnenforcedAllToolsPatterns,
+  createShadowingRestrictionsTest,
+  SHELL_PERMISSION_CATEGORY,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -42,43 +50,126 @@ type ClineTranslationResult = {
   deny: string[];
   droppedCategories: string[];
   translatedAskPatterns: string[];
+  shadowedAllowPatterns: string[];
+  /**
+   * All-tools `deny` patterns written into the denylist that withheld no allow
+   * rule, so nothing observed says they name a command Cline can block.
+   */
+  unenforcedAllToolsDenyPatterns: string[];
+  /**
+   * All-tools `ask` patterns that withheld no allow rule, so — Cline having no
+   * ask tier of its own — nothing observed says they name a command either.
+   */
+  unenforcedAllToolsAskPatterns: string[];
+  ignoredAllToolsAllowPatterns: string[];
+  intersectionBudgetExhausted: boolean;
 };
 
 /**
  * Translate rulesync permission categories into Cline allow/deny command lists.
- * Non-bash categories and `ask` rules are tracked separately so a single
- * translation notice can be surfaced by the caller.
+ * The `bash` category maps, and so do the restricting rules of the all-tools
+ * `*` category — a rule written there covers shell commands too. Other
+ * categories and `ask` rules are tracked separately so a single translation
+ * notice can be surfaced by the caller.
  */
 function translateClinePermissions(
   permission: PermissionsConfig["permission"],
 ): ClineTranslationResult {
   const allow: string[] = [];
   const deny: string[] = [];
-  const droppedCategories: string[] = [];
   const translatedAskPatterns: string[] = [];
+  const shadowedAllowPatterns: string[] = [];
 
-  for (const [category, rules] of Object.entries(permission)) {
-    if (category !== "bash") {
-      droppedCategories.push(category);
-      continue;
-    }
-    for (const [pattern, action] of Object.entries(rules)) {
-      if (action === "ask") {
-        // Cline has no `ask` semantics. Translate to `deny` for fail-closed safety so the
-        // protective intent of the rule is preserved instead of being silently dropped.
-        translatedAskPatterns.push(pattern);
-        deny.push(pattern);
+  const droppedCategories = Object.keys(permission).filter(
+    (category) =>
+      category !== SHELL_PERMISSION_CATEGORY && category !== ALL_TOOLS_PERMISSION_CATEGORY,
+  );
+  const { rules, ignoredAllToolsAllowPatterns } = collectShellCommandRules(permission);
+  // Cline has no `ask` list, so an `ask` rule has to land somewhere else, and
+  // where depends on the category that wrote it. A `bash` rule is a command
+  // pattern by construction: its `ask` becomes a `deny`, and its `deny` is
+  // written as it stands, where Cline's documented deny-priority enforces it and
+  // the allow rules beside it keep working.
+  //
+  // A rule under the all-tools `*` need not name a command at all — `secrets/**`
+  // there denies a path — so neither list can be trusted to enforce it: such an
+  // entry matches no command. Both its `ask` and its `deny` therefore withhold
+  // the `allow` rules they cover instead (the `deny` is still written, for the
+  // case where it *is* a command). Translating the `ask` to `deny` outright would
+  // turn the ordinary catch-all `{"*": {"*": "ask"}}` into a block on every
+  // command — one Cline's additive `deny` merge would then keep forever.
+  const budget = createIntersectionBudget();
+  const shadowingRestrictions = createShadowingRestrictionsTest(
+    rules.filter(({ fromAllToolsCategory }) => fromAllToolsCategory),
+    { budget },
+  );
+  const allToolsDenyPatterns: string[] = [];
+  const allToolsAskPatterns: string[] = [];
+  const withholdingPatterns = new Set<string>();
+
+  for (const { pattern, action, fromAllToolsCategory } of rules) {
+    if (action === "ask") {
+      if (fromAllToolsCategory) {
+        // Withholding the allow rules it covers is all a `*` ask does here — a
+        // pattern written there need not name a command, so it is never written
+        // to a list of its own. One that withholds nothing is worth reporting for
+        // that same reason: nothing observed says it names a command.
+        allToolsAskPatterns.push(pattern);
         continue;
       }
-      if (action === "allow") {
-        allow.push(pattern);
-      } else if (action === "deny") {
-        deny.push(pattern);
-      }
+      // A `bash` ask is a command pattern by construction. Translate it to `deny`
+      // for fail-closed safety so the protective intent of the rule is preserved
+      // instead of being silently dropped.
+      translatedAskPatterns.push(pattern);
+      deny.push(pattern);
+      continue;
     }
+    if (action === "deny") {
+      deny.push(pattern);
+      if (fromAllToolsCategory) {
+        allToolsDenyPatterns.push(pattern);
+      }
+      continue;
+    }
+    const shadowing = shadowingRestrictions(pattern);
+    if (shadowing.length > 0) {
+      shadowedAllowPatterns.push(pattern);
+      for (const restriction of shadowing) {
+        withholdingPatterns.add(restriction);
+      }
+      continue;
+    }
+    allow.push(pattern);
   }
 
-  return { allow, deny, droppedCategories, translatedAskPatterns };
+  // A `*` deny that overlapped some allow rule restricts whatever it names. One
+  // that overlapped none may be a path pattern sitting in a command denylist,
+  // where it blocks nothing — the author wrote it to stop something, so say so.
+  const unenforcedAllToolsDenyPatterns = collectUnenforcedAllToolsPatterns({
+    rules,
+    allToolsPatterns: allToolsDenyPatterns,
+    withholdingPatterns,
+  });
+  // The same question the `*` deny above raises, asked of a `*` ask: withholding
+  // is the only way one can restrict here, so an ask that withheld nothing left
+  // no trace anywhere.
+  const unenforcedAllToolsAskPatterns = collectUnenforcedAllToolsPatterns({
+    rules,
+    allToolsPatterns: allToolsAskPatterns,
+    withholdingPatterns,
+  });
+
+  return {
+    allow,
+    deny,
+    droppedCategories,
+    translatedAskPatterns,
+    shadowedAllowPatterns,
+    unenforcedAllToolsDenyPatterns,
+    unenforcedAllToolsAskPatterns,
+    ignoredAllToolsAllowPatterns,
+    intersectionBudgetExhausted: budget.remaining === 0,
+  };
 }
 
 /**
@@ -90,13 +181,31 @@ function translateClinePermissions(
 function warnClineTranslationNotices({
   droppedCategories,
   translatedAskPatterns,
+  shadowedAllowPatterns,
+  unenforcedAllToolsDenyPatterns,
+  unenforcedAllToolsAskPatterns,
+  ignoredAllToolsAllowPatterns,
+  intersectionBudgetExhausted,
   logger,
 }: {
   droppedCategories: string[];
   translatedAskPatterns: string[];
+  shadowedAllowPatterns: string[];
+  unenforcedAllToolsDenyPatterns: string[];
+  unenforcedAllToolsAskPatterns: string[];
+  ignoredAllToolsAllowPatterns: string[];
+  intersectionBudgetExhausted: boolean;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
-  if (droppedCategories.length === 0 && translatedAskPatterns.length === 0) {
+  if (
+    droppedCategories.length === 0 &&
+    translatedAskPatterns.length === 0 &&
+    shadowedAllowPatterns.length === 0 &&
+    unenforcedAllToolsDenyPatterns.length === 0 &&
+    unenforcedAllToolsAskPatterns.length === 0 &&
+    ignoredAllToolsAllowPatterns.length === 0 &&
+    !intersectionBudgetExhausted
+  ) {
     return;
   }
   const parts: string[] = [];
@@ -110,6 +219,49 @@ function warnClineTranslationNotices({
     parts.push(
       `'ask' rules for bash patterns [${translatedAskPatterns.join(", ")}] translated to ` +
         `'deny' for fail-closed safety, since Cline lacks 'ask'`,
+    );
+  }
+  if (shadowedAllowPatterns.length > 0) {
+    parts.push(
+      `'allow' rules for [${shadowedAllowPatterns.join(", ")}] withheld because the ` +
+        `all-tools '*' category restricts the same commands, and a pattern written there ` +
+        `need not name a command Cline's own lists can act on. Cline's allowlist is a gate — ` +
+        `once set, only the commands matching it run without approval — so withholding every ` +
+        `entry leaves every command asking`,
+    );
+  }
+  if (unenforcedAllToolsDenyPatterns.length > 0) {
+    parts.push(
+      `'deny' rules for [${unenforcedAllToolsDenyPatterns.join(", ")}] under the all-tools '*' ` +
+        `category written into the denylist as they stand, where they withheld none of the ` +
+        `allow rules beside them — a pattern written there need not name a command, and a ` +
+        `denylist entry that names none blocks nothing; write it under 'bash' too if it is a ` +
+        `command pattern`,
+    );
+  }
+  if (unenforcedAllToolsAskPatterns.length > 0) {
+    parts.push(
+      `'ask' rules for [${unenforcedAllToolsAskPatterns.join(", ")}] under the all-tools '*' ` +
+        `category left with nothing to do, since Cline has no ask tier and they withheld none ` +
+        `of the allow rules beside them — a pattern written there need not name a command, so ` +
+        `nothing observed says these ones do; write them under 'bash' if they are command ` +
+        `patterns`,
+    );
+  }
+  if (ignoredAllToolsAllowPatterns.length > 0) {
+    parts.push(
+      `'allow' rules for [${ignoredAllToolsAllowPatterns.join(", ")}] under the all-tools '*' ` +
+        `category skipped (only its deny and ask rules are read, since a pattern written ` +
+        `there need not be a command); write them under 'bash' to auto-approve them`,
+    );
+  }
+  if (intersectionBudgetExhausted) {
+    parts.push(
+      `the limit on how much work one generation may spend comparing allow rules against the ` +
+        `all-tools '*' category's deny and ask rules was reached, so the allow rules left over ` +
+        `were withheld rather than compared — the safe answer, but a wider one than ` +
+        `.rulesync/permissions.jsonc asks for; write fewer or shorter command patterns to have ` +
+        `them all compared`,
     );
   }
   logger?.warn(`WARNING: Cline command permissions translation notice: ${parts.join("; ")}.`);
@@ -188,11 +340,28 @@ export class ClinePermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const { allow, deny, droppedCategories, translatedAskPatterns } = translateClinePermissions(
-      config.permission,
-    );
+    const {
+      allow,
+      deny,
+      droppedCategories,
+      translatedAskPatterns,
+      shadowedAllowPatterns,
+      unenforcedAllToolsDenyPatterns,
+      unenforcedAllToolsAskPatterns,
+      ignoredAllToolsAllowPatterns,
+      intersectionBudgetExhausted,
+    } = translateClinePermissions(config.permission);
 
-    warnClineTranslationNotices({ droppedCategories, translatedAskPatterns, logger });
+    warnClineTranslationNotices({
+      droppedCategories,
+      translatedAskPatterns,
+      shadowedAllowPatterns,
+      unenforcedAllToolsDenyPatterns,
+      unenforcedAllToolsAskPatterns,
+      ignoredAllToolsAllowPatterns,
+      intersectionBudgetExhausted,
+      logger,
+    });
 
     const dedupedAllow = uniq(allow.toSorted());
     const dedupedDeny = uniq(deny.toSorted());
@@ -209,9 +378,9 @@ export class ClinePermissions extends ToolPermissions {
       logger?.warn(
         `Cline command permissions: pattern(s) ${collisions
           .map((p) => `'${p}'`)
-          .join(", ")} appear in both 'allow' and 'deny'. Cline's evaluation order is not ` +
-          `documented to guarantee deny-priority; the resulting behavior is undefined. ` +
-          `Consider removing the duplicate rule from rulesync.`,
+          .join(", ")} appear in both 'allow' and 'deny'. Cline documents that deny rules ` +
+          `always take precedence, so the 'allow' entry has no effect. ` +
+          `Consider removing the duplicate rule.`,
       );
     }
 

@@ -92,6 +92,226 @@ describe("ClinePermissions", () => {
     expect(message).toContain("rm *");
   });
 
+  it("should keep the wider allow beside a narrow bash deny", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "git *": "allow", "git push *": "deny" },
+        },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // A `bash` pattern names a command, so Cline's documented deny-priority
+    // carves the narrow deny out of the wider allow.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual(["git *"]);
+    expect(content.deny).toEqual(["git push *"]);
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("withheld because"));
+  });
+
+  it("should write an all-tools deny and withhold the allow it covers", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "rm *": "deny" },
+          bash: { "rm *": "allow", "git *": "allow" },
+        },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // A pattern under `*` need not name a command — `secrets/**` there denies a
+    // path — so the deny is written *and* withholds the allow it covers, since
+    // an entry naming no command would leave that allow auto-approving.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual(["git *"]);
+    expect(content.deny).toEqual(["rm *"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("withheld because"));
+  });
+
+  it("should withhold the allow an all-tools ask covers instead of denying it", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "*": "ask" },
+          bash: { "git *": "allow" },
+        },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // `{"*": {"*": "ask"}}` is the ordinary "prompt me for everything" config.
+    // Translating it to `deny` would block every command — and Cline's `deny`
+    // merge is additive, so the entry would outlive the rule that produced it.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual([]);
+    expect(content.deny).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("withheld because"));
+  });
+
+  it("should keep an allow that a bash deny narrows, since Cline writes that deny", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow", "git push": "deny" } },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // A `bash` pattern is a command by construction, so the `deny` entry does
+    // its own work and carving an exception out of a wider allow keeps working.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual(["git *"]);
+    expect(content.deny).toEqual(["git push"]);
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("withheld because"));
+  });
+
+  it("should still write an all-tools deny that names no command at all, and say it blocks nothing", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "secrets/**": "deny" },
+          bash: { "git *": "allow" },
+        },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // `secrets/**` matches no command, so the entry is inert — but dropping it
+    // would lose the rule on a later import, and it costs nothing to keep. It
+    // withheld no allow rule either, which leaves the author's deny stopping
+    // nothing; that is worth a word rather than silence.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.deny).toEqual(["secrets/**"]);
+    expect(content.allow).toEqual(["git *"]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("withheld none of the allow rules beside them"),
+    );
+  });
+
+  it("should report an all-tools ask that withheld nothing, as it may name no command", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "secrets/**": "ask" },
+          bash: { "git *": "allow" },
+        },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // An all-tools `ask` is written to neither list and is deliberately not
+    // translated to `deny`; withholding is all it can do. `secrets/**` is a path,
+    // so it withheld the `git *` allow no more than it names a command — the
+    // author asked for something Cline's command lists cannot give them.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual(["git *"]);
+    expect(content.deny).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("need not name a command"));
+  });
+
+  it("should say nothing about an all-tools ask when there is no allow to withhold", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "secrets/**": "ask" },
+        },
+      }),
+    });
+
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // With no allow rule to cover, covering none says nothing about whether the
+    // pattern is a command, so there is nothing to report.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual([]);
+    expect(content.deny).toEqual([]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("should ignore the all-tools category's allow rules", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "src/**": "allow" },
+          bash: { "git *": "allow" },
+        },
+      }),
+    });
+
+    const logger = createMockLogger();
+    const instance = await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // `src/**` is a path, not a command — but the skip is reported, so the
+    // rule is not dropped in silence.
+    const content = JSON.parse(instance.getFileContent());
+    expect(content.allow).toEqual(["git *"]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("'allow' rules for [src/**] under the all-tools '*' category"),
+    );
+  });
+
   it("should preserve user-added denies in the existing file (additive deny)", async () => {
     const dir = join(testDir, ".cline");
     await ensureDir(dir);

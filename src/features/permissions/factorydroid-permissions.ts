@@ -15,6 +15,11 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
+  collectShellCommandRules,
+  partitionCommandRules,
+  warnAboutUnwrittenCommandRules,
+} from "./shell-command-categories.js";
+import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
@@ -46,10 +51,17 @@ type FactorydroidSettingsJson = {
  *
  * rulesync's canonical `permission.bash` patterns map directly: `allow` →
  * `commandAllowlist`, `deny` → `commandDenylist`. Factory Droid has no separate
- * "ask" list (any command not in the allowlist already prompts), so `ask`
- * rules are intentionally dropped. The allow/deny lists only model shell
- * commands, so categories other than `bash` cannot be represented and are
- * skipped (with a warning when they carry `deny` rules, to surface the gap).
+ * "ask" list (any command not in the allowlist already prompts), so `ask` rules
+ * write nothing — they only withhold the allow rules they cover, since the
+ * stricter rule wins whatever its width. The all-tools `*` category contributes
+ * its restricting rules too, because a rule written there covers shell commands
+ * as well. They withhold the allow rules they cover the way a `bash` `ask`
+ * does, because a pattern written under `*` need not name a command at all: a
+ * `deny` there is written to `commandDenylist` too, for the case where it *is*
+ * one, but an entry naming no command enforces nothing by itself.
+ * The allow/deny lists only model shell commands, so categories other
+ * than `bash` and `*` cannot be represented and are skipped (with a warning
+ * when they carry `deny` rules, to surface the gap).
  *
  * Factory Droid also has a stronger `commandBlocklist` tier — commands that can
  * never run, not even under full autonomy — plus other security controls
@@ -224,8 +236,10 @@ export class FactorydroidPermissions extends ToolPermissions {
 
 /**
  * Convert rulesync permissions config to Factory Droid allow/deny command lists.
- * Only the `bash` category maps; `ask` rules and non-`bash` categories are
- * dropped (the latter with a warning when they carry `deny` rules).
+ * The `bash` category maps, and so do the restricting rules of the all-tools
+ * `*` category — a `deny` written there covers shell commands too, and skipping
+ * it would auto-approve a command the file blocks. Other categories are dropped
+ * (with a warning when they carry `deny` rules).
  */
 function convertRulesyncToFactorydroidPermissions({
   config,
@@ -234,35 +248,36 @@ function convertRulesyncToFactorydroidPermissions({
   config: PermissionsConfig;
   logger?: Logger;
 }): { allow: string[]; deny: string[] } {
-  const allow: string[] = [];
-  const deny: string[] = [];
-
-  for (const [category, rules] of Object.entries(config.permission)) {
-    if (category !== "bash") {
-      const hasDeny = Object.values(rules).some((action) => action === "deny");
-      if (hasDeny && logger) {
-        logger.warn(
-          `Factory Droid only models shell-command permissions (commandAllowlist/commandDenylist); ` +
-            `'${category}' deny rules cannot be represented and were skipped.`,
-        );
-      }
-      continue;
-    }
-    for (const [pattern, action] of Object.entries(rules)) {
-      switch (action) {
-        case "allow":
-          allow.push(pattern);
-          break;
-        case "deny":
-          deny.push(pattern);
-          break;
-        case "ask":
-          // Factory Droid prompts by default for any command not in the
-          // allowlist, so there is no separate "ask" list to populate.
-          break;
-      }
-    }
-  }
+  const { rules, foreignRestrictingCategories, ignoredAllToolsAllowPatterns } =
+    collectShellCommandRules(config.permission);
+  // Factory Droid's denylist is an ordinary command list that adds to nothing
+  // it ships with, so an all-tools `*` deny can be written there verbatim,
+  // where the deny-beats-allow order enforces it for whatever commands it does
+  // name. It withholds the allow rules it covers all the same: a pattern under
+  // `*` such as `secrets/**` names no command, so the entry alone would leave
+  // the very access the author denied auto-approved by the allowlist.
+  const {
+    allow,
+    deny,
+    shadowedAllowPatterns,
+    unenforcedAllToolsDenyPatterns,
+    unenforcedAllToolsAskPatterns,
+    intersectionBudgetExhausted,
+  } = partitionCommandRules({
+    rules,
+    writesAllToolsDeny: true,
+  });
+  warnAboutUnwrittenCommandRules({
+    toolLabel: "Factory Droid",
+    surfaceLabel: "commandAllowlist/commandDenylist",
+    foreignRestrictingCategories,
+    shadowedAllowPatterns,
+    unenforcedAllToolsDenyPatterns,
+    unenforcedAllToolsAskPatterns,
+    ignoredAllToolsAllowPatterns,
+    intersectionBudgetExhausted,
+    logger,
+  });
 
   return { allow, deny };
 }

@@ -8,12 +8,20 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { compileGlob } from "../../utils/glob.js";
+import {
+  createIntersectionBudget,
+  parsedGlobsIntersect,
+  parseGlobPattern,
+} from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { parseCommaSeparatedList } from "../../utils/parse-comma-separated-list.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import {
+  collectShellCommandRules,
+  warnAboutUnwrittenCommandRules,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -111,7 +119,9 @@ const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
  * This surface is **global only** — dcode reads no project-level config file,
  * so there is nothing to write into a repository.
  *
- * Only the canonical `bash` category maps, and only its `allow` rules:
+ * Only `allow` rules map, and only from the canonical `bash` category — the
+ * all-tools `*` category contributes its restricting rules instead, since a rule
+ * written there covers shell commands too (see `collectShellCommandRules`):
  *
  * - A pattern is reduced to its executable token, because that is all dcode
  *   matches on — `git *`, `git:*`, `git commit:*` and a bare `git` all become
@@ -266,9 +276,10 @@ export class DeepagentsPermissions extends ToolPermissions {
         // (`recommended` among it), which is worth saying out loud.
         warnWithFallback(
           logger,
-          `deepagents-cli: no bash allow rule maps to an executable name, so the existing ` +
-            `[${SHELL_TABLE_KEY}].${ALLOW_LIST_KEY} in ${filePath} was removed and those ` +
-            `commands will be asked about again.`,
+          `deepagents-cli: no bash allow rule is left to auto-approve — none maps to an ` +
+            `executable name, or every one of them is covered by a stricter rule — so the ` +
+            `existing [${SHELL_TABLE_KEY}].${ALLOW_LIST_KEY} in ${filePath} was removed and ` +
+            `those commands will be asked about again.`,
         );
         delete shell[ALLOW_LIST_KEY];
       }
@@ -356,28 +367,163 @@ export class DeepagentsPermissions extends ToolPermissions {
 }
 
 /**
+ * Split the restricting rules by what the generated allowlist does to them, and
+ * name the entries that have to go.
+ *
+ * An allowlist entry auto-approves its executable however it is invoked, so an
+ * `ask` or `deny` on any command that entry would run — a narrower pattern
+ * (`npm publish`) beside an allowed `npm *`, or one naming no executable at all
+ * (`*delete*` beside an allowed `kubectl`) — collides with it. dcode has no
+ * denylist, so the collision cannot be settled there: keeping the allow would
+ * auto-approve the very command the author wanted stopped. The colliding
+ * entries are therefore withheld — canonically the stricter rule wins whatever
+ * its width — which leaves those executables prompting, which is what an `ask`
+ * asks for and the closest dcode can come to a `deny`.
+ */
+function partitionRestrictingRules({
+  allowList,
+  askPatterns,
+  denyPatterns,
+  willWrite,
+}: {
+  allowList: readonly string[];
+  askPatterns: readonly string[];
+  denyPatterns: readonly string[];
+  willWrite: boolean;
+}): {
+  shadowedAsk: string[];
+  shadowedDeny: string[];
+  unenforcedDeny: string[];
+  withheldTokens: Set<string>;
+  intersectionBudgetExhausted: boolean;
+} {
+  // An entry auto-approves its executable *however it is invoked*: `kubectl` in
+  // the list runs `kubectl delete pod` without a prompt, since dcode holds no
+  // arguments to narrow the name by. What one entry approves is therefore the
+  // two patterns `token` and `token *`, and a restriction collides with it when
+  // it can match either. Comparing the restriction's own first token instead
+  // would miss `*delete*` — a pattern naming no executable that nevertheless
+  // matches half of what an allowed `kubectl` runs unasked.
+  const approved = allowList.map((token) => ({
+    token,
+    globs: [parseGlobPattern(token), parseGlobPattern(`${token} *`)],
+  }));
+  // Every restriction is matched against every allowed name, so the work is
+  // restrictions times entries — a product neither side's length bounds. One
+  // budget is spent down across the run and, once it is gone, a pattern is
+  // taken to collide with the whole list: withholding every entry restricts
+  // rather than auto-approving one the config asks about.
+  const budget = createIntersectionBudget();
+  const collidingTokens = (pattern: string): string[] => {
+    // Nothing was written, so nothing collides with anything: every deny is
+    // merely unenforced, which is what the caller's sentence already says.
+    if (!willWrite) return [];
+    if (budget.remaining === 0) {
+      // Out of budget every pair answers "collides", and saying so without
+      // walking the list once more matters: asking anyway is the restrictions
+      // times entries enumeration the budget exists to stop.
+      return [...allowList];
+    }
+    // dcode reads the name through `shlex.split`, which takes the quotes and
+    // escapes off, so `"git" *`, `\\git *` and `"npm*" publish` all collide with
+    // the allow they would collide with spelled plainly. Stripping can also turn
+    // `\\*` into the glob `*`, which reports a collision dcode would not make —
+    // an odd spelling over-warning is the safe direction here. A trailing `:*`
+    // is the canonical spelling of "any arguments"; widening it to `*` keeps
+    // `git:*` colliding with what an allowed `git` approves.
+    const restriction = parseGlobPattern(
+      pattern
+        .trim()
+        .replace(TRAILING_ARGUMENT_WILDCARD_PATTERN, "*")
+        .replaceAll(SHLEX_STRIPPED_PATTERN, ""),
+    );
+    // Walked rather than translated to a regex: both sides come from a file a
+    // repository can carry, and `*a*a*a*a*b` as `^.*a.*a.*a.*a.*b$` costs
+    // minutes against a long enough name. Each side is parsed once for the whole
+    // run, so a pattern's length is paid once rather than per pair.
+    return approved
+      .filter(({ globs }) => globs.some((glob) => parsedGlobsIntersect(restriction, glob, budget)))
+      .map(({ token }) => token);
+  };
+
+  const withheldTokens = new Set<string>();
+  const collect = (pattern: string): boolean => {
+    const tokens = collidingTokens(pattern);
+    for (const token of tokens) {
+      withheldTokens.add(token);
+    }
+    return tokens.length > 0;
+  };
+
+  // Canonically the stricter rule wins whatever its width — rulesync collapses
+  // colliding rules as `deny > ask > allow` everywhere, and Claude Code applies
+  // deny first, then ask, then allow — so a *broad* ask beside a narrow allow
+  // (`*` ask, `git *` allow) is inverted by the reduction just as a narrow one
+  // is: the author asked to be prompted for `git` and dcode auto-approves it.
+  // A pattern written under both `bash` and the all-tools `*` category arrives
+  // twice, and reporting it twice would say two rules were skipped where the
+  // author wrote one.
+  const shadowedAsk = uniq(askPatterns).filter(collect);
+  const shadowedDeny: string[] = [];
+  const unenforcedDeny: string[] = [];
+  for (const pattern of uniq(denyPatterns)) {
+    // Partitioned in one pass: asking twice would parse and walk the same
+    // pattern twice, and spend the budget twice over for it.
+    (collect(pattern) ? shadowedDeny : unenforcedDeny).push(pattern);
+  }
+
+  return {
+    shadowedAsk,
+    shadowedDeny,
+    unenforcedDeny,
+    withheldTokens,
+    // Once the budget is gone every pattern is taken to collide with the whole
+    // list, so `shadowedDeny` and `shadowedAsk` no longer say a comparison was
+    // made — the caller has to say a limit was reached instead.
+    intersectionBudgetExhausted: budget.remaining === 0,
+  };
+}
+
+/**
  * Say what the reduction to executable names could not write. Split out from
  * `convertRulesyncToDeepagentsAllowList` because the rules it reports on
  * outnumber the ones it writes: every category dcode cannot express is a
  * sentence here.
  */
 function warnAboutUnwrittenBashRules({
-  allowList,
   allowAll,
   requestedAllowAll,
   askPatterns,
   denyPatterns,
+  foreignRestrictingCategories,
+  shadowedAsk,
+  shadowedDeny,
+  unenforcedDeny,
+  intersectionBudgetExhausted,
   widenedPatterns,
   unmatchablePatterns,
   sentinelPatterns,
   willWrite,
   logger,
 }: {
-  allowList: string[];
   allowAll: boolean;
   requestedAllowAll: boolean;
   askPatterns: string[];
   denyPatterns: string[];
+  /** Categories other than `bash` and `*` that carry a `deny` or an `ask`. */
+  foreignRestrictingCategories: string[];
+  /** The `ask` rules whose executables were dropped from the allowlist. */
+  shadowedAsk: string[];
+  /** The `deny` rules whose executables were dropped from the allowlist. */
+  shadowedDeny: string[];
+  /**
+   * Whether the run hit the limit on comparison work. Past it every restriction
+   * is taken to cover the whole allowlist without being compared to it, so the
+   * sentences below say what was withheld rather than what was covered.
+   */
+  intersectionBudgetExhausted: boolean;
+  /** The `deny` rules with no allow entry to withhold, so nothing enforces them. */
+  unenforcedDeny: string[];
   widenedPatterns: string[];
   unmatchablePatterns: string[];
   sentinelPatterns: string[];
@@ -391,79 +537,40 @@ function warnAboutUnwrittenBashRules({
   willWrite: boolean;
   logger?: Logger;
 }): void {
-  // A rule that is not written is one thing; a rule the reduction *inverts*
-  // is another. Reducing to the executable makes an `ask` or `deny` on a
-  // narrower pattern (`npm publish`) collide with an `allow` on a wider one
-  // (`npm *`), and dcode keeps only the allow — so the command the author
-  // wanted stopped runs with no prompt at all.
-  const allowedTokens = new Set(allowList);
-  const collidesWithAllow = (pattern: string): boolean => {
-    // Nothing was written, so nothing shadows anything: every deny is merely
-    // unenforced, which is what the sentence below already says.
-    if (!willWrite) return false;
-    // `allow_list = ["all"]` covers every command *and* turns the
-    // dangerous-pattern check off, so nothing can miss it.
-    if (allowAll) return true;
-    // dcode reads the name through `shlex.split`, which takes the quotes and
-    // escapes off, so `"git" *`, `\\git *` and `"npm*" publish` all collide with
-    // the allow they would collide with spelled plainly. Stripping first can
-    // also turn `\\*` into the glob `*`, which reports a collision dcode would
-    // not make — an odd spelling over-warning is the safe direction here.
-    const leading = leadingToken(pattern).replaceAll(SHLEX_STRIPPED_PATTERN, "");
-    // A rule whose executable is itself a glob — `*`, `npm*` — collides with
-    // every entry it matches, so the reduction inverts it exactly as a literal
-    // collision does. `*` is only the widest spelling of that, not a case of
-    // its own.
-    if (GLOB_CHARACTERS_PATTERN.test(leading)) {
-      // Walked rather than translated to a regex: both sides come from a file a
-      // repository can carry, and `*a*a*a*a*b` as `^.*a.*a.*a.*a.*b$` costs
-      // minutes against a long enough name. Parsed once for the whole list, so
-      // the pattern's own length is paid once rather than per entry.
-      const matches = compileGlob(leading);
-      return allowList.some((token) => matches(token));
-    }
-    return allowedTokens.has(leading);
-  };
-  // Canonically the stricter rule wins whatever its width — rulesync collapses
-  // colliding rules as `deny > ask > allow` everywhere, and Claude Code applies
-  // deny first, then ask, then allow — so a *broad* ask beside a narrow allow
-  // (`*` ask, `git *` allow) is inverted by the reduction just as a narrow one
-  // is: the author asked to be prompted for `git` and dcode auto-approves it.
-  const shadowedAsk = askPatterns.filter(collidesWithAllow);
-  const shadowedDeny: string[] = [];
-  const unenforcedDeny: string[] = [];
-  for (const pattern of denyPatterns) {
-    // Partitioned in one pass: asking twice would compile the same glob twice,
-    // which is exactly what `compileGlob` above exists to avoid.
-    (collidesWithAllow(pattern) ? shadowedDeny : unenforcedDeny).push(pattern);
-  }
-
   if (unenforcedDeny.length > 0) {
     warnWithFallback(
       logger,
       `deepagents-cli has no command denylist — a command it does not auto-approve is asked ` +
-        `about, not blocked — so ${unenforcedDeny.length} bash deny rule(s) from ` +
+        `about, not blocked — so ${unenforcedDeny.length} command deny rule(s) from ` +
         `.rulesync/permissions.jsonc were skipped and those commands remain runnable on ` +
         `approval.`,
     );
   }
-  const shadowReason = allowAll
-    ? `allow_list = ["all"] auto-approves every command`
-    : `the generated allow_list auto-approves commands they cover`;
   if (shadowedDeny.length > 0) {
     warnWithFallback(
       logger,
-      `deepagents-cli matches only the executable name, so the deny rule(s) ` +
-        `${shadowedDeny.join(", ")} are not merely unenforced: ${shadowReason}, so those ` +
-        `commands run without a prompt. Narrow or drop the allow rule that covers them.`,
+      intersectionBudgetExhausted
+        ? `deepagents-cli withheld the allow_list entries beside the deny rule(s) ` +
+            `${shadowedDeny.join(", ")} without comparing them, the comparison limit above ` +
+            `having been reached. Those executables are asked about instead.`
+        : `deepagents-cli matches only the executable name, so the allow rule(s) covered by ` +
+            `the deny rule(s) ${shadowedDeny.join(", ")} were withheld from allow_list — ` +
+            `keeping them would auto-approve the very commands those rules deny. Those ` +
+            `executables are asked about instead; narrow the deny rule if you meant them ` +
+            `auto-approved.`,
     );
   }
   if (shadowedAsk.length > 0) {
     warnWithFallback(
       logger,
-      `deepagents-cli matches only the executable name, so the ask rule(s) ` +
-        `${shadowedAsk.join(", ")} run without a prompt: ${shadowReason}. Narrow or drop the ` +
-        `allow rule that covers them.`,
+      intersectionBudgetExhausted
+        ? `deepagents-cli withheld the allow_list entries beside the ask rule(s) ` +
+            `${shadowedAsk.join(", ")} without comparing them, the comparison limit above ` +
+            `having been reached. Those executables are asked about instead.`
+        : `deepagents-cli matches only the executable name, so the allow rule(s) covered by ` +
+            `the ask rule(s) ${shadowedAsk.join(", ")} were withheld from allow_list — keeping ` +
+            `them would run those commands without the prompt the ask rule asks for. Narrow ` +
+            `the ask rule if you meant them auto-approved.`,
     );
   }
   if (willWrite && widenedPatterns.length > 0) {
@@ -496,18 +603,23 @@ function warnAboutUnwrittenBashRules({
   }
   if (willWrite && requestedAllowAll && !allowAll) {
     // A deny rule for another tool (`Read(...)`, `WebFetch(...)`) blocks the
-    // sentinel just as a bash one does: 'all' turns dcode's dangerous-pattern
-    // check off wholesale, so any denial in the config makes it too broad.
-    const denyReason =
-      denyPatterns.length > 0
-        ? `your config denies commands`
-        : `your config has deny rules for other tools`;
+    // sentinel just as a bash one does, and so does an `ask`: 'all' turns
+    // dcode's dangerous-pattern check off wholesale and approves every command
+    // unseen, so any restriction in the config makes it too broad.
+    let restrictionReason = `your config restricts other tools`;
+    if (denyPatterns.length > 0) {
+      restrictionReason = `your config denies commands`;
+    } else if (askPatterns.length > 0) {
+      restrictionReason = `your config asks before running commands`;
+    } else if (foreignRestrictingCategories.length > 0) {
+      restrictionReason = `your config restricts '${foreignRestrictingCategories.join("', '")}'`;
+    }
     warnWithFallback(
       logger,
       `The bash '*' allow rule was not written as allow_list = ["all"] for deepagents-cli, ` +
         `because 'all' also turns off its dangerous-pattern check (command substitution, ` +
-        `redirects, process substitution) and ${denyReason} — the two together would be weaker ` +
-        `than dcode's own default. List the executables you want auto-approved instead.`,
+        `redirects, process substitution) and ${restrictionReason} — the two together would be ` +
+        `weaker than dcode's own default. List the executables you want auto-approved instead.`,
     );
   }
   if (willWrite && allowAll) {
@@ -781,7 +893,9 @@ function toExecutableToken(pattern: string): { token: string; widened: boolean }
 
 /**
  * Convert rulesync permissions config to dcode's `[shell].allow_list`. Only
- * `bash` `allow` rules map; everything else is skipped, with a warning
+ * `allow` rules map — from the `bash` category, and never from the all-tools
+ * `*` one, whose restricting rules still count against them (see
+ * `collectShellCommandRules`). Everything else is skipped, with a warning
  * wherever the skip loses a restriction rather than a redundancy.
  */
 function convertRulesyncToDeepagentsAllowList({
@@ -795,83 +909,105 @@ function convertRulesyncToDeepagentsAllowList({
   logger?: Logger;
 }): string[] {
   const allowed: string[] = [];
-  const widenedPatterns: string[] = [];
+  const widened: { pattern: string; token: string }[] = [];
   const unmatchablePatterns: string[] = [];
   const sentinelPatterns: string[] = [];
   const askPatterns: string[] = [];
   const denyPatterns: string[] = [];
-  let hasForeignDeny = false;
   let requestedAllowAll = false;
 
-  for (const [category, rules] of Object.entries(config.permission)) {
-    if (category !== "bash") {
-      const hasDeny = Object.values(rules).some((action) => action === "deny");
-      if (hasDeny) {
-        hasForeignDeny = true;
-        warnWithFallback(
-          logger,
-          `deepagents-cli only models shell-command permissions ([shell].allow_list), so ` +
-            `'${category}' deny rules cannot be represented and were skipped.`,
-        );
-      }
+  const { rules, foreignRestrictingCategories, ignoredAllToolsAllowPatterns } =
+    collectShellCommandRules(config.permission);
+  for (const { pattern, action } of rules) {
+    if (action === "deny") {
+      denyPatterns.push(pattern);
       continue;
     }
-    for (const [pattern, action] of Object.entries(rules)) {
-      if (action === "deny") {
-        denyPatterns.push(pattern);
-        continue;
-      }
-      if (action === "ask") {
-        askPatterns.push(pattern);
-        continue;
-      }
-      // `*`, `*:*` and `* *` are the same rule — "every command, any
-      // arguments" — spelled the three ways the canonical format allows.
-      if (leadingToken(pattern) === "*" && meansAnyArguments(pattern)) {
-        requestedAllowAll = true;
-        continue;
-      }
-      const reduced = toExecutableToken(pattern);
-      if (!reduced) {
-        unmatchablePatterns.push(pattern);
-        continue;
-      }
-      // `all` and `recommended` are read as sentinels rather than as command
-      // names, so a pattern that reduces to one of them cannot be written: it
-      // would either allow every command or splice in a list rulesync did not
-      // author.
-      if (
-        reduced.token.toLowerCase() === ALLOW_ALL_SENTINEL ||
-        reduced.token.toLowerCase() === RECOMMENDED_SENTINEL
-      ) {
-        sentinelPatterns.push(pattern);
-        continue;
-      }
-      if (reduced.widened) {
-        widenedPatterns.push(pattern);
-      }
-      allowed.push(reduced.token);
+    if (action === "ask") {
+      askPatterns.push(pattern);
+      continue;
     }
+    // `*`, `*:*` and `* *` are the same rule — "every command, any
+    // arguments" — spelled the three ways the canonical format allows.
+    if (leadingToken(pattern) === "*" && meansAnyArguments(pattern)) {
+      requestedAllowAll = true;
+      continue;
+    }
+    const reduced = toExecutableToken(pattern);
+    if (!reduced) {
+      unmatchablePatterns.push(pattern);
+      continue;
+    }
+    // `all` and `recommended` are read as sentinels rather than as command
+    // names, so a pattern that reduces to one of them cannot be written: it
+    // would either allow every command or splice in a list rulesync did not
+    // author.
+    if (
+      reduced.token.toLowerCase() === ALLOW_ALL_SENTINEL ||
+      reduced.token.toLowerCase() === RECOMMENDED_SENTINEL
+    ) {
+      sentinelPatterns.push(pattern);
+      continue;
+    }
+    if (reduced.widened) {
+      widened.push({ pattern, token: reduced.token });
+    }
+    allowed.push(reduced.token);
   }
 
   // `all` does not merely allow everything: it also turns off dcode's
-  // dangerous-pattern check, so writing it for a config that *denies*
+  // dangerous-pattern check, so writing it for a config that restricts
   // something would hand the user a weaker setup than dcode's own default in
-  // the name of a rule meant to restrict it. Deny wins that conflict, and the
-  // `*` allow is dropped instead.
-  const hasDenyRule = hasForeignDeny || denyPatterns.length > 0;
-  const allowAll = requestedAllowAll && !hasDenyRule;
+  // the name of a rule meant to restrict it. The stricter rule wins that
+  // conflict — an `ask` as much as a `deny`, since neither wants a command
+  // approved unseen — and the `*` allow is dropped instead.
+  const hasRestriction =
+    foreignRestrictingCategories.length > 0 || denyPatterns.length > 0 || askPatterns.length > 0;
+  const allowAll = requestedAllowAll && !hasRestriction;
+  const candidates = uniq(allowed.toSorted());
+  const { shadowedAsk, shadowedDeny, unenforcedDeny, withheldTokens, intersectionBudgetExhausted } =
+    partitionRestrictingRules({
+      allowList: candidates,
+      askPatterns,
+      denyPatterns,
+      willWrite,
+    });
   // Upstream rejects the whole option when `all` shares the list, and every
   // other entry is redundant beside it anyway.
-  const allowList = allowAll ? [ALLOW_ALL_SENTINEL] : uniq(allowed.toSorted());
+  const allowList = allowAll
+    ? [ALLOW_ALL_SENTINEL]
+    : candidates.filter((token) => !withheldTokens.has(token));
+
+  // Shared with the other command-only adapters so a rule dropped in one is
+  // worded the same way in all. `shadowedAllowPatterns` is empty here because
+  // dcode reduces every pattern to an executable name, so the allow entries a
+  // restriction withholds are reported alongside the rule that withheld them —
+  // see `warnAboutUnwrittenBashRules`.
+  warnAboutUnwrittenCommandRules({
+    toolLabel: "deepagents-cli",
+    surfaceLabel: "[shell].allow_list",
+    foreignRestrictingCategories,
+    shadowedAllowPatterns: [],
+    ignoredAllToolsAllowPatterns,
+    intersectionBudgetExhausted,
+    logger,
+  });
 
   warnAboutUnwrittenBashRules({
-    allowList,
     allowAll,
     requestedAllowAll,
     askPatterns,
     denyPatterns,
-    widenedPatterns,
+    foreignRestrictingCategories,
+    shadowedAsk,
+    shadowedDeny,
+    unenforcedDeny,
+    intersectionBudgetExhausted,
+    // A widened pattern that was then withheld auto-approves nothing, so it is
+    // reported by the rule that withheld it rather than as a widening.
+    widenedPatterns: uniq(
+      widened.filter(({ token }) => !withheldTokens.has(token)).map(({ pattern }) => pattern),
+    ),
     unmatchablePatterns,
     sentinelPatterns,
     willWrite,

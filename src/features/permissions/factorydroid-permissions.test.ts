@@ -79,7 +79,7 @@ describe("FactorydroidPermissions", () => {
     it("should drop ask rules (Factory Droid prompts by default)", async () => {
       const rulesyncPermissions = buildRulesyncPermissions({
         permission: {
-          bash: { "git *": "allow", "*": "ask" },
+          bash: { "git *": "allow", "npm publish": "ask" },
         },
       });
 
@@ -91,6 +91,248 @@ describe("FactorydroidPermissions", () => {
       const json = JSON.parse(instance.getFileContent());
       expect(json.commandAllowlist).toEqual(["git *"]);
       expect(json.commandDenylist).toBeUndefined();
+    });
+
+    it("should write an all-tools deny into commandDenylist and withhold the allow it covers", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "rm -rf *": "deny" },
+          bash: { "rm -rf *": "allow", "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      // The deny is written, where the denylist outranks the allowlist for the
+      // commands it names — and it withholds the allow it covers as well, since
+      // a pattern under `*` need not name a command for the entry to be read.
+      expect(json.commandDenylist).toEqual(["rm -rf *"]);
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("was not given the allow rule(s)"),
+      );
+    });
+
+    it("should withhold a catch-all allow that an all-tools deny of a path covers", async () => {
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "secrets/**": "deny" },
+          bash: { "*": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      // `secrets/**` names no command, so writing it alone beside an allowed
+      // `*` would auto-approve every command the deny meant to hold back.
+      expect(json.commandDenylist).toEqual(["secrets/**"]);
+      expect(json.commandAllowlist).toBeUndefined();
+    });
+
+    it("should write an all-tools deny that names no command at all, and say it enforces nothing", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "secrets/**": "deny" },
+          bash: { "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      // `secrets/**` matches no command, so the entry is inert — but dropping
+      // it would lose the rule on a later import, and it costs nothing to keep.
+      // It reaches no command, so it withholds no allow either — which is the
+      // one case where the author's deny rule stops nothing at all, so it is
+      // reported rather than left to be discovered.
+      expect(json.commandDenylist).toEqual(["secrets/**"]);
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("withheld none of the allow rules beside them"),
+      );
+    });
+
+    it("should not call an all-tools deny unenforced when there was no allow rule to withhold", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "rm -rf *": "deny" },
+          bash: { "curl *": "deny" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // Nothing was allowed, so withholding nothing says nothing about whether
+      // `rm -rf *` names a command — and it plainly does. Reporting it here
+      // would call a working denylist entry inert.
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandDenylist).toEqual(["curl *", "rm -rf *"]);
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("withheld none of the allow rules beside them"),
+      );
+    });
+
+    it("should not call an all-tools deny unenforced when the same pattern is written under bash", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "rm -rf /tmp/x": "deny" },
+          bash: { "rm -rf /tmp/x": "deny", "git *": "allow" },
+        },
+      });
+
+      await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // The author wrote the same pattern under `bash`, so it is a command on
+      // their own word; advising them to write it there would be nonsense.
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("withheld none of the allow rules beside them"),
+      );
+    });
+
+    it("should say nothing about an ask that withheld nothing, since it is honored as written", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          bash: { "npm publish": "ask", "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // Factory Droid prompts for whatever its allowlist does not cover, so an
+      // `ask` no allow rule overlaps is already honored exactly as written.
+      // Warning about it would tell the author to fix a rule that works.
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should report an all-tools ask that withheld nothing, as it may name no command", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "secrets/**": "ask" },
+          bash: { "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // Withholding is the only way a `*` ask restricts Factory Droid, and a
+      // path pattern withholds nothing — the same complaint the `*` deny above
+      // earns, since neither is a command Factory Droid's lists can act on.
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("need not name a command"));
+    });
+
+    it("should withhold an allow spelled with a character class, which no glob matches", async () => {
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "curl -[sS]*": "ask" },
+          bash: { "curl -[sS]*": "allow", "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(json.commandDenylist).toBeUndefined();
+    });
+
+    it("should withhold a bash allow that the all-tools category asks about", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "npm *": "ask" },
+          bash: { "npm *": "allow", "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toEqual(["git *"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("npm *"));
+    });
+
+    it("should withhold every allow a catch-all ask covers", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          bash: { "git *": "allow", "*": "ask" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // The stricter rule wins whatever its width, so auto-approving `git`
+      // beside an ask on everything would answer the prompt the author wanted.
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("stricter rule wins"));
+    });
+
+    it("should ignore the all-tools category's allow rules", async () => {
+      const rulesyncPermissions = buildRulesyncPermissions({
+        permission: {
+          "*": { "src/**": "allow" },
+          bash: { "git *": "allow" },
+        },
+      });
+
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(instance.getFileContent());
+      expect(json.commandAllowlist).toEqual(["git *"]);
     });
 
     it("should preserve other keys in an existing settings.json", async () => {
