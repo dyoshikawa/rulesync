@@ -293,6 +293,21 @@ describe("AmpPermissions", () => {
       expect(config.permission.bash).toEqual({ "rm *": "deny", "git *": "allow" });
     });
 
+    it("strips prototype-pollution keys recursively while retaining valid permissions", async () => {
+      await writeFileContent(
+        join(testDir, ".amp", "settings.json"),
+        '{"constructor":{"polluted":true},"amp.permissions":[{"tool":"bash","action":"allow","metadata":{"prototype":{"polluted":true},"safe":"value"}}]}',
+      );
+
+      const instance = await AmpPermissions.fromFile({ outputRoot: testDir });
+      const settings = JSON.parse(instance.getFileContent());
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+
+      expect(Object.hasOwn(settings, "constructor")).toBe(false);
+      expect(settings["amp.permissions"][0].metadata).toEqual({ safe: "value" });
+      expect(config.permission.bash).toEqual({ "*": "allow" });
+    });
+
     it("routes delegate entries into the amp override on import (no canonical equivalent)", async () => {
       await writeFileContent(
         join(testDir, ".amp", "settings.json"),
