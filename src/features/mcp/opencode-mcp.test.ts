@@ -2872,4 +2872,24 @@ describe("OpencodeMcp", () => {
       ).toThrow();
     });
   });
+  it("keeps the comments of an existing opencode.jsonc when regenerating", async () => {
+    const commented = [
+      "{",
+      "  // Why this project pins its own server list.",
+      '  "mcp": { "stale": { "type": "local", "command": ["node", "old.js"] } }',
+      "}",
+    ].join("\n");
+    await writeFileContent(join(testDir, "opencode.jsonc"), commented);
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({ mcpServers: { fresh: { command: "node" } } }),
+    });
+
+    const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+    expect(opencodeMcp.getFileContent()).toContain("// Why this project pins its own server list.");
+    expect(Object.keys(opencodeMcp.getJson().mcp ?? {})).toEqual(["fresh"]);
+    expect(opencodeMcp.validate().success).toBe(true);
+  });
 });

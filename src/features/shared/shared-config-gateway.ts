@@ -1,8 +1,18 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { uniq } from "es-toolkit";
 import { dump } from "js-yaml";
 import {
+  applyEdits,
+  findNodeAtLocation,
+  type FormattingOptions as JsoncFormattingOptions,
+  getNodeValue,
+  modify,
+  type ModificationOptions as JsoncModificationOptions,
+  type Node as JsoncNode,
   parse as parseJsonc,
   type ParseError as JsoncParseError,
+  parseTree,
   printParseErrorCode,
 } from "jsonc-parser";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
@@ -16,10 +26,7 @@ import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
-import {
-  omitPrototypePollutionKeys,
-  PROTOTYPE_POLLUTION_KEYS,
-} from "../../utils/prototype-pollution.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 
@@ -71,15 +78,32 @@ export type SharedConfigInvalidRootPolicy = "coerce-empty" | "error";
  */
 export type SharedConfigJsoncParseErrorsPolicy = "tolerate" | "error";
 
+/**
+ * Rebuild a parsed document without its prototype-pollution keys.
+ *
+ * Every object is rebuilt, not just the ones that are already plain: a literal
+ * `"__proto__"` is assigned with `obj[key] = value` by `jsonc-parser`, which
+ * *replaces the containing object's prototype* instead of adding a key. Such
+ * an object is no longer a plain object, and the injected value is reachable
+ * through it by plain property access while `Object.keys` and `JSON.stringify`
+ * show nothing — so leaving it as it came out of the parser would both hide a
+ * server or permission the file does not state and, at the root, cost the
+ * whole document (see {@link parseSharedConfig}). Rebuilding gives every
+ * object `Object.prototype` back and drops the injected value with the key.
+ *
+ * Dates are the one object the YAML and TOML parsers produce that is not a
+ * mapping, so they are passed through rather than flattened into `{}`.
+ */
 function sanitizeSharedConfigValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(sanitizeSharedConfigValue);
   }
-  if (!isPlainObject(value)) {
+  if (value === null || typeof value !== "object" || value instanceof Date) {
     return value;
   }
   const result: SharedConfigDocument = {};
-  for (const [key, nested] of Object.entries(omitPrototypePollutionKeys(value))) {
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    if (isPrototypePollutionKey(key)) continue;
     result[key] = sanitizeSharedConfigValue(nested);
   }
   return result;
@@ -136,13 +160,18 @@ export function parseSharedConfig({
   if (parsed === undefined || parsed === null) {
     return {};
   }
-  if (!isPlainObject(parsed)) {
+  // Sanitized before the root is judged, not after: a root-level `__proto__`
+  // leaves the parser holding an object whose prototype is the injected value,
+  // which `isPlainObject` rejects — and coercing that to `{}` would throw away
+  // every setting the file visibly states next to it.
+  const sanitized = sanitizeSharedConfigValue(parsed);
+  if (!isPlainObject(sanitized)) {
     if (invalidRootPolicy === "error") {
       throw new Error(`Failed to parse shared config${at}: expected a mapping at the root`);
     }
     return {};
   }
-  return sanitizeSharedConfigValue(parsed) as SharedConfigDocument;
+  return sanitized;
 }
 
 /**
@@ -165,6 +194,666 @@ export function stringifySharedConfig({
     return stringifyToml(document);
   }
   return JSON.stringify(document, null, 2);
+}
+
+/**
+ * Where the line holding `from` starts and where the line starting at `from`
+ * ends: the nearest `\r` or `\n` in each direction, or the edge of the text.
+ *
+ * Both characters count in both directions, because the JSONC scanner treats
+ * either as a line break. A file written with lone CRs parses without an error
+ * and so reaches these paths, and a comment read only up to the next `\n`
+ * would run past its own line and take the closing brace — or a whole sibling
+ * key — with it.
+ */
+function endOfLineFrom({ text, from }: { text: string; from: number }): number {
+  for (let index = from; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "\n" || character === "\r") return index;
+  }
+  return text.length;
+}
+
+function startOfLineAt({ text, from }: { text: string; from: number }): number {
+  for (let index = from - 1; index >= 0; index -= 1) {
+    const character = text[index];
+    if (character === "\n" || character === "\r") return index + 1;
+  }
+  return 0;
+}
+
+/**
+ * Read the indentation and line ending a JSONC document already uses, so
+ * inserted properties match the surrounding file instead of imposing the
+ * 2-space `JSON.stringify` shape on a file written with 4 spaces or tabs.
+ *
+ * The root object's first property decides, located through the syntax tree
+ * rather than by scanning for the first indented line: a file opening with a
+ * banner comment indents that comment's continuation lines too (` * ...`
+ * aligns at three columns), and reading the width off one of those would leave
+ * `modify` re-indenting the lines it touches to a width nothing else in the
+ * file uses. A property that does not start its own line — a one-line object,
+ * or an empty one — carries no indent to read, so those fall back to the
+ * 2-space default the whole-document writer emits.
+ */
+function detectJsoncFormattingOptions({
+  text,
+  root,
+}: {
+  text: string;
+  root: JsoncNode;
+}): JsoncFormattingOptions {
+  // A document that states a line break of its own has `modify` read the
+  // ending off the text; this one is the fallback for the document that
+  // states none — which, having no line break at all, cannot be a CRLF file.
+  const eol = "\n";
+  const first = root.children?.[0];
+  const indent =
+    first === undefined
+      ? ""
+      : text.slice(startOfLineAt({ text, from: first.offset }), first.offset);
+  // A width past this is not a style to match but a line to stop reading: an
+  // insert indented to it re-emits the whole run on every line it writes, so a
+  // file opening with a very long indent would be rewritten far larger than
+  // its author wrote it.
+  const widestReadableIndent = 8;
+  if (indent === "" || indent.length > widestReadableIndent || !/^[ \t]+$/.test(indent)) {
+    return { tabSize: 2, insertSpaces: true, eol };
+  }
+  if (indent.includes("\t")) return { tabSize: 2, insertSpaces: false, eol };
+  return { tabSize: indent.length, insertSpaces: true, eol };
+}
+
+/**
+ * Whether the document states a key no edit-based write can be trusted with.
+ *
+ * Two kinds, both answered from the syntax tree because the parsed value no
+ * longer knows about either:
+ *
+ * - A key stated twice. That is legal JSON text which every reader resolves
+ *   last-wins, while `modify` edits the *first* occurrence — so an edit-based
+ *   write would land on the dead copy and leave the live one saying whatever
+ *   it said before. For an owned key that is a silent ownership failure: a
+ *   `deny` rulesync just wrote would sit above the `allow` the tool reads.
+ * - `__proto__`, `constructor` or `prototype`. None survives into the parsed
+ *   document — a nested one is dropped, a root-level `__proto__` replaces the
+ *   root's prototype — so an edit-based write would find no difference to
+ *   apply and leave the key in the file.
+ *
+ * The whole-document writer resolves duplicates last-wins and drops pollution
+ * keys, which is what it has always done, so those files go to it.
+ */
+function statesUneditableKeys(node: JsoncNode): boolean {
+  if (node.type === "array") {
+    return (node.children ?? []).some((child) => statesUneditableKeys(child));
+  }
+  if (node.type !== "object") return false;
+  const seen = new Set<string>();
+  for (const property of node.children ?? []) {
+    const key = property.children?.[0]?.value;
+    if (typeof key === "string") {
+      if (seen.has(key) || isPrototypePollutionKey(key)) return true;
+      seen.add(key);
+    }
+    const value = property.children?.[1];
+    if (value !== undefined && statesUneditableKeys(value)) return true;
+  }
+  return false;
+}
+
+/**
+ * The offset just past the whitespace and comments starting at `from`.
+ */
+function skipJsoncTrivia({ text, from }: { text: string; from: number }): number {
+  let index = from;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === " " || char === "\t" || char === "\n" || char === "\r") {
+      index += 1;
+      continue;
+    }
+    if (char === "/" && text[index + 1] === "/") {
+      index = endOfLineFrom({ text, from: index });
+      continue;
+    }
+    if (char === "/" && text[index + 1] === "*") {
+      const commentEnd = text.indexOf("*/", index + 2);
+      index = commentEnd === -1 ? text.length : commentEnd + 2;
+      continue;
+    }
+    break;
+  }
+  return index;
+}
+
+/**
+ * Where the deletion of a property whose text ends at `end` should stop.
+ *
+ * A comment written after the property on its own line is that property's
+ * note — `"stale": {...}, // retired` says something about `stale` and nothing
+ * about the key above it. Leaving it behind would re-attach it to whichever
+ * property now ends that line, so a note about a server rulesync removed would
+ * read as a note about the one before it. A comment with a sibling after it on
+ * the same line is not claimed: it may belong to either.
+ */
+function endOfRemoval({ text, end }: { text: string; end: number }): number {
+  const stop = endOfLineFrom({ text, from: end });
+  const tail = text.slice(end, stop);
+  const lineComment = /^[ \t]*\/\/[^\r\n]*$/;
+  const blockComment = /^[ \t]*\/\*(?:[^*]|\*(?!\/))*\*\/[ \t]*$/;
+  // Whitespace runs to the newline as well, so the line the property had to
+  // itself does not survive as a trailing-space stub on the line above it.
+  const blank = /^[ \t]*$/;
+  return lineComment.test(tail) || blockComment.test(tail) || blank.test(tail) ? stop : end;
+}
+
+/**
+ * Where the deletion of a property ending at `end` should begin.
+ *
+ * A property that has its line to itself is removed with the line: its
+ * indentation and the newline above it would otherwise be left as a blank gap.
+ * A property sharing its line with something else — a sibling, or the object's
+ * own `}` — is removed on its own, because swallowing the newline would splice
+ * whatever follows onto the line above, and a line comment up there would
+ * comment it out: a key rulesync means to write would vanish from the file, or
+ * the closing brace would, leaving the document unparsable.
+ */
+function startOfRemoval({
+  text,
+  propertyOffset,
+  end,
+}: {
+  text: string;
+  propertyOffset: number;
+  end: number;
+}): number {
+  let after = end;
+  while (text[after] === " " || text[after] === "\t") after += 1;
+  const endsTheLine = after >= text.length || text[after] === "\n" || text[after] === "\r";
+  if (!endsTheLine) {
+    return propertyOffset;
+  }
+  let start = propertyOffset;
+  while (start > 0 && (text[start - 1] === " " || text[start - 1] === "\t")) start -= 1;
+  if (start > 0 && text[start - 1] === "\n") {
+    start -= 1;
+  }
+  if (start > 0 && text[start - 1] === "\r") start -= 1;
+  return start;
+}
+
+/**
+ * Delete the property at `path` from `text`, taking its own line and its
+ * separating comma but nothing else.
+ *
+ * `modify(..., undefined)` would do this, but the range it deletes runs from
+ * the end of the *previous* property to the end of this one — or, for the
+ * first property of an object, all the way to where the *next* one starts. So
+ * removing one key takes the comments sitting between it and the keys around
+ * it, including the comment describing the key that survives.
+ * Deleting the property's own text instead leaves the comments around it in
+ * place. Only the note that follows the property on its own line goes with it
+ * (see {@link endOfRemoval}); a comment written on the line *above* is left
+ * behind rather than guessed at, which is the direction this whole path errs
+ * in.
+ */
+function removeJsoncProperty({ text, path }: { text: string; path: readonly string[] }): string {
+  const root = parseTree(text, [], { allowTrailingComma: true });
+  const property = root === undefined ? undefined : findNodeAtLocation(root, [...path])?.parent;
+  const object = property?.parent;
+  if (property?.type !== "property" || object?.type !== "object") {
+    // Already absent — nothing to delete.
+    return text;
+  }
+  const siblings = object.children ?? [];
+  const edits: { offset: number; length: number; content: string }[] = [];
+
+  let end = property.offset + property.length;
+  const afterProperty = skipJsoncTrivia({ text, from: end });
+  if (text[afterProperty] === ",") {
+    end = afterProperty + 1;
+  } else {
+    // No comma follows, so this is the last property: the comma separating it
+    // from the previous one has to go too, or the object is left holding a
+    // trailing comma that strict JSON readers reject.
+    const previous = siblings[siblings.indexOf(property) - 1];
+    if (previous !== undefined) {
+      const comma = skipJsoncTrivia({ text, from: previous.offset + previous.length });
+      if (text[comma] === ",") edits.push({ offset: comma, length: 1, content: "" });
+    }
+  }
+
+  end = endOfRemoval({ text, end });
+  const start = startOfRemoval({ text, propertyOffset: property.offset, end });
+  edits.push({ offset: start, length: end - start, content: "" });
+  return applyEdits(text, edits);
+}
+
+/**
+ * Where the comment written at `from` (past any spaces or tabs) ends, or
+ * `undefined` if what stands there is not a comment.
+ */
+function endOfNoteAt({ text, from }: { text: string; from: number }): number | undefined {
+  let cursor = from;
+  while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
+  if (text.startsWith("//", cursor)) {
+    return endOfLineFrom({ text, from: cursor });
+  }
+  if (text.startsWith("/*", cursor)) {
+    const closing = text.indexOf("*/", cursor + 2);
+    return closing === -1 ? undefined : closing + 2;
+  }
+  return undefined;
+}
+
+/**
+ * Every comment written at `from`, as spans of `text`, each span running from
+ * where the previous one stopped so the whitespace between them is carried
+ * along. A comma is stepped over once (a file may spell one before its note,
+ * or after it) but never collected, because the separator belongs to the
+ * property rather than to its note. So a file that writes a note on each side
+ * of its comma gets both of them back, in order, after the comma: the notes
+ * stay with the key they describe, and the comma keeps the place the file gave
+ * it. The run stops at the first thing that is neither: a newline ends it, so
+ * a comment on the next line is left alone.
+ */
+function notesAt({ text, from }: { text: string; from: number }): { start: number; end: number }[] {
+  const spans: { start: number; end: number }[] = [];
+  let cursor = from;
+  let steppedOverComma = false;
+  for (;;) {
+    const end = endOfNoteAt({ text, from: cursor });
+    if (end !== undefined) {
+      spans.push({ start: cursor, end });
+      cursor = end;
+      continue;
+    }
+    if (steppedOverComma) return spans;
+    let comma = cursor;
+    while (text[comma] === " " || text[comma] === "\t") comma += 1;
+    if (text[comma] !== ",") return spans;
+    steppedOverComma = true;
+    cursor = comma + 1;
+  }
+}
+
+/**
+ * Detach the notes written at the point where the object at `path` will take a
+ * new key: after its last property (and around the comma a trailing-comma file
+ * spells there), or just inside the `{` when it has no properties yet.
+ *
+ * `modify` computes its insert from exactly that point — in front of a note
+ * written there — so applying the edit unchanged re-emits the note *after* the
+ * key that was just inserted: `"stale": {...} // retired` turns into a note
+ * about a server rulesync has only now written, and `{ /* none yet *\/ }`
+ * turns into a note about the first entry rulesync puts in it. Lifting the
+ * notes out before the insert and putting them back afterwards keeps them
+ * where their author wrote them, matching what {@link endOfRemoval} does on
+ * the way out.
+ *
+ * Returns `undefined` when there is no such note, which is the common case.
+ */
+function detachTrailingNote({
+  text,
+  path,
+}: {
+  text: string;
+  path: readonly string[];
+}): { text: string; note: string; anchorKey: string | undefined } | undefined {
+  const root = parseTree(text, [], { allowTrailingComma: true });
+  const object = root === undefined ? undefined : findNodeAtLocation(root, [...path]);
+  if (object?.type !== "object") return undefined;
+  const property = object.children?.at(-1);
+  const anchorKey = property?.children?.[0]?.value;
+  if (property !== undefined && typeof anchorKey !== "string") return undefined;
+
+  const from = property === undefined ? object.offset + 1 : property.offset + property.length;
+  const spans = notesAt({ text, from });
+  if (spans.length === 0) return undefined;
+
+  // Only the comments are lifted out; a comma between them stays where the
+  // file spells it, so the file keeps its own trailing-comma style.
+  let stripped = text;
+  for (const span of spans.toReversed()) {
+    stripped = stripped.slice(0, span.start) + stripped.slice(span.end);
+  }
+  return {
+    text: stripped,
+    note: spans.map((span) => text.slice(span.start, span.end)).join(""),
+    anchorKey: typeof anchorKey === "string" ? anchorKey : undefined,
+  };
+}
+
+/**
+ * Put a note detached by {@link detachTrailingNote} back where it was: after
+ * the property it describes (behind the comma the insert gave that property),
+ * or just inside the `{` of the object it was written in when there was no
+ * property to describe. Returns `undefined` if that place can no longer be
+ * located, so the caller can fall back to the plain insert rather than drop
+ * the note.
+ */
+function reattachTrailingNote({
+  text,
+  path,
+  anchorKey,
+  note,
+}: {
+  text: string;
+  path: readonly string[];
+  anchorKey: string | undefined;
+  note: string;
+}): string | undefined {
+  const root = parseTree(text, [], { allowTrailingComma: true });
+  const location = anchorKey === undefined ? [...path] : [...path, anchorKey];
+  const anchor = root === undefined ? undefined : findNodeAtLocation(root, location);
+  if (anchor === undefined) return undefined;
+  if (anchorKey === undefined) {
+    if (anchor.type !== "object") return undefined;
+    const brace = anchor.offset + 1;
+    return text.slice(0, brace) + note + text.slice(brace);
+  }
+  let cursor = anchor.offset + anchor.length;
+  while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
+  if (text[cursor] === ",") cursor += 1;
+  return text.slice(0, cursor) + note + text.slice(cursor);
+}
+
+/**
+ * Write `value` at `[...path, key]`, keeping the trailing note of the property
+ * the new key is inserted after (see {@link detachTrailingNote}). Replacing an
+ * existing key needs none of this: `modify` rewrites the value's own span and
+ * leaves every comment where it is.
+ */
+function insertJsoncProperty({
+  text,
+  path,
+  key,
+  value,
+  options,
+}: {
+  text: string;
+  path: readonly string[];
+  key: string;
+  value: unknown;
+  options: JsoncModificationOptions;
+}): string {
+  const write = (source: string): string =>
+    applyEdits(source, modify(source, [...path, key], value, options));
+  const detached = detachTrailingNote({ text, path });
+  if (detached === undefined) return write(text);
+  const reattached = reattachTrailingNote({
+    text: write(detached.text),
+    path,
+    anchorKey: detached.anchorKey,
+    note: detached.note,
+  });
+  return reattached ?? write(text);
+}
+
+/**
+ * How much work an edit-based write may cost, as the file's length times the
+ * number of keys that differ.
+ *
+ * Each changed key re-parses the whole file, so a file whose keys nearly all
+ * change costs quadratic work: an 823 KB `opencode.json` whose 6,400 servers
+ * are all replaced took 40 seconds to write as edits, and cloning a
+ * repository that ships such a file is enough to reach that. Past this budget
+ * the file is written whole instead — it loses its comments, the same as a
+ * file rulesync cannot parse does, which is the better of the two outcomes
+ * against a `generate` that looks like it has hung. The limit is under a
+ * second of editing for a replacement and a second or two for an insert,
+ * which parses more; a hand-written config file is orders of magnitude below
+ * either.
+ */
+const JSONC_EDIT_BUDGET_BYTES = 50_000_000;
+
+/**
+ * How much text the edits of one write may put into the file, all of them
+ * together.
+ *
+ * The budget above charges by the number of keys that differ, which prices an
+ * insert of a whole subtree as one edit — but `modify` re-indents the text it
+ * writes, and it does that in time quadratic in the length of that text: a
+ * 127 KB value takes half a second to write, a 516 KB one 9 seconds, a 1 MB
+ * one 35. The cost is quadratic in the total as well as in each part, because
+ * every edit re-indents against the text the ones before it left, so a limit
+ * on the widest single value would let a handful of values just under it cost
+ * minutes between them. This is a limit on their sum, which holds the
+ * re-indenting to about a second whether it arrives as one value or twenty.
+ * A hand-written config file changes a few hundred bytes at a time.
+ */
+const JSONC_EDIT_WRITTEN_BYTES = 200_000;
+
+/**
+ * How much text one edit writes: the value as `modify` formats it, plus the
+ * indentation that formatting puts in front of every line of it.
+ *
+ * A value written deep in a document is written far wider than it reads on
+ * its own — a 114 KB server list nested 1,200 deep is 36 MB of text once
+ * every line of it carries 2,400 spaces — so measuring the value alone would
+ * miss the whole of what makes that write expensive.
+ */
+function measureJsoncWrite({ value, depth }: { value: unknown; depth: number }): number {
+  const formatted = JSON.stringify(value, null, 2) ?? "";
+  let lines = 1;
+  for (let at = formatted.indexOf("\n"); at !== -1; at = formatted.indexOf("\n", at + 1)) {
+    lines += 1;
+  }
+  return formatted.length + lines * 2 * depth;
+}
+
+/**
+ * How much {@link applyJsoncObjectEdits} would write, deciding each key
+ * exactly the way it does — the two walk together, so a new case in one needs
+ * the same case here. It reports both how many edits there would be and how
+ * much text they would write between them, because the two are budgeted
+ * separately: one stands for the parse each edit costs, the other for the
+ * re-indenting each edit costs. Counting is a walk of the documents alone: no
+ * text is touched, so the budgets above are spent on the write rather than on
+ * finding out how large the write is.
+ */
+function countJsoncEdits({
+  base,
+  next,
+  depth,
+}: {
+  base: Record<string, unknown>;
+  next: SharedConfigDocument;
+  depth: number;
+}): { edits: number; written: number } {
+  let edits = 0;
+  let written = 0;
+  for (const [key, value] of Object.entries(next)) {
+    if (isPrototypePollutionKey(key)) continue;
+    const present = Object.hasOwn(base, key);
+    const previous = present ? base[key] : undefined;
+    if (value === undefined) {
+      if (present) edits += 1;
+      continue;
+    }
+    if (isPlainObject(previous) && isPlainObject(value)) {
+      const nested = countJsoncEdits({ base: previous, next: value, depth: depth + 1 });
+      edits += nested.edits;
+      written += nested.written;
+      continue;
+    }
+    if (present && isDeepStrictEqual(previous, value)) continue;
+    edits += 1;
+    written += measureJsoncWrite({ value, depth: depth + 1 });
+  }
+  for (const key of Object.keys(base)) {
+    if (!Object.hasOwn(next, key)) edits += 1;
+  }
+  return { edits, written };
+}
+
+/**
+ * Rewrite `text` so the object at `path` matches `next`, touching only the
+ * spans that actually differ from `base`.
+ *
+ * Each difference is applied on its own — `modify` computes an edit against
+ * the current text and `applyEdits` returns the text with that edit applied,
+ * which is then the input for the next difference, because every edit shifts
+ * the offsets the following ones would have been computed from. Nested objects
+ * present on both sides are recursed into rather than replaced wholesale, so a
+ * one-key change deep in the document leaves its siblings — and the comments
+ * attached to them — byte-identical.
+ *
+ * Every difference re-parses the document, so the work is one parse of the
+ * file per *changed* key rather than one parse overall. A regeneration that
+ * changes nothing costs a single parse, and the files this runs on are config
+ * files, so the shape is left simple rather than batched — with the file
+ * large enough and enough of it changing, the product of the two is what
+ * {@link JSONC_EDIT_BUDGET_BYTES} keeps off this path.
+ */
+function applyJsoncObjectEdits({
+  text,
+  base,
+  next,
+  path,
+  options,
+}: {
+  text: string;
+  base: Record<string, unknown>;
+  next: SharedConfigDocument;
+  path: readonly string[];
+  options: JsoncModificationOptions;
+}): string {
+  let result = text;
+  for (const [key, value] of Object.entries(next)) {
+    // Never reachable through the gateway (both the parsed base and every
+    // merge policy drop these), but this walker writes straight into the
+    // user's file, so it does not rely on its callers to have done that.
+    if (isPrototypePollutionKey(key)) continue;
+    const present = Object.hasOwn(base, key);
+    const previous = present ? base[key] : undefined;
+    if (value === undefined) {
+      // A key retracted by the merge policy. `JSON.stringify` drops it by
+      // omission; here it has to be deleted from the text explicitly.
+      if (present) result = removeJsoncProperty({ text: result, path: [...path, key] });
+      continue;
+    }
+    if (isPlainObject(previous) && isPlainObject(value)) {
+      result = applyJsoncObjectEdits({
+        text: result,
+        base: previous,
+        next: value,
+        path: [...path, key],
+        options,
+      });
+      continue;
+    }
+    if (present) {
+      if (isDeepStrictEqual(previous, value)) continue;
+      result = applyEdits(result, modify(result, [...path, key], value, options));
+      continue;
+    }
+    result = insertJsoncProperty({ text: result, path, key, value, options });
+  }
+  for (const key of Object.keys(base)) {
+    if (!Object.hasOwn(next, key)) {
+      result = removeJsoncProperty({ text: result, path: [...path, key] });
+    }
+  }
+  return result;
+}
+
+/**
+ * Serialize a document back over the file it was parsed from.
+ *
+ * For every format but JSONC this is {@link stringifySharedConfig}: those
+ * files carry no comments, so re-serializing loses nothing. A JSONC file does
+ * carry comments — `.vscode/settings.json` and `opencode.json` are hand-edited
+ * far more often than they are generated — and re-serializing would delete
+ * every one of them, along with the author's blank lines and key order. So a
+ * JSONC document is written back as a set of edits against the existing text:
+ * regions the merge did not change stay byte-identical, and a regeneration
+ * that changes nothing leaves the file untouched.
+ *
+ * The whole-document writer is still used when there is nothing to preserve or
+ * nothing to edit against:
+ *
+ * - an empty (or whitespace-only) file, which has no comments to keep;
+ * - a file that does not parse, or whose root is not an object — editing it
+ *   would mean guessing at the author's intent, and the callers that reach
+ *   here have already decided (via `invalidRootPolicy`) that such a file is
+ *   replaced;
+ * - a file stating the same key twice, or using `__proto__`, `constructor` or
+ *   `prototype` as a key (see {@link statesUneditableKeys});
+ * - a file so large, with so much of it changing, that editing it key by key
+ *   would take longer than a user would wait (see
+ *   {@link JSONC_EDIT_BUDGET_BYTES}), or changed keys that write more new text
+ *   between them than re-indenting can afford (see
+ *   {@link JSONC_EDIT_WRITTEN_BYTES});
+ * - a file the editor itself refuses, which it answers with an exception
+ *   rather than a result.
+ */
+export function serializeSharedConfig({
+  format,
+  document,
+  existingContent,
+}: {
+  format: SharedConfigFormat;
+  document: SharedConfigDocument;
+  existingContent: string;
+}): string {
+  const whole = stringifySharedConfig({ format, document });
+  if (format !== "jsonc" || existingContent.trim() === "") {
+    return whole;
+  }
+
+  // Everything the edit path can refuse answers with `whole`, exceptions
+  // included: jsonc-parser has edges of its own — an indentation width landing
+  // exactly on the last slot of its formatting cache throws a `TypeError`, a
+  // document nested deeper than its recursive parser throws a `RangeError` —
+  // and a file rulesync cannot edit is written whole, the same as a file it
+  // cannot parse. The comments are lost, the settings the caller means to
+  // write are not, and `generate` does not stop on a file it was only asked
+  // to update.
+  try {
+    // One parse, as a syntax tree: it answers everything this path asks of
+    // the file — whether it is well-formed, what it says, where its
+    // indentation is, and whether it states a key an edit cannot be trusted
+    // with. Parsing the text again for the value would mean a second parser
+    // and a second sanitizer deciding what the document says, and the two
+    // silently drifting apart would make the diff below miss a change
+    // rulesync means to write.
+    const errors: JsoncParseError[] = [];
+    const root = parseTree(existingContent, errors, { allowTrailingComma: true });
+    if (
+      root === undefined ||
+      errors.length > 0 ||
+      root.type !== "object" ||
+      statesUneditableKeys(root)
+    ) {
+      return whole;
+    }
+
+    const base = sanitizeSharedConfigValue(getNodeValue(root));
+    if (!isPlainObject(base)) {
+      return whole;
+    }
+
+    // Measured against whichever of the two documents is larger: an edit costs
+    // a parse of the text *at the time it is applied*, so a small file taking
+    // a large patch grows into the same quadratic cost that a large file
+    // taking a small patch starts in.
+    const span = Math.max(existingContent.length, whole.length);
+    const cost = countJsoncEdits({ base, next: document, depth: 0 });
+    if (cost.written > JSONC_EDIT_WRITTEN_BYTES || cost.edits * span > JSONC_EDIT_BUDGET_BYTES) {
+      return whole;
+    }
+
+    return applyJsoncObjectEdits({
+      text: existingContent,
+      base,
+      next: document,
+      path: [],
+      options: { formattingOptions: detectJsoncFormattingOptions({ text: existingContent, root }) },
+    });
+  } catch {
+    return whole;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +893,7 @@ export function mergeSharedConfigDeep({
 }): SharedConfigDocument {
   const result: SharedConfigDocument = { ...base };
   for (const [key, patchValue] of Object.entries(patch)) {
-    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    if (isPrototypePollutionKey(key)) continue;
     if (patchValue === undefined) {
       // Retraction, spelled the same way `replace-owned-keys` spells it. Leaving
       // the key with an `undefined` value happens to disappear from YAML and
@@ -815,7 +1504,10 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
 /**
  * Execute a feature's declared write to a gateway-managed shared file: parse
  * the existing content, merge the patch under the feature's declared policy,
- * and serialize. Throws when the file or feature is undeclared, when a
+ * and serialize it back over the existing content (see
+ * {@link serializeSharedConfig}, which keeps a JSONC file's comments and
+ * formatting outside the spans the merge actually changed). Throws when the
+ * file or feature is undeclared, when a
  * `replace-owned-keys` patch strays outside its owned keys, or when the
  * feature's policy is `custom` (those calls go to the named policy function
  * instead).
@@ -883,7 +1575,7 @@ export function applySharedConfigPatch({
         delete document[key];
       }
     }
-    return stringifySharedConfig({ format: declaration.format, document });
+    return serializeSharedConfig({ format: declaration.format, document, existingContent });
   }
 
   const merged = mergeSharedConfigDeep({ base, patch });
@@ -892,7 +1584,11 @@ export function applySharedConfigPatch({
       merged[key] = sanitizeSharedConfigValue(patch[key]);
     }
   }
-  return stringifySharedConfig({ format: declaration.format, document: merged });
+  return serializeSharedConfig({
+    format: declaration.format,
+    document: merged,
+    existingContent,
+  });
 }
 
 // ---------------------------------------------------------------------------
