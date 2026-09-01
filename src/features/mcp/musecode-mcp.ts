@@ -10,6 +10,7 @@ import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -215,8 +216,8 @@ function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpSer
           // an unquoted value is what lets a crafted one read as a second line.
           warnWithFallback(
             undefined,
-            `Muse Code MCP: dropping mode ${JSON.stringify(value)} on server ` +
-              `${JSON.stringify(name)} because it is neither "required" nor "optional", the ` +
+            `Muse Code MCP: dropping mode ${quoteValueForWarning(value)} on server ` +
+              `${quoteValueForWarning(name)} because it is neither "required" nor "optional", the ` +
               `only two modes Muse Code documents.`,
           );
           continue;

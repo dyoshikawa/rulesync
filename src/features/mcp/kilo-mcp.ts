@@ -13,6 +13,7 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
+import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
@@ -735,7 +736,9 @@ export class KiloMcp extends ToolMcp {
   validate(): ValidationResult {
     // Parse fileContent directly since this.json may not be initialized yet
     // when validate() is called from parent constructor
-    const json = JSON.parse(this.fileContent || "{}");
+    // Strict JSONC rather than JSON: `kilo.json`/`kilo.jsonc` may carry the
+    // user's comments, which the gateway preserves on write-back.
+    const json = parseJsoncStrict(this.fileContent || "{}");
     const result = KiloConfigSchema.safeParse(json);
     if (!result.success) {
       return { success: false, error: result.error };

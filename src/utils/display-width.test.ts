@@ -45,6 +45,35 @@ describe("displayWidthOf", () => {
   ])("should measure %s", (_label, text, expected) => {
     expect(displayWidthOf(text)).toBe(expected);
   });
+
+  // `@inquirer/core` measures the rows it wraps with `fast-string-width`, which
+  // takes the whole of `Script=Hangul` as wide and every `Emoji_Modifier_Base`
+  // as an emoji. Counting either of them narrower here would hand a label a
+  // budget it does not fit in, and the row it wraps onto carries no checkbox of
+  // the prompt's own.
+  it.each([
+    ["a Hangul vowel jamo", "\u1161"],
+    ["a Hangul final jamo", "\u11a8"],
+    ["the pointing hand, an emoji base drawn as text by default", "\u261d"],
+    ["the victory hand", "\u270c"],
+  ])("should count %s the way the prompt's renderer counts it", (_description, character) => {
+    expect(displayWidthOf(character)).toBe(2);
+  });
+
+  // The joiners draw as nothing and are counted as something, because the
+  // renderer counts them and they are the only invisible characters a name that
+  // reaches the prompt is allowed to carry.
+  it.each([
+    ["the zero-width non-joiner", "\u200c"],
+    ["the zero-width joiner", "\u200d"],
+  ])("should count %s at the column the renderer spends on it", (_description, character) => {
+    expect(displayWidthOf(character)).toBe(1);
+  });
+
+  it("should not hand a name a budget it fills with joiners", () => {
+    // 39 Arabic letters and 38 non-joiners: drawn in 39 columns, wrapped as 77.
+    expect(displayWidthOf(`${"\u0627\u200c".repeat(38)}\u0627`)).toBe(77);
+  });
 });
 
 describe("shortenToWidth", () => {

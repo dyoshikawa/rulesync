@@ -184,6 +184,7 @@ const subagentsGlobalTargets = [
     target: "hermesagent",
     outputPath: join(getHermesagentGlobalDir(), "rulesync", "subagents", "planner.json"),
   },
+  { target: "zcode", outputPath: join(".zcode", "agents", "planner.md") },
 ] as const;
 
 describe("E2E: subagents", () => {

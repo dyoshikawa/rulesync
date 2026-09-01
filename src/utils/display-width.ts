@@ -23,6 +23,28 @@
  * Ambiguous-width characters are counted as one column, which is what a
  * terminal running a Latin font does.
  *
+ * Two of the ranges are here for a narrower reason: a name the skill prompt can
+ * offer may not be counted narrower here than the prompt's own renderer counts
+ * it, or a label that fits the budget wraps anyway and paints the second row
+ * the budget exists to prevent. `@inquirer/core` measures with
+ * `fast-string-width`, which takes the whole of `Script=Hangul` as wide and
+ * every `Emoji_Modifier_Base` as an emoji. So the Hangul jamo are taken to
+ * U+11FF rather than stopping at the leading consonants, and the modifier bases
+ * are named beside the emoji: U+261D, U+26F9 and the two hands of U+270C–U+270D
+ * are `Emoji` without being `Emoji_Presentation`, and were the only characters
+ * outside Hangul this counted at one column while the renderer counted two.
+ *
+ * The rule is over the names that can reach the prompt, which is a smaller set
+ * than the characters that exist. The renderer counts a tab at eight columns and
+ * the Hangul fillers at two, where this counts one and none: a name carrying
+ * either is refused outright by `hasDeceptiveHiddenCharacters` — the tab as a
+ * control character, the fillers as characters that draw as nothing — and never
+ * becomes a row to be measured. The two joiners are the invisible characters
+ * that check lets through, so they are counted below rather than left to the
+ * zero-width rule. Where this is used to lay out text of the tool's own rather
+ * than to bound an untrusted name, the difference is a column of alignment and
+ * not a forged row.
+ *
  * The wide planes are taken whole rather than range by range — Tangut, Khitan
  * and Nushu together are U+17000–U+18DFF, and the kana supplements are
  * U+1AFF0–U+1B2FF — because a gap between two of them is exactly the character
@@ -36,7 +58,7 @@
  * instead silently swallows thirty thousand code points that are not wide.
  */
 const WIDE_CHARACTERS_PATTERN =
-  /\p{Emoji_Presentation}|[\u2329\u232a\u2630-\u2637\u268a-\u268f\u4dc0-\u4dff]|[\u1100-\u115f\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\ua960-\ua97f\uac00-\ud7a3\ud7b0-\ud7fb\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6]|[\u{16fe0}-\u{16ff6}]|[\u{17000}-\u{18dff}]|[\u{1aff0}-\u{1b2ff}]|[\u{1f000}-\u{1faff}]|[\u{20000}-\u{3fffd}]/u;
+  /\p{Emoji_Presentation}|\p{Emoji_Modifier_Base}|[\u2329\u232a\u2630-\u2637\u268a-\u268f\u4dc0-\u4dff]|[\u1100-\u11ff\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\ua960-\ua97f\uac00-\ud7a3\ud7b0-\ud7fb\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6]|[\u{16fe0}-\u{16ff6}]|[\u{17000}-\u{18dff}]|[\u{1aff0}-\u{1b2ff}]|[\u{1f000}-\u{1faff}]|[\u{20000}-\u{3fffd}]/u;
 
 /**
  * U+FE0F VARIATION SELECTOR-16, which takes no width of its own but asks the
@@ -52,6 +74,30 @@ const COMBINING_MARK_PATTERN = /[\p{Mn}\p{Me}]/u;
 
 /** The characters that take no width at all, marks aside. */
 const ZERO_WIDTH_CHARACTERS_PATTERN = /[\p{Cf}\p{Default_Ignorable_Code_Point}]/u;
+
+/**
+ * The zero-width joiner and its non-joining twin, which the renderer spends a
+ * column on apiece.
+ *
+ * A terminal draws neither, and every other character that draws as nothing is
+ * counted at nothing here. These two are the exception because they are the
+ * only invisible characters `hasDeceptiveHiddenCharacters` lets through — a
+ * Persian or Indic name spells a word with one, and an emoji is a chain of them
+ * — so they are the only ones an attacker can put in a name that reaches the
+ * prompt. `fast-string-width`, which is where the prompt's own wrapping is
+ * decided, counts each of them as a column, and 40 of them in a name is 40
+ * columns of budget this would otherwise hand over for free: enough for a name
+ * measured at 39 columns to be drawn at 77 and wrap a forged row underneath
+ * itself.
+ *
+ * The cost is that an emoji built from a chain is overstated by a column per
+ * joiner, on top of the two columns per component it is already overstated by.
+ * Overstating shortens a label that did not need it; understating lets one
+ * wrap.
+ */
+// Alternatives rather than a class: a class holding two joiners side by side is
+// what `no-misleading-character-class` exists to catch.
+const RENDERER_COUNTED_JOINERS = /\u200c|\u200d/u;
 
 /**
  * How many marks a single character is allowed to carry for free.
@@ -87,6 +133,9 @@ function widthInContext(params: { character: string; precedingMarks: number }): 
   if (isCombiningMark(character)) {
     return precedingMarks < FREE_MARKS_PER_CHARACTER ? 0 : 1;
   }
+  if (RENDERER_COUNTED_JOINERS.test(character)) {
+    return 1;
+  }
   if (ZERO_WIDTH_CHARACTERS_PATTERN.test(character)) {
     return 0;
   }
@@ -110,6 +159,21 @@ export function displayWidthOf(text: string): number {
   return width;
 }
 
+/** The mark a cut string ends in. */
+const SHORTENING_ELLIPSIS = "\u2026";
+
+/**
+ * The one column a cut string is drawn in at the very least: what is left when
+ * the budget has room for the mark of the cut and nothing before it.
+ *
+ * Exported because a caller composing several shortened pieces into one line
+ * has to leave room for it to decide which of them gives way, and the width of
+ * the mark is this module's business rather than something to be counted again
+ * at the other end. Leaving room for it is not what bounds the line: cutting
+ * the composed line is.
+ */
+export const ELLIPSIS_WIDTH = 1;
+
 /**
  * Cut `text` down to at most `budget` columns, marking the cut with an ellipsis.
  *
@@ -123,7 +187,7 @@ export function shortenToWidth(params: { text: string; budget: number }): string
   if (displayWidthOf(text) <= budget) {
     return text;
   }
-  const target = budget - 1;
+  const target = budget - ELLIPSIS_WIDTH;
   let width = 0;
   let marks = 0;
   const kept: string[] = [];
@@ -136,5 +200,5 @@ export function shortenToWidth(params: { text: string; budget: number }): string
     width += characterWidth;
     marks = isCombiningMark(character) ? marks + 1 : 0;
   }
-  return `${kept.join("")}…`;
+  return `${kept.join("")}${SHORTENING_ELLIPSIS}`;
 }

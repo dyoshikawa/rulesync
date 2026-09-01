@@ -1,13 +1,14 @@
 /**
  * Matches C0 controls, DEL, the C1 range (which includes the 8-bit CSI
- * introducer U+009B), the bidirectional overrides and isolates, and the Unicode
- * line and paragraph separators, and the plain LRM/RLM/ALM marks. A name or value
- * copied out of an untrusted config file, a fetched repository, or a tool's own
- * settings file must never reach the terminal with these intact: they let the
- * text forge log lines, reorder what is printed around them, or inject escape
- * sequences. LRM, RLM and the Arabic letter mark open no bidi scope of their
- * own, but they still reorder the neutral characters beside them, so they go too — a diagnostic line is not the
- * place to preserve the typography of a right-to-left name.
+ * introducer U+009B), the bidirectional overrides and isolates, the Unicode
+ * line and paragraph separators, and the plain LRM/RLM/ALM marks. A name or
+ * value copied out of an untrusted config file, a fetched repository, or a
+ * tool's own settings file must never reach the terminal with these intact:
+ * they let the text forge log lines, reorder what is printed around them, or
+ * inject escape sequences. LRM, RLM and the Arabic letter mark open no bidi
+ * scope of their own, but they still reorder the neutral characters beside
+ * them, so they go too — a diagnostic line is not the place to preserve the
+ * typography of a right-to-left name.
  */
 const CONTROL_CHARACTERS_PATTERN =
   // oxlint-disable-next-line no-control-regex
@@ -19,6 +20,22 @@ const CONTROL_CHARACTERS_PATTERN =
  */
 export function stripControlCharacters(text: string): string {
   return text.replace(CONTROL_CHARACTERS_PATTERN, "");
+}
+
+/**
+ * Removes every control character from `text` except the line feed, so a
+ * message written to be read over several lines still is.
+ *
+ * `stripControlCharacters` takes newlines out because a diagnostic is one line
+ * and a name that carries one can forge a second. An error message is not: a
+ * lock file names the process holding it over several lines, and the MCP
+ * `generate` failure lists one unreadable source per line. The carriage return
+ * still goes, since on its own it paints over the line already written — which
+ * is why this splits on the line feed and strips each line rather than carrying
+ * a second character class that has to be kept in step with the first.
+ */
+export function stripControlCharactersKeepingLineFeeds(text: string): string {
+  return text.split("\n").map(stripControlCharacters).join("\n");
 }
 
 /**
@@ -83,6 +100,44 @@ export function stripHiddenCharacters(text: string): string {
 const ZERO_WIDTH_JOINER_PATTERN = /\u200c|\u200d/u;
 const VARIATION_SELECTOR_PATTERN = /[\u{fe00}-\u{fe0f}]|[\u{e0100}-\u{e01ef}]/u;
 
+/** The twelve characters a keycap can be built on, per ED-14 of UTS #51. */
+const KEYCAP_BASE_PATTERN = /[0-9#*]/u;
+/** The selector that asks for the emoji form of the character before it. */
+const EMOJI_PRESENTATION_SELECTOR = "\u{fe0f}";
+/** U+20E3, which draws the box the base and the selector go inside. */
+const COMBINING_ENCLOSING_KEYCAP = "\u{20e3}";
+
+/**
+ * Whether the three characters are an emoji keycap, spelled as UTS #51 spells
+ * it: `Emoji_Keycap_Sequence := [0-9#*] FE0F 20E3`.
+ *
+ * The twelve bases are the only ASCII characters Unicode gives the `Emoji`
+ * property to, and not one of them is a pictograph — `1` is a digit and `#` is
+ * punctuation — so the joining list below cannot see the sequence, and a
+ * directory named `1\u{fe0f}\u{20e3}` would be turned away as a digit padded
+ * with a variation selector. It is not padding: the selector is what asks for
+ * the emoji form of the digit, and the enclosing keycap behind it is what draws
+ * the box around it. Both neighbors are required, which is what keeps the
+ * exception to the sequence rather than handing it to every digit in every
+ * name: `pdf1` with a variation selector and no keycap after it is padding
+ * still, and is refused still.
+ *
+ * @see https://www.unicode.org/reports/tr51/#def_emoji_keycap_sequence
+ */
+function isKeycapSequence(params: {
+  base: string | undefined;
+  selector: string;
+  following: string | undefined;
+}): boolean {
+  const { base, selector, following } = params;
+  return (
+    base !== undefined &&
+    KEYCAP_BASE_PATTERN.test(base) &&
+    selector === EMOJI_PRESENTATION_SELECTOR &&
+    following === COMBINING_ENCLOSING_KEYCAP
+  );
+}
+
 /**
  * The characters a joiner has work to do beside: the scripts whose words are
  * written with one, and the pictographs an emoji sequence is built from.
@@ -119,6 +174,10 @@ const INVISIBLE_CHARACTER_PATTERN = new RegExp(INVISIBLE_CHARACTERS_PATTERN.sour
  * selector is held only to the character before it, which is the one it selects
  * a form for, and which is why an emoji name may end in one.
  *
+ * The keycap sequence is the one emoji the joining list cannot recognize on its
+ * own, since what it is built on is a digit or an ASCII sign rather than a
+ * pictograph, so it is matched whole instead.
+ *
  * Han is not on the joining list, so an ideographic variation sequence — a Han
  * character followed by one of U+E0100 onward — is refused along with the rest.
  * That is the intended trade: no skill directory here is named with one, and
@@ -143,6 +202,15 @@ export function hasDeceptiveHiddenCharacters(text: string): boolean {
       return false;
     }
     if (VARIATION_SELECTOR_PATTERN.test(character)) {
+      if (
+        isKeycapSequence({
+          base: characters[index - 1],
+          selector: character,
+          following: characters[index + 1],
+        })
+      ) {
+        return false;
+      }
       return !joinsCharacter(characters[index - 1]);
     }
     if (!ZERO_WIDTH_JOINER_PATTERN.test(character)) {

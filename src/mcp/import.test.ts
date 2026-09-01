@@ -121,6 +121,88 @@ This is a test rule file.
       expect(result.config?.features).toContain("mcp");
     });
 
+    it("carries a diagnostic back in the result, since MCP has no console to write it to", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ commandAllowlist: ["git *"] }),
+      );
+
+      const result = await executeImport({
+        target: "factorydroid",
+        features: ["permissions"],
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.warnings).toEqual([
+        expect.stringContaining("settings.local.json is a machine-local overrides file"),
+      ]);
+    });
+
+    it("reports the same diagnostic to a later call, since each call is its own run", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ commandAllowlist: ["git *"] }),
+      );
+
+      await executeImport({ target: "factorydroid", features: ["permissions"] });
+      const second = await executeImport({ target: "factorydroid", features: ["permissions"] });
+
+      // Asserted positively: a once-per-run warning that the first call had
+      // spent for the whole process would leave this empty rather than equal.
+      expect(second.warnings).toEqual([
+        expect.stringContaining("settings.local.json is a machine-local overrides file"),
+      ]);
+    });
+
+    it("still reports the warnings when the import fails part-way through", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(
+        join(testDir, ".factory", "settings.local.json"),
+        JSON.stringify({ commandAllowlist: ["git *"] }),
+      );
+      // A file where the output directory has to go: the read (and its
+      // warning) succeeds, the write that follows cannot.
+      await writeFileContent(join(testDir, ".rulesync"), "not a directory");
+
+      const result = await executeImport({
+        target: "factorydroid",
+        features: ["permissions"],
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.warnings).toEqual([
+        expect.stringContaining("settings.local.json is a machine-local overrides file"),
+      ]);
+    });
+
+    it("reports a warning raised where no logger was threaded through", async () => {
+      // `ConfigResolver` warns through the shared fallback rather than through
+      // a logger the caller handed it, and it runs before the import proper. A
+      // scope that started later would leave this one on a stderr the calling
+      // agent never sees, and the missing `warnings` key would read as
+      // "nothing was wrong" about an output scope that silently changed.
+      await writeFileContent(
+        join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+        JSON.stringify({ global: true, inputRoot: "." }),
+      );
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Claude Code Rules\n");
+
+      const result = await executeImport({ target: "claudecode", features: ["rules"] });
+
+      expect(result.warnings).toEqual([expect.stringContaining('Ignoring "global: true"')]);
+    });
+
+    it("omits the warnings key when the import had nothing to report", async () => {
+      await writeFileContent(join(testDir, "CLAUDE.md"), "# Claude Code Rules\n");
+
+      const result = await executeImport({ target: "claudecode", features: ["rules"] });
+
+      expect(result.success).toBe(true);
+      expect(result.warnings).toBeUndefined();
+    });
+
     it("should return import counts in result", async () => {
       // Create CLAUDE.md file to import from
       await writeFileContent(

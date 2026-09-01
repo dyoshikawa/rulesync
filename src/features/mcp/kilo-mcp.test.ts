@@ -2970,4 +2970,24 @@ describe("KiloMcp toggle entries", () => {
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "headless"'));
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "noUrl"'));
   });
+  it("keeps the comments of an existing kilo.jsonc when regenerating", async () => {
+    const commented = [
+      "{",
+      "  // Why this project pins its own server list.",
+      '  "mcp": { "stale": { "type": "local", "command": ["node", "old.js"] } }',
+      "}",
+    ].join("\n");
+    await writeFileContent(join(testDir, "kilo.jsonc"), commented);
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({ mcpServers: { fresh: { command: "node" } } }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+    expect(kiloMcp.getFileContent()).toContain("// Why this project pins its own server list.");
+    expect(Object.keys(kiloMcp.getJson().mcp ?? {})).toEqual(["fresh"]);
+    expect(kiloMcp.validate().success).toBe(true);
+  });
 });

@@ -439,6 +439,24 @@ describe("toolHooksToCanonical for fields outside the passthrough kinds", () => 
     );
   });
 
+  it("quotes only a bounded prefix of the rejected value", () => {
+    // The value names the entry so the reader can find it, but a command line
+    // is exactly the shape that carries a credential, and this diagnostic now
+    // travels into a `--json` document and an MCP result. Quote enough to
+    // recognize the hook and no more.
+    const secret = `curl -H "Authorization: Bearer ${"s".repeat(200)}"\nrm -rf /`;
+    const { definition, logger } = importHook({
+      hook: { type: "command", command: secret },
+      converterConfig: BASE_CONFIG,
+    });
+
+    expect(definition).toBeUndefined();
+    const warning = logger.warn.mock.calls[0]![0] as string;
+
+    expect(warning).toContain("…(truncated)");
+    expect(warning).not.toContain("s".repeat(200));
+  });
+
   it("skips a command hook whose command is not a string at all", () => {
     const { definition, logger } = importHook({
       hook: { type: "command", command: 123 },

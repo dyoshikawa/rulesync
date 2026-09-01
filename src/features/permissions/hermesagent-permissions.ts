@@ -4,10 +4,6 @@ import {
   HERMESAGENT_CONFIG_FILE_NAME,
   HERMESAGENT_GLOBAL_DIR,
 } from "../../constants/hermesagent-paths.js";
-import {
-  RULESYNC_PERMISSIONS_FILE_NAME,
-  RULESYNC_RELATIVE_DIR_PATH,
-} from "../../constants/rulesync-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
@@ -29,11 +25,7 @@ import {
   parseSharedConfig,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
-import {
-  RulesyncPermissions,
-  withoutBlankPermissionPatterns,
-  withoutBlankPermissionPatternsIn,
-} from "./rulesync-permissions.js";
+import { RulesyncPermissions, withoutBlankPermissionKeysIn } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -257,12 +249,15 @@ export class HermesagentPermissions extends ToolPermissions {
     const config = parseSharedConfig({ format: "yaml", fileContent: this.getFileContent() });
     const permissionsRoot = isRecord(config.permissions) ? config.permissions : {};
     // Filter before validating: the provenance block is a canonical document
-    // that a user may have hand-edited, and one blank pattern would fail the
-    // schema and discard every rule recorded here without a word.
+    // that a user may have hand-edited, and one blank pattern or category would
+    // fail the schema and discard every rule recorded here without a word.
     const rawProvenance = permissionsRoot.rulesync;
     const parsedProvenance = RulesyncPermissionsFileSchema.safeParse(
       isRecord(rawProvenance)
-        ? withoutBlankPermissionPatternsIn({ config: rawProvenance })
+        ? withoutBlankPermissionKeysIn({
+            config: rawProvenance,
+            sourcePath: this.getRelativePathFromCwd(),
+          })
         : rawProvenance,
     );
     const provenance: PermissionsConfig = parsedProvenance.success
@@ -300,16 +295,13 @@ export class HermesagentPermissions extends ToolPermissions {
       permission,
       ...(Object.keys(hermes).length > 0 && { hermes }),
     };
-    return new RulesyncPermissions({
+    return RulesyncPermissions.fromImportedFileContent({
       outputRoot: getHermesagentRulesyncOutputRoot({
         nativeOutputRoot: this.outputRoot,
         global: this.global,
       }),
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: withoutBlankPermissionPatterns({
-        fileContent: JSON.stringify(imported, null, 2),
-      }),
+      sourcePath: this.getRelativePathFromCwd(),
+      fileContent: JSON.stringify(imported, null, 2),
     });
   }
 

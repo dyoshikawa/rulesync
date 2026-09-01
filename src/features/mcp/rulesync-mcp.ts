@@ -1,4 +1,4 @@
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 
 import { omit } from "es-toolkit/object";
 import { z } from "zod/mini";
@@ -18,8 +18,8 @@ import {
 import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { fileExistsStrict, readFileContent } from "../../utils/file.js";
-import { parseJsonc } from "../../utils/jsonc.js";
+import { fileExistsStrict, readFileContent, toPosixPath } from "../../utils/file.js";
+import { droppedPollutionKeysError, parseJsoncReportingDroppedKeys } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import {
@@ -287,13 +287,21 @@ export function mergeMcpJsonOverlays({
 
 export class RulesyncMcp extends RulesyncFile {
   private readonly json: RulesyncMcpConfig;
+  /**
+   * Prototype-pollution keys the parser removed. They are dropped before the
+   * schema ever sees them, so without this record a server named `__proto__`
+   * would produce neither an error nor an entry in any generated file.
+   */
+  private readonly droppedKeys: readonly string[];
 
   constructor(params: RulesyncMcpParams) {
     super(params);
 
     // Sources may be authored as JSONC (`mcp.jsonc`); plain JSON is valid
     // JSONC, so both variants parse through the same strict parser.
-    this.json = parseJsonc(this.fileContent) as RulesyncMcpConfig;
+    const { value, droppedKeys } = parseJsoncReportingDroppedKeys({ content: this.fileContent });
+    this.json = value as RulesyncMcpConfig;
+    this.droppedKeys = droppedKeys;
 
     if (params.validate) {
       const result = this.validate();
@@ -323,6 +331,15 @@ export class RulesyncMcp extends RulesyncFile {
   }
 
   validate(): ValidationResult {
+    if (this.droppedKeys.length > 0) {
+      return {
+        success: false,
+        error: droppedPollutionKeysError({
+          sourcePath: this.getRelativePathFromCwd(),
+          droppedKeys: this.droppedKeys,
+        }),
+      };
+    }
     const result = RulesyncMcpFileSchema.safeParse(this.json);
     if (!result.success) {
       return { success: false, error: result.error };
@@ -415,26 +432,46 @@ export class RulesyncMcp extends RulesyncFile {
       }
 
       const fileContent = await readFileContent(filePath);
-      let parsed: unknown;
+      let parsed: Record<string, unknown>;
+      let droppedKeys: readonly string[];
 
       try {
-        parsed = parseJsonc(fileContent);
+        // The reporting parse, not the plain one: a merged config is
+        // re-serialized from these records, so a `__proto__` server dropped
+        // here would vanish without the single-root path's report ever running.
+        const result = parseJsoncReportingDroppedKeys({ content: fileContent });
 
-        if (!isRecord(parsed)) {
+        if (!isRecord(result.value)) {
           throw new Error("Expected a JSON object.");
         }
 
-        if (validate) {
-          const result = RulesyncMcpFileSchema.safeParse(parsed);
-
-          if (!result.success) {
-            throw result.error;
-          }
-        }
+        parsed = result.value;
+        droppedKeys = result.droppedKeys;
       } catch (error) {
         throw new Error(`Invalid MCP source file '${filePath}': ${formatError(error)}`, {
           cause: error,
         });
+      }
+
+      if (validate) {
+        // Thrown outside the wrapper above: that message already names the
+        // file, and this one names it too. The path is made relative and posix
+        // to match how the single-root path reports the same problem, which
+        // goes through `getRelativePathFromCwd()`.
+        if (droppedKeys.length > 0) {
+          throw droppedPollutionKeysError({
+            sourcePath: toPosixPath(relative(process.cwd(), filePath)),
+            droppedKeys,
+          });
+        }
+
+        const result = RulesyncMcpFileSchema.safeParse(parsed);
+
+        if (!result.success) {
+          throw new Error(`Invalid MCP source file '${filePath}': ${formatError(result.error)}`, {
+            cause: result.error,
+          });
+        }
       }
 
       rootSources.push({

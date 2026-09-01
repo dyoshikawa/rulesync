@@ -42,6 +42,21 @@ export const RulesyncSubagentFrontmatterSchema = z.looseObject({
       allowedMcpServers: z.optional(z.array(z.string())),
     }),
   ),
+  // ZCode's documented subagent keys, spelled out so their types are checked
+  // here rather than only once the file is written. They are camelCase and
+  // case-sensitive; unknown keys still ride through, as everywhere else.
+  zcode: z.optional(
+    z.looseObject({
+      model: z.optional(z.string()),
+      thoughtLevel: z.optional(z.string()),
+      color: z.optional(z.string()),
+      tools: z.optional(z.array(z.string())),
+      disallowedTools: z.optional(z.array(z.string())),
+      maxTurns: z.optional(z.number().check(z.int(), z.positive())),
+      injectAgentsMd: z.optional(z.boolean()),
+      mcpServers: z.optional(z.array(z.string())),
+    }),
+  ),
   vibe: z.optional(
     z.looseObject({
       agent_type: z.optional(z.enum(["agent", "subagent"])),

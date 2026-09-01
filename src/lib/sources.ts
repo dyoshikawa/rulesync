@@ -1,10 +1,11 @@
-import { join, posix, relative, resolve, sep } from "node:path";
+import { basename, join, posix, resolve, sep } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
 
 import type { SourceEntry } from "../config/config.js";
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
+  CURATED_RULES_FEATURE_SUBDIR,
   FETCH_CONCURRENCY_LIMIT,
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   MAX_FILE_SIZE,
@@ -23,7 +24,7 @@ import {
   checkPathTraversal,
   directoryExists,
   fileExists,
-  findFilesByGlobs,
+  listFilePathsRecursively,
   readFileContent,
   removeFileStrict,
   removeDirectoryStrict,
@@ -316,18 +317,59 @@ function getSourceFilters(sourceEntry: SourceEntry): {
   };
 }
 
+/**
+ * The name, within the rules tree, of the subdirectory holding the fetched copy
+ * of remote rules. Taken as the last segment of the feature subdirectory rather
+ * than by subtracting one path from another, so no separator spelling is
+ * involved on either side.
+ *
+ * Split on the native separator, the one the constant was joined with and the one
+ * the path it is compared against is split on. The posix reading would leave the
+ * whole `rules\\.curated` on Windows, where it matches no segment at all.
+ */
+const CURATED_RULES_SUBDIR_NAME = basename(CURATED_RULES_FEATURE_SUBDIR);
+
+/**
+ * The names of the rules the project holds itself, which take precedence over
+ * the rules a source offers under the same name.
+ *
+ * Walked rather than globbed: globby reads a backslash as a path separator and
+ * rewrites it in the paths it returns, so a rule file named `back\\slash.md`
+ * would be recorded as the rule `back/slash`, a name no rule on disk has. No
+ * remote rule can be named that either — `isValidRuleName` rejects a separator
+ * — so nothing is skipped over it today; the set simply has to say what the
+ * project holds, since that is the whole question it answers.
+ *
+ * The `.md` test is case-sensitive to match the glob that loads the rules, so a
+ * name can only land in this set if a rule of that name really loads. A
+ * `NOTES.MD` counted here but not loaded there would shadow the remote `NOTES`
+ * and leave the project with neither. The walk is de-duplicated by file
+ * identity for the same reason: it reports every name it passes, while the
+ * loader's glob keeps one name per file, so a rule shared inside the tree
+ * through a symbolic link would otherwise be counted under an alias the loader
+ * never uses -- shadowing the remote rule of that name while loading nothing
+ * under it.
+ *
+ * The curated subtree is named rather than left to the walk's hidden-entry
+ * rule, which happens to cover it today only because the name starts with a
+ * dot. Reading a fetched rule as a local one is not a small mistake: it would
+ * take precedence over its own source and never be refreshed again. Its own
+ * first segment is compared, not a prefix of the path, so a rule really named
+ * `.curated-notes/x.md` is left alone. The split is on the native separator
+ * alone: the walk joins with it, and a backslash inside a name -- the very
+ * thing the walk exists to preserve -- must not divide a segment in two.
+ */
 async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   const rulesDir = join(projectRoot, RULESYNC_RULES_RELATIVE_DIR_PATH);
-  const files = await findFilesByGlobs(join(rulesDir, "**", "*.md"));
-  const localNames = new Set<string>();
-  for (const file of files) {
-    const relativePath = relative(rulesDir, file);
-    if (relativePath.startsWith(`.curated${sep}`)) {
-      continue;
-    }
-    localNames.add(relativePath.replace(/\.md$/i, ""));
-  }
-  return localNames;
+  const relativePaths = await listFilePathsRecursively(rulesDir, {
+    nameFilter: (name) => name.endsWith(".md"),
+    deduplicateByFileIdentity: true,
+  });
+  return new Set(
+    relativePaths
+      .filter((relativePath) => relativePath.split(sep)[0] !== CURATED_RULES_SUBDIR_NAME)
+      .map((relativePath) => relativePath.replace(/\.md$/, "")),
+  );
 }
 
 export async function getInstalledSourceSkillNames({

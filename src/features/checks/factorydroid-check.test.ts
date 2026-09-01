@@ -133,6 +133,10 @@ describe("FactorydroidCheck", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("keeps blocking generation"),
       );
+      // The tool's own name and target come from this adapter's config rather
+      // than from a literal in the message, so the message is read back whole.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Factory Droid checks:"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("--targets factorydroid"));
     });
 
     it("should stay quiet when the existing file is only generated sections", async () => {

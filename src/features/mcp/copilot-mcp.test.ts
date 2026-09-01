@@ -8,6 +8,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { parseJsonc } from "../../utils/jsonc.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -400,10 +401,13 @@ describe("CopilotMcp", () => {
       });
 
       const copilotMcp = await CopilotMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
-      const json = JSON.parse(copilotMcp.getFileContent());
+      const content = copilotMcp.getFileContent();
+      const json = parseJsonc(content) as Record<string, unknown>;
 
       expect(json.inputs).toEqual([{ id: "api-key", type: "promptString" }]);
       expect(json.servers).toEqual({ fresh: { command: "node" } });
+      // The scaffold's comment survives the write-back — the file stays JSONC.
+      expect(content).toContain("// For more info, visit https://aka.ms/vscode-add-mcp");
     });
   });
 

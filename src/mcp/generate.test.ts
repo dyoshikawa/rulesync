@@ -61,6 +61,26 @@ describe("MCP Generate Tools", () => {
       expect(result.error).toContain("mcp");
     });
 
+    it("should carry a diagnostic back in the result, since MCP has no console to write it to", async () => {
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+
+      const result = await executeGenerate({ targets: ["agentsmd"], features: ["hooks"] });
+
+      expect(result.success).toBe(true);
+      expect(result.warnings).toEqual([
+        expect.stringContaining("does not support the feature 'hooks'"),
+      ]);
+    });
+
+    it("should omit the warnings key when the run had nothing to report", async () => {
+      await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+
+      const result = await executeGenerate({ targets: ["agentsmd"], features: ["rules"] });
+
+      expect(result.success).toBe(true);
+      expect(result.warnings).toBeUndefined();
+    });
+
     it("should resolve configured inputRoots before generation", async () => {
       const sourceTree = join(testDir, "central", RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(join(sourceTree, RULES_FEATURE_SUBDIR));

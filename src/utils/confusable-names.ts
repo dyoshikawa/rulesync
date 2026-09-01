@@ -1,3 +1,4 @@
+// cspell:ignore forrnat -- a lookalike spelling named in the documentation below
 import { stripHiddenCharacters } from "./control-characters.js";
 
 /**
@@ -393,6 +394,42 @@ function normalizedFormOf(name: string): string {
     .trim();
 }
 
+/** Whitespace at either end of a name, which the row it is drawn on shows none of. */
+const EDGE_WHITESPACE_PATTERN = /^\s|\s$/u;
+
+/** Two blanks running, which the row draws as the one gap it draws for any number. */
+const REPEATED_WHITESPACE_PATTERN = /\s\s/u;
+
+/**
+ * Whether the name carries more whitespace than the row it is printed on shows.
+ *
+ * Two shapes, and both are about how much rather than which: whitespace at an
+ * edge, where `pdf ` and `pdf` end at the same column and the space is only
+ * found by the cursor landing past the name, and a run of it, which a terminal
+ * draws as one gap however many blanks are in it. Between them they are what
+ * lets a name be padded to reach under the row beneath it.
+ *
+ * A single blank inside a name that is merely not the plain space — a no-break
+ * space, an ideographic one — is deliberately not this check's business. It is
+ * drawn, and it is a substitution rather than an extent, so the name it
+ * imitates is one the display-form check already reports the pair of; marking
+ * it here would put a warning on `設定 ガイド` written with the ideographic
+ * space, which is an ordinary name written the ordinary way. At an edge it is
+ * marked like any other blank, since there what is at stake is not which
+ * character was chosen but that the name reaches past where it appears to end.
+ * The tab and the other blank control characters are not here either: a name
+ * carrying one is refused outright before it is ever offered.
+ *
+ * A name with a twin already carries a note, since the two share a display
+ * form. This is for the one without: nothing else on the list says that the
+ * name reaches past what can be seen of it, and a name padded to sit under
+ * another row is padded whether or not that other row is on the same list.
+ */
+function hasWhitespaceThatDoesNotShow(name: string): boolean {
+  const shown = stripHiddenCharacters(name);
+  return EDGE_WHITESPACE_PATTERN.test(shown) || REPEATED_WHITESPACE_PATTERN.test(shown);
+}
+
 /**
  * The form of `name` a terminal draws: what two pieces of text have to share to
  * be the same thing on screen rather than the same thing to `===`.
@@ -446,7 +483,56 @@ function foldLookalikes(text: string): string {
  * The case is dropped last, once both folds have had the case they need.
  */
 function latinSkeletonOf(name: string): string {
-  return foldLookalikes(normalizedFormOf(foldLookalikes(name))).toLowerCase();
+  return foldLatinDigraphs(foldLookalikes(normalizedFormOf(foldLookalikes(name))).toLowerCase());
+}
+
+/**
+ * The letter pairs that are drawn as a single other letter once they are set
+ * side by side: `rn` for `m`, `vv` for `w`.
+ *
+ * The tables above map one character onto one character, which is what the
+ * confusable data of UTS #39 is mostly made of, and it is why `dep1oy` is
+ * caught while `forrnat` is not — the imitation there is not a letter drawn as
+ * another letter but two letters drawn as one, and `format` beside it is plain
+ * ASCII in a single script, so no other check has anything to say about the
+ * pair either. Only the direction that loses information is folded, so both
+ * spellings converge on the shorter one and a name that already holds the
+ * single letter is left as it is.
+ *
+ * A pair is one column wider than the letter it imitates, which is the same
+ * objection that keeps the em dash out of the tables above. It is not the same
+ * situation: the em dash is judged beside the hyphen it imitates, both drawn on
+ * screen, where a difference in width is a difference a reader can see, while
+ * the name a pair imitates is a skill on disk that no row shows. Counting the
+ * columns of a name is no help when there is nothing to count them against.
+ *
+ * `cl` for `d` is deliberately not on the list, though it is the third of the
+ * classic three. `cl` opens too many ordinary words — `clean`, `clear`,
+ * `clone`, `cli` — and folding it would report `clone` against a `done` the
+ * user happens to have, on a fetch where nothing is wrong. The two that are
+ * left cost far less: `modern` folding onto `modem` is the one pair of ordinary
+ * words either of them makes, and a note on that pair costs a reader a glance,
+ * where `clone` against `done` would be a note on a fetch anyone who keeps a
+ * skill called `done` would see.
+ */
+const LATIN_DIGRAPH_LOOKALIKES: ReadonlyArray<readonly [string, string]> = [
+  ["rn", "m"],
+  ["vv", "w"],
+];
+
+/**
+ * `form` with each of those pairs replaced by the letter it is drawn as.
+ *
+ * Run on the lowercased skeleton, after the single-character folds and the
+ * normalization, so that a pair spelled with lookalikes of its own — a Cyrillic
+ * `с` in front of an `l` — is folded here too rather than only the ASCII
+ * spelling of it.
+ */
+function foldLatinDigraphs(form: string): string {
+  return LATIN_DIGRAPH_LOOKALIKES.reduce(
+    (folded, [pair, letter]) => folded.split(pair).join(letter),
+    form,
+  );
 }
 
 /**
@@ -522,7 +608,30 @@ export function mixedScriptsOf(name: string): string[] | undefined {
 }
 
 /**
- * Note, per name, why it may not be told apart from another name on sight.
+ * The two forms a name is compared against other names in: the one a terminal
+ * draws it as, and the one it reads as once the lookalike letters are folded.
+ */
+function comparableFormsOf(name: string): { displayForm: string; skeleton: string } {
+  return { displayForm: displayFormOf(name), skeleton: latinSkeletonOf(name) };
+}
+
+/** How many of the given names share each display form and each reading. */
+function countComparableForms(forms: ReadonlyArray<{ displayForm: string; skeleton: string }>): {
+  displayForms: ReadonlyMap<string, number>;
+  skeletons: ReadonlyMap<string, number>;
+} {
+  const displayForms = new Map<string, number>();
+  const skeletons = new Map<string, number>();
+  for (const form of forms) {
+    displayForms.set(form.displayForm, (displayForms.get(form.displayForm) ?? 0) + 1);
+    skeletons.set(form.skeleton, (skeletons.get(form.skeleton) ?? 0) + 1);
+  }
+  return { displayForms, skeletons };
+}
+
+/**
+ * Note, per name, why it may not be told apart on sight from what it appears to
+ * be.
  *
  * This is display-only: it never removes a name from a list or changes what a
  * name stands for. Two directories whose names differ only in code points the
@@ -530,46 +639,77 @@ export function mixedScriptsOf(name: string): string[] | undefined {
  * still writes exactly what was picked — the note is there so the picker can
  * tell that two entries which look identical are not.
  *
- * Four things are reported: two names with the same display form, two names
- * that read the same once the lookalike letters are matched up, a name spelled
- * entirely in letters that read as Latin ones, and a name that mixes scripts it
- * has no ordinary reason to. None of the four is a complete answer — the
- * lookalike tables hold the common pairs rather than all of them, a name
- * written entirely in a script the tables do not map is compared against
- * nothing, and a hand-picked pair of unrelated-looking names from one script
- * escapes every check — so the note is a prompt to look closer, not a guarantee
- * that unmarked entries are distinct.
+ * Five things are reported: two names with the same display form, two names
+ * that read the same once the lookalike letters are matched up, a name that
+ * carries more whitespace than the row shows, a name spelled entirely in
+ * letters that read as Latin ones, and a name that mixes scripts it has no
+ * ordinary reason to. None of the five is a complete answer — the lookalike
+ * tables hold the common pairs rather than all of them, a name written entirely
+ * in a script the tables do not map is compared against nothing, and a
+ * hand-picked pair of unrelated-looking names from one script escapes every
+ * check — so the note is a prompt to look closer, not a guarantee that unmarked
+ * entries are distinct.
+ *
+ * `localNames` are names that sit beside the list without being on it: the
+ * skills the user already has. They are compared against and never described,
+ * because the question a picker asks is which of the names on offer may be
+ * taken for something else, and a name already on disk is one of the things
+ * they may be taken for. Without them a list of one imitation and no original
+ * — a repository publishing `dep1oy` alone, against a `deploy` the user has had
+ * for months — is a list with nothing to compare, and every check stays quiet.
+ *
+ * A local name spelled exactly like one on the list is dropped from the
+ * comparison first: that is the skill being updated rather than one imitating
+ * it, and a second fetch of the same repository would otherwise mark every row
+ * it refreshes. Only that much is decided here, because only that much can be
+ * decided from the names alone. Whether a local `pdf` is also the directory a
+ * listed `PDF` would be written into is a question about the filesystem, not
+ * about the spellings, and the caller answers it before handing the names over
+ * — see `readSkillRootNames` and its caller in `fetch.ts`.
+ *
+ * Where both a listed name and a local one collide, the listed one is named — it
+ * is the pair a reader can compare on screen — and the row carries one reason
+ * either way.
  *
  * Names absent from the returned map carry no note. Duplicates in `names` are
  * folded first, so a list that repeats a name does not report that name as
  * colliding with itself.
  */
-export function describeConfusableNames(names: string[]): Map<string, string> {
-  const entries = [...new Set(names)].map((name) => ({
-    name,
-    displayForm: displayFormOf(name),
-    skeleton: latinSkeletonOf(name),
-  }));
-
-  const displayFormCounts = new Map<string, number>();
-  const skeletonCounts = new Map<string, number>();
-  for (const entry of entries) {
-    displayFormCounts.set(entry.displayForm, (displayFormCounts.get(entry.displayForm) ?? 0) + 1);
-    skeletonCounts.set(entry.skeleton, (skeletonCounts.get(entry.skeleton) ?? 0) + 1);
-  }
+export function describeConfusableNames(params: {
+  names: string[];
+  localNames: string[];
+}): Map<string, string> {
+  const { names, localNames } = params;
+  const entries = [...new Set(names)].map((name) => ({ name, ...comparableFormsOf(name) }));
+  const listed = new Set(entries.map((entry) => entry.name));
+  const counts = countComparableForms(entries);
+  const localCounts = countComparableForms(
+    [...new Set(localNames)].filter((name) => !listed.has(name)).map(comparableFormsOf),
+  );
 
   const notes = new Map<string, string>();
   for (const entry of entries) {
     const reasons: string[] = [];
-    const sameDisplayForm = displayFormCounts.get(entry.displayForm) ?? 0;
+    const sameDisplayForm = counts.displayForms.get(entry.displayForm) ?? 0;
+    const sameLocalDisplayForm = localCounts.displayForms.get(entry.displayForm) ?? 0;
     if (sameDisplayForm > 1) {
       reasons.push("another entry has the same display form");
+    } else if (sameLocalDisplayForm > 0) {
+      reasons.push("a local skill has the same display form");
     }
     // Counted against the entries that share the display form rather than
     // against one: three names can read alike while only two of them are the
-    // same string, and the third is the one worth naming.
-    if ((skeletonCounts.get(entry.skeleton) ?? 0) > sameDisplayForm) {
+    // same string, and the third is the one worth naming. The local side is
+    // counted the same way against the local names, so a `PDF` on disk beside a
+    // remote `pdf` is reported once, as the display form it shares, rather than
+    // twice for reading alike as well.
+    if ((counts.skeletons.get(entry.skeleton) ?? 0) > sameDisplayForm) {
       reasons.push("another entry differs from it only by lookalike letters");
+    } else if ((localCounts.skeletons.get(entry.skeleton) ?? 0) > sameLocalDisplayForm) {
+      reasons.push("a local skill differs from it only by lookalike letters");
+    }
+    if (hasWhitespaceThatDoesNotShow(entry.name)) {
+      reasons.push("carries more whitespace than the row shows");
     }
     // The display form is what a reader sees, so it is what the script checks
     // are asked about: a circled or fullwidth letter carries the script of the

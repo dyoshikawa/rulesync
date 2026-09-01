@@ -13,7 +13,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 
 import { kebabCase } from "es-toolkit";
 import { globbySync, isGitIgnoredSync } from "globby";
@@ -564,7 +564,16 @@ export async function isSymlink(filepath: string): Promise<boolean> {
   }
 }
 
-export async function listDirectoryFiles(dir: string): Promise<string[]> {
+/**
+ * Every entry name directly under `dir`, of whatever kind, in the order the
+ * filesystem reports them.
+ *
+ * Named for what it returns, because {@link listFileNames} sits beside it and
+ * answers a narrower question: this one reports directories and links as well
+ * as files, and reads an unreadable directory as an empty one instead of
+ * failing. Picking this where the other was meant brings both of those back.
+ */
+export async function listDirectoryEntryNames(dir: string): Promise<string[]> {
   try {
     return await readdir(dir);
   } catch {
@@ -587,6 +596,21 @@ function countHiddenSegments(filePath: string): number {
 }
 
 /**
+ * A path the running platform produced, written posix-separated.
+ *
+ * Not {@link toPosixPath}, which rewrites every backslash whatever it means. That
+ * is right for a path a caller spelled, which may be spelled either way; it is
+ * wrong for one the platform handed back. On a posix platform a backslash is an
+ * ordinary character in a name, so rewriting it folds `a\b` onto `a/b` -- two
+ * different directories, and wherever the result is used as a file's identity the
+ * second one to be seen is taken for a repeat of the first and dropped. On
+ * Windows no name can hold a backslash, so the rewrite there is lossless.
+ */
+function nativePathToPosix(filePath: string): string {
+  return sep === "\\" ? filePath.replaceAll("\\", "/") : filePath;
+}
+
+/**
  * The real file a path denotes, posix-separated so it compares against the globby results
  * that produce it. Two paths share an identity when they resolve to the very same file --
  * a link beside its target, a link into a shared tree, or a cycle that walks back into an
@@ -594,22 +618,101 @@ function countHiddenSegments(filePath: string): number {
  */
 async function realFileIdentity(filePath: string): Promise<string> {
   try {
-    return toPosixPath(await realpath(filePath));
+    return nativePathToPosix(await realpath(filePath));
   } catch {
     // realpath can fail on a broken link or a race; fall back to the literal path so the
     // entry still counts (and is still deduplicated against identical literals).
-    return toPosixPath(filePath);
+    return nativePathToPosix(filePath);
   }
+}
+
+/**
+ * Where the file `targetPath` really denotes sits relative to the one `rootPath`
+ * does, with every link on both sides resolved. Posix-separated, because the
+ * resolved paths it is built from are; a caller that splits it must split on `/`
+ * alone, which is also the only separator a real name can never contain.
+ *
+ * Both sides fall back to their literal path when they cannot be resolved, so an
+ * unresolvable path reads as an escape rather than as a contained one.
+ */
+export async function resolvedRelativePath({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<string> {
+  const [realRootPath, realTargetPath] = await Promise.all([
+    realFileIdentity(rootPath),
+    realFileIdentity(targetPath),
+  ]);
+  // Both sides are posix-separated by `realFileIdentity`, so the comparison has to be
+  // too -- the native `relative` would read a posix path as one segment on Windows.
+  return posix.relative(realRootPath, realTargetPath);
+}
+
+/**
+ * Whether a posix relative path -- one {@link resolvedRelativePath} returned, or any
+ * built the same way -- leads out of the root it was taken against.
+ *
+ * Exported so a caller that already holds the relative path can ask this of the very
+ * path it goes on to read, instead of resolving both sides a second time and judging
+ * a result it then has to trust is the same one.
+ */
+export function posixRelativePathEscapesRoot(relativePath: string): boolean {
+  return relativePath === ".." || relativePath.startsWith("../") || posix.isAbsolute(relativePath);
+}
+
+/**
+ * Whether the file `targetPath` really denotes sits outside `rootPath`. Unlike
+ * `pathEscapesRoot`, which reads a path as it is spelled, this resolves every link
+ * on both sides first, so a name that sits inside the root but is a link pointing
+ * out of it is reported as the escape it is. Both sides fall back to their literal
+ * path when they cannot be resolved, which reports an escape rather than hiding one.
+ */
+export async function resolvedPathEscapesRoot({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<boolean> {
+  return posixRelativePathEscapesRoot(await resolvedRelativePath({ rootPath, targetPath }));
+}
+
+/**
+ * How many trailing segments `filePath` and `identity` have in common.
+ *
+ * A path that walked through no link at all shares all of its own segments with
+ * the file's identity; one that walked through a link named differently from
+ * its target parts from the identity at that segment and shares only what
+ * follows it. Counting from the end rather than testing the two for equality is
+ * what lets the comparison hold for a path that is not itself resolved: a glob
+ * rooted at a directory that is a link of its own gives every candidate the
+ * same unresolved prefix, and only the segments below it decide.
+ */
+function sharedTrailingSegments(filePath: string, identity: string): number {
+  const left = splitPathSegments(nativePathToPosix(filePath));
+  const right = splitPathSegments(identity);
+  let shared = 0;
+  while (
+    shared < left.length &&
+    shared < right.length &&
+    left[left.length - 1 - shared] === right[right.length - 1 - shared]
+  ) {
+    shared++;
+  }
+  return shared;
 }
 
 /**
  * Pick the one path that represents a file among the paths that resolve to it.
  *
- * The path that walked through no link at all wins outright: it is already the real one,
- * so it equals the file's identity. That keeps the real location of a file as the path
- * callers see, rather than an alias that happens to sort first -- a directory link named
- * `aaa` pointing at `zzz` must not make `zzz/x.md` disappear, and a cycle must not replace
- * `sub/note.md` with the same file reached back through the cycle.
+ * The path that walked through no link at all wins outright: it shares every one of its
+ * segments with the file's identity, which no alias does. That keeps the real location of
+ * a file as the path callers see, rather than an alias that happens to sort first -- a
+ * directory link named `aaa` pointing at `zzz` must not make `zzz/x.md` disappear, and a
+ * cycle must not replace `sub/note.md` with the same file reached back through the cycle.
  * Failing that, the fewest dot-prefixed segments wins: when only links are on offer, the
  * named one represents the entry rather than a hidden alias that a hidden-entry rule may
  * then drop, taking the named path's content with it. `candidates` arrives in sorted
@@ -617,11 +720,10 @@ async function realFileIdentity(filePath: string): Promise<string> {
  */
 function chooseRepresentative(candidates: string[], identity: string): string {
   return candidates.reduce((best, candidate) => {
-    if (toPosixPath(best) === identity) {
-      return best;
-    }
-    if (toPosixPath(candidate) === identity) {
-      return candidate;
+    const bestShared = sharedTrailingSegments(best, identity);
+    const candidateShared = sharedTrailingSegments(candidate, identity);
+    if (candidateShared !== bestShared) {
+      return candidateShared > bestShared ? candidate : best;
     }
     return countHiddenSegments(candidate) < countHiddenSegments(best) ? candidate : best;
   });
@@ -814,7 +916,7 @@ async function dedupeNamesByFileIdentity(params: {
     // `realFileIdentity` falls back to the literal path rather than failing, so
     // an entry whose identity cannot be read stands on its own here instead of
     // dropping out of the listing.
-    const identity = identities[index] ?? toPosixPath(join(dirPath, entry.name));
+    const identity = identities[index] ?? nativePathToPosix(join(dirPath, entry.name));
     const group = entriesByIdentity.get(identity);
     if (group === undefined) {
       entriesByIdentity.set(identity, [entry]);
@@ -896,6 +998,143 @@ export async function listFileNames(
     includeHidden: options.includeHidden ?? false,
     nameFilter: options.nameFilter,
   });
+}
+
+/**
+ * The paths of every file below `dirPath`, relative to it, walked rather than
+ * globbed.
+ *
+ * The recursive counterpart of {@link listFileNames}, and there for the same
+ * reason: globby reads a backslash as a path separator and rewrites it in the
+ * paths it returns, so a file named `back\\slash.md` comes back as
+ * `back/slash.md` — a path that belongs to no file, under a name that belongs
+ * to no file either.
+ *
+ * A root that is not there is an empty root. A root that is there but cannot be
+ * read is reported, so it is never mistaken for an empty one — as is a
+ * directory below it, since a subtree silently missing from the result is the
+ * same mistake one level down.
+ *
+ * A directory link is followed like any other directory, but each real
+ * directory is walked only once, so neither a cycle nor a mesh of links can
+ * make the walk repeat itself -- taking every distinct route through a graph of
+ * aliases would cost one traversal per route, which a handful of links is
+ * enough to make hopeless. The name a twice-reachable directory is reported
+ * under is therefore whichever the walk reaches first, and the walk goes level
+ * by level with each level sorted, so that is the shortest path to it and the
+ * first in sorted order among equals. Note the difference from
+ * {@link findFilesByGlobs}, which resolves each of its results and keeps the
+ * real one: here a link nearer the root than the directory it points at stands
+ * in for it. `nameFilter` narrows the files, not the directories the walk
+ * descends into.
+ *
+ * The cost is one round of `readdir` per directory, taken in sequence, and the
+ * whole of a level is held at once, so residency follows the widest level
+ * rather than the deepest path.
+ */
+export async function listFilePathsRecursively(
+  dirPath: string,
+  options: {
+    followSymbolicLinks?: boolean;
+    includeHidden?: boolean;
+    nameFilter?: (name: string) => boolean;
+    /**
+     * Report one path per real file rather than one per name, the way
+     * {@link findFilesByGlobs} does. Off by default: a walk that carries a tree
+     * as it is must keep every name the tree gives a file. Turn it on where the
+     * result is read as a set of files -- there, two names for one file are two
+     * files that do not exist.
+     */
+    deduplicateByFileIdentity?: boolean;
+  } = {},
+): Promise<string[]> {
+  const {
+    followSymbolicLinks = true,
+    includeHidden = false,
+    nameFilter,
+    deduplicateByFileIdentity = false,
+  } = options;
+  if (!(await directoryExists(dirPath))) {
+    return [];
+  }
+  const filePaths: string[] = [];
+  // Every real directory already walked. Keeping the whole set, rather than
+  // only the chain above the current directory, is what bounds the work: links
+  // that alias one another turn the tree into a graph, and a walk that took
+  // every distinct route through it would cost one traversal per route --
+  // exponential in the number of aliases, from a handful of real directories.
+  const walkedIdentities = new Set<string>();
+  // Level by level, sorted within each level, so the name a directory ends up
+  // reported under is decided by the tree rather than by readdir order.
+  let level = [{ currentPath: dirPath, prefix: "" }];
+  while (level.length > 0) {
+    const nextLevel: Array<{ currentPath: string; prefix: string }> = [];
+    for (const { currentPath, prefix } of level.toSorted((a, b) =>
+      a.prefix < b.prefix ? -1 : a.prefix > b.prefix ? 1 : 0,
+    )) {
+      const identity = await realFileIdentity(currentPath);
+      if (walkedIdentities.has(identity)) {
+        continue;
+      }
+      walkedIdentities.add(identity);
+      const [fileNames, dirNames] = await Promise.all([
+        listFileNames(currentPath, { followSymbolicLinks, includeHidden, nameFilter }),
+        listSubdirectoryNames(currentPath, { followSymbolicLinks, includeHidden }),
+      ]);
+      for (const fileName of fileNames) {
+        filePaths.push(prefix === "" ? fileName : join(prefix, fileName));
+      }
+      for (const dirName of dirNames) {
+        nextLevel.push({
+          currentPath: join(currentPath, dirName),
+          prefix: prefix === "" ? dirName : join(prefix, dirName),
+        });
+      }
+    }
+    level = nextLevel;
+  }
+  return deduplicateByFileIdentity
+    ? await deduplicateRelativePathsByFileIdentity({ dirPath, relativePaths: filePaths })
+    : filePaths.toSorted();
+}
+
+/**
+ * One path per real file, chosen the way {@link findFilesByGlobs} chooses it.
+ *
+ * The walk de-duplicates the directories it descends into, so it cannot loop,
+ * but it still reports every name it walks past: a file reached under two names
+ * is listed twice. A caller reading the result as a set of files has to fold
+ * those aliases together, and has to fold them the same way the glob does, or
+ * the two disagree about the name a file has.
+ */
+async function deduplicateRelativePathsByFileIdentity({
+  dirPath,
+  relativePaths,
+}: {
+  dirPath: string;
+  relativePaths: string[];
+}): Promise<string[]> {
+  // Folded on absolute paths, exactly the shape `findFilesByGlobs` folds, and
+  // relativized only afterwards. `chooseRepresentative` scores a candidate by the
+  // segments it shares with the file's identity, and only an absolute path can
+  // share all of its own: a relative one that names a file at the top of the walk
+  // scores a single segment, which any alias of the same basename ties -- leaving
+  // the choice to sort order, and the two sides free to disagree about the name a
+  // file has.
+  const candidatesByFile = new Map<string, string[]>();
+  for (const relativePath of relativePaths.toSorted()) {
+    const absolutePath = join(dirPath, relativePath);
+    const identity = await realFileIdentity(absolutePath);
+    const candidates = candidatesByFile.get(identity);
+    if (candidates === undefined) {
+      candidatesByFile.set(identity, [absolutePath]);
+    } else {
+      candidates.push(absolutePath);
+    }
+  }
+  return [...candidatesByFile.entries()]
+    .map(([identity, candidates]) => relative(dirPath, chooseRepresentative(candidates, identity)))
+    .toSorted();
 }
 
 export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {

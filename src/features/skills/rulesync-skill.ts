@@ -4,7 +4,7 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { AiDir, AiDirFile, ValidationResult } from "../../types/ai-dir.js";
+import { AiDir, AiDirFile, containsPathSeparator, ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
@@ -28,8 +28,7 @@ function isUnsafeSkillDirName(name: string): boolean {
     name === "" ||
     name === "." ||
     name === ".." ||
-    name.includes("/") ||
-    name.includes("\\") ||
+    containsPathSeparator(name) ||
     name.endsWith(".") ||
     name.endsWith(" ")
   );

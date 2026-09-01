@@ -939,7 +939,12 @@ export async function doctorCommand(logger: Logger, options: DoctorOptions): Pro
     });
   }
   if (warningCount > 0) {
-    logger.warn(`Doctor finished with ${summary}.`);
+    // Console-only: under `--json` the same counts are already in
+    // `data.summary`, and the document's `warnings` array is for diagnostics
+    // the run could not report any other way — not for a restated total.
+    if (!logger.jsonMode) {
+      logger.warn(`Doctor finished with ${summary}.`);
+    }
     return;
   }
   logger.success(`✓ No problems found (${summary}).`);

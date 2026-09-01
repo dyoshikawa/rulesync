@@ -12,6 +12,7 @@ import {
 } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 
 type ToolMatcherEntry = {
@@ -364,7 +365,7 @@ function emitPassthroughFields<TValue>({
       // so an authored value can be valid and still unusable here.
       warn?.(
         `Dropping "${canonical}" from a "${hookType}" hook on "${eventName}": ` +
-          `${JSON.stringify(value)} is not a value this tool can express as "${tool}".`,
+          `${quoteValueForWarning(value)} is not a value this tool can express as "${tool}".`,
       );
     }
   }
@@ -520,7 +521,7 @@ const describeInvalidScalar = ({
   canonical: string;
   value: unknown;
 }): string =>
-  `Dropping "${tool}" (${JSON.stringify(value)}) while importing a hook: ` +
+  `Dropping "${tool}" (${quoteValueForWarning(value)}) while importing a hook: ` +
   `${describeScalarConstraint({ canonical, value })} Importing it would fail validation on the ` +
   `next run.`;
 
@@ -586,7 +587,7 @@ function emitGroupPassthroughFields({
     if (!carried.every(agrees)) {
       logger?.warn(
         `"${tool}" belongs to the whole matcher group on "${eventName}" hooks, so every hook in ` +
-          `this group gets ${JSON.stringify(first)} — including any that asked for something ` +
+          `this group gets ${quoteValueForWarning(first)} — including any that asked for something ` +
           `else, or for nothing.`,
       );
     }
@@ -1208,7 +1209,7 @@ function describeGroupSkipReason({
     if (!isGroupPassthroughValue(value, valueType)) {
       return (
         `Skipping the hooks of a matcher group while importing: its "${tool}" ` +
-        `(${JSON.stringify(value)}) is unusable, and these hooks run only where it matches. ` +
+        `(${quoteValueForWarning(value)}) is unusable, and these hooks run only where it matches. ` +
         `Importing them without it would widen when they fire, so they are skipped.`
       );
     }
@@ -1235,7 +1236,7 @@ function describeHookSkipReason({
       continue;
     }
     return (
-      `Skipping a hook while importing: its "${field}" (${JSON.stringify(value)}) is unusable — ` +
+      `Skipping a hook while importing: its "${field}" (${quoteValueForWarning(value)}) is unusable — ` +
       `${describeScalarConstraint({ canonical: field, value })} Keeping the hook without it would ` +
       `change what it does, so the whole hook is skipped.`
     );

@@ -174,6 +174,9 @@ function withToolTargetPrefix({
     get silent() {
       return logger.silent;
     },
+    get reportsWhileSilent() {
+      return logger.reportsWhileSilent;
+    },
     get jsonMode() {
       return logger.jsonMode;
     },

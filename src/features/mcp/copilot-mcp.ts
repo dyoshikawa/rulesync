@@ -4,6 +4,7 @@ import { COPILOT_MCP_DIR, COPILOT_MCP_FILE_NAME } from "../../constants/copilot-
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
+import { parseJsonc } from "../../utils/jsonc.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -39,7 +40,11 @@ export class CopilotMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = this.fileContent !== undefined ? JSON.parse(this.fileContent) : {};
+    // JSONC, not JSON: `.vscode/mcp.json` is a file VS Code's own "MCP: Add
+    // Server" scaffold writes a comment into, and the gateway now preserves
+    // those comments on write-back, so this content can carry them.
+    this.json =
+      this.fileContent !== undefined ? (parseJsonc(this.fileContent) as CopilotMcpConfig) : {};
   }
 
   getJson(): CopilotMcpConfig {

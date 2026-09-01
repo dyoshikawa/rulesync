@@ -12,7 +12,7 @@ import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
   ensureDir,
-  listDirectoryFiles,
+  listDirectoryEntryNames,
   removeFile,
   writeFileContent,
 } from "../utils/file.js";
@@ -35,7 +35,7 @@ async function listSubagents(): Promise<
   const subagentsDir = join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
 
   try {
-    const files = await listDirectoryFiles(subagentsDir);
+    const files = await listDirectoryEntryNames(subagentsDir);
     const mdFiles = files.filter((file) => file.endsWith(".md"));
 
     const subagents = await Promise.all(

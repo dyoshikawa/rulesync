@@ -722,4 +722,26 @@ describe("doctorCommand", () => {
       expect.objectContaining({ errors: 1 }),
     );
   });
+
+  it("keeps the closing summary off the JSON document, where the counts already are", async () => {
+    const jsonLogger = { ...createMockLogger(), jsonMode: true };
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      JSON.stringify({
+        $schema: RULESYNC_CONFIG_SCHEMA_URL,
+        targets: ["claudecode"],
+        features: ["ignore"],
+      }),
+    );
+
+    await doctorCommand(jsonLogger, {});
+
+    // `warn` now reaches the `--json` document's `warnings` array, so a line
+    // that only restates `data.summary` would show up twice.
+    expect(jsonLogger.captureData).toHaveBeenCalledWith(
+      "summary",
+      expect.objectContaining({ warnings: 1 }),
+    );
+    expect(jsonLogger.warn).not.toHaveBeenCalled();
+  });
 });

@@ -110,6 +110,13 @@ type ToolSkillFactory = {
     getConfiguredImportRoots?(params: {
       outputRoot: string;
       global: boolean;
+      /**
+       * For reporting a root that was discovered but cannot be read. A root
+       * that simply is not there is not worth a word; one that a scan found and
+       * then had to drop is, because the skills in it are silently not
+       * imported.
+       */
+      logger?: Logger;
     }): Promise<Array<{ outputRoot: string; relativeDirPath: string }>>;
     /**
      * Optional content-aware ownership filter for tools whose skills directory
@@ -835,6 +842,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       ? await factory.class.getConfiguredImportRoots({
           outputRoot: this.outputRoot,
           global: this.global,
+          logger: this.logger,
         })
       : [];
     const configuredRootPaths = new Set(configuredRoots.map((root) => root.relativeDirPath));

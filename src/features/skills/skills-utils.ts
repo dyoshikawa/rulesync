@@ -5,6 +5,7 @@ import {
   CURATED_SKILLS_FEATURE_SUBDIR,
   SKILLS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
+import { containsPathSeparator } from "../../types/ai-dir.js";
 import {
   directoryExists,
   directoryExistsStrict,
@@ -21,10 +22,12 @@ import {
  * lets a directory be *created* with a backslash in its name, so such a
  * directory can sit in a skills root that nothing here can name — it is
  * reported rather than passed on, since the alternative is a candidate built
- * from a name that belongs to no directory at all.
+ * from a name that belongs to no directory at all. The test is `AiDir`'s own,
+ * so this pre-filter cannot come to accept a name the guard behind it throws
+ * over.
  */
 export function isAddressableSkillName(name: string): boolean {
-  return !name.includes("/") && !name.includes("\\");
+  return !containsPathSeparator(name);
 }
 
 /**

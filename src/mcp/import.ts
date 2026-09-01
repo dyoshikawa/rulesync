@@ -6,9 +6,9 @@ import { importFromTool, type ImportResult } from "../lib/import.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
-import { ConsoleLogger } from "../utils/logger.js";
+import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
-import { type McpResultCounts } from "./types.js";
+import { type McpResultCounts, type McpWarnings, warningsField } from "./types.js";
 
 /**
  * Schema for import options
@@ -38,45 +38,62 @@ export type McpImportResult = {
     global: boolean;
   };
   error?: string;
-};
+} & McpWarnings;
 
 /**
  * Execute the rulesync import command via MCP
  * Configuration priority: MCP Parameters > rulesync.local.jsonc > rulesync.jsonc > Default values
  */
 export async function executeImport(options: ImportOptions): Promise<McpImportResult> {
+  // Declared outside the `try` so a run that warns and then fails still reports
+  // what it warned about. A failed import that had already read a
+  // machine-local overrides file is exactly when the caller needs to hear it.
+  const logger = new WarningCollectingLogger({ verbose: false, silent: true });
+
   try {
-    // Validate target
-    if (!options.target) {
-      return {
-        success: false,
-        error: "target is required. Please specify a tool to import from.",
-      };
-    }
+    // The whole run adopts the shared fallback, config resolution included:
+    // warnings raised on paths that never received a logger would otherwise go
+    // to a stderr the calling agent cannot read, and the absence of a
+    // `warnings` key would read as "nothing was wrong". Resolution is inside
+    // rather than before it because that is where a config file's own
+    // contradictions are reported — `global: true` quietly downgraded to
+    // project scope changes where the run writes.
+    return await withFallbackLoggerTarget({
+      logger,
+      operation: async () => {
+        // Validate target
+        if (!options.target) {
+          return {
+            success: false,
+            error: "target is required. Please specify a tool to import from.",
+          };
+        }
 
-    // Resolve config with MCP parameters taking precedence
-    // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
-    // In MCP context, options act as CLI options (highest priority)
-    const config = await ConfigResolver.resolve({
-      targets: [options.target] as RulesyncTargets,
-      features: options.features as RulesyncFeatures | undefined,
-      global: options.global,
-      // Always use default outputRoots (process.cwd()) and configPath
-      // verbose and silent are meaningless in MCP context
-      verbose: false,
-      silent: true,
+        // Resolve config with MCP parameters taking precedence
+        // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
+        // In MCP context, options act as CLI options (highest priority)
+        const config = await ConfigResolver.resolve({
+          targets: [options.target] as RulesyncTargets,
+          features: options.features as RulesyncFeatures | undefined,
+          global: options.global,
+          // Always use default outputRoots (process.cwd()) and configPath
+          // verbose and silent are meaningless in MCP context
+          verbose: false,
+          silent: true,
+        });
+
+        const tool = config.getTargets()[0] as ToolTarget;
+
+        const importResult = await importFromTool({ config, tool, logger });
+
+        return buildSuccessResponse({ importResult, config, tool, logger });
+      },
     });
-
-    const tool = config.getTargets()[0] as ToolTarget;
-
-    const logger = new ConsoleLogger({ verbose: false, silent: true });
-    const importResult = await importFromTool({ config, tool, logger });
-
-    return buildSuccessResponse({ importResult, config, tool });
   } catch (error) {
     return {
       success: false,
       error: formatError(error),
+      ...warningsField(logger),
     };
   }
 }
@@ -85,8 +102,9 @@ function buildSuccessResponse(params: {
   importResult: ImportResult;
   config: Config;
   tool: ToolTarget;
+  logger: WarningCollectingLogger;
 }): McpImportResult {
-  const { importResult, config, tool } = params;
+  const { importResult, config, tool, logger } = params;
 
   const totalCount = calculateTotalCount(importResult);
 
@@ -109,6 +127,7 @@ function buildSuccessResponse(params: {
       features: config.getFeatures(),
       global: config.getGlobal(),
     },
+    ...warningsField(logger),
   };
 }
 
@@ -120,7 +139,7 @@ export const importTools = {
   executeImport: {
     name: "executeImport",
     description:
-      "Execute the rulesync import command to import configuration files from an AI tool into .rulesync directory. Requires exactly one target tool to import from.",
+      "Execute the rulesync import command to import configuration files from an AI tool into .rulesync directory. Requires exactly one target tool to import from. A 'warnings' array of strings is present, on success and on failure alike, when the run had something worth acting on to report.",
     parameters: importToolSchemas.executeImport,
     execute: async (options: ImportOptions): Promise<string> => {
       const result = await executeImport(options);

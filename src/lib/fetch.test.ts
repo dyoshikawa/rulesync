@@ -1,7 +1,7 @@
-import { link, lstat, symlink } from "node:fs/promises";
+import { chmod, link, lstat, symlink } from "node:fs/promises";
 import { join, posix } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -28,6 +28,47 @@ vi.mock("./skill-prompt.js", () => ({
   promptSkillSelection: promptSkillSelectionMock,
   isInteractiveTerminal: isInteractiveTerminalMock,
 }));
+
+const { directoryExistsMock } = vi.hoisted(() => ({
+  directoryExistsMock: vi.fn(),
+}));
+
+// Only `directoryExists` is stood in for, and only so a test can answer the one
+// question the filesystem under CI cannot: whether `skills/Deploy` resolves to
+// the `skills/deploy` that is already there. macOS and Windows say yes and
+// Linux says no, so the folding branch of `localSkillNamesToCompare` would
+// otherwise never run in this suite. Every other export stays the real one, and
+// the stand-in calls the real implementation unless a test says otherwise.
+vi.mock("../utils/file.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/file.js")>();
+  return { ...actual, directoryExists: directoryExistsMock };
+});
+
+const realDirectoryExists = (
+  await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js")
+).directoryExists;
+
+directoryExistsMock.mockImplementation(realDirectoryExists);
+
+/**
+ * Makes `directoryExists` answer `folds` for `path` and the truth for
+ * everything else, so that a test can put the fetch on a filesystem that folds
+ * a spelling onto a directory it already holds — or on one that does not.
+ *
+ * Both directions are pinned rather than only the folding one, because the
+ * volume the suite runs on is not known to be either: a case-sensitive checkout
+ * and a case-insensitive one both happen, and a test that read the real answer
+ * would assert something different on each.
+ */
+function mockCaseFoldedLookup(params: { path: string; folds: boolean }): void {
+  const { path, folds } = params;
+  directoryExistsMock.mockImplementation(async (candidate: string) =>
+    candidate === path ? folds : realDirectoryExists(candidate),
+  );
+  onTestFinished(() => {
+    directoryExistsMock.mockImplementation(realDirectoryExists);
+  });
+}
 
 vi.mock("./github-client.js", () => ({
   GitHubClient: class MockGitHubClient {
@@ -1391,6 +1432,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     expect(summary.files).toEqual([{ relativePath: "skills/skill-b/SKILL.md", status: "created" }]);
   });
@@ -1410,6 +1452,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: ["skill-a"],
+      localSkillNames: [],
     });
   });
 
@@ -1467,6 +1510,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     const relativePaths = summary.files.map((f) => f.relativePath).toSorted();
     expect(relativePaths).toEqual(["skills/README.md", "skills/skill-a/SKILL.md"]);
@@ -1488,6 +1532,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     expect(summary.files).toEqual([]);
     // Nothing is left of the name to print, so the warning says so rather than
@@ -1539,6 +1584,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
     expect(summary.files.map((f) => f.relativePath)).toEqual(["skills/skill-a/SKILL.md"]);
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"pdf"'));
@@ -1581,6 +1627,29 @@ describe("fetchFiles with skill selection", () => {
       "skills/skill-a/SKILL.md",
       "skills/skill-b/SKILL.md",
       `skills/${persianName}/SKILL.md`,
+    ]);
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("hidden characters"));
+  });
+
+  it("should fetch a name that is an emoji keycap", async () => {
+    // U+0031 U+FE0F U+20E3: the digit, the variation selector that asks for its
+    // emoji form, and the enclosing keycap that draws the box. The base is a
+    // digit rather than a pictograph, so nothing but the shape of the whole
+    // sequence tells this from a name padded with a variation selector.
+    const keycapName = "1\ufe0f\u20e3";
+    mockSkillRepositoryWithSkills([keycapName]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((f) => f.relativePath).toSorted()).toEqual([
+      `skills/${keycapName}/SKILL.md`,
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
     ]);
     expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("hidden characters"));
   });
@@ -1691,6 +1760,25 @@ describe("fetchFiles with skill selection", () => {
     );
   });
 
+  it("should say when a fetched name reaches past the row it is drawn on", async () => {
+    // Nothing else on the list shares its display form, so the padding is only
+    // reported by the note the name carries on its own \u2014 and a run with no
+    // prompt has nowhere but the warning to be told.
+    mockSkillRepositoryWithSkills(["pdf "]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath)).toContain("skills/pdf /SKILL.md");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("carries more whitespace than the row shows"),
+    );
+  });
+
   it("should judge a --skills run against every name the repository publishes", async () => {
     // The user asks for one of the two by name, as a scripted run does. The
     // twin is what makes the requested name confusable, and it is not on the
@@ -1716,6 +1804,184 @@ describe("fetchFiles with skill selection", () => {
     // not itself a name the user has to check.
     expect(warning).toContain('"c0py"');
     expect(warning).not.toContain('"copy"');
+  });
+
+  it("should judge a fetched name against the skills already in the output directory", async () => {
+    // The attack the remote listing cannot show: the repository publishes only
+    // the imitation, so there is no twin beside it to compare, and the name is
+    // plain ASCII in one script. What it reads like is a skill the user has
+    // had all along.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockSkillRepositoryWithSkills(["dep1oy"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath)).toContain("skills/dep1oy/SKILL.md");
+    const warning = logger.warn.mock.calls
+      .map(([message]) => String(message))
+      .find((message) => message.includes("may not be told apart on sight"));
+    expect(warning).toContain("a local skill differs from it only by lookalike letters");
+    expect(warning).toContain('"dep1oy"');
+  });
+
+  it("should not mark a fetched name against the local skill of the same name", async () => {
+    // The ordinary case: fetching the same repository a second time refreshes
+    // the skills it wrote the first time. Every row would carry a note if a
+    // local name spelled exactly like a remote one counted as a collision.
+    await ensureDir(join(testDir, ".rulesync", "skills", "skill-a"));
+    mockMultiSkillRepository();
+
+    await fetchFiles({ logger, source: "owner/repo", options: {}, outputRoot: testDir });
+
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("may not be told apart on sight"),
+    );
+  });
+
+  it("should pass the local skill names to the interactive prompt", async () => {
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
+  it("should drop a local skill a case variant on the list would be written into", async () => {
+    // Whether `Deploy` is a second directory or another way of spelling the one
+    // that is already there is the filesystem's answer to give, not the
+    // listing's: macOS and Windows fold the pair, Linux does not. Here it folds.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockCaseFoldedLookup({ path: join(testDir, ".rulesync", "skills", "Deploy"), folds: true });
+    mockSkillRepositoryWithSkills(["Deploy"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["Deploy", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
+  });
+
+  it("should keep a local skill a case variant on the list is a second directory from", async () => {
+    // The same pair on a filesystem that keeps them apart: two directories, so
+    // the local one still has something to say about the names on offer.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockCaseFoldedLookup({ path: join(testDir, ".rulesync", "skills", "Deploy"), folds: false });
+    mockSkillRepositoryWithSkills(["Deploy"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["Deploy", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
+  it("should keep a local skill a second entry imitates even where the first folds onto it", async () => {
+    // `api` is the local `API` under another spelling on a folding filesystem,
+    // but it does not read like it: `API` reads as `APl`, which is what `AP1`
+    // imitates. Dropping the local name for the refresh would take the only
+    // name that mark is made against off the comparison.
+    await ensureDir(join(testDir, ".rulesync", "skills", "API"));
+    mockCaseFoldedLookup({ path: join(testDir, ".rulesync", "skills", "api"), folds: true });
+    mockSkillRepositoryWithSkills(["api", "AP1"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["AP1", "api", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["API"],
+    });
+  });
+
+  it("should keep comparing against a local skill the listing does not name", async () => {
+    // Only the ambiguous pairs are asked about. A local skill with no
+    // case-folded twin on the list is compared against whatever the list holds.
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockSkillRepositoryWithSkills(["dep1oy"]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["dep1oy", "skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
+  it("should count a local skill kept as a symlink", async () => {
+    // A skill linked into a shared tree is a skill the user has: `readdir`
+    // reports the link rather than the directory behind it, so a filter that
+    // asked only for directories would turn the comparison off for anyone who
+    // arranges their skills this way.
+    const shared = join(testDir, "shared-skills", "deploy");
+    await ensureDir(shared);
+    await ensureDir(join(testDir, ".rulesync", "skills"));
+    await symlink(shared, join(testDir, ".rulesync", "skills", "deploy"), "dir");
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
   });
 
   it("should count the lookalike names it does not spell out", async () => {
@@ -1762,6 +2028,26 @@ describe("fetchFiles with skill selection", () => {
     ).rejects.toThrow('Unknown skill(s): "no-such-skill"');
   });
 
+  it("should read the local skill names in the tool-target conversion flow too", async () => {
+    await ensureDir(join(testDir, ".rulesync", "skills", "deploy"));
+    mockMultiSkillRepository();
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue([]);
+
+    await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { target: "claudecode", interactive: true },
+      outputRoot: testDir,
+    });
+
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: ["deploy"],
+    });
+  });
+
   it("should apply the interactive selection in the tool-target conversion flow too", async () => {
     mockMultiSkillRepository();
     isInteractiveTerminalMock.mockReturnValue(true);
@@ -1777,6 +2063,7 @@ describe("fetchFiles with skill selection", () => {
     expect(promptSkillSelectionMock).toHaveBeenCalledWith({
       availableSkills: ["skill-a", "skill-b"],
       preselectedSkills: [],
+      localSkillNames: [],
     });
   });
 
@@ -2317,6 +2604,47 @@ describe("fetchFiles skill pruning", () => {
     mockClientInstance.getFileContent.mockResolvedValue("# Skill");
   }
 
+  /**
+   * A repository with a single skill of the given name, whose only file is
+   * SKILL.md. The tests that pin how a remote skill name is read back differ
+   * only in that name.
+   */
+  function mockSingleSkillRepository(name: string): void {
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name,
+              path: `skills/${name}`,
+              type: "dir",
+              sha: "aaa",
+              size: 0,
+              download_url: null,
+            },
+          ]);
+        }
+        if (path === `skills/${name}`) {
+          return Promise.resolve([
+            {
+              name: "SKILL.md",
+              path: `skills/${name}/SKILL.md`,
+              type: "file",
+              sha: "bbb",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+  }
+
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
     vi.spyOn(process, "cwd").mockReturnValue(testDir);
@@ -2496,38 +2824,7 @@ describe("fetchFiles skill pruning", () => {
     // `skills/.\evil/SKILL.md` is written as a directory literally called
     // `.\evil`, but reads back as the skill `.`, whose directory is the whole
     // of `skills/` — so the prune would empty every skill on disk.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: ".\\evil",
-              path: "skills/.\\evil",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/.\\evil") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/.\\evil/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository(".\\evil");
     const mine = join(skillsRoot, "alpha", "SKILL.md");
     await writeFileContent(mine, "# Mine");
 
@@ -2541,38 +2838,7 @@ describe("fetchFiles skill pruning", () => {
   it("should skip a remote path whose backslash targets another skill", async () => {
     // `skills/victim\evil/` is written as its own directory, but reads back as
     // the skill `victim`, whose local directory this run never wrote.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "victim\\evil",
-              path: "skills/victim\\evil",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/victim\\evil") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/victim\\evil/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("victim\\evil");
     const victim = join(skillsRoot, "victim", "notes.md");
     await writeFileContent(victim, "# Mine");
 
@@ -2588,38 +2854,7 @@ describe("fetchFiles skill pruning", () => {
     // another spelling of `pdf`, so the fetch would write into the user's own
     // `pdf` skill while the prune, which compares names, treats it as a skill
     // this run never wrote.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "pdf::$INDEX_ALLOCATION",
-              path: "skills/pdf::$INDEX_ALLOCATION",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/pdf::$INDEX_ALLOCATION") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/pdf::$INDEX_ALLOCATION/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("pdf::$INDEX_ALLOCATION");
     const victim = join(skillsRoot, "pdf", "notes.md");
     await writeFileContent(victim, "# Mine");
 
@@ -2800,38 +3035,7 @@ describe("fetchFiles skill pruning", () => {
   it("should not prune a skill directory named like a Windows short name", async () => {
     // `REPORT~1` opens whatever long name it stands for on a volume that
     // generates short names, so it may not be the directory it reads as.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "REPORT~1",
-              path: "skills/REPORT~1",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/REPORT~1") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/REPORT~1/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("REPORT~1");
     const stale = join(skillsRoot, "REPORT~1", "reference.md");
     await writeFileContent(stale, "# Stale");
 
@@ -2844,42 +3048,65 @@ describe("fetchFiles skill pruning", () => {
     );
   });
 
+  it("should quote the name it names in a prune warning", async () => {
+    // The name is a sentence of the remote's choosing, and it ends in a dot, so
+    // it reaches the warning through the guard above. Quoted, the sentence is
+    // plainly part of the name; spliced in bare it would read as the start of
+    // the warning itself.
+    const forged = "docs. Nothing was skipped.";
+    mockSingleSkillRepository(forged);
+    await writeFileContent(join(skillsRoot, forged, "reference.md"), "# Stale");
+
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+    expect(summary.deleted).toBe(0);
+    expect(await fileExists(join(skillsRoot, forged, "reference.md"))).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `Not pruning ${JSON.stringify(`skills/${forged}`)}: its name is one some systems resolve`,
+      ),
+    );
+  });
+
+  // Root ignores the permission bits the failure is staged with, and Windows
+  // does not have them.
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "should quote the name when a prune stops partway through",
+    async () => {
+      // The name is a sentence about what was deleted, which is the very thing
+      // this warning reports, and the error text follows it. Quoted, the
+      // sentence is plainly part of the name.
+      const forged = "docs. Everything was deleted";
+      mockSingleSkillRepository(forged);
+      // The stale file sits in a directory the prune may read but not delete
+      // from, so the walk reaches it and the removal fails. The skill root
+      // itself stays writable, since the fetch writes into it before pruning.
+      const staleDir = join(skillsRoot, forged, "reference");
+      await writeFileContent(join(staleDir, "stale.md"), "# Stale");
+      await chmod(staleDir, 0o500);
+      // Registered with the runner rather than left to a `finally`, so the mode
+      // is put back even if this test is cut short before its body ends.
+      onTestFinished(async () => {
+        await chmod(staleDir, 0o700);
+      });
+
+      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+
+      expect(summary.deleted).toBe(0);
+      expect(await fileExists(join(staleDir, "stale.md"))).toBe(true);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Stopped partway through pruning ${JSON.stringify(`skills/${forged}`)}.`,
+        ),
+      );
+    },
+  );
+
   it("should not prune a skill directory a local one differs from only in case", async () => {
     // macOS and Windows resolve `skills/PDF` to the existing `skills/pdf`, so
     // the write lands in the local skill's own directory and a prune of it
     // would judge that skill's files stale.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "PDF",
-              path: "skills/PDF",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/PDF") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/PDF/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("PDF");
     const localFile = join(skillsRoot, "pdf", "SKILL.md");
     await writeFileContent(localFile, "# Local skill");
 
@@ -2888,7 +3115,9 @@ describe("fetchFiles skill pruning", () => {
     expect(summary.deleted).toBe(0);
     expect(await fileExists(localFile)).toBe(true);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("differs only in ways some filesystems ignore"),
+      // The sibling this one is confused with is a name from the same place, so
+      // it is quoted like any other.
+      expect.stringContaining(`${JSON.stringify("skills/pdf")} is also there and differs only`),
     );
   });
 
@@ -2898,38 +3127,7 @@ describe("fetchFiles skill pruning", () => {
     // composed letter, exactly as a case variant would.
     const composed = "caf\u00e9";
     const decomposed = "cafe\u0301";
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: decomposed,
-              path: `skills/${decomposed}`,
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === `skills/${decomposed}`) {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: `skills/${decomposed}/SKILL.md`,
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository(decomposed);
     const localFile = join(skillsRoot, composed, "SKILL.md");
     await writeFileContent(localFile, "# Local skill");
 
@@ -2945,38 +3143,7 @@ describe("fetchFiles skill pruning", () => {
   it("should prune a skill directory whose name only contains a tilde", async () => {
     // `~2` in the middle of a name is not the short-name shape, so the guard
     // above it must not claim this directory.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "data~2parser",
-              path: "skills/data~2parser",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/data~2parser") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/data~2parser/SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("data~2parser");
     const stale = join(skillsRoot, "data~2parser", "reference.md");
     await writeFileContent(stale, "# Stale");
 
@@ -2989,38 +3156,7 @@ describe("fetchFiles skill pruning", () => {
   it("should not prune a skill directory whose name ends in a dot", async () => {
     // Windows resolves `skills/dotted.` to `skills/dotted`, so the prune would
     // empty one directory while the summary named another.
-    mockClientInstance.listDirectory.mockImplementation(
-      (_owner: string, _repo: string, path: string) => {
-        if (path === "skills") {
-          return Promise.resolve([
-            {
-              name: "dotted.",
-              path: "skills/dotted.",
-              type: "dir",
-              sha: "aaa",
-              size: 0,
-              download_url: null,
-            },
-          ]);
-        }
-        if (path === "skills/dotted.") {
-          return Promise.resolve([
-            {
-              name: "SKILL.md",
-              path: "skills/dotted./SKILL.md",
-              type: "file",
-              sha: "bbb",
-              size: 100,
-              download_url: "https://example.com",
-            },
-          ]);
-        }
-        const error = new Error("Not found");
-        Object.assign(error, { statusCode: 404 });
-        return Promise.reject(error);
-      },
-    );
-    mockClientInstance.getFileContent.mockResolvedValue("# Skill");
+    mockSingleSkillRepository("dotted.");
     const stale = join(skillsRoot, "dotted.", "reference.md");
     await writeFileContent(stale, "# Stale");
 

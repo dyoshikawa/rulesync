@@ -18,6 +18,7 @@ export function createMockLogger(): MockLogger {
     debug: vi.fn(),
     verbose: false,
     silent: false,
+    reportsWhileSilent: false,
     jsonMode: false,
     captureData: vi.fn(),
     getJsonData: vi.fn().mockReturnValue({}),
