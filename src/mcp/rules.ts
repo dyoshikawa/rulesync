@@ -17,12 +17,45 @@ import {
   removeFile,
   writeFileContent,
 } from "../utils/file.js";
-import { ConsoleLogger } from "../utils/logger.js";
+import { ConsoleLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
 
 const maxRuleSizeBytes = 1024 * 1024; // 1MB
 const maxRulesCount = 1000;
+
+/**
+ * The rule tools return `getAuthoredFrontmatter()`, the frontmatter as the
+ * file states it, rather than `getFrontmatter()`, where
+ * `agentsmd.subprojectPath: "auto"` has been resolved to a directory or
+ * dropped. An agent edits the file, not its placement: a `get` → edit → `put`
+ * round trip over the resolved view would hardcode the derived directory or
+ * lose the request, and `put` would answer with a frontmatter different from
+ * the one it just wrote.
+ */
+function authoredFrontmatterOf({ rule }: { rule: RulesyncRule }): RulesyncRuleFrontmatter {
+  return rule.getAuthoredFrontmatter();
+}
+
+/**
+ * Run `operation` with the module's silent logger adopted as the fallback.
+ *
+ * Constructing a `RulesyncRule` can warn — an `agentsmd.subprojectPath: "auto"`
+ * that no directory can be derived for, or one on a root rule — through the
+ * shared fallback logger, which outside any scope is the server's stderr: a
+ * console the calling agent cannot read, and one `docs/reference/mcp-server.md`
+ * promises `list` / `get` / `put` never write to. The silent logger makes
+ * `warnOnceWithFallback` return before it claims the once-per-run token, so
+ * the next `generate` to read the same file, through a logger that does
+ * report, still says what is wrong with it.
+ */
+async function withoutConsoleWarnings<T>({
+  operation,
+}: {
+  operation: () => Promise<T>;
+}): Promise<T> {
+  return await withFallbackLoggerTarget({ logger, operation });
+}
 
 /**
  * Tool to list all rules from .rulesync/rules/*.md
@@ -39,27 +72,28 @@ async function listRules(): Promise<
     const files = await listDirectoryEntryNames(rulesDir);
     const mdFiles = files.filter((file) => file.endsWith(".md"));
 
-    const rules = await Promise.all(
-      mdFiles.map(async (file) => {
-        try {
-          // Read the rule file using RulesyncRule
-          const rule = await RulesyncRule.fromFile({
-            relativeFilePath: file,
-            validate: true,
-          });
+    const rules = await withoutConsoleWarnings({
+      operation: async () =>
+        await Promise.all(
+          mdFiles.map(async (file) => {
+            try {
+              // Read the rule file using RulesyncRule
+              const rule = await RulesyncRule.fromFile({
+                relativeFilePath: file,
+                validate: true,
+              });
 
-          const frontmatter = rule.getFrontmatter();
-
-          return {
-            relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, file),
-            frontmatter,
-          };
-        } catch (error) {
-          logger.error(`Failed to read rule file ${file}: ${formatError(error)}`);
-          return null;
-        }
-      }),
-    );
+              return {
+                relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, file),
+                frontmatter: authoredFrontmatterOf({ rule }),
+              };
+            } catch (error) {
+              logger.error(`Failed to read rule file ${file}: ${formatError(error)}`);
+              return null;
+            }
+          }),
+        ),
+    });
 
     // Filter out null values (failed reads)
     return rules.filter((rule): rule is NonNullable<typeof rule> => rule !== null);
@@ -87,14 +121,17 @@ async function getRule({ relativePathFromCwd }: { relativePathFromCwd: string })
   const filename = basename(relativePathFromCwd);
 
   try {
-    const rule = await RulesyncRule.fromFile({
-      relativeFilePath: filename,
-      validate: true,
+    const rule = await withoutConsoleWarnings({
+      operation: async () =>
+        await RulesyncRule.fromFile({
+          relativeFilePath: filename,
+          validate: true,
+        }),
     });
 
     return {
       relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, filename),
-      frontmatter: rule.getFrontmatter(),
+      frontmatter: authoredFrontmatterOf({ rule }),
       body: rule.getBody(),
     };
   } catch (error) {
@@ -149,13 +186,16 @@ async function putRule({
     }
 
     // Create a new RulesyncRule instance
-    const rule = new RulesyncRule({
-      outputRoot: process.cwd(),
-      relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-      relativeFilePath: filename,
-      frontmatter,
-      body,
-      validate: true,
+    const rule = await withoutConsoleWarnings({
+      operation: async () =>
+        new RulesyncRule({
+          outputRoot: process.cwd(),
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: filename,
+          frontmatter,
+          body,
+          validate: true,
+        }),
     });
 
     // Ensure directory exists
@@ -167,7 +207,7 @@ async function putRule({
 
     return {
       relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, filename),
-      frontmatter: rule.getFrontmatter(),
+      frontmatter: authoredFrontmatterOf({ rule }),
       body: rule.getBody(),
     };
   } catch (error) {

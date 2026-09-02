@@ -122,6 +122,14 @@ export const ConfigParamsSchema = z.object({
   simulateCommands: optional(z.boolean()),
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
+  // Derive `agentsmd.subprojectPath` from each non-root rule's `globs`
+  // (`["packages/api/**/*"]` → `packages/api`) so the rule is written as
+  // `packages/api/AGENTS.md` by the targets that nest. Off by default: turning
+  // it on moves existing `.agents/memories/*.md` outputs. An explicit
+  // `agentsmd.subprojectPath` always wins; `"auto"` on a rule opts that rule in
+  // regardless of this option and `""` opts it out. A rule this option cannot
+  // derive a directory for keeps its default placement without a warning.
+  deriveSubprojectPathFromGlobs: optional(z.boolean()),
   flattenedCommandNaming: optional(FlattenedCommandNamingSchema),
   gitignoreTargetsOnly: optional(z.boolean()),
   gitignoreDestination: optional(GitignoreDestinationSchema),
@@ -411,6 +419,7 @@ export class Config {
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
+  private readonly deriveSubprojectPathFromGlobs: boolean;
   private readonly flattenedCommandNaming: FlattenedCommandNaming;
   private readonly gitignoreTargetsOnly: boolean;
   private readonly gitignoreDestination: GitignoreDestination;
@@ -447,6 +456,7 @@ export class Config {
     simulateCommands,
     simulateSubagents,
     simulateSkills,
+    deriveSubprojectPathFromGlobs,
     flattenedCommandNaming,
     gitignoreTargetsOnly,
     gitignoreDestination,
@@ -508,6 +518,7 @@ export class Config {
     this.simulateCommands = simulateCommands ?? false;
     this.simulateSubagents = simulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
+    this.deriveSubprojectPathFromGlobs = deriveSubprojectPathFromGlobs ?? false;
     this.flattenedCommandNaming = flattenedCommandNaming ?? "basename";
     this.gitignoreTargetsOnly = gitignoreTargetsOnly ?? true;
     this.gitignoreDestination = gitignoreDestination ?? "gitignore";
@@ -812,6 +823,10 @@ export class Config {
 
   public getSimulateSkills(): boolean {
     return this.simulateSkills;
+  }
+
+  public getDeriveSubprojectPathFromGlobs(): boolean {
+    return this.deriveSubprojectPathFromGlobs;
   }
 
   public getGitignoreTargetsOnly(): boolean {
