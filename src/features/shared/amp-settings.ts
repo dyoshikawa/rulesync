@@ -1,5 +1,5 @@
 import { formatError } from "../../utils/error.js";
-import { parseJsoncReportingDroppedKeys } from "../../utils/jsonc.js";
+import { parseJsonc } from "../../utils/jsonc.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 
 /**
@@ -11,11 +11,18 @@ import { isPlainObject } from "../../utils/type-guards.js";
  * which left it importing MCP servers reachable only through an injected
  * `__proto__`.
  *
- * The parse is the strict, sanitizing one: it throws on any syntax error
- * instead of returning `jsonc-parser`'s best-effort value, and it rebuilds
- * every object from its own enumerable entries, so a root `__proto__` cannot
- * swap the returned object's prototype and `constructor` / `prototype` never
- * survive as own keys.
+ * {@link parseJsonc} is the strict, sanitizing parser: it throws on any syntax
+ * error instead of returning `jsonc-parser`'s best-effort value, and it
+ * rebuilds every object from its own enumerable entries, so a root `__proto__`
+ * cannot swap the returned object's prototype and `constructor` / `prototype`
+ * never survive as own keys, at any depth.
+ *
+ * Removal is silent, matching every other tool-side adapter (opencode, kilo,
+ * copilot). Reporting the removed keys through `droppedPollutionKeysError` is
+ * reserved for the three files a user authors under `.rulesync/`, whose whole
+ * purpose is to be turned into tool config — a key that vanishes there needs
+ * explaining, whereas here the surrounding settings are the user's own file
+ * and are left alone.
  *
  * Note the consequence for a root `__proto__`: sanitizing runs before the
  * plain-object check, so such a document parses successfully with the key
@@ -28,27 +35,9 @@ export function parseAmpSettings({
 }: {
   fileContent: string;
 }): Record<string, unknown> {
-  return parseAmpSettingsReportingDroppedKeys({ fileContent }).json;
-}
-
-/**
- * The same parse as {@link parseAmpSettings}, additionally reporting the dotted
- * paths of the prototype-pollution keys it removed.
- *
- * Sanitizing is what makes those keys unobservable in the parsed value, so an
- * adapter that wants to fail loudly on a poisoned settings file has to be told
- * separately. Reporting them beats the own-key scan this replaced, which could
- * never see a `__proto__` — the engine turns it into a prototype swap rather
- * than an own property, so only the source text still knows it was written.
- */
-export function parseAmpSettingsReportingDroppedKeys({ fileContent }: { fileContent: string }): {
-  json: Record<string, unknown>;
-  droppedKeys: string[];
-} {
-  let value: unknown;
-  let droppedKeys: string[];
+  let parsed: unknown;
   try {
-    ({ value, droppedKeys } = parseJsoncReportingDroppedKeys({ content: fileContent || "{}" }));
+    parsed = parseJsonc(fileContent || "{}");
   } catch (error) {
     throw new Error(`Failed to parse Amp settings: ${formatError(error)}`, { cause: error });
   }
@@ -56,9 +45,9 @@ export function parseAmpSettingsReportingDroppedKeys({ fileContent }: { fileCont
   // `isPlainObject` (not `isRecord`) also rejects class instances. The parser
   // cannot produce one today, so this is the layer that pins the contract for
   // callers rather than a second line of defense against the parser.
-  if (!isPlainObject(value)) {
+  if (!isPlainObject(parsed)) {
     throw new Error("Amp settings must be a JSON object");
   }
 
-  return { json: value, droppedKeys };
+  return parsed;
 }

@@ -8,10 +8,9 @@ import {
 } from "../../constants/amp-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { droppedPollutionKeysError } from "../../utils/jsonc.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
-import { parseAmpSettings, parseAmpSettingsReportingDroppedKeys } from "../shared/amp-settings.js";
+import { parseAmpSettings } from "../shared/amp-settings.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -160,24 +159,20 @@ export class AmpMcp extends ToolMcp {
   validate(): ValidationResult {
     // Re-parsed rather than read off `this.json`: the base constructor runs
     // `validate()` before this subclass's fields are assigned.
-    //
-    // Pollution keys are reported by the parser rather than scanned for
-    // afterwards, because it already removed them at every depth -- no
-    // `Object.keys` walk over the parsed value could still find one. Reporting
-    // is also the only way `__proto__` is ever caught: it never becomes an own
-    // key, so the scan this replaced saw straight past it.
-    const { json, droppedKeys } = parseAmpSettingsReportingDroppedKeys({
-      fileContent: this.fileContent,
-    });
-    if (droppedKeys.length > 0) {
+    let json: Record<string, unknown>;
+    try {
+      json = parseAmpSettings({ fileContent: this.fileContent });
+    } catch (error) {
       return {
         success: false,
-        error: droppedPollutionKeysError({
-          sourcePath: this.getRelativePathFromCwd(),
-          droppedKeys,
-        }),
+        error: error instanceof Error ? error : new Error(String(error)),
       };
     }
+
+    // No prototype-pollution scan here. The parser strips those keys at every
+    // depth before this sees the document, so an `Object.keys` walk could only
+    // ever find nothing -- and it could never have found a `__proto__` anyway,
+    // which swaps the prototype instead of becoming an own key.
 
     // Validate amp.mcpServers if present. Server-config fields (`type`, etc.)
     // are intentionally accepted as-is: Amp evolves its transport list
