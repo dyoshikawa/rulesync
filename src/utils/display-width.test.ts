@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { displayWidthOf, shortenToWidth } from "./display-width.js";
+import { ELLIPSIS_WIDTH, displayWidthOf, shortenToWidth } from "./display-width.js";
 
 describe("displayWidthOf", () => {
   it.each([
@@ -60,6 +60,42 @@ describe("displayWidthOf", () => {
     expect(displayWidthOf(character)).toBe(2);
   });
 
+  // The East Asian Ambiguous class is drawn at one column under a Latin font
+  // and at two in a terminal set to draw it wide, which is a common setting in
+  // CJK locales. Counted at two: overstating a width shortens a label that did
+  // not need it, while understating one lets the terminal break the row onto a
+  // continuation line that carries no pointer and no checkbox.
+  it.each([
+    ["a box-drawing character", "─"],
+    ["a black circle", "●"],
+    ["a Greek letter", "α"],
+    ["an accented letter from the Latin-1 supplement", "é"],
+    ["an em dash", "—"],
+    ["the ellipsis", "…"],
+  ])(
+    "should count %s at the two columns a wide-ambiguous terminal draws",
+    (_description, character) => {
+      expect(displayWidthOf(character)).toBe(2);
+    },
+  );
+
+  // The Neutral class is drawn at one column whatever the terminal is set to,
+  // so it stays at one: these are the glyphs the prompt's own prefix is drawn
+  // with, and they are not what an attacker can pad a name with.
+  it.each([
+    ["the fisheye, the checked box of the prompt", "◉"],
+    ["the heavy right-pointing angle, the prompt's pointer", "❯"],
+  ])("should count %s at one column", (_description, character) => {
+    expect(displayWidthOf(character)).toBe(1);
+  });
+
+  it("should not hand a name a budget it fills with box-drawing characters", () => {
+    // 60 box-drawing characters and `● pdf-tools`: 71 columns under a Latin
+    // font, inside a 72-column budget, and 132 where the ambiguous class is
+    // drawn wide, which wraps `● pdf-tools` onto a row of its own.
+    expect(displayWidthOf(`${"─".repeat(60)}● pdf-tools`)).toBe(132);
+  });
+
   // The joiners draw as nothing and are counted as something, because the
   // renderer counts them and they are the only invisible characters a name that
   // reaches the prompt is allowed to carry.
@@ -82,16 +118,16 @@ describe("shortenToWidth", () => {
   });
 
   it("should keep the ellipsis inside the budget", () => {
-    expect(shortenToWidth({ text: "abcdef", budget: 4 })).toBe("abc…");
+    expect(shortenToWidth({ text: "abcdef", budget: 5 })).toBe("abc…");
   });
 
   it("should count wide characters as the two columns they occupy", () => {
-    // Four ideographs are eight columns; a budget of five leaves room for two
-    // of them plus the ellipsis.
-    const result = shortenToWidth({ text: "設定設定", budget: 5 });
+    // Four ideographs are eight columns; a budget of six leaves room for two
+    // of them plus the two-column ellipsis.
+    const result = shortenToWidth({ text: "設定設定", budget: 6 });
 
     expect(result).toBe("設定…");
-    expect(displayWidthOf(result)).toBeLessThanOrEqual(5);
+    expect(displayWidthOf(result)).toBeLessThanOrEqual(6);
   });
 
   it("should not split a wide character across the budget", () => {
@@ -111,5 +147,15 @@ describe("shortenToWidth", () => {
 
   it("should still mark the cut when nothing fits", () => {
     expect(shortenToWidth({ text: "abc", budget: 0 })).toBe("…");
+  });
+
+  it("should pay for the ellipsis at the two columns it is measured at", () => {
+    // The ellipsis is East Asian Ambiguous itself, so a cut string keeps one
+    // character fewer than a one-column mark would have let it keep.
+    expect(ELLIPSIS_WIDTH).toBe(2);
+    const result = shortenToWidth({ text: "abcdef", budget: 4 });
+
+    expect(result).toBe("ab…");
+    expect(displayWidthOf(result)).toBe(4);
   });
 });

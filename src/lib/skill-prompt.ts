@@ -62,9 +62,11 @@ const MAX_SKILL_LABEL_WIDTH = 72;
  * `( )` where it does not — the Linux console, and the older Windows console
  * outside Terminal — and the fallback box alone is three columns, for five in
  * all. The Unicode spelling comes to four at its widest: of the three glyphs
- * only `◯` is East Asian Ambiguous, which this project counts at one column and
- * a terminal set to draw the ambiguous characters wide draws at two, while the
- * pointer `❯` and the checked box `◉` are Neutral and stay at one either way.
+ * only `◯` is East Asian Ambiguous, which a terminal set to draw the ambiguous
+ * characters wide draws at two columns — and which `displayWidthOf` counts at
+ * two for the same reason, so the four is what measuring the prefix with it
+ * would give — while the pointer `❯` and the checked box `◉` are Neutral and
+ * stay at one either way.
  *
  * Five, then, because a budget two columns short is a row that wraps, and two
  * columns spent on a prefix that turned out to be narrower is two characters of
@@ -170,7 +172,12 @@ function skillLabelBudget(): number {
 /** Marks the label as carrying the tool's own warning rather than a name. */
 const NOTE_MARKER = "[!] ";
 
-/** Separates the note from the name; an em dash appears in no directory name. */
+/**
+ * Separates the note from the name; an em dash appears in no directory name.
+ * Measured with `displayWidthOf` wherever it is budgeted for rather than taken
+ * as three columns: the dash is East Asian Ambiguous, and a terminal that draws
+ * the class wide draws it at two.
+ */
 const NOTE_SEPARATOR = " \u2014 ";
 
 /**
