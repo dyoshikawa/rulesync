@@ -12,6 +12,7 @@ import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import {
   applyPermissions,
   CLAUDE_SETTINGS_SHARED_FILE_KEY,
+  serializeSharedConfigFile,
   SHARED_CONFIG_OWNERSHIP,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -629,15 +630,15 @@ const CLAUDECODE_FEATURE_OWNED_SETTINGS_KEYS: readonly string[] = Object.entries
  * passthrough must not carry. `permissions` and `sandbox` have their own merge
  * branches (the managed `allow`/`ask`/`deny` arrays and the scope filtering
  * respectively), `permission` is rulesync's own canonical tool-scoped block
- * rather than a settings key, `$schema` is an editor pointer rather than a
- * Claude Code setting, and the rest belong to the other features writing this
- * shared file.
+ * rather than a settings key, the keys the gateway ensures on the file
+ * (`$schema`) are editor pointers rather than Claude Code settings, and the
+ * rest belong to the other features writing this shared file.
  */
 const CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS: ReadonlySet<string> = new Set([
   "permission",
   "permissions",
   "sandbox",
-  "$schema",
+  ...Object.keys(SHARED_CONFIG_OWNERSHIP[CLAUDE_SETTINGS_SHARED_FILE_KEY]?.ensuredKeys ?? {}),
   ...CLAUDECODE_FEATURE_OWNED_SETTINGS_KEYS,
 ]);
 
@@ -1142,7 +1143,11 @@ export class ClaudecodePermissions extends ToolPermissions {
       deny,
       logger,
     });
-    const fileContent = JSON.stringify(merged, null, 2);
+    const fileContent = serializeSharedConfigFile({
+      fileKey: CLAUDE_SETTINGS_SHARED_FILE_KEY,
+      document: merged,
+      existingContent,
+    });
 
     return new ClaudecodePermissions({
       outputRoot,

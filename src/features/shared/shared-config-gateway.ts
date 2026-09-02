@@ -17,6 +17,7 @@ import {
 } from "jsonc-parser";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
+import { CLAUDECODE_SETTINGS_SCHEMA_URL } from "../../constants/claudecode-paths.js";
 import { CODEXCLI_OVERRIDE_KEYS } from "../../constants/codexcli-paths.js";
 import {
   TAKT_WORKFLOW_MCP_SERVERS_KEY,
@@ -480,7 +481,8 @@ function notesAt({ text, from }: { text: string; from: number }): { start: numbe
 /**
  * Detach the notes written at the point where the object at `path` will take a
  * new key: after its last property (and around the comma a trailing-comma file
- * spells there), or just inside the `{` when it has no properties yet.
+ * spells there), or just inside the `{` when it has no properties yet or when
+ * the key is to be written first (`at: "start"`).
  *
  * `modify` computes its insert from exactly that point — in front of a note
  * written there — so applying the edit unchanged re-emits the note *after* the
@@ -493,17 +495,19 @@ function notesAt({ text, from }: { text: string; from: number }): { start: numbe
  *
  * Returns `undefined` when there is no such note, which is the common case.
  */
-function detachTrailingNote({
+function detachInsertionNote({
   text,
   path,
+  at,
 }: {
   text: string;
   path: readonly string[];
+  at: "start" | "end";
 }): { text: string; note: string; anchorKey: string | undefined } | undefined {
   const root = parseTree(text, [], { allowTrailingComma: true });
   const object = root === undefined ? undefined : findNodeAtLocation(root, [...path]);
   if (object?.type !== "object") return undefined;
-  const property = object.children?.at(-1);
+  const property = at === "end" ? object.children?.at(-1) : undefined;
   const anchorKey = property?.children?.[0]?.value;
   if (property !== undefined && typeof anchorKey !== "string") return undefined;
 
@@ -525,7 +529,7 @@ function detachTrailingNote({
 }
 
 /**
- * Put a note detached by {@link detachTrailingNote} back where it was: after
+ * Put a note detached by {@link detachInsertionNote} back where it was: after
  * the property it describes (behind the comma the insert gave that property),
  * or just inside the `{` of the object it was written in when there was no
  * property to describe. Returns `undefined` if that place can no longer be
@@ -559,10 +563,12 @@ function reattachTrailingNote({
 }
 
 /**
- * Write `value` at `[...path, key]`, keeping the trailing note of the property
- * the new key is inserted after (see {@link detachTrailingNote}). Replacing an
- * existing key needs none of this: `modify` rewrites the value's own span and
- * leaves every comment where it is.
+ * Write `value` at `[...path, key]`, keeping the note written at the point of
+ * insertion where its author put it (see {@link detachInsertionNote}): the
+ * trailing note of the property the new key is appended after, or — for a
+ * `leading` key, which `modify` places before every other property — the note
+ * written just inside the `{`. Replacing an existing key needs none of this:
+ * `modify` rewrites the value's own span and leaves every comment where it is.
  */
 function insertJsoncProperty({
   text,
@@ -570,16 +576,21 @@ function insertJsoncProperty({
   key,
   value,
   options,
+  leading = false,
 }: {
   text: string;
   path: readonly string[];
   key: string;
   value: unknown;
   options: JsoncModificationOptions;
+  leading?: boolean;
 }): string {
+  const modification: JsoncModificationOptions = leading
+    ? { ...options, getInsertionIndex: () => 0 }
+    : options;
   const write = (source: string): string =>
-    applyEdits(source, modify(source, [...path, key], value, options));
-  const detached = detachTrailingNote({ text, path });
+    applyEdits(source, modify(source, [...path, key], value, modification));
+  const detached = detachInsertionNote({ text, path, at: leading ? "start" : "end" });
   if (detached === undefined) return write(text);
   const reattached = reattachTrailingNote({
     text: write(detached.text),
@@ -712,12 +723,15 @@ function applyJsoncObjectEdits({
   next,
   path,
   options,
+  leadingKeys,
 }: {
   text: string;
   base: Record<string, unknown>;
   next: SharedConfigDocument;
   path: readonly string[];
   options: JsoncModificationOptions;
+  /** Root keys written in front of every other property when inserted. */
+  leadingKeys: readonly string[];
 }): string {
   let result = text;
   for (const [key, value] of Object.entries(next)) {
@@ -740,6 +754,7 @@ function applyJsoncObjectEdits({
         next: value,
         path: [...path, key],
         options,
+        leadingKeys: [],
       });
       continue;
     }
@@ -748,7 +763,14 @@ function applyJsoncObjectEdits({
       result = applyEdits(result, modify(result, [...path, key], value, options));
       continue;
     }
-    result = insertJsoncProperty({ text: result, path, key, value, options });
+    result = insertJsoncProperty({
+      text: result,
+      path,
+      key,
+      value,
+      options,
+      leading: leadingKeys.includes(key),
+    });
   }
   for (const key of Object.keys(base)) {
     if (!Object.hasOwn(next, key)) {
@@ -787,15 +809,22 @@ function applyJsoncObjectEdits({
  *   {@link JSONC_EDIT_WRITTEN_BYTES});
  * - a file the editor itself refuses, which it answers with an exception
  *   rather than a result.
+ *
+ * `leadingKeys` names the root keys that go in front of every other property
+ * when the edit path inserts them (the whole-document writer keeps the order
+ * `document` states, so the caller places them there itself). A key the file
+ * already has stays where the file put it.
  */
 export function serializeSharedConfig({
   format,
   document,
   existingContent,
+  leadingKeys = [],
 }: {
   format: SharedConfigFormat;
   document: SharedConfigDocument;
   existingContent: string;
+  leadingKeys?: readonly string[];
 }): string {
   const whole = stringifySharedConfig({ format, document });
   if (format !== "jsonc" || existingContent.trim() === "") {
@@ -850,6 +879,7 @@ export function serializeSharedConfig({
       next: document,
       path: [],
       options: { formattingOptions: detectJsoncFormattingOptions({ text: existingContent, root }) },
+      leadingKeys,
     });
   } catch {
     return whole;
@@ -944,12 +974,23 @@ export type SharedConfigFileDeclaration = {
   readonly format: SharedConfigFormat;
   readonly invalidRootPolicy?: SharedConfigInvalidRootPolicy;
   readonly jsoncParseErrors?: SharedConfigJsoncParseErrorsPolicy;
+  /**
+   * Top-level keys the gateway itself owns, with the value each is written
+   * with: every write of the file through the gateway — whichever feature
+   * makes it — adds a key the document lacks, placed in front of every other
+   * key, and leaves a key the document already states untouched, whatever its
+   * value. For `$schema`, which is an editor pointer rather than a setting: a
+   * file rulesync generates gets one, and a pinned or mirrored one the user
+   * wrote is theirs to keep.
+   */
+  readonly ensuredKeys?: Readonly<Record<string, unknown>>;
   readonly features: Partial<Record<Feature, SharedConfigConflictPolicy>>;
 };
 
 // `dir/file` tokens matching `deriveSharedFileWriters()` — always POSIX
 // separators, independent of the platform-specific path constants.
 export const CLAUDE_SETTINGS_SHARED_FILE_KEY = ".claude/settings.json";
+export const CLAUDE_SETTINGS_LOCAL_SHARED_FILE_KEY = ".claude/settings.local.json";
 export const HERMES_CONFIG_SHARED_FILE_KEY = ".hermes/config.yaml";
 export const HERMES_WIN32_CONFIG_SHARED_FILE_KEY = "AppData/Local/hermes/config.yaml";
 export const HERMES_HOME_CONFIG_SHARED_FILE_KEY = "config.yaml";
@@ -1061,9 +1102,21 @@ const ZCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
   },
 };
 
+/**
+ * What the two Claude Code settings files have in common: both are plain JSON,
+ * and both validate against the one published schema, which the gateway
+ * points every file it writes at. `.claude/settings.local.json` is the same
+ * file with one writer fewer — only the ignore feature's `fileMode: "local"`
+ * goes there — so the shape is declared once and the feature sets separately.
+ */
+const CLAUDE_SETTINGS_FILE_SHAPE = {
+  format: "json",
+  ensuredKeys: { $schema: CLAUDECODE_SETTINGS_SCHEMA_URL },
+} as const satisfies Omit<SharedConfigFileDeclaration, "features">;
+
 export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDeclaration>> = {
   [CLAUDE_SETTINGS_SHARED_FILE_KEY]: {
-    format: "json",
+    ...CLAUDE_SETTINGS_FILE_SHAPE,
     features: {
       // `Read(...)` deny entries inside `permissions.deny` are owned by ignore;
       // the permissions feature's explicit rules win over them (with a warning).
@@ -1071,6 +1124,12 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
       permissions: { kind: "custom", policyFunction: "applyPermissions" },
+    },
+  },
+  [CLAUDE_SETTINGS_LOCAL_SHARED_FILE_KEY]: {
+    ...CLAUDE_SETTINGS_FILE_SHAPE,
+    features: {
+      ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
     },
   },
   [HERMES_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,
@@ -1502,11 +1561,79 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
 };
 
 /**
+ * The keys a declaration ensures, added to `document` when it lacks them and
+ * placed in front of every key it has. A document that states all of them —
+ * with whatever value — comes back as it is, and no key of the document
+ * moves: the whole-document writer emits keys in this order, and the JSONC
+ * edit path is told which keys lead (see {@link serializeSharedConfig}).
+ */
+function withEnsuredKeys({
+  document,
+  ensuredKeys,
+}: {
+  document: SharedConfigDocument;
+  ensuredKeys: Readonly<Record<string, unknown>>;
+}): SharedConfigDocument {
+  const missing = Object.entries(ensuredKeys).filter(
+    ([key]) => !isPrototypePollutionKey(key) && !Object.hasOwn(document, key),
+  );
+  if (missing.length === 0) return document;
+  return { ...Object.fromEntries(missing), ...document };
+}
+
+function serializeDeclaredSharedConfig({
+  declaration,
+  document,
+  existingContent,
+}: {
+  declaration: SharedConfigFileDeclaration;
+  document: SharedConfigDocument;
+  existingContent: string;
+}): string {
+  const ensuredKeys = declaration.ensuredKeys ?? {};
+  return serializeSharedConfig({
+    format: declaration.format,
+    document: withEnsuredKeys({ document, ensuredKeys }),
+    existingContent,
+    leadingKeys: Object.keys(ensuredKeys),
+  });
+}
+
+/**
+ * Serialize a merged document back over a gateway-managed shared file, under
+ * that file's declaration: its format, and the keys the gateway ensures on it
+ * (see {@link SharedConfigFileDeclaration.ensuredKeys}). This is the one
+ * write path of the gateway — {@link applySharedConfigPatch} ends in it, and a
+ * feature whose policy is `custom` serializes its own merge through it — so a
+ * key the gateway ensures is emitted whichever feature writes the file.
+ * Throws when the file is undeclared.
+ */
+export function serializeSharedConfigFile({
+  fileKey,
+  document,
+  existingContent,
+}: {
+  fileKey: string;
+  document: SharedConfigDocument;
+  existingContent: string;
+}): string {
+  const declaration = SHARED_CONFIG_OWNERSHIP[fileKey];
+  if (!declaration) {
+    throw new Error(
+      `Shared config file '${fileKey}' has no SHARED_CONFIG_OWNERSHIP declaration; ` +
+        `declare its writers and policies before writing it through the gateway.`,
+    );
+  }
+  return serializeDeclaredSharedConfig({ declaration, document, existingContent });
+}
+
+/**
  * Execute a feature's declared write to a gateway-managed shared file: parse
  * the existing content, merge the patch under the feature's declared policy,
  * and serialize it back over the existing content (see
- * {@link serializeSharedConfig}, which keeps a JSONC file's comments and
- * formatting outside the spans the merge actually changed). Throws when the
+ * {@link serializeSharedConfigFile}, which adds the keys the file's declaration
+ * ensures and keeps a JSONC file's comments and formatting outside the spans
+ * the merge actually changed). Throws when the
  * file or feature is undeclared, when a
  * `replace-owned-keys` patch strays outside its owned keys, or when the
  * feature's policy is `custom` (those calls go to the named policy function
@@ -1575,7 +1702,7 @@ export function applySharedConfigPatch({
         delete document[key];
       }
     }
-    return serializeSharedConfig({ format: declaration.format, document, existingContent });
+    return serializeDeclaredSharedConfig({ declaration, document, existingContent });
   }
 
   const merged = mergeSharedConfigDeep({ base, patch });
@@ -1584,11 +1711,7 @@ export function applySharedConfigPatch({
       merged[key] = sanitizeSharedConfigValue(patch[key]);
     }
   }
-  return serializeSharedConfig({
-    format: declaration.format,
-    document: merged,
-    existingContent,
-  });
+  return serializeDeclaredSharedConfig({ declaration, document: merged, existingContent });
 }
 
 // ---------------------------------------------------------------------------
