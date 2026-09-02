@@ -243,7 +243,19 @@ async function processDirFeatureGeneration(params: {
           generatedDirs: toolDirs,
         });
 
-        return orphanDirCount + orphanFileCount > 0;
+        // The third half: the files left inside a directory this run still
+        // generates. Neither sweep above looks there — one removes whole
+        // directories that no longer correspond to an entry, the other only the
+        // files a flattening tool can name — so a companion file deleted from a
+        // source directory that is otherwise kept survived every generate.
+        //
+        // Run on `toolDirs` rather than on a re-enumeration, and last, so it
+        // sees the tree as this run left it: the directories the sweep above
+        // deleted are gone, and nothing here has to decide again whether one of
+        // them should have been.
+        const orphanInDirCount = await processor.removeOrphanFilesInAiDirs(toolDirs);
+
+        return orphanDirCount + orphanFileCount + orphanInDirCount > 0;
       },
     });
   }

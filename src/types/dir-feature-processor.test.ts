@@ -122,6 +122,23 @@ function createMockDirWithFiles({
   } as unknown as AiDir;
 }
 
+/**
+ * Real files on disk, for the one sweep that decides from a walk of the
+ * directory rather than from a list a caller hands it: a mocked enumeration
+ * there would only be testing the mock. `removeFile` stays mocked, so what the
+ * sweep decided is what is asserted -- and the tree survives to be asserted
+ * against.
+ */
+async function writeFiles(dirPath: string, names: string[]): Promise<void> {
+  const { writeFileContent: realWriteFileContent, ensureDir: realEnsureDir } =
+    await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
+  await realEnsureDir(dirPath);
+  for (const name of names) {
+    await realEnsureDir(dirname(join(dirPath, name)));
+    await realWriteFileContent(join(dirPath, name), "content");
+  }
+}
+
 class TestDirProcessor extends DirFeatureProcessor {
   loadRulesyncDirs(): Promise<AiDir[]> {
     return Promise.resolve([]);
@@ -567,6 +584,101 @@ describe("DirFeatureProcessor", () => {
       await processor.removeOrphanAiDirs(existingDirs, generatedDirs);
 
       expect(removeDirectory).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("removeOrphanFilesInAiDirs", () => {
+    it("should remove a companion file the run no longer writes", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const dirPath = join(testDir, "demo");
+      await writeFiles(dirPath, ["SKILL.md", join("references", "keep.md"), "stale.md"]);
+
+      const count = await processor.removeOrphanFilesInAiDirs([
+        createMockDirWithFiles({
+          dirPath,
+          mainFileBody: "body",
+          otherFiles: [
+            {
+              relativeFilePathToDirPath: "references/keep.md",
+              fileBuffer: Buffer.from("content"),
+            } as unknown as AiDirFile,
+          ],
+        }),
+      ]);
+
+      expect(count).toBe(1);
+      expect(removeFile).toHaveBeenCalledTimes(1);
+      expect(removeFile).toHaveBeenCalledWith(join(dirPath, "stale.md"));
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should leave hidden files alone", async () => {
+      // The loader that carries companion files refuses hidden entries, so
+      // rulesync cannot have written one: a `.gitkeep` here is the user's.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const dirPath = join(testDir, "demo");
+      await writeFiles(dirPath, ["SKILL.md", ".gitkeep"]);
+
+      const count = await processor.removeOrphanFilesInAiDirs([
+        createMockDirWithFiles({ dirPath, mainFileBody: "body" }),
+      ]);
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+    });
+
+    it("should report rather than delete in a dry run", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir, dryRun: true });
+      const dirPath = join(testDir, "demo");
+      await writeFiles(dirPath, ["SKILL.md", "stale.md"]);
+
+      const count = await processor.removeOrphanFilesInAiDirs([
+        createMockDirWithFiles({ dirPath, mainFileBody: "body" }),
+      ]);
+
+      // Counted, because `generate --check` decides from the count whether the
+      // tree is up to date, and a stale file means it is not.
+      expect(count).toBe(1);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        `[DRY RUN] Would delete file: ${JSON.stringify(join(dirPath, "stale.md"))}`,
+      );
+    });
+
+    it("should not sweep a directory the entry does not own", async () => {
+      // A tool that flattens into a shared root reports that root here. Its
+      // files belong to `removeOrphanFlatFiles`, which sweeps only the ones it
+      // can name; everything else under a shared root is somebody else's.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const dirPath = join(testDir, "shared");
+      await writeFiles(dirPath, ["someone-elses.md"]);
+
+      const count = await processor.removeOrphanFilesInAiDirs([
+        createMockDir({ dirPath, ownsDirTree: false }),
+      ]);
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should refuse a directory outside the root this run writes to", async () => {
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: join(testDir, "elsewhere") });
+      const dirPath = join(testDir, "demo");
+      await writeFiles(dirPath, ["stale.md"]);
+
+      const count = await processor.removeOrphanFilesInAiDirs([
+        createMockDirWithFiles({ dirPath }),
+      ]);
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Refusing to sweep"));
     });
   });
 

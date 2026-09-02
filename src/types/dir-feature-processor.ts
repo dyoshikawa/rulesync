@@ -9,11 +9,13 @@ import { stripControlCharacters } from "../utils/control-characters.js";
 import {
   addTrailingNewline,
   ensureDir,
+  listFilePathsRecursively,
   pathEscapesRoot,
   readFileBufferOrNull,
   readFileContentOrNull,
   removeDirectory,
   removeFile,
+  toPosixPath,
   writeFileBuffer,
   writeFileContent,
 } from "../utils/file.js";
@@ -332,6 +334,101 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     }
 
     return await this.deleteOrphanPaths({ paths: orphanPaths, kind: "directory" });
+  }
+
+  /**
+   * Remove the files left inside a directory this run still generates, but
+   * which the run no longer writes.
+   *
+   * The directory sweep above cannot see them: it removes a directory that no
+   * longer corresponds to any generated entry, and never looks inside one that
+   * does. So deleting a companion file from a source directory that is
+   * otherwise kept left the generated copy in place — and, because change
+   * detection compares only the files the run will write, the run reported
+   * itself up to date while an agent went on reading the stale file. The same
+   * gap left any file that was never rulesync's sitting inside a directory the
+   * user now believes rulesync owns.
+   *
+   * Only a directory that owns its whole tree is swept, and only when this run
+   * generated it. That is the same claim the directory sweep already acts on,
+   * one level down: a directory whose entry disappears is deleted outright,
+   * companion files and all, so a file inside one whose entry is still here and
+   * which no source produces is stale by exactly the same reasoning.
+   *
+   * Two kinds of file are left alone, because rulesync could not have written
+   * them and so cannot be looking at its own stale output:
+   *
+   * - **Hidden entries**, which the loader that carries companion files refuses
+   *   on the way in. A `.gitkeep` under a skill directory is the user's.
+   * - **Symbolic links**, which the writer never creates. The walk neither
+   *   follows nor reports them, so a link is never removed and never resolved
+   *   into a deletion somewhere outside the tree.
+   */
+  async removeOrphanFilesInAiDirs(generatedDirs: AiDir[]): Promise<number> {
+    const orphanPaths = new Set<string>();
+    const quotedOutputRoot = JSON.stringify(stripControlCharacters(this.outputRoot));
+
+    for (const aiDir of generatedDirs) {
+      // Read once and act on that one value, as the sweeps around this one do:
+      // `getDirPath()` is a method a subclass supplies, and a second call could
+      // answer differently from the one the checks below ruled on.
+      const dirPath = aiDir.getDirPath();
+      if (!aiDir.ownsDirTree()) {
+        // A tool that flattens into a shared root reports that root here. Its
+        // files are swept by `removeOrphanFlatFiles`, which knows to sweep only
+        // the ones it can name; everything else in a shared root belongs to
+        // somebody else.
+        continue;
+      }
+
+      const { verdict, root } = locateInOwnRoot({ aiDir, dirPath, outputRoot: this.outputRoot });
+      const quotedDirPath = JSON.stringify(stripControlCharacters(dirPath));
+      const quotedRoot = JSON.stringify(stripControlCharacters(root));
+
+      if (verdict === "root-outside") {
+        this.logger.warn(
+          `Refusing to sweep ${quotedDirPath}: the root ${quotedRoot} it was found in is not ` +
+            `inside ${quotedOutputRoot}, the directory this run writes to`,
+        );
+        continue;
+      }
+      if (verdict !== "inside") {
+        this.logger.warn(
+          `Refusing to sweep ${quotedDirPath}: it is not a directory inside ${quotedRoot}, the ` +
+            `root it was found in`,
+        );
+        continue;
+      }
+
+      const generatedNames = new Set<string>();
+      const mainFile = aiDir.getMainFile();
+      if (mainFile) {
+        generatedNames.add(toPosixPath(mainFile.name));
+      }
+      for (const file of aiDir.getOtherFiles()) {
+        generatedNames.add(toPosixPath(file.relativeFilePathToDirPath));
+      }
+      // Folded alongside the exact names for the same reason the flat-file
+      // sweep folds its paths: on a case-insensitive filesystem a companion
+      // renamed from `Ref.md` to `ref.md` is written through the directory
+      // entry that is still spelled `Ref.md`, and the name read back would
+      // otherwise match nothing this run wrote and be swept as an orphan.
+      const generatedNamesFolded = new Set([...generatedNames].map((name) => name.toLowerCase()));
+
+      const existingNames = await listFilePathsRecursively(dirPath, {
+        followSymbolicLinks: false,
+        includeHidden: false,
+      });
+      for (const existingName of existingNames) {
+        const posixName = toPosixPath(existingName);
+        if (generatedNames.has(posixName) || generatedNamesFolded.has(posixName.toLowerCase())) {
+          continue;
+        }
+        orphanPaths.add(join(dirPath, existingName));
+      }
+    }
+
+    return await this.deleteOrphanPaths({ paths: orphanPaths, kind: "file" });
   }
 
   /**

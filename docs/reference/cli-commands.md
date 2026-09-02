@@ -154,6 +154,18 @@ The `generate` command reads source files from one or more rulesync source trees
 > directory of its own, so what the sweep removes there is a `.md` file directly
 > under that root which no `.rulesync/skills/` source produces. The root itself
 > and anything nested inside it are left alone. See [Takt](../tools/takt.md).
+>
+> Skill directories are swept from the inside as well, not only as whole
+> directories. Deleting a supporting file from `.rulesync/skills/<name>/` while
+> keeping the skill removes the generated copy on the next `generate --delete`,
+> and `generate --check` reports such a leftover as out of date rather than
+> passing — which matters most in a pre-commit hook, where an incremental
+> generate would otherwise commit a stale copy of instructions an agent still
+> reads. Two kinds of file inside a generated skill directory are never swept,
+> because Rulesync could not have written them and so is not looking at its own
+> stale output: **hidden entries** (a `.gitkeep` is yours — the loader that
+> carries supporting files refuses hidden names on the way in) and **symbolic
+> links** (the writer only ever creates real files).
 
 > **Note on unreadable sources:** This applies to the single-file features —
 > `mcp`, `hooks`, `permissions`, and `ignore` — each of which is generated from
