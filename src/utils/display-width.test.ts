@@ -195,12 +195,13 @@ describe("shortenToWidth", () => {
 // `get-east-asian-width` is the copy the prompt renderer measures with, and it
 // is found the way the renderer finds it, one dependency at a time —
 // `@inquirer/checkbox` depends on `@inquirer/core`, which depends on
-// `fast-string-width`, which depends on `get-east-asian-width` — so that the
-// test checks the renderer's own copy rather than whichever one the package
-// manager happened to hoist beside it. Each step resolves the package's main
-// entry rather than its `package.json`, which `fast-string-width` does not
-// expose. A failure to resolve fails the test rather than skipping it, because
-// a renderer that stopped depending on the package is a change worth noticing.
+// `fast-wrap-ansi`, which depends on `fast-string-width`, which depends on
+// `get-east-asian-width` — so that the test checks the renderer's own copy
+// rather than whichever one the package manager happened to hoist beside it.
+// Each step resolves the package's main entry rather than its `package.json`,
+// which `fast-wrap-ansi` and `fast-string-width` do not expose. A failure to
+// resolve fails the test rather than skipping it, because a renderer that
+// stopped depending on the package is a change worth noticing.
 //
 // The package is not a dependency of this one and a static import cannot reach
 // it from `src`, so `createRequire` does the resolving and a dynamic import does
@@ -222,7 +223,8 @@ async function loadRendererEastAsianWidth(): Promise<{
     createRequire(import.meta.url).resolve("@inquirer/checkbox/package.json"),
   );
   const core = checkboxRequire.resolve("@inquirer/core");
-  const fastStringWidth = createRequire(core).resolve("fast-string-width");
+  const fastWrapAnsi = createRequire(core).resolve("fast-wrap-ansi");
+  const fastStringWidth = createRequire(fastWrapAnsi).resolve("fast-string-width");
   const getEastAsianWidth = createRequire(fastStringWidth).resolve("get-east-asian-width");
   return await import(pathToFileURL(getEastAsianWidth).href);
 }
