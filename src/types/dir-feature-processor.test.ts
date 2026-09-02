@@ -1,4 +1,4 @@
-import { symlink } from "node:fs/promises";
+import { chmod, symlink } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -626,8 +626,9 @@ describe("DirFeatureProcessor", () => {
     });
 
     it("should leave hidden files alone", async () => {
-      // The loader that carries companion files refuses hidden entries, so
-      // rulesync cannot have written one: a `.gitkeep` here is the user's.
+      // A hidden name is where a user's own files live -- a `.gitkeep`, a
+      // `.env` -- and the sweep cannot tell one from a hidden companion the
+      // loader carried, so it keeps every hidden file rather than guess.
       const logger = createMockLogger();
       const processor = new TestDirProcessor({ logger, outputRoot: testDir });
       const dirPath = join(testDir, "demo");
@@ -726,8 +727,8 @@ describe("DirFeatureProcessor", () => {
     });
 
     it("should leave a hidden directory's contents alone", async () => {
-      // The loader refuses a hidden entry anywhere on the way in, not only at
-      // the top level, so nothing under `.cache/` can be rulesync's either.
+      // Hidden anywhere on the path, not only at the top level: the walk skips
+      // a hidden directory whole, so nothing under `.cache/` is considered.
       const logger = createMockLogger();
       const processor = new TestDirProcessor({ logger, outputRoot: testDir });
       const dirPath = join(testDir, "demo");
@@ -742,71 +743,110 @@ describe("DirFeatureProcessor", () => {
       expect(removeFile).not.toHaveBeenCalled();
     });
 
-    it("should leave a symbolic link alone rather than unlink it", async () => {
-      // The writer only ever creates real files, so a link here is the user's.
-      // The walk is told not to follow links, and this is what says so: drop
-      // that option and the sweep starts unlinking them.
-      const logger = createMockLogger();
-      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
-      const dirPath = join(testDir, "demo");
-      const outsidePath = join(testDir, "outside.md");
-      await writeFiles(dirPath, ["SKILL.md"]);
-      await writeFiles(testDir, ["outside.md"]);
-      await symlink(outsidePath, join(dirPath, "link.md"));
+    it.skipIf(process.platform === "win32")(
+      "should leave a symbolic link alone rather than unlink it",
+      async () => {
+        // The writer only ever creates real files, so a link here is the user's.
+        // The walk is told not to follow links, and this is what says so: drop
+        // that option and the sweep starts unlinking them.
+        const logger = createMockLogger();
+        const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+        const dirPath = join(testDir, "demo");
+        const outsidePath = join(testDir, "outside.md");
+        await writeFiles(dirPath, ["SKILL.md"]);
+        await writeFiles(testDir, ["outside.md"]);
+        await symlink(outsidePath, join(dirPath, "link.md"));
 
-      const count = await processor.removeOrphanFilesInAiDirs({
-        generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
-        isClaimed: () => false,
-      });
+        const count = await processor.removeOrphanFilesInAiDirs({
+          generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
+          isClaimed: () => false,
+        });
 
-      expect(count).toBe(0);
-      expect(removeFile).not.toHaveBeenCalled();
-    });
+        expect(count).toBe(0);
+        expect(removeFile).not.toHaveBeenCalled();
+      },
+    );
 
-    it("should refuse a generated directory that is itself a symbolic link", async () => {
-      // A skill directory linked to a checkout elsewhere. Its files read back
-      // through the link, and so would every unlink: nothing this run wrote is
-      // there, and everything there is somebody else's. The link's target is
-      // beside the point — one that stays inside the root is refused all the
-      // same, since the lexical verdict above never saw the link at all.
-      const logger = createMockLogger();
-      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
-      const linkedDir = join(testDir, "vendored");
-      await writeFiles(linkedDir, ["precious.md", join("sub", "nested.md")]);
-      const dirPath = join(testDir, "demo");
-      await symlink(linkedDir, dirPath, "dir");
+    it.skipIf(process.platform === "win32")(
+      "should refuse a generated directory that is itself a symbolic link",
+      async () => {
+        // A skill directory linked to a checkout elsewhere. Its files read back
+        // through the link, and so would every unlink: nothing this run wrote is
+        // there, and everything there is somebody else's. The link's target is
+        // beside the point — one that stays inside the root is refused all the
+        // same, since the lexical verdict above never saw the link at all.
+        const logger = createMockLogger();
+        const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+        const linkedDir = join(testDir, "vendored");
+        await writeFiles(linkedDir, ["precious.md", join("sub", "nested.md")]);
+        const dirPath = join(testDir, "demo");
+        await symlink(linkedDir, dirPath, "dir");
 
-      const count = await processor.removeOrphanFilesInAiDirs({
-        generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
-        isClaimed: () => false,
-      });
+        const count = await processor.removeOrphanFilesInAiDirs({
+          generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
+          isClaimed: () => false,
+        });
 
-      expect(count).toBe(0);
-      expect(removeFile).not.toHaveBeenCalled();
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringMatching(/Refusing to sweep .*symbolic link/),
-      );
-    });
+        expect(count).toBe(0);
+        expect(removeFile).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringMatching(/Refusing to sweep .*symbolic link/),
+        );
+      },
+    );
 
-    it("should not descend into a symlinked directory", async () => {
-      // The deletion that matters: a link to a directory outside the tree must
-      // not turn into a sweep of that directory's files.
-      const logger = createMockLogger();
-      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
-      const dirPath = join(testDir, "demo");
-      const outsideDirPath = join(testDir, "outside");
-      await writeFiles(dirPath, ["SKILL.md"]);
-      await writeFiles(outsideDirPath, ["private.md"]);
-      await symlink(outsideDirPath, join(dirPath, "linked"));
+    it.skipIf(process.platform === "win32")(
+      "should not descend into a symlinked directory",
+      async () => {
+        // The deletion that matters: a link to a directory outside the tree must
+        // not turn into a sweep of that directory's files.
+        const logger = createMockLogger();
+        const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+        const dirPath = join(testDir, "demo");
+        const outsideDirPath = join(testDir, "outside");
+        await writeFiles(dirPath, ["SKILL.md"]);
+        await writeFiles(outsideDirPath, ["private.md"]);
+        await symlink(outsideDirPath, join(dirPath, "linked"));
 
-      const count = await processor.removeOrphanFilesInAiDirs({
-        generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
-        isClaimed: () => false,
-      });
+        const count = await processor.removeOrphanFilesInAiDirs({
+          generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
+          isClaimed: () => false,
+        });
 
-      expect(count).toBe(0);
-      expect(removeFile).not.toHaveBeenCalled();
-    });
+        expect(count).toBe(0);
+        expect(removeFile).not.toHaveBeenCalled();
+      },
+    );
+
+    it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+      "should refuse a directory it cannot read rather than fail the run",
+      async () => {
+        // Every file has been written by the time the sweep runs. A subtree
+        // the current user cannot list is a warning and a refusal, as it is on
+        // the source side, not an exception out of `generate`.
+        const logger = createMockLogger();
+        const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+        const dirPath = join(testDir, "demo");
+        await writeFiles(dirPath, ["SKILL.md", "stale.md", join("locked", "inner.md")]);
+        const lockedDir = join(dirPath, "locked");
+        await chmod(lockedDir, 0o000);
+
+        try {
+          const count = await processor.removeOrphanFilesInAiDirs({
+            generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
+            isClaimed: () => false,
+          });
+
+          expect(count).toBe(0);
+          expect(removeFile).not.toHaveBeenCalled();
+          expect(logger.warn).toHaveBeenCalledWith(
+            expect.stringMatching(/Refusing to sweep .*locked/),
+          );
+        } finally {
+          await chmod(lockedDir, 0o755);
+        }
+      },
+    );
 
     it("should refuse a file whose name differs from a generated one only in case", async () => {
       // On a case-insensitive filesystem the two names are one file — the very

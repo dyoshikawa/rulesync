@@ -161,11 +161,14 @@ The `generate` command reads source files from one or more rulesync source trees
 > and `generate --check` reports such a leftover as out of date rather than
 > passing — which matters most in a pre-commit hook, where an incremental
 > generate would otherwise commit a stale copy of instructions an agent still
-> reads. Two kinds of file inside a generated skill directory are never swept,
-> because Rulesync could not have written them and so is not looking at its own
-> stale output: **hidden entries** (a `.gitkeep` is yours — the loader that
-> carries supporting files refuses hidden names on the way in) and **symbolic
-> links** (the writer only ever creates real files). A generated skill
+> reads. Two kinds of file inside a generated skill directory are never swept:
+> **hidden entries** and **symbolic links**. A symbolic link is never
+> Rulesync's, since the writer only ever creates real files. A hidden file may
+> be — a hidden supporting file such as a `.env.example` is carried like any
+> other — but a hidden name is also where your own files live (a `.gitkeep`, a
+> `.env` with real values in it), and the sweep cannot tell the two apart, so a
+> stale hidden supporting file is the one leftover it knowingly keeps: delete
+> it by hand. A generated skill
 > directory that is itself a symbolic link — to a vendored checkout, say — is
 > not swept from the inside either: what it reads back was never Rulesync's
 > output, and the run says so with a warning. Only files are swept, so a

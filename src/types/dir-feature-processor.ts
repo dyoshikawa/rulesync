@@ -22,7 +22,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
-import type { Logger } from "../utils/logger.js";
+import { Logger, warnOnceWithFallback } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { hasIncompleteCarriedFiles } from "../utils/warned-once.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
@@ -358,11 +358,15 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
    * companion files and all, so a file inside one whose entry is still here and
    * which no source produces is stale by exactly the same reasoning.
    *
-   * Two kinds of file are left alone, because rulesync could not have written
-   * them and so cannot be looking at its own stale output:
+   * Two kinds of file are left alone:
    *
-   * - **Hidden entries**, which the loader that carries companion files refuses
-   *   on the way in. A `.gitkeep` under a skill directory is the user's.
+   * - **Hidden entries.** The loader does carry a hidden companion — a
+   *   `.env.example` beside the script that reads it is skill content — so a
+   *   hidden file here may be rulesync's. But a hidden name is also where a
+   *   user's own files live: a `.gitkeep`, a `.env` with real values in it. The
+   *   sweep cannot tell the two apart by name, and deleting the user's is the
+   *   worse mistake, so a stale hidden companion is the one leftover it
+   *   knowingly keeps.
    * - **Symbolic links**, which the writer never creates. The walk neither
    *   follows nor reports them, so a link is never removed and never resolved
    *   into a deletion somewhere outside the tree.
@@ -393,7 +397,10 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     isClaimed: (path: string) => boolean;
   }): Promise<number> {
     if (hasIncompleteCarriedFiles()) {
-      this.logger.warn(
+      // Once per run, not once per target: the message is about the sources,
+      // which every target of the run reads alike.
+      warnOnceWithFallback(
+        this.logger,
         "Not sweeping the files inside generated directories: this run could not read every " +
           "file its sources carry, so a file it did not write may still be one it wants. " +
           "The warnings above name what it could not read.",
@@ -485,10 +492,22 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // otherwise match nothing this run wrote and be swept as an orphan.
       const generatedNamesFolded = new Set([...generatedNames].map((name) => name.toLowerCase()));
 
-      const existingNames = await listFilePathsRecursively(dirPath, {
-        followSymbolicLinks: false,
-        includeHidden: false,
-      });
+      // A subdirectory this run cannot read is refused the same way as the
+      // rest, not thrown: every file has been written by now, and a sweep is
+      // not worth failing the run over. The source side treats an unreadable
+      // subtree the same way, as a warning and a stand-down.
+      let existingNames: string[];
+      try {
+        existingNames = await listFilePathsRecursively(dirPath, {
+          followSymbolicLinks: false,
+          includeHidden: false,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Refusing to sweep ${quotedDirPath}: ${stripControlCharacters(formatError(error))}`,
+        );
+        continue;
+      }
       for (const existingName of existingNames) {
         const posixName = toPosixPath(existingName);
         if (generatedNames.has(posixName)) {
