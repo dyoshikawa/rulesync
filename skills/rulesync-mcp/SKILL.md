@@ -15,10 +15,15 @@ targets: ["*"]
 `rulesync mcp` starts an MCP server over stdio that exposes exactly one tool,
 `rulesyncTool`, so the tool definition costs well under 1k tokens.
 
-The tool reads and writes the `.rulesync/` source tree only. It never edits the
-generated tool files (`CLAUDE.md`, `.cursor/rules/`, `.github/copilot-instructions.md`,
-…), so a write is not visible to any AI coding tool until you regenerate — see
+Its per-item operations — `list`, `get`, `put`, `delete` — read and write the
+`.rulesync/` source tree only. They never touch the generated tool files
+(`CLAUDE.md`, `.cursor/rules/`, `.github/copilot-instructions.md`, …), so such a
+write stays invisible to every AI coding tool until you regenerate; see
 [Always regenerate after writing](#always-regenerate-after-writing).
+
+`generate`, `import`, and `convert` are the operations that do cross that line:
+`generate` and `convert` write the tool files, and `import` reads them back into
+`.rulesync/`.
 
 ## Setup
 
@@ -61,14 +66,20 @@ needs. Unsupported pairs are rejected.
 
 ### Arguments by operation
 
-- `list` — no other argument. Returns every item of that feature.
+- `list` — no other argument. Returns every item of that feature **that parses**:
+  an item whose file cannot be read or whose frontmatter is invalid is dropped
+  silently, because these four operations report no `warnings` and the server's
+  log never reaches the calling agent. A `list` that comes back shorter than the
+  directory means a broken item, not an empty directory.
 - `get` / `delete` — `targetPathFromCwd`.
-- `put` — `targetPathFromCwd` plus:
-  - `frontmatter` (object) and `body` (string) for `rule`, `command`,
-    `subagent`, `skill`, `check`;
-  - `content` (the whole file as a string) for `ignore`, `mcp`, `permissions`,
-    `hooks` — these take no `targetPathFromCwd`, since their path is fixed.
+- `put` — `targetPathFromCwd`, plus `frontmatter` (object) and `body` (string).
 - `run` — `generateOptions`, `importOptions`, or `convertOptions` (below).
+
+`ignore`, `mcp`, `permissions`, and `hooks` are the exception: their path is
+fixed, so they take no `targetPathFromCwd` on any operation, and their `put`
+takes `content` — the whole file as a string — instead of `frontmatter` and
+`body`. `ignore` covers two files: its `delete` removes both
+`.rulesync/.aiignore` and the legacy `.rulesyncignore`.
 
 `targetPathFromCwd` is relative to the working directory, and it is the item's
 own path in `.rulesync/`: a file path such as `.rulesync/rules/overview.md` for
@@ -79,8 +90,10 @@ own path in `.rulesync/`: a file path such as `.rulesync/rules/overview.md` for
 otherwise. To edit one, `get` it first and send the full merged result back —
 there is no partial update, so a `put` that omits a field drops it.
 
-Each file is capped at 1MB (100KB for `ignore`), and at most 1000 rules and
-1000 skills may exist.
+Size limits: 1MB per rule, command, subagent, and check file, 1MB for `mcp`,
+`permissions`, and `hooks`, and 100KB for `ignore`. A skill's 1MB budget covers
+the whole directory — frontmatter, body, and every `otherFiles` entry together.
+Rules, commands, subagents, skills, and checks are each capped at 1000 items.
 
 ### `skill` and its `otherFiles`
 
@@ -93,8 +106,10 @@ is `"utf-8"` (default) or `"base64"` for binary files.
 `encoding` field when feeding entries back into `put`** — dropping it stores a
 base64 body as literal text and corrupts the file.
 
-`put` replaces the skill directory with exactly what you send, so include every
-`otherFiles` entry you want to keep.
+`put` overlays the directory rather than replacing it: it rewrites `SKILL.md`
+and every `otherFiles` entry you send, and leaves every other file already in
+the directory untouched. It therefore cannot remove a file — to drop one,
+`delete` the skill and `put` it back without that entry.
 
 ### Running `generate`, `import`, and `convert`
 
@@ -103,11 +118,11 @@ base64 body as literal text and corrupts the file.
 "generateOptions": {
   "targets": ["claudecode", "cursor"],  // default: from rulesync.jsonc
   "features": ["rules", "mcp"],         // default: from rulesync.jsonc
-  "delete": false,                      // clear outputs before writing
-  "global": false,                      // user-scope configs
-  "simulateCommands": true,
-  "simulateSubagents": true,
-  "simulateSkills": true
+  "delete": false,                      // true deletes generated files that lost their source
+  "global": false,                      // true writes user-scope configs outside the repository
+  "simulateCommands": false,            // these three default to false
+  "simulateSubagents": false,
+  "simulateSkills": false
 }
 
 // feature: "import", operation: "run" — exactly one source tool
