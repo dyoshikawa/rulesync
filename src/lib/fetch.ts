@@ -285,15 +285,26 @@ type CollectedFeatureFiles = {
  * - `non-skill` — outside skills/, or a flat file directly under it. Skills are
  *   directory-based (skills/<name>/SKILL.md), so such a file belongs to no
  *   skill and selection does not apply to it.
- * - `unsafe-name` — under a skills/ directory whose name does not survive
- *   having its control characters and its invisible characters stripped. It
- *   cannot be offered honestly, so it is never selectable.
+ * - `unsafe-name` — under a skills/ directory whose name cannot be written
+ *   as the name it reads as. `reason: "hidden"` is a name that does not survive
+ *   having its control characters and its invisible characters stripped, so it
+ *   cannot be offered honestly. `reason: "foldable"` is a name Windows resolves
+ *   to a different directory, so it cannot be written where it says. Neither is
+ *   ever selectable.
  * - `skill` — belongs to the named skill.
  */
 type SkillPathClass =
   | { readonly kind: "non-skill" }
-  | { readonly kind: "unsafe-name"; readonly raw: string; readonly display: string }
+  | {
+      readonly kind: "unsafe-name";
+      readonly raw: string;
+      readonly display: string;
+      readonly reason: UnsafeSkillNameReason;
+    }
   | { readonly kind: "skill"; readonly name: string };
+
+/** Why a skill directory name is turned away; see `SkillPathClass`. */
+type UnsafeSkillNameReason = "hidden" | "foldable";
 
 /** Where a skill directory sits, under the output base path and in the remote. */
 const SKILLS_DIR_NAME = "skills";
@@ -309,6 +320,29 @@ const NON_SKILL_PATH: SkillPathClass = Object.freeze({ kind: "non-skill" });
 
 /** A name with no character in it that draws anything of its own. */
 const NOTHING_DRAWN_PATTERN = /^[\s\p{M}]*$/u;
+
+/** A name ending in a dot or a space, which Win32 strips before it opens the path. */
+const TRAILING_DOT_OR_SPACE_PATTERN = /[.\s]$/;
+/** A name ending in the `NAME~1` shape of a Windows 8.3 short name, extension included. */
+const SHORT_NAME_ALIAS_PATTERN = /~\d+(?:\.[^.]*)?$/;
+
+/**
+ * Whether Windows resolves a skill directory name to a directory other than
+ * the one it reads as.
+ *
+ * Win32 drops a trailing dot or space when it resolves a path, so a remote
+ * `skills/deploy.` is the existing `skills/deploy` there. A name ending in the
+ * `NAME~1` shape is the same class of problem: on a volume that generates
+ * short names, it opens whatever long name it stands for. The shape only
+ * means that at the end of a name, so `data~2parser` and `v1.0` are ordinary
+ * names. The check is not gated on the platform: the same repository is
+ * checked out on several of them, and a name that lands somewhere else on any
+ * one of them is one this tool would rather turn away everywhere than write
+ * differently depending on where it runs.
+ */
+function hasWindowsFoldableSkillName(name: string): boolean {
+  return TRAILING_DOT_OR_SPACE_PATTERN.test(name) || SHORT_NAME_ALIAS_PATTERN.test(name);
+}
 
 /**
  * Classify a collected file's path relative to the skills directory.
@@ -329,6 +363,14 @@ const NOTHING_DRAWN_PATTERN = /^[\s\p{M}]*$/u;
  * where its own script puts one: a Persian or Indic name is written with ZWNJ
  * in it and an emoji name is a chain of ZWJ, and both are ordinary names rather
  * than disguises. `hasDeceptiveHiddenCharacters` draws that line.
+ *
+ * A name Windows folds onto another — a trailing dot or space, or the `NAME~1`
+ * shape of a short name — is turned away as well, and for a reason of the same
+ * kind: it reads as one directory and is written into another, so with the
+ * default `--conflict overwrite` a remote `skills/deploy.` replaces the files
+ * of a local `deploy` that the repository never published. Such a name is
+ * reported as `unsafe-name` with its own reason, since it can be printed as it
+ * is; `hasWindowsFoldableSkillName` says which names those are.
  */
 function classifySkillPath(relativePath: string): SkillPathClass {
   // Split on "/" alone. A remote path is POSIX, so a backslash in one is an
@@ -360,7 +402,12 @@ function classifySkillPath(relativePath: string): SkillPathClass {
   // them.
   const display = NOTHING_DRAWN_PATTERN.test(stripped) ? "" : stripped;
   if (display === "" || hasDeceptiveHiddenCharacters(name)) {
-    return { kind: "unsafe-name", raw: name, display };
+    return { kind: "unsafe-name", raw: name, display, reason: "hidden" };
+  }
+  // Checked after the hidden characters, so a name that is both is reported
+  // by the reason that keeps its raw form off the terminal.
+  if (hasWindowsFoldableSkillName(name)) {
+    return { kind: "unsafe-name", raw: name, display, reason: "foldable" };
   }
   return { kind: "skill", name };
 }
@@ -490,7 +537,9 @@ async function applySkillSelection(params: {
   // Without --skills and without --interactive there is no selection to apply:
   // every skill the repository publishes is fetched. The unsafe names are still
   // dropped on that path, because writing one would put a directory on disk
-  // that no line of the summary can tell apart from the name it imitates.
+  // that no line of the summary can tell apart from the name it imitates — or,
+  // for a name Windows folds, would write into a directory the summary does
+  // not name at all.
   const selectsEverything = requestedSkills.length === 0 && !interactive;
 
   const availableSkills = listAvailableSkills(files);
@@ -540,26 +589,32 @@ async function applySkillSelection(params: {
   }
 
   const selectedSet = new Set(selectedSkills);
-  const droppedUnsafeNames = new Map<string, string>();
+  const droppedHiddenNames = new Map<string, string>();
+  const droppedFoldableNames = new Map<string, string>();
   const selected = files.filter((file) => {
     const skill = classifySkillPath(file.relativePath);
     if (skill.kind === "non-skill") {
       return true;
     }
-    // A name the prompt could not show truthfully was never on offer, so it
-    // cannot have been selected. Dropping it keeps the guarantee the selection
-    // makes: only skills the user saw and picked are written.
+    // A name the prompt could not show truthfully, or could not write where
+    // it says, was never on offer, so it cannot have been selected. Dropping
+    // it keeps the guarantee the selection makes: only skills the user saw and
+    // picked are written, and each lands in the directory it names.
     if (skill.kind === "unsafe-name") {
       // Keyed by the raw name so two directories that both strip down to
       // nothing still count as two.
-      droppedUnsafeNames.set(skill.raw, skill.display);
+      const dropped = skill.reason === "hidden" ? droppedHiddenNames : droppedFoldableNames;
+      dropped.set(skill.raw, skill.display);
       return false;
     }
     return selectsEverything || selectedSet.has(skill.name);
   });
 
-  if (droppedUnsafeNames.size > 0) {
-    logger.warn(formatDroppedSkillsWarning(droppedUnsafeNames));
+  if (droppedHiddenNames.size > 0) {
+    logger.warn(formatDroppedSkillsWarning(droppedHiddenNames));
+  }
+  if (droppedFoldableNames.size > 0) {
+    logger.warn(formatFoldableSkillsWarning(droppedFoldableNames));
   }
 
   // The prompt says this in the row itself, so it is said here only when there
@@ -687,6 +742,29 @@ function formatDroppedSkillsWarning(droppedUnsafeNames: ReadonlyMap<string, stri
     `${lead} Shown here with the hidden characters removed, which is why a name may look ` +
     `like one you did select: ${shown}` +
     `${unprintable > 0 ? `, plus ${unprintable} with nothing left once they are removed` : ""}.`
+  );
+}
+
+/**
+ * Describe the skill directories dropped for having a name Windows resolves
+ * to a different directory, keyed raw name to stripped name.
+ *
+ * These names passed the hidden-character check, so the stripped form is the
+ * name as it reads and is safe to print. It is still quoted: a trailing space
+ * is the whole reason one of these was dropped, and bare it would not show. The
+ * list is capped, as every list of names here is.
+ */
+function formatFoldableSkillsWarning(droppedFoldableNames: ReadonlyMap<string, string>): string {
+  const shown = formatCappedList({
+    items: [...droppedFoldableNames.values()].toSorted().map((display) => JSON.stringify(display)),
+    separator: ", ",
+  });
+  const plural = droppedFoldableNames.size !== 1;
+  return (
+    `Skipping ${plural ? `${droppedFoldableNames.size} skill directories whose names Windows resolves` : "one skill directory whose name Windows resolves"} ` +
+    `to a different directory: ${shown}. A name ending in a dot or a space, or one shaped like ` +
+    `a NAME~1 short name, is written into a directory other than the one it reads as there, ` +
+    `so it is neither offered for selection nor fetched, on any platform.`
   );
 }
 
@@ -1205,23 +1283,19 @@ async function pruneStaleSkillFiles(params: {
       continue;
     }
 
-    // Windows drops a trailing dot or space when it resolves a path, so a
-    // remote `skills/my-docs.` is the existing `skills/my-docs` there. The write
-    // and the prune would agree with each other and disagree with the summary,
-    // which would then name a directory other than the one it emptied. Nothing
-    // reaches outside the output directory either way, but a deletion record
-    // that names the wrong directory is not one worth keeping.
-    // A name ending in the `NAME~1` shape is the same class of problem: on a
-    // Windows volume that generates short names, it opens whatever long name it
-    // stands for. The shape only means that at the end of a name, so `data~2parser`
-    // is an ordinary name and is pruned. The guard is not gated on the platform:
-    // the same repository is checked out on several of them, and a name that is
-    // ambiguous on any one of them is one this tool would rather leave alone
-    // everywhere than prune differently depending on where it runs.
+    // A name Windows folds onto another directory — a trailing dot or space,
+    // or the `NAME~1` shape of a short name — is turned away by
+    // `classifySkillPath` before anything is written, so no such directory
+    // reaches this loop through the fetched files. The guard stays as a
+    // backstop for the same reason it was written: the write and the prune
+    // would agree with each other and disagree with the summary, which would
+    // then name a directory other than the one it emptied. Nothing reaches
+    // outside the output directory either way, but a deletion record that
+    // names the wrong directory is not one worth keeping.
     // Only the skill root is guarded. A remote `skills/a/bar./x.md` writes into
     // `bar` on Windows and the prune walks `bar`, which is safe because every
     // file the fetch wrote there is matched by identity rather than by name.
-    if (/[.\s]$/.test(skillDir) || /~\d+(?:\.[^.]*)?$/.test(skillDir)) {
+    if (hasWindowsFoldableSkillName(skillDir)) {
       logger.warn(
         `Not pruning ${JSON.stringify(stripControlCharacters(skillDir))}: its name is one ` +
           `some systems resolve to a different directory, so it may not be the directory this ` +
