@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { describe, expect, it } from "vitest";
 
+import { CLAUDECODE_SETTINGS_SCHEMA_URL } from "../constants/claudecode-paths.js";
 import {
   DEVIN_GLOBAL_IGNORE_DIR_PATH,
   DEVIN_GLOBAL_IGNORE_FILE_NAME,
@@ -106,8 +107,11 @@ credentials/
         expect(generatedContent).toContain("tmp/");
         expect(generatedContent).toContain("credentials/");
       } else if (format === "json" && target === "claudecode") {
-        // Claude Code uses JSON format with permissions.deny
+        // Claude Code uses JSON format with permissions.deny, and the gateway
+        // points the settings file at the published schema.
         const parsed = JSON.parse(generatedContent);
+        expect(Object.keys(parsed)[0]).toBe("$schema");
+        expect(parsed.$schema).toBe(CLAUDECODE_SETTINGS_SCHEMA_URL);
         expect(parsed.permissions.deny).toBeDefined();
         expect(parsed.permissions.deny).toEqual(
           expect.arrayContaining([expect.stringContaining("tmp/")]),

@@ -3,6 +3,12 @@
  * Used by both the ignore and permissions features which read/write this file.
  */
 export type ClaudeSettingsJson = {
+  /**
+   * Editor pointer to the settings JSON Schema. Ensured (never overwritten) by
+   * the shared config gateway on every settings file rulesync writes; see
+   * `CLAUDECODE_SETTINGS_SCHEMA_URL`.
+   */
+  $schema?: string;
   permissions?: {
     allow?: string[] | null;
     ask?: string[] | null;
