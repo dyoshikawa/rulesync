@@ -1,4 +1,4 @@
-import { symlink } from "node:fs/promises";
+import { chmod, stat, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -2683,5 +2683,46 @@ Content that would fail parsing`;
       const secondWrite = await processor.writeAiDirs(toolDirs);
       expect(secondWrite.count).toBe(0);
     });
+
+    it.skipIf(process.platform === "win32")(
+      "should write an executable supporting script executable, and restore a stripped bit",
+      async () => {
+        const rulesyncSkill = new RulesyncSkill({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+          dirName: "script-skill",
+          frontmatter: {
+            name: "script-skill",
+            description: "Skill with a script",
+          },
+          body: "Skill body",
+          otherFiles: [
+            {
+              relativeFilePathToDirPath: join("scripts", "run.sh"),
+              fileBuffer: Buffer.from("#!/bin/sh\necho hi\n"),
+              fileMode: 0o755,
+            },
+            { relativeFilePathToDirPath: "notes.md", fileBuffer: Buffer.from("plain\n") },
+          ],
+          validate: false,
+        });
+
+        const toolDirs = await processor.convertRulesyncDirsToToolDirs([rulesyncSkill]);
+        const firstWrite = await processor.writeAiDirs(toolDirs);
+        expect(firstWrite.count).toBe(1);
+
+        const skillDir = join(testDir, ".claude", "skills", "script-skill");
+        const scriptPath = join(skillDir, "scripts", "run.sh");
+        expect((await stat(scriptPath)).mode & 0o777).toBe(0o755);
+        expect((await stat(join(skillDir, "notes.md"))).mode & 0o111).toBe(0);
+
+        // A copy whose bit was stripped is repaired even though its bytes
+        // match, and that repair is not reported as a change.
+        await chmod(scriptPath, 0o644);
+        const secondWrite = await processor.writeAiDirs(toolDirs);
+        expect(secondWrite.count).toBe(0);
+        expect((await stat(scriptPath)).mode & 0o777).toBe(0o755);
+      },
+    );
   });
 });

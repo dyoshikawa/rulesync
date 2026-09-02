@@ -107,6 +107,55 @@ describe("GitHubClient", () => {
     });
   });
 
+  describe("listExecutablePaths", () => {
+    it("should return the blobs git records as executable", async () => {
+      const mockTree = {
+        sha: "root",
+        url: "https://example.com",
+        truncated: false,
+        tree: [
+          { path: "skills/demo/SKILL.md", mode: "100644", type: "blob", sha: "a", size: 1 },
+          { path: "skills/demo/scripts/run.sh", mode: "100755", type: "blob", sha: "b", size: 1 },
+          { path: "skills/demo/scripts", mode: "040000", type: "tree", sha: "c" },
+          { path: "skills/demo/link", mode: "120000", type: "blob", sha: "d", size: 1 },
+        ],
+      };
+      const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify(mockTree), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+      const result = await client.listExecutablePaths("owner", "repo", "main");
+
+      expect([...result.paths]).toEqual(["skills/demo/scripts/run.sh"]);
+      expect(result.truncated).toBe(false);
+      // Without `recursive` the API lists the root only, and a script under
+      // `scripts/` would never be found while every assertion above still held.
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.github.com/repos/owner/repo/git/trees/main?recursive=1",
+        expect.anything(),
+      );
+    });
+
+    it("should pass the API's truncation flag through", async () => {
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify({ sha: "root", url: "u", truncated: true, tree: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+      const result = await client.listExecutablePaths("owner", "repo", "main");
+
+      expect(result.paths.size).toBe(0);
+      expect(result.truncated).toBe(true);
+    });
+  });
+
   describe("listDirectory", () => {
     it("should return directory contents", async () => {
       const mockContents = [
