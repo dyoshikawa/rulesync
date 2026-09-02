@@ -8,6 +8,7 @@ import {
 } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
+import { fallbackLogger } from "../utils/logger.js";
 import { ruleTools } from "./rules.js";
 
 describe("MCP Rules Tools", () => {
@@ -561,6 +562,60 @@ root: true
         join(RULESYNC_RULES_RELATIVE_DIR_PATH, "keep1.md"),
         join(RULESYNC_RULES_RELATIVE_DIR_PATH, "keep2.md"),
       ]);
+    });
+  });
+
+  describe("warnings", () => {
+    it("says nothing when agentsmd.subprojectPath: auto cannot be resolved", async () => {
+      // The server's stderr never reaches the calling agent, and the docs
+      // promise that list / get / put write nothing there. Constructing the
+      // rule outside a fallback-logger scope would send the "could not
+      // derive" diagnostic to the default console target.
+      const fallbackWarnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const scopedPath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, "scoped.md");
+      const putResult = await ruleTools.putRule.execute({
+        relativePathFromCwd: scopedPath,
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          // No shared wildcard-free directory, so nothing can be derived.
+          globs: ["src/**/*.ts", "test/**/*.ts"],
+          agentsmd: { subprojectPath: "auto" },
+        },
+        body: "# Scoped",
+      });
+      expect(JSON.parse(putResult).frontmatter.agentsmd).toEqual({ subprojectPath: "auto" });
+
+      // "auto" on a root rule is the other diagnostic the constructor raises.
+      const rootPath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME);
+      await writeFileContent(
+        join(testDir, rootPath),
+        `---
+root: true
+targets: ["*"]
+globs: ["packages/api/**/*"]
+agentsmd:
+  subprojectPath: auto
+---
+# Root`,
+      );
+
+      const getResult = await ruleTools.getRule.execute({ relativePathFromCwd: scopedPath });
+      expect(JSON.parse(getResult).frontmatter.agentsmd).toEqual({ subprojectPath: "auto" });
+
+      const listResult = await ruleTools.listRules.execute();
+      const listed = JSON.parse(listResult).rules;
+      expect(listed).toHaveLength(2);
+      for (const rule of listed) {
+        expect(rule.frontmatter.agentsmd).toEqual({ subprojectPath: "auto" });
+      }
+
+      expect(fallbackWarnSpy).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
     });
   });
 

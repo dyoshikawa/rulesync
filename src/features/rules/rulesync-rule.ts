@@ -156,9 +156,7 @@ export type RulesyncRuleFrontmatterInput = z.input<typeof RulesyncRuleFrontmatte
 // Output type has targets always present after parsing
 export type RulesyncRuleFrontmatter = z.infer<typeof RulesyncRuleFrontmatterSchema>;
 
-export type RulesyncRuleParams = Omit<RulesyncFileParams, "fileContent"> & {
-  frontmatter: RulesyncRuleFrontmatterInput;
-  body: string;
+type DeriveSubprojectPathOption = {
   /**
    * Derive `agentsmd.subprojectPath` from `globs` for every non-root rule that
    * does not set one explicitly (the `deriveSubprojectPathFromGlobs` config
@@ -168,9 +166,13 @@ export type RulesyncRuleParams = Omit<RulesyncFileParams, "fileContent"> & {
   deriveSubprojectPathFromGlobs?: boolean;
 };
 
-export type RulesyncRuleFromFileParams = RulesyncFileFromFileParams & {
-  deriveSubprojectPathFromGlobs?: boolean;
-};
+export type RulesyncRuleParams = Omit<RulesyncFileParams, "fileContent"> &
+  DeriveSubprojectPathOption & {
+    frontmatter: RulesyncRuleFrontmatterInput;
+    body: string;
+  };
+
+export type RulesyncRuleFromFileParams = RulesyncFileFromFileParams & DeriveSubprojectPathOption;
 
 /**
  * The `agentsmd.subprojectPath` every consumer should act on, resolved once so
