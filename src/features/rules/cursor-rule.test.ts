@@ -406,6 +406,54 @@ Test content`;
       expect(cursorRule.getFrontmatter().globs).toBe("src/**/*.ts");
     });
 
+    it("should keep a universal glob on a rule that is not alwaysApply", () => {
+      // The drop is scoped to the flag. Without it a universal glob is the only
+      // thing making the rule apply everywhere, so removing it would narrow the
+      // rule to nothing.
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Test",
+          globs: ["**/*"],
+          cursor: {
+            alwaysApply: false,
+          },
+        },
+        body: "Content",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+      });
+
+      const cursorRule = CursorRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(cursorRule.getFrontmatter().globs).toBe("**/*");
+    });
+
+    it("should keep a universal glob mixed with a specific one", () => {
+      // Every glob has to be universal for the list to say nothing the flag
+      // does not. One specific pattern in it makes the list meaningful, so it
+      // survives whole rather than being partly rewritten.
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Test",
+          globs: ["**/*", "src/**"],
+          cursor: {
+            alwaysApply: true,
+          },
+        },
+        body: "Content",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+      });
+
+      const cursorRule = CursorRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(cursorRule.getFrontmatter().globs).toBe("**/*,src/**");
+    });
+
     it("should not let a glob carrying newlines write further frontmatter", () => {
       // `globs` is interpolated unquoted, because Cursor's MDC parser reads the
       // pattern literally rather than as YAML. A newline would otherwise close

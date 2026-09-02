@@ -138,10 +138,16 @@ export class CursorRule extends ToolRule {
       // only quotes single-line patterns). Folding to spaces mirrors the
       // description above, and loses nothing Cursor could have used: its
       // frontmatter parser does not read block scalars either.
-      const globs =
-        typeof frontmatter.globs === "string"
-          ? frontmatter.globs.replace(/[\r\n]+/g, " ").trim()
-          : frontmatter.globs;
+      //
+      // NEL, LS and PS go with CR and LF: YAML 1.1 defines all five as line
+      // breaks, and Cursor's parser is a simplified one whose treatment of them
+      // is not something this side gets to know. Coerced to a string first
+      // rather than folded only when it already is one -- the schema types this
+      // field as a string, but `validate: false` lets a caller hand over an
+      // array, and a value that skips the fold is a value that skips the fix.
+      const globs = String(frontmatter.globs)
+        .replace(/[\r\n\u0085\u2028\u2029]+/g, " ")
+        .trim();
       lines.push(`globs: ${globs}`);
     }
 
@@ -286,7 +292,7 @@ export class CursorRule extends ToolRule {
   }: ToolRuleFromRulesyncRuleParams): CursorRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
 
-    const alwaysApply = rulesyncFrontmatter.cursor?.alwaysApply ?? undefined;
+    const alwaysApply = rulesyncFrontmatter.cursor?.alwaysApply;
 
     const cursorFrontmatter: CursorRuleFrontmatter = {
       description: rulesyncFrontmatter.description,
