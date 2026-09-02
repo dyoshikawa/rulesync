@@ -231,6 +231,65 @@ This is the body of the agentsmd skill.`;
         "allowed-tools": "Read Bash(git:*)",
       });
     });
+
+    it("should emit root-level license/compatibility/metadata exactly as the native writer does", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-fields",
+        frontmatter: {
+          name: "root-fields",
+          description: "Root-level standard fields",
+          license: "MIT",
+          compatibility: { runtime: "node" },
+          metadata: { version: 1 },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const agentsmdSkill = AgentsmdSkill.fromRulesyncSkill({ rulesyncSkill });
+      const agentsSkillsSkill = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(agentsmdSkill.getFrontmatter()).toEqual(agentsSkillsSkill.getFrontmatter());
+      expect(agentsmdSkill.getFrontmatter()).toEqual({
+        name: "root-fields",
+        description: "Root-level standard fields",
+        license: "MIT",
+        compatibility: "runtime: node",
+        metadata: { version: "1" },
+      });
+    });
+
+    it("should let the agentsskills section override the root-level license/compatibility/metadata", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "section-wins",
+        frontmatter: {
+          name: "section-wins",
+          description: "Section overrides the root-level fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+          agentsskills: {
+            license: "Apache-2.0",
+            compatibility: "Requires jq",
+            metadata: { author: "section" },
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(AgentsmdSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()).toEqual({
+        name: "section-wins",
+        description: "Section overrides the root-level fields",
+        license: "Apache-2.0",
+        compatibility: "Requires jq",
+        metadata: { author: "section" },
+      });
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

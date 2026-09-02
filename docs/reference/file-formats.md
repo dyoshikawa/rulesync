@@ -699,6 +699,23 @@ disable-model-invocation: true
 # devin also reads this root value (false maps onto a model-only `triggers`
 # list); it has no section key of the same name, but devin.triggers overrides it.
 user-invocable: false
+# (optional) shared defaults for the three Agent Skills standard packaging fields.
+# Each applies to every tool that models the field, and any of those tool sections
+# can override it by setting the same key below (a section value replaces the root
+# value outright; the two are never merged). Targets that normalize the field —
+# the Agent Skills writers (agentsskills, hermesagent, agentsmd) flatten an object
+# `compatibility` to a string and stringify `metadata` values — apply the same
+# normalization to a root value as to a section value.
+# `license`: claudecode, opencode, kilo, kiro, deepagents, copilot, copilotcli, pi,
+# replit, rovodev, factorydroid, agentsskills (plus hermesagent and agentsmd), vibe.
+license: MIT
+# `compatibility`: the same tools minus copilot and copilotcli. A free-form string
+# per the Agent Skills spec (1–500 chars); the object form is also accepted, but
+# kilo accepts only the object form, so a root-level string is not forwarded to it.
+compatibility: "Requires git and jq"
+# `metadata`: the same tools as `compatibility`, plus cursor.
+metadata:
+  author: example-org
 claudecode: # for claudecode-specific parameters
   model: sonnet # opus, sonnet, haiku, or any string
   when_to_use: When the user asks to review a PR # (optional) extra trigger context appended to description
@@ -814,6 +831,8 @@ kimi-code: # for Kimi Code-specific parameters (optional; project/global .kimi-c
   disableModelInvocation: false # (optional) prevent automatic model invocation
   arguments: ["pull_request"] # (optional) named arguments, also accepts a whitespace-separated string
 agentsskills: # for the Agent Skills standard target (optional; supports project + global ~/.agents/skills/)
+  # `license`, `compatibility` and `metadata` fall back to the root-level values above
+  # when omitted here; a value set here wins for this target only.
   license: MIT # (optional)
   compatibility: "Requires Python 3.14+ and uv" # (optional) free-form string, 1–500 chars (an object is also accepted for back-compat)
   metadata: # (optional) free-form metadata (spec-recommended place for skill versioning)

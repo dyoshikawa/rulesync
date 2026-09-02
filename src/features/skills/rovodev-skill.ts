@@ -11,6 +11,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -174,6 +175,20 @@ export class RovodevSkill extends ToolSkill {
     const settablePaths = RovodevSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const rovodevSection = rulesyncFrontmatter.rovodev;
+    // The Agent Skills standard fields fall back to the root-level rulesync
+    // value when the `rovodev` section omits them.
+    const license = resolveLicense({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: rovodevSection,
+    });
+    const compatibility = resolveCompatibility({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: rovodevSection,
+    });
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: rovodevSection,
+    });
 
     const rovodevFrontmatter: RovodevSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
@@ -181,11 +196,9 @@ export class RovodevSkill extends ToolSkill {
       ...(rovodevSection?.["allowed-tools"] !== undefined && {
         "allowed-tools": rovodevSection["allowed-tools"],
       }),
-      ...(rovodevSection?.license !== undefined && { license: rovodevSection.license }),
-      ...(rovodevSection?.compatibility !== undefined && {
-        compatibility: rovodevSection.compatibility,
-      }),
-      ...(rovodevSection?.metadata !== undefined && { metadata: rovodevSection.metadata }),
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
     };
 
     return new RovodevSkill({

@@ -117,6 +117,63 @@ describe("VibeSkill", () => {
     });
   });
 
+  it("should fall back to the root-level license/compatibility/metadata when the vibe section omits them", () => {
+    const rulesyncSkill = new RulesyncSkill({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      dirName: "root-fields",
+      frontmatter: {
+        name: "root-fields",
+        description: "Root-level standard fields",
+        targets: ["vibe"],
+        license: "MIT",
+        compatibility: "Requires git",
+        metadata: { author: "root" },
+      },
+      body: "Body",
+    });
+
+    const frontmatter = VibeSkill.fromRulesyncSkill({
+      outputRoot: testDir,
+      rulesyncSkill,
+    }).getFrontmatter();
+
+    expect(frontmatter.license).toBe("MIT");
+    expect(frontmatter.compatibility).toBe("Requires git");
+    expect(frontmatter.metadata).toEqual({ author: "root" });
+  });
+
+  it("should let the vibe section override the root-level license/compatibility/metadata", () => {
+    const rulesyncSkill = new RulesyncSkill({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      dirName: "section-wins",
+      frontmatter: {
+        name: "section-wins",
+        description: "Section overrides the root-level fields",
+        targets: ["vibe"],
+        license: "MIT",
+        compatibility: "Requires git",
+        metadata: { author: "root" },
+        vibe: {
+          license: "Apache-2.0",
+          compatibility: { vibe: ">=1.0.0" },
+          metadata: { author: "section" },
+        },
+      },
+      body: "Body",
+    });
+
+    const frontmatter = VibeSkill.fromRulesyncSkill({
+      outputRoot: testDir,
+      rulesyncSkill,
+    }).getFrontmatter();
+
+    expect(frontmatter.license).toBe("Apache-2.0");
+    expect(frontmatter.compatibility).toEqual({ vibe: ">=1.0.0" });
+    expect(frontmatter.metadata).toEqual({ author: "section" });
+  });
+
   it("should pick up root-level user-invocable when vibe section omits it", () => {
     const rulesyncSkill = new RulesyncSkill({
       outputRoot: testDir,

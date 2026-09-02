@@ -14,6 +14,7 @@ import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { asOpencodeEntries, getOpencodeConfigDir, readOpencodeConfig } from "../opencode-config.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -42,21 +43,6 @@ export const OpenCodeSkillFrontmatterSchema = z.looseObject({
 });
 
 export type OpenCodeSkillFrontmatter = z.infer<typeof OpenCodeSkillFrontmatterSchema>;
-
-/**
- * Reads a top-level `compatibility` value from rulesync frontmatter, accepting
- * both the documented string form (e.g. `compatibility: opencode`) and the
- * legacy object form. Returns `undefined` for any other shape.
- */
-function readTopLevelCompatibility(value: unknown): string | Record<string, unknown> | undefined {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (typeof value === "object" && value !== null) {
-    return value as Record<string, unknown>;
-  }
-  return undefined;
-}
 
 export type OpenCodeSkillParams = {
   outputRoot?: string;
@@ -225,23 +211,20 @@ export class OpenCodeSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const opencodeSection = rulesyncFrontmatter.opencode;
 
-    // `RulesyncSkillFrontmatterSchema` is a `looseObject`, so top-level
-    // `license`/`compatibility`/`metadata` may exist as runtime keys even
-    // though they are not part of the typed input. Read them safely here.
-    const looseTopLevel = rulesyncFrontmatter as Record<string, unknown>;
-    const topLevelLicense =
-      typeof looseTopLevel.license === "string" ? looseTopLevel.license : undefined;
-    const topLevelCompatibility = readTopLevelCompatibility(looseTopLevel.compatibility);
-    const topLevelMetadata =
-      typeof looseTopLevel.metadata === "object" && looseTopLevel.metadata !== null
-        ? (looseTopLevel.metadata as Record<string, unknown>)
-        : undefined;
-
     // Source precedence: the `opencode` section value takes priority, falling
-    // back to the top-level rulesync frontmatter value when present.
-    const license = opencodeSection?.license ?? topLevelLicense;
-    const compatibility = opencodeSection?.compatibility ?? topLevelCompatibility;
-    const metadata = opencodeSection?.metadata ?? topLevelMetadata;
+    // back to the root-level rulesync frontmatter value when present.
+    const license = resolveLicense({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: opencodeSection,
+    });
+    const compatibility = resolveCompatibility({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: opencodeSection,
+    });
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: opencodeSection,
+    });
 
     const opencodeFrontmatter: OpenCodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,

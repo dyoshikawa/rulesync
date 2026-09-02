@@ -8,6 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -151,17 +152,34 @@ export class KiloSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const kiloSection = rulesyncFrontmatter.kilo;
 
+    // The Agent Skills standard fields fall back to the root-level rulesync
+    // value when the `kilo` section omits them.
+    const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section: kiloSection });
+    const resolvedCompatibility = resolveCompatibility({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: kiloSection,
+    });
+    // Kilo documents `compatibility` only as "environment requirements" with
+    // neither a type nor an example, and both the `kilo` section and Kilo's own
+    // frontmatter schema accept the mapping form alone. A root-level string —
+    // which the other Agent Skills targets consume as-is — is therefore not
+    // forwarded to Kilo rather than emitting a value its schema would reject.
+    const compatibility =
+      typeof resolvedCompatibility === "string" ? undefined : resolvedCompatibility;
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: kiloSection,
+    });
+
     const kiloFrontmatter: KiloSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(kiloSection?.["allowed-tools"] !== undefined && {
         "allowed-tools": kiloSection["allowed-tools"],
       }),
-      ...(kiloSection?.license !== undefined && { license: kiloSection.license }),
-      ...(kiloSection?.compatibility !== undefined && {
-        compatibility: kiloSection.compatibility,
-      }),
-      ...(kiloSection?.metadata !== undefined && { metadata: kiloSection.metadata }),
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
     };
 
     const settablePaths = KiloSkill.getSettablePaths({ global });

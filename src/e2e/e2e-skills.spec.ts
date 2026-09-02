@@ -252,6 +252,39 @@ This is the test skill body content.
     expect(generatedContent).not.toContain("- Read");
   });
 
+  // The root-level Agent Skills standard fields are shared defaults for every
+  // target that models them, so a root-authored value must go through the same
+  // spec normalization as an `agentsskills:` section value.
+  it("should write root-level compatibility/metadata in spec-conformant scalar form for agentsskills", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
+      `---
+name: test-skill
+description: "A test skill for E2E testing"
+targets: ["*"]
+license: MIT
+compatibility:
+  runtime: node
+metadata:
+  version: 1
+---
+This is the test skill body content.
+`,
+    );
+
+    await runGenerate({ target: "agentsskills", features: "skills" });
+
+    const generatedContent = await readFileContent(
+      join(testDir, ".agents", "skills", "test-skill", "SKILL.md"),
+    );
+    expect(generatedContent).toContain("license: MIT");
+    expect(generatedContent).toContain("compatibility: 'runtime: node'");
+    expect(generatedContent).toContain("version: '1'");
+    expect(generatedContent).not.toContain("  runtime: node");
+  });
+
   it.each([
     {
       target: "agentsmd",

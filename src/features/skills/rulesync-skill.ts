@@ -56,6 +56,22 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   // `triggers` list); it has no section key of the same name, but a
   // `devin.triggers` section value overrides it.
   "user-invocable": z.optional(z.boolean()),
+  // Shared defaults for the three Agent Skills standard packaging fields. Each
+  // applies to every tool that models the field, and a target-section value of
+  // the same key overrides it:
+  //   - `license`: claudecode, opencode, kilo, kiro, deepagents, copilot,
+  //     copilotcli, pi, replit, rovodev, factorydroid, agentsskills (also
+  //     hermesagent and the simulated agentsmd), vibe.
+  //   - `compatibility`: the same list minus copilot and copilotcli. kilo only
+  //     accepts the object form, so a root-level string is not forwarded to it.
+  //   - `metadata`: the same list as `compatibility`, plus cursor.
+  // The Agent Skills spec types `compatibility` as a free-form string (1–500
+  // chars) and `metadata` as a string→string map; the object form of
+  // `compatibility` and non-string `metadata` values stay accepted for
+  // back-compat and are normalized per target where the target requires it.
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+  metadata: z.optional(z.looseObject({})),
   claudecode: z.optional(
     z.looseObject({
       when_to_use: z.optional(z.string()),
@@ -337,6 +353,9 @@ export type RulesyncSkillFrontmatterInput = {
   targets?: ("*" | string)[];
   "disable-model-invocation"?: boolean;
   "user-invocable"?: boolean;
+  license?: string;
+  compatibility?: string | Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   claudecode?: {
     when_to_use?: string;
     "allowed-tools"?: string | string[];
@@ -393,6 +412,10 @@ export type RulesyncSkillFrontmatterInput = {
   };
   kilo?: {
     "allowed-tools"?: string[];
+    license?: string;
+    // Kilo accepts the object form alone; see the schema above.
+    compatibility?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
   };
   kiro?: {
     license?: string;

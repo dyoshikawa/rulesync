@@ -1557,6 +1557,86 @@ Body.`;
 
       expect(logger.warn).not.toHaveBeenCalled();
     });
+
+    it("should normalize root-level compatibility/metadata exactly like the agentsskills section", () => {
+      // A root-authored value must reach the file in the spec's scalar forms,
+      // not bypass the coercion the section value goes through.
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-fields",
+        frontmatter: {
+          name: "root-fields",
+          description: "Root-level standard fields",
+          license: "MIT",
+          compatibility: { runtime: "node" },
+          metadata: { version: 1 },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()).toEqual({
+        name: "root-fields",
+        description: "Root-level standard fields",
+        license: "MIT",
+        compatibility: "runtime: node",
+        metadata: { version: "1" },
+      });
+    });
+
+    it("should let the agentsskills section override the root-level license/compatibility/metadata", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "section-wins",
+        frontmatter: {
+          name: "section-wins",
+          description: "Section overrides the root-level fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+          agentsskills: {
+            license: "Apache-2.0",
+            compatibility: "Requires jq",
+            metadata: { author: "section" },
+            "allowed-tools": ["Read"],
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()).toEqual({
+        name: "section-wins",
+        description: "Section overrides the root-level fields",
+        license: "Apache-2.0",
+        compatibility: "Requires jq",
+        metadata: { author: "section" },
+        "allowed-tools": "Read",
+      });
+    });
+
+    it("should report a spec violation for a root-level compatibility that is too long", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-too-long",
+        frontmatter: {
+          name: "root-too-long",
+          description: "Root-level compatibility over the limit",
+          compatibility: "x".repeat(501),
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn.mock.calls[0]?.[0]).toContain("`compatibility`");
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

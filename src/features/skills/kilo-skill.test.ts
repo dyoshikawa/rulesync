@@ -197,6 +197,80 @@ describe("KiloSkill", () => {
       expect(skill.getRelativeDirPath()).toBe(join(".kilo", "skills"));
       expect(skill.getFrontmatter()["allowed-tools"]).toEqual(["Bash", "Read"]);
     });
+
+    it("should fall back to the root-level license/compatibility/metadata when the kilo section omits them", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-fields",
+        frontmatter: {
+          name: "root-fields",
+          description: "Root-level standard fields",
+          license: "MIT",
+          compatibility: { "kilo-version": ">=7.0.0" },
+          metadata: { author: "root" },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = KiloSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("MIT");
+      expect(frontmatter.compatibility).toEqual({ "kilo-version": ">=7.0.0" });
+      expect(frontmatter.metadata).toEqual({ author: "root" });
+    });
+
+    it("should let the kilo section override the root-level license/compatibility/metadata", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "section-wins",
+        frontmatter: {
+          name: "section-wins",
+          description: "Section overrides the root-level fields",
+          license: "MIT",
+          compatibility: { "kilo-version": ">=7.0.0" },
+          metadata: { author: "root" },
+          kilo: {
+            license: "Apache-2.0",
+            compatibility: { "kilo-version": ">=8.0.0" },
+            metadata: { author: "section" },
+          },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = KiloSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("Apache-2.0");
+      expect(frontmatter.compatibility).toEqual({ "kilo-version": ">=8.0.0" });
+      expect(frontmatter.metadata).toEqual({ author: "section" });
+    });
+
+    it("should not forward a root-level string compatibility, which the kilo schema rejects", () => {
+      // Kilo documents `compatibility` without a type and its frontmatter
+      // schema accepts only the mapping form, so the string the other Agent
+      // Skills targets consume is dropped here rather than failing validation.
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-string-compatibility",
+        frontmatter: {
+          name: "root-string-compatibility",
+          description: "Root-level string compatibility",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = KiloSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter).toEqual({
+        name: "root-string-compatibility",
+        description: "Root-level string compatibility",
+        license: "MIT",
+        metadata: { author: "root" },
+      });
+    });
   });
 
   describe("fromDir", () => {

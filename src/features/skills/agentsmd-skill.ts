@@ -1,5 +1,9 @@
 import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
-import { AgentsSkillsSkill, toSpecConformantAgentSkillFields } from "./agentsskills-skill.js";
+import {
+  AgentsSkillsSkill,
+  resolveAgentsSkillsSection,
+  toSpecConformantAgentSkillFields,
+} from "./agentsskills-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill } from "./simulated-skill.js";
 import {
@@ -46,7 +50,9 @@ export class AgentsmdSkill extends SimulatedSkill {
       ...defaults.frontmatter,
       // Same shared block, same normalization as the native target that owns
       // this path, so the two writers cannot disagree about the file.
-      ...toSpecConformantAgentSkillFields(params.rulesyncSkill.getFrontmatter().agentsskills),
+      ...toSpecConformantAgentSkillFields(
+        resolveAgentsSkillsSection(params.rulesyncSkill.getFrontmatter()),
+      ),
     };
 
     // Same file, same diagnostics: generating for this target alone must report
