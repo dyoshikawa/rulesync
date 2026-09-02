@@ -165,6 +165,24 @@ describe("createOrphanSweepPlan", () => {
     });
   });
 
+  describe("isGeneratedExactly", () => {
+    it("should not answer for a file merely inside a registered tree", () => {
+      // The sweep that looks inside a generated skill directory asks this: the
+      // tree claim covers every candidate it could consider, so only the names
+      // the run actually wrote may protect a file from it.
+      const plan = createOrphanSweepPlan();
+      const dirPath = join("out", ".agents", "skills", "review");
+
+      plan.registerGeneratedTree({ paths: [dirPath] });
+      plan.registerGenerated({ paths: [join(dirPath, "SKILL.md")] });
+
+      expect(plan.isGeneratedExactly({ path: join(dirPath, "SKILL.md") })).toBe(true);
+      expect(plan.isGeneratedExactly({ path: join(dirPath, "stale.md") })).toBe(false);
+      // The tree claim still answers for the sweep that decides on directories.
+      expect(plan.isGenerated({ path: join(dirPath, "stale.md") })).toBe(true);
+    });
+  });
+
   describe("rejectClaimed", () => {
     it("should keep only the items this run did not claim", () => {
       const plan = createOrphanSweepPlan();

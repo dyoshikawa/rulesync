@@ -45,7 +45,7 @@ import type { Logger } from "../utils/logger.js";
 import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
-import { resetWarnedOnceMessages } from "../utils/warned-once.js";
+import { resetRunWarningState } from "../utils/warned-once.js";
 import { createOrphanSweepPlan, type OrphanSweepPlan } from "./orphan-sweep.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
@@ -243,7 +243,33 @@ async function processDirFeatureGeneration(params: {
           generatedDirs: toolDirs,
         });
 
-        return orphanDirCount + orphanFileCount > 0;
+        // The last of the three sweeps: the files left inside a directory this
+        // run still generates. Neither sweep above looks there — one removes
+        // whole directories that no longer correspond to an entry, the other
+        // only the files a flattening tool can name — so a companion file
+        // deleted from a source directory that is otherwise kept survived every
+        // generate.
+        //
+        // Run on `toolDirs` rather than on a re-enumeration, and last, so it
+        // sees the tree as this run left it: the directories the sweep above
+        // deleted are gone, and nothing here has to decide again whether one of
+        // them should have been. That costs one walk per generated directory
+        // per target, which is why it walks only the directories this run wrote
+        // rather than the whole output root.
+        //
+        // Files only: a directory left empty by the files it removes stays,
+        // since an empty directory is not something a previous run's output can
+        // be told apart from one a user made.
+        const orphanInDirCount = await processor.removeOrphanFilesInAiDirs({
+          generatedDirs: toolDirs,
+          // Claims are consulted per file, not per tree: this sweep looks
+          // inside a directory the run has claimed as a whole, so the tree
+          // claim covers every candidate it could ever consider. What has to
+          // survive is a file another target wrote into a root they share.
+          isClaimed: (path) => sweepPlan.isGeneratedExactly({ path }),
+        });
+
+        return orphanDirCount + orphanFileCount + orphanInDirCount > 0;
       },
     });
   }
@@ -784,7 +810,7 @@ export async function generate(params: {
   // "Once per run" means once per generate, not once per process: `--watch` and
   // the MCP server keep one process alive across many runs, and a warning that
   // still applies has to be said again.
-  resetWarnedOnceMessages();
+  resetRunWarningState();
 
   for (const toolTarget of config.getTargets()) {
     for (const outputRoot of config.getOutputRoots(toolTarget)) {

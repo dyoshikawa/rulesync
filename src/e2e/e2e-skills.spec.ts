@@ -5,7 +5,13 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
-import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import {
+  ensureDir,
+  fileExists,
+  readFileContent,
+  removeFile,
+  writeFileContent,
+} from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
@@ -610,6 +616,55 @@ This is the fallback skill body content.`;
     });
 
     expect(await fileExists(orphanPath)).toBe(false);
+  });
+
+  it("should prune a supporting file deleted from a skill the run still generates", async () => {
+    // The directory sweep never looks inside a directory whose entry is still
+    // there, so a supporting file removed from the source used to survive every
+    // generate — and `--check` called the tree up to date while an agent went
+    // on reading it.
+    const testDir = getTestDir();
+    const sourceDirPath = join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review");
+    const outputDirPath = join(testDir, ".claude", "skills", "review");
+    await writeFileContent(
+      join(sourceDirPath, "SKILL.md"),
+      ["---", "name: review", 'description: "Review"', "---", "Review body."].join("\n"),
+    );
+    await writeFileContent(join(sourceDirPath, "references", "keep.md"), "Keep me.");
+    await writeFileContent(join(sourceDirPath, "references", "stale.md"), "Stale.");
+
+    await runGenerate({ target: "claudecode", features: "skills", deleteFiles: true });
+    expect(await fileExists(join(outputDirPath, "references", "stale.md"))).toBe(true);
+
+    // The user's own file, which the loader that carries supporting files
+    // refuses on the way in and the sweep must therefore never touch.
+    await writeFileContent(join(outputDirPath, ".gitkeep"), "");
+    await removeFile(join(sourceDirPath, "references", "stale.md"));
+
+    await expect(
+      runGenerate({
+        target: "claudecode",
+        features: "skills",
+        deleteFiles: true,
+        check: true,
+        env: { NODE_ENV: "e2e" },
+      }),
+    ).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining(
+        "Files are not up to date. Run 'rulesync generate' to update.",
+      ),
+    });
+    // A check run reports; it does not delete.
+    expect(await fileExists(join(outputDirPath, "references", "stale.md"))).toBe(true);
+
+    await runGenerate({ target: "claudecode", features: "skills", deleteFiles: true });
+
+    expect(await fileExists(join(outputDirPath, "references", "stale.md"))).toBe(false);
+    expect(await readFileContent(join(outputDirPath, "references", "keep.md"))).toContain(
+      "Keep me.",
+    );
+    expect(await fileExists(join(outputDirPath, ".gitkeep"))).toBe(true);
   });
 
   it("should not delete the takt facet root when the run generates no takt skill", async () => {

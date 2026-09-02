@@ -14,6 +14,7 @@ import {
   toPosixPath,
 } from "../utils/file.js";
 import { warnOnceWithFallback } from "../utils/logger.js";
+import { recordIncompleteCarriedFiles } from "../utils/warned-once.js";
 
 /**
  * Whether `name` is a path rather than a single name.
@@ -1116,6 +1117,12 @@ export abstract class AiDir {
     truncations: Set<CarriedWalkTruncation>;
     unreadablePaths: string[];
   }): void {
+    // Every branch below describes files the run wanted and did not get, which
+    // is what makes this run's picture of the source incomplete. Recorded here
+    // rather than in each branch so a bound added later cannot forget it.
+    if (truncations.size > 0 || unreadablePaths.length > 0) {
+      recordIncompleteCarriedFiles();
+    }
     if (truncations.has("depth")) {
       warnOnceWithFallback(
         undefined,
@@ -1317,6 +1324,7 @@ export abstract class AiDir {
         // a link only if one was put there since.
         fileHandle = await open(classifiedPath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
       } catch (error) {
+        recordIncompleteCarriedFiles();
         warnOnceWithFallback(
           undefined,
           `Not carrying ${stripControlCharacters(toPosixPath(filePath))}: ${stripControlCharacters(formatError(error))}.`,
@@ -1326,6 +1334,7 @@ export abstract class AiDir {
       try {
         const fileSize = (await fileHandle.stat()).size;
         if (carriedBytes + fileSize > MAX_CARRIED_BYTES) {
+          recordIncompleteCarriedFiles();
           warnOnceWithFallback(
             undefined,
             `Not carrying ${filteredPaths.length - index} of the ${filteredPaths.length} entries under ${reportedDirPath}: a directory may carry at most ${MAX_CARRIED_BYTES / 1024 / 1024}MB. A symbolic link that reaches a large tree is the usual cause.`,
@@ -1342,6 +1351,7 @@ export abstract class AiDir {
         // A file that opened but would not read -- a permission dropped in
         // between, or a device that refuses a plain read -- is skipped rather
         // than allowed to abort the whole directory.
+        recordIncompleteCarriedFiles();
         warnOnceWithFallback(
           undefined,
           `Not carrying ${stripControlCharacters(toPosixPath(filePath))}: ${stripControlCharacters(formatError(error))}.`,

@@ -6,20 +6,25 @@ import {
   fileContentsEquivalent,
 } from "../utils/content-equivalence.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
+import { formatError } from "../utils/error.js";
 import {
   addTrailingNewline,
+  assertWritablePathInsideRoot,
   ensureDir,
+  listFilePathsRecursively,
   pathEscapesRoot,
   readFileBufferOrNull,
   readFileContentOrNull,
   removeDirectory,
   removeFile,
+  toPosixPath,
   writeFileBuffer,
   writeFileContent,
 } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
-import type { Logger } from "../utils/logger.js";
+import { type Logger, warnOnceWithFallback } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
+import { hasIncompleteCarriedFiles } from "../utils/warned-once.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
 import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolTarget } from "./tool-targets.js";
@@ -332,6 +337,204 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     }
 
     return await this.deleteOrphanPaths({ paths: orphanPaths, kind: "directory" });
+  }
+
+  /**
+   * Remove the files left inside a directory this run still generates, but
+   * which the run no longer writes.
+   *
+   * The directory sweep above cannot see them: it removes a directory that no
+   * longer corresponds to any generated entry, and never looks inside one that
+   * does. So deleting a companion file from a source directory that is
+   * otherwise kept left the generated copy in place — and, because change
+   * detection compares only the files the run will write, the run reported
+   * itself up to date while an agent went on reading the stale file. The same
+   * gap left any file that was never rulesync's sitting inside a directory the
+   * user now believes rulesync owns.
+   *
+   * Only a directory that owns its whole tree is swept, and only when this run
+   * generated it. That is the same claim the directory sweep already acts on,
+   * one level down: a directory whose entry disappears is deleted outright,
+   * companion files and all, so a file inside one whose entry is still here and
+   * which no source produces is stale by exactly the same reasoning.
+   *
+   * Two kinds of file are left alone:
+   *
+   * - **Hidden entries.** The loader does carry a hidden companion — a
+   *   `.env.example` beside the script that reads it is skill content — so a
+   *   hidden file here may be rulesync's. But a hidden name is also where a
+   *   user's own files live: a `.gitkeep`, a `.env` with real values in it. The
+   *   sweep cannot tell the two apart by name, and deleting the user's is the
+   *   worse mistake, so a stale hidden companion is the one leftover it
+   *   knowingly keeps.
+   * - **Symbolic links**, which the writer never creates. The walk neither
+   *   follows nor reports them, so a link is never removed and never resolved
+   *   into a deletion somewhere outside the tree.
+   *
+   * Nothing is swept at all by a run that could not read its sources in full.
+   * `AiDir` drops a companion file it cannot open, and stops short of a subtree
+   * it is denied or that runs past one of its bounds -- warning each time, but
+   * carrying on, because a skill that is short one file is still worth writing.
+   * The output copy of such a file is then indistinguishable here from a file
+   * whose source was deleted, and the wrong guess deletes something the next
+   * readable run would put straight back. So a shortfall anywhere in the run
+   * calls the whole sweep off: it is the sweeps that are optional, not the
+   * files.
+   *
+   * @param isClaimed - Whether some other target or feature in this run wrote
+   *   this exact path. A shared output root -- `.agents/skills/`, written by
+   *   several targets at once -- is a directory whose entry here lists only
+   *   *this* target's files, so without the run's own record a sibling's fresh
+   *   output reads as an orphan. Asked per path rather than per tree: a tree
+   *   claim covers the directory this sweep is looking inside of, and would
+   *   answer yes to every file in it.
+   */
+  async removeOrphanFilesInAiDirs({
+    generatedDirs,
+    isClaimed,
+  }: {
+    generatedDirs: AiDir[];
+    isClaimed: (path: string) => boolean;
+  }): Promise<number> {
+    if (hasIncompleteCarriedFiles()) {
+      // Once per run, not once per target: the message is about the sources,
+      // which every target of the run reads alike.
+      warnOnceWithFallback(
+        this.logger,
+        "Not sweeping the files inside generated directories: this run could not read every " +
+          "file its sources carry, so a file it did not write may still be one it wants. " +
+          "The warnings above name what it could not read.",
+      );
+      return 0;
+    }
+
+    const orphanPaths = new Set<string>();
+    const quotedOutputRoot = JSON.stringify(stripControlCharacters(this.outputRoot));
+
+    for (const aiDir of generatedDirs) {
+      // Read once and act on that one value, as the sweeps around this one do:
+      // `getDirPath()` is a method a subclass supplies, and a second call could
+      // answer differently from the one the checks below ruled on.
+      const dirPath = aiDir.getDirPath();
+      const { verdict, root } = locateInOwnRoot({ aiDir, dirPath, outputRoot: this.outputRoot });
+      const quotedDirPath = JSON.stringify(stripControlCharacters(dirPath));
+      const quotedRoot = JSON.stringify(stripControlCharacters(root));
+
+      // Asked before anything else, in the order the directory sweep asks it: a
+      // root that is not in the directory this run writes to makes every
+      // position inside it meaningless.
+      if (verdict === "root-outside") {
+        this.logger.warn(
+          `Refusing to sweep ${quotedDirPath}: the root ${quotedRoot} it was found in is not ` +
+            `inside ${quotedOutputRoot}, the directory this run writes to`,
+        );
+        continue;
+      }
+
+      if (!aiDir.ownsDirTree()) {
+        // False for two different shapes, as it is one sweep up. A tool that
+        // flattens into a shared root reports that root here: expected, and
+        // quiet, since its files are swept by `removeOrphanFlatFiles` — which
+        // sweeps only the ones it can name — and everything else in a shared
+        // root belongs to somebody else. Anything else is a `getDirPath()`
+        // override out of agreement with `ownsDirTree()`, and passing that over
+        // in silence is how a contract mismatch goes unnoticed.
+        if (verdict === "equal") {
+          this.logger.debug(
+            `Skipping orphan sweep for ` +
+              `${JSON.stringify(stripControlCharacters(aiDir.getDirName()))}: ` +
+              `${quotedDirPath} is a shared root, not a directory of its own`,
+          );
+        } else {
+          this.logger.warn(
+            `Refusing to sweep ${quotedDirPath}: it does not own that directory, and it is not ` +
+              `the shared root ${quotedRoot} it was found in either`,
+          );
+        }
+        continue;
+      }
+
+      if (verdict !== "inside") {
+        this.logger.warn(
+          `Refusing to sweep ${quotedDirPath}: it is not a directory inside ${quotedRoot}, the ` +
+            `root it was found in`,
+        );
+        continue;
+      }
+
+      // The verdict above is lexical. The walk below reads the directory
+      // through whatever `dirPath` really is, and a skill directory that is a
+      // symbolic link — to a vendored checkout, say — reads back a tree this
+      // run never wrote and unlinks through the link into it. The other sweeps
+      // never meet one: their candidates come from an enumeration that does not
+      // follow links. This one's come from the sources, so it asks here.
+      try {
+        await assertWritablePathInsideRoot({ rootPath: this.outputRoot, targetPath: dirPath });
+      } catch (error) {
+        this.logger.warn(
+          `Refusing to sweep ${quotedDirPath}: ${stripControlCharacters(formatError(error))}`,
+        );
+        continue;
+      }
+
+      const generatedNames = new Set<string>();
+      const mainFile = aiDir.getMainFile();
+      if (mainFile) {
+        generatedNames.add(toPosixPath(mainFile.name));
+      }
+      for (const file of aiDir.getOtherFiles()) {
+        generatedNames.add(toPosixPath(file.relativeFilePathToDirPath));
+      }
+      // Folded alongside the exact names for the same reason the flat-file
+      // sweep folds its paths: on a case-insensitive filesystem a companion
+      // renamed from `Ref.md` to `ref.md` is written through the directory
+      // entry that is still spelled `Ref.md`, and the name read back would
+      // otherwise match nothing this run wrote and be swept as an orphan.
+      const generatedNamesFolded = new Set([...generatedNames].map((name) => name.toLowerCase()));
+
+      // A subdirectory this run cannot read is refused the same way as the
+      // rest, not thrown: every file has been written by now, and a sweep is
+      // not worth failing the run over. The source side treats an unreadable
+      // subtree the same way, as a warning and a stand-down.
+      let existingNames: string[];
+      try {
+        existingNames = await listFilePathsRecursively(dirPath, {
+          followSymbolicLinks: false,
+          includeHidden: false,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Refusing to sweep ${quotedDirPath}: ${stripControlCharacters(formatError(error))}`,
+        );
+        continue;
+      }
+      for (const existingName of existingNames) {
+        const posixName = toPosixPath(existingName);
+        if (generatedNames.has(posixName)) {
+          continue;
+        }
+        const filePath = join(dirPath, existingName);
+        if (generatedNamesFolded.has(posixName.toLowerCase())) {
+          // Reported rather than skipped in silence, as the flat-file sweep
+          // reports it: on a case-sensitive filesystem the two names really are
+          // two files, and the one this run did not write is stale — exactly
+          // what this sweep exists to remove. Refusing it is the safe half of
+          // the guess; saying so is what lets the other half be corrected.
+          this.logger.warn(
+            `Refusing to delete ${JSON.stringify(stripControlCharacters(filePath))}: this run ` +
+              `wrote a file whose path differs from it only in case, which on a case-insensitive ` +
+              `filesystem is the very file it wrote`,
+          );
+          continue;
+        }
+        if (isClaimed(filePath)) {
+          continue;
+        }
+        orphanPaths.add(filePath);
+      }
+    }
+
+    return await this.deleteOrphanPaths({ paths: orphanPaths, kind: "file" });
   }
 
   /**
