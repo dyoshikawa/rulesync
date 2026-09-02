@@ -14,7 +14,7 @@ import {
   GitHubReleaseSchema,
   GitHubRepoInfoSchema,
 } from "../types/fetch.js";
-import { stripControlCharacters } from "../utils/control-characters.js";
+import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
 
@@ -141,9 +141,7 @@ export class GitHubClient {
 
       // API returns single object for files, array for directories
       if (!Array.isArray(data)) {
-        throw new GitHubClientError(
-          `Path ${JSON.stringify(stripControlCharacters(path))} is not a directory`,
-        );
+        throw new GitHubClientError(`Path ${quoteForLog(path)} is not a directory`);
       }
 
       const entries: GitHubFileEntry[] = [];
@@ -259,7 +257,7 @@ export class GitHubClient {
         throw new GitHubClientError(
           // `path` names a file in the remote repository, so it is stripped
           // and quoted before it reaches a terminal.
-          `File ${JSON.stringify(stripControlCharacters(path))} exceeds maximum size limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+          `File ${quoteForLog(path)} exceeds maximum size limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
         );
       }
 

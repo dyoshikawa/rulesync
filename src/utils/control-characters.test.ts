@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   hasDeceptiveHiddenCharacters,
+  quoteForLog,
   stripControlCharacters,
   stripControlCharactersKeepingLineFeeds,
   stripHiddenCharacters,
@@ -27,6 +28,33 @@ describe("stripControlCharacters", () => {
 
   it("should strip the plain right-to-left marks, which reorder the neutrals beside them", () => {
     expect(stripControlCharacters("a\u200fb\u200ec")).toBe("abc");
+  });
+});
+
+describe("quoteForLog", () => {
+  it("should JSON-quote printable text so a reader can see where the name ends", () => {
+    expect(quoteForLog("skill-a")).toBe(`"skill-a"`);
+  });
+
+  it("should quote the empty string as a pair of quotes", () => {
+    expect(quoteForLog("")).toBe(`""`);
+  });
+
+  it("should escape the quotes and backslashes that would blur the edge of the quoting", () => {
+    expect(quoteForLog(`a"b\\c`)).toBe(`"a\\"b\\\\c"`);
+  });
+
+  it("should remove a newline rather than spell it out as an escape", () => {
+    expect(quoteForLog("key\n[warn] forged")).toBe(`"key[warn] forged"`);
+  });
+
+  it("should remove the C1 range and the bidi overrides, which JSON quoting alone would pass through", () => {
+    expect(JSON.stringify("a\u009bb\u202ec")).toBe(`"a\u009bb\u202ec"`);
+    expect(quoteForLog("a\u009bb\u202ec")).toBe(`"abc"`);
+  });
+
+  it("should remove the C0 controls and DEL as well", () => {
+    expect(quoteForLog("a\u0000b\u001bc\u007fd")).toBe(`"abcd"`);
   });
 });
 

@@ -23,6 +23,27 @@ export function stripControlCharacters(text: string): string {
 }
 
 /**
+ * Strips the control characters from `text` and then JSON-quotes it, which is
+ * the form a remote-derived name — a fetched path, a directory name read off
+ * the disk, a branch name chosen by a remote repository — takes in a log line.
+ *
+ * The two steps do different jobs, and neither is enough on its own. The
+ * quoting delimits the untrusted text, so a reader can tell where the name
+ * ends and the diagnostic resumes, and it escapes the quotes and backslashes
+ * that would blur that edge. But `JSON.stringify` escapes the C0 controls and
+ * nothing else: the C1 range, the 8-bit CSI introducer among it, and the bidi
+ * overrides pass through it intact, and any one of them reaches the terminal
+ * with its power to forge a line or reorder one. The strip is what takes those
+ * out. It runs first so that the quoting sees only printable text and the line
+ * carries no escaped control characters the reader has to decode — what could
+ * do harm is gone rather than spelled out — and so that the rationale for the
+ * order lives here, once, rather than at every call site.
+ */
+export function quoteForLog(text: string): string {
+  return JSON.stringify(stripControlCharacters(text));
+}
+
+/**
  * Removes every control character from `text` except the line feed, so a
  * message written to be read over several lines still is.
  *

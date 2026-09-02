@@ -43,6 +43,7 @@ import type { ToolTarget } from "../types/tool-targets.js";
 import { describeConfusableNames, readingFormOf } from "../utils/confusable-names.js";
 import {
   hasDeceptiveHiddenCharacters,
+  quoteForLog,
   stripControlCharacters,
   stripHiddenCharacters,
 } from "../utils/control-characters.js";
@@ -97,7 +98,7 @@ function validateFileSize(relativePath: string, size: number): void {
       // The path comes from the remote repository, and this message is read in
       // a terminal, so it is quoted and stripped like every other remote path
       // this command prints.
-      `File ${JSON.stringify(stripControlCharacters(relativePath))} exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
+      `File ${quoteForLog(relativePath)} exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
     );
   }
 }
@@ -431,7 +432,7 @@ function validateRemoteRelativePath(relativePath: string): void {
   const segments = relativePath.split("/");
   if (segments.some((segment) => segment === "." || segment === "..")) {
     throw new Error(
-      `Unsafe path in the remote repository: ${JSON.stringify(stripControlCharacters(relativePath))}. A fetched path ` +
+      `Unsafe path in the remote repository: ${quoteForLog(relativePath)}. A fetched path ` +
         `must be a plain POSIX path, without "." and ".." segments.`,
     );
   }
@@ -474,10 +475,7 @@ function dropAmbiguousRemotePaths(params: {
     // longer distinguishable from one it dropped.
     incompleteRemoteDirs.add(posix.dirname(toPosixPath(file.remotePath)));
     logger.warn(
-      // `JSON.stringify` escapes the C0 controls and nothing else, so the path
-      // is stripped as well before it is quoted: the C1 range and the bidi
-      // overrides would otherwise reach the terminal intact.
-      `Skipping ${JSON.stringify(stripControlCharacters(file.remotePath))}: its path contains a ` +
+      `Skipping ${quoteForLog(file.remotePath)}: its path contains a ` +
         `backslash or a colon, which names one file on some systems and a directory, or part of ` +
         `another file, on others.`,
     );
@@ -694,7 +692,7 @@ function formatConfusableSkillsWarning(params: {
   }
   const described = [...notes]
     .toSorted(([a], [b]) => (a < b ? -1 : 1))
-    .map(([name, note]) => `${JSON.stringify(stripControlCharacters(name))} (${note})`);
+    .map(([name, note]) => `${quoteForLog(name)} (${note})`);
   return (
     `Some fetched skill names may not be told apart on sight from what they appear to be \u2014 ` +
     `from another name the source repository publishes, which this run may not have fetched, ` +
@@ -1048,7 +1046,7 @@ async function pruneDirectory(params: {
     // enough that a fetched tree stays well inside it, since the remote walk
     // fails outright rather than truncating when it runs past its own.
     logger.warn(
-      `Not pruning below ${JSON.stringify(stripControlCharacters(relativeDirPath))}: it is ` +
+      `Not pruning below ${quoteForLog(relativeDirPath)}: it is ` +
         `more than ${MAX_RECURSION_DEPTH} directories deep.`,
     );
     return "kept";
@@ -1061,7 +1059,7 @@ async function pruneDirectory(params: {
   // directory swapped for a link between the two reads.
   if (await isSymbolicLink(dirPath)) {
     logger.warn(
-      `Not pruning ${JSON.stringify(stripControlCharacters(relativeDirPath))}: it is a ` +
+      `Not pruning ${quoteForLog(relativeDirPath)}: it is a ` +
         `symbolic link, and its target is outside what this fetch may delete from. Remove ` +
         `unwanted files by hand.`,
     );
@@ -1096,9 +1094,7 @@ async function pruneDirectory(params: {
       }
       await rm(entryPath, { force: true });
       deleted.push({ relativePath: entryRelativePath, status: "deleted" });
-      logger.debug(
-        `Deleted stale skill entry: ${JSON.stringify(stripControlCharacters(entryRelativePath))}`,
-      );
+      logger.debug(`Deleted stale skill entry: ${quoteForLog(entryRelativePath)}`);
       continue;
     }
 
@@ -1136,9 +1132,7 @@ async function pruneDirectory(params: {
         throw error;
       }
       deleted.push({ relativePath: `${entryRelativePath}/`, status: "deleted" });
-      logger.debug(
-        `Removed stale skill directory: ${JSON.stringify(stripControlCharacters(entryRelativePath))}`,
-      );
+      logger.debug(`Removed stale skill directory: ${quoteForLog(entryRelativePath)}`);
       continue;
     }
 
@@ -1158,9 +1152,7 @@ async function pruneDirectory(params: {
 
     await rm(entryPath, { force: true });
     deleted.push({ relativePath: entryRelativePath, status: "deleted" });
-    logger.debug(
-      `Deleted stale skill file: ${JSON.stringify(stripControlCharacters(entryRelativePath))}`,
-    );
+    logger.debug(`Deleted stale skill file: ${quoteForLog(entryRelativePath)}`);
   }
 
   return survivors > 0 ? "kept" : "emptied";
@@ -1273,7 +1265,7 @@ async function pruneStaleSkillFiles(params: {
     // from one upstream dropped — so nothing here is judged stale.
     if (remoteDir === undefined) {
       logger.warn(
-        `Not pruning ${JSON.stringify(stripControlCharacters(skillDir))}: the remote ` +
+        `Not pruning ${quoteForLog(skillDir)}: the remote ` +
           `directory it was fetched from could not be worked out, so there is nothing to judge ` +
           `the local files against. Remove unwanted files by hand.`,
       );
@@ -1282,7 +1274,7 @@ async function pruneStaleSkillFiles(params: {
 
     if (hasPathAtOrUnder(incompleteRemoteDirs, remoteDir)) {
       logger.warn(
-        `Not pruning ${JSON.stringify(stripControlCharacters(skillDir))}: the remote listing ` +
+        `Not pruning ${quoteForLog(skillDir)}: the remote listing ` +
           `for it came back incomplete, so a stale local file cannot be told apart from one the ` +
           `listing left out. Remove unwanted files by hand.`,
       );
@@ -1307,7 +1299,7 @@ async function pruneStaleSkillFiles(params: {
     // file the fetch wrote there is matched by identity rather than by name.
     if (hasWindowsFoldableSkillName(skillDir)) {
       logger.warn(
-        `Not pruning ${JSON.stringify(stripControlCharacters(skillDir))}: its name is one ` +
+        `Not pruning ${quoteForLog(skillDir)}: its name is one ` +
           `some systems resolve to a different directory, so it may not be the directory this ` +
           `name reads as. Remove unwanted files by hand.`,
       );
@@ -1339,8 +1331,8 @@ async function pruneStaleSkillFiles(params: {
     );
     if (variant !== undefined) {
       logger.warn(
-        `Not pruning ${JSON.stringify(stripControlCharacters(skillDir))}: ` +
-          `${JSON.stringify(`${SKILLS_DIR_PREFIX}${stripControlCharacters(variant)}`)} is also ` +
+        `Not pruning ${quoteForLog(skillDir)}: ` +
+          `${quoteForLog(`${SKILLS_DIR_PREFIX}${variant}`)} is also ` +
           `there and differs only in ways some filesystems ignore, so this name may not be the ` +
           `directory it reads as. Remove unwanted files by hand.`,
       );
@@ -1380,7 +1372,7 @@ async function pruneStaleSkillFiles(params: {
       // "Stopped partway", not "did not prune": entries deleted before the
       // failure are already recorded, and the summary lists them.
       logger.warn(
-        `Stopped partway through pruning ${JSON.stringify(stripControlCharacters(skillDir))}. ` +
+        `Stopped partway through pruning ${quoteForLog(skillDir)}. ` +
           `${stripControlCharacters(formatError(error))}`,
       );
     }
@@ -1587,9 +1579,9 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
   // Resolve ref to use
   const ref = resolvedRef ?? (await client.getDefaultBranch(parsed.owner, parsed.repo));
   // A default branch name is chosen by the remote repository, and git allows
-  // characters in it that reorder a terminal line, so it is stripped and quoted
+  // characters in it that reorder a terminal line, so it is quoted for the log
   // like every other remote-controlled string this command prints.
-  logger.debug(`Using ref: ${JSON.stringify(stripControlCharacters(ref))}`);
+  logger.debug(`Using ref: ${quoteForLog(ref)}`);
 
   // If target is a tool format, use conversion flow
   if (isToolTarget(target)) {
@@ -1670,9 +1662,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
       const exists = await fileExists(localPath);
 
       if (exists && conflictStrategy === "skip") {
-        logger.debug(
-          `Skipping existing file: ${JSON.stringify(stripControlCharacters(relativePath))}`,
-        );
+        logger.debug(`Skipping existing file: ${quoteForLog(relativePath)}`);
         return { relativePath, status: "skipped" as const };
       }
 
@@ -1685,7 +1675,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
       }
 
       const status = exists ? ("overwritten" as const) : ("created" as const);
-      logger.debug(`Wrote: ${JSON.stringify(stripControlCharacters(relativePath))} (${status})`);
+      logger.debug(`Wrote: ${quoteForLog(relativePath)} (${status})`);
       return { relativePath, status };
     }),
   );
@@ -1777,7 +1767,7 @@ async function collectFeatureFiles(params: {
           } catch (error) {
             // Only skip 404 errors (file not found), re-throw other errors
             if (isNotFoundError(error)) {
-              logger.debug(`File not found: ${JSON.stringify(stripControlCharacters(fullPath))}`);
+              logger.debug(`File not found: ${quoteForLog(fullPath)}`);
             } else {
               throw error;
             }
@@ -1817,7 +1807,7 @@ async function collectFeatureFiles(params: {
         // Check for 404 errors (feature not found)
         if (isNotFoundError(error)) {
           // Feature directory/file not found, skip silently
-          logger.debug(`Feature not found: ${JSON.stringify(stripControlCharacters(fullPath))}`);
+          logger.debug(`Feature not found: ${quoteForLog(fullPath)}`);
           return collected;
         }
         throw error;
@@ -1931,9 +1921,7 @@ async function fetchAndConvertToolFiles(params: {
           client.getFileContent(parsed.owner, parsed.repo, remotePath, ref),
         );
         await writeFileContent(localPath, content);
-        logger.debug(
-          `Fetched to temp: ${JSON.stringify(stripControlCharacters(toolRelativePath))}`,
-        );
+        logger.debug(`Fetched to temp: ${quoteForLog(toolRelativePath)}`);
       }),
     );
 

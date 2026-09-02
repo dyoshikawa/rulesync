@@ -18,7 +18,7 @@ import {
 } from "../../types/feature-processor.js";
 import { skillsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
-import { stripControlCharacters } from "../../utils/control-characters.js";
+import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
@@ -681,7 +681,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
             // that outlives the rulesync skill it came from. The name is quoted
             // and stripped because whoever wrote the repository chose it.
             this.logger.warn(
-              `Skipping skill ${JSON.stringify(stripControlCharacters(dirName))} for ` +
+              `Skipping skill ${quoteForLog(dirName)} for ` +
                 `'${this.toolTarget}': ${dirWriteBlockReason}`,
             );
             return null;
@@ -943,7 +943,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
                 throw error;
               }
               this.logger.warn(
-                `Skipping ${JSON.stringify(stripControlCharacters(sourcePath))}: ` +
+                `Skipping ${quoteForLog(sourcePath)}: ` +
                   // The error names the same path, so it is stripped too.
                   stripControlCharacters(formatError(error)),
               );
@@ -993,7 +993,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
                 throw error;
               }
               this.logger.warn(
-                `Skipping ${JSON.stringify(stripControlCharacters(sourcePath))}: ` +
+                `Skipping ${quoteForLog(sourcePath)}: ` +
                   // The error names the same path, so it is stripped too.
                   stripControlCharacters(formatError(error)),
               );
@@ -1049,7 +1049,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       // quoted string means.
       warnOnceWithFallback(
         this.logger,
-        `Skipping ${JSON.stringify(stripControlCharacters(join(dirPath, name)))}: a ${consequence}`,
+        `Skipping ${quoteForLog(join(dirPath, name))}: a ${consequence}`,
       );
       return false;
     });

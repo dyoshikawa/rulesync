@@ -5,7 +5,7 @@ import {
   companionFileContentsEquivalent,
   fileContentsEquivalent,
 } from "../utils/content-equivalence.js";
-import { stripControlCharacters } from "../utils/control-characters.js";
+import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import {
   addTrailingNewline,
@@ -285,7 +285,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     // A set, so two candidates that report the same directory delete it once
     // and are counted once.
     const orphanPaths = new Set<string>();
-    const quotedOutputRoot = JSON.stringify(stripControlCharacters(this.outputRoot));
+    const quotedOutputRoot = quoteForLog(this.outputRoot);
 
     for (const aiDir of existingDirs) {
       // Read once, and check and delete that one value: `getDirPath()` is a
@@ -297,8 +297,8 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // came off disk, and while the strip rules out forging a whole line, an
       // unquoted path like `Deleted directory: /home/you/important` still reads
       // as one. The root is quoted with it so one line reads consistently.
-      const quotedDirPath = JSON.stringify(stripControlCharacters(dirPath));
-      const quotedRoot = JSON.stringify(stripControlCharacters(root));
+      const quotedDirPath = quoteForLog(dirPath);
+      const quotedRoot = quoteForLog(root);
 
       // Reported before anything about the directory's position, because a root
       // that is not in the directory this run writes to makes that position
@@ -322,7 +322,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         if (verdict === "equal") {
           this.logger.debug(
             `Skipping orphan sweep for ` +
-              `${JSON.stringify(stripControlCharacters(aiDir.getDirName()))}: ` +
+              `${quoteForLog(aiDir.getDirName())}: ` +
               `${quotedDirPath} is a shared root, not a directory of its own`,
           );
         } else {
@@ -429,7 +429,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     }
 
     const orphanPaths = new Set<string>();
-    const quotedOutputRoot = JSON.stringify(stripControlCharacters(this.outputRoot));
+    const quotedOutputRoot = quoteForLog(this.outputRoot);
 
     for (const aiDir of generatedDirs) {
       // Read once and act on that one value, as the sweeps around this one do:
@@ -437,8 +437,8 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // answer differently from the one the checks below ruled on.
       const dirPath = aiDir.getDirPath();
       const { verdict, root } = locateInOwnRoot({ aiDir, dirPath, outputRoot: this.outputRoot });
-      const quotedDirPath = JSON.stringify(stripControlCharacters(dirPath));
-      const quotedRoot = JSON.stringify(stripControlCharacters(root));
+      const quotedDirPath = quoteForLog(dirPath);
+      const quotedRoot = quoteForLog(root);
 
       // Asked before anything else, in the order the directory sweep asks it: a
       // root that is not in the directory this run writes to makes every
@@ -462,7 +462,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         if (verdict === "equal") {
           this.logger.debug(
             `Skipping orphan sweep for ` +
-              `${JSON.stringify(stripControlCharacters(aiDir.getDirName()))}: ` +
+              `${quoteForLog(aiDir.getDirName())}: ` +
               `${quotedDirPath} is a shared root, not a directory of its own`,
           );
         } else {
@@ -541,7 +541,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
           // what this sweep exists to remove. Refusing it is the safe half of
           // the guess; saying so is what lets the other half be corrected.
           this.logger.warn(
-            `Refusing to delete ${JSON.stringify(stripControlCharacters(filePath))}: this run ` +
+            `Refusing to delete ${quoteForLog(filePath)}: this run ` +
               `wrote a file whose path differs from it only in case, which on a case-insensitive ` +
               `filesystem is the very file it wrote`,
           );
@@ -571,7 +571,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     kind: "directory" | "file";
   }): Promise<number> {
     for (const targetPath of paths) {
-      const loggedPath = JSON.stringify(stripControlCharacters(targetPath));
+      const loggedPath = quoteForLog(targetPath);
       if (this.dryRun) {
         this.logger.info(`[DRY RUN] Would delete ${kind}: ${loggedPath}`);
       } else {
@@ -639,7 +639,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     // A set, for the same reason the directory sweep uses one: two candidates
     // that report the same file delete it once and are counted once.
     const orphanPaths = new Set<string>();
-    const quotedOutputRoot = JSON.stringify(stripControlCharacters(this.outputRoot));
+    const quotedOutputRoot = quoteForLog(this.outputRoot);
 
     for (const aiDir of existingFlatFiles) {
       // Read once and delete that one value, as in the directory sweep: both
@@ -648,7 +648,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       const filePath = aiDir.getFlatFilePath();
       if (filePath === undefined) {
         this.logger.warn(
-          `Refusing to sweep ${JSON.stringify(stripControlCharacters(aiDir.getDirName()))}: it ` +
+          `Refusing to sweep ${quoteForLog(aiDir.getDirName())}: it ` +
             `owns a directory of its own, or names no file directly under the root it was found in`,
         );
         continue;
@@ -658,8 +658,8 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       const { verdict, root } = locateInOwnRoot({ aiDir, dirPath, outputRoot: this.outputRoot });
       // Quoted for the same reason the directory sweep quotes: the last segment
       // of the path is a name that came off disk.
-      const quotedFilePath = JSON.stringify(stripControlCharacters(filePath));
-      const quotedRoot = JSON.stringify(stripControlCharacters(root));
+      const quotedFilePath = quoteForLog(filePath);
+      const quotedRoot = quoteForLog(root);
 
       if (verdict === "root-outside") {
         this.logger.warn(
