@@ -4236,9 +4236,12 @@ targets: ["*"]
     it.skipIf(process.platform === "win32")(
       "should not sweep a sibling project when the root ends in a wildcard",
       async () => {
-        // The false-positive side. For an orphan sweep this is the worse
-        // direction of the two: a root read as a pattern puts another
-        // project's files on the deletion list.
+        // The false-positive side: a root read as a pattern reaches into the
+        // sibling `projectOTHERx`. Here the stray path does not survive as far
+        // as the deletion list -- `checkPathTraversal` rejects it and the whole
+        // scan is discarded -- so the visible damage is that the sweep silently
+        // finds nothing, not that it deletes a stranger's file. Either way the
+        // root must be a directory, not a pattern.
         const literalRoot = join(testDir, "project*x");
         await writeFileContent(join(literalRoot, "CLAUDE.md"), "# Mine");
         await writeFileContent(
