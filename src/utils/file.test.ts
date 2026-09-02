@@ -1,4 +1,4 @@
-import { realpath, symlink } from "node:fs/promises";
+import { chmod, realpath, stat, symlink } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import {
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   addTrailingNewline,
+  applyFileMode,
   assertDirectoryIfExists,
   assertTreeContainsNoSymlinks,
   assertWritablePathInsideRoot,
@@ -18,9 +19,9 @@ import {
   directoryExists,
   directoryExistsStrict,
   ensureDir,
-  filterOutPathsInGitIgnoredDirectories,
   fileExists,
   fileExistsStrict,
+  filterOutPathsInGitIgnoredDirectories,
   findFiles,
   findFilesByGlobs,
   findRuleFiles,
@@ -32,17 +33,18 @@ import {
   listFileNames,
   listFilePathsRecursively,
   listSubdirectoryNames,
+  posixRelativePathEscapesRoot,
   readFileBufferOrNull,
   readFileContent,
   readJsonFile,
   removeDirectory,
   removeFile,
-  posixRelativePathEscapesRoot,
   removeTempDirectory,
   resolvedPathEscapesRoot,
   resolvedRelativePath,
-  runWithDirectoryRollback,
   resolvePath,
+  restoreMissingExecutableBit,
+  runWithDirectoryRollback,
   toKebabCaseFilename,
   toPosixPath,
   validateOutputRoot,
@@ -61,6 +63,60 @@ describe("file utilities", () => {
 
   afterEach(async () => {
     await cleanup();
+  });
+
+  describe("applyFileMode and restoreMissingExecutableBit", () => {
+    const skipOnWindows = it.skipIf(process.platform === "win32");
+
+    skipOnWindows(
+      "should apply a mode to a file and repair a stripped executable bit",
+      async () => {
+        const scriptPath = join(testDir, "run.sh");
+        await writeFileContent(scriptPath, "#!/bin/sh\n");
+        await chmod(scriptPath, 0o644);
+
+        await applyFileMode(scriptPath, 0o755);
+        expect((await stat(scriptPath)).mode & 0o777).toBe(0o755);
+
+        await chmod(scriptPath, 0o644);
+        await restoreMissingExecutableBit(scriptPath, 0o755);
+        expect((await stat(scriptPath)).mode & 0o777).toBe(0o755);
+      },
+    );
+
+    skipOnWindows("should leave a stricter executable mode alone", async () => {
+      const scriptPath = join(testDir, "run.sh");
+      await writeFileContent(scriptPath, "#!/bin/sh\n");
+      await chmod(scriptPath, 0o700);
+
+      await restoreMissingExecutableBit(scriptPath, 0o755);
+      expect((await stat(scriptPath)).mode & 0o777).toBe(0o700);
+    });
+
+    skipOnWindows("should never change the target of a symbolic link", async () => {
+      // A chmod that followed the link would land on a file Rulesync did not
+      // write, possibly outside the output tree.
+      const targetPath = join(testDir, "target.sh");
+      const linkPath = join(testDir, "link.sh");
+      await writeFileContent(targetPath, "#!/bin/sh\n");
+      await chmod(targetPath, 0o644);
+      await symlink(targetPath, linkPath);
+
+      await applyFileMode(linkPath, 0o755);
+      await restoreMissingExecutableBit(linkPath, 0o755);
+
+      expect((await stat(targetPath)).mode & 0o777).toBe(0o644);
+    });
+
+    skipOnWindows(
+      "should throw on a missing file only when applying, not when restoring",
+      async () => {
+        const missingPath = join(testDir, "missing.sh");
+
+        await expect(applyFileMode(missingPath, 0o755)).rejects.toThrow();
+        await expect(restoreMissingExecutableBit(missingPath, 0o755)).resolves.toBeUndefined();
+      },
+    );
   });
 
   describe("ensureDir", () => {

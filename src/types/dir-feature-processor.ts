@@ -9,6 +9,7 @@ import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import {
   addTrailingNewline,
+  applyFileMode,
   assertWritablePathInsideRoot,
   ensureDir,
   listFilePathsRecursively,
@@ -17,6 +18,7 @@ import {
   readFileContentOrNull,
   removeDirectory,
   removeFile,
+  restoreMissingExecutableBit,
   toPosixPath,
   writeFileBuffer,
   writeFileContent,
@@ -214,6 +216,21 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       }
 
       if (!dirHasChanges) {
+        // The bytes are already right, but a mode may not be: a copy that
+        // dropped the executable bit, or an output from a version that never
+        // carried one, and the write that would restore it is the one being
+        // skipped here. Only a *missing* executable bit is restored, so a user
+        // who tightened the mode keeps it.
+        if (!this.dryRun) {
+          for (const file of otherFiles) {
+            if (file.fileMode !== undefined) {
+              await restoreMissingExecutableBit(
+                join(dirPath, file.relativeFilePathToDirPath),
+                file.fileMode,
+              );
+            }
+          }
+        }
         continue;
       }
 
@@ -247,6 +264,9 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         for (const file of otherFiles) {
           const filePath = join(dirPath, file.relativeFilePathToDirPath);
           await writeFileBuffer(filePath, file.fileBuffer);
+          if (file.fileMode !== undefined) {
+            await applyFileMode(filePath, file.fileMode);
+          }
           changedPaths.push(join(relativeDir, file.relativeFilePathToDirPath));
         }
       }

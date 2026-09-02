@@ -6,11 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
+  applyFileMode,
   ensureDir,
   readFileBufferOrNull,
   readFileContentOrNull,
   removeDirectory,
   removeFile,
+  restoreMissingExecutableBit,
   writeFileBuffer,
   writeFileContent,
 } from "../utils/file.js";
@@ -29,6 +31,8 @@ vi.mock("../utils/file.js", async () => {
     ensureDir: vi.fn(),
     writeFileContent: vi.fn(),
     writeFileBuffer: vi.fn(),
+    applyFileMode: vi.fn(),
+    restoreMissingExecutableBit: vi.fn(),
   };
 });
 
@@ -1245,6 +1249,90 @@ describe("DirFeatureProcessor", () => {
       expect(ensureDir).toHaveBeenCalledTimes(1);
       expect(writeFileBuffer).toHaveBeenCalledWith("/path/to/dir1/extra.txt", otherFile.fileBuffer);
       expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
+    it("should give a written companion file the executable bit its source has", async () => {
+      // A skill's `scripts/*.sh` is copied so the agent can run it the way the
+      // skill says. The mode travels with the bytes; a file without one is left
+      // to the platform default, as before.
+      vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const script: AiDirFile = {
+        relativeFilePathToDirPath: "scripts/run.sh",
+        fileBuffer: Buffer.from("#!/bin/sh\n"),
+        fileMode: 0o755,
+      };
+      const note: AiDirFile = {
+        relativeFilePathToDirPath: "notes.md",
+        fileBuffer: Buffer.from("plain\n"),
+      };
+      const dirs = [
+        createMockDirWithFiles({ dirPath: "/path/to/dir1", otherFiles: [script, note] }),
+      ];
+
+      await processor.writeAiDirs(dirs);
+
+      expect(applyFileMode).toHaveBeenCalledTimes(1);
+      expect(applyFileMode).toHaveBeenCalledWith(join("/path/to/dir1", "scripts/run.sh"), 0o755);
+    });
+
+    it("should restore a missing executable bit on an unchanged dir", async () => {
+      // The bytes already match, so nothing is rewritten -- but the copy may
+      // have been made by a version that never carried the mode.
+      vi.mocked(readFileContentOrNull).mockResolvedValue("body1\n");
+      vi.mocked(readFileBufferOrNull).mockResolvedValue(Buffer.from("#!/bin/sh\n"));
+      const processor = new TestDirProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      const script: AiDirFile = {
+        relativeFilePathToDirPath: "scripts/run.sh",
+        fileBuffer: Buffer.from("#!/bin/sh\n"),
+        fileMode: 0o755,
+      };
+      const dirs = [
+        createMockDirWithFiles({
+          dirPath: "/path/to/dir1",
+          mainFileBody: "body1",
+          otherFiles: [script],
+        }),
+      ];
+
+      const result = await processor.writeAiDirs(dirs);
+
+      expect(result).toEqual({ count: 0, paths: [] });
+      expect(writeFileBuffer).not.toHaveBeenCalled();
+      expect(restoreMissingExecutableBit).toHaveBeenCalledWith(
+        join("/path/to/dir1", "scripts/run.sh"),
+        0o755,
+      );
+    });
+
+    it("should not touch a mode in dry run", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue("body1\n");
+      vi.mocked(readFileBufferOrNull).mockResolvedValue(Buffer.from("#!/bin/sh\n"));
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        dryRun: true,
+      });
+
+      const script: AiDirFile = {
+        relativeFilePathToDirPath: "scripts/run.sh",
+        fileBuffer: Buffer.from("#!/bin/sh\n"),
+        fileMode: 0o755,
+      };
+      const dirs = [
+        createMockDirWithFiles({
+          dirPath: "/path/to/dir1",
+          mainFileBody: "body1",
+          otherFiles: [script],
+        }),
+      ];
+
+      await processor.writeAiDirs(dirs);
+
+      expect(restoreMissingExecutableBit).not.toHaveBeenCalled();
+      expect(applyFileMode).not.toHaveBeenCalled();
     });
 
     it("should copy a text other file byte-faithfully", async () => {
