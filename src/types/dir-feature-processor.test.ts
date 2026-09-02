@@ -763,6 +763,31 @@ describe("DirFeatureProcessor", () => {
       expect(removeFile).not.toHaveBeenCalled();
     });
 
+    it("should refuse a generated directory that is itself a symbolic link", async () => {
+      // A skill directory linked to a checkout elsewhere. Its files read back
+      // through the link, and so would every unlink: nothing this run wrote is
+      // there, and everything there is somebody else's. The link's target is
+      // beside the point — one that stays inside the root is refused all the
+      // same, since the lexical verdict above never saw the link at all.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const linkedDir = join(testDir, "vendored");
+      await writeFiles(linkedDir, ["precious.md", join("sub", "nested.md")]);
+      const dirPath = join(testDir, "demo");
+      await symlink(linkedDir, dirPath, "dir");
+
+      const count = await processor.removeOrphanFilesInAiDirs({
+        generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
+        isClaimed: () => false,
+      });
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/Refusing to sweep .*symbolic link/),
+      );
+    });
+
     it("should not descend into a symlinked directory", async () => {
       // The deletion that matters: a link to a directory outside the tree must
       // not turn into a sweep of that directory's files.
@@ -833,6 +858,27 @@ describe("DirFeatureProcessor", () => {
       expect(removeFile).not.toHaveBeenCalled();
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("it does not own that directory"),
+      );
+    });
+
+    it("should report a candidate that owns a directory outside the root it reports", async () => {
+      // `ownsDirTree()` agrees, but the directory it names is not under the
+      // root the candidate says it was found in. Sweeping it would walk a tree
+      // this run has no claim over, so the sweep reports the shape instead.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const dirPath = join(testDir, "demo");
+      await writeFiles(dirPath, ["stale.md"]);
+
+      const count = await processor.removeOrphanFilesInAiDirs({
+        generatedDirs: [createMockDir({ dirPath, outputRoot: testDir, relativeDirPath: "root" })],
+        isClaimed: () => false,
+      });
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("it is not a directory inside"),
       );
     });
 

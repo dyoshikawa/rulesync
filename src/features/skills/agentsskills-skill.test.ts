@@ -10,6 +10,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { MAX_CARRIED_DEPTH, MAX_REPORTED_PATHS } from "../../types/ai-dir.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
+import { hasIncompleteCarriedFiles, resetRunWarningState } from "../../utils/warned-once.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
@@ -960,6 +961,52 @@ Body.`;
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining(`more than ${MAX_CARRIED_DEPTH} directories below`),
       );
+    });
+
+    it("should record that the run's picture of the source is incomplete", async () => {
+      // What the orphan sweep reads back: a run that dropped a file it wanted
+      // cannot tell a stale generated file from one whose source it failed to
+      // read, so it prunes nothing at all.
+      const skillDir = join(testDir, ".agents", "skills", "deep-flag-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: deep-flag-skill", "description: Nests", "---", "", "Body."].join("\n"),
+      );
+      const carriedDir = join(skillDir, ...Array.from({ length: MAX_CARRIED_DEPTH }, () => "d"));
+      await writeFileContent(join(carriedDir, "d", "dropped.md"), "dropped\n");
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      resetRunWarningState();
+
+      await AgentsSkillsSkill.fromDir({ outputRoot: testDir, dirName: "deep-flag-skill" });
+
+      expect(hasIncompleteCarriedFiles()).toBe(true);
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
+    it("should not call a deliberate refusal an incomplete read", async () => {
+      // A credential-shaped name is one Rulesync never carries, on every run.
+      // Treating that as a shortfall would stand the orphan sweep down for any
+      // project that keeps an `.npmrc` beside a skill.
+      const skillDir = join(testDir, ".agents", "skills", "refusing-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: refusing-skill", "description: Refuses", "---", "", "Body."].join("\n"),
+      );
+      await writeFileContent(join(skillDir, ".npmrc"), "//registry:_authToken=x\n");
+      await writeFileContent(join(skillDir, "notes.md"), "notes\n");
+      resetRunWarningState();
+
+      const skill = await AgentsSkillsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "refusing-skill",
+      });
+
+      expect(skill.getOtherFiles().map((file) => file.relativeFilePathToDirPath)).toEqual([
+        "notes.md",
+      ]);
+      expect(hasIncompleteCarriedFiles()).toBe(false);
     });
 
     it.skipIf(process.platform === "win32")(

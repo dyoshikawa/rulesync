@@ -6,8 +6,10 @@ import {
   fileContentsEquivalent,
 } from "../utils/content-equivalence.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
+import { formatError } from "../utils/error.js";
 import {
   addTrailingNewline,
+  assertWritablePathInsideRoot,
   ensureDir,
   listFilePathsRecursively,
   pathEscapesRoot,
@@ -391,9 +393,10 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     isClaimed: (path: string) => boolean;
   }): Promise<number> {
     if (hasIncompleteCarriedFiles()) {
-      this.logger.debug(
+      this.logger.warn(
         "Not sweeping the files inside generated directories: this run could not read every " +
-          "file its sources carry, so a file it did not write may still be one it wants",
+          "file its sources carry, so a file it did not write may still be one it wants. " +
+          "The warnings above name what it could not read.",
       );
       return 0;
     }
@@ -448,6 +451,21 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         this.logger.warn(
           `Refusing to sweep ${quotedDirPath}: it is not a directory inside ${quotedRoot}, the ` +
             `root it was found in`,
+        );
+        continue;
+      }
+
+      // The verdict above is lexical. The walk below reads the directory
+      // through whatever `dirPath` really is, and a skill directory that is a
+      // symbolic link — to a vendored checkout, say — reads back a tree this
+      // run never wrote and unlinks through the link into it. The other sweeps
+      // never meet one: their candidates come from an enumeration that does not
+      // follow links. This one's come from the sources, so it asks here.
+      try {
+        await assertWritablePathInsideRoot({ rootPath: this.outputRoot, targetPath: dirPath });
+      } catch (error) {
+        this.logger.warn(
+          `Refusing to sweep ${quotedDirPath}: ${stripControlCharacters(formatError(error))}`,
         );
         continue;
       }
