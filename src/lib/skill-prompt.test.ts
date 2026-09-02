@@ -37,9 +37,14 @@ describe("promptSkillSelection", () => {
     // 80 columns leaves 77 for the label, so the 72-column ceiling is what the
     // tests below are measuring against.
     setTerminalWidth(80);
+    // A `CLI_WIDTH` inherited from the shell the tests run in would stand in
+    // for a terminal that reports nothing, which the cases below pin for
+    // themselves.
+    vi.stubEnv("CLI_WIDTH", undefined);
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     if (originalColumns === undefined) {
       delete (process.stdout as { columns?: number }).columns;
       return;
@@ -522,6 +527,69 @@ describe("promptSkillSelection", () => {
     // land on the same 80 — read literally, it would cut every name down to the
     // floor while the row it is drawn on has room for the whole 72.
     setTerminalWidth(0);
+    const long = `pdf${"o".repeat(100)}`;
+
+    await promptSkillSelection({
+      availableSkills: [long],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(68)}\u2026`);
+  });
+
+  it("should budget against CLI_WIDTH when the terminal reports zero columns", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // The stream the renderer measures proxies the zero from `process.stdout`,
+    // and `cli-width` skips a zero for `CLI_WIDTH` before it falls back to 80.
+    // The rows are broken at 60, so the label has the same 55 to fit in as it
+    // would in a 60-column terminal that had said so itself.
+    setTerminalWidth(0);
+    vi.stubEnv("CLI_WIDTH", "60");
+    const long = `pdf${"o".repeat(100)}`;
+
+    await promptSkillSelection({
+      availableSkills: [long],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(51)}\u2026`);
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(55);
+  });
+
+  it.each([
+    ["is not a number", "abc"],
+    ["is zero", "0"],
+    ["is empty", ""],
+  ])("should fall back to 80 alongside the renderer when CLI_WIDTH %s", async (_case, cliWidth) => {
+    checkboxMock.mockResolvedValue([]);
+    // `cli-width` parses the variable in base ten and takes anything but
+    // `NaN` and zero, so these are the values it passes over on its way to
+    // 80, and the budget passes over them too.
+    setTerminalWidth(0);
+    vi.stubEnv("CLI_WIDTH", cliWidth);
+    const long = `pdf${"o".repeat(100)}`;
+
+    await promptSkillSelection({
+      availableSkills: [long],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(68)}\u2026`);
+  });
+
+  it("should leave CLI_WIDTH unread while the terminal reports a width", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // `cli-width` reads the stream's `columns` before the environment, so a
+    // `CLI_WIDTH` narrower than the terminal does not narrow the rows, and it
+    // must not narrow the budget either.
+    setTerminalWidth(80);
+    vi.stubEnv("CLI_WIDTH", "40");
     const long = `pdf${"o".repeat(100)}`;
 
     await promptSkillSelection({
