@@ -346,6 +346,57 @@ description: "Detail rule"
     expect(imported).toContain("Pi Root Rule");
   });
 
+  it("should nest a rule under the directory derived from its globs when deriveSubprojectPathFromGlobs is on", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        { targets: ["agentsmd"], features: ["rules"], deriveSubprojectPathFromGlobs: true },
+        null,
+        2,
+      ),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Project Overview
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "api.md"),
+      `---
+targets: ["*"]
+description: "API rule"
+globs: ["packages/api/**/*"]
+---
+
+# API Instructions
+`,
+    );
+    // Where the same rule landed before the option was turned on: a managed
+    // file the run no longer produces, so `--delete` sweeps it.
+    await writeFileContent(
+      join(testDir, ".agents", "memories", "api.md"),
+      "# API Instructions (stale)\n",
+    );
+
+    await runGenerate({ target: "agentsmd", features: "rules", deleteFiles: true });
+
+    expect(await readFileContent(join(testDir, "packages", "api", "AGENTS.md"))).toContain(
+      "API Instructions",
+    );
+    expect(await fileExists(join(testDir, ".agents", "memories", "api.md"))).toBe(false);
+    // The nested file is listed from the root file like an explicit one.
+    expect(await readFileContent(join(testDir, "AGENTS.md"))).toContain("packages/api/AGENTS.md");
+  });
+
   it("should fold junie non-root rules into the root .junie/AGENTS.md", async () => {
     const testDir = getTestDir();
 

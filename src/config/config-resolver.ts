@@ -66,6 +66,7 @@ const getDefaults = (): ConfigDefaults => ({
   simulateCommands: false,
   simulateSubagents: false,
   simulateSkills: false,
+  deriveSubprojectPathFromGlobs: false,
   flattenedCommandNaming: "basename",
   gitignoreTargetsOnly: true,
   gitignoreDestination: "gitignore",
@@ -142,6 +143,8 @@ const mergeConfigs = (
     simulateCommands: localConfig.simulateCommands ?? baseConfig.simulateCommands,
     simulateSubagents: localConfig.simulateSubagents ?? baseConfig.simulateSubagents,
     simulateSkills: localConfig.simulateSkills ?? baseConfig.simulateSkills,
+    deriveSubprojectPathFromGlobs:
+      localConfig.deriveSubprojectPathFromGlobs ?? baseConfig.deriveSubprojectPathFromGlobs,
     flattenedCommandNaming: localConfig.flattenedCommandNaming ?? baseConfig.flattenedCommandNaming,
     gitignoreTargetsOnly: localConfig.gitignoreTargetsOnly ?? baseConfig.gitignoreTargetsOnly,
     gitignoreDestination: localConfig.gitignoreDestination ?? baseConfig.gitignoreDestination,
@@ -359,6 +362,7 @@ export class ConfigResolver {
       simulateCommands,
       simulateSubagents,
       simulateSkills,
+      deriveSubprojectPathFromGlobs,
       gitignoreTargetsOnly,
       dryRun,
       check,
@@ -537,6 +541,11 @@ export class ConfigResolver {
         cli: simulateSkills,
         file: configByFile.simulateSkills,
         fallback: getDefaults().simulateSkills,
+      }),
+      deriveSubprojectPathFromGlobs: pick({
+        cli: deriveSubprojectPathFromGlobs,
+        file: configByFile.deriveSubprojectPathFromGlobs,
+        fallback: getDefaults().deriveSubprojectPathFromGlobs,
       }),
       gitignoreTargetsOnly: pick({
         cli: gitignoreTargetsOnly,

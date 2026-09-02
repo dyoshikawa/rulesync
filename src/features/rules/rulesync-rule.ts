@@ -16,6 +16,16 @@ import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { getGlobsStaticPrefix } from "../../utils/glob-static-prefix.js";
+import { warnOnceWithFallback } from "../../utils/logger.js";
+
+/**
+ * The `agentsmd.subprojectPath` value that asks for the path to be derived from
+ * the rule's `globs` (see {@link resolveSubprojectPath}). It is a request, not a
+ * path: the constructor replaces it with the derived directory, or drops it,
+ * before any consumer reads the frontmatter.
+ */
+export const AUTO_SUBPROJECT_PATH = "auto";
 
 export const RulesyncRuleFrontmatterSchema = z.object({
   root: z.optional(z.boolean()),
@@ -25,6 +35,10 @@ export const RulesyncRuleFrontmatterSchema = z.object({
   globs: z.optional(z.array(z.string())),
   agentsmd: z.optional(
     z.looseObject({
+      // The directory whose nested `AGENTS.md` this non-root rule becomes, or
+      // "auto" to derive it from `globs` (`["packages/api/**/*"]` → `packages/api`)
+      // for this rule alone, regardless of the `deriveSubprojectPathFromGlobs`
+      // config option. Consumers only ever see the resolved directory.
       // @example "path/to/subproject"
       subprojectPath: z.optional(z.string()),
     }),
@@ -143,7 +157,104 @@ export type RulesyncRuleFrontmatter = z.infer<typeof RulesyncRuleFrontmatterSche
 export type RulesyncRuleParams = Omit<RulesyncFileParams, "fileContent"> & {
   frontmatter: RulesyncRuleFrontmatterInput;
   body: string;
+  /**
+   * Derive `agentsmd.subprojectPath` from `globs` for every non-root rule that
+   * does not set one explicitly (the `deriveSubprojectPathFromGlobs` config
+   * option). A rule can ask for the same on its own with
+   * `agentsmd.subprojectPath: "auto"`.
+   */
+  deriveSubprojectPathFromGlobs?: boolean;
 };
+
+export type RulesyncRuleFromFileParams = RulesyncFileFromFileParams & {
+  deriveSubprojectPathFromGlobs?: boolean;
+};
+
+/**
+ * The `agentsmd.subprojectPath` every consumer should act on, resolved once so
+ * that no target has to know how it came about:
+ *
+ * 1. an explicit directory in the frontmatter wins;
+ * 2. otherwise, when the rule says `"auto"` or `deriveFromGlobs` is on, the
+ *    directory the rule's `globs` share (see `getGlobsStaticPrefix`);
+ * 3. otherwise none, which keeps the rule in the target's modular directory.
+ *
+ * A root rule never nests, so it never derives. A derivation that was asked for
+ * but yields nothing is reported once per rule and falls back to step 3: a
+ * warning names the file to fix, while an error would stop every other rule
+ * from generating.
+ */
+function resolveSubprojectPath({
+  frontmatter,
+  deriveFromGlobs,
+  rulePath,
+}: {
+  frontmatter: RulesyncRuleFrontmatter;
+  deriveFromGlobs: boolean;
+  rulePath: string;
+}): string | undefined {
+  const authored = frontmatter.agentsmd?.subprojectPath;
+  if (typeof authored === "string" && authored !== "" && authored !== AUTO_SUBPROJECT_PATH) {
+    return authored;
+  }
+  const requested = authored === AUTO_SUBPROJECT_PATH;
+  if (!requested && !deriveFromGlobs) {
+    return undefined;
+  }
+  if (frontmatter.root) {
+    if (requested) {
+      warnOnceWithFallback(
+        undefined,
+        `Ignoring agentsmd.subprojectPath: "${AUTO_SUBPROJECT_PATH}" on the root rule ${rulePath}: a root rule is never written as a nested AGENTS.md.`,
+      );
+    }
+    return undefined;
+  }
+
+  const globs = Array.isArray(frontmatter.globs) ? frontmatter.globs : [];
+  if (!requested && globs.length === 0) {
+    // The config option applies to every non-root rule, most of which are
+    // general guidance with no globs at all. Those have nothing to derive from
+    // rather than a derivation that failed, so they stay where they are
+    // without a warning; a rule that asked with "auto" is told either way.
+    return undefined;
+  }
+  const derived = getGlobsStaticPrefix(globs);
+  if (derived === undefined) {
+    warnOnceWithFallback(
+      undefined,
+      `Could not derive agentsmd.subprojectPath for ${rulePath} from globs ${JSON.stringify(globs)}: every glob must start with the same wildcard-free directory (e.g. "packages/api/**/*"). The rule is generated without a nested AGENTS.md; set agentsmd.subprojectPath explicitly to nest it.`,
+    );
+    return undefined;
+  }
+  return derived;
+}
+
+/**
+ * `frontmatter` with `agentsmd.subprojectPath` replaced by its resolved value,
+ * or removed when there is none, so the `"auto"` request never reaches a
+ * consumer as if it were a directory name.
+ */
+function withResolvedSubprojectPath({
+  frontmatter,
+  deriveFromGlobs,
+  rulePath,
+}: {
+  frontmatter: RulesyncRuleFrontmatter;
+  deriveFromGlobs: boolean;
+  rulePath: string;
+}): RulesyncRuleFrontmatter {
+  const authored = frontmatter.agentsmd?.subprojectPath;
+  const resolved = resolveSubprojectPath({ frontmatter, deriveFromGlobs, rulePath });
+  if (resolved === authored || (resolved === undefined && authored !== AUTO_SUBPROJECT_PATH)) {
+    return frontmatter;
+  }
+  const { subprojectPath: _authored, ...agentsmd } = frontmatter.agentsmd ?? {};
+  return {
+    ...frontmatter,
+    agentsmd: resolved === undefined ? agentsmd : { ...agentsmd, subprojectPath: resolved },
+  };
+}
 
 export type RulesyncRuleSettablePaths = {
   recommended: {
@@ -155,10 +266,21 @@ export type RulesyncRuleSettablePaths = {
 };
 
 export class RulesyncRule extends RulesyncFile {
+  /**
+   * The frontmatter consumers read. It differs from what the file says in one
+   * place: `agentsmd.subprojectPath` holds the resolved directory (see
+   * `resolveSubprojectPath`), while `getFileContent()` keeps the authored
+   * value, so a rule written back out still says `"auto"`.
+   */
   private readonly frontmatter: RulesyncRuleFrontmatter;
   private readonly body: string;
 
-  constructor({ frontmatter, body, ...rest }: RulesyncRuleParams) {
+  constructor({
+    frontmatter,
+    body,
+    deriveSubprojectPathFromGlobs = false,
+    ...rest
+  }: RulesyncRuleParams) {
     // Parse frontmatter to apply defaults and validate
     const parseResult = RulesyncRuleFrontmatterSchema.safeParse(frontmatter);
     if (!parseResult.success && rest.validate !== false) {
@@ -176,7 +298,11 @@ export class RulesyncRule extends RulesyncFile {
       fileContent: stringifyFrontmatter(body, parsedFrontmatter),
     });
 
-    this.frontmatter = parsedFrontmatter;
+    this.frontmatter = withResolvedSubprojectPath({
+      frontmatter: parsedFrontmatter,
+      deriveFromGlobs: deriveSubprojectPathFromGlobs,
+      rulePath: join(rest.relativeDirPath, rest.relativeFilePath),
+    });
     this.body = body;
   }
 
@@ -220,7 +346,8 @@ export class RulesyncRule extends RulesyncFile {
     relativeDirPath,
     relativeFilePath,
     validate = true,
-  }: RulesyncFileFromFileParams): Promise<RulesyncRule> {
+    deriveSubprojectPathFromGlobs = false,
+  }: RulesyncRuleFromFileParams): Promise<RulesyncRule> {
     // `relativeDirPath` overrides the class-level default when the caller
     // (a processor loading from a non-default source tree such as
     // `.rulesync.local/rules`) needs to point at a tree whose basename
@@ -262,6 +389,7 @@ export class RulesyncRule extends RulesyncFile {
       frontmatter: validatedFrontmatter,
       body: content.trim(),
       validate,
+      deriveSubprojectPathFromGlobs,
     });
   }
 
