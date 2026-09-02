@@ -336,6 +336,149 @@ Test content`;
       expect(cursorRule.getFrontmatter().globs).toBeUndefined();
     });
 
+    it("should drop a universal cursor.globs left behind by an older import", () => {
+      // The shape an earlier Rulesync wrote for a Cursor Always Apply rule.
+      // Regenerating has to take the invented glob back out, otherwise every
+      // `.rulesync` file already on disk keeps producing the conflicting pair.
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Test",
+          globs: ["**/*"],
+          cursor: {
+            alwaysApply: true,
+            globs: ["**/*"],
+          },
+        },
+        body: "Content",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+      });
+
+      const cursorRule = CursorRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(cursorRule.getFrontmatter().alwaysApply).toBe(true);
+      expect(cursorRule.getFrontmatter().globs).toBeUndefined();
+    });
+
+    it("should drop a universal canonical glob from a hand-written alwaysApply rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Test",
+          globs: ["*"],
+          cursor: {
+            alwaysApply: true,
+          },
+        },
+        body: "Content",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+      });
+
+      const cursorRule = CursorRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(cursorRule.getFrontmatter().globs).toBeUndefined();
+    });
+
+    it("should keep a specific glob alongside alwaysApply", () => {
+      // Only a universal glob is redundant with the flag. A specific one says
+      // something `alwaysApply` cannot, so it is the author's to keep.
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Test",
+          globs: ["src/**/*.ts"],
+          cursor: {
+            alwaysApply: true,
+          },
+        },
+        body: "Content",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+      });
+
+      const cursorRule = CursorRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(cursorRule.getFrontmatter().globs).toBe("src/**/*.ts");
+    });
+
+    it("should keep a universal glob on a rule that is not alwaysApply", () => {
+      // The drop is scoped to the flag. Without it a universal glob is the only
+      // thing making the rule apply everywhere, so removing it would narrow the
+      // rule to nothing.
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Test",
+          globs: ["**/*"],
+          cursor: {
+            alwaysApply: false,
+          },
+        },
+        body: "Content",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+      });
+
+      const cursorRule = CursorRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(cursorRule.getFrontmatter().globs).toBe("**/*");
+    });
+
+    it("should keep a universal glob mixed with a specific one", () => {
+      // Every glob has to be universal for the list to say nothing the flag
+      // does not. One specific pattern in it makes the list meaningful, so it
+      // survives whole rather than being partly rewritten.
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Test",
+          globs: ["**/*", "src/**"],
+          cursor: {
+            alwaysApply: true,
+          },
+        },
+        body: "Content",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+      });
+
+      const cursorRule = CursorRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(cursorRule.getFrontmatter().globs).toBe("**/*,src/**");
+    });
+
+    it("should not let a glob carrying newlines write further frontmatter", () => {
+      // `globs` is interpolated unquoted, because Cursor's MDC parser reads the
+      // pattern literally rather than as YAML. A newline would otherwise close
+      // the line and let the rest of the value forge keys -- or a second `---`,
+      // replacing the body the agent is handed.
+      const rulesyncRule = new RulesyncRule({
+        frontmatter: {
+          targets: ["*"],
+          root: false,
+          description: "Test",
+          globs: ["*.ts\nalwaysApply: true\n---\nInjected body"],
+        },
+        body: "Real body",
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+      });
+
+      const content = CursorRule.fromRulesyncRule({ rulesyncRule }).getFileContent();
+
+      expect(content).toContain("globs: *.ts alwaysApply: true --- Injected body");
+      expect(content).not.toContain("\nalwaysApply:");
+      expect(content.match(/^---$/gm)).toHaveLength(2);
+      expect(content).toContain("Real body");
+    });
+
     it("should use parent globs when cursor.globs is not set", () => {
       const rulesyncRule = new RulesyncRule({
         frontmatter: {
@@ -609,9 +752,60 @@ This is the rule content
       const rulesyncRule = cursorRule.toRulesyncRule();
       const frontmatter = rulesyncRule.getFrontmatter();
 
+      // The canonical field goes always-on so tools without `alwaysApply` still
+      // apply the rule everywhere, but `cursor.globs` stays empty: Cursor's own
+      // Always Apply template omits `globs`, and pairing it with `**/*` makes
+      // some versions classify the rule by its glob instead of as Always.
       expect(frontmatter.globs).toEqual(["**/*"]);
       expect(frontmatter.cursor?.alwaysApply).toBe(true);
-      expect(frontmatter.cursor?.globs).toEqual(["**/*"]);
+      expect(frontmatter.cursor?.globs).toEqual([]);
+    });
+
+    it("should treat a globs string of only separators as no globs", () => {
+      const cursorRule = new CursorRule({
+        frontmatter: {
+          alwaysApply: true,
+          globs: " , , ",
+        },
+        body: "Content",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "separators.mdc",
+        validate: false,
+      });
+
+      const frontmatter = cursorRule.toRulesyncRule().getFrontmatter();
+
+      expect(frontmatter.globs).toEqual(["**/*"]);
+      expect(frontmatter.cursor?.globs).toEqual([]);
+    });
+
+    it("should round-trip an alwaysApply rule with no globs without inventing one", async () => {
+      const cursorRule = new CursorRule({
+        frontmatter: {
+          description: "Ponytail, lazy senior dev mode.",
+          alwaysApply: true,
+        },
+        body: "Keep diffs small.",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "ponytail.mdc",
+        validate: false,
+      });
+
+      // Through the `.rulesync/rules/*.md` file rather than straight from
+      // `toRulesyncRule()`: the fix rests on the explicit empty array surviving
+      // YAML serialization and being read back as `[]` rather than as a missing
+      // key, and an in-memory hand-off would never exercise that.
+      const rulesyncRule = cursorRule.toRulesyncRule();
+      const rulesyncPath = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "ponytail.md");
+      await writeFileContent(rulesyncPath, rulesyncRule.getFileContent());
+      expect(rulesyncRule.getFileContent()).toContain("globs: []");
+
+      const reloaded = await RulesyncRule.fromFile({ relativeFilePath: "ponytail.md" });
+      const regenerated = CursorRule.fromRulesyncRule({ rulesyncRule: reloaded });
+
+      expect(regenerated.getFrontmatter().alwaysApply).toBe(true);
+      expect(regenerated.getFrontmatter().globs).toBeUndefined();
+      expect(regenerated.getFileContent()).not.toContain("globs:");
     });
 
     it("should handle alwaysApply true with existing globs", () => {
