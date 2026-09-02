@@ -1,4 +1,5 @@
-import { join } from "node:path";
+import { symlink } from "node:fs/promises";
+import { dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -524,6 +525,53 @@ Body content.`;
       await expect(
         OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
       ).resolves.toEqual([{ outputRoot: testDir, relativeDirPath: "ok/skills" }]);
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "drops a relative path that is a symbolic link pointing outside the config directory",
+      async () => {
+        // Spelled inside the project, so the lexical test passes; resolved, it
+        // is the tree above the project and must not be read. The link's target
+        // is the parent directory so that nothing is written outside `testDir`.
+        await symlink(dirname(testDir), join(testDir, "linked-skills"), "dir");
+        await writeFileContent(
+          join(testDir, "opencode.json"),
+          JSON.stringify({ skills: { paths: ["linked-skills", "ok/skills"] } }),
+        );
+
+        await expect(
+          OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
+        ).resolves.toEqual([{ outputRoot: testDir, relativeDirPath: "ok/skills" }]);
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "keeps a relative path that is a symbolic link staying inside the config directory",
+      async () => {
+        await ensureDir(join(testDir, "real-skills"));
+        await symlink(join(testDir, "real-skills"), join(testDir, "linked-skills"), "dir");
+        await writeFileContent(
+          join(testDir, "opencode.json"),
+          JSON.stringify({ skills: { paths: ["linked-skills"] } }),
+        );
+
+        await expect(
+          OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
+        ).resolves.toEqual([{ outputRoot: testDir, relativeDirPath: "linked-skills" }]);
+      },
+    );
+
+    it("keeps a relative path that does not exist", async () => {
+      // Nothing to resolve, so the path is judged as spelled; the scan later
+      // finds no directory under it and moves on.
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ skills: { paths: ["missing/skills"] } }),
+      );
+
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
+      ).resolves.toEqual([{ outputRoot: testDir, relativeDirPath: "missing/skills" }]);
     });
 
     it("resolves a global root against the config dir, not the home directory", async () => {
