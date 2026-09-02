@@ -245,10 +245,7 @@ describe("KiloSkill", () => {
       expect(frontmatter.metadata).toEqual({ author: "section" });
     });
 
-    it("should not forward a root-level string compatibility, which the kilo schema rejects", () => {
-      // Kilo documents `compatibility` without a type and its frontmatter
-      // schema accepts only the mapping form, so the string the other Agent
-      // Skills targets consume is dropped here rather than failing validation.
+    it("should forward a root-level string compatibility as-is, like the other Agent Skills targets", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
@@ -268,8 +265,29 @@ describe("KiloSkill", () => {
         name: "root-string-compatibility",
         description: "Root-level string compatibility",
         license: "MIT",
+        compatibility: "Requires git",
         metadata: { author: "root" },
       });
+    });
+
+    it("should round-trip a string compatibility through the kilo section", () => {
+      const skill = new KiloSkill({
+        outputRoot: testDir,
+        dirName: "string-compatibility",
+        frontmatter: {
+          name: "string-compatibility",
+          description: "String compatibility",
+          compatibility: "Requires git",
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().kilo).toEqual({ compatibility: "Requires git" });
+
+      const roundTripped = KiloSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter().compatibility).toBe("Requires git");
     });
   });
 

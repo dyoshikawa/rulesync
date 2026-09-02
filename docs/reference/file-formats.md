@@ -710,8 +710,7 @@ user-invocable: false
 # replit, rovodev, factorydroid, agentsskills (plus hermesagent and agentsmd), vibe.
 license: MIT
 # `compatibility`: the same tools minus copilot and copilotcli. A free-form string
-# per the Agent Skills spec (1–500 chars); the object form is also accepted, but
-# kilo accepts only the object form, so a root-level string is not forwarded to it.
+# per the Agent Skills spec (1–500 chars); the object form is also accepted.
 compatibility: "Requires git and jq"
 # `metadata`: the same tools as `compatibility`, plus cursor.
 metadata:
@@ -810,8 +809,7 @@ opencode: # for OpenCode-specific parameters (optional)
     - "Read"
 kilo: # for Kilo Code-specific parameters (optional)
   license: MIT # (optional)
-  compatibility: # (optional) free-form compatibility metadata
-    kilo-version: ">=7.0.0"
+  compatibility: "Requires git" # (optional) free-form string (an object is also accepted for back-compat)
   metadata: # (optional) free-form metadata
     author: rulesync
   allowed-tools: # (optional) backward-compat passthrough; not part of Kilo's official SKILL.md frontmatter

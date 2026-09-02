@@ -231,6 +231,27 @@ This is the body of the replit skill.`;
       expect(frontmatter.compatibility).toBe("Requires jq");
       expect(frontmatter.metadata).toEqual({ author: "section" });
     });
+
+    it("should keep the root-level license when the replit section sets only an unrelated key", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "partial-section",
+        frontmatter: {
+          name: "partial-section",
+          description: "Section sets only an unrelated key",
+          license: "MIT",
+          replit: {
+            "allowed-tools": ["Bash", "Read"],
+          },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = ReplitSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("MIT");
+      expect(frontmatter["allowed-tools"]).toBe("Bash Read");
+    });
   });
 
   describe("spec-conformant frontmatter", () => {

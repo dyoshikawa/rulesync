@@ -436,6 +436,27 @@ Body.`,
       expect(frontmatter.compatibility).toBe("Requires jq");
       expect(frontmatter.metadata).toEqual({ author: "section" });
     });
+
+    it("should keep the root-level license when the pi section sets only an unrelated key", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "partial-section",
+        frontmatter: {
+          name: "partial-section",
+          description: "Section sets only an unrelated key",
+          license: "MIT",
+          pi: {
+            "allowed-tools": ["Bash", "Read"],
+          },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = PiSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("MIT");
+      expect(frontmatter["allowed-tools"]).toBe("Bash Read");
+    });
   });
 
   describe("toRulesyncSkill", () => {

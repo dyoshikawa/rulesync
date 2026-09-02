@@ -23,7 +23,9 @@ export const KiloSkillFrontmatterSchema = z.looseObject({
   // Kilo's official SKILL.md frontmatter: `name`, `description`, `license`,
   // `compatibility`, and `metadata`. https://kilo.ai/docs/customize/skills
   license: z.optional(z.string()),
-  compatibility: z.optional(z.looseObject({})),
+  // `compatibility` is a free-form string per the Agent Skills spec; the
+  // object form is kept for back-compat with existing rulesync skill files.
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
   // `allowed-tools` is NOT recognized by Kilo; it is retained for backward
   // compatibility with existing rulesync skill files.
@@ -155,17 +157,10 @@ export class KiloSkill extends ToolSkill {
     // The Agent Skills standard fields fall back to the root-level rulesync
     // value when the `kilo` section omits them.
     const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section: kiloSection });
-    const resolvedCompatibility = resolveCompatibility({
+    const compatibility = resolveCompatibility({
       rootFrontmatter: rulesyncFrontmatter,
       section: kiloSection,
     });
-    // Kilo documents `compatibility` only as "environment requirements" with
-    // neither a type nor an example, and both the `kilo` section and Kilo's own
-    // frontmatter schema accept the mapping form alone. A root-level string —
-    // which the other Agent Skills targets consume as-is — is therefore not
-    // forwarded to Kilo rather than emitting a value its schema would reject.
-    const compatibility =
-      typeof resolvedCompatibility === "string" ? undefined : resolvedCompatibility;
     const metadata = resolveMetadata({
       rootFrontmatter: rulesyncFrontmatter,
       section: kiloSection,

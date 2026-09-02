@@ -138,9 +138,8 @@ export function resolveUserInvocable({
  * Resolve the effective `license` value for a tool skill.
  *
  * The rulesync skill frontmatter exposes a root-level `license` default that
- * applies to every tool modelling the Agent Skills standard field (claudecode,
- * opencode, kilo, kiro, deepagents, copilot, copilotcli, pi, replit, rovodev,
- * factorydroid, agentsskills, hermesagent, agentsmd, vibe). Each tool's own
+ * applies to every tool modelling the Agent Skills standard field; the list of
+ * those tools lives in `docs/reference/file-formats.md`. Each tool's own
  * section may override that default with a per-target value. A defined section
  * value always wins over the root default.
  *
@@ -163,15 +162,14 @@ export function resolveLicense<TSection = string>({
  * Resolve the effective `compatibility` value for a tool skill.
  *
  * The rulesync skill frontmatter exposes a root-level `compatibility` default
- * that applies to every tool modelling the Agent Skills standard field
- * (claudecode, opencode, kilo, kiro, deepagents, pi, replit, rovodev,
- * factorydroid, agentsskills, hermesagent, agentsmd, vibe). Each tool's own
- * section may override that default with a per-target value. A defined section
- * value always wins over the root default.
+ * that applies to every tool modelling the Agent Skills standard field; the
+ * list of those tools lives in `docs/reference/file-formats.md`. Each tool's
+ * own section may override that default with a per-target value. A defined
+ * section value always wins over the root default.
  *
  * The root value keeps the rulesync shape (a string, or the legacy object
  * form); any per-target normalization — such as the Agent Skills spec's string
- * coercion, or kilo forwarding only the object form — stays with the adapter.
+ * coercion — stays with the adapter.
  * The section value type is generic because `factorydroid` deliberately types
  * the packaging fields as `unknown` (Droid never validates them).
  *
@@ -191,11 +189,11 @@ export function resolveCompatibility<TSection = string | Record<string, unknown>
  * Resolve the effective `metadata` value for a tool skill.
  *
  * The rulesync skill frontmatter exposes a root-level `metadata` default that
- * applies to every tool modelling the Agent Skills standard field (claudecode,
- * opencode, kilo, kiro, deepagents, pi, replit, rovodev, cursor, factorydroid,
- * agentsskills, hermesagent, agentsmd, vibe). Each tool's own section may
- * override that default with a per-target value. A defined section value
- * always wins over the root default; the two maps are never merged key by key.
+ * applies to every tool modelling the Agent Skills standard field; the list of
+ * those tools lives in `docs/reference/file-formats.md`. Each tool's own
+ * section may override that default with a per-target value. A defined section
+ * value always wins over the root default; the two maps are never merged key
+ * by key.
  *
  * The section value type is generic because `factorydroid` deliberately types
  * the packaging fields as `unknown` (Droid never validates them).

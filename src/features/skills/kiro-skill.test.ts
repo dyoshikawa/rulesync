@@ -136,6 +136,27 @@ describe("KiroSkill", () => {
       expect(frontmatter.compatibility).toBe("Requires jq");
       expect(frontmatter.metadata).toEqual({ author: "section" });
     });
+
+    it("should keep the root-level license when the kiro section sets only another key", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "partial-section",
+        frontmatter: {
+          name: "partial-section",
+          description: "Section sets only an unrelated key",
+          license: "MIT",
+          kiro: {
+            compatibility: "Requires jq",
+          },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = KiroSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("MIT");
+      expect(frontmatter.compatibility).toBe("Requires jq");
+    });
   });
 
   describe("toRulesyncSkill", () => {

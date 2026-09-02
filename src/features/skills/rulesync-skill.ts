@@ -58,13 +58,8 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   "user-invocable": z.optional(z.boolean()),
   // Shared defaults for the three Agent Skills standard packaging fields. Each
   // applies to every tool that models the field, and a target-section value of
-  // the same key overrides it:
-  //   - `license`: claudecode, opencode, kilo, kiro, deepagents, copilot,
-  //     copilotcli, pi, replit, rovodev, factorydroid, agentsskills (also
-  //     hermesagent and the simulated agentsmd), vibe.
-  //   - `compatibility`: the same list minus copilot and copilotcli. kilo only
-  //     accepts the object form, so a root-level string is not forwarded to it.
-  //   - `metadata`: the same list as `compatibility`, plus cursor.
+  // the same key overrides it. The per-field tool lists live in
+  // `docs/reference/file-formats.md` (the `.rulesync/skills/` frontmatter).
   // The Agent Skills spec types `compatibility` as a free-form string (1–500
   // chars) and `metadata` as a string→string map; the object form of
   // `compatibility` and non-string `metadata` values stay accepted for
@@ -148,7 +143,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       // retained for backward compatibility with existing rulesync skill files.
       "allowed-tools": z.optional(z.array(z.string())),
       license: z.optional(z.string()),
-      compatibility: z.optional(z.looseObject({})),
+      // `compatibility` is a free-form string per the Agent Skills spec; the
+      // object form is kept for back-compat with existing rulesync skill files.
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
       metadata: z.optional(z.looseObject({})),
     }),
   ),
@@ -413,8 +410,7 @@ export type RulesyncSkillFrontmatterInput = {
   kilo?: {
     "allowed-tools"?: string[];
     license?: string;
-    // Kilo accepts the object form alone; see the schema above.
-    compatibility?: Record<string, unknown>;
+    compatibility?: string | Record<string, unknown>;
     metadata?: Record<string, unknown>;
   };
   kiro?: {

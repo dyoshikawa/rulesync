@@ -181,7 +181,7 @@ export class CopilotcliSkill extends ToolSkill {
       rootFrontmatter: rulesyncFrontmatter,
       section: copilotcliSection,
     });
-    // `license` is the only Agent Skills standard field Copilot models; it
+    // `license` is the only Agent Skills standard field Copilot CLI models; it
     // falls back to the root-level rulesync value when the section omits it.
     const license = resolveLicense({
       rootFrontmatter: rulesyncFrontmatter,
