@@ -23,7 +23,7 @@ The `permissions` feature operates on `.rulesync/permissions.jsonc` and the `hoo
 
 `put` is an upsert, and it writes exactly what the call carries — there is no partial update, so a field left out of `frontmatter` is dropped from the file. For `skill`, `put` overlays the directory rather than replacing it: it rewrites `SKILL.md` and every `otherFiles` entry passed in, and leaves every other file already in the directory untouched. It therefore cannot remove a file — `get` the skill, `delete` it, then `put` it back without that entry.
 
-`delete` on the `ignore` feature removes both `.rulesync/.aiignore` and the legacy `.rulesyncignore`.
+For `ignore`, `mcp`, `permissions`, and `hooks`, `delete` removes the recommended path _and_ every legacy path, not just whichever file `get` would have read: `.rulesync/.aiignore` together with the legacy `.rulesyncignore`, `.rulesync/mcp.jsonc` together with `.rulesync/mcp.json` and `.rulesync/.mcp.json`, and likewise `.rulesync/permissions.jsonc` with `.rulesync/permissions.json` and `.rulesync/hooks.jsonc` with `.rulesync/hooks.json`.
 
 Each rule, command, subagent, and check file is capped at 1MB, as are `.rulesync/mcp.jsonc`, `.rulesync/permissions.jsonc`, and `.rulesync/hooks.jsonc`; the ignore file is capped at 100KB, and a skill's 1MB budget covers its whole directory (see [`skill` other files](#skill-other-files)). Rules, commands, subagents, skills, and checks are each capped at 1000 items.
 

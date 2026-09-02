@@ -78,8 +78,10 @@ needs. Unsupported pairs are rejected.
 `ignore`, `mcp`, `permissions`, and `hooks` are the exception: their path is
 fixed, so they take no `targetPathFromCwd` on any operation, and their `put`
 takes `content` — the whole file as a string — instead of `frontmatter` and
-`body`. `ignore` covers two files: its `delete` removes both
-`.rulesync/.aiignore` and the legacy `.rulesyncignore`.
+`body`. Their `delete` is also wider than their `get`: it removes the
+recommended path _and_ every legacy one — `.rulesync/.aiignore` plus the legacy
+`.rulesyncignore`, and `.rulesync/{mcp,permissions,hooks}.jsonc` plus their
+`.json` predecessors (`.rulesync/.mcp.json` included).
 
 `targetPathFromCwd` is relative to the working directory, and it is the item's
 own path in `.rulesync/`: a file path such as `.rulesync/rules/overview.md` for
