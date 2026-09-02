@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CLAUDECODE_SETTINGS_SCHEMA_URL } from "../../constants/claudecode-paths.js";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
@@ -688,6 +689,55 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.otherKey).toBe("preserved");
       expect(parsed.hooks).toBeDefined();
       expect(parsed.hooks.SessionStart).toBeDefined();
+    });
+  });
+
+  describe("$schema", () => {
+    const rulesyncHooks = () =>
+      new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { preToolUse: [{ command: "echo hi" }] },
+        }),
+        validate: false,
+      });
+
+    it.each([{ global: false }, { global: true }])(
+      "adds $schema first when hooks alone writes a settings file (global: $global)",
+      async ({ global }) => {
+        const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks: rulesyncHooks(),
+          validate: false,
+          global,
+        });
+
+        const content = JSON.parse(claudecodeHooks.getFileContent());
+        expect(Object.keys(content)).toEqual(["$schema", "hooks"]);
+        expect(content.$schema).toBe(CLAUDECODE_SETTINGS_SCHEMA_URL);
+      },
+    );
+
+    it("keeps a $schema the settings file already states", async () => {
+      const pinned = "https://mirror.example.test/claude-code-settings.json";
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({ $schema: pinned, model: "opus" }, null, 2),
+      );
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: rulesyncHooks(),
+        validate: false,
+      });
+
+      const content = JSON.parse(claudecodeHooks.getFileContent());
+      expect(content.$schema).toBe(pinned);
+      expect(Object.keys(content)).toEqual(["$schema", "model", "hooks"]);
     });
   });
 

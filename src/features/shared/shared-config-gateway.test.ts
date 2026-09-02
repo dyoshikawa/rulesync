@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { CLAUDECODE_SETTINGS_SCHEMA_URL } from "../../constants/claudecode-paths.js";
 import { deriveSharedFileWriters } from "../../lib/shared-file-derive.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
@@ -9,12 +10,15 @@ import {
   applyPermissions,
   applySharedConfigPatch,
   buildReadDenyEntry,
+  CLAUDE_SETTINGS_LOCAL_SHARED_FILE_KEY,
+  CLAUDE_SETTINGS_SHARED_FILE_KEY,
   HERMES_CONFIG_SHARED_FILE_KEY,
   isReadDenyEntry,
   mergeSharedConfigDeep,
   mergeSharedConfigShallow,
   parseSharedConfig,
   serializeSharedConfig,
+  serializeSharedConfigFile,
   SHARED_CONFIG_OWNERSHIP,
   stringifySharedConfig,
   TAKT_CONFIG_SHARED_FILE_KEY,
@@ -1031,6 +1035,149 @@ describe("SHARED_CONFIG_OWNERSHIP", () => {
   });
 });
 
+describe("ensured keys", () => {
+  it("only the two Claude Code settings files ensure a key, and it is $schema", () => {
+    const ensuring = Object.entries(SHARED_CONFIG_OWNERSHIP)
+      .filter(([, declaration]) => declaration.ensuredKeys !== undefined)
+      .map(([fileKey]) => fileKey)
+      .toSorted();
+    expect(ensuring).toEqual(
+      [CLAUDE_SETTINGS_SHARED_FILE_KEY, CLAUDE_SETTINGS_LOCAL_SHARED_FILE_KEY].toSorted(),
+    );
+    for (const fileKey of ensuring) {
+      expect(SHARED_CONFIG_OWNERSHIP[fileKey]?.ensuredKeys).toEqual({
+        $schema: CLAUDECODE_SETTINGS_SCHEMA_URL,
+      });
+    }
+  });
+
+  it("adds $schema as the first key of .claude/settings.json when the file lacks it", () => {
+    const result = applySharedConfigPatch({
+      fileKey: CLAUDE_SETTINGS_SHARED_FILE_KEY,
+      feature: "hooks",
+      existingContent: JSON.stringify({ permissions: { allow: ["Bash(git *)"] } }, null, 2),
+      patch: { hooks: { PreToolUse: [] } },
+    });
+
+    const parsed = JSON.parse(result);
+    expect(Object.keys(parsed)).toEqual(["$schema", "permissions", "hooks"]);
+    expect(parsed.$schema).toBe(CLAUDECODE_SETTINGS_SCHEMA_URL);
+  });
+
+  it("adds $schema to a settings file that did not exist yet", () => {
+    const result = applySharedConfigPatch({
+      fileKey: CLAUDE_SETTINGS_SHARED_FILE_KEY,
+      feature: "hooks",
+      existingContent: "",
+      patch: { hooks: { PreToolUse: [] } },
+    });
+
+    expect(JSON.parse(result)).toEqual({
+      $schema: CLAUDECODE_SETTINGS_SCHEMA_URL,
+      hooks: { PreToolUse: [] },
+    });
+    expect(result.startsWith(`{\n  "$schema": "${CLAUDECODE_SETTINGS_SCHEMA_URL}",`)).toBe(true);
+  });
+
+  it("leaves a $schema the file already states untouched, whatever its value and place", () => {
+    const pinned = "https://mirror.example.test/claude-code-settings-v1.json";
+    const result = applySharedConfigPatch({
+      fileKey: CLAUDE_SETTINGS_SHARED_FILE_KEY,
+      feature: "hooks",
+      existingContent: JSON.stringify({ permissions: {}, $schema: pinned }, null, 2),
+      patch: { hooks: { PreToolUse: [] } },
+    });
+
+    const parsed = JSON.parse(result);
+    expect(parsed.$schema).toBe(pinned);
+    expect(Object.keys(parsed)).toEqual(["permissions", "$schema", "hooks"]);
+  });
+
+  it("ensures $schema through the custom-policy writers' serializer, for both settings files", () => {
+    const settings: ClaudeSettingsJson = applyIgnoreReadDenies({
+      settings: {},
+      readDenies: [buildReadDenyEntry(".env")],
+    });
+    for (const fileKey of [
+      CLAUDE_SETTINGS_SHARED_FILE_KEY,
+      CLAUDE_SETTINGS_LOCAL_SHARED_FILE_KEY,
+    ]) {
+      const result = serializeSharedConfigFile({
+        fileKey,
+        document: settings,
+        existingContent: "",
+      });
+      expect(JSON.parse(result)).toEqual({
+        $schema: CLAUDECODE_SETTINGS_SCHEMA_URL,
+        permissions: { deny: ["Read(.env)"] },
+      });
+      expect(Object.keys(JSON.parse(result))[0]).toBe("$schema");
+    }
+  });
+
+  it("writes nothing extra into a file whose declaration ensures no key", () => {
+    const result = serializeSharedConfigFile({
+      fileKey: "opencode.json",
+      document: { mcp: { srv: { type: "local", command: ["node"] } } },
+      existingContent: "",
+    });
+    expect(JSON.parse(result)).toEqual({ mcp: { srv: { type: "local", command: ["node"] } } });
+    expect(result).not.toContain("$schema");
+  });
+
+  it("refuses to serialize an undeclared file", () => {
+    expect(() =>
+      serializeSharedConfigFile({
+        fileKey: "nope/unknown.json",
+        document: {},
+        existingContent: "",
+      }),
+    ).toThrow(/no SHARED_CONFIG_OWNERSHIP declaration/);
+  });
+
+  it("inserts a leading key in front of every property of a JSONC file and keeps its comments", () => {
+    // The two Claude Code settings files are plain JSON and are written whole,
+    // so this exercises the edit path a JSONC declaration with an ensured key
+    // would take: `modify` is asked for index 0, and the notes an author wrote
+    // at the top of the file and beside its keys all stay where they were.
+    const existingContent = ["{ // header", "  // about a", '  "a": 1, // trailing', "}"].join(
+      "\n",
+    );
+
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { $schema: "https://example.test/schema.json", a: 1 },
+      existingContent,
+      leadingKeys: ["$schema"],
+    });
+
+    expect(result).toBe(
+      [
+        "{ // header",
+        '  "$schema": "https://example.test/schema.json",',
+        "  // about a",
+        '  "a": 1, // trailing',
+        "}",
+      ].join("\n"),
+    );
+    expect(Object.keys(parseSharedConfig({ format: "jsonc", fileContent: result }))).toEqual([
+      "$schema",
+      "a",
+    ]);
+  });
+
+  it("keeps a leading key a JSONC file already states where the file put it", () => {
+    const existingContent = '{\n  "a": 1,\n  "$schema": "https://pinned.test/s.json"\n}';
+    const result = serializeSharedConfig({
+      format: "jsonc",
+      document: { $schema: "https://pinned.test/s.json", a: 2 },
+      existingContent,
+      leadingKeys: ["$schema"],
+    });
+    expect(result).toBe('{\n  "a": 2,\n  "$schema": "https://pinned.test/s.json"\n}');
+  });
+});
+
 describe("applySharedConfigPatch", () => {
   it("executes replace-owned-keys: owned key replaced, user keys preserved", () => {
     const result = applySharedConfigPatch({
@@ -1069,6 +1216,19 @@ describe("applySharedConfigPatch", () => {
         patch: { hooks: {}, model: "hijacked" },
       }),
     ).toThrow(/undeclared keys \[model\]/);
+  });
+
+  it("rejects an ensured key in a feature patch: ensuring is not ownership", () => {
+    // `$schema` is added by the serializer from the declaration, never granted
+    // to a feature, so a hooks patch that carries it is still a stray write.
+    expect(() =>
+      applySharedConfigPatch({
+        fileKey: CLAUDE_SETTINGS_SHARED_FILE_KEY,
+        feature: "hooks",
+        existingContent: "",
+        patch: { hooks: {}, $schema: "https://example.com/other.json" },
+      }),
+    ).toThrow(/undeclared keys \[\$schema\]/);
   });
 
   it("executes deep-merge with replaceKeys snapshots", () => {
