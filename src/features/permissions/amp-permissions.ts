@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { uniq } from "es-toolkit";
-import { parse as parseJsonc, type ParseError, printParseErrorCode } from "jsonc-parser";
 
 import {
   AMP_DIR,
@@ -13,6 +12,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { parseJsonc } from "../../utils/jsonc.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
@@ -106,14 +106,11 @@ function isCanonicalAmpEntry(entry: AmpPermissionEntry): boolean {
 }
 
 function parseAmpSettings(fileContent: string): Record<string, unknown> {
-  const errors: ParseError[] = [];
-  const parsed: unknown = parseJsonc(fileContent || "{}", errors, { allowTrailingComma: true });
-
-  if (errors.length > 0) {
-    const details = errors
-      .map((error) => `${printParseErrorCode(error.error)} at offset ${error.offset}`)
-      .join(", ");
-    throw new Error(`Failed to parse Amp settings: ${details}`);
+  let parsed: unknown;
+  try {
+    parsed = parseJsonc(fileContent || "{}");
+  } catch (error) {
+    throw new Error(`Failed to parse Amp settings: ${formatError(error)}`, { cause: error });
   }
 
   // `isPlainObject` (not `isRecord`) rejects class instances for
