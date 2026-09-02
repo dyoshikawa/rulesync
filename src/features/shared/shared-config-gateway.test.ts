@@ -24,6 +24,12 @@ import {
   TAKT_CONFIG_SHARED_FILE_KEY,
 } from "./shared-config-gateway.js";
 
+/** The whole-document fallback warnings `logger` received, in order. */
+const wholeRewriteWarnings = (logger: ReturnType<typeof createMockLogger>): string[] =>
+  logger.warn.mock.calls
+    .map(([message]) => String(message))
+    .filter((message) => message.includes("rewritten whole"));
+
 describe("parseSharedConfig", () => {
   it("treats an empty file as an empty document in every format", () => {
     expect(parseSharedConfig({ format: "yaml", fileContent: "  \n" })).toEqual({});
@@ -925,6 +931,228 @@ describe("serializeSharedConfig", () => {
 
     expect(result).toBe(stringifySharedConfig({ format: "jsonc", document: { a: 1 } }));
     expect(result).not.toContain("__proto__");
+  });
+
+  describe("reporting the whole-document fallback", () => {
+    it("warns once, naming the file and the reason, when the file does not parse", () => {
+      const logger = createMockLogger();
+      const filePath = "/work/opencode.jsonc";
+
+      serializeSharedConfig({
+        format: "jsonc",
+        document: { a: 1 },
+        existingContent: "{ oops",
+        filePath,
+        logger,
+      });
+      serializeSharedConfig({
+        format: "jsonc",
+        document: { a: 2 },
+        existingContent: "{ oops",
+        filePath,
+        logger,
+      });
+
+      const warnings = wholeRewriteWarnings(logger);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(JSON.stringify(filePath));
+      expect(warnings[0]).toContain("because it could not be parsed");
+      expect(warnings[0]).toContain("not preserved");
+    });
+
+    it("reports each fallback reason in the warning", () => {
+      const cases: {
+        existingContent: string;
+        document: Record<string, unknown>;
+        reason: string;
+      }[] = [
+        { existingContent: "[1, 2]", document: { a: 1 }, reason: "its root is not an object" },
+        {
+          existingContent: '{ "a": 1, "a": 2 }',
+          document: { a: 3 },
+          reason: 'it states the key "a" twice',
+        },
+        {
+          existingContent: '{ "__proto__": { "a": 1 } }',
+          document: { a: 1 },
+          reason: 'it uses the key "__proto__"',
+        },
+        {
+          // jsonc-parser throws on an indentation width that lands exactly on
+          // the last slot of its formatting cache.
+          existingContent: `{\n${" ".repeat(198)}"mcp": {}\n}\n`,
+          document: { mcp: { added: { type: "local" } } },
+          reason: "the editor refused it",
+        },
+      ];
+
+      for (const [index, { existingContent, document, reason }] of cases.entries()) {
+        const logger = createMockLogger();
+        serializeSharedConfig({
+          format: "jsonc",
+          document,
+          existingContent,
+          filePath: `/work/case-${index}.json`,
+          logger,
+        });
+        const warnings = wholeRewriteWarnings(logger);
+        expect(warnings, reason).toHaveLength(1);
+        expect(warnings[0]).toContain(reason);
+      }
+    });
+
+    it("reports the edit budget as the reason when it is exceeded", () => {
+      const stale: Record<string, unknown> = {};
+      for (let index = 0; index < 2000; index += 1) {
+        stale[`srv${index}`] = { type: "local", command: ["node", `server-${index}.js`] };
+      }
+      const existingContent = `{\n  "mcp": ${JSON.stringify(stale, null, 2)}\n}`;
+      const logger = createMockLogger();
+
+      serializeSharedConfig({
+        format: "jsonc",
+        document: { mcp: { fresh: { type: "local", command: ["node"] } } },
+        existingContent,
+        filePath: "/work/large.json",
+        logger,
+      });
+
+      expect(wholeRewriteWarnings(logger)[0]).toContain("too large, with too much of it changing");
+    });
+
+    it("reports the write budget as the reason when one key writes too much", () => {
+      // A single new key carrying a whole server list is one edit, so only
+      // the written-bytes budget stops it.
+      const servers: Record<string, unknown> = {};
+      for (let index = 0; index < 4000; index += 1) {
+        servers[`srv${index}`] = { type: "http", url: `https://example.com/${index}` };
+      }
+      const existingContent = ["{", "  // shared team config", '  "theme": "dark"', "}"].join("\n");
+      const logger = createMockLogger();
+
+      serializeSharedConfig({
+        format: "jsonc",
+        document: { theme: "dark", mcp: servers },
+        existingContent,
+        filePath: "/work/wide.json",
+        logger,
+      });
+
+      expect(wholeRewriteWarnings(logger)[0]).toContain(
+        "its changed keys write more new text than editing in place can afford",
+      );
+    });
+
+    it("truncates a duplicated key that is longer than a warning should carry", () => {
+      const key = "k".repeat(10_000);
+      const logger = createMockLogger();
+
+      serializeSharedConfig({
+        format: "jsonc",
+        document: { a: 1 },
+        existingContent: `{ "${key}": 1, "${key}": 2 }`,
+        filePath: "/work/long-key.json",
+        logger,
+      });
+
+      const warnings = wholeRewriteWarnings(logger);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("…(truncated)");
+      expect(warnings[0]?.length).toBeLessThan(400);
+    });
+
+    it("still returns the whole document when the logger itself throws", () => {
+      const logger = createMockLogger();
+      logger.warn.mockImplementation(() => {
+        throw new Error("logger is broken");
+      });
+
+      const result = serializeSharedConfig({
+        format: "jsonc",
+        document: { a: 1 },
+        existingContent: "{ oops",
+        filePath: "/work/opencode.jsonc",
+        logger,
+      });
+
+      expect(result).toBe(stringifySharedConfig({ format: "jsonc", document: { a: 1 } }));
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+    });
+
+    it("strips control characters from the file name it reports", () => {
+      const logger = createMockLogger();
+
+      serializeSharedConfig({
+        format: "jsonc",
+        document: { a: 1 },
+        existingContent: "{ oops",
+        filePath: "/work/evil\u001b[31m.json",
+        logger,
+      });
+
+      const [warning] = wholeRewriteWarnings(logger);
+      expect(warning).not.toContain("\u001b");
+      expect(warning).toContain('"/work/evil[31m.json"');
+    });
+
+    it("stays silent when the file is edited in place", () => {
+      const logger = createMockLogger();
+      const existingContent = '{\n  // keep me\n  "a": 1\n}\n';
+
+      const result = serializeSharedConfig({
+        format: "jsonc",
+        document: { a: 2 },
+        existingContent,
+        filePath: "/work/opencode.jsonc",
+        logger,
+      });
+
+      expect(result).toContain("// keep me");
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("stays silent for an empty file and for the non-JSONC formats", () => {
+      const logger = createMockLogger();
+
+      serializeSharedConfig({
+        format: "jsonc",
+        document: { a: 1 },
+        existingContent: "  \n",
+        filePath: "/work/empty.json",
+        logger,
+      });
+      serializeSharedConfig({
+        format: "json",
+        document: { a: 1 },
+        existingContent: "{ oops",
+        filePath: "/work/settings.json",
+        logger,
+      });
+      serializeSharedConfig({
+        format: "yaml",
+        document: { a: 1 },
+        existingContent: "a: 2\n",
+        filePath: "/work/config.yaml",
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("warns through serializeSharedConfigFile, naming the file key when no path is given", () => {
+      const logger = createMockLogger();
+
+      serializeSharedConfigFile({
+        fileKey: "opencode.json",
+        document: { permission: {} },
+        existingContent: "{ oops",
+        logger,
+      });
+
+      const [warning] = wholeRewriteWarnings(logger);
+      expect(warning).toContain('"opencode.json"');
+      expect(warning).toContain("because it could not be parsed");
+    });
   });
 
   it("re-serializes every non-JSONC format", () => {

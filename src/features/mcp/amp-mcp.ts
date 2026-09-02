@@ -125,6 +125,7 @@ export class AmpMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<AmpMcp> {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
@@ -142,6 +143,7 @@ export class AmpMcp extends ToolMcp {
         existingContent: fileContent ?? "",
         patch: { [AMP_MCP_SERVERS_KEY]: filterMcpServers(rulesyncMcp.getMcpServers()) },
         filePath: join(jsonDir, relativeFilePath),
+        logger,
       }),
       validate,
       global,

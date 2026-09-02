@@ -218,6 +218,7 @@ type McpInstructionsRegistrar = {
     instructions: string[];
     validate?: boolean;
     global?: boolean;
+    logger?: Logger;
   }): Promise<ToolFile | null>;
 };
 
@@ -1233,6 +1234,7 @@ export class RulesProcessor extends FeatureProcessor {
       instructions: instructionPaths,
       validate: true,
       global: this.global,
+      logger: this.logger,
     });
     return registered ? [registered] : [];
   }

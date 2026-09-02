@@ -82,6 +82,7 @@ export class CopilotMcp extends ToolMcp {
     outputRoot = process.cwd(),
     rulesyncMcp,
     validate = true,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<CopilotMcp> {
     const paths = this.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -103,6 +104,7 @@ export class CopilotMcp extends ToolMcp {
         existingContent,
         patch: { servers: rulesyncMcp.getMcpServers() },
         filePath,
+        logger,
       }),
       validate,
     });
