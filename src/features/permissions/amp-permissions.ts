@@ -12,9 +12,9 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { parseJsonc } from "../../utils/jsonc.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
+import { parseAmpSettings } from "../shared/amp-settings.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -103,23 +103,6 @@ function isCanonicalAmpEntry(entry: AmpPermissionEntry): boolean {
   if (matches === undefined) return true;
   const keys = Object.keys(matches);
   return keys.length === 0 || (keys.length === 1 && typeof matches.cmd === "string");
-}
-
-function parseAmpSettings(fileContent: string): Record<string, unknown> {
-  let parsed: unknown;
-  try {
-    parsed = parseJsonc(fileContent || "{}");
-  } catch (error) {
-    throw new Error(`Failed to parse Amp settings: ${formatError(error)}`, { cause: error });
-  }
-
-  // `isPlainObject` (not `isRecord`) rejects class instances for
-  // prototype-pollution hardening; the JSONC parser always yields a plain object.
-  if (!isPlainObject(parsed)) {
-    throw new Error("Amp settings must be a JSON object");
-  }
-
-  return parsed;
 }
 
 function toDisableList(value: unknown): string[] {
@@ -246,7 +229,7 @@ export class AmpPermissions extends ToolPermissions {
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
     const { fileContent, relativeFilePath } = await this.resolveSettingsFile(jsonDir);
 
-    const json = fileContent ? parseAmpSettings(fileContent) : {};
+    const json = fileContent ? parseAmpSettings({ fileContent }) : {};
     const newJson = {
       ...json,
       [AMP_TOOLS_DISABLE_KEY]: toDisableList(json[AMP_TOOLS_DISABLE_KEY]),
@@ -270,7 +253,7 @@ export class AmpPermissions extends ToolPermissions {
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
     const { fileContent, relativeFilePath } = await this.resolveSettingsFile(jsonDir);
 
-    const json = fileContent ? parseAmpSettings(fileContent) : {};
+    const json = fileContent ? parseAmpSettings({ fileContent }) : {};
 
     const config = rulesyncPermissions.getJson();
     const { disable, permissions } = convertRulesyncToAmp(config);
@@ -336,7 +319,7 @@ export class AmpPermissions extends ToolPermissions {
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
-    const json = parseAmpSettings(this.getFileContent());
+    const json = parseAmpSettings({ fileContent: this.getFileContent() });
     const allPermissions = toPermissionsList(json[AMP_PERMISSIONS_KEY]);
 
     // Canonical-expressible entries drive the shared `permission` block; the rest
@@ -377,7 +360,7 @@ export class AmpPermissions extends ToolPermissions {
 
   validate(): ValidationResult {
     try {
-      const json = parseAmpSettings(this.fileContent);
+      const json = parseAmpSettings({ fileContent: this.fileContent });
       const disable = json[AMP_TOOLS_DISABLE_KEY];
       if (disable !== undefined && !Array.isArray(disable)) {
         return {
