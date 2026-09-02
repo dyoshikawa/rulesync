@@ -9,7 +9,7 @@ Rulesync provides an MCP (Model Context Protocol) server that enables AI agents 
 
 The single `rulesyncTool` multiplexes by `feature` and `operation`:
 
-- `rule`, `command`, `subagent`, `skill`: `list`, `get`, `put`, `delete`
+- `rule`, `command`, `subagent`, `skill`, `check`: `list`, `get`, `put`, `delete`
 - `ignore`, `mcp`, `permissions`, `hooks`: `get`, `put`, `delete`
 - `generate`: `run`
 - `import`: `run`
