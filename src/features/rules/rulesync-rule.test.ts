@@ -5,11 +5,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { WarningCollectingLogger, withFallbackLoggerTarget } from "../../utils/logger.js";
 import {
+  AUTO_SUBPROJECT_PATH,
   RulesyncRule,
   type RulesyncRuleFrontmatterInput,
   RulesyncRuleFrontmatterSchema,
 } from "./rulesync-rule.js";
+
+/** The warnings `operation` sends through the shared fallback logger. */
+const collectWarnings = async (operation: () => void): Promise<string[]> => {
+  const warnings = new WarningCollectingLogger({ verbose: false, silent: true });
+  await withFallbackLoggerTarget({
+    logger: warnings,
+    operation: async () => {
+      operation();
+    },
+  });
+  return warnings.getWarnings();
+};
 
 describe("RulesyncRule", () => {
   let testDir: string;
@@ -574,6 +588,279 @@ This has leading and trailing whitespace.
       });
 
       expect(rule.getBody()).toBe("This has leading and trailing whitespace.");
+    });
+  });
+
+  describe("agentsmd.subprojectPath resolution", () => {
+    const buildRule = ({
+      frontmatter,
+      deriveSubprojectPathFromGlobs,
+      relativeFilePath = "scoped.md",
+    }: {
+      frontmatter: RulesyncRuleFrontmatterInput;
+      deriveSubprojectPathFromGlobs?: boolean;
+      relativeFilePath?: string;
+    }): RulesyncRule =>
+      new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath,
+        frontmatter,
+        body: "# Scoped rule",
+        deriveSubprojectPathFromGlobs,
+      });
+
+    it("leaves the frontmatter alone when nothing asks for a derivation", () => {
+      const rule = buildRule({
+        frontmatter: { root: false, globs: ["packages/api/**/*"] },
+      });
+
+      expect(rule.getFrontmatter().agentsmd).toBeUndefined();
+    });
+
+    it("derives the path from globs when the config option is on", () => {
+      const rule = buildRule({
+        frontmatter: { root: false, globs: ["packages/api/**/*.ts"] },
+        deriveSubprojectPathFromGlobs: true,
+      });
+
+      expect(rule.getFrontmatter().agentsmd).toEqual({ subprojectPath: "packages/api" });
+      // The file itself keeps what the author wrote.
+      expect(rule.getFileContent()).not.toContain("subprojectPath");
+    });
+
+    it("derives the path from globs for a rule that says auto, with the option off", () => {
+      const rule = buildRule({
+        frontmatter: {
+          root: false,
+          globs: ["path/to/*"],
+          agentsmd: { subprojectPath: AUTO_SUBPROJECT_PATH, other: "kept" },
+        },
+      });
+
+      expect(rule.getFrontmatter().agentsmd).toEqual({ subprojectPath: "path/to", other: "kept" });
+      expect(rule.getFileContent()).toContain("subprojectPath: auto");
+    });
+
+    it("prefers an explicit path over the derived one", () => {
+      const rule = buildRule({
+        frontmatter: {
+          root: false,
+          globs: ["packages/api/**/*"],
+          agentsmd: { subprojectPath: "apps/api" },
+        },
+        deriveSubprojectPathFromGlobs: true,
+      });
+
+      expect(rule.getFrontmatter().agentsmd?.subprojectPath).toBe("apps/api");
+    });
+
+    it("treats an explicit empty path as an opt-out from the config option", async () => {
+      const warnings = await collectWarnings(() => {
+        const rule = buildRule({
+          frontmatter: {
+            root: false,
+            globs: ["packages/api/**/*"],
+            agentsmd: { subprojectPath: "" },
+          },
+          deriveSubprojectPathFromGlobs: true,
+        });
+
+        // Consumers read "" as "no nesting", exactly as they did before
+        // derivation existed, so it passes through unchanged.
+        expect(rule.getFrontmatter().agentsmd).toEqual({ subprojectPath: "" });
+        expect(rule.getFileContent()).toContain("subprojectPath: ''");
+      });
+      expect(warnings).toEqual([]);
+    });
+
+    it("never derives for a root rule", async () => {
+      const derived = buildRule({
+        frontmatter: { root: true, globs: ["packages/api/**/*"] },
+        deriveSubprojectPathFromGlobs: true,
+      });
+      expect(derived.getFrontmatter().agentsmd).toBeUndefined();
+
+      const warnings = await collectWarnings(() => {
+        const requested = buildRule({
+          frontmatter: {
+            root: true,
+            globs: ["packages/api/**/*"],
+            agentsmd: { subprojectPath: AUTO_SUBPROJECT_PATH },
+          },
+          relativeFilePath: "overview.md",
+        });
+        // The request never leaks to a consumer as if it were a directory, and
+        // an `agentsmd` block that held nothing else goes with it.
+        expect(requested.getFrontmatter().agentsmd).toBeUndefined();
+      });
+      expect(warnings).toEqual([expect.stringContaining("root rule")]);
+    });
+
+    it.each([
+      { name: "no globs", globs: undefined },
+      { name: "empty globs", globs: [] },
+      { name: "globs without a static prefix", globs: ["**/*.ts"] },
+      { name: "globs naming different directories", globs: ["packages/api/**", "packages/web/**"] },
+      { name: "a negated glob", globs: ["!packages/api/**"] },
+      { name: "a glob escaping the root", globs: ["../packages/api/**"] },
+    ])("warns once and falls back to no nesting for $name", async ({ globs }) => {
+      const build = (): RulesyncRule =>
+        buildRule({
+          frontmatter: { root: false, globs, agentsmd: { subprojectPath: AUTO_SUBPROJECT_PATH } },
+        });
+
+      const warnings = await collectWarnings(() => {
+        expect(build().getFrontmatter().agentsmd).toBeUndefined();
+        // A generate reads the same file once per target; the warning describes
+        // the file, so it is printed once.
+        build();
+      });
+
+      expect(warnings).toEqual([
+        expect.stringContaining(
+          `Could not derive agentsmd.subprojectPath for ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "scoped.md")}`,
+        ),
+      ]);
+    });
+
+    it("keeps the other agentsmd keys when an unresolvable auto is dropped", async () => {
+      const warnings = await collectWarnings(() => {
+        const rule = buildRule({
+          frontmatter: {
+            root: false,
+            globs: ["**/*.ts"],
+            agentsmd: { subprojectPath: AUTO_SUBPROJECT_PATH, other: "kept" },
+          },
+        });
+        expect(rule.getFrontmatter().agentsmd).toEqual({ other: "kept" });
+      });
+      expect(warnings).toEqual([expect.stringContaining("Could not derive")]);
+    });
+
+    it("stays quiet when the config option is on and a rule has nothing to derive from", async () => {
+      // With the option on every non-root rule is a candidate, and most rules
+      // have no directory-scoped globs at all; those must not each warn.
+      const warnings = await collectWarnings(() => {
+        const rule = buildRule({
+          frontmatter: { root: false, description: "General guidance" },
+          deriveSubprojectPathFromGlobs: true,
+        });
+        expect(rule.getFrontmatter().agentsmd).toBeUndefined();
+      });
+      expect(warnings).toEqual([]);
+    });
+
+    it.each([
+      { name: "globs without a static prefix", globs: ["src/**/*.ts", "test/**/*.ts"] },
+      { name: "globs that disagree", globs: ["packages/api/**", "**/*.md"] },
+      { name: "a negated glob", globs: ["!packages/api/**"] },
+    ])(
+      "falls back silently when the config option is on and a rule has $name",
+      async ({ globs }) => {
+        // Cursor- and Cline-style activation globs are the norm, not a mistake
+        // to be reported on every generate; only an explicit "auto" is a
+        // request that deserves a warning when it cannot be honored.
+        const warnings = await collectWarnings(() => {
+          const rule = buildRule({
+            frontmatter: { root: false, globs },
+            deriveSubprojectPathFromGlobs: true,
+          });
+          expect(rule.getFrontmatter().agentsmd).toBeUndefined();
+        });
+        expect(warnings).toEqual([]);
+      },
+    );
+
+    it("still warns for an explicit auto when the config option is on", async () => {
+      const warnings = await collectWarnings(() => {
+        buildRule({
+          frontmatter: {
+            root: false,
+            globs: ["src/**/*.ts", "test/**/*.ts"],
+            agentsmd: { subprojectPath: AUTO_SUBPROJECT_PATH },
+          },
+          deriveSubprojectPathFromGlobs: true,
+        });
+      });
+      expect(warnings).toEqual([expect.stringContaining("Could not derive")]);
+    });
+
+    it("applies the option to rules loaded with fromFile", async () => {
+      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+      await ensureDir(rulesDir);
+      await writeFileContent(
+        join(rulesDir, "api.md"),
+        `---
+root: false
+targets: ["*"]
+globs: ["packages/api/**/*"]
+---
+
+# API`,
+      );
+
+      const derived = await RulesyncRule.fromFile({
+        relativeFilePath: "api.md",
+        deriveSubprojectPathFromGlobs: true,
+      });
+      expect(derived.getFrontmatter().agentsmd).toEqual({ subprojectPath: "packages/api" });
+
+      const plain = await RulesyncRule.fromFile({ relativeFilePath: "api.md" });
+      expect(plain.getFrontmatter().agentsmd).toBeUndefined();
+    });
+  });
+
+  describe("getAuthoredFrontmatter", () => {
+    const buildRule = (frontmatter: RulesyncRuleFrontmatterInput): RulesyncRule =>
+      new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "scoped.md",
+        frontmatter,
+        body: "# Scoped rule",
+        deriveSubprojectPathFromGlobs: true,
+      });
+
+    it("keeps auto verbatim where getFrontmatter carries the resolved directory", () => {
+      const rule = buildRule({
+        root: false,
+        globs: ["packages/api/**/*"],
+        agentsmd: { subprojectPath: AUTO_SUBPROJECT_PATH },
+      });
+
+      expect(rule.getAuthoredFrontmatter().agentsmd).toEqual({
+        subprojectPath: AUTO_SUBPROJECT_PATH,
+      });
+      expect(rule.getFrontmatter().agentsmd).toEqual({ subprojectPath: "packages/api" });
+    });
+
+    it("keeps an unresolvable auto that getFrontmatter drops", async () => {
+      await collectWarnings(() => {
+        const rule = buildRule({
+          root: false,
+          globs: ["**/*.ts"],
+          agentsmd: { subprojectPath: AUTO_SUBPROJECT_PATH },
+        });
+
+        expect(rule.getAuthoredFrontmatter().agentsmd).toEqual({
+          subprojectPath: AUTO_SUBPROJECT_PATH,
+        });
+        expect(rule.getFrontmatter().agentsmd).toBeUndefined();
+      });
+    });
+
+    it("leaves a config-derived directory out, as the file does", () => {
+      const rule = buildRule({ root: false, globs: ["packages/api/**/*"] });
+
+      expect(rule.getAuthoredFrontmatter().agentsmd).toBeUndefined();
+      expect(rule.getFileContent()).not.toContain("subprojectPath");
+    });
+
+    it("carries the schema defaults the file content is written with", () => {
+      const rule = buildRule({ root: false });
+
+      expect(rule.getAuthoredFrontmatter().targets).toEqual(["*"]);
     });
   });
 

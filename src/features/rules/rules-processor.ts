@@ -1020,6 +1020,7 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
+  private readonly deriveSubprojectPathFromGlobs: boolean;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
   private readonly skills?: RulesyncSkill[];
@@ -1032,6 +1033,7 @@ export class RulesProcessor extends FeatureProcessor {
     simulateCommands = false,
     simulateSubagents = false,
     simulateSkills = false,
+    deriveSubprojectPathFromGlobs = false,
     global = false,
     getFactory = defaultGetFactory,
     skills,
@@ -1046,6 +1048,13 @@ export class RulesProcessor extends FeatureProcessor {
     simulateCommands?: boolean;
     simulateSubagents?: boolean;
     simulateSkills?: boolean;
+    /**
+     * Resolve `agentsmd.subprojectPath` from `globs` for every non-root rule
+     * loaded from the source trees (the `deriveSubprojectPathFromGlobs` config
+     * option). Applied where the rules are read, so every target sees the same
+     * resolved path.
+     */
+    deriveSubprojectPathFromGlobs?: boolean;
     getFactory?: GetFactory;
     skills?: RulesyncSkill[];
     featureOptions?: FeatureOptions;
@@ -1064,6 +1073,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.simulateCommands = simulateCommands;
     this.simulateSubagents = simulateSubagents;
     this.simulateSkills = simulateSkills;
+    this.deriveSubprojectPathFromGlobs = deriveSubprojectPathFromGlobs;
     this.getFactory = getFactory;
     this.skills = skills;
     this.featureOptions = featureOptions;
@@ -1778,6 +1788,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
           outputRoot: treeParent,
           relativeDirPath: treeRulesDirPath,
           relativeFilePath: sourceRelativeFilePath,
+          deriveSubprojectPathFromGlobs: this.deriveSubprojectPathFromGlobs,
         });
 
         if (sourceRelativeFilePath === relativeFilePath) {
