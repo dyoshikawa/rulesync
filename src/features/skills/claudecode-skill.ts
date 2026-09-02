@@ -507,9 +507,12 @@ export class ClaudecodeSkill extends ToolSkill {
     // into a warning instead of an error. It is seeded under both of its spellings:
     // the literal one, and where it really resolves to when it is itself a link into
     // the project, since a nested root reaching the same place is told apart by
-    // that resolved spelling alone. When it cannot be resolved the literal spelling
-    // is all there is, and a nested root leading to a place that cannot be resolved
-    // is refused before it is looked up here.
+    // that resolved spelling alone. When it cannot be resolved -- because it is
+    // absent, say -- the fallback is a spelling no admitted nested root can carry:
+    // the literal one again, or one that escapes the project when the project
+    // root is itself a link, since a nested root leading to a place that cannot
+    // be resolved or that escapes is refused before it is looked up here. So the
+    // seed only ever narrows what is read; it never widens it.
     const seenRealRelativeDirPaths = new Set<string>([
       CLAUDECODE_SKILLS_DIR_POSIX_PATH,
       await resolvedRelativePath({

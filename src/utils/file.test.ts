@@ -258,7 +258,8 @@ describe("file utilities", () => {
       // The identity `realpath` returns is rewritten to posix separators; the
       // candidate is spelled the way the platform reported it. Splitting both
       // on either separator is what lets the two compare on Windows without a
-      // rewrite of the candidate first.
+      // rewrite of the candidate first. This pins that both sides are split on
+      // both separators: it fails if `splitPathSegments` narrows to one.
       expect(sharedTrailingSegments("C:\\proj\\zzz\\x.md", "C:/proj/zzz/x.md")).toBe(4);
       expect(sharedTrailingSegments("C:\\proj\\aaa\\x.md", "C:/proj/zzz/x.md")).toBe(1);
     });

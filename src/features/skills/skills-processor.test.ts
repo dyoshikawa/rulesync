@@ -1740,6 +1740,51 @@ Broken YAML`,
     );
 
     it.skipIf(process.platform === "win32")(
+      "should import each skill once when the project's own skills directory is a link",
+      async () => {
+        // Same layout as above, taken through the processor: the project's own
+        // skill is read once through the link, unscoped, and the genuine nested
+        // root's skill is read once and scoped to where it was found. Neither
+        // is reported twice, and nothing is refused along the way.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await writeFileContent(
+          join(outputRoot, "shared", ".claude", "skills", "own-skill", "SKILL.md"),
+          "---\nname: own-skill\ndescription: Own description\n---\nOwn body",
+        );
+        await ensureDir(join(outputRoot, ".claude"));
+        await symlink(
+          join(outputRoot, "shared", ".claude", "skills"),
+          join(outputRoot, ".claude", "skills"),
+        );
+        await writeFileContent(
+          join(outputRoot, "apps", "web", ".claude", "skills", "deploy", "SKILL.md"),
+          "---\nname: deploy\ndescription: Deploy description\n---\nDeploy body",
+        );
+
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        const dirNames = toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName());
+        expect(dirNames.filter((name) => name === "own-skill")).toHaveLength(1);
+        expect(dirNames.filter((name) => name === "deploy")).toHaveLength(1);
+        const byName = new Map(
+          toolDirs.map((dir) => [(dir as ClaudecodeSkill).getDirName(), dir as ClaudecodeSkill]),
+        );
+        expect(
+          byName.get("own-skill")?.toRulesyncSkill().getFrontmatter().claudecode,
+        ).toBeUndefined();
+        expect(byName.get("deploy")?.toRulesyncSkill().getFrontmatter().claudecode).toEqual({
+          paths: ["apps/web/**"],
+        });
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
       "should record a nested root reached through a link under the spelling the scan reports",
       async () => {
         // `a\\b` is reported at `a/b`, which here is a link to a directory whose
