@@ -199,6 +199,9 @@ function buildRulesStrategy(ctx: ConvertContext) {
         global,
         dryRun,
         logger,
+        // The source's language block is stripped on the way in, so the
+        // destination's root file only carries one when the key is passed on.
+        language: config.getLanguage(),
       }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),

@@ -1218,6 +1218,40 @@ describe("applySharedConfigPatch", () => {
     ).toThrow(/undeclared keys \[model\]/);
   });
 
+  it.each([CLAUDE_SETTINGS_LOCAL_SHARED_FILE_KEY, CLAUDE_SETTINGS_SHARED_FILE_KEY])(
+    "lets the rules feature own exactly `language` in %s",
+    (fileKey) => {
+      // The root `language` key of rulesync.jsonc is delivered to Claude Code as
+      // its native setting; the sibling keys other features and the user own
+      // pass through untouched.
+      const result = applySharedConfigPatch({
+        fileKey,
+        feature: "rules",
+        existingContent: JSON.stringify(
+          { permissions: { deny: ["Read(.env)"] }, language: "french", model: "opus" },
+          null,
+          2,
+        ),
+        patch: { language: "japanese" },
+      });
+      expect(JSON.parse(result)).toEqual({
+        $schema: CLAUDECODE_SETTINGS_SCHEMA_URL,
+        permissions: { deny: ["Read(.env)"] },
+        language: "japanese",
+        model: "opus",
+      });
+
+      expect(() =>
+        applySharedConfigPatch({
+          fileKey,
+          feature: "rules",
+          existingContent: "",
+          patch: { language: "japanese", model: "hijacked" },
+        }),
+      ).toThrow(/undeclared keys \[model\]/);
+    },
+  );
+
   it("rejects an ensured key in a feature patch: ensuring is not ownership", () => {
     // `$schema` is added by the serializer from the declaration, never granted
     // to a feature, so a hooks patch that carries it is still a stray write.

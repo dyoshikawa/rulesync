@@ -18,6 +18,7 @@ import {
   mergeByCaseInsensitiveIdentity,
 } from "../../types/feature-processor.js";
 import type { FeatureOptions } from "../../types/features.js";
+import { Language, appendLanguageBlock, stripLanguageBlock } from "../../types/language.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { rulesProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
@@ -32,7 +33,7 @@ import {
   readFileContent,
   toPosixPath,
 } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { KiloMcp } from "../mcp/kilo-mcp.js";
@@ -53,6 +54,7 @@ import { AntigravityIdeRule } from "./antigravity-ide-rule.js";
 import { AntigravityPluginRule } from "./antigravity-plugin-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
+import { ClaudecodeLanguageSettings } from "./claudecode-language-settings.js";
 import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
 import { ClineRule } from "./cline-rule.js";
@@ -1020,6 +1022,7 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
+  private readonly language: Language | undefined;
   private readonly deriveSubprojectPathFromGlobs: boolean;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
@@ -1033,6 +1036,7 @@ export class RulesProcessor extends FeatureProcessor {
     simulateCommands = false,
     simulateSubagents = false,
     simulateSkills = false,
+    language,
     deriveSubprojectPathFromGlobs = false,
     global = false,
     getFactory = defaultGetFactory,
@@ -1048,6 +1052,12 @@ export class RulesProcessor extends FeatureProcessor {
     simulateCommands?: boolean;
     simulateSubagents?: boolean;
     simulateSkills?: boolean;
+    /**
+     * The root `language` key of `rulesync.jsonc`. Claude Code targets get it
+     * as a native setting; every other target gets a prompt block appended to
+     * the generated root rule file. Unset leaves both alone.
+     */
+    language?: Language;
     /**
      * Resolve `agentsmd.subprojectPath` from `globs` for every non-root rule
      * loaded from the source trees (the `deriveSubprojectPathFromGlobs` config
@@ -1073,6 +1083,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.simulateCommands = simulateCommands;
     this.simulateSubagents = simulateSubagents;
     this.simulateSkills = simulateSkills;
+    this.language = language;
     this.deriveSubprojectPathFromGlobs = deriveSubprojectPathFromGlobs;
     this.getFactory = getFactory;
     this.skills = skills;
@@ -1119,7 +1130,9 @@ export class RulesProcessor extends FeatureProcessor {
 
     const extraFiles = await this.buildMcpInstructionFiles({ toolRules, meta });
 
-    this.applyRootRuleSections({ toolRules, factory });
+    this.applyRootRuleSections({ toolRules, factory, convertedRules });
+
+    extraFiles.push(...(await this.buildLanguageSettingsFiles()));
 
     const outputFiles = [...toolRules, ...extraFiles];
     this.warnForOutputPathCollisions({ outputFiles, convertedRules });
@@ -1232,9 +1245,11 @@ export class RulesProcessor extends FeatureProcessor {
   private applyRootRuleSections({
     toolRules,
     factory,
+    convertedRules,
   }: {
     toolRules: ToolRule[];
     factory: ToolRuleFactory;
+    convertedRules: RuleConversion[];
   }): void {
     const { meta } = factory;
     // Fixed-root targets were collapsed by mergeRulesByOutputPath. Targets that
@@ -1242,6 +1257,7 @@ export class RulesProcessor extends FeatureProcessor {
     // one root rule can survive here.
     const rootRule = toolRules.find((rule) => rule.isRoot());
     if (!rootRule) {
+      this.appendLanguageBlockToRootSourceRules({ convertedRules });
       return;
     }
 
@@ -1252,7 +1268,14 @@ export class RulesProcessor extends FeatureProcessor {
         ? this.generateAdditionalConventionsSectionFromMeta(meta)
         : "";
 
-    const newContent = referenceSection + conventionsSection + rootRule.getFileContent();
+    const assembledContent = referenceSection + conventionsSection + rootRule.getFileContent();
+    // Appended last so the block closes the file (and its root mirrors) after
+    // every section rulesync composes, never between them.
+    const promptLanguage = this.getPromptBlockLanguage();
+    const newContent =
+      promptLanguage === undefined
+        ? assembledContent
+        : appendLanguageBlock({ content: assembledContent, language: promptLanguage });
     rootRule.setFileContent(newContent);
 
     const rootMirror = factory.class.getRootMirror?.();
@@ -1265,6 +1288,68 @@ export class RulesProcessor extends FeatureProcessor {
         }),
       );
     }
+  }
+
+  /**
+   * The language delivered as a prompt block, or `undefined` when none is:
+   * `language` is unset, or the target is Claude Code, which has a native
+   * `language` setting (see {@link ClaudecodeLanguageSettings}) and so gets
+   * no block in its root file.
+   */
+  private getPromptBlockLanguage(): Language | undefined {
+    return this.isClaudecodeTarget() ? undefined : this.language;
+  }
+
+  private isClaudecodeTarget(): boolean {
+    return this.toolTarget === "claudecode" || this.toolTarget === "claudecode-legacy";
+  }
+
+  /**
+   * The language block for targets whose adapters never mark a ToolRule as
+   * root: Cursor emits every rule as `.cursor/rules/*.mdc`, and the fixed-name
+   * targets (Cline, Roo, Kiro, ...) file the `root: true` source beside the
+   * others. The file produced from the `root: true` source is still the root
+   * rule from the user's point of view, so it is the one that gets the block.
+   * Nested rules never do. When several sources are marked `root: true`, only
+   * the file built from the first one (in conversion order, which follows the
+   * source order) carries the block: one instruction per target is the
+   * contract, and a root-marking target gets exactly one as well.
+   */
+  private appendLanguageBlockToRootSourceRules({
+    convertedRules,
+  }: {
+    convertedRules: RuleConversion[];
+  }): void {
+    const language = this.getPromptBlockLanguage();
+    if (language === undefined) {
+      return;
+    }
+    const firstRootSource = convertedRules.find(
+      ({ rulesyncRule }) => rulesyncRule.getFrontmatter().root === true,
+    );
+    if (firstRootSource === undefined) {
+      return;
+    }
+    const { toolRule } = firstRootSource;
+    toolRule.setFileContent(appendLanguageBlock({ content: toolRule.getFileContent(), language }));
+  }
+
+  /**
+   * Claude Code's native delivery of `language`: a patch to the settings file
+   * instead of a prompt block. Empty for every other target and when
+   * `language` is unset, so an unset key never touches the settings file.
+   */
+  private async buildLanguageSettingsFiles(): Promise<ToolFile[]> {
+    if (this.language === undefined || !this.isClaudecodeTarget()) {
+      return [];
+    }
+    return [
+      await ClaudecodeLanguageSettings.fromLanguage({
+        outputRoot: this.outputRoot,
+        language: this.language,
+        global: this.global,
+      }),
+    ];
   }
 
   private buildSkillList(skillClass: {
@@ -1653,7 +1738,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
       if (toolRule.isLocalRoot()) {
         return toolRule.toLocalRootRulesyncRule({ targets: [this.toolTarget] });
       }
-      return toolRule.toRulesyncRule();
+      return this.withoutLanguageBlock({ toolRule, rulesyncRule: toolRule.toRulesyncRule() });
     });
 
     // Several tool files can derive the same rulesync file name — most easily
@@ -1683,6 +1768,49 @@ As this project's AI coding tool, you must follow the additional conventions bel
     }
 
     return rulesyncRules;
+  }
+
+  /**
+   * Drop the language block a previous `generate` appended, so that importing
+   * a generated root file and generating again yields one block, not two.
+   * Every imported rule is checked, not just root ones: Cursor and the
+   * fixed-name targets import their root file as a non-root rule. The
+   * `language` key itself lives in `rulesync.jsonc`, so nothing about the
+   * detected language is carried into the rulesync rule — which is why the
+   * strip is reported: a user who imports a file carrying the block and has
+   * not set `language` would otherwise lose the instruction without a trace.
+   * Once per file per run, since an import over several targets reads the
+   * same root file for each of them.
+   */
+  private withoutLanguageBlock({
+    toolRule,
+    rulesyncRule,
+  }: {
+    toolRule: ToolRule;
+    rulesyncRule: RulesyncRule;
+  }): RulesyncRule {
+    const body = rulesyncRule.getBody();
+    const stripped = stripLanguageBlock(body);
+    if (stripped === body) {
+      return rulesyncRule;
+    }
+    // The path comes off the filesystem, so it is stripped before reaching a
+    // terminal that would act on an embedded escape.
+    const source = stripControlCharacters(
+      join(toolRule.getRelativeDirPath(), toolRule.getRelativeFilePath()),
+    );
+    warnOnceWithFallback(
+      this.logger,
+      `Removed the answer-language block rulesync appends from ${source} on import; it is not kept in .rulesync/rules/. Set "language" in rulesync.jsonc to keep generating it.`,
+    );
+    return new RulesyncRule({
+      outputRoot: rulesyncRule.getOutputRoot(),
+      relativeDirPath: rulesyncRule.getRelativeDirPath(),
+      relativeFilePath: rulesyncRule.getRelativeFilePath(),
+      frontmatter: rulesyncRule.getFrontmatter(),
+      body: stripped,
+      validate: false,
+    });
   }
 
   /**

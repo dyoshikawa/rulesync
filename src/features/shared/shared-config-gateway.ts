@@ -1106,8 +1106,16 @@ const ZCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
  * What the two Claude Code settings files have in common: both are plain JSON,
  * and both validate against the one published schema, which the gateway
  * points every file it writes at. `.claude/settings.local.json` is the same
- * file with one writer fewer — only the ignore feature's `fileMode: "local"`
- * goes there — so the shape is declared once and the feature sets separately.
+ * file with fewer writers — the ignore feature's `fileMode: "local"` and the
+ * project-scope `language` setting go there — so the shape is declared once
+ * and the feature sets separately.
+ *
+ * `language` is the rules feature's: the root `language` key of
+ * `rulesync.jsonc` is written natively for Claude Code instead of as a prompt
+ * block in CLAUDE.md. At project scope it lands in the local file (a
+ * per-developer preference, not a team commitment); at global scope it lands
+ * in `~/.claude/settings.json`, because Claude Code reads no
+ * `~/.claude/settings.local.json`.
  */
 const CLAUDE_SETTINGS_FILE_SHAPE = {
   format: "json",
@@ -1124,12 +1132,14 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
       permissions: { kind: "custom", policyFunction: "applyPermissions" },
+      rules: { kind: "replace-owned-keys", ownedKeys: ["language"] },
     },
   },
   [CLAUDE_SETTINGS_LOCAL_SHARED_FILE_KEY]: {
     ...CLAUDE_SETTINGS_FILE_SHAPE,
     features: {
       ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
+      rules: { kind: "replace-owned-keys", ownedKeys: ["language"] },
     },
   },
   [HERMES_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,

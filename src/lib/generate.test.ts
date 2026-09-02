@@ -251,6 +251,7 @@ describe("generate", () => {
     getFlattenedCommandNaming: ReturnType<typeof vi.fn>;
     getSimulateSubagents: ReturnType<typeof vi.fn>;
     getSimulateSkills: ReturnType<typeof vi.fn>;
+    getLanguage: ReturnType<typeof vi.fn>;
     getDeriveSubprojectPathFromGlobs: ReturnType<typeof vi.fn>;
     isPreviewMode: ReturnType<typeof vi.fn>;
     getInputRoots: ReturnType<typeof vi.fn>;
@@ -272,6 +273,7 @@ describe("generate", () => {
       getFlattenedCommandNaming: vi.fn().mockReturnValue("basename"),
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
+      getLanguage: vi.fn().mockReturnValue(undefined),
       getDeriveSubprojectPathFromGlobs: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
       getInputRoots: vi.fn().mockReturnValue([process.cwd()]),
