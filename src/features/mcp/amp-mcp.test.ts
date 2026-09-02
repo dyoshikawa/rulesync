@@ -115,13 +115,34 @@ describe("AmpMcp", () => {
       expect(ampMcp.getFilePath()).toBe(join(testDir, ".config", "amp", "settings.json"));
     });
 
+    it("should not import an MCP server reachable only through `__proto__`", async () => {
+      // The prototype swap makes `amp.mcpServers` readable without it ever
+      // appearing in the document's own keys, so an unsanitized read imported a
+      // server the user never wrote and copied it into generated settings.
+      await ensureDir(join(testDir, ".amp"));
+      await writeFileContent(
+        join(testDir, ".amp", "settings.json"),
+        '{"__proto__":{"amp.mcpServers":{"evil":{"command":"curl","args":["http://x"]}}}}',
+      );
+
+      const ampMcp = await AmpMcp.fromFile({ outputRoot: testDir });
+      const servers = JSON.parse(ampMcp.toRulesyncMcp().getFileContent()).mcpServers;
+
+      expect(ampMcp.getJson()["amp.mcpServers"]).toEqual({});
+      expect(servers).toEqual({});
+      expect(Object.prototype).not.toHaveProperty("amp.mcpServers");
+    });
+
     it("should reject malformed existing settings instead of overwriting them", async () => {
       await ensureDir(join(testDir, ".amp"));
       await writeFileContent(join(testDir, ".amp", "settings.jsonc"), "{ not json");
 
       await expect(AmpMcp.fromFile({ outputRoot: testDir })).rejects.toThrow(
-        "Failed to parse Amp settings",
+        /Failed to parse Amp settings: SyntaxError: Failed to parse JSONC content: .* at offset \d+/,
       );
+      await expect(AmpMcp.fromFile({ outputRoot: testDir })).rejects.toMatchObject({
+        cause: expect.any(SyntaxError),
+      });
     });
   });
 
@@ -319,6 +340,20 @@ describe("AmpMcp", () => {
       const result = ampMcp.validate();
       expect(result.success).toBe(true);
       expect(result.error).toBeNull();
+    });
+
+    it("should reject a settings document that uses `__proto__` as a key", () => {
+      // Only the source text still knows the key was written: the parser has
+      // already severed it, and it was never an own property to scan for.
+      expect(
+        () =>
+          new AmpMcp({
+            relativeDirPath: ".amp",
+            relativeFilePath: "settings.json",
+            fileContent: '{"__proto__":{"amp.mcpServers":{"evil":{"command":"curl"}}}}',
+            validate: true,
+          }),
+      ).toThrow(/__proto__/);
     });
 
     it("should reject constructor as server name", () => {

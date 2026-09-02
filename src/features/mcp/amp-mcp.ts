@@ -1,7 +1,5 @@
 import { join } from "node:path";
 
-import { parse as parseJsonc, type ParseError, printParseErrorCode } from "jsonc-parser";
-
 import {
   AMP_DIR,
   AMP_GLOBAL_DIR,
@@ -10,8 +8,10 @@ import {
 } from "../../constants/amp-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { droppedPollutionKeysError } from "../../utils/jsonc.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { isRecord } from "../../utils/type-guards.js";
+import { parseAmpSettings, parseAmpSettingsReportingDroppedKeys } from "../shared/amp-settings.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -24,26 +24,6 @@ import {
 } from "./tool-mcp.js";
 
 const AMP_MCP_SERVERS_KEY = "amp.mcpServers";
-
-function parseAmpSettingsJsonc(fileContent: string): Record<string, unknown> {
-  const errors: ParseError[] = [];
-  const parsed: unknown = parseJsonc(fileContent || "{}", errors, { allowTrailingComma: true });
-
-  if (errors.length > 0) {
-    const details = errors
-      .map((error) => `${printParseErrorCode(error.error)} at offset ${error.offset}`)
-      .join(", ");
-    throw new Error(`Failed to parse Amp settings: ${details}`);
-  }
-
-  // `isPlainObject` (not `isRecord`) rejects class instances for
-  // prototype-pollution hardening; the JSONC parser always yields a plain object.
-  if (!isPlainObject(parsed)) {
-    throw new Error("Amp settings must be a JSON object");
-  }
-
-  return parsed;
-}
 
 function filterMcpServers(mcpServers: unknown): Record<string, Record<string, unknown>> {
   const filtered: Record<string, Record<string, unknown>> = {};
@@ -69,9 +49,10 @@ export class AmpMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    // jsonc-parser drops `__proto__`, but `constructor`/`prototype` can remain
-    // own keys and must not be copied into generated settings.
-    this.json = parseAmpSettingsJsonc(this.fileContent);
+    // The shared parser severs an injected `__proto__` and drops
+    // `constructor` / `prototype` own keys, so neither can be read back out of
+    // `this.json` and copied into generated settings.
+    this.json = parseAmpSettings({ fileContent: this.fileContent });
   }
 
   getJson(): Record<string, unknown> {
@@ -124,7 +105,7 @@ export class AmpMcp extends ToolMcp {
     const { fileContent, relativeFilePath } = await this.resolveSettingsFile(jsonDir);
 
     // If neither exists, use default empty config
-    const json = fileContent ? parseAmpSettingsJsonc(fileContent) : {};
+    const json = fileContent ? parseAmpSettings({ fileContent }) : {};
 
     // Ensure amp.mcpServers exists
     const mcpServers = json[AMP_MCP_SERVERS_KEY];
@@ -177,24 +158,25 @@ export class AmpMcp extends ToolMcp {
   }
 
   validate(): ValidationResult {
-    let json: Record<string, unknown>;
-    try {
-      json = parseAmpSettingsJsonc(this.fileContent);
-    } catch (error) {
+    // Re-parsed rather than read off `this.json`: the base constructor runs
+    // `validate()` before this subclass's fields are assigned.
+    //
+    // Pollution keys are reported by the parser rather than scanned for
+    // afterwards, because it already removed them at every depth -- no
+    // `Object.keys` walk over the parsed value could still find one. Reporting
+    // is also the only way `__proto__` is ever caught: it never becomes an own
+    // key, so the scan this replaced saw straight past it.
+    const { json, droppedKeys } = parseAmpSettingsReportingDroppedKeys({
+      fileContent: this.fileContent,
+    });
+    if (droppedKeys.length > 0) {
       return {
         success: false,
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: droppedPollutionKeysError({
+          sourcePath: this.getRelativePathFromCwd(),
+          droppedKeys,
+        }),
       };
-    }
-
-    // Check for prototype pollution keys at top level
-    for (const key of Object.keys(json)) {
-      if (isPrototypePollutionKey(key)) {
-        return {
-          success: false,
-          error: new Error(`Prototype pollution key "${key}" is not allowed`),
-        };
-      }
     }
 
     // Validate amp.mcpServers if present. Server-config fields (`type`, etc.)
@@ -214,31 +196,11 @@ export class AmpMcp extends ToolMcp {
     }
 
     for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
-      if (isPrototypePollutionKey(serverName)) {
-        return {
-          success: false,
-          error: new Error(
-            `Server name "${serverName}" is a prototype pollution key and is not allowed`,
-          ),
-        };
-      }
-
       if (!isRecord(serverConfig)) {
         return {
           success: false,
           error: new Error(`MCP server "${serverName}" must be a JSON object`),
         };
-      }
-
-      for (const key of Object.keys(serverConfig)) {
-        if (isPrototypePollutionKey(key)) {
-          return {
-            success: false,
-            error: new Error(
-              `Config key "${key}" in server "${serverName}" is a prototype pollution key and is not allowed`,
-            ),
-          };
-        }
       }
     }
 
