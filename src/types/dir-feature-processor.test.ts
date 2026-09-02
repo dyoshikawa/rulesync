@@ -13,6 +13,7 @@ import {
   writeFileBuffer,
   writeFileContent,
 } from "../utils/file.js";
+import { recordIncompleteCarriedFiles } from "../utils/warned-once.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
 import { DirFeatureProcessor } from "./dir-feature-processor.js";
 
@@ -594,18 +595,21 @@ describe("DirFeatureProcessor", () => {
       const dirPath = join(testDir, "demo");
       await writeFiles(dirPath, ["SKILL.md", join("references", "keep.md"), "stale.md"]);
 
-      const count = await processor.removeOrphanFilesInAiDirs([
-        createMockDirWithFiles({
-          dirPath,
-          mainFileBody: "body",
-          otherFiles: [
-            {
-              relativeFilePathToDirPath: "references/keep.md",
-              fileBuffer: Buffer.from("content"),
-            } as unknown as AiDirFile,
-          ],
-        }),
-      ]);
+      const count = await processor.removeOrphanFilesInAiDirs({
+        generatedDirs: [
+          createMockDirWithFiles({
+            dirPath,
+            mainFileBody: "body",
+            otherFiles: [
+              {
+                relativeFilePathToDirPath: "references/keep.md",
+                fileBuffer: Buffer.from("content"),
+              } as unknown as AiDirFile,
+            ],
+          }),
+        ],
+        isClaimed: () => false,
+      });
 
       expect(count).toBe(1);
       expect(removeFile).toHaveBeenCalledTimes(1);
@@ -621,9 +625,10 @@ describe("DirFeatureProcessor", () => {
       const dirPath = join(testDir, "demo");
       await writeFiles(dirPath, ["SKILL.md", ".gitkeep"]);
 
-      const count = await processor.removeOrphanFilesInAiDirs([
-        createMockDirWithFiles({ dirPath, mainFileBody: "body" }),
-      ]);
+      const count = await processor.removeOrphanFilesInAiDirs({
+        generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
+        isClaimed: () => false,
+      });
 
       expect(count).toBe(0);
       expect(removeFile).not.toHaveBeenCalled();
@@ -635,9 +640,10 @@ describe("DirFeatureProcessor", () => {
       const dirPath = join(testDir, "demo");
       await writeFiles(dirPath, ["SKILL.md", "stale.md"]);
 
-      const count = await processor.removeOrphanFilesInAiDirs([
-        createMockDirWithFiles({ dirPath, mainFileBody: "body" }),
-      ]);
+      const count = await processor.removeOrphanFilesInAiDirs({
+        generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
+        isClaimed: () => false,
+      });
 
       // Counted, because `generate --check` decides from the count whether the
       // tree is up to date, and a stale file means it is not.
@@ -657,9 +663,10 @@ describe("DirFeatureProcessor", () => {
       const dirPath = join(testDir, "shared");
       await writeFiles(dirPath, ["someone-elses.md"]);
 
-      const count = await processor.removeOrphanFilesInAiDirs([
-        createMockDir({ dirPath, ownsDirTree: false }),
-      ]);
+      const count = await processor.removeOrphanFilesInAiDirs({
+        generatedDirs: [createMockDir({ dirPath, ownsDirTree: false })],
+        isClaimed: () => false,
+      });
 
       expect(count).toBe(0);
       expect(removeFile).not.toHaveBeenCalled();
@@ -672,13 +679,52 @@ describe("DirFeatureProcessor", () => {
       const dirPath = join(testDir, "demo");
       await writeFiles(dirPath, ["stale.md"]);
 
-      const count = await processor.removeOrphanFilesInAiDirs([
-        createMockDirWithFiles({ dirPath }),
-      ]);
+      const count = await processor.removeOrphanFilesInAiDirs({
+        generatedDirs: [createMockDirWithFiles({ dirPath })],
+        isClaimed: () => false,
+      });
 
       expect(count).toBe(0);
       expect(removeFile).not.toHaveBeenCalled();
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Refusing to sweep"));
+    });
+
+    it("should keep a file another target in this run wrote", async () => {
+      // Several targets write into one shared skills root, and this entry lists
+      // only its own files. A sibling's fresh output is not an orphan.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const dirPath = join(testDir, "demo");
+      const siblingPath = join(dirPath, "SIBLING.md");
+      await writeFiles(dirPath, ["SKILL.md", "SIBLING.md", "stale.md"]);
+
+      const count = await processor.removeOrphanFilesInAiDirs({
+        generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
+        isClaimed: (path) => path === siblingPath,
+      });
+
+      expect(count).toBe(1);
+      expect(removeFile).toHaveBeenCalledTimes(1);
+      expect(removeFile).toHaveBeenCalledWith(join(dirPath, "stale.md"));
+    });
+
+    it("should sweep nothing when this run could not read its sources in full", async () => {
+      // A companion file that would not open is dropped with a warning, and the
+      // run carries on. Its generated copy then looks exactly like a file whose
+      // source was deleted, so the whole sweep stands down rather than guess.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const dirPath = join(testDir, "demo");
+      await writeFiles(dirPath, ["SKILL.md", "stale.md"]);
+      recordIncompleteCarriedFiles();
+
+      const count = await processor.removeOrphanFilesInAiDirs({
+        generatedDirs: [createMockDirWithFiles({ dirPath, mainFileBody: "body" })],
+        isClaimed: () => false,
+      });
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
     });
   });
 

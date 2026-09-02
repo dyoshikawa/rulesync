@@ -22,6 +22,7 @@ import {
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import type { Logger } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
+import { hasIncompleteCarriedFiles } from "../utils/warned-once.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
 import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolTarget } from "./tool-targets.js";
@@ -363,8 +364,40 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
    * - **Symbolic links**, which the writer never creates. The walk neither
    *   follows nor reports them, so a link is never removed and never resolved
    *   into a deletion somewhere outside the tree.
+   *
+   * Nothing is swept at all by a run that could not read its sources in full.
+   * `AiDir` drops a companion file it cannot open, and stops short of a subtree
+   * it is denied or that runs past one of its bounds -- warning each time, but
+   * carrying on, because a skill that is short one file is still worth writing.
+   * The output copy of such a file is then indistinguishable here from a file
+   * whose source was deleted, and the wrong guess deletes something the next
+   * readable run would put straight back. So a shortfall anywhere in the run
+   * calls the whole sweep off: it is the sweeps that are optional, not the
+   * files.
+   *
+   * @param isClaimed - Whether some other target or feature in this run wrote
+   *   this exact path. A shared output root -- `.agents/skills/`, written by
+   *   several targets at once -- is a directory whose entry here lists only
+   *   *this* target's files, so without the run's own record a sibling's fresh
+   *   output reads as an orphan. Asked per path rather than per tree: a tree
+   *   claim covers the directory this sweep is looking inside of, and would
+   *   answer yes to every file in it.
    */
-  async removeOrphanFilesInAiDirs(generatedDirs: AiDir[]): Promise<number> {
+  async removeOrphanFilesInAiDirs({
+    generatedDirs,
+    isClaimed,
+  }: {
+    generatedDirs: AiDir[];
+    isClaimed: (path: string) => boolean;
+  }): Promise<number> {
+    if (hasIncompleteCarriedFiles()) {
+      this.logger.debug(
+        "Not sweeping the files inside generated directories: this run could not read every " +
+          "file its sources carry, so a file it did not write may still be one it wants",
+      );
+      return 0;
+    }
+
     const orphanPaths = new Set<string>();
     const quotedOutputRoot = JSON.stringify(stripControlCharacters(this.outputRoot));
 
@@ -424,7 +457,11 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         if (generatedNames.has(posixName) || generatedNamesFolded.has(posixName.toLowerCase())) {
           continue;
         }
-        orphanPaths.add(join(dirPath, existingName));
+        const filePath = join(dirPath, existingName);
+        if (isClaimed(filePath)) {
+          continue;
+        }
+        orphanPaths.add(filePath);
       }
     }
 

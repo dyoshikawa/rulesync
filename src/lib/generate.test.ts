@@ -959,7 +959,10 @@ describe("generate", () => {
 
       // The directories this run generated, not a re-enumeration of the disk:
       // the sweep has to see the tree as the sweeps before it left it.
-      expect(mockSkillsProcessor.removeOrphanFilesInAiDirs).toHaveBeenCalledWith(generatedDirs);
+      expect(mockSkillsProcessor.removeOrphanFilesInAiDirs).toHaveBeenCalledWith({
+        generatedDirs,
+        isClaimed: expect.any(Function),
+      });
       expect(result.hasDiff).toBe(true);
     });
   });

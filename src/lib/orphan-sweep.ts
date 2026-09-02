@@ -48,6 +48,16 @@ export type OrphanSweepPlan = {
   registerGeneratedTree(params: { paths: string[] }): void;
   /** True when some target in this run wrote, or intends to write, `path`. */
   isGenerated(params: { path: string }): boolean;
+  /**
+   * True when some target in this run wrote, or intends to write, exactly
+   * `path` — a tree claim on an ancestor does not count.
+   *
+   * For a sweep that looks *inside* a claimed tree. {@link isGenerated} answers
+   * yes for every path under such a tree, which is the right answer for a sweep
+   * deciding whether to delete the tree and useless for one deciding which
+   * files within it the run actually wrote.
+   */
+  isGeneratedExactly(params: { path: string }): boolean;
   /** Drop every item this run claims; what remains is a genuine orphan candidate. */
   rejectClaimed<T>(params: { items: T[]; getPath: (item: T) => string }): T[];
   /** Hold a sweep back until every generation step has written its files. */
@@ -96,6 +106,9 @@ export function createOrphanSweepPlan(): OrphanSweepPlan {
     isGenerated({ path }) {
       const resolved = resolve(path);
       return generatedPaths.has(resolved) || isInsideGeneratedTree(resolved);
+    },
+    isGeneratedExactly({ path }) {
+      return generatedPaths.has(resolve(path));
     },
     rejectClaimed({ items, getPath }) {
       return items.filter((item) => !plan.isGenerated({ path: getPath(item) }));

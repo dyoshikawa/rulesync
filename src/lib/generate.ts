@@ -45,7 +45,7 @@ import type { Logger } from "../utils/logger.js";
 import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
-import { resetWarnedOnceMessages } from "../utils/warned-once.js";
+import { resetRunWarningState } from "../utils/warned-once.js";
 import { createOrphanSweepPlan, type OrphanSweepPlan } from "./orphan-sweep.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
@@ -253,7 +253,14 @@ async function processDirFeatureGeneration(params: {
         // sees the tree as this run left it: the directories the sweep above
         // deleted are gone, and nothing here has to decide again whether one of
         // them should have been.
-        const orphanInDirCount = await processor.removeOrphanFilesInAiDirs(toolDirs);
+        const orphanInDirCount = await processor.removeOrphanFilesInAiDirs({
+          generatedDirs: toolDirs,
+          // Claims are consulted per file, not per tree: this sweep looks
+          // inside a directory the run has claimed as a whole, so the tree
+          // claim covers every candidate it could ever consider. What has to
+          // survive is a file another target wrote into a root they share.
+          isClaimed: (path) => sweepPlan.isGeneratedExactly({ path }),
+        });
 
         return orphanDirCount + orphanFileCount + orphanInDirCount > 0;
       },
@@ -796,7 +803,7 @@ export async function generate(params: {
   // "Once per run" means once per generate, not once per process: `--watch` and
   // the MCP server keep one process alive across many runs, and a warning that
   // still applies has to be said again.
-  resetWarnedOnceMessages();
+  resetRunWarningState();
 
   for (const toolTarget of config.getTargets()) {
     for (const outputRoot of config.getOutputRoots(toolTarget)) {

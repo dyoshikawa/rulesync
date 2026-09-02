@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { claimWarnOnce, resetWarnedOnceMessages } from "./warned-once.js";
+import { claimWarnOnce, resetRunWarningState } from "./warned-once.js";
 
 describe("claimWarnOnce", () => {
   it("should claim a message only the first time it is seen", () => {
@@ -15,7 +15,7 @@ describe("claimWarnOnce", () => {
     // per process lifetime.
     expect(claimWarnOnce("resettable message")).toBe(true);
 
-    resetWarnedOnceMessages();
+    resetRunWarningState();
 
     expect(claimWarnOnce("resettable message")).toBe(true);
   });

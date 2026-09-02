@@ -165,7 +165,12 @@ The `generate` command reads source files from one or more rulesync source trees
 > because Rulesync could not have written them and so is not looking at its own
 > stale output: **hidden entries** (a `.gitkeep` is yours — the loader that
 > carries supporting files refuses hidden names on the way in) and **symbolic
-> links** (the writer only ever creates real files).
+> links** (the writer only ever creates real files). And a run that could not
+> read every supporting file its sources carry — one it lacked permission to
+> open, or a tree past the limits a skill directory is walked to, each reported
+> as a warning — sweeps no skill directory from the inside at all: with the
+> source only partly read, a generated file it cannot account for may be one it
+> still wants.
 
 > **Note on unreadable sources:** This applies to the single-file features —
 > `mcp`, `hooks`, `permissions`, and `ignore` — each of which is generated from
