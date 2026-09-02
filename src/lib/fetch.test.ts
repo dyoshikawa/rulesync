@@ -1,4 +1,4 @@
-import { chmod, link, lstat, symlink } from "node:fs/promises";
+import { chmod, link, lstat, stat, symlink } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -85,6 +85,9 @@ vi.mock("./github-client.js", () => ({
     }
     getFileContent(...args: any[]) {
       return mockClientInstance.getFileContent(...args);
+    }
+    listExecutablePaths(...args: any[]) {
+      return mockClientInstance.listExecutablePaths(...args);
     }
   },
   GitHubClientError: class GitHubClientError extends Error {
@@ -405,6 +408,7 @@ describe("fetchFiles", () => {
       getDefaultBranch: vi.fn().mockResolvedValue("main"),
       listDirectory: vi.fn(),
       getFileContent: vi.fn(),
+      listExecutablePaths: vi.fn().mockResolvedValue({ paths: new Set(), truncated: false }),
     };
   });
 
@@ -1209,6 +1213,138 @@ describe("fetchFiles", () => {
       expect(dirPaths).toContain("rules/dir1");
       expect(dirPaths).toContain("rules/dir2");
     });
+  });
+});
+
+const treeFile = (path: string) => ({
+  name: posix.basename(path),
+  path,
+  type: "file",
+  sha: path,
+  size: 20,
+  download_url: "https://example.com",
+});
+const treeDir = (path: string) => ({
+  name: posix.basename(path),
+  path,
+  type: "dir",
+  sha: path,
+  size: 0,
+  download_url: null,
+});
+
+describe("fetchFiles executable bit", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+    mockClientInstance = {
+      validateRepository: vi.fn().mockResolvedValue(true),
+      getDefaultBranch: vi.fn().mockResolvedValue("main"),
+      listDirectory: vi.fn(),
+      getFileContent: vi.fn().mockResolvedValue("#!/bin/sh\necho hi\n"),
+      listExecutablePaths: vi.fn(),
+    };
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.clearAllMocks();
+  });
+
+  function mockSkillWithScript(): { scriptPath: string; notesPath: string } {
+    const skillDirPath = posix.join("skills", "test-skill");
+    const scriptsDirPath = posix.join(skillDirPath, "scripts");
+    const scriptPath = posix.join(scriptsDirPath, "run.sh");
+    const notesPath = posix.join(skillDirPath, "notes.md");
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([treeDir(skillDirPath)]);
+        }
+        if (path === skillDirPath) {
+          return Promise.resolve([
+            treeFile(posix.join(skillDirPath, "SKILL.md")),
+            treeFile(notesPath),
+            treeDir(scriptsDirPath),
+          ]);
+        }
+        if (path === scriptsDirPath) {
+          return Promise.resolve([treeFile(scriptPath)]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    return { scriptPath, notesPath };
+  }
+
+  it.skipIf(process.platform === "win32")(
+    "should give a fetched script the executable bit git records for it",
+    async () => {
+      // The contents API carries no mode, so the bit comes from one tree
+      // listing; a file the tree calls plain stays plain.
+      const warnLogger = createMockLogger();
+      const { scriptPath, notesPath } = mockSkillWithScript();
+      mockClientInstance.listExecutablePaths.mockResolvedValue({
+        paths: new Set([scriptPath]),
+        truncated: false,
+      });
+
+      await fetchFiles({
+        logger: warnLogger,
+        source: "owner/repo",
+        options: { features: ["skills"] },
+        outputRoot: testDir,
+      });
+
+      const scriptMode = (await stat(join(testDir, ".rulesync", scriptPath))).mode;
+      const notesMode = (await stat(join(testDir, ".rulesync", notesPath))).mode;
+      expect(scriptMode & 0o111).not.toBe(0);
+      expect(notesMode & 0o111).toBe(0);
+      expect(mockClientInstance.listExecutablePaths).toHaveBeenCalledWith("owner", "repo", "main");
+      expect(warnLogger.warn).not.toHaveBeenCalled();
+    },
+  );
+
+  it("should still fetch when the tree cannot be read, and say what was lost", async () => {
+    const warnLogger = createMockLogger();
+    const { scriptPath } = mockSkillWithScript();
+    mockClientInstance.listExecutablePaths.mockRejectedValue(new Error("tree unavailable"));
+
+    const summary = await fetchFiles({
+      logger: warnLogger,
+      source: "owner/repo",
+      options: { features: ["skills"] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.created).toBe(3);
+    expect(await fileExists(join(testDir, ".rulesync", scriptPath))).toBe(true);
+    expect(warnLogger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/Could not read file modes from owner\/repo: .*tree unavailable/),
+    );
+  });
+
+  it("should say when the tree listing was cut short", async () => {
+    const warnLogger = createMockLogger();
+    mockSkillWithScript();
+    mockClientInstance.listExecutablePaths.mockResolvedValue({
+      paths: new Set(),
+      truncated: true,
+    });
+
+    await fetchFiles({
+      logger: warnLogger,
+      source: "owner/repo",
+      options: { features: ["skills"] },
+      outputRoot: testDir,
+    });
+
+    expect(warnLogger.warn).toHaveBeenCalledWith(expect.stringMatching(/cut short/));
   });
 });
 

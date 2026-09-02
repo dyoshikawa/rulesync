@@ -47,6 +47,7 @@ import {
 } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import {
+  applyFileMode,
   checkPathTraversal,
   createTempDirectory,
   directoryExists,
@@ -1379,6 +1380,41 @@ function isNotFoundError(error: unknown): boolean {
 /**
  * A summary for a run that matched nothing, so had nothing to write or prune.
  */
+/**
+ * The repository paths git records as executable, so a skill's script keeps
+ * its bit through a fetch. The contents API carries no mode, and a fetch
+ * that cannot read the tree still completes -- the file is written and the
+ * bit is what it lacks.
+ */
+async function resolveExecutablePaths({
+  client,
+  owner,
+  repo,
+  ref,
+  logger,
+}: {
+  client: GitHubClient;
+  owner: string;
+  repo: string;
+  ref: string;
+  logger: Logger;
+}): Promise<Set<string>> {
+  try {
+    const { paths, truncated } = await client.listExecutablePaths(owner, repo, ref);
+    if (truncated) {
+      logger.warn(
+        "The repository's tree listing was cut short by the API, so a script it left out is written without its executable bit. Run `chmod +x` on it by hand.",
+      );
+    }
+    return paths;
+  } catch (error) {
+    logger.warn(
+      `Could not read file modes from ${owner}/${repo}: ${stripControlCharacters(formatError(error))}. Scripts are written without their executable bit.`,
+    );
+    return new Set();
+  }
+}
+
 function emptyFetchSummary(params: { source: string; ref: string }): FetchSummary {
   const { source, ref } = params;
   return { source, ref, files: [], created: 0, overwritten: 0, skipped: 0, deleted: 0 };
@@ -1504,6 +1540,14 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     return emptyFetchSummary({ source: `${parsed.owner}/${parsed.repo}`, ref });
   }
 
+  const executablePaths = await resolveExecutablePaths({
+    client,
+    owner: parsed.owner,
+    repo: parsed.repo,
+    ref,
+    logger,
+  });
+
   // Validate paths and check file sizes first (synchronous checks)
   for (const { relativePath, size } of filesToFetch) {
     checkPathTraversal({
@@ -1534,6 +1578,9 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
         client.getFileContent(parsed.owner, parsed.repo, remotePath, ref),
       );
       await writeFileContent(localPath, content);
+      if (executablePaths.has(remotePath)) {
+        await applyFileMode(localPath, 0o755);
+      }
 
       const status = exists ? ("overwritten" as const) : ("created" as const);
       logger.debug(`Wrote: ${JSON.stringify(stripControlCharacters(relativePath))} (${status})`);

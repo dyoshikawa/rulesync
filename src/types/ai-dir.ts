@@ -45,6 +45,20 @@ export type ValidationResult =
       error: Error;
     };
 
+/**
+ * The permission bits worth carrying from a source file: only an executable
+ * one has a mode the copy must keep, and only its permission bits are kept.
+ * Windows reports no executable bit, so nothing is carried there and the
+ * copy takes the platform default, as it always has.
+ */
+export function carriedFileMode(mode: number): { fileMode?: number } {
+  const permissionBits = mode & 0o777;
+  if ((permissionBits & 0o111) === 0) {
+    return {};
+  }
+  return { fileMode: permissionBits };
+}
+
 export type AiDirFile = {
   relativeFilePathToDirPath: string;
   fileBuffer: Buffer;
@@ -56,6 +70,13 @@ export type AiDirFile = {
    * always written — byte for byte.
    */
   composed?: boolean;
+  /**
+   * The source file's permission bits, set only when the source carries an
+   * executable bit. A skill's `scripts/*.sh` is copied so that the agent can
+   * run it the way the skill says (`./scripts/foo.sh`); a plain data file is
+   * left to the platform's default mode, exactly as before.
+   */
+  fileMode?: number;
 };
 
 /** Why an entry is never carried, which decides whether its exclusion is reported. */
@@ -1332,7 +1353,8 @@ export abstract class AiDir {
         continue;
       }
       try {
-        const fileSize = (await fileHandle.stat()).size;
+        const fileStats = await fileHandle.stat();
+        const fileSize = fileStats.size;
         if (carriedBytes + fileSize > MAX_CARRIED_BYTES) {
           recordIncompleteCarriedFiles();
           warnOnceWithFallback(
@@ -1346,6 +1368,7 @@ export abstract class AiDir {
         files.push({
           relativeFilePathToDirPath: relative(dirPath, filePath),
           fileBuffer,
+          ...carriedFileMode(fileStats.mode),
         });
       } catch (error) {
         // A file that opened but would not read -- a permission dropped in
