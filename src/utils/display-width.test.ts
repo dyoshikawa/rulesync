@@ -117,6 +117,28 @@ describe("displayWidthOf", () => {
     // 39 Arabic letters and 38 non-joiners: drawn in 39 columns, wrapped as 77.
     expect(displayWidthOf(`${"\u0627\u200c".repeat(38)}\u0627`)).toBe(77);
   });
+
+  // A lone surrogate reaches a string through a JSON escape and is written to
+  // stdout as U+FFFD, which is East Asian Ambiguous: it is measured as the
+  // replacement character the terminal is shown rather than as a column of
+  // nothing in particular.
+  it.each([
+    ["a lone high surrogate", "\ud800"],
+    ["a lone low surrogate", "\udfff"],
+    ["the replacement character it is written as", "\ufffd"],
+  ])("should count %s at the two columns the replacement character draws", (_description, text) => {
+    expect(displayWidthOf(text)).toBe(2);
+  });
+
+  it("should not hand a name a budget it fills with lone surrogates", () => {
+    // 72 lone surrogates measured as themselves fit a 72-column budget and
+    // are drawn as 72 replacement characters in 144; 36 of them fill it.
+    expect(displayWidthOf("\ud800".repeat(36))).toBe(72);
+    expect(displayWidthOf("\ud800".repeat(72))).toBe(144);
+    expect(shortenToWidth({ text: "\ud800".repeat(72), budget: 72 })).toBe(
+      `${"\ud800".repeat(35)}…`,
+    );
+  });
 });
 
 describe("shortenToWidth", () => {

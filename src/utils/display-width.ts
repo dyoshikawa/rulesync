@@ -185,11 +185,28 @@ function isCombiningMark(character: string): boolean {
 }
 
 /**
+ * A lone surrogate, which is no character at all: a string can carry one — a
+ * `"\ud800"` escape in JSON is enough — and the encoder that writes stdout
+ * replaces it with U+FFFD on the way out, so the replacement character is what
+ * the terminal draws and what has to be measured. U+FFFD is East Asian
+ * Ambiguous, so the difference is a column apiece: 72 of them measured as
+ * themselves fit a 72-column budget and are drawn in 144.
+ */
+const LONE_SURROGATE_PATTERN = /\p{Cs}/u;
+
+/** What the stdout encoder writes in place of a lone surrogate. */
+const REPLACEMENT_CHARACTER = "\ufffd";
+
+/**
  * The width of one character, given how many marks already sit on the character
  * before it.
  */
 function widthInContext(params: { character: string; precedingMarks: number }): number {
-  const { character, precedingMarks } = params;
+  const { precedingMarks } = params;
+  // Measured as what is drawn rather than as what is in the string.
+  const character = LONE_SURROGATE_PATTERN.test(params.character)
+    ? REPLACEMENT_CHARACTER
+    : params.character;
   if (character === EMOJI_PRESENTATION_SELECTOR) {
     return 1;
   }
