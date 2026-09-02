@@ -161,20 +161,37 @@ export class CursorRule extends ToolRule {
 
     // Convert Cursor rule types to Rulesync format
     const isAlways = this.frontmatter.alwaysApply === true;
-    const hasGlobs = this.frontmatter.globs && this.frontmatter.globs.trim() !== "";
 
-    // Determine globs array
-    let globs: string[];
-    if (hasGlobs && this.frontmatter.globs) {
-      // Split globs string by comma and trim whitespace
-      globs = this.frontmatter.globs
-        .split(",")
-        .map((g) => g.trim())
-        .filter((g) => g.length > 0);
+    // Split the globs string on commas. An empty or omitted `globs:` field
+    // parses as null, so an Always Apply rule written from Cursor's own
+    // template arrives here with no patterns at all.
+    const rawGlobs = this.frontmatter.globs;
+    const sourceGlobs =
+      rawGlobs && rawGlobs.trim() !== ""
+        ? rawGlobs
+            .split(",")
+            .map((g) => g.trim())
+            .filter((g) => g.length > 0)
+        : [];
+
+    // The canonical field has to describe the rule for every other tool, none
+    // of which knows about `alwaysApply`, so an Always Apply rule becomes
+    // always-on there through `**/*`.
+    const globs = sourceGlobs.length === 0 && isAlways ? ["**/*"] : sourceGlobs;
+
+    // `cursor.globs` mirrors the source `.mdc` instead, so that generating the
+    // rule back writes the same file that was imported. Cursor's Always Apply
+    // template omits `globs`, and its staff describe `alwaysApply: true`
+    // alongside a glob as a semantic conflict that some versions resolve by
+    // classifying the rule as a glob rule rather than an Always one. The
+    // explicit `[]` is what makes `fromRulesyncRule` omit the field --
+    // `undefined` would mean "no Cursor-specific opinion" and fall back to the
+    // canonical `**/*`.
+    let cursorGlobs: string[] | undefined;
+    if (sourceGlobs.length > 0) {
+      cursorGlobs = sourceGlobs;
     } else if (isAlways) {
-      globs = ["**/*"];
-    } else {
-      globs = [];
+      cursorGlobs = [];
     }
 
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
@@ -185,7 +202,7 @@ export class CursorRule extends ToolRule {
       cursor: {
         alwaysApply: this.frontmatter.alwaysApply,
         description: this.frontmatter.description,
-        globs: globs.length > 0 ? globs : undefined,
+        globs: cursorGlobs,
       },
     };
 

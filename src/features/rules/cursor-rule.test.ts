@@ -609,9 +609,34 @@ This is the rule content
       const rulesyncRule = cursorRule.toRulesyncRule();
       const frontmatter = rulesyncRule.getFrontmatter();
 
+      // The canonical field goes always-on so tools without `alwaysApply` still
+      // apply the rule everywhere, but `cursor.globs` stays empty: Cursor's own
+      // Always Apply template omits `globs`, and pairing it with `**/*` makes
+      // some versions classify the rule by its glob instead of as Always.
       expect(frontmatter.globs).toEqual(["**/*"]);
       expect(frontmatter.cursor?.alwaysApply).toBe(true);
-      expect(frontmatter.cursor?.globs).toEqual(["**/*"]);
+      expect(frontmatter.cursor?.globs).toEqual([]);
+    });
+
+    it("should round-trip an alwaysApply rule with no globs without inventing one", () => {
+      const cursorRule = new CursorRule({
+        frontmatter: {
+          description: "Ponytail, lazy senior dev mode.",
+          alwaysApply: true,
+        },
+        body: "Keep diffs small.",
+        relativeDirPath: ".cursor/rules",
+        relativeFilePath: "ponytail.mdc",
+        validate: false,
+      });
+
+      const regenerated = CursorRule.fromRulesyncRule({
+        rulesyncRule: cursorRule.toRulesyncRule(),
+      });
+
+      expect(regenerated.getFrontmatter().alwaysApply).toBe(true);
+      expect(regenerated.getFrontmatter().globs).toBeUndefined();
+      expect(regenerated.getFileContent()).not.toContain("globs:");
     });
 
     it("should handle alwaysApply true with existing globs", () => {
