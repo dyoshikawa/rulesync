@@ -177,6 +177,51 @@ Do the thing.`;
       expect(frontmatter.compatibility).toEqual({ "deepagents-version": ">=0.1.0" });
       expect(frontmatter.metadata).toEqual({ author: "rulesync" });
     });
+
+    it("should fall back to the root-level license/compatibility/metadata when the deepagents section omits them", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        dirName: "root-fields",
+        frontmatter: {
+          name: "root-fields",
+          description: "Root-level standard fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = DeepagentsSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("MIT");
+      expect(frontmatter.compatibility).toBe("Requires git");
+      expect(frontmatter.metadata).toEqual({ author: "root" });
+    });
+
+    it("should let the deepagents section override the root-level license/compatibility/metadata", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        dirName: "section-wins",
+        frontmatter: {
+          name: "section-wins",
+          description: "Section overrides the root-level fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+          deepagents: {
+            license: "Apache-2.0",
+            compatibility: "Requires jq",
+            metadata: { author: "section" },
+          },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = DeepagentsSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("Apache-2.0");
+      expect(frontmatter.compatibility).toBe("Requires jq");
+      expect(frontmatter.metadata).toEqual({ author: "section" });
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

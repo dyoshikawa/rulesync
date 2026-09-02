@@ -1121,6 +1121,51 @@ describe("ClaudecodeSkill", () => {
 
       expect(claudecodeSkill.getRelativeDirPath()).toBe(join(".claude", "scheduled-tasks"));
     });
+
+    it("should fall back to the root-level license/compatibility/metadata when the claudecode section omits them", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        dirName: "root-fields",
+        frontmatter: {
+          name: "root-fields",
+          description: "Root-level standard fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("MIT");
+      expect(frontmatter.compatibility).toBe("Requires git");
+      expect(frontmatter.metadata).toEqual({ author: "root" });
+    });
+
+    it("should let the claudecode section override the root-level license/compatibility/metadata", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        dirName: "section-wins",
+        frontmatter: {
+          name: "section-wins",
+          description: "Section overrides the root-level fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+          claudecode: {
+            license: "Apache-2.0",
+            compatibility: "Requires jq",
+            metadata: { author: "section" },
+          },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = ClaudecodeSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("Apache-2.0");
+      expect(frontmatter.compatibility).toBe("Requires jq");
+      expect(frontmatter.metadata).toEqual({ author: "section" });
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

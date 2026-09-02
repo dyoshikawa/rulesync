@@ -11,6 +11,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -172,15 +173,27 @@ export class DeepagentsSkill extends ToolSkill {
     // dcode only honors a space-delimited string; serialize the canonical array
     // into that form so the allowlist is not dropped at runtime.
     const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
+    // The Agent Skills standard fields fall back to the root-level rulesync
+    // value when the `deepagents` section omits them.
+    const license = resolveLicense({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: deepagentsSection,
+    });
+    const compatibility = resolveCompatibility({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: deepagentsSection,
+    });
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: deepagentsSection,
+    });
     const deepagentsFrontmatter: DeepagentsSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(allowedToolsString && { "allowed-tools": allowedToolsString }),
-      ...(deepagentsSection?.license !== undefined && { license: deepagentsSection.license }),
-      ...(deepagentsSection?.compatibility !== undefined && {
-        compatibility: deepagentsSection.compatibility,
-      }),
-      ...(deepagentsSection?.metadata !== undefined && { metadata: deepagentsSection.metadata }),
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
     };
 
     return new DeepagentsSkill({

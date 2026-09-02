@@ -133,3 +133,79 @@ export function resolveUserInvocable({
 }): boolean | undefined {
   return section?.["user-invocable"] ?? rootFrontmatter["user-invocable"];
 }
+
+/**
+ * Resolve the effective `license` value for a tool skill.
+ *
+ * The rulesync skill frontmatter exposes a root-level `license` default that
+ * applies to every tool modelling the Agent Skills standard field; the list of
+ * those tools lives in `docs/reference/file-formats.md`. Each tool's own
+ * section may override that default with a per-target value. A defined section
+ * value always wins over the root default.
+ *
+ * The section value type is generic because `factorydroid` deliberately types
+ * the packaging fields as `unknown` (Droid never validates them).
+ *
+ * @returns The resolved value, or `undefined` when neither value is set.
+ */
+export function resolveLicense<TSection = string>({
+  rootFrontmatter,
+  section,
+}: {
+  rootFrontmatter: { license?: string };
+  section: { license?: TSection } | undefined;
+}): TSection | string | undefined {
+  return section?.license ?? rootFrontmatter.license;
+}
+
+/**
+ * Resolve the effective `compatibility` value for a tool skill.
+ *
+ * The rulesync skill frontmatter exposes a root-level `compatibility` default
+ * that applies to every tool modelling the Agent Skills standard field; the
+ * list of those tools lives in `docs/reference/file-formats.md`. Each tool's
+ * own section may override that default with a per-target value. A defined
+ * section value always wins over the root default.
+ *
+ * The root value keeps the rulesync shape (a string, or the legacy object
+ * form); any per-target normalization — such as the Agent Skills spec's string
+ * coercion — stays with the adapter.
+ * The section value type is generic because `factorydroid` deliberately types
+ * the packaging fields as `unknown` (Droid never validates them).
+ *
+ * @returns The resolved value, or `undefined` when neither value is set.
+ */
+export function resolveCompatibility<TSection = string | Record<string, unknown>>({
+  rootFrontmatter,
+  section,
+}: {
+  rootFrontmatter: { compatibility?: string | Record<string, unknown> };
+  section: { compatibility?: TSection } | undefined;
+}): TSection | string | Record<string, unknown> | undefined {
+  return section?.compatibility ?? rootFrontmatter.compatibility;
+}
+
+/**
+ * Resolve the effective `metadata` value for a tool skill.
+ *
+ * The rulesync skill frontmatter exposes a root-level `metadata` default that
+ * applies to every tool modelling the Agent Skills standard field; the list of
+ * those tools lives in `docs/reference/file-formats.md`. Each tool's own
+ * section may override that default with a per-target value. A defined section
+ * value always wins over the root default; the two maps are never merged key
+ * by key.
+ *
+ * The section value type is generic because `factorydroid` deliberately types
+ * the packaging fields as `unknown` (Droid never validates them).
+ *
+ * @returns The resolved value, or `undefined` when neither value is set.
+ */
+export function resolveMetadata<TSection = Record<string, unknown>>({
+  rootFrontmatter,
+  section,
+}: {
+  rootFrontmatter: { metadata?: Record<string, unknown> };
+  section: { metadata?: TSection } | undefined;
+}): TSection | Record<string, unknown> | undefined {
+  return section?.metadata ?? rootFrontmatter.metadata;
+}

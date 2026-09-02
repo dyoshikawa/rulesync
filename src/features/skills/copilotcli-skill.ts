@@ -11,7 +11,11 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
+import {
+  resolveDisableModelInvocation,
+  resolveLicense,
+  resolveUserInvocable,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -177,21 +181,30 @@ export class CopilotcliSkill extends ToolSkill {
       rootFrontmatter: rulesyncFrontmatter,
       section: copilotcliSection,
     });
+    // `license` is the only Agent Skills standard field Copilot CLI models; it
+    // falls back to the root-level rulesync value when the section omits it.
+    const license = resolveLicense({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: copilotcliSection,
+    });
 
-    // The two invocation gates are resolved against the shared top-level
-    // fields, so they are dropped here and written back from the resolvers.
+    // The two invocation gates and `license` are resolved against the shared
+    // top-level fields, so they are dropped here and written back from the
+    // resolvers.
     const {
       "user-invocable": _userInvocable,
       "disable-model-invocation": _disableModelInvocation,
+      license: _license,
       ...copilotcliFields
     } = copilotcliSection ?? {};
 
     const copilotcliFrontmatter: CopilotcliSkillFrontmatter = {
       // The section is written first so the canonical `name`/`description` and
-      // the resolved gates still own their keys.
+      // the resolved fields still own their keys.
       ...copilotcliFields,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(license !== undefined && { license }),
       ...(resolvedUserInvocable !== undefined && { "user-invocable": resolvedUserInvocable }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,

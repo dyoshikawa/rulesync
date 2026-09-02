@@ -11,7 +11,7 @@ import {
   OpenCodeSkillFrontmatter,
   OpenCodeSkillFrontmatterSchema,
 } from "./opencode-skill.js";
-import { RulesyncSkill, RulesyncSkillFrontmatterInput } from "./rulesync-skill.js";
+import { RulesyncSkill } from "./rulesync-skill.js";
 
 describe("OpenCodeSkill", () => {
   let testDir: string;
@@ -267,15 +267,13 @@ describe("OpenCodeSkill", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
-        // Top-level license/compatibility/metadata are accepted by the loose
-        // schema even though they are not part of the typed input.
         frontmatter: {
           name: "Test Skill",
           description: "Test skill description",
           license: "MIT",
           compatibility: { opencode: ">=2.0.0" },
           metadata: { author: "top-level" },
-        } as unknown as RulesyncSkillFrontmatterInput,
+        },
         body: "Test body",
         validate: true,
       });
@@ -314,22 +312,30 @@ describe("OpenCodeSkill", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
         dirName: "test-skill",
-        // `license` at the top level is accepted by the loose schema.
         frontmatter: {
           name: "Test Skill",
           description: "Test skill description",
           license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "top-level" },
           opencode: {
             license: "Apache-2.0",
+            compatibility: { opencode: ">=2.0.0" },
+            metadata: { author: "section" },
           },
-        } as unknown as RulesyncSkillFrontmatterInput,
+        },
         body: "Test body",
         validate: true,
       });
 
-      const skill = OpenCodeSkill.fromRulesyncSkill({ rulesyncSkill, global: false });
+      const frontmatter = OpenCodeSkill.fromRulesyncSkill({
+        rulesyncSkill,
+        global: false,
+      }).getFrontmatter();
 
-      expect(skill.getFrontmatter().license).toBe("Apache-2.0");
+      expect(frontmatter.license).toBe("Apache-2.0");
+      expect(frontmatter.compatibility).toEqual({ opencode: ">=2.0.0" });
+      expect(frontmatter.metadata).toEqual({ author: "section" });
     });
   });
 

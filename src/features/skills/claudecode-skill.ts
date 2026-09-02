@@ -31,7 +31,13 @@ import {
   RulesyncSkillFrontmatterInput,
   SkillFile,
 } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
+import {
+  resolveCompatibility,
+  resolveDisableModelInvocation,
+  resolveLicense,
+  resolveMetadata,
+  resolveUserInvocable,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -265,10 +271,11 @@ function buildClaudecodeSkillFrontmatter({
     "user-invocable": resolvedUserInvocable,
     paths: section.paths,
     // The Agent Skills standard fields are defined rather than truthy, matching
-    // how every other adapter carrying them treats them.
-    license: section.license,
-    compatibility: section.compatibility,
-    metadata: section.metadata,
+    // how every other adapter carrying them treats them. Each falls back to the
+    // root-level rulesync value when the section omits it.
+    license: resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section }),
+    compatibility: resolveCompatibility({ rootFrontmatter: rulesyncFrontmatter, section }),
+    metadata: resolveMetadata({ rootFrontmatter: rulesyncFrontmatter, section }),
   };
 
   const frontmatter: Record<string, unknown> = {
