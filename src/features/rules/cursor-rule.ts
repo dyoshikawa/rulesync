@@ -28,6 +28,13 @@ const CursorRuleFrontmatterSchema = z.object({
 
 export type CursorRuleFrontmatter = z.infer<typeof CursorRuleFrontmatterSchema>;
 
+/**
+ * Globs that match the whole project, and so say nothing `alwaysApply: true`
+ * does not already say. Same pair the Cline and Qwen Code adapters treat as
+ * universal.
+ */
+const UNIVERSAL_GLOBS = new Set(["**/*", "*"]);
+
 export type CursorRuleParams = {
   frontmatter: CursorRuleFrontmatter;
   body: string;
@@ -118,8 +125,24 @@ export class CursorRule extends ToolRule {
       lines.push(dump({ description }, { lineWidth: -1 }).trimEnd());
     }
     if (frontmatter.globs !== undefined) {
-      // Output globs without quotes
-      lines.push(`globs: ${frontmatter.globs}`);
+      // Output globs without quotes, because Cursor's simplified MDC parser
+      // reads a pattern like `*.ts` literally rather than as YAML.
+      //
+      // Unquoted means the value is interpolated straight into the document,
+      // so newlines have to go: a glob carrying one would otherwise close this
+      // line and let the rest of the string write further frontmatter keys --
+      // or a second `---`, replacing the rule body an agent is handed. Such a
+      // value reaches here from a rule fetched or imported from somewhere
+      // else (a `.mdc` written with a `globs: |-` block scalar parses to a
+      // string with newlines in it, and the parse-time preprocessing below
+      // only quotes single-line patterns). Folding to spaces mirrors the
+      // description above, and loses nothing Cursor could have used: its
+      // frontmatter parser does not read block scalars either.
+      const globs =
+        typeof frontmatter.globs === "string"
+          ? frontmatter.globs.replace(/[\r\n]+/g, " ").trim()
+          : frontmatter.globs;
+      lines.push(`globs: ${globs}`);
     }
 
     lines.push("---");
@@ -216,17 +239,44 @@ export class CursorRule extends ToolRule {
   }
 
   /**
-   * Resolve cursor globs with priority: cursor-specific > parent
-   * Returns comma-separated string for Cursor format, or undefined if no globs
-   * @param cursorSpecificGlobs - Cursor-specific globs (takes priority if defined)
-   * @param parentGlobs - Parent globs (used if cursorSpecificGlobs is undefined)
+   * Resolve the Cursor `globs` string with priority: cursor-specific > parent.
+   *
+   * The two ways `cursorSpecificGlobs` can be absent are deliberately different
+   * and must stay that way: `undefined` means "no Cursor-specific opinion", so
+   * the canonical globs are used, while an explicit `[]` means "this rule has
+   * no Cursor globs" and wins over them. Collapsing the two -- say, to
+   * `cursorSpecificGlobs?.length ? … : parentGlobs` -- would put a universal
+   * canonical glob back onto every Always Apply rule.
+   *
+   * A universal glob (see {@link UNIVERSAL_GLOBS}) is dropped outright when the
+   * rule is Always Apply. `alwaysApply: true` already applies the rule
+   * everywhere, Cursor's docs say globs are ignored once it is set, and
+   * Cursor's own staff describe the two together as a semantic conflict that
+   * some versions resolve by classifying the rule as a glob rule instead of an
+   * Always one. Dropping it here is what heals, on the next generate, both a
+   * `.rulesync` file an older version wrote with the invented universal glob in
+   * `cursor.globs` and a rule hand-written with a universal canonical glob
+   * beside `cursor.alwaysApply: true`. Specific globs are left alone: they say
+   * something a flag cannot, so they are the author's to keep even alongside
+   * it.
    */
-  private static resolveCursorGlobs(
-    cursorSpecificGlobs: string[] | undefined,
-    parentGlobs: string[] | undefined,
-  ): string | undefined {
+  private static resolveCursorGlobs({
+    cursorSpecificGlobs,
+    parentGlobs,
+    alwaysApply,
+  }: {
+    cursorSpecificGlobs: string[] | undefined;
+    parentGlobs: string[] | undefined;
+    alwaysApply: boolean;
+  }): string | undefined {
     const targetGlobs = cursorSpecificGlobs !== undefined ? cursorSpecificGlobs : parentGlobs;
-    return targetGlobs && targetGlobs.length > 0 ? targetGlobs.join(",") : undefined;
+    if (!targetGlobs || targetGlobs.length === 0) {
+      return undefined;
+    }
+    if (alwaysApply && targetGlobs.every((glob) => UNIVERSAL_GLOBS.has(glob.trim()))) {
+      return undefined;
+    }
+    return targetGlobs.join(",");
   }
 
   static fromRulesyncRule({
@@ -236,10 +286,16 @@ export class CursorRule extends ToolRule {
   }: ToolRuleFromRulesyncRuleParams): CursorRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
 
+    const alwaysApply = rulesyncFrontmatter.cursor?.alwaysApply ?? undefined;
+
     const cursorFrontmatter: CursorRuleFrontmatter = {
       description: rulesyncFrontmatter.description,
-      globs: this.resolveCursorGlobs(rulesyncFrontmatter.cursor?.globs, rulesyncFrontmatter.globs),
-      alwaysApply: rulesyncFrontmatter.cursor?.alwaysApply ?? undefined,
+      globs: this.resolveCursorGlobs({
+        cursorSpecificGlobs: rulesyncFrontmatter.cursor?.globs,
+        parentGlobs: rulesyncFrontmatter.globs,
+        alwaysApply: alwaysApply === true,
+      }),
+      alwaysApply,
     };
 
     // Generate proper file content with Cursor specific frontmatter
