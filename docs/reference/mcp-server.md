@@ -19,7 +19,7 @@ The `permissions` feature operates on `.rulesync/permissions.jsonc` and the `hoo
 
 ### Behavior of `list` and `put`
 
-`list` returns only the items it could read: one whose file is unreadable or whose frontmatter is invalid is dropped from the result, and since these four operations report no `warnings` and the server's log never reaches the calling agent, that drop is silent. A `list` shorter than the directory means a broken item, not an empty directory.
+`list` returns only the items it could read: one whose file is unreadable or whose frontmatter is invalid is dropped from the result, and since the `list` / `get` / `put` / `delete` operations report no `warnings` and the server's log never reaches the calling agent, that drop is silent. A `list` shorter than the directory means a broken item, not an empty directory.
 
 `put` is an upsert, and it writes exactly what the call carries — there is no partial update, so a field left out of `frontmatter` is dropped from the file. For `skill`, `put` overlays the directory rather than replacing it: it rewrites `SKILL.md` and every `otherFiles` entry passed in, and leaves every other file already in the directory untouched. It therefore cannot remove a file — `get` the skill, `delete` it, then `put` it back without that entry.
 
