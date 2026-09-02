@@ -7,6 +7,7 @@ import {
   CLAUDECODE_SETTINGS_FILE_NAME,
   CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/claudecode-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import { FeatureOptions } from "../../types/features.js";
 import { formatError } from "../../utils/error.js";
@@ -15,6 +16,8 @@ import {
   applyIgnoreReadDenies,
   buildReadDenyEntry,
   isReadDenyEntry,
+  serializeSharedConfigFile,
+  sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -87,6 +90,17 @@ export class ClaudecodeIgnore extends ToolIgnore {
       relativeDirPath: CLAUDECODE_DIR,
       relativeFilePath: fileNameForMode(fileMode),
     };
+  }
+
+  /**
+   * The `fileMode: "local"` twin, `.claude/settings.local.json`: a settable
+   * path only under that option, so the default `getSettablePaths` does not
+   * report it, and the gateway would otherwise not know the file has a writer.
+   */
+  static getExtraSharedWritePaths(): SharedWritePath[] {
+    return [
+      { relativeDirPath: CLAUDECODE_DIR, relativeFilePath: CLAUDECODE_SETTINGS_LOCAL_FILE_NAME },
+    ];
   }
 
   /**
@@ -165,7 +179,11 @@ export class ClaudecodeIgnore extends ToolIgnore {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(jsonValue, null, 2),
+      fileContent: serializeSharedConfigFile({
+        fileKey: sharedConfigFileKey(paths),
+        document: jsonValue,
+        existingContent: existingFileContent,
+      }),
       validate: true,
     });
   }

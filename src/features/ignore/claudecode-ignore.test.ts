@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CLAUDECODE_SETTINGS_SCHEMA_URL } from "../../constants/claudecode-paths.js";
 import {
   RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
@@ -563,10 +564,54 @@ describe("ClaudecodeIgnore", () => {
 
       const jsonValue = JSON.parse(claudecodeIgnore.getFileContent());
       expect(jsonValue).toEqual({
+        $schema: CLAUDECODE_SETTINGS_SCHEMA_URL,
         permissions: {
           deny: ["Read(*.log)", "Read(node_modules/**)"],
         },
       });
+      expect(Object.keys(jsonValue)[0]).toBe("$schema");
+    });
+
+    it("writes $schema first into settings.local.json in local file mode", async () => {
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "*.log",
+      });
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
+        outputRoot: testDir,
+        rulesyncIgnore,
+        options: { fileMode: "local" },
+      });
+
+      expect(claudecodeIgnore.getRelativeFilePath()).toBe("settings.local.json");
+      const jsonValue = JSON.parse(claudecodeIgnore.getFileContent());
+      expect(Object.keys(jsonValue)).toEqual(["$schema", "permissions"]);
+      expect(jsonValue.$schema).toBe(CLAUDECODE_SETTINGS_SCHEMA_URL);
+    });
+
+    it("keeps a $schema the existing settings file already states", async () => {
+      const pinned = "https://mirror.example.test/claude-code-settings.json";
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({ permissions: { allow: ["Bash(ls)"] }, $schema: pinned }, null, 2),
+      );
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
+        fileContent: "*.log",
+      });
+
+      const claudecodeIgnore = await ClaudecodeIgnore.fromRulesyncIgnore({
+        outputRoot: testDir,
+        rulesyncIgnore,
+      });
+
+      const jsonValue = JSON.parse(claudecodeIgnore.getFileContent());
+      expect(jsonValue.$schema).toBe(pinned);
+      expect(Object.keys(jsonValue)).toEqual(["permissions", "$schema"]);
     });
 
     it("should use default outputRoot when not provided", async () => {
