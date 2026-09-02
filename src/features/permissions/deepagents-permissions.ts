@@ -189,6 +189,19 @@ export class DeepagentsPermissions extends ToolPermissions {
     return false;
   }
 
+  /**
+   * `config.toml` is dcode's file, not one rulesync owns: rulesync merges into
+   * it when it exists but has no business bringing it into existence to hold
+   * nothing. When no rule maps, `[shell]` is dropped and
+   * `smolToml.stringify({})` leaves a lone newline, which would otherwise be
+   * written as a fresh `~/.deepagents/config.toml` that says nothing. An
+   * existing file is still rewritten as before, so user content is never
+   * dropped — the skip only applies when there is no file yet.
+   */
+  override shouldSkipCreationWhenPayloadEmpty(): boolean {
+    return true;
+  }
+
   static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: DEEPAGENTS_DIR,

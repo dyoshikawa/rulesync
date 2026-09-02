@@ -5,10 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { writeFileContent } from "../../utils/file.js";
+import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { DeepagentsPermissions } from "./deepagents-permissions.js";
+import { PermissionsProcessor } from "./permissions-processor.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
 function rulesyncPermissions(config: Record<string, unknown>): RulesyncPermissions {
@@ -87,6 +88,77 @@ describe("DeepagentsPermissions", () => {
         validate: false,
       });
       expect(permissions.isDeletable()).toBe(false);
+    });
+  });
+
+  describe("shouldSkipCreationWhenPayloadEmpty", () => {
+    let homeDir: string;
+    let cleanupHome: () => Promise<void>;
+
+    beforeEach(async () => {
+      ({ testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true }));
+      // `getHomeDirectory()` honours HOME_DIR ahead of everything else, so the
+      // pseudo-home is reached without module-mocking the whole file utils.
+      vi.stubEnv("HOME_DIR", homeDir);
+    });
+
+    afterEach(async () => {
+      vi.unstubAllEnvs();
+      await cleanupHome();
+    });
+
+    const configPath = (): string => join(homeDir, ".deepagents", "config.toml");
+
+    const generateThroughProcessor = async (config: Record<string, unknown>): Promise<void> => {
+      const processor = new PermissionsProcessor({
+        logger: createMockLogger(),
+        outputRoot: homeDir,
+        toolTarget: "deepagents",
+        global: true,
+      });
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([
+        rulesyncPermissions(config),
+      ]);
+      await processor.writeAiFiles(toolFiles);
+    };
+
+    it("is skipped: config.toml is dcode's file, not one to conjure for an empty payload", () => {
+      const permissions = new DeepagentsPermissions({
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "config.toml",
+        fileContent: "",
+        validate: false,
+      });
+      expect(permissions.shouldSkipCreationWhenPayloadEmpty()).toBe(true);
+    });
+
+    it("does not create config.toml when nothing maps and the file does not exist", async () => {
+      // `permission: {}` maps to no allowlist, so `[shell]` is dropped and the
+      // serialized payload is a lone newline — a file that would say nothing.
+      await generateThroughProcessor({ permission: {} });
+
+      expect(await fileExists(configPath())).toBe(false);
+    });
+
+    it("still creates config.toml when an allow rule maps", async () => {
+      await generateThroughProcessor({ permission: { bash: { "git *": "allow" } } });
+
+      expect(allowListOf(await readFileContent(configPath()))).toEqual(["git"]);
+    });
+
+    it("still rewrites an existing config.toml when nothing maps", async () => {
+      await writeFileContent(
+        configPath(),
+        '[shell]\nallow_list = ["git"]\n\n[model]\nname = "gpt"\n',
+      );
+
+      await generateThroughProcessor({ permission: {} });
+
+      // The stale allowlist is removed, and the unrelated table survives, so
+      // the skip never withholds a write from a file the user already has.
+      const content = await readFileContent(configPath());
+      expect(allowListOf(content)).toBeUndefined();
+      expect(tableOf(content, "model")).toEqual({ name: "gpt" });
     });
   });
 
@@ -992,6 +1064,9 @@ describe("DeepagentsPermissions", () => {
       // Dropping them silently would read as "dcode approves these", which is
       // the opposite of what upstream does with them.
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("git status, npm-*"));
+      // The wording is what tells the user the entries were inert upstream all
+      // along, not merely unsupported by rulesync.
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("auto-approve nothing"));
     });
 
     it("skips entries dcode splits or refuses before comparing", () => {
