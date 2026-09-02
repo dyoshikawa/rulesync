@@ -331,6 +331,64 @@ This is a test factorydroid skill content.`;
       const factorydroidSkill = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill });
       expect(factorydroidSkill.getFrontmatter()["user-invocable"]).toBe(false);
     });
+
+    it("should fall back to the root-level license/compatibility/metadata when the factorydroid section omits them", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-fields",
+        frontmatter: {
+          name: "root-fields",
+          description: "Root-level standard fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter).toEqual({
+        name: "root-fields",
+        description: "Root-level standard fields",
+        license: "MIT",
+        compatibility: "Requires git",
+        metadata: { author: "root" },
+      });
+    });
+
+    it("should let the factorydroid section override the root-level license/compatibility/metadata", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "section-wins",
+        frontmatter: {
+          name: "section-wins",
+          description: "Section overrides the root-level fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+          factorydroid: {
+            license: "Apache-2.0",
+            compatibility: ["droid"],
+            metadata: { author: "section" },
+            version: "1.0.0",
+          },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = FactorydroidSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      // The untyped section shapes Droid accepts survive the override.
+      expect(frontmatter).toEqual({
+        name: "section-wins",
+        description: "Section overrides the root-level fields",
+        license: "Apache-2.0",
+        compatibility: ["droid"],
+        metadata: { author: "section" },
+        version: "1.0.0",
+      });
+    });
   });
 
   describe("toRulesyncSkill", () => {

@@ -124,6 +124,57 @@ This is the body of the cursor skill.`;
         description: "Test skill description",
       });
     });
+
+    it("should fall back to the root-level license/compatibility/metadata when the cursor section omits them", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-fields",
+        frontmatter: {
+          name: "root-fields",
+          description: "Root-level standard fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = CursorSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      // Cursor models `metadata` alone, so the other root-level fields never
+      // reach its frontmatter.
+      expect(frontmatter).toEqual({
+        name: "root-fields",
+        description: "Root-level standard fields",
+        metadata: { author: "root" },
+      });
+    });
+
+    it("should let the cursor section override the root-level license/compatibility/metadata", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "section-wins",
+        frontmatter: {
+          name: "section-wins",
+          description: "Section overrides the root-level fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+          cursor: {
+            metadata: { author: "section" },
+          },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = CursorSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter).toEqual({
+        name: "section-wins",
+        description: "Section overrides the root-level fields",
+        metadata: { author: "section" },
+      });
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

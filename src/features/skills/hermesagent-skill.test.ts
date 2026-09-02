@@ -184,6 +184,61 @@ describe("HermesagentSkill", () => {
         },
       });
     });
+
+    it("should fall back to the root-level license/compatibility/metadata when the agentsskills section omits them", () => {
+      // The same shared block as the native target, so the root-level fields
+      // are normalized the same way — except `metadata`, which Hermes reads
+      // structurally.
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-fields",
+        frontmatter: {
+          name: "root-fields",
+          description: "Root-level standard fields",
+          license: "MIT",
+          compatibility: { runtime: "node" },
+          metadata: { hermes: { requires_toolsets: ["terminal"] } },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(HermesagentSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()).toEqual({
+        name: "root-fields",
+        description: "Root-level standard fields",
+        license: "MIT",
+        compatibility: "runtime: node",
+        metadata: { hermes: { requires_toolsets: ["terminal"] } },
+      });
+    });
+
+    it("should let the agentsskills section override the root-level license/compatibility/metadata", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "section-wins",
+        frontmatter: {
+          name: "section-wins",
+          description: "Section overrides the root-level fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+          agentsskills: {
+            license: "Apache-2.0",
+            compatibility: "Requires jq",
+            metadata: { author: "section" },
+          },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const frontmatter = HermesagentSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("Apache-2.0");
+      expect(frontmatter.compatibility).toBe("Requires jq");
+      expect(frontmatter.metadata).toEqual({ author: "section" });
+    });
   });
 
   describe("toRulesyncSkill", () => {

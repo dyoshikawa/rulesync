@@ -12,7 +12,12 @@ import {
   RulesyncSkillFrontmatterInput,
   SkillFile,
 } from "./rulesync-skill.js";
-import { resolveUserInvocable } from "./skills-utils.js";
+import {
+  resolveCompatibility,
+  resolveLicense,
+  resolveMetadata,
+  resolveUserInvocable,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -44,44 +49,19 @@ export type VibeSkillParams = {
   global?: boolean;
 };
 
-/** Resolve the top-level `license` field, if present as a string. */
-function resolveTopLevelLicense(looseTopLevel: Record<string, unknown>): string | undefined {
-  return typeof looseTopLevel.license === "string" ? looseTopLevel.license : undefined;
-}
-
-/** Resolve the top-level `compatibility` field (string or object), if present. */
-function resolveTopLevelCompatibility(
-  looseTopLevel: Record<string, unknown>,
-): string | Record<string, unknown> | undefined {
-  const value = looseTopLevel.compatibility;
-  if (typeof value === "string" || (typeof value === "object" && value !== null)) {
-    return value as string | Record<string, unknown>;
-  }
-  return undefined;
-}
-
-/** Resolve the top-level `metadata` field (object), if present. */
-function resolveTopLevelMetadata(
-  looseTopLevel: Record<string, unknown>,
-): Record<string, unknown> | undefined {
-  const value = looseTopLevel.metadata;
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
 /**
  * Build the Vibe frontmatter from a rulesync skill frontmatter, preferring the
- * dedicated `vibe` section over any loosely-typed top-level fields.
+ * dedicated `vibe` section over the shared root-level fields.
  */
 function buildVibeFrontmatter(rulesyncFrontmatter: RulesyncSkillFrontmatter): VibeSkillFrontmatter {
   const vibeSection = rulesyncFrontmatter.vibe;
 
-  const looseTopLevel = rulesyncFrontmatter as Record<string, unknown>;
-  const topLevelLicense = resolveTopLevelLicense(looseTopLevel);
-  const topLevelCompatibility = resolveTopLevelCompatibility(looseTopLevel);
-  const topLevelMetadata = resolveTopLevelMetadata(looseTopLevel);
-
+  const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section: vibeSection });
+  const compatibility = resolveCompatibility({
+    rootFrontmatter: rulesyncFrontmatter,
+    section: vibeSection,
+  });
+  const metadata = resolveMetadata({ rootFrontmatter: rulesyncFrontmatter, section: vibeSection });
   const resolvedUserInvocable = resolveUserInvocable({
     rootFrontmatter: rulesyncFrontmatter,
     section: vibeSection,
@@ -90,15 +70,9 @@ function buildVibeFrontmatter(rulesyncFrontmatter: RulesyncSkillFrontmatter): Vi
   return {
     name: rulesyncFrontmatter.name,
     description: rulesyncFrontmatter.description,
-    ...(vibeSection?.license !== undefined || topLevelLicense !== undefined
-      ? { license: vibeSection?.license ?? topLevelLicense }
-      : {}),
-    ...(vibeSection?.compatibility !== undefined || topLevelCompatibility !== undefined
-      ? { compatibility: vibeSection?.compatibility ?? topLevelCompatibility }
-      : {}),
-    ...(vibeSection?.metadata !== undefined || topLevelMetadata !== undefined
-      ? { metadata: vibeSection?.metadata ?? topLevelMetadata }
-      : {}),
+    ...(license !== undefined && { license }),
+    ...(compatibility !== undefined && { compatibility }),
+    ...(metadata !== undefined && { metadata }),
     ...(resolvedUserInvocable !== undefined && {
       "user-invocable": resolvedUserInvocable,
     }),

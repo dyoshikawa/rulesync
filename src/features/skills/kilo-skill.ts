@@ -8,6 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -22,7 +23,9 @@ export const KiloSkillFrontmatterSchema = z.looseObject({
   // Kilo's official SKILL.md frontmatter: `name`, `description`, `license`,
   // `compatibility`, and `metadata`. https://kilo.ai/docs/customize/skills
   license: z.optional(z.string()),
-  compatibility: z.optional(z.looseObject({})),
+  // `compatibility` is a free-form string per the Agent Skills spec; the
+  // object form is kept for back-compat with existing rulesync skill files.
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
   // `allowed-tools` is NOT recognized by Kilo; it is retained for backward
   // compatibility with existing rulesync skill files.
@@ -151,17 +154,27 @@ export class KiloSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const kiloSection = rulesyncFrontmatter.kilo;
 
+    // The Agent Skills standard fields fall back to the root-level rulesync
+    // value when the `kilo` section omits them.
+    const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section: kiloSection });
+    const compatibility = resolveCompatibility({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: kiloSection,
+    });
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: kiloSection,
+    });
+
     const kiloFrontmatter: KiloSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(kiloSection?.["allowed-tools"] !== undefined && {
         "allowed-tools": kiloSection["allowed-tools"],
       }),
-      ...(kiloSection?.license !== undefined && { license: kiloSection.license }),
-      ...(kiloSection?.compatibility !== undefined && {
-        compatibility: kiloSection.compatibility,
-      }),
-      ...(kiloSection?.metadata !== undefined && { metadata: kiloSection.metadata }),
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
     };
 
     const settablePaths = KiloSkill.getSettablePaths({ global });
