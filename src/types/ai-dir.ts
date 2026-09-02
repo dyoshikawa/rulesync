@@ -47,12 +47,16 @@ export type ValidationResult =
 
 /**
  * The permission bits worth carrying from a source file: only an executable
- * one has a mode the copy must keep, and only its permission bits are kept.
- * Windows reports no executable bit, so nothing is carried there and the
- * copy takes the platform default, as it always has.
+ * one has a mode the copy must keep, and only its read and execute bits plus
+ * the owner's write bit are kept. Group and world write bits are dropped the
+ * way a umask would drop them, so a source sitting on a mount that reports
+ * everything as 0777 does not turn the generated copy world-writable; setuid,
+ * setgid and sticky are never carried. Windows reports no executable bit, so
+ * nothing is carried there and the copy takes the platform default, as it
+ * always has.
  */
 export function carriedFileMode(mode: number): { fileMode?: number } {
-  const permissionBits = mode & 0o777;
+  const permissionBits = mode & 0o755;
   if ((permissionBits & 0o111) === 0) {
     return {};
   }

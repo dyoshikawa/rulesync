@@ -3,6 +3,7 @@ import { join, posix } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
 
+import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
   FETCH_CONCURRENCY_LIMIT,
   MAX_FILE_SIZE,
@@ -1378,8 +1379,17 @@ function isNotFoundError(error: unknown): boolean {
 }
 
 /**
- * A summary for a run that matched nothing, so had nothing to write or prune.
+ * Whether a fetched file is a skill's supporting file, the one kind of file
+ * whose executable bit matters: an agent is told to run `scripts/run.sh`,
+ * never a rule. Only such a file is worth a tree lookup or a chmod.
  */
+function isSkillSupportingPath(relativePath: string): boolean {
+  return (
+    classifySkillPath(relativePath).kind === "skill" &&
+    posix.basename(relativePath) !== SKILL_FILE_NAME
+  );
+}
+
 /**
  * The repository paths git records as executable, so a skill's script keeps
  * its bit through a fetch. The contents API carries no mode, and a fetch
@@ -1415,6 +1425,9 @@ async function resolveExecutablePaths({
   }
 }
 
+/**
+ * A summary for a run that matched nothing, so had nothing to write or prune.
+ */
 function emptyFetchSummary(params: { source: string; ref: string }): FetchSummary {
   const { source, ref } = params;
   return { source, ref, files: [], created: 0, overwritten: 0, skipped: 0, deleted: 0 };
@@ -1540,13 +1553,18 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     return emptyFetchSummary({ source: `${parsed.owner}/${parsed.repo}`, ref });
   }
 
-  const executablePaths = await resolveExecutablePaths({
-    client,
-    owner: parsed.owner,
-    repo: parsed.repo,
-    ref,
-    logger,
-  });
+  // One tree listing per run, and only when a file that can carry a mode is
+  // being fetched: a rules-only fetch has nothing to chmod and gets no request
+  // and no truncation warning about scripts it never wrote.
+  const executablePaths = filesToFetch.some((file) => isSkillSupportingPath(file.relativePath))
+    ? await resolveExecutablePaths({
+        client,
+        owner: parsed.owner,
+        repo: parsed.repo,
+        ref,
+        logger,
+      })
+    : new Set<string>();
 
   // Validate paths and check file sizes first (synchronous checks)
   for (const { relativePath, size } of filesToFetch) {
@@ -1578,7 +1596,7 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
         client.getFileContent(parsed.owner, parsed.repo, remotePath, ref),
       );
       await writeFileContent(localPath, content);
-      if (executablePaths.has(remotePath)) {
+      if (isSkillSupportingPath(relativePath) && executablePaths.has(remotePath)) {
         await applyFileMode(localPath, 0o755);
       }
 

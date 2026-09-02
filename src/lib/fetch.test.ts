@@ -1329,6 +1329,30 @@ describe("fetchFiles executable bit", () => {
     );
   });
 
+  it("should not read the tree when nothing fetched can carry a mode", async () => {
+    const warnLogger = createMockLogger();
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "rules") {
+          return Promise.resolve([treeFile("rules/overview.md")]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    const summary = await fetchFiles({
+      logger: warnLogger,
+      source: "owner/repo",
+      options: { features: ["rules"] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.created).toBe(1);
+    expect(mockClientInstance.listExecutablePaths).not.toHaveBeenCalled();
+  });
+
   it("should say when the tree listing was cut short", async () => {
     const warnLogger = createMockLogger();
     mockSkillWithScript();
@@ -1458,6 +1482,7 @@ describe("fetchFiles with skill selection", () => {
       getDefaultBranch: vi.fn().mockResolvedValue("main"),
       listDirectory: vi.fn(),
       getFileContent: vi.fn(),
+      listExecutablePaths: vi.fn().mockResolvedValue({ paths: new Set(), truncated: false }),
     };
   });
 
@@ -2232,6 +2257,7 @@ describe("fetchFiles with target option", () => {
       getDefaultBranch: vi.fn().mockResolvedValue("main"),
       listDirectory: vi.fn(),
       getFileContent: vi.fn(),
+      listExecutablePaths: vi.fn().mockResolvedValue({ paths: new Set(), truncated: false }),
     };
   });
 
@@ -2791,6 +2817,7 @@ describe("fetchFiles skill pruning", () => {
       getDefaultBranch: vi.fn().mockResolvedValue("main"),
       listDirectory: vi.fn(),
       getFileContent: vi.fn(),
+      listExecutablePaths: vi.fn().mockResolvedValue({ paths: new Set(), truncated: false }),
     };
   });
 

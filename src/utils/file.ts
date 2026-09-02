@@ -360,7 +360,24 @@ export async function applyFileMode(filepath: string, mode: number): Promise<voi
   if (process.platform === "win32") {
     return;
   }
+  if (await isSymbolicLink(filepath)) {
+    return;
+  }
   await chmod(filepath, mode);
+}
+
+/**
+ * `chmod` follows a symbolic link, so a mode meant for a file Rulesync wrote
+ * would land on whatever the link points at -- possibly outside the output
+ * tree. The write side refuses to read through links; the mode side refuses
+ * to write through them.
+ */
+async function isSymbolicLink(filepath: string): Promise<boolean> {
+  try {
+    return (await lstat(filepath)).isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -373,8 +390,8 @@ export async function restoreMissingExecutableBit(filepath: string, mode: number
     return;
   }
   try {
-    const current = (await stat(filepath)).mode;
-    if ((current & 0o111) !== 0) {
+    const current = await lstat(filepath);
+    if (current.isSymbolicLink() || (current.mode & 0o111) !== 0) {
       return;
     }
   } catch {

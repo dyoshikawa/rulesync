@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { AiDir, AiDirParams, ValidationResult } from "./ai-dir.js";
+import { AiDir, AiDirParams, ValidationResult, carriedFileMode } from "./ai-dir.js";
 
 class TestAiDir extends AiDir {
   validate(): ValidationResult {
@@ -18,6 +18,24 @@ function makeTestDir(
 ): TestAiDir {
   return new TestAiDir(params);
 }
+
+describe("carriedFileMode", () => {
+  it("should carry nothing for a file without an executable bit", () => {
+    expect(carriedFileMode(0o100644)).toEqual({});
+    expect(carriedFileMode(0o100666)).toEqual({});
+  });
+
+  it("should keep an executable file's owner-write, read and execute bits", () => {
+    expect(carriedFileMode(0o100755)).toEqual({ fileMode: 0o755 });
+    expect(carriedFileMode(0o100700)).toEqual({ fileMode: 0o700 });
+  });
+
+  it("should drop group and world write bits and every special bit", () => {
+    expect(carriedFileMode(0o100777)).toEqual({ fileMode: 0o755 });
+    expect(carriedFileMode(0o104755)).toEqual({ fileMode: 0o755 });
+    expect(carriedFileMode(0o103775)).toEqual({ fileMode: 0o755 });
+  });
+});
 
 describe("AiDir.getRelativePathFromCwd - cross-platform path separator", () => {
   it.each([

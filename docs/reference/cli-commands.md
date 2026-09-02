@@ -421,7 +421,7 @@ rulesync fetch owner/repo@ref:path   # Both ref and path
 
 ### Executable Bits
 
-Skills can ship scripts that agents are expected to run. The GitHub contents API that `fetch` downloads from carries no file mode, so `fetch` reads the repository tree once per run and marks every file that git records as executable (`100755`) with mode `0755` after writing it; `rulesync generate` then carries that bit into each generated skill directory. Two warnings cover the cases where this cannot be done: a tree listing GitHub cut short (very large repositories), and a tree that could not be read at all. In both cases the files are still fetched, without the bit, and the warning names the file modes as what was lost so you can `chmod` them yourself.
+Skills can ship scripts that agents are expected to run. The GitHub contents API that `fetch` downloads from carries no file mode, so when a run fetches a skill's supporting files `fetch` reads the repository tree once and marks every such file that git records as executable (`100755`) with mode `0755` after writing it (a rules-only fetch makes no tree request); `rulesync generate` then carries that bit into each generated skill directory. Two warnings cover the cases where this cannot be done: a tree listing GitHub cut short (very large repositories), and a tree that could not be read at all. In both cases the files are still fetched, without the bit, and the warning names the file modes as what was lost so you can `chmod` them yourself.
 
 ### Pruning Fetched Skill Directories
 
