@@ -1899,6 +1899,240 @@ describe("fetchFiles with skill selection", () => {
     );
   });
 
+  it("should not fetch a skill directory whose name ends in a dot", async () => {
+    // Windows strips the dot when it resolves the path, so `skills/deploy.` is
+    // written into `skills/deploy` there: a directory this name never says.
+    mockSkillRepositoryWithSkills(["deploy."]);
+    isInteractiveTerminalMock.mockReturnValue(true);
+    promptSkillSelectionMock.mockResolvedValue(["skill-a"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { interactive: true },
+      outputRoot: testDir,
+    });
+
+    // Never offered, so it cannot be picked; never picked, so it is not written.
+    expect(promptSkillSelectionMock).toHaveBeenCalledWith({
+      availableSkills: ["skill-a", "skill-b"],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
+    expect(summary.files.map((file) => file.relativePath)).toEqual(["skills/skill-a/SKILL.md"]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `Skipping one skill directory whose name Windows resolves to a different directory: ` +
+          `${JSON.stringify("deploy.")}.`,
+      ),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "A name ending in a dot or an ASCII space, or one shaped like a NAME~1",
+      ),
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("hidden characters"));
+  });
+
+  it("should not fetch a skill directory whose name ends in a space", async () => {
+    // The trailing space shows nothing on its own, so the warning quotes the
+    // name to make it show.
+    mockSkillRepositoryWithSkills(["deploy "]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`to a different directory: ${JSON.stringify("deploy ")}.`),
+    );
+  });
+
+  it("should not fetch a skill directory named like a Windows short name", async () => {
+    // `DEPLOY~1` opens whatever long name it stands for on a volume that
+    // generates short names, so it may be the local `deploy` skill.
+    mockSkillRepositoryWithSkills(["DEPLOY~1"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`to a different directory: ${JSON.stringify("DEPLOY~1")}.`),
+    );
+  });
+
+  it("should not fetch a skill directory named like a short name with an extension", async () => {
+    // The short-name shape keeps its extension: `DEPLOY~1.TXT` is the 8.3
+    // form of some `deploy-something.txt`, so it is turned away with the rest.
+    mockSkillRepositoryWithSkills(["DEPLOY~1.TXT"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`to a different directory: ${JSON.stringify("DEPLOY~1.TXT")}.`),
+    );
+  });
+
+  it("should report a name that is both hidden and foldable as hidden", async () => {
+    // A zero-width space in the name and a trailing dot: the hidden characters
+    // are checked first, so the name is reported by the reason that keeps its
+    // raw form off the terminal, and never by the one that would print it.
+    mockSkillRepositoryWithSkills(["deploy\u200B."]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Skipping one skill directory whose name contains hidden"),
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("Windows resolves to a different directory"),
+    );
+  });
+
+  it("should fetch a name ending in a blank that is not the ASCII space", async () => {
+    // Win32 strips only the plain space and the dot. An ideographic or a
+    // no-break space at the end is kept, so the name is written where it
+    // says; what remains is that it reaches past where it appears to end,
+    // which is the whitespace note's business rather than a Windows drop.
+    mockSkillRepositoryWithSkills(["設定\u3000", "pdf\u00A0"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/pdf\u00A0/SKILL.md",
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+      "skills/設定\u3000/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("carries more whitespace than the row shows"),
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("Windows resolves to a different directory"),
+    );
+  });
+
+  it("should count the foldable names it drops together", async () => {
+    mockSkillRepositoryWithSkills(["deploy.", "deploy ", "DEPLOY~1"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `Skipping 3 skill directories whose names Windows resolves to a different directory: ` +
+          `${JSON.stringify("DEPLOY~1")}, ${JSON.stringify("deploy ")}, ${JSON.stringify("deploy.")}.`,
+      ),
+    );
+  });
+
+  it("should fetch a name with a tilde and a digit that is not a short name", async () => {
+    // `~2` in the middle of a name is not the short-name shape, and a dot in
+    // the middle of one is not a trailing dot: both are ordinary names.
+    mockSkillRepositoryWithSkills(["data~2parser", "v1.0"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/data~2parser/SKILL.md",
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+      "skills/v1.0/SKILL.md",
+    ]);
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("Windows resolves to a different directory"),
+    );
+  });
+
+  it("should not let a name Windows folds be requested with the skills option", async () => {
+    // The name is not on offer, so asking for it by name is asking for a skill
+    // the repository does not have.
+    mockSkillRepositoryWithSkills(["deploy."]);
+
+    await expect(
+      fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { skills: ["deploy."] },
+        outputRoot: testDir,
+      }),
+    ).rejects.toThrow(`Unknown skill(s): ${JSON.stringify("deploy.")}`);
+  });
+
+  it("should leave a local skill alone when the remote name folds onto it", async () => {
+    // On Windows the remote `deploy.` would be written over the local `deploy`
+    // with the default `--conflict overwrite`. It is turned away everywhere
+    // instead, so the local skill keeps its files on every platform.
+    const localSkill = join(testDir, ".rulesync", "skills", "deploy", "SKILL.md");
+    await writeFileContent(localSkill, "# Local deploy");
+    mockSkillRepositoryWithSkills(["deploy."]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: { conflict: "overwrite" },
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(summary.deleted).toBe(0);
+    expect(await readFileContent(localSkill)).toBe("# Local deploy");
+  });
+
   it("should say which fetched names read alike when there is no prompt to say it in", async () => {
     // "copy" spelled with a zero for the o: nothing about either name is
     // hidden, so both are fetched, and a run with no prompt has nowhere else to
@@ -1924,8 +2158,10 @@ describe("fetchFiles with skill selection", () => {
   it("should say when a fetched name reaches past the row it is drawn on", async () => {
     // Nothing else on the list shares its display form, so the padding is only
     // reported by the note the name carries on its own \u2014 and a run with no
-    // prompt has nowhere but the warning to be told.
-    mockSkillRepositoryWithSkills(["pdf "]);
+    // prompt has nowhere but the warning to be told. The blank leads rather
+    // than trails: a trailing one is a name Windows folds, and is dropped
+    // before any note could be made of it.
+    mockSkillRepositoryWithSkills([" pdf"]);
 
     const summary = await fetchFiles({
       logger,
@@ -1934,7 +2170,7 @@ describe("fetchFiles with skill selection", () => {
       outputRoot: testDir,
     });
 
-    expect(summary.files.map((file) => file.relativePath)).toContain("skills/pdf /SKILL.md");
+    expect(summary.files.map((file) => file.relativePath)).toContain("skills/ pdf/SKILL.md");
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("carries more whitespace than the row shows"),
     );
@@ -3195,27 +3431,31 @@ describe("fetchFiles skill pruning", () => {
     expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("Deleted "));
   });
 
-  it("should not prune a skill directory named like a Windows short name", async () => {
+  it("should not touch a local skill directory named like a Windows short name", async () => {
     // `REPORT~1` opens whatever long name it stands for on a volume that
-    // generates short names, so it may not be the directory it reads as.
+    // generates short names, so it may not be the directory it reads as. The
+    // name is turned away before anything is written, so the prune never
+    // reaches the local directory of that name either.
     mockSingleSkillRepository("REPORT~1");
     const stale = join(skillsRoot, "REPORT~1", "reference.md");
     await writeFileContent(stale, "# Stale");
 
     const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
 
+    expect(summary.files).toEqual([]);
     expect(summary.deleted).toBe(0);
     expect(await fileExists(stale)).toBe(true);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("its name is one some systems resolve to a different directory"),
+      expect.stringContaining("whose name Windows resolves to a different directory"),
     );
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("Not pruning"));
   });
 
-  it("should quote the name it names in a prune warning", async () => {
+  it("should quote the name it names in the warning for a name Windows folds", async () => {
     // The name is a sentence of the remote's choosing, and it ends in a dot, so
-    // it reaches the warning through the guard above. Quoted, the sentence is
-    // plainly part of the name; spliced in bare it would read as the start of
-    // the warning itself.
+    // it is dropped rather than written. Quoted, the sentence is plainly part
+    // of the name; spliced in bare it would read as the start of the warning
+    // itself.
     const forged = "docs. Nothing was skipped.";
     mockSingleSkillRepository(forged);
     await writeFileContent(join(skillsRoot, forged, "reference.md"), "# Stale");
@@ -3225,9 +3465,7 @@ describe("fetchFiles skill pruning", () => {
     expect(summary.deleted).toBe(0);
     expect(await fileExists(join(skillsRoot, forged, "reference.md"))).toBe(true);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining(
-        `Not pruning ${JSON.stringify(`skills/${forged}`)}: its name is one some systems resolve`,
-      ),
+      expect.stringContaining(`to a different directory: ${JSON.stringify(forged)}.`),
     );
   });
 
@@ -3316,19 +3554,21 @@ describe("fetchFiles skill pruning", () => {
     expect(await fileExists(stale)).toBe(false);
   });
 
-  it("should not prune a skill directory whose name ends in a dot", async () => {
-    // Windows resolves `skills/dotted.` to `skills/dotted`, so the prune would
-    // empty one directory while the summary named another.
+  it("should not touch a local skill directory whose name ends in a dot", async () => {
+    // Windows resolves `skills/dotted.` to `skills/dotted`, so a write would
+    // land in one directory while the summary named another. The name is
+    // turned away before the write, and the prune walks only what was written.
     mockSingleSkillRepository("dotted.");
     const stale = join(skillsRoot, "dotted.", "reference.md");
     await writeFileContent(stale, "# Stale");
 
     const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
 
+    expect(summary.files).toEqual([]);
     expect(summary.deleted).toBe(0);
     expect(await fileExists(stale)).toBe(true);
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("its name is one some systems resolve to a different directory"),
+      expect.stringContaining("whose name Windows resolves to a different directory"),
     );
   });
 

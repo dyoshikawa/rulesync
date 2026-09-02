@@ -1023,6 +1023,7 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
   private readonly language: Language | undefined;
+  private readonly deriveSubprojectPathFromGlobs: boolean;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
   private readonly skills?: RulesyncSkill[];
@@ -1036,6 +1037,7 @@ export class RulesProcessor extends FeatureProcessor {
     simulateSubagents = false,
     simulateSkills = false,
     language,
+    deriveSubprojectPathFromGlobs = false,
     global = false,
     getFactory = defaultGetFactory,
     skills,
@@ -1056,6 +1058,13 @@ export class RulesProcessor extends FeatureProcessor {
      * the generated root rule file. Unset leaves both alone.
      */
     language?: Language;
+    /**
+     * Resolve `agentsmd.subprojectPath` from `globs` for every non-root rule
+     * loaded from the source trees (the `deriveSubprojectPathFromGlobs` config
+     * option). Applied where the rules are read, so every target sees the same
+     * resolved path.
+     */
+    deriveSubprojectPathFromGlobs?: boolean;
     getFactory?: GetFactory;
     skills?: RulesyncSkill[];
     featureOptions?: FeatureOptions;
@@ -1075,6 +1084,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.simulateSubagents = simulateSubagents;
     this.simulateSkills = simulateSkills;
     this.language = language;
+    this.deriveSubprojectPathFromGlobs = deriveSubprojectPathFromGlobs;
     this.getFactory = getFactory;
     this.skills = skills;
     this.featureOptions = featureOptions;
@@ -1906,6 +1916,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
           outputRoot: treeParent,
           relativeDirPath: treeRulesDirPath,
           relativeFilePath: sourceRelativeFilePath,
+          deriveSubprojectPathFromGlobs: this.deriveSubprojectPathFromGlobs,
         });
 
         if (sourceRelativeFilePath === relativeFilePath) {

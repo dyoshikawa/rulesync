@@ -1015,6 +1015,7 @@ async function generateRulesCore(params: {
         simulateSubagents: config.getSimulateSubagents(),
         simulateSkills: config.getSimulateSkills(),
         language: config.getLanguage(),
+        deriveSubprojectPathFromGlobs: config.getDeriveSubprojectPathFromGlobs(),
         skills: skills,
         featureOptions: config.getFeatureOptions(toolTarget, "rules"),
         dryRun: config.isPreviewMode(),

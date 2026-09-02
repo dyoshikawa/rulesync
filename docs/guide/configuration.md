@@ -50,6 +50,20 @@ Example:
   "simulateSubagents": false, // Generate simulated subagents
   "simulateSkills": false, // Generate simulated skills
 
+  // Derive `agentsmd.subprojectPath` from each non-root rule's `globs`, so a
+  // rule with `globs: ["packages/api/**/*"]` is written as
+  // `packages/api/AGENTS.md` (nested AGENTS.md) by the targets that nest,
+  // instead of `.agents/memories/<rule>.md`. The directory is the leading
+  // wildcard-free part every glob shares; a rule whose globs have none (e.g.
+  // `["src/**/*.ts", "test/**/*.ts"]`) or disagree silently keeps its default
+  // placement. Only a rule that sets `agentsmd: { subprojectPath: "auto" }`
+  // itself is warned about when nothing can be derived; that value also opts
+  // a single rule in regardless of this option, and `agentsmd: {
+  // subprojectPath: "" }` opts a single rule out. An explicit directory
+  // always wins and `root: true` rules never nest.
+  // Turning it on moves existing outputs, so run `generate --delete` once.
+  "deriveSubprojectPathFromGlobs": false,
+
   // Naming for command files flattened for tools without subdirectory
   // command support (e.g. Cursor): "basename" (default) keeps only the
   // filename, so `pj/test.md` and `ops/test.md` collide and the last one

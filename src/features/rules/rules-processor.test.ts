@@ -1959,6 +1959,86 @@ Content that would fail parsing`;
       },
     );
 
+    it("should compose a derived subprojectPath with an explicit one exactly like two explicit ones", async () => {
+      // The path is resolved on the rulesync rule before any target sees it, so
+      // a rule that derived `packages/app` from its globs collides with a rule
+      // that spelled it out the same way two explicit rules do: composed in
+      // source order for `agentsmd`.
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "agentsmd",
+      });
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "first.md",
+          frontmatter: {
+            root: false,
+            targets: ["agentsmd"],
+            agentsmd: { subprojectPath: "packages/app" },
+          },
+          body: "# First Subproject Rule",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "second.md",
+          frontmatter: {
+            root: false,
+            targets: ["agentsmd"],
+            globs: ["packages/app/**/*"],
+            agentsmd: { subprojectPath: "auto" },
+          },
+          body: "# Second Subproject Rule",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+      const composedRules = result.filter(
+        (file) => file.getRelativeDirPath() === join("packages", "app"),
+      );
+
+      expect(composedRules).toHaveLength(1);
+      expect(composedRules[0]?.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(composedRules[0]?.getFileContent()).toBe(
+        "# First Subproject Rule\n\n# Second Subproject Rule",
+      );
+    });
+
+    it("should derive subprojectPath from globs for loaded rules when deriveSubprojectPathFromGlobs is on", async () => {
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "api.md"),
+        `---
+root: false
+targets: ["agentsmd"]
+globs: ["packages/api/**/*"]
+---
+# API scoped`,
+      );
+
+      const deriving = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "agentsmd",
+        deriveSubprojectPathFromGlobs: true,
+      });
+      const derived = await deriving.convertRulesyncFilesToToolFiles(
+        await deriving.loadRulesyncFiles(),
+      );
+      expect(
+        derived.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
+      ).toEqual([join("packages", "api", "AGENTS.md")]);
+
+      // Off by default: the same rule stays in the modular directory.
+      const plain = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "agentsmd" });
+      const kept = await plain.convertRulesyncFilesToToolFiles(await plain.loadRulesyncFiles());
+      expect(
+        kept.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
+      ).toEqual([join(".agents", "memories", "api.md")]);
+    });
+
     it("should not compose amp fragments that carry a globs frontmatter gate", async () => {
       // Amp gates non-root files on a leading `globs:` frontmatter block
       // (issue #2410). Concatenating two gated fragments would bury the second

@@ -64,6 +64,7 @@ describe("generateCommand", () => {
       getSimulateSubagents: vi.fn().mockReturnValue(false),
       getSimulateSkills: vi.fn().mockReturnValue(false),
       getLanguage: vi.fn().mockReturnValue(undefined),
+      getDeriveSubprojectPathFromGlobs: vi.fn().mockReturnValue(false),
       getFlattenedCommandNaming: vi.fn().mockReturnValue("basename"),
       getDryRun: vi.fn().mockReturnValue(false),
       getCheck: vi.fn().mockReturnValue(false),

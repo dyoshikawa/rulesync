@@ -492,6 +492,28 @@ describe("config-resolver", () => {
   });
 
   describe("local configuration (rulesync.local.jsonc)", () => {
+    it("should read deriveSubprojectPathFromGlobs from rulesync.jsonc and let rulesync.local.jsonc override it", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ targets: ["agentsmd"], deriveSubprojectPathFromGlobs: true }),
+      );
+
+      const fromFile = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+      expect(fromFile.getDeriveSubprojectPathFromGlobs()).toBe(true);
+
+      await writeFileContent(
+        join(testDir, "rulesync.local.jsonc"),
+        JSON.stringify({ deriveSubprojectPathFromGlobs: false }),
+      );
+
+      const overridden = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+      expect(overridden.getDeriveSubprojectPathFromGlobs()).toBe(false);
+    });
+
     it("should use rulesync.local.jsonc to override rulesync.jsonc", async () => {
       const baseConfigContent = JSON.stringify({
         outputRoots: ["./"],

@@ -176,6 +176,29 @@ describe("Config", () => {
     });
   });
 
+  describe("deriveSubprojectPathFromGlobs", () => {
+    it("should default to false when not specified", () => {
+      const config = createConfig();
+      expect(config.getDeriveSubprojectPathFromGlobs()).toBe(false);
+    });
+
+    it("should respect an explicit true value", () => {
+      const config = createConfig({ deriveSubprojectPathFromGlobs: true });
+      expect(config.getDeriveSubprojectPathFromGlobs()).toBe(true);
+    });
+
+    it("should be accepted by the config file schema", () => {
+      expect(
+        ConfigFileSchema.safeParse({ targets: ["agentsmd"], deriveSubprojectPathFromGlobs: true })
+          .success,
+      ).toBe(true);
+      expect(
+        ConfigFileSchema.safeParse({ targets: ["agentsmd"], deriveSubprojectPathFromGlobs: "yes" })
+          .success,
+      ).toBe(false);
+    });
+  });
+
   describe("getGitignoreDestination", () => {
     it("defaults to gitignore", () => {
       const config = createConfig({
