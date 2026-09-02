@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import {
   ROVODEV_DIR,
@@ -7,7 +7,7 @@ import {
 } from "../../constants/rovodev-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -327,7 +327,7 @@ export class RovodevRule extends ToolRule {
       rootRule: ToolRule;
       content: string;
     }): RovodevRule[];
-    getMirrorDeletionGlobs(params: { outputRoot: string }): {
+    getMirrorDeletionGlobs(): {
       primaryGlob: string;
       mirrorGlob: string;
     };
@@ -358,21 +358,15 @@ export class RovodevRule extends ToolRule {
       },
       // The `./AGENTS.md` mirror (`mirrorGlob`) is deleted only when the primary
       // `.rovodev/AGENTS.md` (`primaryGlob`) still exists.
-      getMirrorDeletionGlobs: ({ outputRoot }) => ({
-        primaryGlob: join(outputRoot, ROVODEV_DIR, ROVODEV_RULE_FILE_NAME),
-        mirrorGlob: join(outputRoot, ROVODEV_RULE_FILE_NAME),
+      getMirrorDeletionGlobs: () => ({
+        primaryGlob: posix.join(toPosixPath(ROVODEV_DIR), ROVODEV_RULE_FILE_NAME),
+        mirrorGlob: ROVODEV_RULE_FILE_NAME,
       }),
     };
   }
 
   /** Glob for the `separate-local-file` deletion; rovodev writes it at project root, not under `.rovodev/`. */
-  static getLocalRootFileGlob({
-    outputRoot,
-    fileName,
-  }: {
-    outputRoot: string;
-    fileName: string;
-  }): string {
-    return join(outputRoot, fileName);
+  static getLocalRootFileGlob({ fileName }: { fileName: string }): string {
+    return fileName;
   }
 }

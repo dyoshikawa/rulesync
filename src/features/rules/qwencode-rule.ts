@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -6,7 +6,7 @@ import { QWENCODE_DIR, QWENCODE_RULE_FILE_NAME } from "../../constants/qwencode-
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -355,13 +355,7 @@ export class QwencodeRule extends ToolRule {
    * The personal local context file lives under `.qwen/`, not at the project
    * root where the settable root path points, so override the deletion glob.
    */
-  static getLocalRootFileGlob({
-    outputRoot,
-    fileName,
-  }: {
-    outputRoot: string;
-    fileName: string;
-  }): string {
-    return join(outputRoot, QWENCODE_DIR, fileName);
+  static getLocalRootFileGlob({ fileName }: { fileName: string }): string {
+    return posix.join(toPosixPath(QWENCODE_DIR), fileName);
   }
 }

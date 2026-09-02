@@ -205,7 +205,7 @@ export class AugmentcodeCommand extends ToolCommand {
     logger?: Logger;
   } = {}): Promise<AugmentcodeCommand[]> {
     const rootDir = join(outputRoot, AUGMENTCODE_AGENTS_COMMANDS_DIR_PATH);
-    const filePaths = await findFilesByGlobs(join(rootDir, "**", "*.md"));
+    const filePaths = await findFilesByGlobs("**/*.md", { cwd: rootDir });
 
     const commands = await Promise.all(
       filePaths.map(async (filePath) => {

@@ -196,10 +196,9 @@ export class RooRule extends ToolRule {
    * generic directory is the only one the deletion sweep enumerates, because a
    * `rules-*` glob would also match mode rules a user wrote by hand.
    */
-  static getNestedFilePatterns({ outputRoot }: { outputRoot: string }): ToolRuleNestedFilePatterns {
-    const root = toPosixPath(outputRoot);
+  static getNestedFilePatterns(): ToolRuleNestedFilePatterns {
     return {
-      include: [`${root}/${toPosixPath(ROO_DIR)}/rules-*/**/*.md`],
+      include: [`${toPosixPath(ROO_DIR)}/rules-*/**/*.md`],
       ignore: [],
     };
   }
@@ -243,13 +242,7 @@ export class RooRule extends ToolRule {
    * Glob for the `separate-local-file` deletion; Roo reads `AGENTS.local.md`
    * at the project root, not under `.roo/` (mirrors rovodev).
    */
-  static getLocalRootFileGlob({
-    outputRoot,
-    fileName,
-  }: {
-    outputRoot: string;
-    fileName: string;
-  }): string {
-    return join(outputRoot, fileName);
+  static getLocalRootFileGlob({ fileName }: { fileName: string }): string {
+    return fileName;
   }
 }

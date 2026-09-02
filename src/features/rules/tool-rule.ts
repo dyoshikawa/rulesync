@@ -61,6 +61,11 @@ export type ToolRuleExtraFixedFile = {
  * optional static `getNestedFilePatterns` hook and consumed by the
  * RulesProcessor on import.
  *
+ * Both sides are relative to the project root, which the processor passes as
+ * `findFilesByGlobs`'s `cwd`. Embedding the root in the pattern instead would
+ * read a project directory named `project(a)` or `project{a,b}` as a glob and
+ * silently match nothing.
+ *
  * `ignore` is separate from `include` rather than expressed as `!` patterns
  * because globby rewrites a negative pattern containing no glob metacharacter as
  * cwd-relative, which makes an absolute one silently match nothing.
@@ -277,21 +282,18 @@ export abstract class ToolRule extends ToolFile {
    * `--delete` would sweep away work rulesync never wrote.
    */
   protected static buildNestedFilePatterns({
-    outputRoot,
     fileName,
   }: {
-    outputRoot: string;
     fileName: string;
   }): ToolRuleNestedFilePatterns {
-    const root = toPosixPath(outputRoot);
     return {
-      include: [`${root}/**/${fileName}`],
+      include: [`**/${fileName}`],
       ignore: [
         // Enumerated separately as the root rule.
-        `${root}/${fileName}`,
-        `${root}/**/.*/**`,
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
+        fileName,
+        "**/.*/**",
+        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
+        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
       ],
     };
   }

@@ -4152,4 +4152,113 @@ targets: ["*"]
       ).toBeUndefined();
     });
   });
+  describe("output roots that hold glob metacharacters", () => {
+    // Every scan below spells the project root into `findFilesByGlobs`'s `cwd`
+    // rather than into the pattern. Spelled into the pattern, `project(glob)` is
+    // a picomatch group and matches nothing at all -- and an empty scan is not a
+    // visible failure: on the input side it reads as "every rule was deleted",
+    // so `--delete` removes generated files it can no longer regenerate and the
+    // run still reports success.
+
+    it("should load rulesync rules from a root that holds glob metacharacters", async () => {
+      const literalRoot = join(testDir, "project(glob)");
+      await writeFileContent(
+        join(literalRoot, RULESYNC_RULES_RELATIVE_DIR_PATH, "overview.md"),
+        '---\nroot: true\ntargets: ["*"]\n---\n\nRoot rule',
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: literalRoot,
+        inputRoots: [join(literalRoot, RULESYNC_RELATIVE_DIR_PATH)],
+        toolTarget: "claudecode",
+      });
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+
+      expect(rulesyncFiles.map((file) => file.getRelativeFilePath())).toEqual(["overview.md"]);
+    });
+
+    it("should load root and non-root tool files for deletion from such a root", async () => {
+      const literalRoot = join(testDir, "project{a,b}");
+      await writeFileContent(join(literalRoot, "CLAUDE.md"), "# Root");
+      await writeFileContent(join(literalRoot, ".claude", "rules", "detail.md"), "# Detail");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: literalRoot,
+        toolTarget: "claudecode",
+      });
+
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(filesToDelete.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        "CLAUDE.md",
+        "detail.md",
+      ]);
+    });
+
+    it("should find the local root file from such a root", async () => {
+      // `getLocalRootFileGlob` overrides where this one is looked for, so it
+      // takes a different path through the processor than the root file above.
+      const literalRoot = join(testDir, "project(glob)");
+      await writeFileContent(join(literalRoot, ".rovodev", "AGENTS.md"), "# Root");
+      await writeFileContent(join(literalRoot, "AGENTS.local.md"), "# Local root");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: literalRoot,
+        toolTarget: "rovodev",
+      });
+
+      const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(filesToDelete.map((file) => file.getRelativeFilePath())).toContain("AGENTS.local.md");
+    });
+
+    it("should find nested subproject files from such a root", async () => {
+      const literalRoot = join(testDir, "project(glob)");
+      await writeFileContent(join(literalRoot, "AGENTS.md"), "# Root");
+      await writeFileContent(join(literalRoot, "packages", "api", "AGENTS.md"), "# Nested");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: literalRoot,
+        toolTarget: "agentsmd",
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles.map((file) => file.getRelativeDirPath())).toContain(join("packages", "api"));
+    });
+
+    // `*` is not a legal filename character on Windows.
+    it.skipIf(process.platform === "win32")(
+      "should not sweep a sibling project when the root ends in a wildcard",
+      async () => {
+        // The false-positive side: a root read as a pattern reaches into the
+        // sibling `projectOTHERx`. Here the stray path does not survive as far
+        // as the deletion list -- `checkPathTraversal` rejects it and the whole
+        // scan is discarded -- so the visible damage is that the sweep silently
+        // finds nothing, not that it deletes a stranger's file. Either way the
+        // root must be a directory, not a pattern.
+        const literalRoot = join(testDir, "project*x");
+        await writeFileContent(join(literalRoot, "CLAUDE.md"), "# Mine");
+        await writeFileContent(
+          join(testDir, "projectOTHERx", ".claude", "rules", "theirs.md"),
+          "# Theirs",
+        );
+
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: literalRoot,
+          toolTarget: "claudecode",
+        });
+
+        const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+
+        expect(filesToDelete.map((file) => file.getRelativeFilePath())).toEqual(["CLAUDE.md"]);
+      },
+    );
+  });
 });

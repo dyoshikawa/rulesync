@@ -71,8 +71,8 @@ export class AgentsMdRule extends ToolRule {
    *
    * @see https://agents.md/
    */
-  static getNestedFilePatterns({ outputRoot }: { outputRoot: string }): ToolRuleNestedFilePatterns {
-    return this.buildNestedFilePatterns({ outputRoot, fileName: AGENTSMD_RULE_FILE_NAME });
+  static getNestedFilePatterns(): ToolRuleNestedFilePatterns {
+    return this.buildNestedFilePatterns({ fileName: AGENTSMD_RULE_FILE_NAME });
   }
 
   /**

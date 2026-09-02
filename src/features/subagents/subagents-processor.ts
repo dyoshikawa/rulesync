@@ -121,7 +121,14 @@ type ToolSubagentFactory = {
     supportsSimulated: boolean;
     /** Whether the tool supports global (user-level) subagents */
     supportsGlobal: boolean;
-    /** File pattern for import (e.g., "*.md", "*.json") */
+    /**
+     * File pattern for import (e.g., "*.md", "*.json").
+     *
+     * A glob, not a filesystem path, so multi-segment patterns are spelled with
+     * `/` literally rather than joined with `node:path`'s `join`: on Windows
+     * `join` would separate the segments with a backslash, which only works by
+     * accident because `findFilesByGlobs` rewrites backslashes.
+     */
     filePattern: string;
   };
 };
@@ -332,7 +339,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         // dcode discovers user-level subagents in `~/.deepagents/<agent_name>/agents/`.
         supportsGlobal: true,
-        filePattern: join("*", "AGENTS.md"),
+        filePattern: "*/AGENTS.md",
       },
     },
   ],
@@ -349,7 +356,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
-        filePattern: join("*", "AGENT.md"),
+        filePattern: "*/AGENT.md",
       },
     },
   ],
@@ -480,7 +487,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
-        filePattern: join("**", "*.md"),
+        filePattern: "**/*.md",
       },
     },
   ],
@@ -523,7 +530,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
-        filePattern: join("*", "SKILL.md"),
+        filePattern: "*/SKILL.md",
       },
     },
   ],

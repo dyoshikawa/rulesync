@@ -8,7 +8,7 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, toPosixPath, writeFileContent } from "../../utils/file.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RooRule } from "./roo-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
@@ -689,8 +689,8 @@ describe("RooRule", () => {
     });
 
     it("enumerates mode directories for import only", () => {
-      const patterns = RooRule.getNestedFilePatterns({ outputRoot: testDir });
-      expect(patterns.include).toEqual([`${toPosixPath(testDir)}/.roo/rules-*/**/*.md`]);
+      const patterns = RooRule.getNestedFilePatterns();
+      expect(patterns.include).toEqual([".roo/rules-*/**/*.md"]);
     });
   });
 });

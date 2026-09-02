@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { toPosixPath, writeFileContent } from "../../utils/file.js";
+import { writeFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import { VibeRule } from "./vibe-rule.js";
 
@@ -156,11 +156,13 @@ describe("VibeRule", () => {
   });
 
   it("should exclude the root file and vendored trees from the nested scan", () => {
-    const patterns = VibeRule.getNestedFilePatterns({ outputRoot: testDir });
+    const patterns = VibeRule.getNestedFilePatterns();
 
-    expect(patterns.include).toEqual([`${toPosixPath(testDir)}/**/AGENTS.md`]);
-    expect(patterns.ignore).toContain(`${toPosixPath(testDir)}/AGENTS.md`);
-    expect(patterns.ignore).toContain(`${toPosixPath(testDir)}/**/node_modules/**`);
+    // Root-relative: the project root travels as `findFilesByGlobs`'s `cwd`, so
+    // a root whose name holds a glob metacharacter is read as the directory it is.
+    expect(patterns.include).toEqual(["**/AGENTS.md"]);
+    expect(patterns.ignore).toContain("AGENTS.md");
+    expect(patterns.ignore).toContain("**/node_modules/**");
   });
 
   it("should treat only the project and global root paths as root on deletion", () => {
