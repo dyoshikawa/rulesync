@@ -9,23 +9,13 @@ Rulesync provides an MCP (Model Context Protocol) server that enables AI agents 
 
 The single `rulesyncTool` multiplexes by `feature` and `operation`:
 
-- `rule`, `command`, `subagent`, `skill`, `check`: `list`, `get`, `put`, `delete`
+- `rule`, `command`, `subagent`, `skill`: `list`, `get`, `put`, `delete`
 - `ignore`, `mcp`, `permissions`, `hooks`: `get`, `put`, `delete`
 - `generate`: `run`
 - `import`: `run`
 - `convert`: `run`
 
 The `permissions` feature operates on `.rulesync/permissions.jsonc` and the `hooks` feature operates on `.rulesync/hooks.jsonc`. Both accept a `content` string (valid JSONC) on `put`.
-
-### Behavior of `list` and `put`
-
-`list` returns only the items it could read: one whose file is unreadable or whose frontmatter is invalid is dropped from the result, and since the `list` / `get` / `put` / `delete` operations report no `warnings` and the server's log never reaches the calling agent, that drop is silent. A `list` shorter than the directory means a broken item, not an empty directory.
-
-`put` is an upsert, and it writes exactly what the call carries — there is no partial update, so a field left out of `frontmatter` is dropped from the file. For `skill`, `put` overlays the directory rather than replacing it: it rewrites `SKILL.md` and every `otherFiles` entry passed in, and leaves every other file already in the directory untouched. It therefore cannot remove a file — `get` the skill, `delete` it, then `put` it back without that entry.
-
-For `ignore`, `mcp`, `permissions`, and `hooks`, `delete` removes the recommended path _and_ every legacy path, not just whichever file `get` would have read: `.rulesync/.aiignore` together with the legacy `.rulesyncignore`, `.rulesync/mcp.jsonc` together with `.rulesync/mcp.json` and `.rulesync/.mcp.json`, and likewise `.rulesync/permissions.jsonc` with `.rulesync/permissions.json` and `.rulesync/hooks.jsonc` with `.rulesync/hooks.json`.
-
-Each rule, command, subagent, and check file is capped at 1MB, as are `.rulesync/mcp.jsonc`, `.rulesync/permissions.jsonc`, and `.rulesync/hooks.jsonc`; the ignore file is capped at 100KB, and a skill's 1MB budget covers its whole directory (see [`skill` other files](#skill-other-files)). Rules, commands, subagents, skills, and checks are each capped at 1000 items.
 
 ### Warnings from `generate` / `run`, `import` / `run`, and `convert` / `run`
 
@@ -45,7 +35,7 @@ On `get`, every returned entry carries an explicit `encoding`: `"utf-8"` when th
 
 When feeding entries returned by `get` back into `put`, keep their `encoding` field. Dropping it makes a `"base64"` body be stored as literal text and corrupts the file.
 
-A `"base64"` body must be canonical base64 (the standard or the URL-safe alphabet, padding optional); otherwise `put` fails with `Invalid base64 body for other file <name>`. The 1MB skill size limit is evaluated against the whole skill — the frontmatter, the body, and every other file's name and decoded byte length added together — so an other file counts toward it at its decoded size, not the length of its base64 body.
+A `"base64"` body must be canonical base64 (the standard or the URL-safe alphabet, padding optional); otherwise `put` fails with `Invalid base64 body for other file <name>`. The 1MB skill size limit is evaluated against the decoded byte length of each other file.
 
 ### `convert` / `run` options
 
