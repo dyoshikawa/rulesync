@@ -419,6 +419,10 @@ rulesync fetch owner/repo@ref:path   # Both ref and path
 | `--interactive, -i`     | Interactively select skills to fetch via a checkbox prompt; nothing is selected initially, press `<a>` to select/deselect all (requires the skills feature and a TTY) | Disabled                         |
 | `--token <token>`       | Git provider token for private repositories                                                                                                                           | `GITHUB_TOKEN` or `GH_TOKEN` env |
 
+### Executable Bits
+
+Skills can ship scripts that agents are expected to run. The GitHub contents API that `fetch` downloads from carries no file mode, so when a run fetches a skill's supporting files `fetch` reads the repository tree once and marks every such file that git records as executable (`100755`) with mode `0755` after writing it (a rules-only fetch makes no tree request); `rulesync generate` then carries that bit into each generated skill directory. Two warnings cover the cases where this cannot be done: a tree listing GitHub cut short (very large repositories), and a tree that could not be read at all. In both cases the files are still fetched, without the bit, and the warning names the file modes as what was lost so you can `chmod` them yourself.
+
 ### Pruning Fetched Skill Directories
 
 A skill is a directory (`skills/<name>/SKILL.md` plus its supporting files), not a single file. When the upstream skill drops or renames a file, an additive fetch would leave the old local copy in place, and the directory would become a mixture of the current upstream files and orphaned leftovers. Agents read whatever is in the directory, so a stale reference or an outdated script keeps steering them long after upstream removed it.

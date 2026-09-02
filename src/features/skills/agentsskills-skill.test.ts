@@ -1,4 +1,4 @@
-import { open, symlink } from "node:fs/promises";
+import { chmod, open, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -962,6 +962,37 @@ Body.`;
         expect.stringContaining(`more than ${MAX_CARRIED_DEPTH} directories below`),
       );
     });
+
+    it.skipIf(process.platform === "win32")(
+      "should carry the executable bit of a supporting script",
+      async () => {
+        // A skill that says `./scripts/run.sh` needs the copy to be runnable.
+        // Only an executable source records a mode; a plain file keeps the
+        // platform default, as it always has.
+        const skillDir = join(testDir, ".agents", "skills", "script-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          ["---", "name: script-skill", "description: Runs", "---", "", "Body."].join("\n"),
+        );
+        const scriptPath = join(skillDir, "scripts", "run.sh");
+        await writeFileContent(scriptPath, "#!/bin/sh\necho hi\n");
+        await chmod(scriptPath, 0o755);
+        await writeFileContent(join(skillDir, "notes.md"), "plain\n");
+
+        const skill = await AgentsSkillsSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "script-skill",
+        });
+
+        const byName = new Map(
+          skill.getOtherFiles().map((file) => [file.relativeFilePathToDirPath, file.fileMode]),
+        );
+        expect(byName.get(join("scripts", "run.sh"))).toBe(0o755);
+        expect(byName.has("notes.md")).toBe(true);
+        expect(byName.get("notes.md")).toBeUndefined();
+      },
+    );
 
     it("should record that the run's picture of the source is incomplete", async () => {
       // What the orphan sweep reads back: a run that dropped a file it wanted

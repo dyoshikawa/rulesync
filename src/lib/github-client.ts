@@ -166,6 +166,38 @@ export class GitHubClient {
   }
 
   /**
+   * The paths a tree records as executable (git mode `100755`). The contents
+   * API says nothing about a file's mode, so a script fetched through it
+   * lands without its executable bit; one tree listing per fetch supplies
+   * the bit for every file at once. `truncated` is the API's own flag: a
+   * tree past its size limit is returned in part, and a path it left out
+   * is indistinguishable from a plain file.
+   */
+  async listExecutablePaths(
+    owner: string,
+    repo: string,
+    ref: string,
+  ): Promise<{ paths: Set<string>; truncated: boolean }> {
+    try {
+      const { data } = await this.octokit.git.getTree({
+        owner,
+        repo,
+        tree_sha: ref,
+        recursive: "1",
+      });
+      const paths = new Set<string>();
+      for (const entry of data.tree) {
+        if (entry.type === "blob" && entry.mode === "100755" && typeof entry.path === "string") {
+          paths.add(entry.path);
+        }
+      }
+      return { paths, truncated: data.truncated === true };
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
    * Get raw file content from a repository
    */
   async getFileContent(owner: string, repo: string, path: string, ref?: string): Promise<string> {
