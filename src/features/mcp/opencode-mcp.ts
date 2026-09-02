@@ -601,11 +601,13 @@ export class OpencodeMcp extends ToolMcp {
     instructions,
     validate = true,
     global = false,
+    logger,
   }: {
     outputRoot?: string;
     instructions: string[];
     validate?: boolean;
     global?: boolean;
+    logger?: Logger;
   }): Promise<OpencodeMcp | null> {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
@@ -673,6 +675,7 @@ export class OpencodeMcp extends ToolMcp {
         // An emptied list retracts the key rather than writing `[]`.
         patch: { instructions: mergedInstructions.length > 0 ? mergedInstructions : undefined },
         filePath: join(jsonDir, relativeFilePath),
+        logger,
       }),
       validate,
     });

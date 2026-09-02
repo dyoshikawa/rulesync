@@ -1001,7 +1001,7 @@ describe("serializeSharedConfig", () => {
       }
     });
 
-    it("reports the write budget as the reason when it is exceeded", () => {
+    it("reports the edit budget as the reason when it is exceeded", () => {
       const stale: Record<string, unknown> = {};
       for (let index = 0; index < 2000; index += 1) {
         stale[`srv${index}`] = { type: "local", command: ["node", `server-${index}.js`] };
@@ -1018,6 +1018,65 @@ describe("serializeSharedConfig", () => {
       });
 
       expect(wholeRewriteWarnings(logger)[0]).toContain("too large, with too much of it changing");
+    });
+
+    it("reports the write budget as the reason when one key writes too much", () => {
+      // A single new key carrying a whole server list is one edit, so only
+      // the written-bytes budget stops it.
+      const servers: Record<string, unknown> = {};
+      for (let index = 0; index < 4000; index += 1) {
+        servers[`srv${index}`] = { type: "http", url: `https://example.com/${index}` };
+      }
+      const existingContent = ["{", "  // shared team config", '  "theme": "dark"', "}"].join("\n");
+      const logger = createMockLogger();
+
+      serializeSharedConfig({
+        format: "jsonc",
+        document: { theme: "dark", mcp: servers },
+        existingContent,
+        filePath: "/work/wide.json",
+        logger,
+      });
+
+      expect(wholeRewriteWarnings(logger)[0]).toContain(
+        "its changed keys write more new text than editing in place can afford",
+      );
+    });
+
+    it("truncates a duplicated key that is longer than a warning should carry", () => {
+      const key = "k".repeat(10_000);
+      const logger = createMockLogger();
+
+      serializeSharedConfig({
+        format: "jsonc",
+        document: { a: 1 },
+        existingContent: `{ "${key}": 1, "${key}": 2 }`,
+        filePath: "/work/long-key.json",
+        logger,
+      });
+
+      const warnings = wholeRewriteWarnings(logger);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("…(truncated)");
+      expect(warnings[0]?.length).toBeLessThan(400);
+    });
+
+    it("still returns the whole document when the logger itself throws", () => {
+      const logger = createMockLogger();
+      logger.warn.mockImplementation(() => {
+        throw new Error("logger is broken");
+      });
+
+      const result = serializeSharedConfig({
+        format: "jsonc",
+        document: { a: 1 },
+        existingContent: "{ oops",
+        filePath: "/work/opencode.jsonc",
+        logger,
+      });
+
+      expect(result).toBe(stringifySharedConfig({ format: "jsonc", document: { a: 1 } }));
+      expect(logger.warn).toHaveBeenCalledTimes(1);
     });
 
     it("strips control characters from the file name it reports", () => {

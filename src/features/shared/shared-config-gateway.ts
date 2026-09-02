@@ -25,10 +25,11 @@ import {
 } from "../../constants/takt-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
-import { stripControlCharacters } from "../../utils/control-characters.js";
+import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 
@@ -826,7 +827,9 @@ function applyJsoncObjectEdits({
  * through `logger` (or the fallback logger when none is given): the author's
  * comments are what the edit path exists to keep, and a `generate` that drops
  * them should say so rather than let the loss show up in the next diff.
- * `filePath` names the file in that warning.
+ * `filePath` names the file in that warning; callers that know it should pass
+ * it, since the once-per-run token is the message itself and two nameless
+ * files would share one.
  *
  * `leadingKeys` names the root keys that go in front of every other property
  * when the edit path inserts them (the whole-document writer keeps the order
@@ -884,11 +887,13 @@ export function serializeSharedConfig({
     }
     const uneditable = uneditableKeyOf(root);
     if (uneditable !== undefined) {
-      const key = JSON.stringify(stripControlCharacters(uneditable.key));
+      // Truncated: a key can be as long as the file that states it, and the
+      // warning should not be.
+      const key = quoteValueForWarning(uneditable.key);
       return wholeBecause(
         uneditable.kind === "duplicate"
           ? `it states the key ${key} twice`
-          : `it uses the key ${key}, which rulesync drops from every file it writes`,
+          : `it uses the key ${key}, which rulesync drops from every document it parses`,
       );
     }
 
@@ -937,15 +942,19 @@ function warnAboutWholeJsoncRewrite({
   reason: string;
   logger: Logger | undefined;
 }): void {
-  const subject =
-    filePath === undefined
-      ? "A shared JSONC config file"
-      : JSON.stringify(stripControlCharacters(filePath));
-  warnOnceWithFallback(
-    logger,
-    `${subject} is rewritten whole rather than edited in place because ${reason}; ` +
-      "comments, blank lines and key order in the existing file are not preserved.",
-  );
+  const subject = filePath === undefined ? "A shared JSONC config file" : quoteForLog(filePath);
+  // A logger that throws must not turn a fallback into a failed write: the
+  // caller has already settled on the whole document, and a warning is the
+  // one thing here that is allowed to go missing.
+  try {
+    warnOnceWithFallback(
+      logger,
+      `${subject} is rewritten whole rather than edited in place because ${reason}; ` +
+        "comments, blank lines and key order in the existing file are not preserved.",
+    );
+  } catch {
+    // Swallowed on purpose; see above.
+  }
 }
 
 // ---------------------------------------------------------------------------
