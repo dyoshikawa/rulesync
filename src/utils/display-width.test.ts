@@ -1,6 +1,15 @@
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
-import { displayWidthOf, shortenToWidth } from "./display-width.js";
+import {
+  AMBIGUOUS_CHARACTERS_PATTERN,
+  COMBINING_MARK_PATTERN,
+  ELLIPSIS_WIDTH,
+  displayWidthOf,
+  shortenToWidth,
+} from "./display-width.js";
 
 describe("displayWidthOf", () => {
   it.each([
@@ -60,6 +69,42 @@ describe("displayWidthOf", () => {
     expect(displayWidthOf(character)).toBe(2);
   });
 
+  // The East Asian Ambiguous class is drawn at one column under a Latin font
+  // and at two in a terminal set to draw it wide, which is a common setting in
+  // CJK locales. Counted at two: overstating a width shortens a label that did
+  // not need it, while understating one lets the terminal break the row onto a
+  // continuation line that carries no pointer and no checkbox.
+  it.each([
+    ["a box-drawing character", "─"],
+    ["a black circle", "●"],
+    ["a Greek letter", "α"],
+    ["an accented letter from the Latin-1 supplement", "é"],
+    ["an em dash", "—"],
+    ["the ellipsis", "…"],
+  ])(
+    "should count %s at the two columns a wide-ambiguous terminal draws",
+    (_description, character) => {
+      expect(displayWidthOf(character)).toBe(2);
+    },
+  );
+
+  // The Neutral class is drawn at one column whatever the terminal is set to,
+  // so it stays at one: these are the glyphs the prompt's own prefix is drawn
+  // with, and they are not what an attacker can pad a name with.
+  it.each([
+    ["the fisheye, the checked box of the prompt", "◉"],
+    ["the heavy right-pointing angle, the prompt's pointer", "❯"],
+  ])("should count %s at one column", (_description, character) => {
+    expect(displayWidthOf(character)).toBe(1);
+  });
+
+  it("should not hand a name a budget it fills with box-drawing characters", () => {
+    // 60 box-drawing characters and `● pdf-tools`: 71 columns under a Latin
+    // font, inside a 72-column budget, and 132 where the ambiguous class is
+    // drawn wide, which wraps `● pdf-tools` onto a row of its own.
+    expect(displayWidthOf(`${"─".repeat(60)}● pdf-tools`)).toBe(132);
+  });
+
   // The joiners draw as nothing and are counted as something, because the
   // renderer counts them and they are the only invisible characters a name that
   // reaches the prompt is allowed to carry.
@@ -74,6 +119,28 @@ describe("displayWidthOf", () => {
     // 39 Arabic letters and 38 non-joiners: drawn in 39 columns, wrapped as 77.
     expect(displayWidthOf(`${"\u0627\u200c".repeat(38)}\u0627`)).toBe(77);
   });
+
+  // A lone surrogate reaches a string through a JSON escape and is written to
+  // stdout as U+FFFD, which is East Asian Ambiguous: it is measured as the
+  // replacement character the terminal is shown rather than as a column of
+  // nothing in particular.
+  it.each([
+    ["a lone high surrogate", "\ud800"],
+    ["a lone low surrogate", "\udfff"],
+    ["the replacement character it is written as", "\ufffd"],
+  ])("should count %s at the two columns the replacement character draws", (_description, text) => {
+    expect(displayWidthOf(text)).toBe(2);
+  });
+
+  it("should not hand a name a budget it fills with lone surrogates", () => {
+    // 72 lone surrogates measured as themselves fit a 72-column budget and
+    // are drawn as 72 replacement characters in 144; 36 of them fill it.
+    expect(displayWidthOf("\ud800".repeat(36))).toBe(72);
+    expect(displayWidthOf("\ud800".repeat(72))).toBe(144);
+    expect(shortenToWidth({ text: "\ud800".repeat(72), budget: 72 })).toBe(
+      `${"\ud800".repeat(35)}…`,
+    );
+  });
 });
 
 describe("shortenToWidth", () => {
@@ -82,16 +149,16 @@ describe("shortenToWidth", () => {
   });
 
   it("should keep the ellipsis inside the budget", () => {
-    expect(shortenToWidth({ text: "abcdef", budget: 4 })).toBe("abc…");
+    expect(shortenToWidth({ text: "abcdef", budget: 5 })).toBe("abc…");
   });
 
   it("should count wide characters as the two columns they occupy", () => {
-    // Four ideographs are eight columns; a budget of five leaves room for two
-    // of them plus the ellipsis.
-    const result = shortenToWidth({ text: "設定設定", budget: 5 });
+    // Four ideographs are eight columns; a budget of six leaves room for two
+    // of them plus the two-column ellipsis.
+    const result = shortenToWidth({ text: "設定設定", budget: 6 });
 
     expect(result).toBe("設定…");
-    expect(displayWidthOf(result)).toBeLessThanOrEqual(5);
+    expect(displayWidthOf(result)).toBeLessThanOrEqual(6);
   });
 
   it("should not split a wide character across the budget", () => {
@@ -111,5 +178,79 @@ describe("shortenToWidth", () => {
 
   it("should still mark the cut when nothing fits", () => {
     expect(shortenToWidth({ text: "abc", budget: 0 })).toBe("…");
+  });
+
+  it("should pay for the ellipsis at the two columns it is measured at", () => {
+    // The ellipsis is East Asian Ambiguous itself, so a cut string keeps one
+    // character fewer than a one-column mark would have let it keep.
+    expect(ELLIPSIS_WIDTH).toBe(2);
+    const result = shortenToWidth({ text: "abcdef", budget: 4 });
+
+    expect(result).toBe("ab…");
+    expect(displayWidthOf(result)).toBe(4);
+  });
+});
+
+// The table is held to the property it was written from rather than trusted:
+// `get-east-asian-width` is the copy the prompt renderer measures with, and it
+// is found the way the renderer finds it, one dependency at a time —
+// `@inquirer/checkbox` depends on `@inquirer/core`, which depends on
+// `fast-wrap-ansi`, which depends on `fast-string-width`, which depends on
+// `get-east-asian-width` — so that the test checks the renderer's own copy
+// rather than whichever one the package manager happened to hoist beside it.
+// Each step resolves the package's main entry rather than its `package.json`,
+// which `fast-wrap-ansi` and `fast-string-width` do not expose. A failure to
+// resolve fails the test rather than skipping it, because a renderer that
+// stopped depending on the package is a change worth noticing.
+//
+// The package is not a dependency of this one and a static import cannot reach
+// it from `src`, so `createRequire` does the resolving and a dynamic import does
+// the loading: the package is ESM only, and `require` of an ESM module is not
+// something every Node this package supports can do. This is the one place the
+// static-import rule gives way, and it gives way in a test.
+const FIRST_SURROGATE = 0xd800;
+const LAST_SURROGATE = 0xdfff;
+const LAST_CODE_POINT = 0x10ffff;
+
+function formatCodePoint(codePoint: number): string {
+  return `U+${codePoint.toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+async function loadRendererEastAsianWidth(): Promise<{
+  eastAsianWidthType: (codePoint: number) => string;
+}> {
+  const checkboxRequire = createRequire(
+    createRequire(import.meta.url).resolve("@inquirer/checkbox/package.json"),
+  );
+  const core = checkboxRequire.resolve("@inquirer/core");
+  const fastWrapAnsi = createRequire(core).resolve("fast-wrap-ansi");
+  const fastStringWidth = createRequire(fastWrapAnsi).resolve("fast-string-width");
+  const getEastAsianWidth = createRequire(fastStringWidth).resolve("get-east-asian-width");
+  return await import(pathToFileURL(getEastAsianWidth).href);
+}
+
+describe("AMBIGUOUS_CHARACTERS_PATTERN", () => {
+  it("should hold every East Asian Ambiguous code point of the renderer's Unicode, marks aside, and nothing else", async () => {
+    const { eastAsianWidthType } = await loadRendererEastAsianWidth();
+
+    const missingFromTable: string[] = [];
+    const extraInTable: string[] = [];
+    for (let codePoint = 0; codePoint <= LAST_CODE_POINT; codePoint++) {
+      if (codePoint >= FIRST_SURROGATE && codePoint <= LAST_SURROGATE) {
+        continue;
+      }
+      const character = String.fromCodePoint(codePoint);
+      const inTable = AMBIGUOUS_CHARACTERS_PATTERN.test(character);
+      const ambiguous = eastAsianWidthType(codePoint) === "ambiguous";
+      if (ambiguous && !inTable && !COMBINING_MARK_PATTERN.test(character)) {
+        missingFromTable.push(formatCodePoint(codePoint));
+      }
+      if (inTable && !ambiguous) {
+        extraInTable.push(formatCodePoint(codePoint));
+      }
+    }
+
+    expect(missingFromTable, "ambiguous in the property but not in the table").toEqual([]);
+    expect(extraInTable, "in the table but not ambiguous in the property").toEqual([]);
   });
 });

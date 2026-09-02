@@ -62,9 +62,11 @@ const MAX_SKILL_LABEL_WIDTH = 72;
  * `( )` where it does not — the Linux console, and the older Windows console
  * outside Terminal — and the fallback box alone is three columns, for five in
  * all. The Unicode spelling comes to four at its widest: of the three glyphs
- * only `◯` is East Asian Ambiguous, which this project counts at one column and
- * a terminal set to draw the ambiguous characters wide draws at two, while the
- * pointer `❯` and the checked box `◉` are Neutral and stay at one either way.
+ * only `◯` is East Asian Ambiguous, which a terminal set to draw the ambiguous
+ * characters wide draws at two columns — and which `displayWidthOf` counts at
+ * two for the same reason, so the four is what measuring the prefix with it
+ * would give — while the pointer `❯` and the checked box `◉` are Neutral and
+ * stay at one either way.
  *
  * Five, then, because a budget two columns short is a row that wraps, and two
  * columns spent on a prefix that turned out to be narrower is two characters of
@@ -170,7 +172,12 @@ function skillLabelBudget(): number {
 /** Marks the label as carrying the tool's own warning rather than a name. */
 const NOTE_MARKER = "[!] ";
 
-/** Separates the note from the name; an em dash appears in no directory name. */
+/**
+ * Separates the note from the name; an em dash appears in no directory name.
+ * Measured with `displayWidthOf` wherever it is budgeted for rather than taken
+ * as three columns: the dash is East Asian Ambiguous, and a terminal that draws
+ * the class wide draws it at two.
+ */
 const NOTE_SEPARATOR = " \u2014 ";
 
 /**
@@ -191,11 +198,12 @@ const NOTE_SEPARATOR = " \u2014 ";
  *
  * The name is given `MIN_SHORTENED_NAME_WIDTH` columns however long the note
  * is, but never more than the row has left after the marker, the separator and
- * the one column a cut note is still drawn in. That is what shares out a
- * terminal too narrow to seat both, and the composed label is cut to the budget
- * on the way out, so what is returned is the width it was budgeted or less
- * however the pieces fall — a wider label wraps onto a line the prompt draws no
- * marker on, which is the row this module exists to keep a name from painting.
+ * the `ELLIPSIS_WIDTH` columns a cut note is still drawn in. That is what
+ * shares out a terminal too narrow to seat both, and the composed label is cut
+ * to the budget on the way out, so what is returned is the width it was
+ * budgeted or less however the pieces fall — a wider label wraps onto a line
+ * the prompt draws no marker on, which is the row this module exists to keep a
+ * name from painting.
  */
 function formatSkillChoiceLabel(params: {
   name: string;
@@ -221,10 +229,12 @@ function formatSkillChoiceLabel(params: {
   // Cut as a whole once the pieces are laid out: each is kept to what it was
   // given, but a budget too small for the marker, the separator and a mark of
   // the cut on either side is one none of them can give any more back to. This
-  // is the cut that holds the bound, at any budget of a column or more — the
-  // numbered rows, whose budget is this one less the number in front of them,
-  // included. The clamp above it decides which piece gives way rather than
-  // whether one does: the name yields and the marker and the separator do not.
+  // is the cut that holds the bound, at any budget of `ELLIPSIS_WIDTH` columns
+  // or more — a narrower one is drawn as the mark of the cut alone, which is
+  // the narrowest a cut row can be — the numbered rows, whose budget is this
+  // one less the number in front of them, included. The clamp above it decides
+  // which piece gives way rather than whether one does: the name yields and
+  // the marker and the separator do not.
   return shortenToWidth({
     text: `${NOTE_MARKER}${shownNote}${NOTE_SEPARATOR}${shownName}`,
     budget,

@@ -1,4 +1,4 @@
-// cspell:ignore lette revievv -- a lookalike fixture and a label cut mid-word on purpose
+// cspell:ignore lett revievv -- a lookalike fixture and a label cut mid-word on purpose
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { displayWidthOf } from "../utils/display-width.js";
@@ -122,7 +122,7 @@ describe("promptSkillSelection", () => {
             // the tail of the second is cut: the marker and the first reason
             // are the ones a cut never reaches.
             name:
-              "[!] another entry differs from it only by lookalike letters; mi\u2026 " +
+              "[!] another entry differs from it only by lookalike letters; \u2026 " +
               `\u2014 ${lookalike}`,
             value: lookalike,
             checked: false,
@@ -148,7 +148,7 @@ describe("promptSkillSelection", () => {
     // names.
     expect(checkboxMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        choices: [{ name: `pdf${"o".repeat(68)}\u2026`, value: long, checked: false }],
+        choices: [{ name: `pdf${"o".repeat(67)}\u2026`, value: long, checked: false }],
       }),
     );
   });
@@ -170,7 +170,7 @@ describe("promptSkillSelection", () => {
       expect.objectContaining({
         choices: [
           {
-            name: `[!] carries more whitespace than the row shows \u2014 pdf${" ".repeat(19)}\u2026`,
+            name: `[!] carries more whitespace than the row shows \u2014 pdf${" ".repeat(17)}\u2026`,
             value: padded,
             checked: false,
           },
@@ -221,6 +221,35 @@ describe("promptSkillSelection", () => {
     expect(choices[0]?.value).toBe(wide);
   });
 
+  it("should measure a label at the width a wide-ambiguous terminal draws it", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // 60 box-drawing characters and `● pdf-tools` pass the hidden-character
+    // check, are 71 columns under a Latin font — inside the budget — and are
+    // 132 columns in a terminal set to draw the East Asian Ambiguous class
+    // wide, which is a common setting in CJK locales. The prompt's own renderer
+    // counts them at one column each too, so the terminal is what breaks the
+    // row: 38 of them in front of the four-column prefix put the break exactly
+    // before `●`, and `● pdf-tools` lands at the left margin of a line that
+    // carries no pointer and no checkbox.
+    const ambiguous = `${"─".repeat(60)}● pdf-tools`;
+
+    await promptSkillSelection({
+      availableSkills: [ambiguous],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
+
+    const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{
+      name: string;
+      value: string;
+    }>;
+    // To the column: 35 box-drawing characters and the ellipsis are 72 columns
+    // at two apiece, and `● pdf-tools` is what the cut takes away.
+    expect(choices[0]?.name).toBe(`${"─".repeat(35)}…`);
+    expect(displayWidthOf(choices[0]?.name ?? "")).toBe(72);
+    expect(choices[0]?.value).toBe(ambiguous);
+  });
+
   it("should number labels that two different names are shortened into", async () => {
     checkboxMock.mockResolvedValue([]);
     // Neither name is confusable in itself: they are only indistinguishable
@@ -237,7 +266,7 @@ describe("promptSkillSelection", () => {
 
     // The number leads the row, so it is not left sitting past the untrusted
     // half of the label, and the name is cut to leave room for it.
-    const shortened = "a".repeat(67);
+    const shortened = "a".repeat(66);
     expect(checkboxMock).toHaveBeenCalledWith(
       expect.objectContaining({
         choices: [
@@ -341,11 +370,11 @@ describe("promptSkillSelection", () => {
       value: string;
     }>;
     expect(choices[0]?.name).toBe(
-      "(1) [!] another entry differs from it only by lookalike letters \u2014 review",
+      "(1) [!] another entry differs from it only by lookalike lett\u2026 \u2014 review",
     );
     // One column longer than the row above it, so its reasons are cut by one.
     expect(choices[1]?.name).toBe(
-      "(2) [!] another entry differs from it only by lookalike lette\u2026 \u2014 revievv",
+      "(2) [!] another entry differs from it only by lookalike let\u2026 \u2014 revievv",
     );
     expect(choices[1]?.value).toBe("revievv");
   });
@@ -473,7 +502,7 @@ describe("promptSkillSelection", () => {
     // subtracted the wrong prefix would fail here instead of passing by being
     // shorter than it had to be.
     expect(choices[0]?.name).toBe(
-      `[!] carries more whitespace than th\u2026 \u2014 pdf${" ".repeat(12)}\u2026`,
+      `[!] carries more whitespace than \u2026 \u2014 pdf${" ".repeat(11)}\u2026`,
     );
     expect(displayWidthOf(choices[0]?.name ?? "")).toBe(55);
     expect(choices[0]?.value).toBe(padded);
@@ -492,7 +521,7 @@ describe("promptSkillSelection", () => {
       localSkillNames: [],
     });
 
-    const shortened = "a".repeat(50);
+    const shortened = "a".repeat(49);
     expect(checkboxMock).toHaveBeenCalledWith(
       expect.objectContaining({
         choices: [
@@ -517,7 +546,7 @@ describe("promptSkillSelection", () => {
     });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
-    expect(choices[0]?.name).toBe(`pdf${"o".repeat(68)}\u2026`);
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(67)}\u2026`);
   });
 
   it("should treat a width of zero as a terminal that did not answer", async () => {
@@ -536,7 +565,7 @@ describe("promptSkillSelection", () => {
     });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
-    expect(choices[0]?.name).toBe(`pdf${"o".repeat(68)}\u2026`);
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(67)}\u2026`);
   });
 
   it("should budget against CLI_WIDTH when the terminal reports zero columns", async () => {
@@ -556,7 +585,7 @@ describe("promptSkillSelection", () => {
     });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
-    expect(choices[0]?.name).toBe(`pdf${"o".repeat(51)}\u2026`);
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(50)}\u2026`);
     expect(displayWidthOf(choices[0]?.name ?? "")).toBe(55);
   });
 
@@ -580,7 +609,7 @@ describe("promptSkillSelection", () => {
     });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
-    expect(choices[0]?.name).toBe(`pdf${"o".repeat(68)}\u2026`);
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(67)}\u2026`);
   });
 
   it("should leave CLI_WIDTH unread while the terminal reports a width", async () => {
@@ -599,7 +628,7 @@ describe("promptSkillSelection", () => {
     });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
-    expect(choices[0]?.name).toBe(`pdf${"o".repeat(68)}\u2026`);
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(67)}\u2026`);
   });
 
   it("should keep a name readable in a terminal too narrow for any label", async () => {
@@ -617,7 +646,7 @@ describe("promptSkillSelection", () => {
     });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
-    expect(choices[0]?.name).toBe(`pdf${"o".repeat(12)}\u2026`);
+    expect(choices[0]?.name).toBe(`pdf${"o".repeat(11)}\u2026`);
   });
 
   it("should keep a noted label inside a terminal too narrow to seat it", async () => {
@@ -626,6 +655,9 @@ describe("promptSkillSelection", () => {
     // not fit beside a whole name in it. The name gives way rather than the
     // label running past the row: a label wider than the row wraps onto a line
     // the prompt draws no checkbox on, which is the row a padded name wants.
+    // With the separator and the ellipsis at two columns apiece, the number,
+    // the marker and the separator leave the name and the note a mark of the
+    // cut each and nothing more.
     setTerminalWidth(19);
     const latin = `pdf${"x".repeat(40)}`;
     const cyrillic = `pdf${"x".repeat(39)}\u0445`;
@@ -640,7 +672,7 @@ describe("promptSkillSelection", () => {
       name: string;
       value: string;
     }>;
-    expect(choices[0]?.name).toBe("(1) [!] \u2026 \u2014 pdf\u2026");
+    expect(choices[0]?.name).toBe("(1) [!] \u2026 \u2014 \u2026");
     expect(displayWidthOf(choices[0]?.name ?? "")).toBe(16);
     expect(displayWidthOf(choices[1]?.name ?? "")).toBe(16);
     // The row is unreadable at that width, and the value behind it is not: what
@@ -671,7 +703,7 @@ describe("promptSkillSelection", () => {
     // To the column, like its siblings: a bound would be met by counting a
     // joiner at two columns, or at five, as readily as at the one the renderer
     // spends on it.
-    expect(choices[0]?.name).toBe(`${"\u0627\u200c".repeat(35)}\u0627\u2026`);
+    expect(choices[0]?.name).toBe(`${"\u0627\u200c".repeat(35)}\u2026`);
     expect(displayWidthOf(choices[0]?.name ?? "")).toBe(72);
     expect(choices[0]?.value).toBe(joined);
   });
@@ -690,7 +722,7 @@ describe("promptSkillSelection", () => {
     });
 
     const choices = checkboxMock.mock.calls.at(-1)?.[0].choices as Array<{ name: string }>;
-    expect(choices[0]?.name).toBe(`${"\u0627\u200c".repeat(27)}\u2026`);
+    expect(choices[0]?.name).toBe(`${"\u0627\u200c".repeat(26)}\u0627\u2026`);
     expect(displayWidthOf(choices[0]?.name ?? "")).toBe(55);
   });
 
