@@ -734,9 +734,17 @@ export async function resolvedPathEscapesRoot({
  * what lets the comparison hold for a path that is not itself resolved: a glob
  * rooted at a directory that is a link of its own gives every candidate the
  * same unresolved prefix, and only the segments below it decide.
+ *
+ * `filePath` is spelled the way the platform reported it and `identity` is
+ * posix-separated, so the two are split on both separators: on Windows a
+ * backslash-separated path then shares its segments with the posix identity
+ * without being rewritten first, and on a posix platform a backslash inside a
+ * name is split the same way on both sides, which keeps the count symmetric.
+ *
+ * Exported for its tests, which need a Windows-style spelling on any platform.
  */
-function sharedTrailingSegments(filePath: string, identity: string): number {
-  const left = splitPathSegments(nativePathToPosix(filePath));
+export function sharedTrailingSegments(filePath: string, identity: string): number {
+  const left = splitPathSegments(filePath);
   const right = splitPathSegments(identity);
   let shared = 0;
   while (
@@ -959,17 +967,19 @@ async function dedupeNamesByFileIdentity(params: {
   entries: readonly ClassifiedEntry[];
 }): Promise<string[]> {
   const { dirPath, entries } = params;
-  const identities = await mapWithConcurrency({
+  // Each entry travels with its identity rather than being matched back to it by
+  // index. `realFileIdentity` never rejects -- an entry whose real path cannot be
+  // read keeps its literal one and stands on its own -- so every entry has one.
+  const identifiedEntries = await mapWithConcurrency({
     items: entries,
     limit: ENTRY_CLASSIFY_CONCURRENCY,
-    mapper: async (entry) => await realFileIdentity(join(dirPath, entry.name)),
+    mapper: async (entry) => ({
+      entry,
+      identity: await realFileIdentity(join(dirPath, entry.name)),
+    }),
   });
   const entriesByIdentity = new Map<string, ClassifiedEntry[]>();
-  for (const [index, entry] of entries.entries()) {
-    // `realFileIdentity` falls back to the literal path rather than failing, so
-    // an entry whose identity cannot be read stands on its own here instead of
-    // dropping out of the listing.
-    const identity = identities[index] ?? nativePathToPosix(join(dirPath, entry.name));
+  for (const { entry, identity } of identifiedEntries) {
     const group = entriesByIdentity.get(identity);
     if (group === undefined) {
       entriesByIdentity.set(identity, [entry]);
