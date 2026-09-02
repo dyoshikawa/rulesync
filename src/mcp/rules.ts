@@ -25,6 +25,16 @@ const maxRuleSizeBytes = 1024 * 1024; // 1MB
 const maxRulesCount = 1000;
 
 /**
+ * The rule tools return `getAuthoredFrontmatter()`, the frontmatter as the
+ * file states it, rather than `getFrontmatter()`, where
+ * `agentsmd.subprojectPath: "auto"` has been resolved to a directory or
+ * dropped. An agent edits the file, not its placement: a `get` → edit → `put`
+ * round trip over the resolved view would hardcode the derived directory or
+ * lose the request, and `put` would answer with a frontmatter different from
+ * the one it just wrote.
+ */
+
+/**
  * Tool to list all rules from .rulesync/rules/*.md
  */
 async function listRules(): Promise<
@@ -48,7 +58,7 @@ async function listRules(): Promise<
             validate: true,
           });
 
-          const frontmatter = rule.getFrontmatter();
+          const frontmatter = rule.getAuthoredFrontmatter();
 
           return {
             relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, file),
@@ -94,7 +104,7 @@ async function getRule({ relativePathFromCwd }: { relativePathFromCwd: string })
 
     return {
       relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, filename),
-      frontmatter: rule.getFrontmatter(),
+      frontmatter: rule.getAuthoredFrontmatter(),
       body: rule.getBody(),
     };
   } catch (error) {
@@ -167,7 +177,7 @@ async function putRule({
 
     return {
       relativePathFromCwd: join(RULESYNC_RULES_RELATIVE_DIR_PATH, filename),
-      frontmatter: rule.getFrontmatter(),
+      frontmatter: rule.getAuthoredFrontmatter(),
       body: rule.getBody(),
     };
   } catch (error) {

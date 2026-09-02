@@ -1,5 +1,3 @@
-import { posix } from "node:path";
-
 /**
  * Characters that make a path segment a pattern rather than a literal name.
  *
@@ -69,7 +67,11 @@ export function getGlobStaticPrefix(glob: string): string | undefined {
     prefix.push(segment);
   }
 
-  return prefix.length > 0 ? posix.join(...prefix) : undefined;
+  // The segments were split on `/` and `.`/empty ones never reach `prefix`, so
+  // joining them back is already normalized; spreading them into
+  // `posix.join(...prefix)` would exceed the argument limit on a pathological
+  // pattern with hundreds of thousands of segments.
+  return prefix.length > 0 ? prefix.join("/") : undefined;
 }
 
 /**

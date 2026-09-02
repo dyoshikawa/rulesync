@@ -11,6 +11,9 @@ describe("getGlobStaticPrefix", () => {
     ["packages/api/src/**/*.{ts,tsx}", "packages/api/src"],
     ["packages/api/", "packages/api"],
     ["packages/api/README.md", "packages/api"],
+    // A wildcard-free final segment is read as a file name, not a directory:
+    // a directory is spelled `packages/api/**`.
+    ["packages/api", "packages"],
     ["./packages/api/**/*", "packages/api"],
     ["././packages/api/**/*", "packages/api"],
     ["packages/./api/**/*", "packages/api"],
@@ -51,6 +54,15 @@ describe("getGlobStaticPrefix", () => {
 
   it("returns a POSIX path regardless of platform", () => {
     expect(getGlobStaticPrefix("a/b/c/**")).toBe("a/b/c");
+  });
+
+  it("handles a pattern with hundreds of thousands of segments", () => {
+    // Spreading the segments into a variadic call would throw a RangeError.
+    const segments = 200_000;
+    const prefix = getGlobStaticPrefix(`${"a/".repeat(segments)}**`);
+
+    expect(typeof prefix).toBe("string");
+    expect(prefix).toBe(Array.from({ length: segments }, () => "a").join("/"));
   });
 });
 

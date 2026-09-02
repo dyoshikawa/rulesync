@@ -127,7 +127,8 @@ export const ConfigParamsSchema = z.object({
   // `packages/api/AGENTS.md` by the targets that nest. Off by default: turning
   // it on moves existing `.agents/memories/*.md` outputs. An explicit
   // `agentsmd.subprojectPath` always wins; `"auto"` on a rule opts that rule in
-  // regardless of this option.
+  // regardless of this option and `""` opts it out. A rule this option cannot
+  // derive a directory for keeps its default placement without a warning.
   deriveSubprojectPathFromGlobs: optional(z.boolean()),
   flattenedCommandNaming: optional(FlattenedCommandNamingSchema),
   gitignoreTargetsOnly: optional(z.boolean()),

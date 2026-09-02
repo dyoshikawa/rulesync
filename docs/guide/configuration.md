@@ -55,10 +55,12 @@ Example:
   // `packages/api/AGENTS.md` (nested AGENTS.md) by the targets that nest,
   // instead of `.agents/memories/<rule>.md`. The directory is the leading
   // wildcard-free part every glob shares; a rule whose globs have none (e.g.
-  // `["**/*.ts"]`) or disagree keeps its default placement, with a warning.
-  // An explicit `agentsmd.subprojectPath` always wins, `root: true` rules
-  // never nest, and a single rule can opt in on its own with
-  // `agentsmd: { subprojectPath: "auto" }` regardless of this option.
+  // `["src/**/*.ts", "test/**/*.ts"]`) or disagree silently keeps its default
+  // placement. Only a rule that sets `agentsmd: { subprojectPath: "auto" }`
+  // itself is warned about when nothing can be derived; that value also opts
+  // a single rule in regardless of this option, and `agentsmd: {
+  // subprojectPath: "" }` opts a single rule out. An explicit directory
+  // always wins and `root: true` rules never nest.
   // Turning it on moves existing outputs, so run `generate --delete` once.
   "deriveSubprojectPathFromGlobs": false,
 

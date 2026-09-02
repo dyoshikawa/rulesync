@@ -38,7 +38,9 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       // The directory whose nested `AGENTS.md` this non-root rule becomes, or
       // "auto" to derive it from `globs` (`["packages/api/**/*"]` → `packages/api`)
       // for this rule alone, regardless of the `deriveSubprojectPathFromGlobs`
-      // config option. Consumers only ever see the resolved directory.
+      // config option. An explicit "" keeps the rule at its default placement
+      // even when that option is on. `getFrontmatter()` only ever carries the
+      // resolved directory; `getAuthoredFrontmatter()` keeps what was written.
       // @example "path/to/subproject"
       subprojectPath: z.optional(z.string()),
     }),
@@ -174,15 +176,21 @@ export type RulesyncRuleFromFileParams = RulesyncFileFromFileParams & {
  * The `agentsmd.subprojectPath` every consumer should act on, resolved once so
  * that no target has to know how it came about:
  *
- * 1. an explicit directory in the frontmatter wins;
+ * 1. an explicit directory in the frontmatter wins, and an explicit `""` is an
+ *    opt-out: the rule keeps its default placement and nothing is derived;
  * 2. otherwise, when the rule says `"auto"` or `deriveFromGlobs` is on, the
  *    directory the rule's `globs` share (see `getGlobsStaticPrefix`);
  * 3. otherwise none, which keeps the rule in the target's modular directory.
  *
- * A root rule never nests, so it never derives. A derivation that was asked for
- * but yields nothing is reported once per rule and falls back to step 3: a
- * warning names the file to fix, while an error would stop every other rule
- * from generating.
+ * A root rule never nests, so it never derives. When a derivation yields
+ * nothing the rule falls back to step 3, and only a rule that asked with
+ * `"auto"` is told, once: it named a placement it did not get, so a warning
+ * names the file to fix (an error would stop every other rule from
+ * generating). The config option applies to every non-root rule, most of
+ * which are general guidance whose globs, if any, were written as activation
+ * hints (`["src/**\/*.ts", "test/**\/*.ts"]`) rather than as a directory;
+ * warning about each of those on every generate would drown out real ones,
+ * so config-driven derivation falls back silently.
  */
 function resolveSubprojectPath({
   frontmatter,
@@ -194,7 +202,10 @@ function resolveSubprojectPath({
   rulePath: string;
 }): string | undefined {
   const authored = frontmatter.agentsmd?.subprojectPath;
-  if (typeof authored === "string" && authored !== "" && authored !== AUTO_SUBPROJECT_PATH) {
+  if (authored === "") {
+    return undefined;
+  }
+  if (typeof authored === "string" && authored !== AUTO_SUBPROJECT_PATH) {
     return authored;
   }
   const requested = authored === AUTO_SUBPROJECT_PATH;
@@ -212,20 +223,12 @@ function resolveSubprojectPath({
   }
 
   const globs = Array.isArray(frontmatter.globs) ? frontmatter.globs : [];
-  if (!requested && globs.length === 0) {
-    // The config option applies to every non-root rule, most of which are
-    // general guidance with no globs at all. Those have nothing to derive from
-    // rather than a derivation that failed, so they stay where they are
-    // without a warning; a rule that asked with "auto" is told either way.
-    return undefined;
-  }
   const derived = getGlobsStaticPrefix(globs);
-  if (derived === undefined) {
+  if (derived === undefined && requested) {
     warnOnceWithFallback(
       undefined,
       `Could not derive agentsmd.subprojectPath for ${rulePath} from globs ${JSON.stringify(globs)}: every glob must start with the same wildcard-free directory (e.g. "packages/api/**/*"). The rule is generated without a nested AGENTS.md; set agentsmd.subprojectPath explicitly to nest it.`,
     );
-    return undefined;
   }
   return derived;
 }
@@ -233,7 +236,10 @@ function resolveSubprojectPath({
 /**
  * `frontmatter` with `agentsmd.subprojectPath` replaced by its resolved value,
  * or removed when there is none, so the `"auto"` request never reaches a
- * consumer as if it were a directory name.
+ * consumer as if it were a directory name. An `agentsmd` block that held
+ * nothing but the request goes with it, so a consumer sees the same shape it
+ * would for a rule that never mentioned `agentsmd`. An authored `""` is left
+ * as written: every consumer already reads it as "no nesting".
  */
 function withResolvedSubprojectPath({
   frontmatter,
@@ -250,10 +256,14 @@ function withResolvedSubprojectPath({
     return frontmatter;
   }
   const { subprojectPath: _authored, ...agentsmd } = frontmatter.agentsmd ?? {};
-  return {
-    ...frontmatter,
-    agentsmd: resolved === undefined ? agentsmd : { ...agentsmd, subprojectPath: resolved },
-  };
+  if (resolved !== undefined) {
+    return { ...frontmatter, agentsmd: { ...agentsmd, subprojectPath: resolved } };
+  }
+  if (Object.keys(agentsmd).length === 0) {
+    const { agentsmd: _empty, ...rest } = frontmatter;
+    return rest;
+  }
+  return { ...frontmatter, agentsmd };
 }
 
 export type RulesyncRuleSettablePaths = {
@@ -269,10 +279,16 @@ export class RulesyncRule extends RulesyncFile {
   /**
    * The frontmatter consumers read. It differs from what the file says in one
    * place: `agentsmd.subprojectPath` holds the resolved directory (see
-   * `resolveSubprojectPath`), while `getFileContent()` keeps the authored
-   * value, so a rule written back out still says `"auto"`.
+   * `resolveSubprojectPath`), while `authoredFrontmatter` and
+   * `getFileContent()` keep the authored value, so a rule written back out
+   * still says `"auto"`.
    */
   private readonly frontmatter: RulesyncRuleFrontmatter;
+  /**
+   * The frontmatter as written, after schema defaults but before
+   * `agentsmd.subprojectPath` resolution: what `getFileContent()` serializes.
+   */
+  private readonly authoredFrontmatter: RulesyncRuleFrontmatter;
   private readonly body: string;
 
   constructor({
@@ -298,6 +314,7 @@ export class RulesyncRule extends RulesyncFile {
       fileContent: stringifyFrontmatter(body, parsedFrontmatter),
     });
 
+    this.authoredFrontmatter = parsedFrontmatter;
     this.frontmatter = withResolvedSubprojectPath({
       frontmatter: parsedFrontmatter,
       deriveFromGlobs: deriveSubprojectPathFromGlobs,
@@ -317,8 +334,23 @@ export class RulesyncRule extends RulesyncFile {
     };
   }
 
+  /**
+   * The frontmatter to act on: `agentsmd.subprojectPath` is the resolved
+   * placement, never `"auto"`.
+   */
   getFrontmatter(): RulesyncRuleFrontmatter {
     return this.frontmatter;
+  }
+
+  /**
+   * The frontmatter as the file states it, `agentsmd.subprojectPath: "auto"`
+   * included. This is the view to hand back to whoever edits the file (the
+   * MCP rule tools): returning the resolved placement instead would make a
+   * get → edit → put round trip hardcode the derived directory, or drop the
+   * request when nothing could be derived.
+   */
+  getAuthoredFrontmatter(): RulesyncRuleFrontmatter {
+    return this.authoredFrontmatter;
   }
 
   validate(): ValidationResult {
