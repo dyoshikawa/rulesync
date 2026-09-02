@@ -22,7 +22,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
-import { Logger, warnOnceWithFallback } from "../utils/logger.js";
+import { type Logger, warnOnceWithFallback } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { hasIncompleteCarriedFiles } from "../utils/warned-once.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
