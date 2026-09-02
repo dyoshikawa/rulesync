@@ -925,7 +925,8 @@ export class SubagentsProcessor extends FeatureProcessor {
           targetPath: baseDir,
         });
       }
-      const subagentFilePaths = await findFilesByGlobs(join(baseDir, factory.meta.filePattern), {
+      const subagentFilePaths = await findFilesByGlobs(factory.meta.filePattern, {
+        cwd: baseDir,
         followSymbolicLinks: !forDeletion,
       });
 

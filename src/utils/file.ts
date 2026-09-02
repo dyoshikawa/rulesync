@@ -732,6 +732,13 @@ function chooseRepresentative(candidates: string[], identity: string): string {
 export async function findFilesByGlobs(
   globs: string | string[],
   options: {
+    /**
+     * Directory in which relative patterns and relative `ignore` patterns are
+     * evaluated. This is a starting point, not a containment boundary:
+     * callers must pass relative patterns without `..` when results must stay
+     * beneath this directory. Absolute patterns can escape it.
+     */
+    cwd?: string;
     type?: "file" | "dir" | "all";
     followSymbolicLinks?: boolean;
     /**
@@ -742,7 +749,8 @@ export async function findFilesByGlobs(
      *
      * Match the form of the include patterns: when those are absolute, a
      * relative `ignore` such as `dist/**` silently excludes nothing. Either use
-     * absolute ignore patterns or anchor them with a leading `**\/`.
+     * absolute ignore patterns or anchor them with a leading `**\/`. When `cwd`
+     * is set, relative ignore patterns are evaluated from that directory.
      */
     ignore?: string[];
     /**
@@ -764,7 +772,7 @@ export async function findFilesByGlobs(
     dot?: boolean;
   } = {},
 ): Promise<string[]> {
-  const { type = "all", followSymbolicLinks = true, ignore, dot = false } = options;
+  const { cwd, type = "all", followSymbolicLinks = true, ignore, dot = false } = options;
   const globbyOptions =
     type === "file"
       ? { onlyFiles: true, onlyDirectories: false }
@@ -781,6 +789,7 @@ export async function findFilesByGlobs(
   // path: git-client.ts (`walkDirectory`) skips symlinks entirely.
   const results = globbySync(normalizedGlobs, {
     absolute: true,
+    cwd,
     followSymbolicLinks,
     dot,
     ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),

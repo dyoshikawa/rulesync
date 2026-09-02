@@ -853,16 +853,19 @@ export class CommandsProcessor extends FeatureProcessor {
     const paths = factory.class.getSettablePaths({ global: this.global });
 
     const outputRootFull = join(this.outputRoot, paths.relativeDirPath);
-    const globPattern = factory.meta.supportsSubdirectory
-      ? join(outputRootFull, "**", `*.${factory.meta.extension}`)
-      : join(outputRootFull, `*.${factory.meta.extension}`);
     // Never follow a symlink while collecting deletion candidates: a
     // `.augment/commands/team -> ../../shared-prompts` link would otherwise put
     // files outside the project on the orphan list. Matches the subagents,
     // skills and rules processors.
-    const commandFilePaths = await findFilesByGlobs(globPattern, {
-      followSymbolicLinks: !forDeletion,
-    });
+    const commandFilePaths = await findFilesByGlobs(
+      factory.meta.supportsSubdirectory
+        ? `**/*.${factory.meta.extension}`
+        : `*.${factory.meta.extension}`,
+      {
+        cwd: outputRootFull,
+        followSymbolicLinks: !forDeletion,
+      },
+    );
 
     if (forDeletion) {
       const toolCommands = commandFilePaths
