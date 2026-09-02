@@ -504,8 +504,19 @@ export class ClaudecodeSkill extends ToolSkill {
     // here for the same reason: the glob cannot match it -- it requires a segment
     // above the tail -- but a name like `x\..` resolves onto it, and a nested root
     // is imported leniently, which would turn an invalid skill of the project's own
-    // into a warning instead of an error.
-    const seenRealRelativeDirPaths = new Set<string>([CLAUDECODE_SKILLS_DIR_POSIX_PATH]);
+    // into a warning instead of an error. It is seeded under both of its spellings:
+    // the literal one, and where it really resolves to when it is itself a link into
+    // the project, since a nested root reaching the same place is told apart by
+    // that resolved spelling alone. When it cannot be resolved the literal spelling
+    // is all there is, and a nested root leading to a place that cannot be resolved
+    // is refused before it is looked up here.
+    const seenRealRelativeDirPaths = new Set<string>([
+      CLAUDECODE_SKILLS_DIR_POSIX_PATH,
+      await resolvedRelativePath({
+        rootPath: outputRoot,
+        targetPath: join(outputRoot, CLAUDECODE_SKILLS_DIR_PATH),
+      }),
+    ]);
     for (const dirPath of filteredDirPaths) {
       // Normalized before anything is asked of it, so the path that is checked is
       // the one that is later read. A `..` the rewrite left in has to be folded
@@ -528,6 +539,14 @@ export class ClaudecodeSkill extends ToolSkill {
         continue;
       }
       seenRealRelativeDirPaths.add(check.realRelativeDirPath);
+      // Recorded under the spelling the scan reported, not the resolved one the
+      // root was judged and told apart by. The reported spelling is the path that
+      // is read, and the `paths` glob `deriveNestedSkillPaths` takes from it then
+      // scopes the skill to the location it was found at -- which is what Claude
+      // Code does with a nested skill. For a root reached through a link the two
+      // spellings differ; recording the resolved one would change what is read,
+      // and scoping to it would move the skill to a location the scan never
+      // reported. The resolved spelling is only ever a judgement, never a record.
       roots.push({ outputRoot, relativeDirPath: relative(outputRoot, scannedDirPath) });
     }
     return roots;
