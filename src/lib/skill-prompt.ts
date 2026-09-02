@@ -73,13 +73,31 @@ const MAX_SKILL_LABEL_WIDTH = 72;
 const CHOICE_PREFIX_WIDTH = 5;
 
 /**
- * The width to assume when the terminal does not say how wide it is.
+ * The width to assume when neither the terminal nor `CLI_WIDTH` says how wide
+ * it is.
  *
  * The same 80 that `@inquirer/core` falls back to when it wraps the rows
  * (`readlineWidth`, by way of `cli-width`), so the budget is derived from the
  * width the rows are actually broken at rather than from a second guess.
  */
 const FALLBACK_TERMINAL_WIDTH = 80;
+
+/**
+ * The width `cli-width` takes from the `CLI_WIDTH` environment variable when the
+ * stream it measures reports none, parsed the way it parses it: `parseInt` in
+ * base ten, kept unless it comes out as `NaN` or zero. Nothing else is filtered
+ * because nothing else is filtered there — a negative value is what the rows
+ * are broken at too, and the floor below absorbs it — so the budget follows the
+ * renderer rather than second-guessing the variable it reads.
+ */
+function configuredTerminalWidth(): number | undefined {
+  const value = process.env.CLI_WIDTH;
+  if (value === undefined) {
+    return undefined;
+  }
+  const width = Number.parseInt(value, 10);
+  return Number.isNaN(width) || width === 0 ? undefined : width;
+}
 
 /**
  * How much of a name survives however long the note in front of it is. A name
@@ -108,15 +126,25 @@ const MIN_SHORTENED_NAME_WIDTH = 16;
  * A width of zero is treated as no width at all rather than as a terminal three
  * columns narrower than nothing. A TTY reports it while it is being resized,
  * and `cli-width` — which is what decides where the rows are actually broken —
- * turns it into the same 80 this does, so taking it literally would budget
- * against a width the renderer never uses. (`cli-width` reads `CLI_WIDTH` from
- * the environment before it falls back to 80, which this does not; a prompt is
- * refused outright without a TTY, and a TTY answers before either is asked.)
+ * passes a zero over exactly as it passes over a width that was never reported,
+ * so taking it literally would budget against a width the renderer never uses.
+ * (What the renderer measures is not `process.stdout` itself: `@inquirer/core`
+ * pipes a `MuteStream` to the output stream and hands that to `cli-width`,
+ * which asks it for a `getWindowSize` it does not have, then `tty` for one
+ * current Node no longer defines, then reads the stream's `columns` — which
+ * `MuteStream` proxies from the stream it is piped to, so a zero on
+ * `process.stdout` is a zero there — and, finding it falsy, `CLI_WIDTH` from the
+ * environment, and only then falls back to 80.) A zero, then, lands on
+ * `CLI_WIDTH` before it lands on 80, and so does this: the variable is parsed
+ * the way `cli-width` parses it, so that a picker resized to nothing under a
+ * `CLI_WIDTH` narrower than 77 has its labels cut to the width the rows are
+ * broken at rather than to a 72 that wraps.
  *
- * `process.stdout` is the same stream the renderer measures because `checkbox`
- * is called without an `output` option and `@inquirer/core` defaults the
- * readline output to it. A caller that passes one would decouple the budget
- * from the width the rows are broken at.
+ * `process.stdout` stands in for that `MuteStream` because `checkbox` is called
+ * without an `output` option, so the output `@inquirer/core` pipes to is
+ * `process.stdout` and the proxied `columns` is the one read here. A caller
+ * that passed an `output` would decouple the budget from the width the rows
+ * are broken at.
  *
  * Read once, before the prompt opens, where the renderer re-measures on every
  * render: a window narrowed while the picker is up puts the labels back over
@@ -131,7 +159,8 @@ const MIN_SHORTENED_NAME_WIDTH = 16;
  * rather than a width anything is promised to fit in.
  */
 function skillLabelBudget(): number {
-  const terminalWidth = process.stdout.columns || FALLBACK_TERMINAL_WIDTH;
+  const terminalWidth =
+    process.stdout.columns || configuredTerminalWidth() || FALLBACK_TERMINAL_WIDTH;
   return Math.max(
     Math.min(MAX_SKILL_LABEL_WIDTH, terminalWidth - CHOICE_PREFIX_WIDTH),
     MIN_SHORTENED_NAME_WIDTH,
