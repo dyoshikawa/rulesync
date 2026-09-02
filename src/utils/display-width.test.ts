@@ -1,9 +1,11 @@
 import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import {
   AMBIGUOUS_CHARACTERS_PATTERN,
+  COMBINING_MARK_PATTERN,
   ELLIPSIS_WIDTH,
   displayWidthOf,
   shortenToWidth,
@@ -190,32 +192,44 @@ describe("shortenToWidth", () => {
 });
 
 // The table is held to the property it was written from rather than trusted:
-// `get-east-asian-width` is loaded through the prompt renderer this module
-// mirrors, `@inquirer/checkbox`, which depends on it by way of `@inquirer/core`
-// and `fast-string-width`. That is the copy whose Unicode version the renderer
-// measures with, and the one the table has to agree with. It is not a
-// dependency of this package and is not imported statically for that reason;
-// the static-import rule is for the code that ships, and a test resolving a
-// transitive package through the one that owns it is what `createRequire` is
-// for. A failure to resolve fails the test rather than skipping it, because a
-// renderer that stopped depending on the package is a change worth noticing.
+// `get-east-asian-width` is the copy the prompt renderer measures with, and it
+// is found the way the renderer finds it, one dependency at a time —
+// `@inquirer/checkbox` depends on `@inquirer/core`, which depends on
+// `fast-string-width`, which depends on `get-east-asian-width` — so that the
+// test checks the renderer's own copy rather than whichever one the package
+// manager happened to hoist beside it. Each step resolves the package's main
+// entry rather than its `package.json`, which `fast-string-width` does not
+// expose. A failure to resolve fails the test rather than skipping it, because
+// a renderer that stopped depending on the package is a change worth noticing.
+//
+// The package is not a dependency of this one and a static import cannot reach
+// it from `src`, so `createRequire` does the resolving and a dynamic import does
+// the loading: the package is ESM only, and `require` of an ESM module is not
+// something every Node this package supports can do. This is the one place the
+// static-import rule gives way, and it gives way in a test.
 const FIRST_SURROGATE = 0xd800;
 const LAST_SURROGATE = 0xdfff;
 const LAST_CODE_POINT = 0x10ffff;
-const COMBINING_MARK_PATTERN = /[\p{Mn}\p{Me}]/u;
 
 function formatCodePoint(codePoint: number): string {
   return `U+${codePoint.toString(16).toUpperCase().padStart(4, "0")}`;
 }
 
+async function loadRendererEastAsianWidth(): Promise<{
+  eastAsianWidthType: (codePoint: number) => string;
+}> {
+  const checkboxRequire = createRequire(
+    createRequire(import.meta.url).resolve("@inquirer/checkbox/package.json"),
+  );
+  const core = checkboxRequire.resolve("@inquirer/core");
+  const fastStringWidth = createRequire(core).resolve("fast-string-width");
+  const getEastAsianWidth = createRequire(fastStringWidth).resolve("get-east-asian-width");
+  return await import(pathToFileURL(getEastAsianWidth).href);
+}
+
 describe("AMBIGUOUS_CHARACTERS_PATTERN", () => {
-  it("should hold every East Asian Ambiguous code point of the renderer's Unicode, marks aside, and nothing else", () => {
-    const rendererRequire = createRequire(
-      createRequire(import.meta.url).resolve("@inquirer/checkbox/package.json"),
-    );
-    const { eastAsianWidthType } = rendererRequire("get-east-asian-width") as {
-      eastAsianWidthType: (codePoint: number) => string;
-    };
+  it("should hold every East Asian Ambiguous code point of the renderer's Unicode, marks aside, and nothing else", async () => {
+    const { eastAsianWidthType } = await loadRendererEastAsianWidth();
 
     const missingFromTable: string[] = [];
     const extraInTable: string[] = [];

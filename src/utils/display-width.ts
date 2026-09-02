@@ -132,8 +132,13 @@ export const AMBIGUOUS_CHARACTERS_PATTERN =
  */
 const EMOJI_PRESENTATION_SELECTOR = "\ufe0f";
 
-/** Combining marks are drawn on top of the character before them, not beside it. */
-const COMBINING_MARK_PATTERN = /[\p{Mn}\p{Me}]/u;
+/**
+ * Combining marks are drawn on top of the character before them, not beside it.
+ *
+ * Exported for the drift test on the ambiguous table, which has to leave out
+ * exactly the characters this rule catches first.
+ */
+export const COMBINING_MARK_PATTERN = /[\p{Mn}\p{Me}]/u;
 
 /** The characters that take no width at all, marks aside. */
 const ZERO_WIDTH_CHARACTERS_PATTERN = /[\p{Cf}\p{Default_Ignorable_Code_Point}]/u;
