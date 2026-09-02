@@ -4,6 +4,7 @@ import { load } from "js-yaml";
 import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
+import { CLAUDECODE_SETTINGS_SCHEMA_URL } from "../constants/claudecode-paths.js";
 import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH,
@@ -195,6 +196,9 @@ describe("E2E: permissions", () => {
     expect(content.permissions.allow).toContain("Bash(git status *)");
     expect(content.permissions.deny).toContain("Bash(rm *)");
     expect(content.permissions.deny).toContain("Read(.env)");
+    // The gateway points every settings file it writes at the published schema.
+    expect(Object.keys(content)[0]).toBe("$schema");
+    expect(content.$schema).toBe(CLAUDECODE_SETTINGS_SCHEMA_URL);
   });
 
   it.each([{ target: "kiro-cli" }, { target: "kiro-ide" }])(
@@ -2138,6 +2142,8 @@ describe("E2E: permissions (global mode)", () => {
     });
 
     const generated = JSON.parse(await readFileContent(join(homeDir, ".claude", "settings.json")));
+    expect(Object.keys(generated)[0]).toBe("$schema");
+    expect(generated.$schema).toBe(CLAUDECODE_SETTINGS_SCHEMA_URL);
     expect(generated.permissions.allow).toContain("Bash(git status *)");
     expect(generated.permissions.deny).toContain("Read(.env)");
     expect(generated.hooks).toEqual({

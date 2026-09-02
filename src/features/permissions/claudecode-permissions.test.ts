@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CLAUDECODE_SETTINGS_SCHEMA_URL } from "../../constants/claudecode-paths.js";
 import {
   RULESYNC_PERMISSIONS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
@@ -11,6 +12,14 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+
+/** The one-rule source the `$schema` cases generate from. */
+const schemaCaseRulesyncPermissions = (): RulesyncPermissions =>
+  new RulesyncPermissions({
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+    fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+  });
 
 describe("ClaudecodePermissions", () => {
   let testDir: string;
@@ -986,7 +995,9 @@ describe("ClaudecodePermissions", () => {
 
       const content = JSON.parse(instance.getFileContent());
       expect(content.hooks).toBeUndefined();
-      expect(content.$schema).toBeUndefined();
+      // The override's `$schema` never reaches the file; the one written is the
+      // gateway's own pointer at the published schema.
+      expect(content.$schema).toBe(CLAUDECODE_SETTINGS_SCHEMA_URL);
     });
 
     it("drops a user/managed-only key at project scope and warns", async () => {
@@ -2071,6 +2082,66 @@ describe("ClaudecodePermissions", () => {
       expect(content.toString).toBe("vim");
       expect(content.valueOf).toBe(1);
       expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("trust-affecting"));
+    });
+  });
+
+  describe("$schema", () => {
+    it("adds $schema as the first key when the settings file lacks it", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({ model: "opus", permissions: { deny: ["Read(.env)"] } }, null, 2),
+      );
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: schemaCaseRulesyncPermissions(),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(Object.keys(content)).toEqual(["$schema", "model", "permissions"]);
+      expect(content.$schema).toBe(CLAUDECODE_SETTINGS_SCHEMA_URL);
+    });
+
+    it("adds $schema when the settings file does not exist yet", async () => {
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: schemaCaseRulesyncPermissions(),
+      });
+
+      expect(instance.getFileContent().startsWith(`{\n  "$schema": "`)).toBe(true);
+      expect(JSON.parse(instance.getFileContent())).toEqual({
+        $schema: CLAUDECODE_SETTINGS_SCHEMA_URL,
+        permissions: { allow: ["Bash(git *)"] },
+      });
+    });
+
+    it("adds $schema in global scope too", async () => {
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: schemaCaseRulesyncPermissions(),
+        global: true,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).$schema).toBe(CLAUDECODE_SETTINGS_SCHEMA_URL);
+    });
+
+    it("keeps a $schema the file already states, whatever its value", async () => {
+      const pinned = "https://mirror.example.test/claude-code-settings.json";
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({ permissions: {}, $schema: pinned }, null, 2),
+      );
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: schemaCaseRulesyncPermissions(),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.$schema).toBe(pinned);
+      expect(Object.keys(content)).toEqual(["permissions", "$schema"]);
     });
   });
 

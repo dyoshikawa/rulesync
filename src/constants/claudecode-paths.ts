@@ -32,6 +32,14 @@ export const CLAUDECODE_SCHEDULED_TASKS_DIR_PATH = join(CLAUDECODE_DIR, "schedul
 // ignore (permissions deny list) features.
 export const CLAUDECODE_SETTINGS_FILE_NAME = "settings.json";
 export const CLAUDECODE_SETTINGS_LOCAL_FILE_NAME = "settings.local.json";
+/**
+ * The published JSON Schema for both settings files (SchemaStore). Written as
+ * the `$schema` key of every settings file rulesync generates, when the file
+ * does not already state one, so editors offer completion, hover
+ * documentation and validation for the keys around the ones rulesync writes.
+ */
+export const CLAUDECODE_SETTINGS_SCHEMA_URL =
+  "https://json.schemastore.org/claude-code-settings.json";
 
 // MCP configuration files. Both live at the scope root, not under `.claude/`:
 // `.mcp.json` at the project root, `.claude.json` at the home directory.

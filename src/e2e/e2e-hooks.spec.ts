@@ -3,6 +3,7 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
+import { CLAUDECODE_SETTINGS_SCHEMA_URL } from "../constants/claudecode-paths.js";
 import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
@@ -255,6 +256,8 @@ describe("E2E: hooks", () => {
     const generatedContent = await readFileContent(join(testDir, ".claude", "settings.json"));
     expect(generatedContent).toContain("echo from-jsonc");
     expect(generatedContent).not.toContain("echo stale");
+    expect(Object.keys(JSON.parse(generatedContent))[0]).toBe("$schema");
+    expect(JSON.parse(generatedContent).$schema).toBe(CLAUDECODE_SETTINGS_SCHEMA_URL);
   });
 
   it("should round-trip the legacy Kiro agent-config hook cache TTL", async () => {
