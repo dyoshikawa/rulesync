@@ -663,9 +663,9 @@ describe("KiroRule", () => {
     });
 
     it("should exclude the workspace-root AGENTS.md from the nested scan", () => {
-      const patterns = KiroRule.getNestedFilePatterns({ outputRoot: testDir });
-      expect(patterns.include).toEqual([`${testDir}/**/AGENTS.md`]);
-      expect(patterns.ignore).toContain(`${testDir}/AGENTS.md`);
+      const patterns = KiroRule.getNestedFilePatterns();
+      expect(patterns.include).toEqual(["**/AGENTS.md"]);
+      expect(patterns.ignore).toContain("AGENTS.md");
     });
   });
 

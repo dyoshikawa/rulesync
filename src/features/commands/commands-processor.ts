@@ -799,7 +799,7 @@ export class CommandsProcessor extends FeatureProcessor {
     // symlink no longer resolves must not glob to nothing and read as "every
     // command was deleted".
     const rulesyncCommandPaths = (await directoryExistsStrict(basePath))
-      ? await findFilesByGlobs(join(basePath, "**", "*.md"))
+      ? await findFilesByGlobs("**/*.md", { cwd: basePath })
       : [];
 
     return await Promise.all(

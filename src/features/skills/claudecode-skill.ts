@@ -465,19 +465,21 @@ export class ClaudecodeSkill extends ToolSkill {
     if (global) {
       return [];
     }
-    const root = toPosixPath(outputRoot);
-    const dirPaths = await findFilesByGlobs(
-      [`${root}/*/**/${toPosixPath(CLAUDECODE_SKILLS_DIR_PATH)}`],
-      {
-        type: "dir",
-        followSymbolicLinks: false,
-        ignore: [
-          `${root}/**/.*/**/${toPosixPath(CLAUDECODE_SKILLS_DIR_PATH)}`,
-          ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
-          ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
-        ],
-      },
-    );
+    // Patterns are relative and the root travels as `cwd`: spelled into the
+    // pattern instead, a project directory named `project(a)` or `project{a,b}`
+    // would be read as a glob and match nothing, and `project*x` would reach
+    // into sibling projects.
+    const skillsDirPath = toPosixPath(CLAUDECODE_SKILLS_DIR_PATH);
+    const dirPaths = await findFilesByGlobs([`*/**/${skillsDirPath}`], {
+      cwd: outputRoot,
+      type: "dir",
+      followSymbolicLinks: false,
+      ignore: [
+        `**/.*/**/${skillsDirPath}`,
+        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
+        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
+      ],
+    });
     // Honor the project's .gitignore like the nested AGENTS.md scan does: a
     // gitignored scratch checkout's skills are somebody else's project and
     // must not be pulled into the shared `.rulesync/skills/` namespace.

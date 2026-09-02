@@ -1,4 +1,4 @@
-import { basename, dirname, join, relative, sep } from "node:path";
+import { basename, dirname, join, posix, relative, sep } from "node:path";
 
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
@@ -266,7 +266,8 @@ type ToolRuleFactory = {
         rootRule: ToolRule;
         content: string;
       }): ToolRule[];
-      getMirrorDeletionGlobs(params: { outputRoot: string }): {
+      /** Both globs relative to the project root, which the processor passes as `cwd`. */
+      getMirrorDeletionGlobs(): {
         primaryGlob: string;
         mirrorGlob: string;
       };
@@ -274,9 +275,10 @@ type ToolRuleFactory = {
     /**
      * Override where the `separate-local-file` glob points when the tool writes
      * its local file outside its root dir. Used for both import and deletion.
+     * Relative to the project root, which the processor passes as `cwd`.
      * See {@link RovodevRule.getLocalRootFileGlob}.
      */
-    getLocalRootFileGlob?(params: { outputRoot: string; fileName: string }): string;
+    getLocalRootFileGlob?(params: { fileName: string }): string;
     /**
      * Extra fixed-path files this tool manages beyond the root and non-root
      * rules (e.g. Pi's `APPEND_SYSTEM.md` system-prompt file). The RulesProcessor
@@ -292,7 +294,7 @@ type ToolRuleFactory = {
      * so enumerating them for `--delete` would sweep away work rulesync never
      * wrote. See {@link AgentsMdRule.getNestedFilePatterns}.
      */
-    getNestedFilePatterns?(params: { outputRoot: string }): ToolRuleNestedFilePatterns;
+    getNestedFilePatterns?(): ToolRuleNestedFilePatterns;
   };
   meta: {
     /** File extension for the rule file */
@@ -989,15 +991,29 @@ const findFilesWithFallback = async (
   primaryFilePaths: string[],
   alternativeRoots: Array<{ relativeDirPath: string; relativeFilePath: string }> | undefined,
   buildAltGlob: (alt: { relativeDirPath: string; relativeFilePath: string }) => string,
+  outputRoot: string,
 ): Promise<string[]> => {
   if (primaryFilePaths.length > 0) {
     return primaryFilePaths;
   }
   if (alternativeRoots) {
-    return await findFilesByGlobs(alternativeRoots.map(buildAltGlob));
+    return await findFilesByGlobs(alternativeRoots.map(buildAltGlob), { cwd: outputRoot });
   }
   return [];
 };
+
+/**
+ * A project-root-relative glob for a file a tool keeps at a fixed path, joined
+ * with `/` because a glob is always posix-separated.
+ *
+ * Relative because the root goes to `findFilesByGlobs` as `cwd` rather than into
+ * the pattern: a project directory named `project(a)` or `project{a,b}` would
+ * otherwise be read as a glob and match nothing at all — and on a `--delete`
+ * sweep an empty result reads as "every source was removed", so rulesync would
+ * delete generated files it can no longer regenerate and report success.
+ */
+const rootRelativeGlob = (...segments: Array<string | undefined>): string =>
+  posix.join(...segments.filter((segment) => segment !== undefined).map(toPosixPath));
 
 export class RulesProcessor extends FeatureProcessor {
   private readonly toolTarget: RulesProcessorToolTarget;
@@ -1690,8 +1706,8 @@ As this project's AI coding tool, you must follow the additional conventions bel
     ]);
 
     const [discoveredFiles, discoveredCuratedFiles] = await Promise.all([
-      rulesDirExists ? findFilesByGlobs(join(rulesyncOutputRoot, "**", "*.md")) : [],
-      curatedDirExists ? findFilesByGlobs(join(curatedOutputRoot, "**", "*.md")) : [],
+      rulesDirExists ? findFilesByGlobs("**/*.md", { cwd: rulesyncOutputRoot }) : [],
+      curatedDirExists ? findFilesByGlobs("**/*.md", { cwd: curatedOutputRoot }) : [],
     ]);
 
     const files = [...new Set([...discoveredFiles, ...discoveredCuratedFiles])];
@@ -2015,11 +2031,11 @@ As this project's AI coding tool, you must follow the additional conventions bel
        */
       const primaryRootFilePaths = settablePaths.root
         ? await findFilesByGlobs(
-            join(
-              this.outputRoot,
+            rootRelativeGlob(
               settablePaths.root.relativeDirPath ?? ".",
               settablePaths.root.relativeFilePath,
             ),
+            { cwd: this.outputRoot },
           )
         : [];
 
@@ -2031,7 +2047,8 @@ As this project's AI coding tool, you must follow the additional conventions bel
         const uniqueRootFilePaths = await findFilesWithFallback(
           primaryRootFilePaths,
           settablePaths.alternativeRoots,
-          (alt) => join(this.outputRoot, alt.relativeDirPath, alt.relativeFilePath),
+          (alt) => rootRelativeGlob(alt.relativeDirPath, alt.relativeFilePath),
+          this.outputRoot,
         );
 
         if (forDeletion) {
@@ -2057,19 +2074,21 @@ As this project's AI coding tool, you must follow the additional conventions bel
 
         const filePaths = await (async () => {
           if (factory.class.getLocalRootFileGlob) {
-            return await findFilesByGlobs(
-              factory.class.getLocalRootFileGlob({ outputRoot: this.outputRoot, fileName }),
-            );
+            return await findFilesByGlobs(factory.class.getLocalRootFileGlob({ fileName }), {
+              cwd: this.outputRoot,
+            });
           }
           if (!settablePaths.root) {
             return [];
           }
           return await findFilesWithFallback(
             await findFilesByGlobs(
-              join(this.outputRoot, settablePaths.root.relativeDirPath ?? ".", fileName),
+              rootRelativeGlob(settablePaths.root.relativeDirPath ?? ".", fileName),
+              { cwd: this.outputRoot },
             ),
             settablePaths.alternativeRoots,
-            (alt) => join(this.outputRoot, alt.relativeDirPath, fileName),
+            (alt) => rootRelativeGlob(alt.relativeDirPath, fileName),
+            this.outputRoot,
           );
         })();
 
@@ -2103,14 +2122,12 @@ As this project's AI coding tool, you must follow the additional conventions bel
         if (!forDeletion || this.global || !rootMirror) {
           return [];
         }
-        const { primaryGlob, mirrorGlob } = rootMirror.getMirrorDeletionGlobs({
-          outputRoot: this.outputRoot,
-        });
-        const primaryPaths = await findFilesByGlobs(primaryGlob);
+        const { primaryGlob, mirrorGlob } = rootMirror.getMirrorDeletionGlobs();
+        const primaryPaths = await findFilesByGlobs(primaryGlob, { cwd: this.outputRoot });
         if (primaryPaths.length === 0) {
           return [];
         }
-        const mirrorPaths = await findFilesByGlobs(mirrorGlob);
+        const mirrorPaths = await findFilesByGlobs(mirrorGlob, { cwd: this.outputRoot });
         return buildDeletionRulesFromPaths(mirrorPaths);
       })();
 
@@ -2123,9 +2140,8 @@ As this project's AI coding tool, you must follow the additional conventions bel
         }
 
         const filePaths = await findFilesByGlobs(
-          extraFiles.map((file) =>
-            join(this.outputRoot, file.relativeDirPath, file.relativeFilePath),
-          ),
+          extraFiles.map((file) => rootRelativeGlob(file.relativeDirPath, file.relativeFilePath)),
+          { cwd: this.outputRoot },
         );
         if (filePaths.length === 0) {
           return [];
@@ -2158,9 +2174,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
       const nestedToolRules = await (async () => {
         // Never in global mode: the output root is the home directory there, and
         // walking all of it looking for subprojects is both wrong and expensive.
-        const patterns = this.global
-          ? undefined
-          : factory.class.getNestedFilePatterns?.({ outputRoot: this.outputRoot });
+        const patterns = this.global ? undefined : factory.class.getNestedFilePatterns?.();
         if (forDeletion || !patterns || patterns.include.length === 0) {
           return [];
         }
@@ -2171,6 +2185,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
         // version-controlled `.rulesync/rules/`. Not following them also keeps a
         // pair of directory symlinks from exploding the traversal.
         const matchedPaths = await findFilesByGlobs(patterns.include, {
+          cwd: this.outputRoot,
           type: "file",
           followSymbolicLinks: false,
           ignore: patterns.ignore,
@@ -2235,12 +2250,11 @@ As this project's AI coding tool, you must follow the additional conventions bel
         const skippedPaths: string[] = [];
         for (const importOnlyRoot of importOnlyRoots) {
           const matchedPaths = await findFilesByGlobs(
-            join(
-              this.outputRoot,
+            rootRelativeGlob(
               importOnlyRoot.relativeDirPath,
               importOnlyRoot.relativeFilePath ?? `*.${factory.meta.extension}`,
             ),
-            { type: "file" },
+            { cwd: this.outputRoot, type: "file" },
           );
           if (importOnlyRoot.onlyWhenRootAbsent === true && rootFilePath !== undefined) {
             skippedPaths.push(...matchedPaths);
@@ -2275,9 +2289,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
         }
 
         const nonRootOutputRoot = join(this.outputRoot, settablePaths.nonRoot.relativeDirPath);
-        const nonRootFilePaths = await findFilesByGlobs(
-          join(nonRootOutputRoot, "**", `*.${factory.meta.extension}`),
-        );
+        const nonRootFilePaths = await findFilesByGlobs(`**/*.${factory.meta.extension}`, {
+          cwd: nonRootOutputRoot,
+        });
 
         if (forDeletion) {
           return buildDeletionRulesFromPaths(nonRootFilePaths, {

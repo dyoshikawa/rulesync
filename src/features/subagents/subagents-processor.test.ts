@@ -738,6 +738,35 @@ Body from inputRoots[0]`;
       expect(toolFiles[0]?.getRelativeFilePath()).toBe("literal.md");
     });
 
+    // `*` is not a legal filename character on Windows.
+    it.skipIf(process.platform === "win32")(
+      "should not reach a sibling project when the output root ends in a wildcard",
+      async () => {
+        // Matching too much is the dangerous direction here: every path this
+        // returns goes on the `--delete` orphan list, so a root read as a
+        // pattern would put another project's files there.
+        const literalRoot = join(testDir, "project*x");
+        await writeFileContent(
+          join(literalRoot, ".claude", "agents", "mine.md"),
+          "---\nname: mine\ndescription: Mine\n---\n\nContent",
+        );
+        await writeFileContent(
+          join(testDir, "projectOTHERx", ".claude", "agents", "theirs.md"),
+          "---\nname: theirs\ndescription: Theirs\n---\n\nContent",
+        );
+
+        const processor = new SubagentsProcessor({
+          logger: createMockLogger(),
+          outputRoot: literalRoot,
+          toolTarget: "claudecode",
+        });
+
+        const toolFiles = await processor.loadToolFiles({ forDeletion: true });
+
+        expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual(["mine.md"]);
+      },
+    );
+
     it("should delegate to loadClaudecodeSubagents for claudecode target", async () => {
       const processor = new SubagentsProcessor({
         logger: createMockLogger(),

@@ -523,20 +523,22 @@ describe("RovodevRule", () => {
     });
 
     it("getMirrorDeletionGlobs points primary at .rovodev/AGENTS.md and mirror at ./AGENTS.md", () => {
-      const globs = RovodevRule.getRootMirror().getMirrorDeletionGlobs({ outputRoot: testDir });
+      const globs = RovodevRule.getRootMirror().getMirrorDeletionGlobs();
 
+      // Root-relative: the processor passes the project root as `cwd`, so a root
+      // directory named `project(a)` is scanned as the directory it is.
       expect(globs).toEqual({
-        primaryGlob: join(testDir, ".rovodev", "AGENTS.md"),
-        mirrorGlob: join(testDir, "AGENTS.md"),
+        primaryGlob: ".rovodev/AGENTS.md",
+        mirrorGlob: "AGENTS.md",
       });
     });
   });
 
   describe("getLocalRootFileGlob", () => {
     it("points the separate-local-file glob at the project root, not under .rovodev/", () => {
-      expect(
-        RovodevRule.getLocalRootFileGlob({ outputRoot: testDir, fileName: "AGENTS.local.md" }),
-      ).toBe(join(testDir, "AGENTS.local.md"));
+      expect(RovodevRule.getLocalRootFileGlob({ fileName: "AGENTS.local.md" })).toBe(
+        "AGENTS.local.md",
+      );
     });
   });
 });

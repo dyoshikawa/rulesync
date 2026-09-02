@@ -323,8 +323,9 @@ describe("AgentsMdRule", () => {
         await writeFileContent(join(testDir, relativePath), "# rule");
       }
 
-      const patterns = AgentsMdRule.getNestedFilePatterns({ outputRoot: testDir });
+      const patterns = AgentsMdRule.getNestedFilePatterns();
       const matched = await findFilesByGlobs(patterns.include, {
+        cwd: testDir,
         type: "file",
         followSymbolicLinks: false,
         ignore: patterns.ignore,
@@ -345,8 +346,9 @@ describe("AgentsMdRule", () => {
       await symlink(join(outsideDir, "secret.md"), join(testDir, "docs", "AGENTS.md"));
       await symlink(outsideDir, join(testDir, "linked"));
 
-      const patterns = AgentsMdRule.getNestedFilePatterns({ outputRoot: testDir });
+      const patterns = AgentsMdRule.getNestedFilePatterns();
       const matched = await findFilesByGlobs(patterns.include, {
+        cwd: testDir,
         type: "file",
         followSymbolicLinks: false,
         ignore: patterns.ignore,
@@ -410,8 +412,9 @@ describe("AgentsMdRule", () => {
         await writeFileContent(join(testDir, relativePath), "# rule");
       }
 
-      const patterns = AgentsMdRule.getNestedFilePatterns({ outputRoot: testDir });
+      const patterns = AgentsMdRule.getNestedFilePatterns();
       const matched = await findFilesByGlobs(patterns.include, {
+        cwd: testDir,
         type: "file",
         followSymbolicLinks: false,
         ignore: patterns.ignore,

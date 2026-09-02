@@ -61,8 +61,8 @@ export class VibeRule extends ToolRule {
    * literally the same files.
    * @see https://github.com/mistralai/mistral-vibe/blob/main/vibe/core/config/harness_files/_harness_manager.py
    */
-  static getNestedFilePatterns({ outputRoot }: { outputRoot: string }): ToolRuleNestedFilePatterns {
-    return this.buildNestedFilePatterns({ outputRoot, fileName: AGENTSMD_RULE_FILE_NAME });
+  static getNestedFilePatterns(): ToolRuleNestedFilePatterns {
+    return this.buildNestedFilePatterns({ fileName: AGENTSMD_RULE_FILE_NAME });
   }
 
   /**

@@ -367,16 +367,15 @@ export class KiroRule extends ToolRule {
    * never wrote.
    * @see https://kiro.dev/docs/steering/
    */
-  static getNestedFilePatterns({ outputRoot }: { outputRoot: string }): ToolRuleNestedFilePatterns {
-    const root = toPosixPath(outputRoot);
+  static getNestedFilePatterns(): ToolRuleNestedFilePatterns {
     return {
-      include: [`${root}/**/${KIRO_NESTED_STEERING_FILE_NAME}`],
+      include: [`**/${KIRO_NESTED_STEERING_FILE_NAME}`],
       ignore: [
         // The workspace-root file is another target's root rule, not a nested one.
-        `${root}/${KIRO_NESTED_STEERING_FILE_NAME}`,
-        `${root}/**/.*/**`,
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `${root}/**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${root}/${dir}/**`),
+        KIRO_NESTED_STEERING_FILE_NAME,
+        "**/.*/**",
+        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
+        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
       ],
     };
   }

@@ -35,7 +35,9 @@ export async function rulesyncCommandSlugExists({
   dirName: string;
 }): Promise<boolean> {
   const perRootPaths = await Promise.all(
-    inputRoots.map((root) => findFilesByGlobs(join(root, COMMANDS_FEATURE_SUBDIR, "**", "*.md"))),
+    inputRoots.map((root) =>
+      findFilesByGlobs("**/*.md", { cwd: join(root, COMMANDS_FEATURE_SUBDIR) }),
+    ),
   );
 
   return perRootPaths.flat().some((filePath) => commandSlug(basename(filePath)) === dirName);

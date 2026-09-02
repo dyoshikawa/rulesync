@@ -834,9 +834,9 @@ describe("CommandsProcessor", () => {
 
       const result = await processor.loadRulesyncFiles();
 
-      expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
-        join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "**", "*.md"),
-      );
+      expect(mockFindFilesByGlobs).toHaveBeenCalledWith("**/*.md", {
+        cwd: join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH),
+      });
       expect(RulesyncCommand.fromFile).toHaveBeenCalledTimes(2);
       expect(RulesyncCommand.fromFile).toHaveBeenCalledWith({
         outputRoot: testDir,
@@ -1362,6 +1362,43 @@ describe("CommandsProcessor", () => {
         mockFindFilesByGlobs.mockReset();
       }
     });
+
+    // `*` is not a legal filename character on Windows.
+    it.skipIf(process.platform === "win32")(
+      "should not reach a sibling project when the output root ends in a wildcard",
+      async () => {
+        // Matching too much is the dangerous direction here: every path this
+        // returns goes on the `--delete` orphan list, so a root read as a
+        // pattern would put another project's files there.
+        const literalRoot = join(testDir, "project*x");
+        await writeFileContent(
+          join(literalRoot, ".claude", "commands", "mine.md"),
+          "---\ndescription: Mine\n---\n\nContent",
+        );
+        await writeFileContent(
+          join(testDir, "projectOTHERx", ".claude", "commands", "theirs.md"),
+          "---\ndescription: Theirs\n---\n\nContent",
+        );
+
+        const literalProcessor = new CommandsProcessor({
+          logger,
+          outputRoot: literalRoot,
+          toolTarget: "claudecode",
+        });
+
+        const actualFile =
+          await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+        mockFindFilesByGlobs.mockImplementation(actualFile.findFilesByGlobs);
+
+        try {
+          const toolFiles = await literalProcessor.loadToolFiles({ forDeletion: true });
+
+          expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual(["mine.md"]);
+        } finally {
+          mockFindFilesByGlobs.mockReset();
+        }
+      },
+    );
 
     it("should return files with correct paths for deletion", async () => {
       processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });

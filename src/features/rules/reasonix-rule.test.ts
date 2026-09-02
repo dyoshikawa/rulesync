@@ -171,11 +171,11 @@ describe("ReasonixRule", () => {
     });
 
     it("should exclude the root file and dependency dirs from the nested scan patterns", () => {
-      const patterns = ReasonixRule.getNestedFilePatterns({ outputRoot: "/proj" });
-      expect(patterns.include).toEqual(["/proj/**/REASONIX.md"]);
-      expect(patterns.ignore).toContain("/proj/REASONIX.md");
-      expect(patterns.ignore).toContain("/proj/**/node_modules/**");
-      expect(patterns.ignore).toContain("/proj/vendor/**");
+      const patterns = ReasonixRule.getNestedFilePatterns();
+      expect(patterns.include).toEqual(["**/REASONIX.md"]);
+      expect(patterns.ignore).toContain("REASONIX.md");
+      expect(patterns.ignore).toContain("**/node_modules/**");
+      expect(patterns.ignore).toContain("vendor/**");
     });
   });
 
