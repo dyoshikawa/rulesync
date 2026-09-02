@@ -1218,6 +1218,19 @@ describe("applySharedConfigPatch", () => {
     ).toThrow(/undeclared keys \[model\]/);
   });
 
+  it("rejects an ensured key in a feature patch: ensuring is not ownership", () => {
+    // `$schema` is added by the serializer from the declaration, never granted
+    // to a feature, so a hooks patch that carries it is still a stray write.
+    expect(() =>
+      applySharedConfigPatch({
+        fileKey: CLAUDE_SETTINGS_SHARED_FILE_KEY,
+        feature: "hooks",
+        existingContent: "",
+        patch: { hooks: {}, $schema: "https://example.com/other.json" },
+      }),
+    ).toThrow(/undeclared keys \[\$schema\]/);
+  });
+
   it("executes deep-merge with replaceKeys snapshots", () => {
     const result = applySharedConfigPatch({
       fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
