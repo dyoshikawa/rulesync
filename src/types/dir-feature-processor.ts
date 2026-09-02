@@ -406,18 +406,13 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // `getDirPath()` is a method a subclass supplies, and a second call could
       // answer differently from the one the checks below ruled on.
       const dirPath = aiDir.getDirPath();
-      if (!aiDir.ownsDirTree()) {
-        // A tool that flattens into a shared root reports that root here. Its
-        // files are swept by `removeOrphanFlatFiles`, which knows to sweep only
-        // the ones it can name; everything else in a shared root belongs to
-        // somebody else.
-        continue;
-      }
-
       const { verdict, root } = locateInOwnRoot({ aiDir, dirPath, outputRoot: this.outputRoot });
       const quotedDirPath = JSON.stringify(stripControlCharacters(dirPath));
       const quotedRoot = JSON.stringify(stripControlCharacters(root));
 
+      // Asked before anything else, in the order the directory sweep asks it: a
+      // root that is not in the directory this run writes to makes every
+      // position inside it meaningless.
       if (verdict === "root-outside") {
         this.logger.warn(
           `Refusing to sweep ${quotedDirPath}: the root ${quotedRoot} it was found in is not ` +
@@ -425,6 +420,30 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         );
         continue;
       }
+
+      if (!aiDir.ownsDirTree()) {
+        // False for two different shapes, as it is one sweep up. A tool that
+        // flattens into a shared root reports that root here: expected, and
+        // quiet, since its files are swept by `removeOrphanFlatFiles` — which
+        // sweeps only the ones it can name — and everything else in a shared
+        // root belongs to somebody else. Anything else is a `getDirPath()`
+        // override out of agreement with `ownsDirTree()`, and passing that over
+        // in silence is how a contract mismatch goes unnoticed.
+        if (verdict === "equal") {
+          this.logger.debug(
+            `Skipping orphan sweep for ` +
+              `${JSON.stringify(stripControlCharacters(aiDir.getDirName()))}: ` +
+              `${quotedDirPath} is a shared root, not a directory of its own`,
+          );
+        } else {
+          this.logger.warn(
+            `Refusing to sweep ${quotedDirPath}: it does not own that directory, and it is not ` +
+              `the shared root ${quotedRoot} it was found in either`,
+          );
+        }
+        continue;
+      }
+
       if (verdict !== "inside") {
         this.logger.warn(
           `Refusing to sweep ${quotedDirPath}: it is not a directory inside ${quotedRoot}, the ` +
@@ -454,10 +473,23 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       });
       for (const existingName of existingNames) {
         const posixName = toPosixPath(existingName);
-        if (generatedNames.has(posixName) || generatedNamesFolded.has(posixName.toLowerCase())) {
+        if (generatedNames.has(posixName)) {
           continue;
         }
         const filePath = join(dirPath, existingName);
+        if (generatedNamesFolded.has(posixName.toLowerCase())) {
+          // Reported rather than skipped in silence, as the flat-file sweep
+          // reports it: on a case-sensitive filesystem the two names really are
+          // two files, and the one this run did not write is stale — exactly
+          // what this sweep exists to remove. Refusing it is the safe half of
+          // the guess; saying so is what lets the other half be corrected.
+          this.logger.warn(
+            `Refusing to delete ${JSON.stringify(stripControlCharacters(filePath))}: this run ` +
+              `wrote a file whose path differs from it only in case, which on a case-insensitive ` +
+              `filesystem is the very file it wrote`,
+          );
+          continue;
+        }
         if (isClaimed(filePath)) {
           continue;
         }
