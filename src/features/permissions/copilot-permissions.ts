@@ -153,6 +153,7 @@ export class CopilotPermissions extends ToolPermissions {
   static async fromRulesyncPermissions({
     outputRoot = process.cwd(),
     rulesyncPermissions,
+    logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<CopilotPermissions> {
     const paths = CopilotPermissions.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -186,6 +187,7 @@ export class CopilotPermissions extends ToolPermissions {
         existingContent,
         patch,
         filePath,
+        logger,
       }),
       validate: true,
     });

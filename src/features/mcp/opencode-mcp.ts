@@ -574,6 +574,7 @@ export class OpencodeMcp extends ToolMcp {
           tools: Object.keys(mcpTools).length > 0 ? mcpTools : undefined,
         },
         filePath: join(jsonDir, relativeFilePath),
+        logger,
       }),
       validate,
     });

@@ -248,6 +248,7 @@ export class AmpPermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     rulesyncPermissions,
     global = false,
+    logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<AmpPermissions> {
     const basePaths = AmpPermissions.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
@@ -313,6 +314,7 @@ export class AmpPermissions extends ToolPermissions {
         existingContent: fileContent ?? "",
         patch,
         filePath: join(jsonDir, relativeFilePath),
+        logger,
       }),
       validate: true,
     });

@@ -290,6 +290,7 @@ export class OpencodePermissions extends ToolPermissions {
         existingContent: fileContent ?? "",
         patch: { permission },
         filePath: join(jsonDir, relativeFilePath),
+        logger,
       }),
       validate: true,
     });

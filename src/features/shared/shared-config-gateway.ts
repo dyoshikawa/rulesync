@@ -25,8 +25,9 @@ import {
 } from "../../constants/takt-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
@@ -266,7 +267,8 @@ function detectJsoncFormattingOptions({
 }
 
 /**
- * Whether the document states a key no edit-based write can be trusted with.
+ * The first key in the document that no edit-based write can be trusted with,
+ * or `undefined` when there is none.
  *
  * Two kinds, both answered from the syntax tree because the parsed value no
  * longer knows about either:
@@ -284,22 +286,32 @@ function detectJsoncFormattingOptions({
  * The whole-document writer resolves duplicates last-wins and drops pollution
  * keys, which is what it has always done, so those files go to it.
  */
-function statesUneditableKeys(node: JsoncNode): boolean {
+type UneditableKey = { kind: "duplicate" | "prototype-pollution"; key: string };
+
+function uneditableKeyOf(node: JsoncNode): UneditableKey | undefined {
   if (node.type === "array") {
-    return (node.children ?? []).some((child) => statesUneditableKeys(child));
+    for (const child of node.children ?? []) {
+      const found = uneditableKeyOf(child);
+      if (found !== undefined) return found;
+    }
+    return undefined;
   }
-  if (node.type !== "object") return false;
+  if (node.type !== "object") return undefined;
   const seen = new Set<string>();
   for (const property of node.children ?? []) {
     const key = property.children?.[0]?.value;
     if (typeof key === "string") {
-      if (seen.has(key) || isPrototypePollutionKey(key)) return true;
+      if (isPrototypePollutionKey(key)) return { kind: "prototype-pollution", key };
+      if (seen.has(key)) return { kind: "duplicate", key };
       seen.add(key);
     }
     const value = property.children?.[1];
-    if (value !== undefined && statesUneditableKeys(value)) return true;
+    if (value !== undefined) {
+      const found = uneditableKeyOf(value);
+      if (found !== undefined) return found;
+    }
   }
-  return false;
+  return undefined;
 }
 
 /**
@@ -801,7 +813,7 @@ function applyJsoncObjectEdits({
  *   here have already decided (via `invalidRootPolicy`) that such a file is
  *   replaced;
  * - a file stating the same key twice, or using `__proto__`, `constructor` or
- *   `prototype` as a key (see {@link statesUneditableKeys});
+ *   `prototype` as a key (see {@link uneditableKeyOf});
  * - a file so large, with so much of it changing, that editing it key by key
  *   would take longer than a user would wait (see
  *   {@link JSONC_EDIT_BUDGET_BYTES}), or changed keys that write more new text
@@ -809,6 +821,12 @@ function applyJsoncObjectEdits({
  *   {@link JSONC_EDIT_WRITTEN_BYTES});
  * - a file the editor itself refuses, which it answers with an exception
  *   rather than a result.
+ *
+ * Every one of those fallbacks except the empty file is reported once per run
+ * through `logger` (or the fallback logger when none is given): the author's
+ * comments are what the edit path exists to keep, and a `generate` that drops
+ * them should say so rather than let the loss show up in the next diff.
+ * `filePath` names the file in that warning.
  *
  * `leadingKeys` names the root keys that go in front of every other property
  * when the edit path inserts them (the whole-document writer keeps the order
@@ -820,16 +838,25 @@ export function serializeSharedConfig({
   document,
   existingContent,
   leadingKeys = [],
+  filePath,
+  logger,
 }: {
   format: SharedConfigFormat;
   document: SharedConfigDocument;
   existingContent: string;
   leadingKeys?: readonly string[];
+  filePath?: string | undefined;
+  logger?: Logger | undefined;
 }): string {
   const whole = stringifySharedConfig({ format, document });
   if (format !== "jsonc" || existingContent.trim() === "") {
     return whole;
   }
+
+  const wholeBecause = (reason: string): string => {
+    warnAboutWholeJsoncRewrite({ filePath, reason, logger });
+    return whole;
+  };
 
   // Everything the edit path can refuse answers with `whole`, exceptions
   // included: jsonc-parser has edges of its own — an indentation width landing
@@ -849,18 +876,25 @@ export function serializeSharedConfig({
     // rulesync means to write.
     const errors: JsoncParseError[] = [];
     const root = parseTree(existingContent, errors, { allowTrailingComma: true });
-    if (
-      root === undefined ||
-      errors.length > 0 ||
-      root.type !== "object" ||
-      statesUneditableKeys(root)
-    ) {
-      return whole;
+    if (root === undefined || errors.length > 0) {
+      return wholeBecause("it could not be parsed");
+    }
+    if (root.type !== "object") {
+      return wholeBecause("its root is not an object");
+    }
+    const uneditable = uneditableKeyOf(root);
+    if (uneditable !== undefined) {
+      const key = JSON.stringify(stripControlCharacters(uneditable.key));
+      return wholeBecause(
+        uneditable.kind === "duplicate"
+          ? `it states the key ${key} twice`
+          : `it uses the key ${key}, which rulesync drops from every file it writes`,
+      );
     }
 
     const base = sanitizeSharedConfigValue(getNodeValue(root));
     if (!isPlainObject(base)) {
-      return whole;
+      return wholeBecause("its root is not an object");
     }
 
     // Measured against whichever of the two documents is larger: an edit costs
@@ -869,8 +903,11 @@ export function serializeSharedConfig({
     // taking a small patch starts in.
     const span = Math.max(existingContent.length, whole.length);
     const cost = countJsoncEdits({ base, next: document, depth: 0 });
-    if (cost.written > JSONC_EDIT_WRITTEN_BYTES || cost.edits * span > JSONC_EDIT_BUDGET_BYTES) {
-      return whole;
+    if (cost.written > JSONC_EDIT_WRITTEN_BYTES) {
+      return wholeBecause("its changed keys write more new text than editing in place can afford");
+    }
+    if (cost.edits * span > JSONC_EDIT_BUDGET_BYTES) {
+      return wholeBecause("it is too large, with too much of it changing, to edit key by key");
     }
 
     return applyJsoncObjectEdits({
@@ -881,9 +918,34 @@ export function serializeSharedConfig({
       options: { formattingOptions: detectJsoncFormattingOptions({ text: existingContent, root }) },
       leadingKeys,
     });
-  } catch {
-    return whole;
+  } catch (error) {
+    return wholeBecause(`the editor refused it (${stripControlCharacters(formatError(error))})`);
   }
+}
+
+/**
+ * Report, once per run and file, that a JSONC file is being written whole
+ * instead of edited in place. Named by `filePath` when the caller knows it;
+ * a caller serializing text it never read from disk has no name to give.
+ */
+function warnAboutWholeJsoncRewrite({
+  filePath,
+  reason,
+  logger,
+}: {
+  filePath: string | undefined;
+  reason: string;
+  logger: Logger | undefined;
+}): void {
+  const subject =
+    filePath === undefined
+      ? "A shared JSONC config file"
+      : JSON.stringify(stripControlCharacters(filePath));
+  warnOnceWithFallback(
+    logger,
+    `${subject} is rewritten whole rather than edited in place because ${reason}; ` +
+      "comments, blank lines and key order in the existing file are not preserved.",
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1585,10 +1647,14 @@ function serializeDeclaredSharedConfig({
   declaration,
   document,
   existingContent,
+  filePath,
+  logger,
 }: {
   declaration: SharedConfigFileDeclaration;
   document: SharedConfigDocument;
   existingContent: string;
+  filePath: string;
+  logger: Logger | undefined;
 }): string {
   const ensuredKeys = declaration.ensuredKeys ?? {};
   return serializeSharedConfig({
@@ -1596,6 +1662,8 @@ function serializeDeclaredSharedConfig({
     document: withEnsuredKeys({ document, ensuredKeys }),
     existingContent,
     leadingKeys: Object.keys(ensuredKeys),
+    filePath,
+    logger,
   });
 }
 
@@ -1606,16 +1674,22 @@ function serializeDeclaredSharedConfig({
  * write path of the gateway — {@link applySharedConfigPatch} ends in it, and a
  * feature whose policy is `custom` serializes its own merge through it — so a
  * key the gateway ensures is emitted whichever feature writes the file.
- * Throws when the file is undeclared.
+ * Throws when the file is undeclared. A JSONC file that had to be written
+ * whole is warned about through `logger`, named by `filePath` when given and
+ * by `fileKey` otherwise (see {@link serializeSharedConfig}).
  */
 export function serializeSharedConfigFile({
   fileKey,
   document,
   existingContent,
+  filePath,
+  logger,
 }: {
   fileKey: string;
   document: SharedConfigDocument;
   existingContent: string;
+  filePath?: string | undefined;
+  logger?: Logger | undefined;
 }): string {
   const declaration = SHARED_CONFIG_OWNERSHIP[fileKey];
   if (!declaration) {
@@ -1624,7 +1698,13 @@ export function serializeSharedConfigFile({
         `declare its writers and policies before writing it through the gateway.`,
     );
   }
-  return serializeDeclaredSharedConfig({ declaration, document, existingContent });
+  return serializeDeclaredSharedConfig({
+    declaration,
+    document,
+    existingContent,
+    filePath: filePath ?? fileKey,
+    logger,
+  });
 }
 
 /**
@@ -1645,12 +1725,14 @@ export function applySharedConfigPatch({
   existingContent,
   patch,
   filePath,
+  logger,
 }: {
   fileKey: string;
   feature: Feature;
   existingContent: string;
   patch: SharedConfigDocument;
   filePath?: string | undefined;
+  logger?: Logger | undefined;
 }): string {
   const declaration = SHARED_CONFIG_OWNERSHIP[fileKey];
   if (!declaration) {
@@ -1702,7 +1784,13 @@ export function applySharedConfigPatch({
         delete document[key];
       }
     }
-    return serializeDeclaredSharedConfig({ declaration, document, existingContent });
+    return serializeDeclaredSharedConfig({
+      declaration,
+      document,
+      existingContent,
+      filePath: filePath ?? fileKey,
+      logger,
+    });
   }
 
   const merged = mergeSharedConfigDeep({ base, patch });
@@ -1711,7 +1799,13 @@ export function applySharedConfigPatch({
       merged[key] = sanitizeSharedConfigValue(patch[key]);
     }
   }
-  return serializeDeclaredSharedConfig({ declaration, document: merged, existingContent });
+  return serializeDeclaredSharedConfig({
+    declaration,
+    document: merged,
+    existingContent,
+    filePath: filePath ?? fileKey,
+    logger,
+  });
 }
 
 // ---------------------------------------------------------------------------
