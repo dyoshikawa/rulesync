@@ -58,7 +58,10 @@ export const SHARED_WRITE_FEATURE_ORDER = [
 export const NON_SHARED_WRITE_FEATURES = ["skills"] as const satisfies readonly Feature[];
 
 // Deprecated aliases; a guard for the day one diverges from its canonical
-// target's paths. A no-op today since they reuse the canonical class and paths.
+// target's paths. A no-op today: each has a class of its own (`*LegacyRule`)
+// whose settable paths coincide with the canonical target's, and the canonical
+// class alone reports any extra shared write path (Claude Code's language
+// settings file), which the legacy target writes to as well.
 const TARGETS_NOT_DERIVED: ReadonlySet<string> = new Set([
   "augmentcode-legacy",
   "claudecode-legacy",

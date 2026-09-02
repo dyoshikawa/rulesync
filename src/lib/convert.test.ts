@@ -49,6 +49,7 @@ describe("convertFromTool", () => {
     getDryRun: ReturnType<typeof vi.fn>;
     isPreviewMode: ReturnType<typeof vi.fn>;
     getFlattenedCommandNaming: ReturnType<typeof vi.fn>;
+    getLanguage: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -62,6 +63,7 @@ describe("convertFromTool", () => {
       getDryRun: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
       getFlattenedCommandNaming: vi.fn().mockReturnValue("basename"),
+      getLanguage: vi.fn().mockReturnValue(undefined),
     };
 
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["cursor", "claudecode", "copilot"]);
@@ -149,6 +151,27 @@ describe("convertFromTool", () => {
       );
       expect(RulesProcessor).toHaveBeenCalledWith(
         expect.objectContaining({ toolTarget: "copilot" }),
+      );
+    });
+
+    it("should pass the configured language to every RulesProcessor so the destination root file carries the block", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getLanguage.mockReturnValue("ja");
+
+      await convertFromTool({
+        logger,
+        config: mockConfig as never,
+        fromTool: "cursor",
+        toTools: ["copilot"],
+      });
+
+      // The source processor strips the block on import; the destination
+      // processor re-adds it only when it is handed the key.
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({ toolTarget: "cursor", language: "ja" }),
+      );
+      expect(RulesProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({ toolTarget: "copilot", language: "ja" }),
       );
     });
 

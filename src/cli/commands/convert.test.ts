@@ -26,6 +26,7 @@ describe("convertCommand", () => {
     getGlobal: ReturnType<typeof vi.fn>;
     getDryRun: ReturnType<typeof vi.fn>;
     isPreviewMode: ReturnType<typeof vi.fn>;
+    getLanguage: ReturnType<typeof vi.fn>;
   };
   let mockLogger: ReturnType<typeof createMockLogger>;
 
@@ -39,6 +40,7 @@ describe("convertCommand", () => {
       getGlobal: vi.fn().mockReturnValue(false),
       getDryRun: vi.fn().mockReturnValue(false),
       isPreviewMode: vi.fn().mockReturnValue(false),
+      getLanguage: vi.fn().mockReturnValue(undefined),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig as never);

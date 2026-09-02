@@ -8,10 +8,12 @@ import {
   CLAUDECODE_RULES_DIR_NAME,
 } from "../../constants/claudecode-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { ClaudecodeLanguageSettings } from "./claudecode-language-settings.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -107,6 +109,18 @@ export class ClaudecodeRule extends ToolRule {
         relativeDirPath: buildToolPath(CLAUDECODE_DIR, CLAUDECODE_RULES_DIR_NAME, excludeToolDir),
       },
     };
+  }
+
+  /**
+   * The settings file the rules feature patches `language` into (see
+   * {@link ClaudecodeLanguageSettings}): not a rule path, so `getSettablePaths`
+   * does not report it, but the shared-config gateway must know the rules
+   * feature writes there.
+   */
+  static getExtraSharedWritePaths({
+    global = false,
+  }: { global?: boolean } = {}): SharedWritePath[] {
+    return [ClaudecodeLanguageSettings.getSettablePaths({ global })];
   }
 
   constructor({ frontmatter, body, ...rest }: ClaudecodeRuleParams) {

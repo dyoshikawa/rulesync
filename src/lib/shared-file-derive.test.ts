@@ -129,6 +129,11 @@ describe("shared-file write derivation", () => {
           "hooks",
           "ignore",
           "permissions",
+          "rules",
+        ],
+        ".claude/settings.local.json": [
+          "ignore",
+          "rules",
         ],
         ".codex/config.toml": [
           "hooks",

@@ -10,6 +10,7 @@ import {
 } from "../constants/rulesync-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
+import { buildLanguageInstruction } from "../types/language.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
@@ -855,6 +856,97 @@ roo:
     );
     expect(imported).toContain("mode: architect");
     expect(imported).toContain("Architect Rule");
+  });
+});
+
+describe("E2E: rules (language)", () => {
+  const { getTestDir } = useTestDirectory();
+
+  const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Test rule"
+---
+
+# Test Rule
+
+This is a test rule for E2E testing.
+`;
+
+  it("should append one language block to the root rule file and keep it single across an import round trip", async () => {
+    const testDir = getTestDir();
+    const instruction = buildLanguageInstruction("ja");
+
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify({ language: "ja" }, null, 2),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+
+    await runGenerate({ target: "agentsmd", features: "rules" });
+
+    const generated = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(generated.trimEnd().endsWith(`---\n\n${instruction}`)).toBe(true);
+    expect(generated.split(instruction)).toHaveLength(2);
+
+    // The generated root file goes back in without the block...
+    await runImport({ target: "agentsmd", features: "rules" });
+    const imported = await readFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+    );
+    expect(imported).toContain("Test Rule");
+    expect(imported).not.toContain("You must always answer in");
+
+    // ...so a second generate still ends with exactly one block.
+    await runGenerate({ target: "agentsmd", features: "rules" });
+    const regenerated = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(regenerated.split(instruction)).toHaveLength(2);
+    expect(regenerated.trimEnd().endsWith(instruction)).toBe(true);
+  });
+
+  it("should write Claude Code's native language setting instead of a block in CLAUDE.md", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify({ language: "ja" }, null, 2),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, ".claude", "settings.local.json"),
+      JSON.stringify({ permissions: { allow: ["Bash(git *)"] } }, null, 2),
+    );
+
+    await runGenerate({ target: "claudecode", features: "rules" });
+
+    const claudeMd = await readFileContent(join(testDir, "CLAUDE.md"));
+    expect(claudeMd).toContain("Test Rule");
+    expect(claudeMd).not.toContain("You must always answer in");
+
+    const settings = JSON.parse(
+      await readFileContent(join(testDir, ".claude", "settings.local.json")),
+    );
+    expect(settings.language).toBe("japanese");
+    expect(settings.permissions).toEqual({ allow: ["Bash(git *)"] });
+  });
+
+  it("should leave the Claude Code settings file alone when language is unset", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+
+    await runGenerate({ target: "claudecode", features: "rules" });
+
+    expect(await fileExists(join(testDir, ".claude", "settings.local.json"))).toBe(false);
   });
 });
 
