@@ -16,6 +16,7 @@ import {
   RulesyncSkillFrontmatterInput,
   SkillFile,
 } from "./rulesync-skill.js";
+import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
   EMPTY_SKILL_DESCRIPTION_VIOLATION,
   ToolSkill,
@@ -147,6 +148,35 @@ type AgentsSkillsSharedFields = {
   metadata?: Record<string, unknown>;
   "allowed-tools"?: string;
 };
+
+/**
+ * The `agentsskills` block with the three Agent Skills standard fields resolved
+ * against the root-level rulesync defaults (a defined section value wins).
+ *
+ * Every writer of an Agent Skills `SKILL.md` — the native target, Hermes Agent
+ * and the simulated `agentsmd` — reads the block through this helper so a
+ * root-authored value goes through exactly the same normalization and
+ * spec-violation reporting as a section value. `allowed-tools` has no root
+ * counterpart and is carried through untouched.
+ *
+ * @returns The merged block. It is empty when neither the section nor any
+ *   root-level field is set, which `toSpecConformantAgentSkillFields` emits as
+ *   nothing.
+ */
+export function resolveAgentsSkillsSection(
+  rulesyncFrontmatter: RulesyncSkillFrontmatter,
+): NonNullable<RulesyncSkillFrontmatter["agentsskills"]> {
+  const section = rulesyncFrontmatter.agentsskills;
+  const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section });
+  const compatibility = resolveCompatibility({ rootFrontmatter: rulesyncFrontmatter, section });
+  const metadata = resolveMetadata({ rootFrontmatter: rulesyncFrontmatter, section });
+  return {
+    ...section,
+    ...(license !== undefined && { license }),
+    ...(compatibility !== undefined && { compatibility }),
+    ...(metadata !== undefined && { metadata }),
+  };
+}
 
 /**
  * Convert the rulesync `agentsskills` block into the shapes the specification
@@ -427,7 +457,7 @@ export class AgentsSkillsSkill extends ToolSkill {
     const agentsSkillsFrontmatter: AgentsSkillsSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...toSpecConformantAgentSkillFields(rulesyncFrontmatter.agentsskills),
+      ...toSpecConformantAgentSkillFields(resolveAgentsSkillsSection(rulesyncFrontmatter)),
     };
 
     AgentsSkillsSkill.reportSpecViolations({

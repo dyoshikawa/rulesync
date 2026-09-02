@@ -338,6 +338,57 @@ Skill content goes here.`,
       expect(copilotSkill.getFrontmatter()["user-invocable"]).toBe(false);
       expect(copilotSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
     });
+
+    it("should fall back to the root-level license/compatibility/metadata when the copilot section omits them", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-fields",
+        frontmatter: {
+          name: "root-fields",
+          description: "Root-level standard fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = CopilotSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      // Copilot models `license` alone, so the other root-level fields
+      // never reach its frontmatter.
+      expect(frontmatter).toEqual({
+        name: "root-fields",
+        description: "Root-level standard fields",
+        license: "MIT",
+      });
+    });
+
+    it("should let the copilot section override the root-level license/compatibility/metadata", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "section-wins",
+        frontmatter: {
+          name: "section-wins",
+          description: "Section overrides the root-level fields",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+          copilot: {
+            license: "Apache-2.0",
+          },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = CopilotSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter).toEqual({
+        name: "section-wins",
+        description: "Section overrides the root-level fields",
+        license: "Apache-2.0",
+      });
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

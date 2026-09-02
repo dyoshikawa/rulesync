@@ -703,6 +703,22 @@ disable-model-invocation: true
 # devin also reads this root value (false maps onto a model-only `triggers`
 # list); it has no section key of the same name, but devin.triggers overrides it.
 user-invocable: false
+# (optional) shared defaults for the three Agent Skills standard packaging fields.
+# Each applies to every tool that models the field, and any of those tool sections
+# can override it by setting the same key below (a section value replaces the root
+# value outright; the two are never merged). Targets that normalize the field —
+# the Agent Skills writers (agentsskills, hermesagent, agentsmd) flatten an object
+# `compatibility` to a string and stringify `metadata` values — apply the same
+# normalization to a root value as to a section value.
+# `license`: claudecode, opencode, kilo, kiro, deepagents, copilot, copilotcli, pi,
+# replit, rovodev, factorydroid, agentsskills (plus hermesagent and agentsmd), vibe.
+license: MIT
+# `compatibility`: the same tools minus copilot and copilotcli. A free-form string
+# per the Agent Skills spec (1–500 chars); the object form is also accepted.
+compatibility: "Requires git and jq"
+# `metadata`: the same tools as `compatibility`, plus cursor.
+metadata:
+  author: example-org
 claudecode: # for claudecode-specific parameters
   model: sonnet # opus, sonnet, haiku, or any string
   when_to_use: When the user asks to review a PR # (optional) extra trigger context appended to description
@@ -797,8 +813,7 @@ opencode: # for OpenCode-specific parameters (optional)
     - "Read"
 kilo: # for Kilo Code-specific parameters (optional)
   license: MIT # (optional)
-  compatibility: # (optional) free-form compatibility metadata
-    kilo-version: ">=7.0.0"
+  compatibility: "Requires git" # (optional) free-form string (an object is also accepted for back-compat)
   metadata: # (optional) free-form metadata
     author: rulesync
   allowed-tools: # (optional) backward-compat passthrough; not part of Kilo's official SKILL.md frontmatter
@@ -818,6 +833,8 @@ kimi-code: # for Kimi Code-specific parameters (optional; project/global .kimi-c
   disableModelInvocation: false # (optional) prevent automatic model invocation
   arguments: ["pull_request"] # (optional) named arguments, also accepts a whitespace-separated string
 agentsskills: # for the Agent Skills standard target (optional; supports project + global ~/.agents/skills/)
+  # `license`, `compatibility` and `metadata` fall back to the root-level values above
+  # when omitted here; a value set here wins for this target only.
   license: MIT # (optional)
   compatibility: "Requires Python 3.14+ and uv" # (optional) free-form string, 1–500 chars (an object is also accepted for back-compat)
   metadata: # (optional) free-form metadata (spec-recommended place for skill versioning)
@@ -934,7 +951,7 @@ Skills are directory-based and can include additional files alongside SKILL.md.
 When `claudecode.scheduled-task: true` is set, that skill is emitted only as a Claude Code scheduled task and is not emitted to other tools even if `targets` contains `"*"`.
 ```
 
-> **Supporting-file note:** every file beside `SKILL.md` in a skill directory is copied **byte for byte**, to whichever tool root the skill is generated into. Most of them are user assets — images, archives, fixtures whose CRLF line endings or missing trailing newline are deliberate — so unlike `SKILL.md`, whose body and frontmatter Rulesync composes, they get no UTF-8 round-trip, no line-ending normalization and no trailing newline appended. Change detection compares them byte for byte too, so a supporting file written by an older Rulesync (which normalized text files) or edited in place by a formatter is rewritten from the source on the next generate. The one exception is a supporting file Rulesync composes itself rather than carries through — Codex CLI's `agents/openai.yaml` — which is compared by parsed content so that re-indenting it does not report a change on every generate. Dot-prefixed entries count as supporting files too — the specification says a skill directory "may contain any files and directories beyond the required `SKILL.md`", and a hidden `.env.example` or `.config/` is content the skill needs. Some entries are never carried, whether they are reached by their own name or through a symbolic link that renames them:
+> **Supporting-file note:** every file beside `SKILL.md` in a skill directory is copied **byte for byte**, to whichever tool root the skill is generated into. Most of them are user assets — images, archives, fixtures whose CRLF line endings or missing trailing newline are deliberate — so unlike `SKILL.md`, whose body and frontmatter Rulesync composes, they get no UTF-8 round-trip, no line-ending normalization and no trailing newline appended. Change detection compares them byte for byte too, so a supporting file written by an older Rulesync (which normalized text files) or edited in place by a formatter is rewritten from the source on the next generate. A supporting file that is executable in `.rulesync/skills/<name>/` (any of the `0o111` bits set) is written executable too, with its permission bits masked to `0755` (group and world write bits are dropped, as are setuid, setgid and sticky), so a `scripts/run.sh` an agent is told to run stays runnable; a generate that finds the directory unchanged still restores the bit if something stripped it. Files without an executable bit keep the mode they already have, or the process default when newly created. A symbolic link standing where the copy should be is never chmod-ed. On Windows there is no mode to carry, and none is applied. The one exception is a supporting file Rulesync composes itself rather than carries through — Codex CLI's `agents/openai.yaml` — which is compared by parsed content so that re-indenting it does not report a change on every generate. Dot-prefixed entries count as supporting files too — the specification says a skill directory "may contain any files and directories beyond the required `SKILL.md`", and a hidden `.env.example` or `.config/` is content the skill needs. Some entries are never carried, whether they are reached by their own name or through a symbolic link that renames them:
 >
 > - `.git`, `.hg` and `.svn` — a nested repository, whose tracked files are copied but whose history is not. Rulesync warns when it skips a top-level `.git`.
 > - `.DS_Store` — the macOS Finder's index.

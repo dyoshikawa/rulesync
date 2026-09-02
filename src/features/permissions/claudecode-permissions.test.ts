@@ -2167,6 +2167,25 @@ describe("ClaudecodePermissions", () => {
       expect(config.claudecode.model).toBe("opus");
     });
 
+    it("drops $schema from the claudecode override on import while other keys pass through", () => {
+      // Every generated settings file now carries `$schema`, so a regression
+      // here would copy the schemastore URL into every imported permissions file.
+      const instance = new ClaudecodePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          $schema: "https://json.schemastore.org/claude-code-settings.json",
+          permissions: { allow: ["Bash(git *)"] },
+          model: "opus",
+        }),
+      });
+
+      const config = JSON.parse(instance.toRulesyncPermissions().getFileContent());
+      expect(config.claudecode).not.toHaveProperty("$schema");
+      expect(config.claudecode.model).toBe("opus");
+    });
+
     it("keeps a managed-only sandbox path on import even though generate refuses it", () => {
       const instance = new ClaudecodePermissions({
         outputRoot: testDir,

@@ -56,6 +56,17 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   // `triggers` list); it has no section key of the same name, but a
   // `devin.triggers` section value overrides it.
   "user-invocable": z.optional(z.boolean()),
+  // Shared defaults for the three Agent Skills standard packaging fields. Each
+  // applies to every tool that models the field, and a target-section value of
+  // the same key overrides it. The per-field tool lists live in
+  // `docs/reference/file-formats.md` (the `.rulesync/skills/` frontmatter).
+  // The Agent Skills spec types `compatibility` as a free-form string (1–500
+  // chars) and `metadata` as a string→string map; the object form of
+  // `compatibility` and non-string `metadata` values stay accepted for
+  // back-compat and are normalized per target where the target requires it.
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+  metadata: z.optional(z.looseObject({})),
   claudecode: z.optional(
     z.looseObject({
       when_to_use: z.optional(z.string()),
@@ -132,7 +143,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       // retained for backward compatibility with existing rulesync skill files.
       "allowed-tools": z.optional(z.array(z.string())),
       license: z.optional(z.string()),
-      compatibility: z.optional(z.looseObject({})),
+      // `compatibility` is a free-form string per the Agent Skills spec; the
+      // object form is kept for back-compat with existing rulesync skill files.
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
       metadata: z.optional(z.looseObject({})),
     }),
   ),
@@ -337,6 +350,9 @@ export type RulesyncSkillFrontmatterInput = {
   targets?: ("*" | string)[];
   "disable-model-invocation"?: boolean;
   "user-invocable"?: boolean;
+  license?: string;
+  compatibility?: string | Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   claudecode?: {
     when_to_use?: string;
     "allowed-tools"?: string | string[];
@@ -393,6 +409,9 @@ export type RulesyncSkillFrontmatterInput = {
   };
   kilo?: {
     "allowed-tools"?: string[];
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
   };
   kiro?: {
     license?: string;

@@ -8,6 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -176,11 +177,30 @@ export class ReplitSkill extends ToolSkill {
     // than emitted as a YAML sequence. Mirrors `DeepagentsSkill`.
     const { "allowed-tools": allowedTools, ...replitSection } = rulesyncFrontmatter.replit ?? {};
     const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
+    // The Agent Skills standard fields fall back to the root-level rulesync
+    // value when the `replit` section omits them. Every resolver already prefers
+    // a defined section value, so re-applying them after the spread never
+    // discards one.
+    const license = resolveLicense({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: replitSection,
+    });
+    const compatibility = resolveCompatibility({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: replitSection,
+    });
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: replitSection,
+    });
     const replitFrontmatter: ReplitSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(allowedToolsString && { "allowed-tools": allowedToolsString }),
       ...replitSection,
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
     };
 
     return new ReplitSkill({

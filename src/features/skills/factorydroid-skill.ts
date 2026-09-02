@@ -14,7 +14,13 @@ import { caseFoldIdentity } from "../../types/feature-processor.js";
 import { formatError } from "../../utils/error.js";
 import { toPosixPath } from "../../utils/file.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
+import {
+  resolveCompatibility,
+  resolveDisableModelInvocation,
+  resolveLicense,
+  resolveMetadata,
+  resolveUserInvocable,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -193,6 +199,20 @@ export class FactorydroidSkill extends ToolSkill {
       rootFrontmatter: rulesyncFrontmatter,
       section: factorydroidSection,
     });
+    // The packaging fields fall back to the root-level rulesync value when the
+    // section omits them; a section value keeps its untyped shape.
+    const license = resolveLicense({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: factorydroidSection,
+    });
+    const compatibility = resolveCompatibility({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: factorydroidSection,
+    });
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: factorydroidSection,
+    });
 
     // A `name`/`description` that somehow rode along in the section is dropped
     // so the canonical values keep owning those keys, which also lets them stay
@@ -206,8 +226,11 @@ export class FactorydroidSkill extends ToolSkill {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...section,
-      // Both resolvers already prefer a defined section value over the root
+      // Every resolver already prefers a defined section value over the root
       // default, so overriding the spread with them never discards one.
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),

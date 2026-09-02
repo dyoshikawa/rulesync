@@ -3,6 +3,7 @@ import { join, posix } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
 
+import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
   FETCH_CONCURRENCY_LIMIT,
   MAX_FILE_SIZE,
@@ -47,6 +48,7 @@ import {
 } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import {
+  applyFileMode,
   checkPathTraversal,
   createTempDirectory,
   directoryExists,
@@ -1377,6 +1379,53 @@ function isNotFoundError(error: unknown): boolean {
 }
 
 /**
+ * Whether a fetched file is a skill's supporting file, the one kind of file
+ * whose executable bit matters: an agent is told to run `scripts/run.sh`,
+ * never a rule. Only such a file is worth a tree lookup or a chmod.
+ */
+function isSkillSupportingPath(relativePath: string): boolean {
+  return (
+    classifySkillPath(relativePath).kind === "skill" &&
+    posix.basename(relativePath) !== SKILL_FILE_NAME
+  );
+}
+
+/**
+ * The repository paths git records as executable, so a skill's script keeps
+ * its bit through a fetch. The contents API carries no mode, and a fetch
+ * that cannot read the tree still completes -- the file is written and the
+ * bit is what it lacks.
+ */
+async function resolveExecutablePaths({
+  client,
+  owner,
+  repo,
+  ref,
+  logger,
+}: {
+  client: GitHubClient;
+  owner: string;
+  repo: string;
+  ref: string;
+  logger: Logger;
+}): Promise<Set<string>> {
+  try {
+    const { paths, truncated } = await client.listExecutablePaths(owner, repo, ref);
+    if (truncated) {
+      logger.warn(
+        "The repository's tree listing was cut short by the API, so a script it left out is written without its executable bit. Run `chmod +x` on it by hand.",
+      );
+    }
+    return paths;
+  } catch (error) {
+    logger.warn(
+      `Could not read file modes from ${owner}/${repo}: ${stripControlCharacters(formatError(error))}. Scripts are written without their executable bit.`,
+    );
+    return new Set();
+  }
+}
+
+/**
  * A summary for a run that matched nothing, so had nothing to write or prune.
  */
 function emptyFetchSummary(params: { source: string; ref: string }): FetchSummary {
@@ -1504,6 +1553,19 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     return emptyFetchSummary({ source: `${parsed.owner}/${parsed.repo}`, ref });
   }
 
+  // One tree listing per run, and only when a file that can carry a mode is
+  // being fetched: a rules-only fetch has nothing to chmod and gets no request
+  // and no truncation warning about scripts it never wrote.
+  const executablePaths = filesToFetch.some((file) => isSkillSupportingPath(file.relativePath))
+    ? await resolveExecutablePaths({
+        client,
+        owner: parsed.owner,
+        repo: parsed.repo,
+        ref,
+        logger,
+      })
+    : new Set<string>();
+
   // Validate paths and check file sizes first (synchronous checks)
   for (const { relativePath, size } of filesToFetch) {
     checkPathTraversal({
@@ -1534,6 +1596,9 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
         client.getFileContent(parsed.owner, parsed.repo, remotePath, ref),
       );
       await writeFileContent(localPath, content);
+      if (isSkillSupportingPath(relativePath) && executablePaths.has(remotePath)) {
+        await applyFileMode(localPath, 0o755);
+      }
 
       const status = exists ? ("overwritten" as const) : ("created" as const);
       logger.debug(`Wrote: ${JSON.stringify(stripControlCharacters(relativePath))} (${status})`);

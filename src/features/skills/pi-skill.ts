@@ -8,7 +8,12 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation } from "./skills-utils.js";
+import {
+  resolveCompatibility,
+  resolveDisableModelInvocation,
+  resolveLicense,
+  resolveMetadata,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -193,15 +198,27 @@ export class PiSkill extends ToolSkill {
     // emitted as a YAML sequence. Mirrors `DeepagentsSkill`.
     const { "allowed-tools": allowedTools, ...piSectionRest } = piSection ?? {};
     const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
+    // The Agent Skills standard fields fall back to the root-level rulesync
+    // value when the `pi` section omits them.
+    const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section: piSection });
+    const compatibility = resolveCompatibility({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: piSection,
+    });
+    const metadata = resolveMetadata({ rootFrontmatter: rulesyncFrontmatter, section: piSection });
 
     const piFrontmatter: PiSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(allowedToolsString && { "allowed-tools": allowedToolsString }),
       // Spread the section first to carry over any tool-specific keys, then
-      // re-apply the resolved `disable-model-invocation` so the root default is
-      // honored when the section omits the key.
+      // re-apply the resolved values so the root defaults are honored when the
+      // section omits a key. Every resolver already prefers a defined section
+      // value, so overriding the spread never discards one.
       ...piSectionRest,
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),
