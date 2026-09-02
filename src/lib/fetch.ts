@@ -321,8 +321,14 @@ const NON_SKILL_PATH: SkillPathClass = Object.freeze({ kind: "non-skill" });
 /** A name with no character in it that draws anything of its own. */
 const NOTHING_DRAWN_PATTERN = /^[\s\p{M}]*$/u;
 
-/** A name ending in a dot or a space, which Win32 strips before it opens the path. */
-const TRAILING_DOT_OR_SPACE_PATTERN = /[.\s]$/;
+/**
+ * A name ending in a dot or an ASCII space, which Win32 strips before it opens
+ * the path. Only the plain space (U+0020): Win32 keeps every other trailing
+ * blank, so a name ending in a no-break or an ideographic space is written
+ * where it says, and is left to the whitespace note of the confusable-name
+ * check rather than dropped here with Windows named as the reason.
+ */
+const TRAILING_DOT_OR_SPACE_PATTERN = /[. ]$/;
 /** A name ending in the `NAME~1` shape of a Windows 8.3 short name, extension included. */
 const SHORT_NAME_ALIAS_PATTERN = /~\d+(?:\.[^.]*)?$/;
 
@@ -330,7 +336,7 @@ const SHORT_NAME_ALIAS_PATTERN = /~\d+(?:\.[^.]*)?$/;
  * Whether Windows resolves a skill directory name to a directory other than
  * the one it reads as.
  *
- * Win32 drops a trailing dot or space when it resolves a path, so a remote
+ * Win32 drops a trailing dot or ASCII space when it resolves a path, so a remote
  * `skills/deploy.` is the existing `skills/deploy` there. A name ending in the
  * `NAME~1` shape is the same class of problem: on a volume that generates
  * short names, it opens whatever long name it stands for. The shape only
@@ -364,7 +370,7 @@ function hasWindowsFoldableSkillName(name: string): boolean {
  * in it and an emoji name is a chain of ZWJ, and both are ordinary names rather
  * than disguises. `hasDeceptiveHiddenCharacters` draws that line.
  *
- * A name Windows folds onto another — a trailing dot or space, or the `NAME~1`
+ * A name Windows folds onto another — a trailing dot or ASCII space, or the `NAME~1`
  * shape of a short name — is turned away as well, and for a reason of the same
  * kind: it reads as one directory and is written into another, so with the
  * default `--conflict overwrite` a remote `skills/deploy.` replaces the files
@@ -762,7 +768,7 @@ function formatFoldableSkillsWarning(droppedFoldableNames: ReadonlyMap<string, s
   const plural = droppedFoldableNames.size !== 1;
   return (
     `Skipping ${plural ? `${droppedFoldableNames.size} skill directories whose names Windows resolves` : "one skill directory whose name Windows resolves"} ` +
-    `to a different directory: ${shown}. A name ending in a dot or a space, or one shaped like ` +
+    `to a different directory: ${shown}. A name ending in a dot or an ASCII space, or one shaped like ` +
     `a NAME~1 short name, is written into a directory other than the one it reads as there, ` +
     `so it is neither offered for selection nor fetched, on any platform.`
   );
@@ -1283,10 +1289,14 @@ async function pruneStaleSkillFiles(params: {
       continue;
     }
 
-    // A name Windows folds onto another directory — a trailing dot or space,
-    // or the `NAME~1` shape of a short name — is turned away by
+    // A name Windows folds onto another directory — a trailing dot or ASCII
+    // space, or the `NAME~1` shape of a short name — is turned away by
     // `classifySkillPath` before anything is written, so no such directory
-    // reaches this loop through the fetched files. The guard stays as a
+    // reaches this loop through the fetched files. For a fetched name this
+    // branch is dead by construction: the name already passed the same
+    // predicate, and both of its patterns are anchored to the end of the
+    // name, so nothing between the two checks can make one match. Only the
+    // predicate's own tests exercise it. The guard stays as a
     // backstop for the same reason it was written: the write and the prune
     // would agree with each other and disagree with the summary, which would
     // then name a directory other than the one it emptied. Nothing reaches

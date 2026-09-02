@@ -1927,7 +1927,9 @@ describe("fetchFiles with skill selection", () => {
       ),
     );
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("A name ending in a dot or a space, or one shaped like a NAME~1"),
+      expect.stringContaining(
+        "A name ending in a dot or an ASCII space, or one shaped like a NAME~1",
+      ),
     );
     expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("hidden characters"));
   });
@@ -1971,6 +1973,80 @@ describe("fetchFiles with skill selection", () => {
     ]);
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining(`to a different directory: ${JSON.stringify("DEPLOY~1")}.`),
+    );
+  });
+
+  it("should not fetch a skill directory named like a short name with an extension", async () => {
+    // The short-name shape keeps its extension: `DEPLOY~1.TXT` is the 8.3
+    // form of some `deploy-something.txt`, so it is turned away with the rest.
+    mockSkillRepositoryWithSkills(["DEPLOY~1.TXT"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`to a different directory: ${JSON.stringify("DEPLOY~1.TXT")}.`),
+    );
+  });
+
+  it("should report a name that is both hidden and foldable as hidden", async () => {
+    // A zero-width space in the name and a trailing dot: the hidden characters
+    // are checked first, so the name is reported by the reason that keeps its
+    // raw form off the terminal, and never by the one that would print it.
+    mockSkillRepositoryWithSkills(["deploy\u200B."]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Skipping one skill directory whose name contains hidden"),
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("Windows resolves to a different directory"),
+    );
+  });
+
+  it("should fetch a name ending in a blank that is not the ASCII space", async () => {
+    // Win32 strips only the plain space and the dot. An ideographic or a
+    // no-break space at the end is kept, so the name is written where it
+    // says; what remains is that it reaches past where it appears to end,
+    // which is the whitespace note's business rather than a Windows drop.
+    mockSkillRepositoryWithSkills(["設定\u3000", "pdf\u00A0"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/pdf\u00A0/SKILL.md",
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+      "skills/設定\u3000/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("carries more whitespace than the row shows"),
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("Windows resolves to a different directory"),
     );
   });
 
