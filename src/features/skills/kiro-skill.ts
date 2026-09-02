@@ -8,6 +8,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -160,13 +161,30 @@ export class KiroSkill extends ToolSkill {
   }: ToolSkillFromRulesyncSkillParams): KiroSkill {
     const settablePaths = KiroSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const kiroSection = rulesyncFrontmatter.kiro;
+    // The Agent Skills standard fields fall back to the root-level rulesync
+    // value when the `kiro` section omits them. Every resolver already prefers
+    // a defined section value, so re-applying them after the spread never
+    // discards one.
+    const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section: kiroSection });
+    const compatibility = resolveCompatibility({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: kiroSection,
+    });
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: kiroSection,
+    });
 
     const kiroFrontmatter: KiroSkillFrontmatter = {
       // The section is written first so the canonical `name`/`description`
       // still own their keys.
-      ...rulesyncFrontmatter.kiro,
+      ...kiroSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
     };
 
     return new KiroSkill({

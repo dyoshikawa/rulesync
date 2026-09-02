@@ -8,7 +8,11 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
+import {
+  resolveDisableModelInvocation,
+  resolveMetadata,
+  resolveUserInvocable,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -167,6 +171,12 @@ export class CursorSkill extends ToolSkill {
       rootFrontmatter: rulesyncFrontmatter,
       section: cursorSection,
     });
+    // Cursor models `metadata` alone of the Agent Skills standard fields; it
+    // falls back to the root-level rulesync value when the section omits it.
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: cursorSection,
+    });
 
     const cursorFrontmatter: CursorSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
@@ -178,7 +188,7 @@ export class CursorSkill extends ToolSkill {
       ...(resolvedUserInvocable !== undefined && {
         "user-invocable": resolvedUserInvocable,
       }),
-      ...(cursorSection?.metadata !== undefined && { metadata: cursorSection.metadata }),
+      ...(metadata !== undefined && { metadata }),
     };
 
     return new CursorSkill({

@@ -7,6 +7,7 @@ import {
 import {
   AgentsSkillsSkill,
   type AgentsSkillsSkillParams,
+  resolveAgentsSkillsSection,
   toAllowedToolsArray,
   toSpecConformantAgentSkillFields,
 } from "./agentsskills-skill.js";
@@ -51,14 +52,18 @@ export class HermesagentSkill extends AgentsSkillsSkill {
     logger,
   }: ToolSkillFromRulesyncSkillParams): HermesagentSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-    // The `agentsskills` block is the same rulesync source the native Agent
-    // Skills target reads, so it goes through the same normalization: one input
-    // must not produce two different on-disk spellings. `metadata` is exempt
-    // because Hermes reads structured values under `metadata.hermes`
-    // (`requires_toolsets`, `tags`, …) that string coercion would break.
-    const shared = toSpecConformantAgentSkillFields(rulesyncFrontmatter.agentsskills, {
-      coerceMetadata: false,
-    });
+    // The `agentsskills` block (with the root-level standard fields folded in)
+    // is the same rulesync source the native Agent Skills target reads, so it
+    // goes through the same normalization: one input must not produce two
+    // different on-disk spellings. `metadata` is exempt because Hermes reads
+    // structured values under `metadata.hermes` (`requires_toolsets`, `tags`,
+    // …) that string coercion would break.
+    const shared = toSpecConformantAgentSkillFields(
+      resolveAgentsSkillsSection(rulesyncFrontmatter),
+      {
+        coerceMetadata: false,
+      },
+    );
     const hermes = rulesyncFrontmatter.hermesagent ?? {};
     const dirName = rulesyncSkill.getDirName();
     const frontmatter = {

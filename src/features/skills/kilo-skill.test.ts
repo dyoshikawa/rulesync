@@ -197,6 +197,98 @@ describe("KiloSkill", () => {
       expect(skill.getRelativeDirPath()).toBe(join(".kilo", "skills"));
       expect(skill.getFrontmatter()["allowed-tools"]).toEqual(["Bash", "Read"]);
     });
+
+    it("should fall back to the root-level license/compatibility/metadata when the kilo section omits them", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-fields",
+        frontmatter: {
+          name: "root-fields",
+          description: "Root-level standard fields",
+          license: "MIT",
+          compatibility: { "kilo-version": ">=7.0.0" },
+          metadata: { author: "root" },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = KiloSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("MIT");
+      expect(frontmatter.compatibility).toEqual({ "kilo-version": ">=7.0.0" });
+      expect(frontmatter.metadata).toEqual({ author: "root" });
+    });
+
+    it("should let the kilo section override the root-level license/compatibility/metadata", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "section-wins",
+        frontmatter: {
+          name: "section-wins",
+          description: "Section overrides the root-level fields",
+          license: "MIT",
+          compatibility: { "kilo-version": ">=7.0.0" },
+          metadata: { author: "root" },
+          kilo: {
+            license: "Apache-2.0",
+            compatibility: { "kilo-version": ">=8.0.0" },
+            metadata: { author: "section" },
+          },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = KiloSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter.license).toBe("Apache-2.0");
+      expect(frontmatter.compatibility).toEqual({ "kilo-version": ">=8.0.0" });
+      expect(frontmatter.metadata).toEqual({ author: "section" });
+    });
+
+    it("should forward a root-level string compatibility as-is, like the other Agent Skills targets", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "root-string-compatibility",
+        frontmatter: {
+          name: "root-string-compatibility",
+          description: "Root-level string compatibility",
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "root" },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = KiloSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(frontmatter).toEqual({
+        name: "root-string-compatibility",
+        description: "Root-level string compatibility",
+        license: "MIT",
+        compatibility: "Requires git",
+        metadata: { author: "root" },
+      });
+    });
+
+    it("should round-trip a string compatibility through the kilo section", () => {
+      const skill = new KiloSkill({
+        outputRoot: testDir,
+        dirName: "string-compatibility",
+        frontmatter: {
+          name: "string-compatibility",
+          description: "String compatibility",
+          compatibility: "Requires git",
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().kilo).toEqual({ compatibility: "Requires git" });
+
+      const roundTripped = KiloSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(roundTripped.getFrontmatter().compatibility).toBe("Requires git");
+    });
   });
 
   describe("fromDir", () => {
