@@ -26,6 +26,11 @@ export type ClaudecodeLanguageSettingsPaths = {
  * through the shared config gateway (the `rules` feature owns `language`
  * there and nothing else), so hooks, permissions, and deny lists written by
  * sibling features — and everything the user authored — are left alone.
+ *
+ * Removing `language` from `rulesync.jsonc` later does not retract the key
+ * already written: the settings file is shared with the user's own
+ * configuration, so nothing is ever deleted from it, and the value stays
+ * until the user removes it by hand.
  */
 export class ClaudecodeLanguageSettings extends ToolFile {
   /**

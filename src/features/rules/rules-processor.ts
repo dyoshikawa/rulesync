@@ -33,7 +33,7 @@ import {
   readFileContent,
   toPosixPath,
 } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { KiloMcp } from "../mcp/kilo-mcp.js";
@@ -1300,7 +1300,10 @@ export class RulesProcessor extends FeatureProcessor {
    * targets (Cline, Roo, Kiro, ...) file the `root: true` source beside the
    * others. The file produced from the `root: true` source is still the root
    * rule from the user's point of view, so it is the one that gets the block.
-   * Nested rules never do.
+   * Nested rules never do. When several sources are marked `root: true`, only
+   * the file built from the first one (in conversion order, which follows the
+   * source order) carries the block: one instruction per target is the
+   * contract, and a root-marking target gets exactly one as well.
    */
   private appendLanguageBlockToRootSourceRules({
     convertedRules,
@@ -1311,16 +1314,14 @@ export class RulesProcessor extends FeatureProcessor {
     if (language === undefined) {
       return;
     }
-    const rootSourceRules = new Set(
-      convertedRules
-        .filter(({ rulesyncRule }) => rulesyncRule.getFrontmatter().root === true)
-        .map(({ toolRule }) => toolRule),
+    const firstRootSource = convertedRules.find(
+      ({ rulesyncRule }) => rulesyncRule.getFrontmatter().root === true,
     );
-    for (const toolRule of rootSourceRules) {
-      toolRule.setFileContent(
-        appendLanguageBlock({ content: toolRule.getFileContent(), language }),
-      );
+    if (firstRootSource === undefined) {
+      return;
     }
+    const { toolRule } = firstRootSource;
+    toolRule.setFileContent(appendLanguageBlock({ content: toolRule.getFileContent(), language }));
   }
 
   /**
@@ -1727,7 +1728,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
       if (toolRule.isLocalRoot()) {
         return toolRule.toLocalRootRulesyncRule({ targets: [this.toolTarget] });
       }
-      return this.withoutLanguageBlock(toolRule.toRulesyncRule());
+      return this.withoutLanguageBlock({ toolRule, rulesyncRule: toolRule.toRulesyncRule() });
     });
 
     // Several tool files can derive the same rulesync file name — most easily
@@ -1765,14 +1766,33 @@ As this project's AI coding tool, you must follow the additional conventions bel
    * Every imported rule is checked, not just root ones: Cursor and the
    * fixed-name targets import their root file as a non-root rule. The
    * `language` key itself lives in `rulesync.jsonc`, so nothing about the
-   * detected language is carried into the rulesync rule.
+   * detected language is carried into the rulesync rule — which is why the
+   * strip is reported: a user who imports a file carrying the block and has
+   * not set `language` would otherwise lose the instruction without a trace.
+   * Once per file per run, since an import over several targets reads the
+   * same root file for each of them.
    */
-  private withoutLanguageBlock(rulesyncRule: RulesyncRule): RulesyncRule {
+  private withoutLanguageBlock({
+    toolRule,
+    rulesyncRule,
+  }: {
+    toolRule: ToolRule;
+    rulesyncRule: RulesyncRule;
+  }): RulesyncRule {
     const body = rulesyncRule.getBody();
     const stripped = stripLanguageBlock(body);
     if (stripped === body) {
       return rulesyncRule;
     }
+    // The path comes off the filesystem, so it is stripped before reaching a
+    // terminal that would act on an embedded escape.
+    const source = stripControlCharacters(
+      join(toolRule.getRelativeDirPath(), toolRule.getRelativeFilePath()),
+    );
+    warnOnceWithFallback(
+      this.logger,
+      `Removed the answer-language block rulesync appends from ${source} on import; it is not kept in .rulesync/rules/. Set "language" in rulesync.jsonc to keep generating it.`,
+    );
     return new RulesyncRule({
       outputRoot: rulesyncRule.getOutputRoot(),
       relativeDirPath: rulesyncRule.getRelativeDirPath(),

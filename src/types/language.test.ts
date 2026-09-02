@@ -101,4 +101,48 @@ describe("stripLanguageBlock", () => {
       "# Rules\n\n---\n\nYou must always answer in Klingon. On the other hand, reasoning (thinking) should be in English to improve token efficiency.";
     expect(stripLanguageBlock(body)).toBe(body);
   });
+
+  it("requires the separator to open its line", () => {
+    const body = `# Rules\n\nSee ---\n\n${buildLanguageInstruction("ja")}`;
+    expect(stripLanguageBlock(body)).toBe(body);
+    const longerRule = `# Rules\n\n-----\n\n${buildLanguageInstruction("ja")}`;
+    expect(stripLanguageBlock(longerRule)).toBe(longerRule);
+  });
+
+  it("strips a block whose separator line is indented", () => {
+    const body = `# Rules\n\n  ---  \n\n  ${buildLanguageInstruction("ja")}`;
+    expect(stripLanguageBlock(body)).toBe("# Rules");
+  });
+
+  it("strips two stacked blocks, not just the last one", () => {
+    const body = "# Rules\n\nBe kind.";
+    const once = appendLanguageBlock({ content: body, language: "ja" });
+    const twice = appendLanguageBlock({ content: once, language: "fr" });
+    expect(stripLanguageBlock(twice)).toBe(body);
+    expect(stripLanguageBlock(`${twice}\n\n---\n\n${buildLanguageInstruction("de")}\n`)).toBe(body);
+  });
+
+  it("strips a stacked block down to an empty body", () => {
+    const stacked = appendLanguageBlock({
+      content: buildLanguageInstruction("ja"),
+      language: "en",
+    });
+    expect(stripLanguageBlock(stacked)).toBe("");
+  });
+
+  it("handles a body padded with 200,000 trailing blank lines in linear time", () => {
+    const padding = "\n".repeat(200_000);
+    const body = "# Rules\n\nBe kind.";
+    const appended = appendLanguageBlock({ content: body, language: "ja" });
+    const startedAt = performance.now();
+    expect(stripLanguageBlock(`${body}${padding}`)).toBe(`${body}${padding}`);
+    expect(stripLanguageBlock(`${appended}${padding}`)).toBe(body);
+    expect(stripLanguageBlock(`${body}\n\n---${padding}${buildLanguageInstruction("ja")}`)).toBe(
+      body,
+    );
+    expect(stripLanguageBlock(`${body}${padding}---\n\nNot the instruction.`)).toBe(
+      `${body}${padding}---\n\nNot the instruction.`,
+    );
+    expect(performance.now() - startedAt).toBeLessThan(1000);
+  });
 });

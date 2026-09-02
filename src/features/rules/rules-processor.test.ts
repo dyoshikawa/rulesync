@@ -4501,5 +4501,149 @@ targets: ["*"]
       );
       expect(importedRule?.getBody()).toBe("# Overview\n\nProject rules.");
     });
+
+    it.each(
+      RulesProcessor.getToolTargets({ global: true }).filter(
+        (target) => target !== "claudecode" && target !== "claudecode-legacy",
+      ),
+    )("closes every global root-content file with one block for %s", async (toolTarget) => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget,
+        language: "en",
+        global: true,
+      });
+
+      // Root only: some global layouts (Rovo Dev, Antigravity CLI) have no
+      // home for a nested rule and reject one.
+      const result = await processor.convertRulesyncFilesToToolFiles([rootRule()]);
+
+      const rootFiles = result.filter((file) => file.getFileContent().includes("Project rules."));
+      expect(rootFiles.length).toBeGreaterThanOrEqual(1);
+      for (const file of rootFiles) {
+        expect(file.getFileContent().endsWith(buildLanguageInstruction("en"))).toBe(true);
+        expect(file.getFileContent().split("You must always answer in")).toHaveLength(2);
+      }
+      for (const otherFile of result.filter((file) => !rootFiles.includes(file))) {
+        expect(otherFile.getFileContent()).not.toContain("You must always answer in");
+      }
+    });
+
+    it("appends the block to the file built from the first root source only when several are root", async () => {
+      const secondRoot = () =>
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "second.md",
+          frontmatter: { root: true, targets: ["*"] },
+          body: "# Second\n\nAlso root.",
+        });
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "cursor",
+        language: "ja",
+      });
+
+      const result = await processor.convertRulesyncFilesToToolFiles([
+        rootRule(),
+        secondRoot(),
+        nestedRule(),
+      ]);
+      const contentOf = (name: string) =>
+        result.find((file) => file.getRelativeFilePath() === name)?.getFileContent() ?? "";
+      expect(contentOf("overview.mdc").endsWith(languageBlock("ja"))).toBe(true);
+      expect(contentOf("second.mdc")).not.toContain("You must always answer in");
+      expect(contentOf("details.mdc")).not.toContain("You must always answer in");
+
+      // Source order decides which root source is first.
+      const reordered = await processor.convertRulesyncFilesToToolFiles([secondRoot(), rootRule()]);
+      const reorderedContentOf = (name: string) =>
+        reordered.find((file) => file.getRelativeFilePath() === name)?.getFileContent() ?? "";
+      expect(reorderedContentOf("second.mdc").endsWith(languageBlock("ja"))).toBe(true);
+      expect(reorderedContentOf("overview.mdc")).not.toContain("You must always answer in");
+    });
+
+    it("neither appends the block to a separate local-root file nor strips one from it on import", async () => {
+      const localRootRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "personal.md",
+        frontmatter: { localRoot: true, targets: ["rovodev"] },
+        body: "# Personal\n\nMy own rules.",
+      });
+      const generator = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "rovodev",
+        language: "ja",
+      });
+
+      const generated = await generator.convertRulesyncFilesToToolFiles([
+        rootRule(),
+        localRootRule,
+      ]);
+      const localFile = generated.find((file) => file.getRelativeFilePath() === "AGENTS.local.md");
+      expect(localFile?.getFileContent()).toBe("# Personal\n\nMy own rules.");
+      const rootFiles = generated.filter((file) =>
+        file.getFileContent().includes("Project rules."),
+      );
+      expect(rootFiles.length).toBeGreaterThanOrEqual(1);
+      for (const file of rootFiles) {
+        expect(file.getFileContent().endsWith(languageBlock("ja"))).toBe(true);
+      }
+
+      const authoredLocal = `# Personal\n\nMy own rules.${languageBlock("ja")}\n`;
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(join(testDir, ".rovodev", "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "AGENTS.local.md"), authoredLocal);
+      const importer = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "rovodev" });
+      const imported = await importer.convertToolFilesToRulesyncFiles(
+        await importer.loadToolFiles(),
+      );
+      const localRule = findLocalRule(imported, "AGENTS.local.md") as RulesyncRule | undefined;
+      expect(localRule?.getFrontmatter().localRoot).toBe(true);
+      expect(localRule?.getBody()).toBe(authoredLocal);
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Removed the answer-language block"),
+      );
+    });
+
+    it("warns once per file when a block is stripped on import, and stays quiet otherwise", async () => {
+      await writeFileContent(
+        join(testDir, "AGENTS.md"),
+        `# Overview\n\nProject rules.${languageBlock("ja")}\n`,
+      );
+
+      const importer = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await importer.convertToolFilesToRulesyncFiles(await importer.loadToolFiles());
+      // A second target reading the same file reports nothing more.
+      const secondImporter = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "agentsmd",
+      });
+      await secondImporter.convertToolFilesToRulesyncFiles(await secondImporter.loadToolFiles());
+
+      const stripWarnings = logger.warn.mock.calls.filter(([message]) =>
+        String(message).includes("Removed the answer-language block"),
+      );
+      expect(stripWarnings).toHaveLength(1);
+      expect(stripWarnings[0]?.[0]).toContain("AGENTS.md");
+      expect(stripWarnings[0]?.[0]).toContain('"language" in rulesync.jsonc');
+
+      logger.warn.mockClear();
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Overview\n\nProject rules.\n");
+      const plainImporter = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+      });
+      await plainImporter.convertToolFilesToRulesyncFiles(await plainImporter.loadToolFiles());
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Removed the answer-language block"),
+      );
+    });
   });
 });

@@ -94,34 +94,69 @@ export function appendLanguageBlock({
   return `${body}\n\n${LANGUAGE_BLOCK_SEPARATOR}\n\n${instruction}`;
 }
 
-const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const INSTRUCTION_ALTERNATION = LANGUAGE_CODES.map((code) =>
-  escapeRegExp(buildLanguageInstruction(code)),
-).join("|");
-
-/**
- * A trailing block exactly as {@link appendLanguageBlock} writes it, for any
- * supported language: optional surrounding blank lines, the separator on its
- * own line, blank lines, the instruction, trailing whitespace. Anchored to the
- * end of the body so a sentence quoted mid-file is left alone.
- */
-const TRAILING_LANGUAGE_BLOCK_PATTERN = new RegExp(
-  `(?:^|\\r?\\n)(?:[ \\t]*\\r?\\n)*[ \\t]*${escapeRegExp(LANGUAGE_BLOCK_SEPARATOR)}[ \\t]*\\r?\\n(?:[ \\t]*\\r?\\n)*[ \\t]*(?:${INSTRUCTION_ALTERNATION})\\s*$`,
+const INSTRUCTIONS: readonly string[] = LANGUAGE_CODES.map((code) =>
+  buildLanguageInstruction(code),
 );
 
-/** A body that is nothing but the instruction (an empty rule body was appended to). */
-const BARE_INSTRUCTION_PATTERN = new RegExp(`^\\s*(?:${INSTRUCTION_ALTERNATION})\\s*$`);
+const isBlank = (value: string): boolean => value === " " || value === "\t";
 
 /**
- * Remove a trailing language block from an imported rule body so that
- * `rulesync import` followed by `rulesync generate` does not stack a second
- * copy. Returns the body unchanged when no block is present.
+ * Remove one trailing block exactly as {@link appendLanguageBlock} writes it,
+ * for any supported language: the separator on its own line, blank space
+ * with at least one line break, the instruction, trailing whitespace. Only
+ * the end of the body is inspected, so a sentence quoted mid-file is left
+ * alone. Returns the body unchanged when no block closes it.
+ *
+ * Walks the body from its end with string operations rather than a regular
+ * expression: an unanchored pattern over optional blank lines backtracks in
+ * polynomial time, and a rule file padded with a few hundred thousand
+ * trailing newlines would hang `rulesync import` on it.
  */
-export function stripLanguageBlock(body: string): string {
-  if (BARE_INSTRUCTION_PATTERN.test(body)) {
+function stripOneLanguageBlock(body: string): string {
+  const trimmed = body.trimEnd();
+  const instruction = INSTRUCTIONS.find((candidate) => trimmed.endsWith(candidate));
+  if (instruction === undefined) {
+    return body;
+  }
+  const beforeInstruction = trimmed.slice(0, trimmed.length - instruction.length);
+  const beforeGap = beforeInstruction.trimEnd();
+  // Nothing but the instruction: an empty rule body was appended to.
+  if (beforeGap.length === 0) {
     return "";
   }
-  const stripped = body.replace(TRAILING_LANGUAGE_BLOCK_PATTERN, "");
-  return stripped === body ? body : stripped.trimEnd();
+  // Between the separator and the instruction there is only blank space,
+  // spanning at least one line break.
+  if (!beforeInstruction.slice(beforeGap.length).includes("\n")) {
+    return body;
+  }
+  if (!beforeGap.endsWith(LANGUAGE_BLOCK_SEPARATOR)) {
+    return body;
+  }
+  // The separator opens its line: only blanks may precede it there.
+  let lineStart = beforeGap.length - LANGUAGE_BLOCK_SEPARATOR.length;
+  while (lineStart > 0 && isBlank(beforeGap.charAt(lineStart - 1))) {
+    lineStart -= 1;
+  }
+  if (lineStart > 0 && beforeGap.charAt(lineStart - 1) !== "\n") {
+    return body;
+  }
+  return body.slice(0, lineStart).trimEnd();
+}
+
+/**
+ * Remove the trailing language block(s) from an imported rule body so that
+ * `rulesync import` followed by `rulesync generate` does not stack a second
+ * copy. Repeats until nothing more comes off, so a file that already carries
+ * two stacked blocks (generated twice by an older flow, say) comes back
+ * clean. Returns the body unchanged when no block is present.
+ */
+export function stripLanguageBlock(body: string): string {
+  let current = body;
+  for (;;) {
+    const next = stripOneLanguageBlock(current);
+    if (next === current) {
+      return current;
+    }
+    current = next;
+  }
 }
