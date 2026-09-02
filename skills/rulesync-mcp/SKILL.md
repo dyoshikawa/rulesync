@@ -108,8 +108,10 @@ base64 body as literal text and corrupts the file.
 
 `put` overlays the directory rather than replacing it: it rewrites `SKILL.md`
 and every `otherFiles` entry you send, and leaves every other file already in
-the directory untouched. It therefore cannot remove a file — to drop one,
-`delete` the skill and `put` it back without that entry.
+the directory untouched. It therefore cannot remove a file — to drop one, `get`
+the skill first, then `delete` it and `put` it back without that entry. `delete`
+removes the whole directory, so without that `get` in hand a failed `put` (an
+invalid frontmatter, an exceeded size limit) loses the skill.
 
 ### Running `generate`, `import`, and `convert`
 

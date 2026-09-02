@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { RulesyncSkill } from "./rulesync-skill.js";
+import { RulesyncSkill } from "../src/features/skills/rulesync-skill.js";
 
 /**
  * The repository root `skills/` directory holds the official skills that users
