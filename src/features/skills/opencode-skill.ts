@@ -12,6 +12,7 @@ import {
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import { resolvedPathEscapesRoot } from "../../utils/file.js";
 import { asOpencodeEntries, getOpencodeConfigDir, readOpencodeConfig } from "../opencode-config.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
@@ -109,9 +110,16 @@ export class OpenCodeSkill extends ToolSkill {
    * configured path is read but never generated into. `skills.urls` is a
    * remote-fetch surface and is out of scope for a file-based generator.
    *
-   * Absolute paths and paths escaping the output root are dropped — an import
-   * root is joined onto `outputRoot`, and reaching outside it is not something
-   * a project config should be able to ask for.
+   * Absolute paths and paths escaping the config directory are dropped — an
+   * import root is joined onto that directory, and reaching outside it is not
+   * something a project config should be able to ask for. A path is judged by
+   * where it resolves, not by how it is spelled: a relative name that is a
+   * symbolic link pointing out of the directory is an escape all the same and
+   * is dropped too. A path that does not exist has nothing to resolve and is
+   * compared as spelled against the resolved config directory, so it survives
+   * only when that directory resolves to its own spelling and is dropped when
+   * the directory is itself reached through a link. Either way it yields no
+   * skills — the scan finds no directory under it.
    *
    * @see https://opencode.ai/config.json
    */
@@ -131,14 +139,24 @@ export class OpenCodeSkill extends ToolSkill {
     // what OpenCode does — in global mode that is `~/.config/opencode/`, not
     // the home directory.
     const configDir = getOpencodeConfigDir({ outputRoot, global });
-    return skills.paths
-      .filter(
-        (candidate): candidate is string =>
-          typeof candidate === "string" &&
-          candidate !== "" &&
-          !isAbsolute(candidate) &&
-          !normalize(candidate).startsWith(".."),
-      )
+    const lexicallyContained = skills.paths.filter(
+      (candidate): candidate is string =>
+        typeof candidate === "string" &&
+        candidate !== "" &&
+        !isAbsolute(candidate) &&
+        !normalize(candidate).startsWith(".."),
+    );
+    // The lexical test above reads a path as it is spelled, so a name inside
+    // the config directory that is a link out of it passes and would be read.
+    // Resolving both sides catches the link, the same way a nested Claude Code
+    // skills root is judged. Dropped silently, like the lexical drops above.
+    const escapes = await Promise.all(
+      lexicallyContained.map((candidate) =>
+        resolvedPathEscapesRoot({ rootPath: configDir, targetPath: join(configDir, candidate) }),
+      ),
+    );
+    return lexicallyContained
+      .filter((_, index) => !escapes[index])
       .map((relativeDirPath) => ({ outputRoot: configDir, relativeDirPath }));
   }
 
