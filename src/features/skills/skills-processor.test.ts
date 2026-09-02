@@ -1744,8 +1744,10 @@ Broken YAML`,
       async () => {
         // Same layout as above, taken through the processor: the project's own
         // skill is read once through the link, unscoped, and the genuine nested
-        // root's skill is read once and scoped to where it was found. Neither
-        // is reported twice, and nothing is refused along the way.
+        // root's skill is read once and scoped to where it was found. This pins
+        // the processor-level outcome only; without the seed the duplicate read
+        // of own-skill would be absorbed as a quiet same-name overlay, so the
+        // seed itself is pinned by the getConfiguredImportRoots test above.
         const logger = createMockLogger();
         const outputRoot = join(testDir, "project");
         await writeFileContent(
