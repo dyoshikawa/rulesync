@@ -1,6 +1,13 @@
+import { createRequire } from "node:module";
+
 import { describe, expect, it } from "vitest";
 
-import { ELLIPSIS_WIDTH, displayWidthOf, shortenToWidth } from "./display-width.js";
+import {
+  AMBIGUOUS_CHARACTERS_PATTERN,
+  ELLIPSIS_WIDTH,
+  displayWidthOf,
+  shortenToWidth,
+} from "./display-width.js";
 
 describe("displayWidthOf", () => {
   it.each([
@@ -157,5 +164,55 @@ describe("shortenToWidth", () => {
 
     expect(result).toBe("ab…");
     expect(displayWidthOf(result)).toBe(4);
+  });
+});
+
+// The table is held to the property it was written from rather than trusted:
+// `get-east-asian-width` is loaded through the prompt renderer this module
+// mirrors, `@inquirer/checkbox`, which depends on it by way of `@inquirer/core`
+// and `fast-string-width`. That is the copy whose Unicode version the renderer
+// measures with, and the one the table has to agree with. It is not a
+// dependency of this package and is not imported statically for that reason;
+// the static-import rule is for the code that ships, and a test resolving a
+// transitive package through the one that owns it is what `createRequire` is
+// for. A failure to resolve fails the test rather than skipping it, because a
+// renderer that stopped depending on the package is a change worth noticing.
+const FIRST_SURROGATE = 0xd800;
+const LAST_SURROGATE = 0xdfff;
+const LAST_CODE_POINT = 0x10ffff;
+const COMBINING_MARK_PATTERN = /[\p{Mn}\p{Me}]/u;
+
+function formatCodePoint(codePoint: number): string {
+  return `U+${codePoint.toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+describe("AMBIGUOUS_CHARACTERS_PATTERN", () => {
+  it("should hold every East Asian Ambiguous code point of the renderer's Unicode, marks aside, and nothing else", () => {
+    const rendererRequire = createRequire(
+      createRequire(import.meta.url).resolve("@inquirer/checkbox/package.json"),
+    );
+    const { eastAsianWidthType } = rendererRequire("get-east-asian-width") as {
+      eastAsianWidthType: (codePoint: number) => string;
+    };
+
+    const missingFromTable: string[] = [];
+    const extraInTable: string[] = [];
+    for (let codePoint = 0; codePoint <= LAST_CODE_POINT; codePoint++) {
+      if (codePoint >= FIRST_SURROGATE && codePoint <= LAST_SURROGATE) {
+        continue;
+      }
+      const character = String.fromCodePoint(codePoint);
+      const inTable = AMBIGUOUS_CHARACTERS_PATTERN.test(character);
+      const ambiguous = eastAsianWidthType(codePoint) === "ambiguous";
+      if (ambiguous && !inTable && !COMBINING_MARK_PATTERN.test(character)) {
+        missingFromTable.push(formatCodePoint(codePoint));
+      }
+      if (inTable && !ambiguous) {
+        extraInTable.push(formatCodePoint(codePoint));
+      }
+    }
+
+    expect(missingFromTable, "ambiguous in the property but not in the table").toEqual([]);
+    expect(extraInTable, "in the table but not ambiguous in the property").toEqual([]);
   });
 });

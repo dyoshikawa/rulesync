@@ -10,18 +10,20 @@
  * not emoji at all are named beside it: the angle brackets, the trigrams and
  * digrams, and the hexagrams of U+4DC0–U+4DFF.
  *
- * The ranges are the standard ones rather than a lookup of the full property
- * table, which Unicode revises with every release and which is not worth
- * carrying for the one thing it is used for here — deciding when a label is
- * long enough to wrap. Where a range is coarse it is coarse in the safe
- * direction: the whole of U+1F000–U+1FAFF is counted as wide, which overstates
- * the few narrow symbols in it, because overstating a width shortens a label
- * that did not need it while understating one lets a label wrap. That is also
- * why an emoji built from a chain of joiners is counted per component: two
- * columns each rather than the two the whole chain draws.
+ * The ranges are the standard blocks rather than the full `East_Asian_Width`
+ * property, because the wide characters sit in blocks and a block is coarse in
+ * the safe direction: the whole of U+1F000–U+1FAFF is counted as wide, which
+ * overstates the few narrow symbols in it, because overstating a width shortens
+ * a label that did not need it while understating one lets a label wrap. That
+ * is also why an emoji built from a chain of joiners is counted per component:
+ * two columns each rather than the two the whole chain draws.
  *
  * The East Asian Ambiguous class is counted at two columns as well, by the
- * table below this one rather than by these ranges; the reason is given there.
+ * table below this one rather than by these ranges, and that table is the
+ * whole of its property: the class is scattered among the Neutral characters
+ * rather than gathered in blocks, so a block list over it would either miss
+ * members or take in characters that are not wide anywhere. The reason for
+ * counting it, and how the table is kept in step with Unicode, is given there.
  *
  * Two of the ranges are here for a narrower reason: a name the skill prompt can
  * offer may not be counted narrower here than the prompt's own renderer counts
@@ -91,21 +93,34 @@ const WIDE_CHARACTERS_PATTERN =
  *
  * The ranges are the `East_Asian_Width=A` property of Unicode 17.0, taken from
  * the table `get-east-asian-width` 1.6.0 carries and merged where two are
- * adjacent; the package itself is not imported, for the reason the comment
- * above gives for not carrying the full table. Three stretches of the property
- * are left out because they never reach this pattern: the combining diacritical
- * marks of U+0300–U+036F and the variation selectors of U+FE00–U+FE0F and
- * U+E0100–U+E01EF are marks by category and are counted by the mark rule
- * before the width of a character is looked up. Leaving them out is also what
- * keeps the class from holding a combining character, which
- * `no-misleading-character-class` is there to catch. The private use areas are
- * in it, as the property says they are: a name is free to carry them and a
- * terminal is free to draw them wide.
+ * adjacent. The table is written out here rather than read from the package so
+ * that the one lookup adds no dependency of its own, and the drift test in
+ * `display-width.test.ts` is what keeps it honest: it loads the package through
+ * the prompt renderer that already depends on it, walks every code point, and
+ * fails when this table and the property disagree in either direction. When
+ * the renderer's copy moves to a newer Unicode, that test is what fails, and
+ * the table is regenerated from the new property — its ranges, marks aside,
+ * merged where adjacent and written as escapes — with the version named here.
+ *
+ * Three stretches of the property are left out because they never reach this
+ * pattern: the combining diacritical marks of U+0300–U+036F and the variation
+ * selectors of U+FE00–U+FE0F and U+E0100–U+E01EF are marks by category and are
+ * counted by the mark rule before the width of a character is looked up.
+ * Leaving them out is also what keeps the class from holding a combining
+ * character, which `no-misleading-character-class` is there to catch, and they
+ * are the one exception the drift test allows. U+00AD SOFT HYPHEN never reaches
+ * this pattern either — it is a format character, and the zero-width rule
+ * counts it at nothing first — but it is kept, as the property has it, so that
+ * the test holds the table to the property exactly rather than to a list of
+ * exceptions. The private use areas are in it, as the property says they are: a
+ * name is free to carry them and a terminal is free to draw them wide.
  *
  * Escapes rather than the characters themselves, for the reason given above.
+ * Exported for the drift test alone; the width of a string is asked for
+ * through `displayWidthOf`.
  */
 // cspell:ignore ffffd -- the last code point of the first private use plane
-const AMBIGUOUS_CHARACTERS_PATTERN =
+export const AMBIGUOUS_CHARACTERS_PATTERN =
   /[\u00a1\u00a4\u00a7-\u00a8\u00aa\u00ad-\u00ae\u00b0-\u00b4\u00b6-\u00ba\u00bc-\u00bf\u00c6\u00d0\u00d7-\u00d8\u00de-\u00e1\u00e6\u00e8-\u00ea\u00ec-\u00ed\u00f0\u00f2-\u00f3\u00f7-\u00fa\u00fc\u00fe\u0101\u0111\u0113\u011b\u0126-\u0127\u012b\u0131-\u0133\u0138\u013f-\u0142\u0144\u0148-\u014b\u014d\u0152-\u0153\u0166-\u0167\u016b\u01ce\u01d0\u01d2\u01d4\u01d6\u01d8\u01da\u01dc\u0251\u0261\u02c4\u02c7\u02c9-\u02cb\u02cd\u02d0\u02d8-\u02db\u02dd\u02df\u0391-\u03a1\u03a3-\u03a9\u03b1-\u03c1\u03c3-\u03c9\u0401\u0410-\u044f\u0451\u2010\u2013-\u2016\u2018-\u2019\u201c-\u201d\u2020-\u2022\u2024-\u2027\u2030\u2032-\u2033\u2035\u203b\u203e\u2074\u207f\u2081-\u2084\u20ac\u2103\u2105\u2109\u2113\u2116\u2121-\u2122\u2126\u212b\u2153-\u2154\u215b-\u215e\u2160-\u216b\u2170-\u2179\u2189\u2190-\u2199\u21b8-\u21b9\u21d2\u21d4\u21e7\u2200\u2202-\u2203\u2207-\u2208\u220b\u220f\u2211\u2215\u221a\u221d-\u2220\u2223\u2225\u2227-\u222c\u222e\u2234-\u2237\u223c-\u223d\u2248\u224c\u2252\u2260-\u2261\u2264-\u2267\u226a-\u226b\u226e-\u226f\u2282-\u2283\u2286-\u2287\u2295\u2299\u22a5\u22bf\u2312\u2460-\u24e9\u24eb-\u254b\u2550-\u2573\u2580-\u258f\u2592-\u2595\u25a0-\u25a1\u25a3-\u25a9\u25b2-\u25b3\u25b6-\u25b7\u25bc-\u25bd\u25c0-\u25c1\u25c6-\u25c8\u25cb\u25ce-\u25d1\u25e2-\u25e5\u25ef\u2605-\u2606\u2609\u260e-\u260f\u261c\u261e\u2640\u2642\u2660-\u2661\u2663-\u2665\u2667-\u266a\u266c-\u266d\u266f\u269e-\u269f\u26bf\u26c6-\u26cd\u26cf-\u26d3\u26d5-\u26e1\u26e3\u26e8-\u26e9\u26eb-\u26f1\u26f4\u26f6-\u26f9\u26fb-\u26fc\u26fe-\u26ff\u273d\u2776-\u277f\u2b56-\u2b59\u3248-\u324f\ue000-\uf8ff\ufffd\u{1f100}-\u{1f10a}\u{1f110}-\u{1f12d}\u{1f130}-\u{1f169}\u{1f170}-\u{1f18d}\u{1f18f}-\u{1f190}\u{1f19b}-\u{1f1ac}\u{f0000}-\u{ffffd}\u{100000}-\u{10fffd}]/u;
 
 /**
