@@ -363,7 +363,10 @@ export class ChecksProcessor extends FeatureProcessor {
     const paths = factory.class.getSettablePaths({ global: this.global });
 
     const baseDir = join(this.outputRoot, paths.relativeDirPath);
-    const checkFilePaths = await findFilesByGlobs(factory.meta.filePattern, { cwd: baseDir });
+    const checkFilePaths = await findFilesByGlobs(factory.meta.filePattern, {
+      cwd: baseDir,
+      followSymbolicLinks: !forDeletion,
+    });
 
     const toRelativeFilePath = (path: string): string => relative(baseDir, path);
 

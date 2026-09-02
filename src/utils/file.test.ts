@@ -770,7 +770,7 @@ describe("file utilities", () => {
         });
 
         it("should evaluate relative patterns from a literal directory path", async () => {
-          const literalRoot = join(testDir, "project[glob]");
+          const literalRoot = join(testDir, "project(glob)");
           const filePath = join(literalRoot, "file.md");
           await writeFileContent(filePath, "content");
 
@@ -778,6 +778,21 @@ describe("file utilities", () => {
             findFilesByGlobs("*.md", { cwd: literalRoot, type: "file" }),
           ).resolves.toEqual([toPosixPath(filePath)]);
         });
+
+        it.skipIf(process.platform === "win32")(
+          "should not include files from a sibling matching a literal directory path",
+          async () => {
+            const literalRoot = join(testDir, "project*x");
+            const siblingRoot = join(testDir, "projectOTHERx");
+            const literalFilePath = join(literalRoot, "literal.md");
+            await writeFileContent(literalFilePath, "literal content");
+            await writeFileContent(join(siblingRoot, "sibling.md"), "sibling content");
+
+            await expect(
+              findFilesByGlobs("**/*.md", { cwd: literalRoot, type: "file" }),
+            ).resolves.toEqual([toPosixPath(literalFilePath)]);
+          },
+        );
       });
 
       describe("Windows path normalization", () => {

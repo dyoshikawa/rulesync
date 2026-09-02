@@ -966,7 +966,7 @@ describe("CommandsProcessor", () => {
       const result = await processor.loadToolFiles();
 
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
-        join("**", "*.md"),
+        "**/*.md",
         // Loading follows symlinks; collecting deletion candidates does not.
         { cwd: join(testDir, ".claude", "commands"), followSymbolicLinks: true },
       );
@@ -1217,7 +1217,7 @@ describe("CommandsProcessor", () => {
       await processor.loadToolFiles();
 
       expect(mockFindFilesByGlobs).toHaveBeenCalledWith(
-        join("**", "*.md"),
+        "**/*.md",
         // Loading follows symlinks; collecting deletion candidates does not.
         { cwd: join(testDir, ".claude", "commands"), followSymbolicLinks: true },
       );
@@ -1337,7 +1337,7 @@ describe("CommandsProcessor", () => {
 
   describe("loadToolFiles with forDeletion: true", () => {
     it("should load files when the output root contains glob metacharacters", async () => {
-      const literalRoot = join(testDir, "project[glob]");
+      const literalRoot = join(testDir, "project(glob)");
       await writeFileContent(
         join(literalRoot, ".claude", "commands", "literal.md"),
         "---\ndescription: Literal path\n---\n\nContent",
@@ -1353,10 +1353,14 @@ describe("CommandsProcessor", () => {
         await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
       mockFindFilesByGlobs.mockImplementation(actualFile.findFilesByGlobs);
 
-      const toolFiles = await literalProcessor.loadToolFiles({ forDeletion: true });
+      try {
+        const toolFiles = await literalProcessor.loadToolFiles({ forDeletion: true });
 
-      expect(toolFiles).toHaveLength(1);
-      expect(toolFiles[0]?.getRelativeFilePath()).toBe("literal.md");
+        expect(toolFiles).toHaveLength(1);
+        expect(toolFiles[0]?.getRelativeFilePath()).toBe("literal.md");
+      } finally {
+        mockFindFilesByGlobs.mockReset();
+      }
     });
 
     it("should return files with correct paths for deletion", async () => {

@@ -859,7 +859,7 @@ export class CommandsProcessor extends FeatureProcessor {
     // skills and rules processors.
     const commandFilePaths = await findFilesByGlobs(
       factory.meta.supportsSubdirectory
-        ? join("**", `*.${factory.meta.extension}`)
+        ? `**/*.${factory.meta.extension}`
         : `*.${factory.meta.extension}`,
       {
         cwd: outputRootFull,

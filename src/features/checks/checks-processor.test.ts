@@ -123,7 +123,7 @@ Look for issues.
   });
 
   it("should load checks when the output root contains glob metacharacters", async () => {
-    const literalRoot = join(testDir, "project[glob]");
+    const literalRoot = join(testDir, "project(glob)");
     await writeFileContent(
       join(literalRoot, AMP_CHECKS_PROJECT_DIR, "literal.md"),
       "---\nname: literal\ndescription: Literal path\n---\n\nContent",
@@ -141,6 +141,30 @@ Look for issues.
     expect(toolFiles).toHaveLength(1);
     expect(toolFiles[0]?.getRelativeFilePath()).toBe("literal.md");
   });
+
+  // Windows needs elevated rights to create symlinks, so this one is POSIX-only.
+  it.skipIf(process.platform === "win32")(
+    "should not load symlinked checks for deletion",
+    async () => {
+      const sharedDir = join(testDir, "shared");
+      const checksDir = join(testDir, AMP_CHECKS_PROJECT_DIR);
+      await ensureDir(checksDir);
+      await writeFileContent(
+        join(sharedDir, "shared.md"),
+        "---\nname: shared\ndescription: Shared path\n---\n\nContent",
+      );
+      await symlink(sharedDir, join(checksDir, "team"));
+
+      const processor = new ChecksProcessor({
+        outputRoot: testDir,
+        inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        toolTarget: "amp",
+        logger,
+      });
+
+      expect(await processor.loadToolFiles({ forDeletion: true })).toEqual([]);
+    },
+  );
 
   it("should return an empty array when the rulesync checks directory is missing", async () => {
     const processor = new ChecksProcessor({

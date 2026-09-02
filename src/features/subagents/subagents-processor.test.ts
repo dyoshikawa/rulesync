@@ -720,7 +720,7 @@ Body from inputRoots[0]`;
 
   describe("loadToolFiles", () => {
     it("should load files when the output root contains glob metacharacters", async () => {
-      const literalRoot = join(testDir, "project[glob]");
+      const literalRoot = join(testDir, "project(glob)");
       await writeFileContent(
         join(literalRoot, ".claude", "agents", "literal.md"),
         "---\nname: literal\ndescription: Literal path\n---\n\nContent",
