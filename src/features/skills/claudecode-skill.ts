@@ -9,7 +9,7 @@ import {
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { stripControlCharacters } from "../../utils/control-characters.js";
+import { quoteForLog } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
   directoryExists,
@@ -159,9 +159,7 @@ async function checkNestedSkillsRoot({
     // Named rather than quoted when it is the project root, whose relative path is
     // the empty string and would otherwise be reported as a pair of quotes.
     const resolvedDescription =
-      realRelativeDirPath === ""
-        ? "the project root"
-        : JSON.stringify(stripControlCharacters(realRelativeDirPath));
+      realRelativeDirPath === "" ? "the project root" : quoteForLog(realRelativeDirPath);
     return {
       reason: `it resolves to ${resolvedDescription}, which is not a ${CLAUDECODE_SKILLS_DIR_POSIX_PATH} directory.`,
     };
@@ -169,7 +167,7 @@ async function checkNestedSkillsRoot({
   const excludedSegment = excludedNestedScanSegment(aboveTailSegments);
   if (excludedSegment !== undefined) {
     return {
-      reason: `it resolves inside ${JSON.stringify(stripControlCharacters(excludedSegment))}, which the nested scan excludes.`,
+      reason: `it resolves inside ${quoteForLog(excludedSegment)}, which the nested scan excludes.`,
     };
   }
   // The gitignore filter needs no such second pass, though it too runs on the
@@ -533,7 +531,7 @@ export class ClaudecodeSkill extends ToolSkill {
       });
       if ("reason" in check) {
         logger?.warn(
-          `Skipping the nested Claude Code skills directory ${JSON.stringify(stripControlCharacters(scannedDirPath))}: ` +
+          `Skipping the nested Claude Code skills directory ${quoteForLog(scannedDirPath)}: ` +
             `${check.reason} Its skills are not imported.`,
         );
         continue;

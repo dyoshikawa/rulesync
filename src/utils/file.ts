@@ -20,7 +20,7 @@ import { kebabCase } from "es-toolkit";
 import { globbySync, isGitIgnoredSync } from "globby";
 
 import { mapWithConcurrency } from "./concurrency.js";
-import { stripControlCharacters } from "./control-characters.js";
+import { quoteForLog, stripControlCharacters } from "./control-characters.js";
 import { formatError } from "./error.js";
 import { isEnvTest } from "./vitest.js";
 
@@ -234,17 +234,13 @@ export function checkPathTraversal({
   // Check for .. segments in the path (even if they don't escape the directory)
   const segments = relativePath.split(/[/\\]/);
   if (segments.includes("..")) {
-    throw new Error(
-      `Path traversal detected: ${JSON.stringify(stripControlCharacters(relativePath))}`,
-    );
+    throw new Error(`Path traversal detected: ${quoteForLog(relativePath)}`);
   }
 
   const resolved = resolve(intendedRootDir, relativePath);
   const rel = relative(intendedRootDir, resolved);
   if (rel.startsWith("..") || resolve(resolved) !== resolved) {
-    throw new Error(
-      `Path traversal detected: ${JSON.stringify(stripControlCharacters(relativePath))}`,
-    );
+    throw new Error(`Path traversal detected: ${quoteForLog(relativePath)}`);
   }
 }
 
