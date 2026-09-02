@@ -409,6 +409,88 @@ describe("config-resolver", () => {
     });
   });
 
+  describe("language", () => {
+    it("should load language from config file", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["cursor"],
+        language: "ja",
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getLanguage()).toBe("ja");
+    });
+
+    it("should leave language unset when not specified", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["cursor"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getLanguage()).toBeUndefined();
+    });
+
+    it("should allow rulesync.local.jsonc to override language", async () => {
+      const baseConfigContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["cursor"],
+        language: "en",
+      });
+      const localConfigContent = JSON.stringify({
+        language: "pt-BR",
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), baseConfigContent);
+      await writeFileContent(join(testDir, "rulesync.local.jsonc"), localConfigContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getLanguage()).toBe("pt-BR");
+    });
+
+    it("should keep the base language when rulesync.local.jsonc does not set one", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ outputRoots: ["./"], targets: ["cursor"], language: "zh-CN" }),
+      );
+      await writeFileContent(
+        join(testDir, "rulesync.local.jsonc"),
+        JSON.stringify({ verbose: true }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getLanguage()).toBe("zh-CN");
+    });
+
+    it("should reject an unsupported language value", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["cursor"],
+        language: "klingon",
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+        }),
+      ).rejects.toThrow(/language/);
+    });
+  });
+
   describe("local configuration (rulesync.local.jsonc)", () => {
     it("should use rulesync.local.jsonc to override rulesync.jsonc", async () => {
       const baseConfigContent = JSON.stringify({

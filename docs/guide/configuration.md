@@ -64,6 +64,10 @@ Example:
   // stale old flat-named files remain alongside the new ones.
   "flattenedCommandNaming": "basename",
 
+  // Language the AI should answer in. Omit it to say nothing about language.
+  // See the "Response Language" section for what each tool receives.
+  // "language": "ja",
+
   // When true (default), `rulesync gitignore` only emits entries for the
   // tools listed in `targets`. Set to false to emit entries for all supported
   // tools regardless of `targets`.
@@ -179,6 +183,30 @@ The current per-feature options are:
 See [`docs/reference/file-formats.md`](../reference/file-formats.md#where-ignore-patterns-are-written-per-tool)
 for the rationale behind the Claude Code default and when to switch to
 `"local"`.
+
+## Response Language
+
+The root `language` key steers the language the AI answers in. It accepts one of `en`, `ja`, `zh-CN`, `zh-TW`, `ko`, `fr`, `de`, `es`, `pt-BR`, `ru`, has no CLI flag, and can be overridden per developer from `rulesync.local.jsonc`. When it is omitted, Rulesync says nothing about language; `en` is therefore an explicit instruction, not the default.
+
+```jsonc
+// rulesync.jsonc
+{
+  "language": "ja",
+}
+```
+
+What the `rules` feature generates from it depends on the tool:
+
+- **Claude Code** has a native `language` setting, so the key is written as `"language": "japanese"` into `.claude/settings.local.json` (project scope) or `~/.claude/settings.json` (global scope, since Claude Code reads no `~/.claude/settings.local.json`) and `CLAUDE.md` is left as it is. Only the `language` key is touched; everything else in the settings file is preserved, and the file is never created or modified while the key is unset.
+- **Every other tool** gets the instruction appended to the generated root rule file — the file built from your `root: true` rule (`AGENTS.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.cursor/rules/overview.mdc`, and so on). Nested rules never carry it. The block is separated from your content by a thematic break:
+
+  ```md
+  ---
+
+  You must always answer in Japanese. On the other hand, reasoning (thinking) should be in English to improve token efficiency.
+  ```
+
+  `rulesync import` recognizes the block for every supported language and strips it, so importing a generated file and generating again yields one block rather than two.
 
 ## Local Configuration
 

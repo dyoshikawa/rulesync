@@ -21,6 +21,7 @@ import {
   RulesyncFeatures,
   RulesyncFeaturesSchema,
 } from "../types/features.js";
+import { Language, LanguageSchema } from "../types/language.js";
 import {
   ALL_TOOL_TARGETS,
   PACKAGING_TOOL_TARGETS,
@@ -123,6 +124,13 @@ export const ConfigParamsSchema = z.object({
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
   flattenedCommandNaming: optional(FlattenedCommandNamingSchema),
+  /**
+   * Response language the generated rules steer the AI toward. Config-file
+   * only (no CLI flag): it is a property of the project, not of one run.
+   * Absent means "say nothing about language", which is why `en` is a real
+   * value rather than the default.
+   */
+  language: optional(LanguageSchema),
   gitignoreTargetsOnly: optional(z.boolean()),
   gitignoreDestination: optional(GitignoreDestinationSchema),
   dryRun: optional(z.boolean()),
@@ -412,6 +420,7 @@ export class Config {
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
   private readonly flattenedCommandNaming: FlattenedCommandNaming;
+  private readonly language: Language | undefined;
   private readonly gitignoreTargetsOnly: boolean;
   private readonly gitignoreDestination: GitignoreDestination;
   private readonly dryRun: boolean;
@@ -448,6 +457,7 @@ export class Config {
     simulateSubagents,
     simulateSkills,
     flattenedCommandNaming,
+    language,
     gitignoreTargetsOnly,
     gitignoreDestination,
     dryRun,
@@ -509,6 +519,7 @@ export class Config {
     this.simulateSubagents = simulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
     this.flattenedCommandNaming = flattenedCommandNaming ?? "basename";
+    this.language = language;
     this.gitignoreTargetsOnly = gitignoreTargetsOnly ?? true;
     this.gitignoreDestination = gitignoreDestination ?? "gitignore";
     this.dryRun = dryRun ?? false;
@@ -804,6 +815,14 @@ export class Config {
 
   public getFlattenedCommandNaming(): FlattenedCommandNaming {
     return this.flattenedCommandNaming;
+  }
+
+  /**
+   * The configured response language, or `undefined` when `rulesync.jsonc`
+   * does not set one — in which case generation leaves language alone.
+   */
+  public getLanguage(): Language | undefined {
+    return this.language;
   }
 
   public getSimulateSubagents(): boolean {

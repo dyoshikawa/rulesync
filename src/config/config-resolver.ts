@@ -36,11 +36,11 @@ import {
 import type { OutputRoots } from "./config.js";
 
 /**
- * CLI-resolvable params exclude `sources` and `flattenedCommandNaming` — they
- * are config-file-only.
+ * CLI-resolvable params exclude `sources`, `flattenedCommandNaming`, and
+ * `language` — they are config-file-only.
  */
 export type ConfigResolverResolveParams = Partial<
-  Omit<ConfigParams, "sources" | "flattenedCommandNaming"> & {
+  Omit<ConfigParams, "sources" | "flattenedCommandNaming" | "language"> & {
     configPath: string;
   }
 >;
@@ -48,9 +48,11 @@ export type ConfigResolverResolveParams = Partial<
 // `inputRoot`/`inputRoots` are intentionally optional — omitting them means
 // "use CWD". All other fields are concrete defaults so callers (and the
 // resolver) can rely on `getDefaults().<field>` being populated.
-type ConfigDefaults = Omit<RequiredConfigParams, "inputRoot" | "inputRoots"> & {
+type ConfigDefaults = Omit<RequiredConfigParams, "inputRoot" | "inputRoots" | "language"> & {
   inputRoot?: string;
   inputRoots?: string[];
+  // `language` has no default on purpose: "unset" is the meaningful state.
+  language?: RequiredConfigParams["language"];
   configPath: string;
 };
 
@@ -143,6 +145,7 @@ const mergeConfigs = (
     simulateSubagents: localConfig.simulateSubagents ?? baseConfig.simulateSubagents,
     simulateSkills: localConfig.simulateSkills ?? baseConfig.simulateSkills,
     flattenedCommandNaming: localConfig.flattenedCommandNaming ?? baseConfig.flattenedCommandNaming,
+    language: localConfig.language ?? baseConfig.language,
     gitignoreTargetsOnly: localConfig.gitignoreTargetsOnly ?? baseConfig.gitignoreTargetsOnly,
     gitignoreDestination: localConfig.gitignoreDestination ?? baseConfig.gitignoreDestination,
     dryRun: localConfig.dryRun ?? baseConfig.dryRun,
@@ -561,6 +564,7 @@ export class ConfigResolver {
       sources: configByFile.sources ?? getDefaults().sources,
       flattenedCommandNaming:
         configByFile.flattenedCommandNaming ?? getDefaults().flattenedCommandNaming,
+      language: configByFile.language,
       configFileTargets: extractConfigFileTargets(configByFile.targets),
     };
     const config = new Config(configParams);
