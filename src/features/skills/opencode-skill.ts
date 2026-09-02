@@ -116,8 +116,10 @@ export class OpenCodeSkill extends ToolSkill {
    * where it resolves, not by how it is spelled: a relative name that is a
    * symbolic link pointing out of the directory is an escape all the same and
    * is dropped too. A path that does not exist has nothing to resolve and is
-   * judged as spelled, which keeps it — the scan finds no directory under it
-   * either way.
+   * compared as spelled against the resolved config directory, so it survives
+   * only when that directory resolves to its own spelling and is dropped when
+   * the directory is itself reached through a link. Either way it yields no
+   * skills — the scan finds no directory under it.
    *
    * @see https://opencode.ai/config.json
    */
