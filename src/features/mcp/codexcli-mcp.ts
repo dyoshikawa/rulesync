@@ -559,10 +559,9 @@ export class CodexcliMcp extends ToolMcp {
     }
 
     const strippedMcpServers = rulesyncMcp.getMcpServers();
-    const rawMcpServers = rulesyncMcp.getJson().mcpServers;
     const mcpServersWithCodexFields = Object.fromEntries(
       Object.entries(strippedMcpServers).map(([serverName, serverConfig]) => {
-        const rawServer = isRecord(rawMcpServers) ? rawMcpServers[serverName] : undefined;
+        const rawServer = rulesyncMcp.getRawMcpServer(serverName);
         return [
           serverName,
           {

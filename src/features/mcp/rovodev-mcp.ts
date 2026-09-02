@@ -717,17 +717,10 @@ export class RovodevMcp extends ToolMcp {
     // pass — it must not reach the other targets — so the unfiltered source is
     // read back here to recover it for the target that owns it, the way codex
     // recovers `envVars` and musecode recovers `musecodeMode`.
-    const rawMcpServers = rulesyncMcp.getJson().mcpServers;
     const mcpServers = Object.fromEntries(
       Object.entries(rulesyncMcp.getMcpServers())
         .map(([name, server]) => {
-          // `Object.hasOwn` before the lookup, matching `lookupTransport` and
-          // the `fromFile` disabled overlay: a name must never resolve up the
-          // prototype chain, however hard that is to reach from here.
-          const rawServer =
-            isRecord(rawMcpServers) && Object.hasOwn(rawMcpServers, name)
-              ? rawMcpServers[name]
-              : undefined;
+          const rawServer = rulesyncMcp.getRawMcpServer(name);
           const record: Record<string, unknown> = {
             ...(server as Record<string, unknown>),
             // Both spellings are accepted in `.rulesync/mcp.json`: the

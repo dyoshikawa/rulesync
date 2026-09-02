@@ -1452,6 +1452,55 @@ describe("RulesyncMcp", () => {
     });
   });
 
+  describe("getRawMcpServer", () => {
+    it("returns an own server from the unfiltered source", () => {
+      const rulesyncMcp = makeInstance({
+        mcpServers: {
+          pal: { command: "uvx", envVars: ["OPENAI_API_KEY"] },
+        },
+      });
+
+      expect(rulesyncMcp.getRawMcpServer("pal")).toEqual({
+        command: "uvx",
+        envVars: ["OPENAI_API_KEY"],
+      });
+    });
+
+    it("does not resolve a server from the prototype chain", () => {
+      const rulesyncMcp = makeInstance({ mcpServers: {} });
+      Object.setPrototypeOf(rulesyncMcp.getJson().mcpServers, {
+        inherited: { command: "evil" },
+      });
+
+      expect(rulesyncMcp.getRawMcpServer("inherited")).toBeUndefined();
+    });
+
+    it.each(["__proto__", "constructor", "prototype"])(
+      "rejects the prototype-pollution key %s even when it is an own property",
+      (name) => {
+        const rulesyncMcp = makeInstance({ mcpServers: {} });
+        Object.defineProperty(rulesyncMcp.getJson().mcpServers, name, {
+          configurable: true,
+          enumerable: true,
+          value: { command: "evil" },
+        });
+
+        expect(rulesyncMcp.getRawMcpServer(name)).toBeUndefined();
+      },
+    );
+
+    it("returns undefined when the raw mcpServers value is not a record", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: '{"mcpServers":[]}',
+        validate: false,
+      });
+
+      expect(rulesyncMcp.getRawMcpServer("pal")).toBeUndefined();
+    });
+  });
+
   describe("integration and edge cases", () => {
     it("should handle large JSON structures", () => {
       const largeJsonData = {
