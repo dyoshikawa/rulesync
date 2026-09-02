@@ -1707,6 +1707,128 @@ Broken YAML`,
     );
 
     it.skipIf(process.platform === "win32")(
+      "should not read a nested root that resolves onto the project's own linked skills directory",
+      async () => {
+        // The project's own `.claude/skills` is itself a link into the project.
+        // The directory it stands for is then reported by the scan under its
+        // own name, and telling it apart from a nested root by where it
+        // resolves only works if the tool's own root is seeded under that
+        // resolved spelling too -- not only under its literal one.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await writeFileContent(
+          join(outputRoot, "shared", ".claude", "skills", "own-skill", "SKILL.md"),
+          "---\nname: own-skill\ndescription: Own description\n---\nOwn body",
+        );
+        await ensureDir(join(outputRoot, ".claude"));
+        await symlink(
+          join(outputRoot, "shared", ".claude", "skills"),
+          join(outputRoot, ".claude", "skills"),
+        );
+        await writeFileContent(
+          join(outputRoot, "apps", "web", ".claude", "skills", "deploy", "SKILL.md"),
+          "---\nname: deploy\ndescription: Deploy description\n---\nDeploy body",
+        );
+
+        const roots = await ClaudecodeSkill.getConfiguredImportRoots({ outputRoot, logger });
+
+        expect(roots.map((root) => root.relativeDirPath)).toEqual([
+          join("apps", "web", ".claude", "skills"),
+        ]);
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should import each skill once when the project's own skills directory is a link",
+      async () => {
+        // Same layout as above, taken through the processor: the project's own
+        // skill is read once through the link, unscoped, and the genuine nested
+        // root's skill is read once and scoped to where it was found. This pins
+        // the processor-level outcome only; without the seed the duplicate read
+        // of own-skill would be absorbed as a quiet same-name overlay, so the
+        // seed itself is pinned by the getConfiguredImportRoots test above.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await writeFileContent(
+          join(outputRoot, "shared", ".claude", "skills", "own-skill", "SKILL.md"),
+          "---\nname: own-skill\ndescription: Own description\n---\nOwn body",
+        );
+        await ensureDir(join(outputRoot, ".claude"));
+        await symlink(
+          join(outputRoot, "shared", ".claude", "skills"),
+          join(outputRoot, ".claude", "skills"),
+        );
+        await writeFileContent(
+          join(outputRoot, "apps", "web", ".claude", "skills", "deploy", "SKILL.md"),
+          "---\nname: deploy\ndescription: Deploy description\n---\nDeploy body",
+        );
+
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        const dirNames = toolDirs.map((dir) => (dir as ClaudecodeSkill).getDirName());
+        expect(dirNames.filter((name) => name === "own-skill")).toHaveLength(1);
+        expect(dirNames.filter((name) => name === "deploy")).toHaveLength(1);
+        const byName = new Map(
+          toolDirs.map((dir) => [(dir as ClaudecodeSkill).getDirName(), dir as ClaudecodeSkill]),
+        );
+        expect(
+          byName.get("own-skill")?.toRulesyncSkill().getFrontmatter().claudecode,
+        ).toBeUndefined();
+        expect(byName.get("deploy")?.toRulesyncSkill().getFrontmatter().claudecode).toEqual({
+          paths: ["apps/web/**"],
+        });
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should record a nested root reached through a link under the spelling the scan reports",
+      async () => {
+        // `a\\b` is reported at `a/b`, which here is a link to a directory whose
+        // own name the scan cannot report either. The root is judged by where it
+        // resolves, but recorded -- and its `paths` derived -- under the spelling
+        // that is read: the location the skill was found at is the one it is
+        // scoped to, not the one it resolves to.
+        const logger = createMockLogger();
+        const outputRoot = join(testDir, "project");
+        await writeFileContent(
+          join(outputRoot, "a\\b", ".claude", "skills", "decoy", "SKILL.md"),
+          "---\nname: decoy\ndescription: Decoy description\n---\nDecoy body",
+        );
+        await writeFileContent(
+          join(outputRoot, "real\\c", ".claude", "skills", "linked", "SKILL.md"),
+          "---\nname: linked\ndescription: Linked description\n---\nLinked body",
+        );
+        await ensureDir(join(outputRoot, "a"));
+        await symlink(join(outputRoot, "real\\c"), join(outputRoot, "a", "b"));
+
+        const roots = await ClaudecodeSkill.getConfiguredImportRoots({ outputRoot, logger });
+        const toolDirs = await new SkillsProcessor({
+          logger,
+          outputRoot,
+          toolTarget: "claudecode",
+        }).loadToolDirs();
+
+        expect(roots.map((root) => root.relativeDirPath)).toEqual([
+          join("a", "b", ".claude", "skills"),
+        ]);
+        const linked = toolDirs.find((dir) => (dir as ClaudecodeSkill).getDirName() === "linked");
+        expect((linked as ClaudecodeSkill).toRulesyncSkill().getFrontmatter().claudecode).toEqual({
+          paths: ["a/b/**"],
+        });
+        // The directory's own spelling is still reported, and still refused.
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("could not be read under the path the scan reports"),
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
       "should refuse a nested skills directory that resolves to no skills directory at all",
       async () => {
         // `a\\b` is reported at `a/b`, and `a/b/.claude/skills` here is a link

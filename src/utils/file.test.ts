@@ -45,6 +45,7 @@ import {
   resolvePath,
   restoreMissingExecutableBit,
   runWithDirectoryRollback,
+  sharedTrailingSegments,
   toKebabCaseFilename,
   toPosixPath,
   validateOutputRoot,
@@ -249,6 +250,26 @@ describe("file utilities", () => {
       ["root-like path", "\\packages\\shared", "/packages/shared"],
     ])("should convert %s", (_label, input, expected) => {
       expect(toPosixPath(input)).toBe(expected);
+    });
+  });
+
+  describe("sharedTrailingSegments", () => {
+    it("should count the segments a Windows-style path shares with its posix identity", () => {
+      // The identity `realpath` returns is rewritten to posix separators; the
+      // candidate is spelled the way the platform reported it. Splitting both
+      // on either separator is what lets the two compare on Windows without a
+      // rewrite of the candidate first. This pins that both sides are split on
+      // both separators: it fails if `splitPathSegments` narrows to one.
+      expect(sharedTrailingSegments("C:\\proj\\zzz\\x.md", "C:/proj/zzz/x.md")).toBe(4);
+      expect(sharedTrailingSegments("C:\\proj\\aaa\\x.md", "C:/proj/zzz/x.md")).toBe(1);
+    });
+
+    it("should split a backslash inside a name the same way on both sides", () => {
+      // On a posix platform a backslash is an ordinary character, and neither
+      // side is rewritten: the count stays symmetric because both are split on
+      // it alike, so a path that walked through no link still shares everything.
+      expect(sharedTrailingSegments("/proj/a\\b/x.md", "/proj/a\\b/x.md")).toBe(5);
+      expect(sharedTrailingSegments("/proj/aaa/x.md", "/proj/a\\b/x.md")).toBe(1);
     });
   });
 
