@@ -1,12 +1,13 @@
-import type { Stats } from "node:fs";
+import { constants, type Stats } from "node:fs";
+import type { FileHandle } from "node:fs/promises";
 import {
-  chmod,
   cp,
   lstat,
   mkdir,
   mkdtemp,
-  readdir,
+  open,
   readFile,
+  readdir,
   realpath,
   rm,
   stat,
@@ -355,49 +356,75 @@ export async function writeFileContent(filepath: string, content: string): Promi
  * Apply a POSIX mode to an existing file. Windows has no executable bit and
  * `chmod` there only toggles the read-only flag, so the call is skipped rather
  * than writing a mode the platform cannot honor.
+ *
+ * The mode goes through a handle opened with `O_NOFOLLOW`, so a symbolic link
+ * standing where the file should be is left alone rather than having the mode
+ * land on whatever it points at -- possibly outside the output tree -- and the
+ * file whose mode changes is the very one that was opened, with no path to
+ * swap between the check and the `chmod`. The write side refuses to read
+ * through links; the mode side refuses to write through them. A link is
+ * skipped silently, like Windows; a file that does not exist still throws.
  */
 export async function applyFileMode(filepath: string, mode: number): Promise<void> {
   if (process.platform === "win32") {
     return;
   }
-  if (await isSymbolicLink(filepath)) {
+  const fileHandle = await openNotFollowingLinks(filepath);
+  if (fileHandle === undefined) {
     return;
   }
-  await chmod(filepath, mode);
-}
-
-/**
- * `chmod` follows a symbolic link, so a mode meant for a file Rulesync wrote
- * would land on whatever the link points at -- possibly outside the output
- * tree. The write side refuses to read through links; the mode side refuses
- * to write through them.
- */
-async function isSymbolicLink(filepath: string): Promise<boolean> {
   try {
-    return (await lstat(filepath)).isSymbolicLink();
-  } catch {
-    return false;
+    await fileHandle.chmod(mode);
+  } finally {
+    await fileHandle.close();
   }
 }
 
 /**
  * Restore an executable bit that went missing (interrupted run, a copy that
  * dropped the mode). A file whose mode is merely stricter than `mode` — the
- * user chose 0700 over 0755 — is left alone.
+ * user chose 0700 over 0755 — is left alone, and so is a symbolic link or a
+ * file that cannot be opened: this repairs, it never creates.
  */
 export async function restoreMissingExecutableBit(filepath: string, mode: number): Promise<void> {
   if (process.platform === "win32") {
     return;
   }
+  let fileHandle: FileHandle | undefined;
   try {
-    const current = await lstat(filepath);
-    if (current.isSymbolicLink() || (current.mode & 0o111) !== 0) {
-      return;
-    }
+    fileHandle = await openNotFollowingLinks(filepath);
   } catch {
     return;
   }
-  await chmod(filepath, mode);
+  if (fileHandle === undefined) {
+    return;
+  }
+  try {
+    const current = await fileHandle.stat();
+    if ((current.mode & 0o111) !== 0) {
+      return;
+    }
+    await fileHandle.chmod(mode);
+  } finally {
+    await fileHandle.close();
+  }
+}
+
+/**
+ * Open a file for its mode without following a symbolic link at the path.
+ * Returns `undefined` when the path is a link (`O_NOFOLLOW` fails with
+ * `ELOOP`, or `EMLINK` on some BSDs); any other failure is the caller's.
+ */
+async function openNotFollowingLinks(filepath: string): Promise<FileHandle | undefined> {
+  try {
+    return await open(filepath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ELOOP" || code === "EMLINK") {
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 export async function writeFileBuffer(filepath: string, buffer: Buffer): Promise<void> {
