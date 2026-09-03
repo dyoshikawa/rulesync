@@ -5,97 +5,122 @@ import { stripControlCharacters } from "./control-characters.js";
 import { formatError } from "./error.js";
 import { toPosixPath } from "./file.js";
 import { warnOnceWithFallback } from "./logger.js";
+import { isPrototypePollutionKey } from "./prototype-pollution.js";
 import { isPlainObject } from "./type-guards.js";
 import { loadYaml } from "./yaml.js";
 
-function deepRemoveNullishValue(value: unknown): unknown {
-  if (value === null || value === undefined) {
-    return undefined;
-  }
+/**
+ * Marks a container whose cleaning is still in progress, so a reference back
+ * to it (a YAML anchor that aliases one of its own ancestors) is recognized as
+ * a cycle rather than walked again.
+ */
+const IN_PROGRESS = Symbol("in-progress");
 
-  if (Array.isArray(value)) {
-    const cleanedArray = value
-      .map((item) => deepRemoveNullishValue(item))
-      .filter((item) => item !== undefined);
-    return cleanedArray;
-  }
+type DeepCleanOptions = {
+  /** Applied to every string leaf; the default keeps strings as they are. */
+  transformString?: (value: string) => string;
+  /**
+   * Containers already cleaned, keyed by the original reference. YAML aliases
+   * make one parsed object reachable from many keys; without this memo every
+   * alias is expanded into an independent copy, so a small file with a few
+   * levels of nested aliases (an "alias bomb") explodes into megabytes of
+   * output or exhausts the heap, and a self-referencing anchor recurses until
+   * the stack overflows. With it, a shared object is cleaned once and reused,
+   * and a cycle is dropped.
+   */
+  seen: WeakMap<object, unknown>;
+};
 
-  if (isPlainObject(value)) {
-    const result: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(value)) {
-      const cleaned = deepRemoveNullishValue(val);
-      if (cleaned !== undefined) {
-        result[key] = cleaned;
-      }
-    }
-    return result;
-  }
-
-  return value;
-}
-
-function deepRemoveNullishObject(
-  obj: Record<string, unknown> | null | undefined,
-): Record<string, unknown> {
-  if (!obj || typeof obj !== "object") {
-    return {};
-  }
-
-  const result: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(obj)) {
-    const cleaned = deepRemoveNullishValue(val);
-    if (cleaned !== undefined) {
-      result[key] = cleaned;
-    }
-  }
-  return result;
-}
-
-function deepFlattenStringsValue(value: unknown): unknown {
+function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
   if (value === null || value === undefined) {
     return undefined;
   }
 
   if (typeof value === "string") {
-    return value.replace(/\n+/g, " ").trim();
+    return options.transformString ? options.transformString(value) : value;
   }
 
   if (Array.isArray(value)) {
-    const cleanedArray = value
-      .map((item) => deepFlattenStringsValue(item))
-      .filter((item) => item !== undefined);
+    if (options.seen.has(value)) {
+      const cleaned = options.seen.get(value);
+      return cleaned === IN_PROGRESS ? undefined : cleaned;
+    }
+    options.seen.set(value, IN_PROGRESS);
+    const cleanedArray: unknown[] = [];
+    for (const item of value) {
+      const cleaned = deepCleanValue(item, options);
+      if (cleaned !== undefined) {
+        cleanedArray.push(cleaned);
+      }
+    }
+    options.seen.set(value, cleanedArray);
     return cleanedArray;
   }
 
   if (isPlainObject(value)) {
-    const result: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(value)) {
-      const cleaned = deepFlattenStringsValue(val);
-      if (cleaned !== undefined) {
-        result[key] = cleaned;
-      }
+    if (options.seen.has(value)) {
+      const cleaned = options.seen.get(value);
+      return cleaned === IN_PROGRESS ? undefined : cleaned;
     }
+    options.seen.set(value, IN_PROGRESS);
+    const result = cleanOwnEntries(value, options);
+    options.seen.set(value, result);
     return result;
   }
 
   return value;
 }
 
-function deepFlattenStringsObject(
-  obj: Record<string, unknown> | null | undefined,
+/**
+ * Copy the cleaned own entries of a parsed object into a fresh record.
+ *
+ * A YAML parser defines a `__proto__:` key as an own property, and assigning
+ * it back with bracket notation would instead replace the new record's
+ * prototype, whose members zod's loose object schemas then promote to real
+ * keys. So a fetched skill could hide `allowed-tools` under an innocuous
+ * looking `__proto__:` block. Such keys are dropped rather than copied.
+ */
+function cleanOwnEntries(
+  obj: Record<string, unknown>,
+  options: DeepCleanOptions,
 ): Record<string, unknown> {
-  if (!obj || typeof obj !== "object") {
-    return {};
-  }
-
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(obj)) {
-    const cleaned = deepFlattenStringsValue(val);
+    if (isPrototypePollutionKey(key)) {
+      continue;
+    }
+    const cleaned = deepCleanValue(val, options);
     if (cleaned !== undefined) {
       result[key] = cleaned;
     }
   }
   return result;
+}
+
+function deepCleanObject(
+  obj: Record<string, unknown> | null | undefined,
+  options: Omit<DeepCleanOptions, "seen">,
+): Record<string, unknown> {
+  if (!obj || typeof obj !== "object") {
+    return {};
+  }
+  return cleanOwnEntries(obj, { ...options, seen: new WeakMap() });
+}
+
+/** Drop null and undefined values, recursively. */
+function deepRemoveNullishObject(
+  obj: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  return deepCleanObject(obj, {});
+}
+
+/** Drop nullish values and collapse every string onto a single line. */
+function deepFlattenStringsObject(
+  obj: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  return deepCleanObject(obj, {
+    transformString: (value) => value.replace(/\n+/g, " ").trim(),
+  });
 }
 
 export type StringifyFrontmatterOptions = {
