@@ -23,6 +23,12 @@
     "src/generated/**"
   ],
   "words": [
+    "CONIN",
+    "CONOUT",
+    "conin",
+    "conout",
+    "ntpath",
+    "isreserved",
     "aaif",
     "keycap",
     "Bopomofo",

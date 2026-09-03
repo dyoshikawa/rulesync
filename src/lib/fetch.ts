@@ -332,23 +332,73 @@ const NOTHING_DRAWN_PATTERN = /^[\s\p{M}]*$/u;
 const TRAILING_DOT_OR_SPACE_PATTERN = /[. ]$/;
 /** A name ending in the `NAME~1` shape of a Windows 8.3 short name, extension included. */
 const SHORT_NAME_ALIAS_PATTERN = /~\d+(?:\.[^.]*)?$/;
+/**
+ * A name Win32 reserves for a device — `CON`, `PRN`, `AUX`, `NUL`, `CONIN$`,
+ * `CONOUT$`, `COM1`–`COM9`, `LPT1`–`LPT9` — in any case and with any
+ * extension: `nul.md` is the null device too, since the reservation is decided
+ * on the part before the first dot, with any spaces before that dot dropped
+ * first, so `nul .md` is the null device as well. The port digit may also be
+ * one of the superscript digits ¹ ² ³, which Win32 reads as 1, 2 and 3
+ * (`RtlIsDosDeviceName_U`; CPython's `ntpath.isreserved` follows the same
+ * rules).
+ */
+const RESERVED_DEVICE_NAME_PATTERN =
+  /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9\u00B9\u00B2\u00B3]|LPT[1-9\u00B9\u00B2\u00B3]) *(?:\..*)?$/i;
 
 /**
- * Whether Windows resolves a skill directory name to a directory other than
- * the one it reads as.
+ * Whether Windows resolves a path segment to something other than the entry it
+ * reads as.
  *
  * Win32 drops a trailing dot or ASCII space when it resolves a path, so a remote
  * `skills/deploy.` is the existing `skills/deploy` there. A name ending in the
  * `NAME~1` shape is the same class of problem: on a volume that generates
  * short names, it opens whatever long name it stands for. The shape only
  * means that at the end of a name, so `data~2parser` and `v1.0` are ordinary
- * names. The check is not gated on the platform: the same repository is
- * checked out on several of them, and a name that lands somewhere else on any
- * one of them is one this tool would rather turn away everywhere than write
- * differently depending on where it runs.
+ * names. A reserved device name is the extreme case: `nul` and `nul.md` are
+ * not entries in any directory but the null device itself, so a write to one
+ * lands nowhere, and a directory of that name cannot be created at all.
+ *
+ * The predicate is asked of every segment of a written path — the skill
+ * directory, but equally a nested `references/notes. ` or a `scripts/con.sh`
+ * — since a folded segment anywhere in a path lands the file beside, or on top
+ * of, a sibling the repository never published. The check is not gated on the
+ * platform: the same repository is checked out on several of them, and a name
+ * that lands somewhere else on any one of them is one this tool would rather
+ * turn away everywhere than write differently depending on where it runs.
  */
-function hasWindowsFoldableSkillName(name: string): boolean {
-  return TRAILING_DOT_OR_SPACE_PATTERN.test(name) || SHORT_NAME_ALIAS_PATTERN.test(name);
+function hasWindowsFoldableName(name: string): boolean {
+  return (
+    TRAILING_DOT_OR_SPACE_PATTERN.test(name) ||
+    SHORT_NAME_ALIAS_PATTERN.test(name) ||
+    RESERVED_DEVICE_NAME_PATTERN.test(name)
+  );
+}
+
+/**
+ * The first segment of a remote path, other than the skill directory itself,
+ * that `hasWindowsFoldableName` turns away — or `undefined` when every one is
+ * written where it says.
+ *
+ * The skill directory segment is left to `classifySkillPath`, which reports it
+ * under its own reason so the warning can say that a whole skill was left out
+ * rather than one file of it. Every other segment — a rules file, a directory
+ * inside a skill, the file at the end — is checked here, since a fetched path
+ * is written segment by segment and each one is a place Windows can fold.
+ */
+function findWindowsFoldableSegment(relativePath: string): string | undefined {
+  const segments = relativePath.split("/");
+  const isSkillPath = relativePath.startsWith(SKILLS_DIR_PREFIX) && segments.length >= 3;
+  // A `.` or `..` segment ends in a dot too, but it is not a name Windows
+  // folds: it is a path that walks out of the tree, which
+  // `validateRemoteRelativePath` refuses outright rather than skips. A path
+  // carrying one is left whole for that validator, whatever its other
+  // segments look like, so that it is refused rather than quietly skipped.
+  if (segments.some((segment) => segment === "." || segment === "..")) {
+    return undefined;
+  }
+  return segments.find(
+    (segment, index) => !(isSkillPath && index === 1) && hasWindowsFoldableName(segment),
+  );
 }
 
 /**
@@ -371,13 +421,16 @@ function hasWindowsFoldableSkillName(name: string): boolean {
  * in it and an emoji name is a chain of ZWJ, and both are ordinary names rather
  * than disguises. `hasDeceptiveHiddenCharacters` draws that line.
  *
- * A name Windows folds onto another — a trailing dot or ASCII space, or the `NAME~1`
- * shape of a short name — is turned away as well, and for a reason of the same
- * kind: it reads as one directory and is written into another, so with the
+ * A name Windows folds onto another — a trailing dot or ASCII space, the `NAME~1`
+ * shape of a short name, or a reserved device name such as `NUL` — is turned
+ * away as well, and for a reason of the same kind: it reads as one directory
+ * and is written into another, or into no directory at all, so with the
  * default `--conflict overwrite` a remote `skills/deploy.` replaces the files
  * of a local `deploy` that the repository never published. Such a name is
  * reported as `unsafe-name` with its own reason, since it can be printed as it
- * is; `hasWindowsFoldableSkillName` says which names those are.
+ * is; `hasWindowsFoldableName` says which names those are. Only the skill
+ * directory is judged here; the segments below it are turned away one file at
+ * a time by `dropAmbiguousRemotePaths`, before this function sees the path.
  */
 function classifySkillPath(relativePath: string): SkillPathClass {
   // Split on "/" alone. A remote path is POSIX, so a backslash in one is an
@@ -413,7 +466,7 @@ function classifySkillPath(relativePath: string): SkillPathClass {
   }
   // Checked after the hidden characters, so a name that is both is reported
   // by the reason that keeps its raw form off the terminal.
-  if (hasWindowsFoldableSkillName(name)) {
+  if (hasWindowsFoldableName(name)) {
     return { kind: "unsafe-name", raw: name, display, reason: "foldable" };
   }
   return { kind: "skill", name };
@@ -453,6 +506,15 @@ const AMBIGUOUS_PATH_CHARACTERS_PATTERN = /[\\:]/u;
  * reads as a skill this run never fetched while the prune, comparing names,
  * sees two — and empties the one the user already had.
  *
+ * A segment Windows folds onto another name — a trailing dot or ASCII space,
+ * the `NAME~1` shape of a short name, a reserved device name — is the same
+ * problem one level down: `skills/deploy/references/notes. ` is its own file
+ * here and the existing `notes` on Windows, so under `--conflict overwrite` it
+ * would replace a file the repository never published, and `scripts/nul.sh`
+ * is not a file there at all. The skill directory segment is not judged here
+ * but by `classifySkillPath`, which drops the whole skill under a warning of
+ * its own; every other segment of every fetched path is judged here.
+ *
  * A name nobody agrees on is worth far less than the rest of the fetch, so the
  * file is dropped and the run goes on.
  */
@@ -464,7 +526,24 @@ function dropAmbiguousRemotePaths(params: {
   const { files, incompleteRemoteDirs, logger } = params;
   const kept: CollectedFile[] = [];
   for (const file of files) {
-    if (!AMBIGUOUS_PATH_CHARACTERS_PATTERN.test(file.relativePath)) {
+    let reason: string | undefined;
+    if (AMBIGUOUS_PATH_CHARACTERS_PATTERN.test(file.relativePath)) {
+      reason =
+        `its path contains a backslash or a colon, which names one file on some systems and ` +
+        `a directory, or part of another file, on others.`;
+    } else {
+      const foldable = findWindowsFoldableSegment(file.relativePath);
+      if (foldable !== undefined) {
+        // Quoted as it is: a trailing space is the whole reason the segment
+        // was turned away, and bare it would not show.
+        reason =
+          `the path segment ${quoteForLog(foldable)} is one Windows resolves to a different ` +
+          `name. A segment ending in a dot or an ASCII space, one shaped like a NAME~1 short ` +
+          `name, or a reserved device name such as NUL or COM1 is written somewhere other than ` +
+          `where it reads as there, so the file is not fetched on any platform.`;
+      }
+    }
+    if (reason === undefined) {
       kept.push(file);
       continue;
     }
@@ -474,11 +553,7 @@ function dropAmbiguousRemotePaths(params: {
     // reason a truncated listing is: a local file the remote still ships is no
     // longer distinguishable from one it dropped.
     incompleteRemoteDirs.add(posix.dirname(toPosixPath(file.remotePath)));
-    logger.warn(
-      `Skipping ${quoteForLog(file.remotePath)}: its path contains a ` +
-        `backslash or a colon, which names one file on some systems and a directory, or part of ` +
-        `another file, on others.`,
-    );
+    logger.warn(`Skipping ${quoteForLog(file.remotePath)}: ${reason}`);
   }
   return kept;
 }
@@ -766,9 +841,10 @@ function formatFoldableSkillsWarning(droppedFoldableNames: ReadonlyMap<string, s
   const plural = droppedFoldableNames.size !== 1;
   return (
     `Skipping ${plural ? `${droppedFoldableNames.size} skill directories whose names Windows resolves` : "one skill directory whose name Windows resolves"} ` +
-    `to a different directory: ${shown}. A name ending in a dot or an ASCII space, or one shaped like ` +
-    `a NAME~1 short name, is written into a directory other than the one it reads as there, ` +
-    `so it is neither offered for selection nor fetched, on any platform.`
+    `to a different directory: ${shown}. A name ending in a dot or an ASCII space, one shaped like ` +
+    `a NAME~1 short name, or a reserved device name such as NUL or COM1 is written into a ` +
+    `directory other than the one it reads as there, or into none at all, so it is neither ` +
+    `offered for selection nor fetched, on any platform.`
   );
 }
 
@@ -1282,22 +1358,22 @@ async function pruneStaleSkillFiles(params: {
     }
 
     // A name Windows folds onto another directory — a trailing dot or ASCII
-    // space, or the `NAME~1` shape of a short name — is turned away by
-    // `classifySkillPath` before anything is written, so no such directory
-    // reaches this loop through the fetched files. For a fetched name this
-    // branch is dead by construction: the name already passed the same
-    // predicate, and both of its patterns are anchored to the end of the
-    // name, so nothing between the two checks can make one match. Only the
-    // predicate's own tests exercise it. The guard stays as a
-    // backstop for the same reason it was written: the write and the prune
+    // space, the `NAME~1` shape of a short name, or a reserved device name —
+    // is turned away by `classifySkillPath` before anything is written, so no
+    // such directory reaches this loop through the fetched files. For a
+    // fetched name this branch is dead by construction: the name already
+    // passed the same predicate, so nothing between the two checks can make
+    // it match. Only the predicate's own tests exercise it. The guard stays as
+    // a backstop for the same reason it was written: the write and the prune
     // would agree with each other and disagree with the summary, which would
     // then name a directory other than the one it emptied. Nothing reaches
     // outside the output directory either way, but a deletion record that
     // names the wrong directory is not one worth keeping.
-    // Only the skill root is guarded. A remote `skills/a/bar./x.md` writes into
-    // `bar` on Windows and the prune walks `bar`, which is safe because every
-    // file the fetch wrote there is matched by identity rather than by name.
-    if (hasWindowsFoldableSkillName(skillDir)) {
+    // Only the skill root is guarded. A remote `skills/a/bar./x.md` never
+    // gets this far: `dropAmbiguousRemotePaths` turns the file away and marks
+    // the skill's remote directory incomplete, which the check above honors.
+    const skillName = skillDir.slice(SKILLS_DIR_PREFIX.length);
+    if (hasWindowsFoldableName(skillName)) {
       logger.warn(
         `Not pruning ${quoteForLog(skillDir)}: its name is one ` +
           `some systems resolve to a different directory, so it may not be the directory this ` +
@@ -1320,7 +1396,6 @@ async function pruneStaleSkillFiles(params: {
     // remote free to publish `pdf` and `PDF` is free to publish them so that
     // one lands inside the other, where a prune walking the pair by name would
     // delete files the other half of the fetch had just written.
-    const skillName = skillDir.slice(SKILLS_DIR_PREFIX.length);
     // `caseFoldIdentity` is the form the rest of the tool compares skill names
     // in: the case dropped, since macOS and Windows ignore it, and the
     // composition normalized, since macOS stores a name decomposed and hands
