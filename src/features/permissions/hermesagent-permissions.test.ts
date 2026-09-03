@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentPermissions } from "./hermesagent-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -17,7 +18,7 @@ describe("HermesagentPermissions", () => {
             "git *": "allow",
             "pnpm *": "allow",
             "rm *": "deny",
-            "*": "ask",
+            "npm publish": "ask",
           },
         },
       }),
@@ -30,6 +31,134 @@ describe("HermesagentPermissions", () => {
 
     const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
     expect(config.command_allowlist).toEqual(["git *", "pnpm *"]);
+  });
+
+  it("feeds command_allowlist from the bash category only", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "*": "allow" },
+          bash: { "git *": "allow" },
+          read: { "secrets/**": "allow" },
+          edit: { "src/**": "allow" },
+        },
+      }),
+    });
+
+    const permissions = await HermesagentPermissions.fromRulesyncPermissions({
+      outputRoot: ".",
+      rulesyncPermissions,
+      logger,
+    });
+
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
+    // A `read` or `edit` allow names a path, and an all-tools `*` allow need not
+    // name a command either, so none of them may auto-approve a command.
+    expect(config.command_allowlist).toEqual(["git *"]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("reads the all-tools '*' category for its deny and ask rules only"),
+    );
+  });
+
+  it("withholds a bash allow that an all-tools deny covers, without writing the deny", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "npm *": "deny" },
+          bash: { "npm publish": "allow", "git *": "allow", "rm -rf *": "deny" },
+        },
+      }),
+    });
+
+    const permissions = await HermesagentPermissions.fromRulesyncPermissions({
+      outputRoot: ".",
+      rulesyncPermissions,
+      logger,
+    });
+
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
+    // The stricter rule wins whatever its width: the file denies `npm *` for
+    // every tool, so `npm publish` must not be auto-approved. The `*` deny
+    // itself stays out of approvals.deny, which carries `bash` denies only.
+    expect(config.command_allowlist).toEqual(["git *"]);
+    expect(config.approvals).toEqual({ deny: ["rm -rf *"] });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("was not given the allow rule(s) for npm publish"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("did not write the all-tools '*' deny rule(s) for npm *"),
+    );
+  });
+
+  it("withholds every allow a catch-all ask covers, since Hermes has no ask tier", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "*": "ask" },
+          bash: { "git *": "allow", "pnpm *": "allow" },
+        },
+      }),
+    });
+
+    const permissions = await HermesagentPermissions.fromRulesyncPermissions({
+      outputRoot: ".",
+      rulesyncPermissions,
+      logger,
+    });
+
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
+    expect(config.command_allowlist).toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("was not given the allow rule(s) for git *, pnpm *"),
+    );
+  });
+
+  it("reports the restrictions Hermes cannot express, and only those", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "git *": "allow" },
+          read: { "secrets/**": "deny" },
+          webfetch: { "evil.example.com": "deny", "confirm.example.com": "ask" },
+          websearch: { "*": "allow" },
+        },
+      }),
+    });
+
+    const permissions = await HermesagentPermissions.fromRulesyncPermissions({
+      outputRoot: ".",
+      rulesyncPermissions,
+      logger,
+    });
+
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
+    expect(config.command_allowlist).toEqual(["git *"]);
+    expect(config.security).toEqual({
+      website_blocklist: { enabled: true, domains: ["evil.example.com"] },
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("no per-pattern primitive for 'read' deny and ask rules"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("security.website_blocklist has no ask tier"),
+    );
+    // A `webfetch` deny is enforced through the blocklist, and an allow in a
+    // category Hermes cannot express restricts nothing, so neither is reported.
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("'webfetch' deny"));
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("'websearch'"));
+    expect(logger.warn).toHaveBeenCalledTimes(2);
   });
 
   it("preserves existing Hermes config when writing permissions", async () => {
@@ -313,10 +442,15 @@ security:
       .toRulesyncPermissions()
       .getJson();
 
+    // The allowlist is authoritative for the `bash` allow rules only: every
+    // entry in it is a shell-command pattern, so a hand-added `shared/*` lands
+    // under `bash`, while the `read` allow that shares its spelling is neither
+    // confirmed nor retracted by a list that cannot carry it.
     expect(imported.permission).toEqual({
       bash: {
         "git *": "allow",
         "confirm *": "ask",
+        "shared/*": "allow",
         "new-command *": "allow",
         "curl *": "deny",
       },
@@ -336,6 +470,30 @@ security:
       memory: { write_approval: true },
       custom_policy: { keep: true },
     });
+  });
+
+  it("keeps a non-command allow through a round-trip even though the allowlist omits it", async () => {
+    const canonical = {
+      permission: {
+        bash: { "git *": "allow" },
+        read: { "docs/**": "allow" },
+        edit: { "src/**": "allow", "secrets/**": "deny" },
+      },
+    };
+    const generated = await HermesagentPermissions.fromRulesyncPermissions({
+      outputRoot: ".",
+      rulesyncPermissions: new RulesyncPermissions({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(canonical),
+      }),
+    });
+
+    const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+    expect(config.command_allowlist).toEqual(["git *"]);
+    // Generation left the path allows out of the allowlist on purpose, so
+    // import must not read their absence there as a retraction.
+    expect(generated.toRulesyncPermissions().getJson()).toEqual(canonical);
   });
 
   it("round-trips deny, webfetch, and the hermes override back to canonical", () => {
