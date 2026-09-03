@@ -149,7 +149,8 @@ function canonicalToKimiCodeHooks({
   for (const [event, definitions] of Object.entries(
     buildEffectiveHooks(config, toolOverrideHooks),
   )) {
-    const nativeEvent = CANONICAL_TO_KIMI_CODE_EVENT_NAMES[event] ?? event;
+    const nativeEvent =
+      lookupOwn({ record: CANONICAL_TO_KIMI_CODE_EVENT_NAMES, key: event }) ?? event;
     if (!nativeEvents.has(nativeEvent)) {
       logger?.warn(`Kimi Code hooks: skipping unsupported event "${event}".`);
       continue;

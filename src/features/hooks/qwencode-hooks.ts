@@ -95,7 +95,8 @@ function canonicalToQwencodeHooks(config: HooksConfig, logger?: Logger): Record<
   const qwencodeSupportedTypes = new Set(["command", "prompt", "http", "function"]);
   const qwencode: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const qwencodeEventName = CANONICAL_TO_QWENCODE_EVENT_NAMES[eventName] ?? eventName;
+    const qwencodeEventName =
+      lookupOwn({ record: CANONICAL_TO_QWENCODE_EVENT_NAMES, key: eventName }) ?? eventName;
     const byMatcher = new Map<string, HooksConfig["hooks"][string]>();
     for (const def of definitions) {
       if (!qwencodeSupportedTypes.has(def.type ?? "command")) continue;

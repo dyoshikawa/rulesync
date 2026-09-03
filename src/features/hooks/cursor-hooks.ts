@@ -91,7 +91,8 @@ export class CursorHooks extends ToolHooks {
     // types are skipped (the HooksProcessor warns about them).
     const cursorSupportedTypes = new Set(["command", "prompt"]);
     for (const [eventName, defs] of Object.entries(mergedHooks)) {
-      const cursorEventName = CANONICAL_TO_CURSOR_EVENT_NAMES[eventName] ?? eventName;
+      const cursorEventName =
+        lookupOwn({ record: CANONICAL_TO_CURSOR_EVENT_NAMES, key: eventName }) ?? eventName;
       const mappedDefs = defs
         .filter((def) => cursorSupportedTypes.has(def.type ?? "command"))
         .map((def) => ({

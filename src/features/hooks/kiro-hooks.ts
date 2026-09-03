@@ -113,7 +113,8 @@ function canonicalToKiroHooks({
   };
   const kiro: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const kiroEventName = CANONICAL_TO_KIRO_EVENT_NAMES[eventName] ?? eventName;
+    const kiroEventName =
+      lookupOwn({ record: CANONICAL_TO_KIRO_EVENT_NAMES, key: eventName }) ?? eventName;
     const entries = buildKiroEntriesForEvent(definitions);
     if (entries.length > 0) {
       if (kiro[kiroEventName]) {

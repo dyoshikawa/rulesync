@@ -204,7 +204,10 @@ function canonicalToHermesHooks({
     if (!HERMESAGENT_CANONICAL_EVENTS.has(canonicalEvent)) {
       continue;
     }
-    const nativeEvent = CANONICAL_TO_HERMESAGENT_EVENT_NAMES[canonicalEvent];
+    const nativeEvent = lookupOwn({
+      record: CANONICAL_TO_HERMESAGENT_EVENT_NAMES,
+      key: canonicalEvent,
+    });
     if (nativeEvent) {
       setHermesHookEntries({
         result,
@@ -220,7 +223,10 @@ function canonicalToHermesHooks({
     if (!HERMESAGENT_CANONICAL_EVENTS.has(canonicalEvent)) {
       continue;
     }
-    const nativeEvent = CANONICAL_TO_HERMESAGENT_EVENT_NAMES[canonicalEvent];
+    const nativeEvent = lookupOwn({
+      record: CANONICAL_TO_HERMESAGENT_EVENT_NAMES,
+      key: canonicalEvent,
+    });
     if (nativeEvent) {
       setHermesHookEntries({
         result,

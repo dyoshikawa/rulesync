@@ -466,6 +466,40 @@ describe("CopilotHooks", () => {
       expect(parsed.hooks.errorOccurred[0].command).toBe("error-handler.sh");
     });
 
+    it("should write an override event named toString as a plain string key (#2757)", async () => {
+      // The override block is only loosely validated, so an event named after an
+      // Object.prototype member reaches the generate-side reverse lookup
+      // exactly as it reaches the import side.
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: "shared.sh" }],
+        },
+        copilot: {
+          hooks: {
+            toString: [{ type: "command", command: "crafted.sh" }],
+          },
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const copilotHooks = await CopilotHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(copilotHooks.getFileContent());
+      expect(Object.keys(parsed.hooks).toSorted()).toEqual(["sessionStart", "toString"]);
+      expect(parsed.hooks["toString"][0].command).toBe("crafted.sh");
+    });
+
     it("should produce standalone file without merging existing content", async () => {
       const config = {
         version: 1,

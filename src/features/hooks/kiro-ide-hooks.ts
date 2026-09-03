@@ -147,8 +147,8 @@ function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
     // emitted verbatim, which would write a trigger this format does not
     // define. Anything else still passes through unchanged.
     const trigger =
-      CANONICAL_TO_KIRO_IDE_EVENT_NAMES[eventName] ??
-      KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES[eventName] ??
+      lookupOwn({ record: CANONICAL_TO_KIRO_IDE_EVENT_NAMES, key: eventName }) ??
+      lookupOwn({ record: KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES, key: eventName }) ??
       eventName;
     entries.push(...buildKiroIdeEntriesForEvent(trigger, definitions));
   }

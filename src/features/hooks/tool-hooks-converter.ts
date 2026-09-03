@@ -801,7 +801,8 @@ export function canonicalToToolHooks({
   const warn = warnOnce(logger);
   const result: Record<string, unknown[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const toolEventName = converterConfig.canonicalToToolEventNames[eventName] ?? eventName;
+    const toolEventName =
+      lookupOwn({ record: converterConfig.canonicalToToolEventNames, key: eventName }) ?? eventName;
     const byMatcher = groupDefinitionsByMatcher({ definitions, converterConfig });
     const entries: unknown[] = [];
     const isNoMatcherEvent = converterConfig.noMatcherEvents?.has(eventName) ?? false;

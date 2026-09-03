@@ -273,7 +273,8 @@ function canonicalToCopilotCliHooks(
   };
   const out: Record<string, CopilotCliHookEntry[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const copilotEventName = CANONICAL_TO_COPILOTCLI_EVENT_NAMES[eventName] ?? eventName;
+    const copilotEventName =
+      lookupOwn({ record: CANONICAL_TO_COPILOTCLI_EVENT_NAMES, key: eventName }) ?? eventName;
     const entries = buildCopilotCliEntriesForEvent({
       eventName,
       definitions,

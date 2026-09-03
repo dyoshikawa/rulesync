@@ -76,7 +76,7 @@ function canonicalToVibeHooks(
     if (!SUPPORTED_VIBE_EVENTS.has(event)) {
       continue;
     }
-    const vibeEvent = CANONICAL_TO_VIBE_EVENT_NAMES[event] ?? event;
+    const vibeEvent = lookupOwn({ record: CANONICAL_TO_VIBE_EVENT_NAMES, key: event }) ?? event;
     let index = 0;
     for (const def of defs) {
       const hookType = def.type ?? "command";

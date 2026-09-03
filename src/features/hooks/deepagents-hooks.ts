@@ -72,7 +72,10 @@ function canonicalToDeepagentsHooks(config: HooksConfig): DeepagentsHooksFile["h
   for (const [canonicalEvent, definitions] of Object.entries(effectiveHooks)) {
     if (!supported.has(canonicalEvent)) continue;
 
-    const deepagentsEvent = CANONICAL_TO_DEEPAGENTS_EVENT_NAMES[canonicalEvent];
+    const deepagentsEvent = lookupOwn({
+      record: CANONICAL_TO_DEEPAGENTS_EVENT_NAMES,
+      key: canonicalEvent,
+    });
     if (!deepagentsEvent) continue;
 
     for (const def of definitions) {

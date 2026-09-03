@@ -84,7 +84,8 @@ function canonicalToCopilotHooks(config: HooksConfig): Record<string, CopilotHoo
   };
   const copilot: Record<string, CopilotHookEntry[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const copilotEventName = CANONICAL_TO_COPILOT_EVENT_NAMES[eventName] ?? eventName;
+    const copilotEventName =
+      lookupOwn({ record: CANONICAL_TO_COPILOT_EVENT_NAMES, key: eventName }) ?? eventName;
     const entries: CopilotHookEntry[] = [];
     for (const def of definitions) {
       const hookType = def.type ?? "command";

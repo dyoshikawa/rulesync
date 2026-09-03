@@ -71,7 +71,8 @@ function canonicalToReasonixHooks({
     if (!SUPPORTED_REASONIX_EVENTS.has(event)) {
       continue;
     }
-    const reasonixEvent = CANONICAL_TO_REASONIX_EVENT_NAMES[event] ?? event;
+    const reasonixEvent =
+      lookupOwn({ record: CANONICAL_TO_REASONIX_EVENT_NAMES, key: event }) ?? event;
     const isMatcherEvent = REASONIX_MATCHER_EVENTS.has(reasonixEvent);
     const entries: ReasonixHookEntry[] = [];
     for (const def of defs) {
@@ -104,7 +105,10 @@ function canonicalToReasonixHooks({
       entries.push(entry);
     }
     if (entries.length > 0) {
-      result[reasonixEvent] = [...(result[reasonixEvent] ?? []), ...entries];
+      result[reasonixEvent] = [
+        ...(lookupOwn({ record: result, key: reasonixEvent }) ?? []),
+        ...entries,
+      ];
     }
   }
   return result;
