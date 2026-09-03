@@ -439,6 +439,22 @@ describe("RooPermissions", () => {
         "editor.tabSize": 2,
       });
     });
+
+    it("does not warn about an all-tools restriction when no bash category is stated", async () => {
+      // Regression: Roo isn't touching either list in this shape at all (see
+      // above), so claiming it "did not write" a denylist entry into a file it
+      // never opened for writing would be misleading.
+      const logger = createMockLogger();
+
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ "*": { "rm *": "deny" } }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({});
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
   });
 
   describe("toRulesyncPermissions", () => {

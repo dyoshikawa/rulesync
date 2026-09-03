@@ -8,6 +8,7 @@ import {
   parsedGlobsIntersect,
 } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 
 /** The canonical category that names a shell command's permissions. */
 export const SHELL_PERMISSION_CATEGORY = "bash";
@@ -539,9 +540,12 @@ export function resolveShellCommandLists({
 /**
  * The `bash` category after all-tools `*` restrictions have been applied. A
  * `deny`/`ask` written under `*` covers shell commands too, so a bash `allow`
- * it overlaps is withheld and a `*` deny is copied in. Bash `ask` rules stay:
- * adapters that have an ask tier write both, and command-only ones omit `ask`
- * themselves.
+ * it overlaps is withheld, a `*` deny is copied in, and a `*` ask is copied in
+ * wherever `bash` says nothing about that exact pattern yet — otherwise it
+ * would vanish from the resolved category entirely rather than falling back to
+ * a tier that still prompts. An existing `bash` entry for the same pattern is
+ * never downgraded by a `*` ask (a bash `allow` was already dropped above, and
+ * a bash `deny`/`ask` there is at least as strict already).
  */
 export function bashRulesHonoringAllTools(
   permission: PermissionsConfig["permission"],
@@ -556,8 +560,17 @@ export function bashRulesHonoringAllTools(
     }
   }
   for (const { pattern, action } of allToolsRestrictions) {
-    if (action === "deny" && bash[pattern] !== "ask") {
-      bash[pattern] = "deny";
+    if (isPrototypePollutionKey(pattern)) {
+      continue;
+    }
+    if (action === "deny") {
+      if (bash[pattern] !== "ask") {
+        bash[pattern] = "deny";
+      }
+      continue;
+    }
+    if (bash[pattern] === undefined) {
+      bash[pattern] = "ask";
     }
   }
   return bash;

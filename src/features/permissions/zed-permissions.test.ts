@@ -279,6 +279,39 @@ describe("ZedPermissions", () => {
       expect(tools.terminal.always_deny).toEqual([{ pattern: "rm *", case_sensitive: false }]);
     });
 
+    it("should not warn that an all-tools deny was dropped once it lands in the bash denylist", async () => {
+      // Regression: the pattern really is enforced (asserted above via
+      // `always_deny`), so warning that it was "dropped" would be wrong.
+      const warn = vi.fn();
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          "*": { "rm *": "deny" },
+          bash: { "rm *": "allow", "git *": "allow" },
+        }),
+        logger: { warn } as unknown as Logger,
+      });
+
+      JSON.parse(permissions.getFileContent());
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("rm *"));
+    });
+
+    it("should carry an all-tools ask into the bash confirm list when bash says nothing about that pattern", async () => {
+      const warn = vi.fn();
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          "*": { "rm *": "ask" },
+          bash: { "git *": "allow" },
+        }),
+        logger: { warn } as unknown as Logger,
+      });
+
+      const tools = JSON.parse(permissions.getFileContent()).agent.tool_permissions.tools;
+      expect(tools.terminal.always_confirm).toEqual([{ pattern: "rm *", case_sensitive: false }]);
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("rm *"));
+    });
+
     it("should replace the stale tools['*'] entry older versions wrote for the * category", async () => {
       await writeFileContent(
         join(testDir, ".zed", "settings.json"),

@@ -176,20 +176,23 @@ export class RooPermissions extends ToolPermissions {
     // while an empty deny list retracts its key (a `undefined` patch value).
     // See `buildVscodeCommandLists` for why the two differ.
     //
-    // The all-tools `*` category is still read: a `deny` written there covers
-    // shell commands too, so it withholds (and is written as) the overlapping
-    // bash allows. Categories this surface cannot express are reported rather
-    // than dropped in silence.
+    // The all-tools `*` category is still read once `bash` is stated: a `deny`
+    // written there covers shell commands too, so it withholds (and is
+    // written as) the overlapping bash allows, and categories this surface
+    // cannot express are reported rather than dropped in silence. When `bash`
+    // is unstated, Roo isn't managing these keys at all this generation (see
+    // above), so resolving and warning about `*` restrictions would blame a
+    // denylist that was never touched in the first place.
     const bashStated = permission[COMMAND_CATEGORY] !== undefined;
-    const { bash } = resolveShellCommandLists({
-      permission,
-      writesAllToolsDeny: bashStated,
-      toolLabel: this.getToolLabel(),
-      surfaceLabel: `${this.getAllowedCommandsKey()}/${this.getDeniedCommandsKey()}`,
-      logger,
-    });
     const patch: Record<string, unknown> = {};
     if (bashStated) {
+      const { bash } = resolveShellCommandLists({
+        permission,
+        writesAllToolsDeny: true,
+        toolLabel: this.getToolLabel(),
+        surfaceLabel: `${this.getAllowedCommandsKey()}/${this.getDeniedCommandsKey()}`,
+        logger,
+      });
       const { allowed, denied } = buildVscodeCommandLists({
         rules: bash,
         toolLabel: this.getToolLabel(),

@@ -462,6 +462,48 @@ describe("bashRulesHonoringAllTools", () => {
       }),
     ).toEqual({ "*": "ask" });
   });
+
+  it("copies an all-tools ask into bash when the pattern has no bash entry", () => {
+    // Without this, an all-tools `ask` that names a command not otherwise
+    // mentioned under `bash` would vanish from the resolved category entirely
+    // rather than falling back to a tier that still prompts.
+    expect(
+      bashRulesHonoringAllTools({
+        "*": { "rm *": "ask" },
+        bash: { "git *": "allow" },
+      }),
+    ).toEqual({ "git *": "allow", "rm *": "ask" });
+  });
+
+  it("does not downgrade an existing bash deny to ask", () => {
+    expect(
+      bashRulesHonoringAllTools({
+        "*": { "rm *": "ask" },
+        bash: { "rm *": "deny" },
+      }),
+    ).toEqual({ "rm *": "deny" });
+  });
+
+  it("does not downgrade an existing bash ask when the all-tools rule denies the same pattern", () => {
+    expect(
+      bashRulesHonoringAllTools({
+        "*": { "rm *": "deny" },
+        bash: { "rm *": "ask" },
+      }),
+    ).toEqual({ "rm *": "ask" });
+  });
+
+  it("does not let an all-tools prototype-pollution pattern touch Object.prototype", () => {
+    const permission = JSON.parse(
+      '{"*":{"__proto__":"deny","constructor":"deny"},"bash":{"git *":"allow"}}',
+    );
+
+    const bash = bashRulesHonoringAllTools(permission);
+
+    expect(bash).toEqual({ "git *": "allow" });
+    expect(Object.prototype).not.toHaveProperty("deny");
+    expect(({} as Record<string, unknown>).deny).toBeUndefined();
+  });
 });
 
 describe("honorAllToolsOnBash", () => {
