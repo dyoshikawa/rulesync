@@ -28,14 +28,17 @@ const DeepagentsSkillFrontmatterSchema = z.looseObject({
   // still accepted here for tolerant parsing of hand-written files, but on emit
   // rulesync always writes the space-delimited string form.
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
-  // Agent Skills spec fields read by dcode's `_parse_skill_metadata`.
-  // https://agentskills.io/specification
-  license: z.optional(z.string()),
-  // The Agent Skills spec defines `compatibility` as a free-form string
-  // (1–500 chars), which is what dcode actually reads; an object form is also
-  // tolerated for backward compatibility (matches the `agentsskills` adapter).
-  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
-  metadata: z.optional(z.looseObject({})),
+  // dcode's `_parse_skill_metadata` reads `license`, `compatibility`, and
+  // `metadata` (see langchain-ai/deepagents
+  // libs/deepagents/deepagents/middleware/skills.py), but it never hard-fails
+  // on an unexpected shape: values are coerced with `str()`, an overlong
+  // `compatibility` is truncated with a logged warning, and non-dict
+  // `metadata` is replaced with `{}` and a logged warning via
+  // `_validate_metadata`. Left untyped so rulesync never aborts on a value
+  // the underlying tool itself tolerates.
+  license: z.optional(z.unknown()),
+  compatibility: z.optional(z.unknown()),
+  metadata: z.optional(z.unknown()),
 });
 
 export type DeepagentsSkillFrontmatter = z.infer<typeof DeepagentsSkillFrontmatterSchema>;

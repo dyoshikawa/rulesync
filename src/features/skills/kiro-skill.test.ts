@@ -90,6 +90,25 @@ describe("KiroSkill", () => {
       expect(kiroSkill.getBody()).toBe("Test body");
     });
 
+    it("should emit name and description before the kiro section's own keys", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "field-order",
+        frontmatter: {
+          name: "field-order",
+          description: "The kiro section must not push name/description to the end",
+          kiro: {
+            compatibility: "Requires jq",
+          },
+        },
+        body: "Body",
+      });
+
+      const frontmatter = KiroSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter();
+      expect(Object.keys(frontmatter).slice(0, 2)).toEqual(["name", "description"]);
+    });
+
     it("should fall back to the root-level license/compatibility/metadata when the kiro section omits them", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,

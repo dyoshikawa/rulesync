@@ -176,12 +176,11 @@ export class KiroSkill extends ToolSkill {
       section: kiroSection,
     });
 
+    const { name: _sectionName, description: _sectionDescription, ...section } = kiroSection ?? {};
     const kiroFrontmatter: KiroSkillFrontmatter = {
-      // The section is written first so the canonical `name`/`description`
-      // still own their keys.
-      ...kiroSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...section,
       ...(license !== undefined && { license }),
       ...(compatibility !== undefined && { compatibility }),
       ...(metadata !== undefined && { metadata }),

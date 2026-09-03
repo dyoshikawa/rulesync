@@ -20,13 +20,16 @@ import {
 export const KiloSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
-  // Kilo's official SKILL.md frontmatter: `name`, `description`, `license`,
-  // `compatibility`, and `metadata`. https://kilo.ai/docs/customize/skills
-  license: z.optional(z.string()),
-  // `compatibility` is a free-form string per the Agent Skills spec; the
-  // object form is kept for back-compat with existing rulesync skill files.
-  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
-  metadata: z.optional(z.looseObject({})),
+  // Kilo Code documents `name`, `description`, `license`, `compatibility`,
+  // and `metadata` (https://kilo.ai/docs/customize/skills), but its SKILL.md
+  // parser is forked from OpenCode's engine, whose `Frontmatter` schema
+  // (`packages/core/src/skill.ts` in Kilo-Org/kilocode) does not model
+  // `license`, `compatibility`, or `metadata` at all, so it cannot reject any
+  // shape rulesync writes for them. Left untyped so rulesync never aborts on
+  // a value the underlying tool itself tolerates.
+  license: z.optional(z.unknown()),
+  compatibility: z.optional(z.unknown()),
+  metadata: z.optional(z.unknown()),
   // `allowed-tools` is NOT recognized by Kilo; it is retained for backward
   // compatibility with existing rulesync skill files.
   "allowed-tools": z.optional(z.array(z.string())),
