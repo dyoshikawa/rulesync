@@ -171,7 +171,7 @@ describe("describeConfusableNames", () => {
     const notes = describeConfusableNames({ names: ["pdf", padded], localNames: [] });
 
     expect(notes.get("pdf")).toBe(SAME_FORM_NOTE);
-    expect(notes.get(padded)).toBe(`${SAME_FORM_NOTE}; ${WHITESPACE_NOTE}`);
+    expect(notes.get(padded)).toBe(`${WHITESPACE_NOTE}; ${SAME_FORM_NOTE}`);
   });
 
   it.each([
