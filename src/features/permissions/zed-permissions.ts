@@ -16,6 +16,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -276,6 +277,12 @@ function buildZedToolPermissions({
       for (const [pattern, action] of Object.entries(rules)) {
         if (pattern === "*") {
           managedDefault = CANONICAL_TO_ZED_ACTION[action];
+        } else if (permission.bash?.[pattern] === "deny" || permission.bash?.[pattern] === "ask") {
+          // `honorAllToolsOnBash` already folded this restriction into `bash`
+          // (it names a command that overlapped or was carried over verbatim),
+          // so it is enforced there via the `terminal` tool's own deny/confirm
+          // list rather than dropped.
+          continue;
         } else {
           logger?.warn(
             `Zed permissions: dropping the "*" category rule for pattern "${pattern}" — Zed's global tool-permission default takes no patterns; scope the rule to a tool category instead.`,
@@ -499,7 +506,7 @@ export class ZedPermissions extends ToolPermissions {
     const existingTools = asRecord(toolPermissions.tools);
 
     const { managedDefault, managedTools, excludedCategories, inertMcpCategories } =
-      buildZedToolPermissions({ permission: config.permission, logger });
+      buildZedToolPermissions({ permission: honorAllToolsOnBash(config.permission), logger });
 
     if (excludedCategories.length > 0) {
       logger?.warn(

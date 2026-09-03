@@ -16,6 +16,7 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { resolveShellCommandLists } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -167,17 +168,33 @@ export class RooPermissions extends ToolPermissions {
     // `--dry-run`/`--check`; the actual write happens later in `writeAiFiles`.
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
 
-    const rules = rulesyncPermissions.getJson().permission[COMMAND_CATEGORY];
+    const permission = rulesyncPermissions.getJson().permission;
     // A canonical config that states no `bash` category leaves both keys
     // exactly as the user left them — adopting rulesync for other tools must
     // not wipe hand-authored command lists. Once the category IS stated,
     // rulesync owns both keys: the allow list is always written, `[]` included,
     // while an empty deny list retracts its key (a `undefined` patch value).
     // See `buildVscodeCommandLists` for why the two differ.
+    //
+    // The all-tools `*` category is still read once `bash` is stated: a `deny`
+    // written there covers shell commands too, so it withholds (and is
+    // written as) the overlapping bash allows, and categories this surface
+    // cannot express are reported rather than dropped in silence. When `bash`
+    // is unstated, Roo isn't managing these keys at all this generation (see
+    // above), so resolving and warning about `*` restrictions would blame a
+    // denylist that was never touched in the first place.
+    const bashStated = permission[COMMAND_CATEGORY] !== undefined;
     const patch: Record<string, unknown> = {};
-    if (rules !== undefined) {
+    if (bashStated) {
+      const { bash } = resolveShellCommandLists({
+        permission,
+        writesAllToolsDeny: true,
+        toolLabel: this.getToolLabel(),
+        surfaceLabel: `${this.getAllowedCommandsKey()}/${this.getDeniedCommandsKey()}`,
+        logger,
+      });
       const { allowed, denied } = buildVscodeCommandLists({
-        rules,
+        rules: bash,
         toolLabel: this.getToolLabel(),
         logger,
       });
@@ -189,7 +206,7 @@ export class RooPermissions extends ToolPermissions {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      ownsCommandKeys: rules !== undefined,
+      ownsCommandKeys: bashStated,
       fileContent: applySharedConfigPatch({
         fileKey: sharedConfigFileKey(paths),
         feature: "permissions",

@@ -11,6 +11,7 @@ import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -199,7 +200,7 @@ function buildKiroPermissionsFromRulesync({
   };
   const shell = { allowedCommands: [] as string[], deniedCommands: [] as string[] };
 
-  for (const [category, rules] of Object.entries(config.permission)) {
+  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     for (const [pattern, action] of Object.entries(rules)) {
       if (action === "ask") {
         logger?.warn(`Kiro permissions do not support "ask". Skipping ${category}:${pattern}`);

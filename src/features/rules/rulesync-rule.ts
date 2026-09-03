@@ -159,6 +159,17 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       facet: z.optional(z.enum(["policies", "output-contracts"])),
     }),
   ),
+  factorydroid: z.optional(
+    z.looseObject({
+      // Route this non-root rule's body to Factory Droid's design-guidelines
+      // channel (`DESIGN.md`) instead of folding it into the coding-guidelines
+      // `AGENTS.md` / `.factory/rules/*.md`. Factory Droid loads `DESIGN.md`
+      // as "Always-on design-system, UX, visual, and interaction guidance",
+      // separately from `AGENTS.md`'s coding guidelines. Project scope only —
+      // see docs/reference/file-formats.md.
+      channel: z.optional(z.enum(["design"])),
+    }),
+  ),
 });
 
 // Input type allows targets to be omitted (will use default value)

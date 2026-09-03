@@ -11,6 +11,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -253,7 +254,7 @@ function convertRulesyncToAntigravityIdePermissions(config: PermissionsConfig): 
   const ask: string[] = [];
   const deny: string[] = [];
 
-  for (const [category, rules] of Object.entries(config.permission)) {
+  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     const action = toIdeAction(category);
     for (const [pattern, permissionAction] of Object.entries(rules)) {
       const entry = buildPermissionEntry(action, pattern);

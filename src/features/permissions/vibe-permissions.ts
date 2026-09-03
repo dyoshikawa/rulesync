@@ -15,6 +15,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -206,7 +207,7 @@ export class VibePermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const config = parseVibeConfig(existingContent);
 
-    const permission = rulesyncPermissions.getJson().permission;
+    const permission = honorAllToolsOnBash(rulesyncPermissions.getJson().permission);
     const vibeOverride = rulesyncPermissions.getJson().vibe;
 
     const tools = toVibeToolsRecord(config.tools);

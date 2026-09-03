@@ -20,6 +20,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -1120,7 +1121,7 @@ function mergeFilesystemCategoryRules({
 }
 
 function buildCodexBashRulesContent(config: PermissionsConfig): string {
-  const bashRules = config.permission.bash ?? {};
+  const bashRules = bashRulesHonoringAllTools(config.permission);
   const entries = Object.entries(bashRules);
 
   const header = [

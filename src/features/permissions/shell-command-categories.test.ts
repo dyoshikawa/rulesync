@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import {
+  bashRulesHonoringAllTools,
   collectShellCommandRules,
   collectUnenforcedAllToolsPatterns,
   createShadowingRestrictionsTest,
+  honorAllToolsOnBash,
   partitionCommandRules,
+  resolveShellCommandLists,
   warnAboutUnwrittenCommandRules,
 } from "./shell-command-categories.js";
 
@@ -438,5 +441,103 @@ describe("warnAboutUnwrittenCommandRules", () => {
     expect(warnedBy({ shadowedAllowPatterns: ["git *"] })).toEqual([
       expect.stringContaining("was not given the allow rule(s) for git *"),
     ]);
+  });
+});
+
+describe("bashRulesHonoringAllTools", () => {
+  it("withholds a bash allow that an all-tools deny covers", () => {
+    expect(
+      bashRulesHonoringAllTools({
+        "*": { "rm *": "deny" },
+        bash: { "rm *": "allow", "git *": "allow" },
+      }),
+    ).toEqual({ "git *": "allow", "rm *": "deny" });
+  });
+
+  it("keeps a bash ask beside an all-tools catch-all deny", () => {
+    expect(
+      bashRulesHonoringAllTools({
+        "*": { "*": "deny" },
+        bash: { "*": "ask" },
+      }),
+    ).toEqual({ "*": "ask" });
+  });
+
+  it("copies an all-tools ask into bash when the pattern has no bash entry", () => {
+    // Without this, an all-tools `ask` that names a command not otherwise
+    // mentioned under `bash` would vanish from the resolved category entirely
+    // rather than falling back to a tier that still prompts.
+    expect(
+      bashRulesHonoringAllTools({
+        "*": { "rm *": "ask" },
+        bash: { "git *": "allow" },
+      }),
+    ).toEqual({ "git *": "allow", "rm *": "ask" });
+  });
+
+  it("does not downgrade an existing bash deny to ask", () => {
+    expect(
+      bashRulesHonoringAllTools({
+        "*": { "rm *": "ask" },
+        bash: { "rm *": "deny" },
+      }),
+    ).toEqual({ "rm *": "deny" });
+  });
+
+  it("does not downgrade an existing bash ask when the all-tools rule denies the same pattern", () => {
+    expect(
+      bashRulesHonoringAllTools({
+        "*": { "rm *": "deny" },
+        bash: { "rm *": "ask" },
+      }),
+    ).toEqual({ "rm *": "ask" });
+  });
+
+  it("does not let an all-tools prototype-pollution pattern touch Object.prototype", () => {
+    const permission = JSON.parse(
+      '{"*":{"__proto__":"deny","constructor":"deny"},"bash":{"git *":"allow"}}',
+    );
+
+    const bash = bashRulesHonoringAllTools(permission);
+
+    expect(bash).toEqual({ "git *": "allow" });
+    expect(Object.prototype).not.toHaveProperty("deny");
+    expect(({} as Record<string, unknown>).deny).toBeUndefined();
+  });
+});
+
+describe("honorAllToolsOnBash", () => {
+  it("does not invent a bash category when none was stated", () => {
+    const permission = { "*": { "rm *": "deny" as const } };
+    expect(honorAllToolsOnBash(permission)).toBe(permission);
+  });
+});
+
+describe("resolveShellCommandLists", () => {
+  it("keeps non-command allows out of the allowlist", () => {
+    const { allow } = resolveShellCommandLists({
+      permission: {
+        read: { "secrets/**": "allow" },
+        bash: { "git *": "allow" },
+      },
+      writesAllToolsDeny: false,
+      toolLabel: "Hermes Agent",
+      surfaceLabel: "command_allowlist",
+    });
+
+    expect(allow).toEqual(["git *"]);
+  });
+
+  it("reports a foreign deny it cannot write", () => {
+    const logger = createMockLogger();
+    resolveShellCommandLists({
+      permission: { read: { ".env": "deny" }, bash: { "git *": "allow" } },
+      writesAllToolsDeny: false,
+      toolLabel: "Hermes Agent",
+      surfaceLabel: "command_allowlist",
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("read"));
   });
 });

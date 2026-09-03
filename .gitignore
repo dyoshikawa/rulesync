@@ -298,6 +298,7 @@ rulesync.local.jsonc
 **/.cursor/rules/
 **/.deepagents/AGENTS.md
 **/.factory/rules/
+**/DESIGN.md
 **/.goosehints
 **/.hermes.md
 **/.grok/rules/
