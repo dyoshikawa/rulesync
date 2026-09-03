@@ -639,11 +639,12 @@ function countComparableForms(forms: ReadonlyArray<{ displayForm: string; skelet
  * still writes exactly what was picked — the note is there so the picker can
  * tell that two entries which look identical are not.
  *
- * Five things are reported: two names with the same display form, two names
- * that read the same once the lookalike letters are matched up, a name that
- * carries more whitespace than the row shows, a name spelled entirely in
+ * Five things are reported: a name that carries more whitespace than the row
+ * shows, two names with the same display form, two names that read the same
+ * once the lookalike letters are matched up, a name spelled entirely in
  * letters that read as Latin ones, and a name that mixes scripts it has no
- * ordinary reason to. None of the five is a complete answer — the lookalike
+ * ordinary reason to. The whitespace reason is written first so that a label
+ * shortened from its tail keeps it. None of the five is a complete answer — the lookalike
  * tables hold the common pairs rather than all of them, a name written entirely
  * in a script the tables do not map is compared against nothing, and a
  * hand-picked pair of unrelated-looking names from one script escapes every
@@ -690,6 +691,14 @@ export function describeConfusableNames(params: {
   const notes = new Map<string, string>();
   for (const entry of entries) {
     const reasons: string[] = [];
+    // First, because it is the reason the label cannot afford to lose: the
+    // picker cuts a long note from its tail, and every other reason says the
+    // row may be taken for another row, which a reader can still check by eye.
+    // This one says the row itself reaches further than it shows, which nothing
+    // left on the label would imply once it is cut away.
+    if (hasWhitespaceThatDoesNotShow(entry.name)) {
+      reasons.push("carries more whitespace than the row shows");
+    }
     const sameDisplayForm = counts.displayForms.get(entry.displayForm) ?? 0;
     const sameLocalDisplayForm = localCounts.displayForms.get(entry.displayForm) ?? 0;
     if (sameDisplayForm > 1) {
@@ -707,9 +716,6 @@ export function describeConfusableNames(params: {
       reasons.push("another entry differs from it only by lookalike letters");
     } else if ((localCounts.skeletons.get(entry.skeleton) ?? 0) > sameLocalDisplayForm) {
       reasons.push("a local skill differs from it only by lookalike letters");
-    }
-    if (hasWhitespaceThatDoesNotShow(entry.name)) {
-      reasons.push("carries more whitespace than the row shows");
     }
     // The display form is what a reader sees, so it is what the script checks
     // are asked about: a circled or fullwidth letter carries the script of the

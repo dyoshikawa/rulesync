@@ -179,6 +179,40 @@ describe("promptSkillSelection", () => {
     );
   });
 
+  it("should keep the whitespace reason when a longer reason would cut it away", async () => {
+    checkboxMock.mockResolvedValue([]);
+    // A doubled space beside a lookalike twin: the lookalike reason alone is
+    // wider than the room a note is given, so whichever reason comes after it
+    // is cut. The whitespace reason is the one nothing else on the row implies,
+    // so it is the one written first and the one the cut leaves standing.
+    // cspell:disable-next-line
+    const padded = "pdf  r\u0435ader";
+
+    await promptSkillSelection({
+      availableSkills: ["pdf reader", padded],
+      preselectedSkills: [],
+      localSkillNames: [],
+    });
+
+    expect(checkboxMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        choices: [
+          {
+            name: "[!] another entry differs from it only by lookalike lett\u2026 \u2014 pdf reader",
+            value: "pdf reader",
+            checked: false,
+          },
+          {
+            // cspell:disable-next-line
+            name: `[!] carries more whitespace than the row shows; anothe\u2026 \u2014 ${padded}`,
+            value: padded,
+            checked: false,
+          },
+        ],
+      }),
+    );
+  });
+
   it("should keep the note and the name together within one line", async () => {
     checkboxMock.mockResolvedValue([]);
     // Two entries that share a display form, so both carry a note, and a name
