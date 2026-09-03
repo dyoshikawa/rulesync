@@ -23,6 +23,7 @@ import {
 // Tools whose root rule lands in a single memory file.
 const rulesRootTargets = [
   { target: "claudecode", outputPath: "CLAUDE.md" },
+  { target: "codebuddy", outputPath: "CODEBUDDY.md" },
   { target: "cursor", outputPath: join(".cursor", "rules", "overview.mdc") },
   { target: "aiassistant", outputPath: join(".aiassistant", "rules", "overview.md") },
   { target: "amp", outputPath: "AGENTS.md" },
@@ -1097,6 +1098,7 @@ This is a test project for E2E testing.
 
 const rulesGlobalTargets = [
   { target: "claudecode", outputPath: join(".claude", "CLAUDE.md") },
+  { target: "codebuddy", outputPath: join(".codebuddy", "CODEBUDDY.md") },
   { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
   { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },

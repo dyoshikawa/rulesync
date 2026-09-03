@@ -90,6 +90,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | ------------------------- | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: | :----: |
 | Amp                       |  ✅   |        | ✅  |          |           |   ✅   |  ✅   |     ✅      |   ✅   |
 | Claude Code               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| CodeBuddy Code            |  ✅   |        |     |          |           |        |       |             |        |
 | Claude Code plugin        |       |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | Codex CLI                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitHub Copilot            |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |

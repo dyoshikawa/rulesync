@@ -8,6 +8,7 @@ import {
   CLAUDECODE_MEMORIES_DIR_NAME,
   CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/claudecode-paths.js";
+import { CODEBUDDY_DIR, CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../../constants/codebuddy-paths.js";
 import { CODEXCLI_BASH_RULES_FILE_NAME, CODEXCLI_DIR } from "../../constants/codexcli-paths.js";
 import {
   FACTORYDROID_DIR,
@@ -84,6 +85,16 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     target: "claudecode",
     feature: "rules",
     entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_LOCAL_RULE_FILE_NAME}`,
+  },
+  // CodeBuddy Code's personal project memory file, mirroring Claude Code's
+  // CLAUDE.local.md convention: materialized outside getSettablePaths for the
+  // "separate-local-file" localRootMode, at both the project root and the
+  // `.codebuddy/` alternative root.
+  { target: "codebuddy", feature: "rules", entry: `**/${CODEBUDDY_LOCAL_RULE_FILE_NAME}` },
+  {
+    target: "codebuddy",
+    feature: "rules",
+    entry: `**/${CODEBUDDY_DIR}/${CODEBUDDY_LOCAL_RULE_FILE_NAME}`,
   },
 
   // Vibe subagent system prompts: written by the subagents feature next to the

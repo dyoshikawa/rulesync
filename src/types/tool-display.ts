@@ -19,6 +19,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "agentsskills", label: "AgentsSkills", group: "standard" },
   { key: "amp", label: "Amp", group: "ai" },
   { key: "claudecode", label: "Claude Code", group: "ai" },
+  { key: "codebuddy", label: "CodeBuddy Code", group: "ai" },
   { key: "claudecode-plugin", label: "Claude Code plugin", group: "ai" },
   { key: "codexcli", label: "Codex CLI", group: "ai" },
   { key: "copilot", label: "GitHub Copilot", group: "ai" },

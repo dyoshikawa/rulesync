@@ -52,6 +52,16 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       paths: z.optional(z.array(z.string())),
     }),
   ),
+  codebuddy: z.optional(
+    z.looseObject({
+      // Glob patterns for conditional rules, matched with `matchBase` enabled
+      // (takes precedence over globs). @see https://www.codebuddy.ai/docs/cli/memory
+      // @example ["src/**/*.ts", "tests/**/*.test.ts"]
+      paths: z.optional(z.array(z.string())),
+      alwaysApply: z.optional(z.boolean()),
+      description: z.optional(z.string()),
+    }),
+  ),
   cursor: z.optional(
     z.looseObject({
       alwaysApply: z.optional(z.boolean()),

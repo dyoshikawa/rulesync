@@ -1806,6 +1806,7 @@ Content that would fail parsing`;
         "claudecode",
         "claudecode-legacy",
         "cline",
+        "codebuddy",
         "codexcli",
         "copilot",
         "copilotcli",
@@ -1859,6 +1860,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("claudecode");
       expect(globalTargets).toContain("claudecode-legacy");
       expect(globalTargets).toContain("cline");
+      expect(globalTargets).toContain("codebuddy");
       expect(globalTargets).toContain("codexcli");
       expect(globalTargets).toContain("copilot");
       expect(globalTargets).toContain("copilotcli");
@@ -1882,7 +1884,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kiro-ide");
       expect(globalTargets).toContain("reasonix");
       expect(globalTargets).toContain("warp");
-      expect(globalTargets.length).toBe(33);
+      expect(globalTargets.length).toBe(34);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
