@@ -36,6 +36,21 @@ export const MAX_FRONTMATTER_VALUES = 100_000;
  */
 export const MAX_FRONTMATTER_STRING_CHARS = 4_000_000;
 
+/**
+ * Upper bound on how many containers deep a frontmatter document may nest.
+ *
+ * Both budgets above cap the *breadth* of the walk, but a chain of aliases
+ * that each wrap the previous one (`a1: [*a0]`, `a2: [*a1]`, ...) is deep
+ * rather than wide: it stays a small handful of values per level while
+ * recursing one more stack frame per level. That overflows the JS call stack
+ * well before either budget trips, turning a bounded document into an
+ * unhandled `RangeError` instead of the intended refusal. Capping nesting
+ * depth explicitly, far below where the stack would actually overflow, keeps
+ * that failure mode a clear, recognizable error. Real frontmatter nests at most
+ * a few levels deep, so this leaves generous headroom.
+ */
+export const MAX_FRONTMATTER_DEPTH = 500;
+
 type DeepCleanOptions = {
   /** Applied to every string leaf; the default keeps strings as they are. */
   transformString?: (value: string) => string;
@@ -47,21 +62,63 @@ type DeepCleanOptions = {
   ancestors: WeakSet<object>;
   /** Values still allowed before the walk refuses the document. */
   budget: { remaining: number; stringCharsRemaining: number };
+  /** Current container nesting depth, mutated as the walk descends and returns. */
+  depth: number;
 };
 
-function consumeBudget(options: DeepCleanOptions, stringChars = 0): void {
+/** Charge string content (a string leaf or an object key) against the character budget. */
+function chargeStringChars({ options, chars }: { options: DeepCleanOptions; chars: number }): void {
+  options.budget.stringCharsRemaining -= chars;
+  if (options.budget.stringCharsRemaining < 0) {
+    throw new Error(
+      `Frontmatter's string values expand to more than ${MAX_FRONTMATTER_STRING_CHARS} characters; refusing to process it (a chain of YAML aliases may be amplifying the document)`,
+    );
+  }
+}
+
+function consumeBudget({
+  options,
+  stringChars = 0,
+}: {
+  options: DeepCleanOptions;
+  stringChars?: number;
+}): void {
   options.budget.remaining -= 1;
   if (options.budget.remaining < 0) {
     throw new Error(
       `Frontmatter expands to more than ${MAX_FRONTMATTER_VALUES} values; refusing to process it (a chain of YAML aliases may be amplifying the document)`,
     );
   }
-  options.budget.stringCharsRemaining -= stringChars;
-  if (options.budget.stringCharsRemaining < 0) {
+  chargeStringChars({ options, chars: stringChars });
+}
+
+/** Enter one more container level, throwing if the depth cap is exceeded. */
+function enterContainer({
+  options,
+  container,
+}: {
+  options: DeepCleanOptions;
+  container: object;
+}): void {
+  options.depth += 1;
+  if (options.depth > MAX_FRONTMATTER_DEPTH) {
     throw new Error(
-      `Frontmatter's string values expand to more than ${MAX_FRONTMATTER_STRING_CHARS} characters; refusing to process it (a chain of YAML aliases may be amplifying the document)`,
+      `Frontmatter nests more than ${MAX_FRONTMATTER_DEPTH} levels deep; refusing to process it (a chain of YAML aliases may be amplifying the document)`,
     );
   }
+  options.ancestors.add(container);
+}
+
+/** Leave a container level entered via {@link enterContainer}. */
+function leaveContainer({
+  options,
+  container,
+}: {
+  options: DeepCleanOptions;
+  container: object;
+}): void {
+  options.ancestors.delete(container);
+  options.depth -= 1;
 }
 
 /**
@@ -75,7 +132,7 @@ function consumeBudget(options: DeepCleanOptions, stringChars = 0): void {
 function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
   // Charge nullish leaves too: an aliased array of nulls would otherwise be
   // walked for free, and the walk is the work being bounded.
-  consumeBudget(options, typeof value === "string" ? value.length : 0);
+  consumeBudget({ options, stringChars: typeof value === "string" ? value.length : 0 });
 
   if (value === null || value === undefined) {
     return undefined;
@@ -89,7 +146,7 @@ function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
     if (options.ancestors.has(value)) {
       return undefined;
     }
-    options.ancestors.add(value);
+    enterContainer({ options, container: value });
     const cleanedArray: unknown[] = [];
     for (const item of value) {
       const cleaned = deepCleanValue(item, options);
@@ -97,7 +154,7 @@ function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
         cleanedArray.push(cleaned);
       }
     }
-    options.ancestors.delete(value);
+    leaveContainer({ options, container: value });
     return cleanedArray;
   }
 
@@ -105,9 +162,9 @@ function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
     if (options.ancestors.has(value)) {
       return undefined;
     }
-    options.ancestors.add(value);
+    enterContainer({ options, container: value });
     const result = cleanOwnEntries(value, options);
-    options.ancestors.delete(value);
+    leaveContainer({ options, container: value });
     return result;
   }
 
@@ -131,6 +188,10 @@ function cleanOwnEntries(
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(obj)) {
+    // A YAML mapping key can itself be an alias, so its length has to be
+    // charged against the character budget the same as a string leaf's; the
+    // key is written into the output regardless of whether its value survives.
+    chargeStringChars({ options, chars: key.length });
     if (isPrototypePollutionKey(key)) {
       continue;
     }
@@ -144,7 +205,7 @@ function cleanOwnEntries(
 
 function deepCleanObject(
   obj: Record<string, unknown> | null | undefined,
-  options: Omit<DeepCleanOptions, "ancestors" | "budget">,
+  options: Omit<DeepCleanOptions, "ancestors" | "budget" | "depth">,
 ): Record<string, unknown> {
   if (!obj || typeof obj !== "object") {
     return {};
@@ -156,6 +217,7 @@ function deepCleanObject(
       remaining: MAX_FRONTMATTER_VALUES,
       stringCharsRemaining: MAX_FRONTMATTER_STRING_CHARS,
     },
+    depth: 0,
   });
 }
 

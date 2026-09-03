@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  MAX_FRONTMATTER_DEPTH,
   MAX_FRONTMATTER_STRING_CHARS,
   MAX_FRONTMATTER_VALUES,
   parseFrontmatter,
@@ -572,6 +573,53 @@ const code = "preserved";
         new RegExp(
           `Frontmatter's string values expand to more than ${MAX_FRONTMATTER_STRING_CHARS} characters`,
         ),
+      );
+    });
+
+    it("should charge an aliased mapping key's length against the string budget, not just its value", () => {
+      // A long key aliased across many entries costs almost nothing against
+      // MAX_FRONTMATTER_VALUES (one entry per alias) and nothing against the
+      // string budget unless the key itself is charged, even though it is
+      // written into the output the same as a string value would be.
+      const key = "k".repeat(500);
+      const repeats = 10_000;
+      expect(repeats + 1).toBeLessThan(MAX_FRONTMATTER_VALUES);
+      expect(key.length * repeats).toBeGreaterThan(MAX_FRONTMATTER_STRING_CHARS);
+
+      const entries = Array.from({ length: repeats }, (_, i) => `  - { *k : ${i} }`);
+      const yaml = ["---", `key: &k "${key}"`, "entries:", ...entries, "---", ""].join("\n");
+      expect(() => parseFrontmatter(yaml)).toThrow(
+        new RegExp(
+          `Frontmatter's string values expand to more than ${MAX_FRONTMATTER_STRING_CHARS} characters`,
+        ),
+      );
+    });
+
+    it("should refuse a document that nests containers deeper than the depth budget instead of overflowing the call stack", () => {
+      // js-yaml itself refuses more than 100 levels of literal nesting in the
+      // raw source, so depth beyond that has to come from chaining a handful
+      // of aliased blocks, each one only ~90 levels deep on its own. Every
+      // block costs values linear in its own depth (no fan-out), so the total
+      // stays far under MAX_FRONTMATTER_VALUES while the resolved nesting
+      // exceeds the depth budget, isolating the depth cap from the other two.
+      const blockDepth = 90;
+      const targetDepth = MAX_FRONTMATTER_DEPTH + 50;
+      const blockCount = Math.ceil(targetDepth / blockDepth);
+      // Loose upper bound on total value-budget usage across all blocks.
+      expect(blockDepth * blockCount * blockCount).toBeLessThan(MAX_FRONTMATTER_VALUES);
+
+      const lines = [];
+      for (let b = 0; b < blockCount; b++) {
+        let value = b === 0 ? "x" : `*block${b - 1}`;
+        for (let i = 0; i < blockDepth; i++) {
+          value = `[${value}]`;
+        }
+        lines.push(`block${b}: &block${b} ${value}`);
+      }
+      const yaml = ["---", ...lines, "---", ""].join("\n");
+
+      expect(() => parseFrontmatter(yaml)).toThrow(
+        new RegExp(`Frontmatter nests more than ${MAX_FRONTMATTER_DEPTH} levels deep`),
       );
     });
   });
