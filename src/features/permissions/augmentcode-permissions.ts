@@ -561,6 +561,13 @@ function convertRulesyncToAugmentEntries({
   // rules.
   const allToolsFailClosedType = computeAllToolsFailClosedType(config.permission["*"]);
 
+  // Categories that actually produced at least one entry below. A category can be *stated* but
+  // still emit nothing (e.g. only non-`*` allow/ask patterns for a tool with no per-input matcher,
+  // which are dropped with a warning) — such a category must still be treated as having no rules
+  // of its own for {@link synthesizeManagedToolFallbackEntries}, or the all-tools restriction would
+  // silently fail open for it.
+  const categoriesWithOwnEntries = new Set<string>();
+
   for (const [category, rules] of Object.entries(permission)) {
     if (category === "*") {
       logger?.warn(
@@ -618,6 +625,7 @@ function convertRulesyncToAugmentEntries({
         );
       }
       entries.push({ toolName: augmentToolName, permission: { type: "deny" } });
+      categoriesWithOwnEntries.add(category);
       continue;
     }
 
@@ -630,6 +638,7 @@ function convertRulesyncToAugmentEntries({
           toolName: augmentToolName,
           permission: { type: actionToAugmentType(action) },
         });
+        categoriesWithOwnEntries.add(category);
       } else {
         droppedPatterns.push(pattern);
       }
@@ -643,7 +652,9 @@ function convertRulesyncToAugmentEntries({
     }
   }
 
-  entries.push(...synthesizeManagedToolFallbackEntries(config.permission, allToolsFailClosedType));
+  entries.push(
+    ...synthesizeManagedToolFallbackEntries(categoriesWithOwnEntries, allToolsFailClosedType),
+  );
 
   return entries;
 }
@@ -665,18 +676,21 @@ function computeAllToolsFailClosedType(
 
 /**
  * Extend the same fail-closed treatment `bash` gets (via {@link bashRulesHonoringAllTools}) to the
- * other managed tools: one the source left with no rules of its own must not fall back to
+ * other managed tools: one that produced no entries of its own above must not fall back to
  * AugmentCode's own default just because it has no per-input matcher to narrow the all-tools
- * restriction onto. A tool that states its own rules is left untouched here.
+ * restriction onto. A category can be stated yet still emit nothing (e.g. only non-`*` allow/ask
+ * patterns, dropped with a warning), so this checks emitted entries rather than whether the
+ * category was merely present in the source config. A tool whose own rules did emit entries is
+ * left untouched here.
  */
 function synthesizeManagedToolFallbackEntries(
-  permission: PermissionsConfig["permission"],
+  categoriesWithOwnEntries: Set<string>,
   allToolsFailClosedType: AugmentBasicPermissionType | undefined,
 ): AugmentToolPermission[] {
   if (allToolsFailClosedType === undefined) return [];
   return Object.entries(CANONICAL_TO_AUGMENT_TOOL_NAMES)
     .filter(
-      ([canonicalName]) => canonicalName !== "bash" && permission[canonicalName] === undefined,
+      ([canonicalName]) => canonicalName !== "bash" && !categoriesWithOwnEntries.has(canonicalName),
     )
     .map(([, augmentToolName]) => ({
       toolName: augmentToolName,

@@ -253,6 +253,57 @@ describe("AugmentcodePermissions", () => {
     }
   });
 
+  it("should fail-closed onto a managed tool whose own rules are all non-wildcard and get dropped, not just when the category is absent", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "*": "deny" },
+          write: { "important-file.txt": "ask" },
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      permission: { type: string };
+    }>;
+    // `write` stated a rule, but it is a non-wildcard pattern that produces no entry of its own
+    // (AugmentCode has no per-input matcher for save-file), so it must still fail closed to the
+    // all-tools deny rather than silently falling back to AugmentCode's permissive default.
+    expect(entries).toContainEqual({ toolName: "save-file", permission: { type: "deny" } });
+  });
+
+  it("should fail-closed onto a managed tool whose own category is an empty rules object", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "*": "deny" },
+          read: {},
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      permission: { type: string };
+    }>;
+    expect(entries).toContainEqual({ toolName: "view", permission: { type: "deny" } });
+  });
+
   it("should preserve unrelated toolPermissions entries, top-level keys, and existing launch-process deny entries (fail-closed)", async () => {
     const settingsDir = join(testDir, ".augment");
     await ensureDir(settingsDir);
