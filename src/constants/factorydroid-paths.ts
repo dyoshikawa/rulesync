@@ -5,6 +5,16 @@ export const FACTORYDROID_COMMANDS_DIR_PATH = join(FACTORYDROID_DIR, "commands")
 export const FACTORYDROID_SKILLS_DIR_PATH = join(FACTORYDROID_DIR, "skills");
 export const FACTORYDROID_DROIDS_DIR_PATH = join(FACTORYDROID_DIR, "droids");
 export const FACTORYDROID_RULE_FILE_NAME = "AGENTS.md";
+
+/**
+ * Factory Droid's design-guidelines instruction file: "Always-on design-system,
+ * UX, visual, and interaction guidance", loaded separately from `AGENTS.md`'s
+ * coding guidelines. Project scope only — Factory's docs describe root and
+ * nested `DESIGN.md` files like `AGENTS.md`, but document no personal/global
+ * home-directory equivalent.
+ * @see https://docs.factory.ai/cli/configuration/agents-md
+ */
+export const FACTORYDROID_DESIGN_FILE_NAME = "DESIGN.md";
 export const FACTORYDROID_MCP_FILE_NAME = "mcp.json";
 export const FACTORYDROID_SETTINGS_FILE_NAME = "settings.json";
 export const FACTORYDROID_HOOKS_FILE_NAME = "hooks.json";
