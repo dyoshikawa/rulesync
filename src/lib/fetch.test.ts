@@ -2007,6 +2007,12 @@ describe("fetchFiles with skill selection", () => {
     "nul",
     "Nul.md",
     "com1.tar.gz",
+    "CONIN$",
+    "conout$.log",
+    "COM\u00B9",
+    "LPT\u00B2.sh",
+    "nul .md",
+    "COM1 .txt",
   ])("should not fetch a skill directory named after the Windows device %j", async (name) => {
     // A reserved device name is not an entry in any directory on Windows but
     // the device itself, whatever case it is written in and whatever extension
@@ -3523,26 +3529,36 @@ describe("fetchFiles skill pruning", () => {
     );
   });
 
-  it.each(["nul", "NUL.md", "con.sh", "Com1", "lpt9.txt", "aux", "prn.json"])(
-    "should skip a nested file named after the Windows device %j",
-    async (name) => {
-      // The file is not an entry there at all but the device itself: a write
-      // to `nul.md` goes nowhere, and one to `con.sh` goes to the console.
-      mockSkillRepositoryWithEntry({ name, type: "file" });
+  it.each([
+    "nul",
+    "NUL.md",
+    "con.sh",
+    "Com1",
+    "lpt9.txt",
+    "aux",
+    "prn.json",
+    "conin$",
+    "CONOUT$.txt",
+    "com\u00B3.md",
+    "nul .sh",
+    "com1 .md",
+  ])("should skip a nested file named after the Windows device %j", async (name) => {
+    // The file is not an entry there at all but the device itself: a write
+    // to `nul.md` goes nowhere, and one to `con.sh` goes to the console.
+    mockSkillRepositoryWithEntry({ name, type: "file" });
 
-      const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
+    const summary = await fetchFiles({ logger, source: "owner/repo", outputRoot: testDir });
 
-      expect(summary.files.map((file) => file.relativePath)).toEqual(["skills/skill-a/SKILL.md"]);
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `Skipping ${JSON.stringify(`skills/skill-a/${name}`)}: the path segment ` +
-            `${JSON.stringify(name)} is one Windows resolves to a different name. A segment ` +
-            `ending in a dot or an ASCII space, one shaped like a NAME~1 short name, or a ` +
-            `reserved device name such as NUL or COM1`,
-        ),
-      );
-    },
-  );
+    expect(summary.files.map((file) => file.relativePath)).toEqual(["skills/skill-a/SKILL.md"]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `Skipping ${JSON.stringify(`skills/skill-a/${name}`)}: the path segment ` +
+          `${JSON.stringify(name)} is one Windows resolves to a different name. A segment ` +
+          `ending in a dot or an ASCII space, one shaped like a NAME~1 short name, or a ` +
+          `reserved device name such as NUL or COM1`,
+      ),
+    );
+  });
 
   it.each(["console.md", "null.md", "com10.sh", "notes.v1", "data~2parser.md"])(
     "should fetch a nested file named %j, which only resembles a folded name",
@@ -3558,6 +3574,37 @@ describe("fetchFiles skill pruning", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("Skipping"));
     },
   );
+
+  it("should refuse, rather than skip, a traversal path that also has a folded segment", async () => {
+    // `skills/../nul` would be dropped for its last segment if that were
+    // judged first. It is not: a path with a `..` in it is a path that walks
+    // out of the tree, and that is refused outright so the run stops rather
+    // than going on past a repository that publishes such paths.
+    mockClientInstance.listDirectory.mockImplementation(
+      (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return Promise.resolve([
+            {
+              name: "nul",
+              path: "skills/../nul",
+              type: "file",
+              sha: "aaa",
+              size: 100,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+
+    await expect(fetchFiles({ logger, source: "owner/repo", outputRoot: testDir })).rejects.toThrow(
+      "Unsafe path in the remote repository",
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("Skipping"));
+  });
 
   it("should skip a rules file whose name Windows folds, outside the skills tree", async () => {
     // The check is per segment of every fetched path, not only of skill

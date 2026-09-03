@@ -333,11 +333,17 @@ const TRAILING_DOT_OR_SPACE_PATTERN = /[. ]$/;
 /** A name ending in the `NAME~1` shape of a Windows 8.3 short name, extension included. */
 const SHORT_NAME_ALIAS_PATTERN = /~\d+(?:\.[^.]*)?$/;
 /**
- * A name Win32 reserves for a device — `CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`,
- * `LPT1`–`LPT9` — in any case and with any extension: `nul.md` is the null
- * device too, since the reservation is decided on the part before the first dot.
+ * A name Win32 reserves for a device — `CON`, `PRN`, `AUX`, `NUL`, `CONIN$`,
+ * `CONOUT$`, `COM1`–`COM9`, `LPT1`–`LPT9` — in any case and with any
+ * extension: `nul.md` is the null device too, since the reservation is decided
+ * on the part before the first dot, with any spaces before that dot dropped
+ * first, so `nul .md` is the null device as well. The port digit may also be
+ * one of the superscript digits ¹ ² ³, which Win32 reads as 1, 2 and 3
+ * (`RtlIsDosDeviceName_U`; CPython's `ntpath.isreserved` follows the same
+ * rules).
  */
-const RESERVED_DEVICE_NAME_PATTERN = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$/i;
+const RESERVED_DEVICE_NAME_PATTERN =
+  /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9\u00B9\u00B2\u00B3]|LPT[1-9\u00B9\u00B2\u00B3]) *(?:\..*)?$/i;
 
 /**
  * Whether Windows resolves a path segment to something other than the entry it
@@ -384,13 +390,14 @@ function findWindowsFoldableSegment(relativePath: string): string | undefined {
   const isSkillPath = relativePath.startsWith(SKILLS_DIR_PREFIX) && segments.length >= 3;
   // A `.` or `..` segment ends in a dot too, but it is not a name Windows
   // folds: it is a path that walks out of the tree, which
-  // `validateRemoteRelativePath` refuses outright rather than skips.
+  // `validateRemoteRelativePath` refuses outright rather than skips. A path
+  // carrying one is left whole for that validator, whatever its other
+  // segments look like, so that it is refused rather than quietly skipped.
+  if (segments.some((segment) => segment === "." || segment === "..")) {
+    return undefined;
+  }
   return segments.find(
-    (segment, index) =>
-      !(isSkillPath && index === 1) &&
-      segment !== "." &&
-      segment !== ".." &&
-      hasWindowsFoldableName(segment),
+    (segment, index) => !(isSkillPath && index === 1) && hasWindowsFoldableName(segment),
   );
 }
 
@@ -1365,7 +1372,8 @@ async function pruneStaleSkillFiles(params: {
     // Only the skill root is guarded. A remote `skills/a/bar./x.md` never
     // gets this far: `dropAmbiguousRemotePaths` turns the file away and marks
     // the skill's remote directory incomplete, which the check above honors.
-    if (hasWindowsFoldableName(skillDir.slice(SKILLS_DIR_PREFIX.length))) {
+    const skillName = skillDir.slice(SKILLS_DIR_PREFIX.length);
+    if (hasWindowsFoldableName(skillName)) {
       logger.warn(
         `Not pruning ${quoteForLog(skillDir)}: its name is one ` +
           `some systems resolve to a different directory, so it may not be the directory this ` +
@@ -1388,7 +1396,6 @@ async function pruneStaleSkillFiles(params: {
     // remote free to publish `pdf` and `PDF` is free to publish them so that
     // one lands inside the other, where a prune walking the pair by name would
     // delete files the other half of the fetch had just written.
-    const skillName = skillDir.slice(SKILLS_DIR_PREFIX.length);
     // `caseFoldIdentity` is the form the rest of the tool compares skill names
     // in: the case dropped, since macOS and Windows ignore it, and the
     // composition normalized, since macOS stores a name decomposed and hands
