@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  MAX_FRONTMATTER_VALUES,
   parseFrontmatter,
   parseFrontmatterWithYamlRepair,
   stringifyFrontmatter,
@@ -34,6 +35,18 @@ vi.mock("gray-matter", async () => {
   });
   return { default: mockedModule };
 });
+
+/** A frontmatter document whose `metadata` holds `levels` nested YAML aliases of `width` items each. */
+function aliasChain(levels: number, width: number): string {
+  const names = "abcdefghijklmnopqrstuvwxyz";
+  const lines = ["---", "name: chain", "metadata:"];
+  for (let i = 0; i < levels; i += 1) {
+    const items = Array.from({ length: width }, () => (i === 0 ? "x" : `*${names[i - 1]}`));
+    lines.push(`  ${names[i]}: &${names[i]} [${items.join(", ")}]`);
+  }
+  lines.push("---", "");
+  return lines.join("\n");
+}
 
 describe("frontmatter utilities", () => {
   describe("stringifyFrontmatter", () => {
@@ -413,35 +426,48 @@ const code = "preserved";
     });
   });
 
-  describe("shared references and prototype keys (issue #2751)", () => {
-    const aliasBomb = [
-      "---",
-      "name: bomb",
-      "metadata:",
-      "  a: &a [x, x, x, x, x, x, x, x, x, x]",
-      "  b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a, *a]",
-      "  c: &c [*b, *b, *b, *b, *b, *b, *b, *b, *b, *b]",
-      "  d: &d [*c, *c, *c, *c, *c, *c, *c, *c, *c, *c]",
-      "  e: &e [*d, *d, *d, *d, *d, *d, *d, *d, *d, *d]",
-      "  f: [*e, *e, *e, *e, *e, *e, *e, *e, *e, *e]",
-      "---",
-      "",
-    ].join("\n");
-
-    it("should clean an aliased container once and reuse it instead of copying it per alias", () => {
-      const { frontmatter } = parseFrontmatter(aliasBomb);
+  describe("aliases, cycles and prototype keys (issue #2751)", () => {
+    it("should expand a moderate alias chain into independent copies", () => {
+      const { frontmatter } = parseFrontmatter(aliasChain(3, 10));
       const metadata = frontmatter.metadata as Record<string, unknown[]>;
       expect(metadata.a).toEqual(Array.from({ length: 10 }, () => "x"));
-      expect(metadata.b).toHaveLength(10);
-      expect(metadata.b?.every((item) => item === metadata.a)).toBe(true);
-      expect(metadata.f?.every((item) => item === metadata.e)).toBe(true);
+      expect(metadata.c).toHaveLength(10);
+      expect(metadata.c?.[0]).toEqual(metadata.b);
+      expect(metadata.c?.[0]).not.toBe(metadata.b);
     });
 
-    it("should keep the stringified alias bomb small", () => {
-      const { frontmatter } = parseFrontmatter(aliasBomb);
-      const output = stringifyFrontmatter("body", frontmatter);
-      expect(output.length).toBeLessThan(2000);
-      expect(output).toContain("&ref_");
+    it("should refuse an alias bomb instead of expanding it", () => {
+      expect(() => parseFrontmatter(aliasChain(6, 10))).toThrow(
+        `Frontmatter expands to more than ${MAX_FRONTMATTER_VALUES} values`,
+      );
+    });
+
+    it("should prefix the alias bomb error with the file path", () => {
+      expect(() => parseFrontmatter(aliasChain(6, 10), "skills/bomb/SKILL.md")).toThrow(
+        /^Failed to parse frontmatter in skills\/bomb\/SKILL\.md: .*Frontmatter expands to more than/,
+      );
+    });
+
+    it.each([{ avoidBlockScalars: false }, { avoidBlockScalars: true }])(
+      "should refuse to stringify a shared graph past the budget with %o",
+      (options) => {
+        let level: unknown[] = Array.from({ length: 10 }, () => "x");
+        for (let i = 0; i < 5; i += 1) {
+          const inner = level;
+          level = Array.from({ length: 10 }, () => inner);
+        }
+        expect(() => stringifyFrontmatter("body", { metadata: level }, options)).toThrow(
+          `Frontmatter expands to more than ${MAX_FRONTMATTER_VALUES} values`,
+        );
+      },
+    );
+
+    it("should write a shared reference out in full rather than as a YAML anchor", () => {
+      const tools = ["Read", "Write"];
+      const output = stringifyFrontmatter("body", { a: tools, b: tools });
+      expect(output).not.toContain("&ref_");
+      expect(output).not.toContain("*ref_");
+      expect(parseFrontmatter(output).frontmatter).toEqual({ a: tools, b: tools });
     });
 
     it("should drop a reference back to an ancestor instead of overflowing the stack", () => {
@@ -454,12 +480,21 @@ const code = "preserved";
       expect(frontmatter).toEqual({ items: [1] });
     });
 
+    it("should drop a cycle on stringify in both modes", () => {
+      const cyclic: Record<string, unknown> = { keep: 1 };
+      cyclic.self = cyclic;
+      for (const options of [{ avoidBlockScalars: false }, { avoidBlockScalars: true }]) {
+        const output = stringifyFrontmatter("body", { metadata: cyclic }, options);
+        expect(parseFrontmatter(output).frontmatter).toEqual({ metadata: { keep: 1 } });
+      }
+    });
+
     it("should keep a shared reference that is not a cycle", () => {
       const { frontmatter } = parseFrontmatter(
         "---\nshared: &s\n  k: v\nfirst: *s\nsecond: *s\n---\n",
       );
       expect(frontmatter).toEqual({ shared: { k: "v" }, first: { k: "v" }, second: { k: "v" } });
-      expect(frontmatter.first).toBe(frontmatter.second);
+      expect(frontmatter.first).not.toBe(frontmatter.second);
     });
 
     it.each(["__proto__", "constructor", "prototype"])(

@@ -10,42 +10,64 @@ import { isPlainObject } from "./type-guards.js";
 import { loadYaml } from "./yaml.js";
 
 /**
- * Marks a container whose cleaning is still in progress, so a reference back
- * to it (a YAML anchor that aliases one of its own ancestors) is recognized as
- * a cycle rather than walked again.
+ * Upper bound on the number of values a frontmatter document may expand to
+ * once every YAML alias is written out.
+ *
+ * A YAML alias makes one parsed container reachable from many keys, and the
+ * cleaners below copy each reachable value, so a small file with a few levels
+ * of nested aliases (an "alias bomb") can expand into megabytes of output or
+ * exhaust the heap. Counting every visited value against this budget turns
+ * that into an error instead. Real frontmatter is a handful of keys; even a
+ * generous skill manifest stays orders of magnitude below the limit.
  */
-const IN_PROGRESS = Symbol("in-progress");
+export const MAX_FRONTMATTER_VALUES = 100_000;
 
 type DeepCleanOptions = {
   /** Applied to every string leaf; the default keeps strings as they are. */
   transformString?: (value: string) => string;
   /**
-   * Containers already cleaned, keyed by the original reference. YAML aliases
-   * make one parsed object reachable from many keys; without this memo every
-   * alias is expanded into an independent copy, so a small file with a few
-   * levels of nested aliases (an "alias bomb") explodes into megabytes of
-   * output or exhausts the heap, and a self-referencing anchor recurses until
-   * the stack overflows. With it, a shared object is cleaned once and reused,
-   * and a cycle is dropped.
+   * Containers on the current descent path. A reference back to one of them
+   * (a YAML anchor that aliases its own ancestor) is a cycle and is dropped
+   * rather than walked until the stack overflows.
    */
-  seen: WeakMap<object, unknown>;
+  ancestors: WeakSet<object>;
+  /** Values still allowed before the walk refuses the document. */
+  budget: { remaining: number };
 };
 
+function consumeBudget(options: DeepCleanOptions): void {
+  options.budget.remaining -= 1;
+  if (options.budget.remaining < 0) {
+    throw new Error(
+      `Frontmatter expands to more than ${MAX_FRONTMATTER_VALUES} values; refusing to process it (a chain of YAML aliases may be amplifying the document)`,
+    );
+  }
+}
+
+/**
+ * Copy one parsed value, dropping nullish leaves and cyclic references.
+ *
+ * Every alias is still written out as an independent copy, as gray-matter's
+ * default YAML engine would otherwise serialize shared references as `&ref_0`
+ * anchors that simplified frontmatter parsers cannot read; the expansion is
+ * bounded by {@link MAX_FRONTMATTER_VALUES} instead.
+ */
 function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
   if (value === null || value === undefined) {
     return undefined;
   }
+
+  consumeBudget(options);
 
   if (typeof value === "string") {
     return options.transformString ? options.transformString(value) : value;
   }
 
   if (Array.isArray(value)) {
-    if (options.seen.has(value)) {
-      const cleaned = options.seen.get(value);
-      return cleaned === IN_PROGRESS ? undefined : cleaned;
+    if (options.ancestors.has(value)) {
+      return undefined;
     }
-    options.seen.set(value, IN_PROGRESS);
+    options.ancestors.add(value);
     const cleanedArray: unknown[] = [];
     for (const item of value) {
       const cleaned = deepCleanValue(item, options);
@@ -53,18 +75,17 @@ function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
         cleanedArray.push(cleaned);
       }
     }
-    options.seen.set(value, cleanedArray);
+    options.ancestors.delete(value);
     return cleanedArray;
   }
 
   if (isPlainObject(value)) {
-    if (options.seen.has(value)) {
-      const cleaned = options.seen.get(value);
-      return cleaned === IN_PROGRESS ? undefined : cleaned;
+    if (options.ancestors.has(value)) {
+      return undefined;
     }
-    options.seen.set(value, IN_PROGRESS);
+    options.ancestors.add(value);
     const result = cleanOwnEntries(value, options);
-    options.seen.set(value, result);
+    options.ancestors.delete(value);
     return result;
   }
 
@@ -78,7 +99,9 @@ function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
  * it back with bracket notation would instead replace the new record's
  * prototype, whose members zod's loose object schemas then promote to real
  * keys. So a fetched skill could hide `allowed-tools` under an innocuous
- * looking `__proto__:` block. Such keys are dropped rather than copied.
+ * looking `__proto__:` block. That key, `constructor` and `prototype` are
+ * therefore dropped rather than copied, and cannot be used as frontmatter
+ * keys.
  */
 function cleanOwnEntries(
   obj: Record<string, unknown>,
@@ -99,12 +122,16 @@ function cleanOwnEntries(
 
 function deepCleanObject(
   obj: Record<string, unknown> | null | undefined,
-  options: Omit<DeepCleanOptions, "seen">,
+  options: Omit<DeepCleanOptions, "ancestors" | "budget">,
 ): Record<string, unknown> {
   if (!obj || typeof obj !== "object") {
     return {};
   }
-  return cleanOwnEntries(obj, { ...options, seen: new WeakMap() });
+  return cleanOwnEntries(obj, {
+    ...options,
+    ancestors: new WeakSet([obj]),
+    budget: { remaining: MAX_FRONTMATTER_VALUES },
+  });
 }
 
 /** Drop null and undefined values, recursively. */
@@ -181,7 +208,12 @@ export function parseFrontmatter(
     // frontmatter text spilled into the body, instead of reporting the error
     // again. Caching a parse this cheap is not worth failing silently.
     const result = matter(content, {});
-    frontmatter = result.data;
+    // Strip null/undefined values from parsed frontmatter for consistency.
+    // YAML parses bare keys (e.g. "description:") as null, which would fail
+    // Zod validation (z.optional(z.string()) does not accept null). The same
+    // walk drops cyclic aliases and prototype keys and refuses a document that
+    // expands past MAX_FRONTMATTER_VALUES, so it belongs with the parse errors.
+    frontmatter = deepRemoveNullishObject(result.data);
     body = result.content;
     // gray-matter returns an empty .matter string and sets .content equal to
     // the original input when no YAML frontmatter fence (---) is present.
@@ -196,12 +228,7 @@ export function parseFrontmatter(
     throw error;
   }
 
-  // Strip null/undefined values from parsed frontmatter for consistency.
-  // YAML parses bare keys (e.g. "description:") as null, which would fail
-  // Zod validation (z.optional(z.string()) does not accept null).
-  const cleanFrontmatter = deepRemoveNullishObject(frontmatter);
-
-  return { frontmatter: cleanFrontmatter, body, hasFrontmatter };
+  return { frontmatter, body, hasFrontmatter };
 }
 
 /**
