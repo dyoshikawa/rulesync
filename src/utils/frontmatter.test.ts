@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  MAX_FRONTMATTER_STRING_CHARS,
   MAX_FRONTMATTER_VALUES,
   parseFrontmatter,
   parseFrontmatterWithYamlRepair,
@@ -553,6 +554,25 @@ const code = "preserved";
         /Frontmatter expands to more than/,
       );
       expect(performance.now() - started).toBeLessThan(5_000);
+    });
+
+    it("should charge string leaf length against a separate budget so a duplicated scalar cannot balloon the output within the value budget", () => {
+      // A single scalar aliased widely stays far under MAX_FRONTMATTER_VALUES
+      // (one array container plus its elements) while the duplicated
+      // character count alone would otherwise multiply the document into
+      // megabytes of output.
+      const scalar = "a".repeat(500);
+      const repeats = 10_000;
+      const aliasedCopies = Array.from({ length: repeats }, () => "*s").join(", ");
+      expect(repeats + 1).toBeLessThan(MAX_FRONTMATTER_VALUES);
+      expect(scalar.length * repeats).toBeGreaterThan(MAX_FRONTMATTER_STRING_CHARS);
+
+      const yaml = ["---", `s: &s "${scalar}"`, `copies: [${aliasedCopies}]`, "---", ""].join("\n");
+      expect(() => parseFrontmatter(yaml)).toThrow(
+        new RegExp(
+          `Frontmatter's string values expand to more than ${MAX_FRONTMATTER_STRING_CHARS} characters`,
+        ),
+      );
     });
   });
 

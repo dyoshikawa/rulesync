@@ -22,6 +22,20 @@ import { loadYaml } from "./yaml.js";
  */
 export const MAX_FRONTMATTER_VALUES = 100_000;
 
+/**
+ * Upper bound on the total character count of string leaves a frontmatter
+ * document may expand to.
+ *
+ * {@link MAX_FRONTMATTER_VALUES} bounds how many values are visited, but a
+ * single long string aliased thousands of times still fits that budget while
+ * the duplicated output balloons: one scalar of a few KB, chained through a
+ * handful of aliases within the value budget, can multiply into a document
+ * many megabytes larger than it started. Charging every visited string's
+ * length against this separate budget bounds that output regardless of how
+ * many aliases point at it.
+ */
+export const MAX_FRONTMATTER_STRING_CHARS = 4_000_000;
+
 type DeepCleanOptions = {
   /** Applied to every string leaf; the default keeps strings as they are. */
   transformString?: (value: string) => string;
@@ -32,14 +46,20 @@ type DeepCleanOptions = {
    */
   ancestors: WeakSet<object>;
   /** Values still allowed before the walk refuses the document. */
-  budget: { remaining: number };
+  budget: { remaining: number; stringCharsRemaining: number };
 };
 
-function consumeBudget(options: DeepCleanOptions): void {
+function consumeBudget(options: DeepCleanOptions, stringChars = 0): void {
   options.budget.remaining -= 1;
   if (options.budget.remaining < 0) {
     throw new Error(
       `Frontmatter expands to more than ${MAX_FRONTMATTER_VALUES} values; refusing to process it (a chain of YAML aliases may be amplifying the document)`,
+    );
+  }
+  options.budget.stringCharsRemaining -= stringChars;
+  if (options.budget.stringCharsRemaining < 0) {
+    throw new Error(
+      `Frontmatter's string values expand to more than ${MAX_FRONTMATTER_STRING_CHARS} characters; refusing to process it (a chain of YAML aliases may be amplifying the document)`,
     );
   }
 }
@@ -55,7 +75,7 @@ function consumeBudget(options: DeepCleanOptions): void {
 function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
   // Charge nullish leaves too: an aliased array of nulls would otherwise be
   // walked for free, and the walk is the work being bounded.
-  consumeBudget(options);
+  consumeBudget(options, typeof value === "string" ? value.length : 0);
 
   if (value === null || value === undefined) {
     return undefined;
@@ -132,7 +152,10 @@ function deepCleanObject(
   return cleanOwnEntries(obj, {
     ...options,
     ancestors: new WeakSet([obj]),
-    budget: { remaining: MAX_FRONTMATTER_VALUES },
+    budget: {
+      remaining: MAX_FRONTMATTER_VALUES,
+      stringCharsRemaining: MAX_FRONTMATTER_STRING_CHARS,
+    },
   });
 }
 
