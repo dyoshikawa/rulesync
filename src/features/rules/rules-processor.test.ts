@@ -1247,6 +1247,66 @@ describe("RulesProcessor", () => {
       expect(warnSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
       warnSpy.mockRestore();
     });
+
+    it("should warn that importing a fold target duplicates its already-folded non-root rules", async () => {
+      // codexcli concatenates every non-root rule into its single AGENTS.md
+      // root output (`collisionPolicy: "fold"`). Importing that root file
+      // back re-adds the folded content as one new rulesync rule while
+      // style.md stays untouched, so the next generate folds both together.
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---\nroot: true\ntargets: ["codexcli"]\n---\n# Overview\n`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "style.md"),
+        `---\nroot: false\ntargets: ["codexcli"]\n---\nstyle body\n`,
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.loadToolFiles();
+
+      const warning = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("will re-add content already folded from"));
+      expect(warning).toBeDefined();
+      expect(warning).toContain("style.md");
+      expect(warning).toContain("rulesync generate --targets codexcli");
+    });
+
+    it("should not warn about fold duplication when no non-root rules exist", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---\nroot: true\ntargets: ["codexcli"]\n---\n# Overview\n`,
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.loadToolFiles();
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("will re-add content already folded from"),
+      );
+    });
+
+    it("should not warn about fold duplication for a non-fold target", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---\nroot: true\ntargets: ["cursor"]\n---\n# Overview\n`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "style.md"),
+        `---\nroot: false\ntargets: ["cursor"]\n---\nstyle body\n`,
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
+      await processor.loadToolFiles();
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("will re-add content already folded from"),
+      );
+    });
   });
 
   describe("loadToolFiles with forDeletion: true", () => {

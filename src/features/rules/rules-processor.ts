@@ -2081,6 +2081,43 @@ As this project's AI coding tool, you must follow the additional conventions bel
   }
 
   /**
+   * Warn when importing a `collisionPolicy: "fold"` target's root file while
+   * `.rulesync/rules/` still holds non-root rules targeting it. A fold target
+   * (codexcli, junie, and others) concatenates every targeted non-root rule
+   * into its one root output file on `generate`. Importing that root file
+   * back therefore re-reads the already-folded content as a single new
+   * rulesync rule, while the original non-root rules stay in place
+   * untouched — the next `generate` folds both together, duplicating the
+   * content once per generate/import cycle with nothing to indicate why.
+   *
+   * This does not attempt to detect or drop the specific duplicated content
+   * (the root file has no marker recording which rule contributed what); it
+   * only surfaces that the cycle produces one, per the "at minimum, warn"
+   * option recorded on issue #2743.
+   */
+  private async warnForFoldImportDuplicationRisk({
+    factory,
+  }: {
+    factory: ToolRuleFactory;
+  }): Promise<void> {
+    if (factory.meta.collisionPolicy !== "fold") {
+      return;
+    }
+
+    const rulesyncFiles = await this.loadRulesyncFiles();
+    const nonRootRules = rulesyncFiles.filter(
+      (file): file is RulesyncRule => file instanceof RulesyncRule && !file.getFrontmatter().root,
+    );
+    if (nonRootRules.length === 0) {
+      return;
+    }
+
+    this.logger.warn(
+      `Importing ${this.toolTarget}'s root file will re-add content already folded from ${formatRulePaths(nonRootRules)}: ${this.toolTarget} concatenates every non-root rule into its single root output file, so the imported copy duplicates them the next time you run \`rulesync generate --targets ${this.toolTarget}\`. Review the imported rule and remove the duplicated content, or remove the original non-root rule files, before generating again.`,
+    );
+  }
+
+  /**
    * Implementation of abstract method from FeatureProcessor
    * Load tool-specific rule configurations and parse them into ToolRule instances
    */
@@ -2094,6 +2131,10 @@ As this project's AI coding tool, you must follow the additional conventions bel
       const settablePaths = factory.class.getSettablePaths({
         global: this.global,
       });
+
+      if (!forDeletion) {
+        await this.warnForFoldImportDuplicationRisk({ factory });
+      }
 
       const resolveRelativeDirPath = (filePath: string): string => {
         const dirName = dirname(relative(this.outputRoot, filePath));
