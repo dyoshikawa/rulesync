@@ -12,7 +12,11 @@ import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { AiFile } from "../../types/ai-file.js";
-import { FeatureProcessor, mergeByCaseInsensitiveIdentity } from "../../types/feature-processor.js";
+import {
+  ClaimedIdentities,
+  FeatureProcessor,
+  mergeByCaseInsensitiveIdentity,
+} from "../../types/feature-processor.js";
 import type { FlattenedCommandNaming } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
@@ -933,7 +937,20 @@ export class CommandsProcessor extends FeatureProcessor {
         }
         return [key, basename(key)];
       };
-      const seen = new Set(toolCommands.flatMap((command) => keysOf(command)));
+      // Keys are compared case-insensitively: every command is written back
+      // into the one `.rulesync/commands/` tree, where `commit.md` and
+      // `Commit.md` are a single file on macOS and Windows, so a secondary
+      // copy that differs only in case would overwrite the primary one instead
+      // of yielding to it. The primary root's own keys are registered first so
+      // it keeps precedence.
+      const claimedKeys = new ClaimedIdentities();
+      const primarySource = paths.relativeDirPath;
+      const secondarySource = "a secondary source";
+      for (const command of toolCommands) {
+        for (const candidate of keysOf(command)) {
+          claimedKeys.claim({ identity: candidate, source: primarySource });
+        }
+      }
       const additionalCommands = await factory.class.loadAdditionalImportFiles({
         outputRoot: this.outputRoot,
         global: this.global,
@@ -941,15 +958,34 @@ export class CommandsProcessor extends FeatureProcessor {
       });
       for (const command of additionalCommands) {
         const key = command.getRelativeFilePath();
-        if (keysOf(command, true).some((candidate) => seen.has(candidate))) {
-          this.logger.warn(
-            `Duplicate ${this.toolTarget} command "${key}" from a secondary source; ` +
-              `keeping the one already loaded.`,
-          );
+        const collision = keysOf(command, true)
+          .map((candidate) => {
+            const claimed = claimedKeys.claim({ identity: candidate, source: secondarySource });
+            return claimed === null ? undefined : { candidate, claimed };
+          })
+          .find((hit) => hit !== undefined);
+        if (collision) {
+          const { candidate, claimed } = collision;
+          if (claimed.spelling === candidate) {
+            this.logger.warn(
+              `Duplicate ${this.toolTarget} command "${key}" from ${secondarySource}; ` +
+                `keeping the one already loaded.`,
+            );
+          } else {
+            // The dropped copy is not the one the user would search for by
+            // name, and on a case-sensitive filesystem — where the two really
+            // are separate commands — this is the only sign one was dropped.
+            this.logger.warn(
+              `Case-insensitive ${this.toolTarget} command collision: "${claimed.spelling}" and ` +
+                `"${candidate}" resolve to the same command file. Keeping "${claimed.spelling}" ` +
+                `from ${claimed.source === secondarySource ? "earlier in the same source" : `the higher-precedence ${claimed.source}`} ` +
+                `and ignoring "${key}" from ${secondarySource}, which is not imported.`,
+            );
+          }
           continue;
         }
         for (const candidate of keysOf(command)) {
-          seen.add(candidate);
+          claimedKeys.claim({ identity: candidate, source: secondarySource });
         }
         toolCommands.push(command);
       }

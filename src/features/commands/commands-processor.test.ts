@@ -157,6 +157,7 @@ vi.mocked(OpenCodeCommand).forDeletion = vi.fn().mockImplementation((params) => 
   isDeletable: () => true,
   getRelativeFilePath: () => params.relativeFilePath,
 }));
+vi.mocked(OpenCodeCommand).loadAdditionalImportFiles = vi.fn().mockResolvedValue([]);
 
 // Set up static methods after mocking
 vi.mocked(RooCommand).fromFile = vi.fn();
@@ -1551,6 +1552,89 @@ describe("CommandsProcessor secondary import roots", () => {
 
     expect(loaded.map((file) => file.getRelativeFilePath())).toEqual([join("git", "commit.md")]);
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("Duplicate augmentcode"));
+  });
+
+  it("drops a shared-root copy that differs only in case and says which spelling won", async () => {
+    // Written back into one `.rulesync/commands/` tree, `commit.md` and
+    // `Commit.md` are a single file on macOS and Windows, so an exact-match
+    // check would let the shared-root copy overwrite the tool's own one.
+    const mockLogger = createMockLogger();
+    const actualFile =
+      await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+    vi.mocked(findFilesByGlobs).mockImplementation(actualFile.findFilesByGlobs);
+    await ensureDir(join(testDir, ".augment", "commands"));
+    await ensureDir(join(testDir, ".agents", "commands"));
+    const body = ["---", "description: Commit", "---", "", "Commit it.", ""].join("\n");
+    await writeFileContent(join(testDir, ".augment", "commands", "commit.md"), body);
+    await writeFileContent(join(testDir, ".agents", "commands", "Commit.md"), body);
+
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "augmentcode",
+      logger: mockLogger,
+    });
+    const loaded = await processor.loadToolFiles();
+
+    expect(loaded.map((file) => file.getRelativeFilePath())).toEqual(["commit.md"]);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /Case-insensitive augmentcode command collision: "commit\.md" and "Commit\.md" .* Keeping "commit\.md" from the higher-precedence .*\.augment.*commands .* ignoring "Commit\.md"/,
+      ),
+    );
+  });
+
+  it("drops a shared-root copy whose basename differs only in case from a nested command", async () => {
+    // The flattened twin of `git/commit.md` is matched by basename; the match
+    // must fold case the same way the exact path match does.
+    const mockLogger = createMockLogger();
+    const actualFile =
+      await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+    vi.mocked(findFilesByGlobs).mockImplementation(actualFile.findFilesByGlobs);
+    await ensureDir(join(testDir, ".augment", "commands", "git"));
+    await ensureDir(join(testDir, ".agents", "commands"));
+    const body = ["---", "description: Commit", "---", "", "Commit it.", ""].join("\n");
+    await writeFileContent(join(testDir, ".augment", "commands", "git", "commit.md"), body);
+    await writeFileContent(join(testDir, ".agents", "commands", "COMMIT.md"), body);
+
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "augmentcode",
+      logger: mockLogger,
+    });
+    const loaded = await processor.loadToolFiles();
+
+    expect(loaded.map((file) => file.getRelativeFilePath())).toEqual([join("git", "commit.md")]);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Case-insensitive augmentcode command collision"),
+    );
+  });
+
+  it("reports a case-only collision inside the secondary source as same-source", async () => {
+    // OpenCode's inline `command` block can hold `Commit` and `commit` as two
+    // JSON keys; only the first can survive the write-back. JSON parsing
+    // itself is covered by opencode-command.test.ts, so this test mocks
+    // `loadAdditionalImportFiles` directly to isolate the dedupe logic below.
+    const mockLogger = createMockLogger();
+    vi.mocked(OpenCodeCommand).loadAdditionalImportFiles = vi
+      .fn()
+      .mockResolvedValue([
+        { getRelativeFilePath: () => "Commit.md" },
+        { getRelativeFilePath: () => "commit.md" },
+      ]);
+
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "opencode",
+      logger: mockLogger,
+    });
+    const loaded = await processor.loadToolFiles();
+
+    expect(loaded.map((file) => file.getRelativeFilePath())).toEqual(["Commit.md"]);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /Case-insensitive opencode command collision: "Commit\.md" and "commit\.md" .* Keeping "Commit\.md" from earlier in the same source/,
+      ),
+    );
   });
 
   it("keeps a nested command from the shared root that only shares a basename", async () => {
