@@ -1248,6 +1248,33 @@ describe("RulesProcessor", () => {
       warnSpy.mockRestore();
     });
 
+    it("should never warn about fold duplication on its own — only the explicit warnForFoldImportDuplicationRisk() call does", async () => {
+      // `loadToolFiles` is also the entry point `rulesync convert` and
+      // `rulesync fetch` share (neither writes to `.rulesync/rules/` and so
+      // carries none of this duplication risk), so the warning must not fire
+      // just from loading tool files — only the real `rulesync import` call
+      // site invokes warnForFoldImportDuplicationRisk() explicitly, and only
+      // once it has confirmed there is something to import.
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---\nroot: true\ntargets: ["codexcli"]\n---\n# Overview\n`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "style.md"),
+        `---\nroot: false\ntargets: ["codexcli"]\n---\nstyle body\n`,
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.loadToolFiles();
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("will re-add content already folded from"),
+      );
+    });
+  });
+
+  describe("warnForFoldImportDuplicationRisk", () => {
     it("should warn that importing a fold target duplicates its already-folded non-root rules", async () => {
       // codexcli concatenates every non-root rule into its single AGENTS.md
       // root output (`collisionPolicy: "fold"`). Importing that root file
@@ -1264,7 +1291,7 @@ describe("RulesProcessor", () => {
       );
 
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
-      await processor.loadToolFiles();
+      await processor.warnForFoldImportDuplicationRisk();
 
       const warning = logger.warn.mock.calls
         .map(([message]) => String(message))
@@ -1282,7 +1309,7 @@ describe("RulesProcessor", () => {
       );
 
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
-      await processor.loadToolFiles();
+      await processor.warnForFoldImportDuplicationRisk();
 
       expect(logger.warn).not.toHaveBeenCalledWith(
         expect.stringContaining("will re-add content already folded from"),
@@ -1301,7 +1328,7 @@ describe("RulesProcessor", () => {
       );
 
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
-      await processor.loadToolFiles();
+      await processor.warnForFoldImportDuplicationRisk();
 
       expect(logger.warn).not.toHaveBeenCalledWith(
         expect.stringContaining("will re-add content already folded from"),

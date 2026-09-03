@@ -2094,12 +2094,14 @@ As this project's AI coding tool, you must follow the additional conventions bel
    * (the root file has no marker recording which rule contributed what); it
    * only surfaces that the cycle produces one, per the "at minimum, warn"
    * option recorded on issue #2743.
+   *
+   * Only the actual `rulesync import` call site invokes this (and only once
+   * it has confirmed there is something to import) — `loadToolFiles` is also
+   * the entry point for `rulesync convert` and `rulesync fetch`, neither of
+   * which writes to `.rulesync/rules/` or carries this duplication risk.
    */
-  private async warnForFoldImportDuplicationRisk({
-    factory,
-  }: {
-    factory: ToolRuleFactory;
-  }): Promise<void> {
+  async warnForFoldImportDuplicationRisk(): Promise<void> {
+    const factory = this.getFactory(this.toolTarget);
     if (factory.meta.collisionPolicy !== "fold") {
       return;
     }
@@ -2131,10 +2133,6 @@ As this project's AI coding tool, you must follow the additional conventions bel
       const settablePaths = factory.class.getSettablePaths({
         global: this.global,
       });
-
-      if (!forDeletion) {
-        await this.warnForFoldImportDuplicationRisk({ factory });
-      }
 
       const resolveRelativeDirPath = (filePath: string): string => {
         const dirName = dirname(relative(this.outputRoot, filePath));

@@ -34,6 +34,7 @@ const createMockProcessor = ({
   loadToolFiles: vi.fn().mockResolvedValue([{ file: "tool" }]),
   convertToolFilesToRulesyncFiles: vi.fn().mockResolvedValue(convertedFiles),
   writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [] }),
+  warnForFoldImportDuplicationRisk: vi.fn().mockResolvedValue(undefined),
 });
 
 const createMockSkillsProcessor = () => ({
@@ -188,6 +189,20 @@ describe("importFromTool", () => {
       expect(RulesProcessor).not.toHaveBeenCalled();
     });
 
+    it("should warn about fold-import duplication risk only once tool files were actually found", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      expect(result.rulesCount).toBe(1);
+      const mockProcessor = vi.mocked(RulesProcessor).mock.results[0]?.value;
+      expect(mockProcessor.warnForFoldImportDuplicationRisk).toHaveBeenCalled();
+    });
+
     it("should return 0 when no tool files found", async () => {
       mockConfig.getFeatures.mockReturnValue(["rules"]);
 
@@ -195,6 +210,7 @@ describe("importFromTool", () => {
         loadToolFiles: vi.fn().mockResolvedValue([]),
         convertToolFilesToRulesyncFiles: vi.fn(),
         writeAiFiles: vi.fn(),
+        warnForFoldImportDuplicationRisk: vi.fn().mockResolvedValue(undefined),
       };
       vi.mocked(RulesProcessor).mockImplementation(function () {
         return mockProcessor as unknown as RulesProcessor;
@@ -209,6 +225,9 @@ describe("importFromTool", () => {
       expect(result.rulesCount).toBe(0);
       expect(mockProcessor.convertToolFilesToRulesyncFiles).not.toHaveBeenCalled();
       expect(mockProcessor.writeAiFiles).not.toHaveBeenCalled();
+      // A no-op import (nothing found to import) must not warn about
+      // fold-duplication risk — there is nothing being imported to duplicate.
+      expect(mockProcessor.warnForFoldImportDuplicationRisk).not.toHaveBeenCalled();
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("No rule files found for claudecode"),
       );
