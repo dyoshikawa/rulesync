@@ -19,13 +19,14 @@ export type CrushRuleParams = AiFileParams & {
 /**
  * Crush reads project context from a fixed list of file names at the working
  * directory root — `CRUSH.md`, `crush.md`, `Crush.md` and their `.local`
- * variants are the Crush-specific spellings (the list also includes
- * `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and `.cursorrules`, already owned by
- * other rulesync targets). It does not scan a modular non-root instructions
- * directory, so rulesync's topic-based non-root rules have no project
- * subdirectory to map onto; their bodies are folded into the single root
- * `./CRUSH.md` by the RulesProcessor — there is no separate non-root output
- * location (`nonRoot` is `undefined`).
+ * variants are the Crush-specific spellings. Crush's full default
+ * context-path list also includes `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`,
+ * `.cursorrules`, `.cursor/rules/` and `.github/copilot-instructions.md` —
+ * all already owned by other rulesync targets. It does not scan a modular
+ * non-root instructions directory, so rulesync's topic-based non-root rules
+ * have no project subdirectory to map onto; their bodies are folded into the
+ * single root `./CRUSH.md` by the RulesProcessor — there is no separate
+ * non-root output location (`nonRoot` is `undefined`).
  *
  * In global mode, Crush reads a global context file from
  * `~/.config/crush/CRUSH.md` (it also reads `~/.config/AGENTS.md`, owned by

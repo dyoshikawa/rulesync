@@ -2,10 +2,11 @@ import { join } from "node:path";
 
 // Crush (Charm's terminal coding agent) reads project rules from `CRUSH.md`
 // (also `crush.md` / `Crush.md` and their `.local` variants) at the working
-// directory root, and a global rules file at `~/.config/crush/CRUSH.md`. It
-// also opportunistically reads `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and
-// `.cursorrules` — those are already owned by other rulesync targets, so this
-// target only claims the Crush-specific spelling.
+// directory root, and a global rules file at `~/.config/crush/CRUSH.md`. Its
+// full default context-path list also opportunistically reads `AGENTS.md`,
+// `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.cursor/rules/` and
+// `.github/copilot-instructions.md` — those are already owned by other
+// rulesync targets, so this target only claims the Crush-specific spelling.
 // @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
 // @see https://github.com/charmbracelet/crush/blob/main/internal/config/load.go
 export const CRUSH_RULE_FILE_NAME = "CRUSH.md";

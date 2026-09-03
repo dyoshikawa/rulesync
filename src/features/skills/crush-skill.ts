@@ -28,10 +28,14 @@ const CrushSkillFrontmatterSchema = z.looseObject({
   description: z.string(),
   // Crush's `Skill` struct (internal/skills/skills.go) fields beyond
   // name/description: both invocation gates, plus the Agent Skills packaging
-  // trio. Crush itself types `compatibility` as a plain string, but the
-  // schema also accepts the legacy object form (mirrors every other adapter
-  // that resolves this field via `resolveCompatibility`) so an object-shaped
-  // root default round-trips instead of failing validation.
+  // trio. Crush's Go struct types `compatibility` as a bare string and
+  // `metadata` as `map[string]string`, and its `yaml.Unmarshal` fails the
+  // whole document on a type mismatch, so this schema stays lenient (it also
+  // accepts the legacy object `compatibility` and non-string `metadata`
+  // values every other adapter resolves via `resolveCompatibility`/
+  // `resolveMetadata`) purely so a loosely-shaped root default still parses;
+  // `fromRulesyncSkill` below normalizes both fields to the shapes Crush's
+  // parser actually requires before a `CrushSkill` is ever constructed.
   // https://github.com/charmbracelet/crush/blob/main/internal/skills/skills.go
   "user-invocable": z.optional(z.boolean()),
   "disable-model-invocation": z.optional(z.boolean()),
@@ -39,6 +43,45 @@ const CrushSkillFrontmatterSchema = z.looseObject({
   compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
 });
+
+/**
+ * Crush's `Skill` struct (`internal/skills/skills.go`) types `Compatibility`
+ * as a bare Go `string` and `Metadata` as `map[string]string`; its
+ * `yaml.Unmarshal` call fails to parse the entire `SKILL.md` if either field
+ * holds any other shape. A rulesync root default can still carry the legacy
+ * object form of `compatibility` or non-string `metadata` values (the shapes
+ * `resolveCompatibility`/`resolveMetadata` may return), so both are coerced
+ * to what Crush's parser accepts before being written — mirroring
+ * `toCompatibilityString`/`toStringMetadata` in `agentsskills-skill.ts`,
+ * which normalizes for the same real-spec reason.
+ */
+function stringifyCrushValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function toCrushCompatibilityString(value: string | Record<string, unknown>): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  return Object.entries(value)
+    .map(([key, entry]) => `${key}: ${stringifyCrushValue(entry)}`)
+    .join(", ");
+}
+
+function toCrushMetadata(metadata: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(metadata).map(([key, value]) => [key, stringifyCrushValue(value)]),
+  );
+}
 
 export type CrushSkillFrontmatter = z.infer<typeof CrushSkillFrontmatterSchema>;
 
@@ -58,7 +101,17 @@ export type CrushSkillParams = {
  *
  * Crush auto-discovers Agent Skills (`SKILL.md` per directory) from
  * `.crush/skills/` at project scope and `~/.config/crush/skills/` (or
- * `$CRUSH_SKILLS_DIR`) at global scope.
+ * `$CRUSH_SKILLS_DIR`) at global scope. Unless `$CRUSH_SKILLS_DIR` is set,
+ * Crush also scans several shared directories it does not own (globally
+ * `~/.config/agents/skills/`, `~/.agents/skills/`, `~/.claude/skills/`;
+ * per-project `.agents/skills/`, `.claude/skills/`, `.cursor/skills/`, also
+ * checked at a git worktree's common root); this class writes only to the
+ * Crush-specific path above, leaving those shared roots to their own targets.
+ *
+ * Crush's `UserInvocable` field is a non-pointer Go `bool`, so an omitted
+ * `user-invocable` (at both the root and the `crush:` section) resolves to
+ * `false`: the skill stays reachable by the model but is hidden from Crush's
+ * command palette. See `FromSkillCatalog` in `internal/commands/commands.go`.
  * @see https://github.com/charmbracelet/crush/blob/main/internal/config/load.go
  */
 export class CrushSkill extends ToolSkill {
@@ -201,8 +254,10 @@ export class CrushSkill extends ToolSkill {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),
       ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...(compatibility !== undefined && {
+        compatibility: toCrushCompatibilityString(compatibility),
+      }),
+      ...(metadata !== undefined && { metadata: toCrushMetadata(metadata) }),
     };
 
     return new CrushSkill({
