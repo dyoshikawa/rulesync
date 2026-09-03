@@ -318,10 +318,9 @@ export class MusecodeMcp extends ToolMcp {
     // `musecodeMode` is stripped by `getMcpServers()` so it cannot leak into
     // other tools' configs, so read it back off the unfiltered source JSON —
     // the same re-merge codex does for `envVars`.
-    const rawMcpServers = rulesyncMcp.getJson().mcpServers;
     const mcpServers = Object.fromEntries(
       Object.entries(rulesyncMcp.getMcpServers()).map(([serverName, serverConfig]) => {
-        const rawServer = isRecord(rawMcpServers) ? rawMcpServers[serverName] : undefined;
+        const rawServer = rulesyncMcp.getRawMcpServer(serverName);
         const mode = asMusecodeMode(isRecord(rawServer) ? rawServer.musecodeMode : undefined);
         return [serverName, { ...serverConfig, ...(mode !== undefined && { musecodeMode: mode }) }];
       }),

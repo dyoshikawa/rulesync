@@ -579,6 +579,19 @@ export class RulesyncMcp extends RulesyncFile {
     throw new RulesyncSourceNotFoundError(`No ${recommendedPath} found.`);
   }
 
+  /**
+   * Return one server exactly as authored, before `getMcpServers()` strips
+   * rulesync- and tool-specific fields. Keep this lookup here so every target
+   * that re-merges one of those fields shares the same own-property and
+   * prototype-pollution guards.
+   */
+  getRawMcpServer(name: string): unknown {
+    if (isPrototypePollutionKey(name)) return undefined;
+
+    const mcpServers = isRecord(this.json) ? this.json.mcpServers : undefined;
+    return isRecord(mcpServers) && Object.hasOwn(mcpServers, name) ? mcpServers[name] : undefined;
+  }
+
   getMcpServers(): McpServers {
     // Tolerate missing/empty mcpServers (e.g., a RulesyncMcp constructed
     // from `{}` with validation disabled). Callers that previously read
