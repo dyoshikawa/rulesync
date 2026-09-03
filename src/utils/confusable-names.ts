@@ -1,5 +1,5 @@
 // cspell:ignore forrnat -- a lookalike spelling named in the documentation below
-import { stripHiddenCharacters } from "./control-characters.js";
+import { hasEnclosingMarkOutsideKeycap, stripHiddenCharacters } from "./control-characters.js";
 
 /**
  * The scripts a name is checked against. A character that belongs to none of
@@ -639,13 +639,16 @@ function countComparableForms(forms: ReadonlyArray<{ displayForm: string; skelet
  * still writes exactly what was picked — the note is there so the picker can
  * tell that two entries which look identical are not.
  *
- * Five things are reported: a name that carries more whitespace than the row
- * shows, two names with the same display form, two names that read the same
- * once the lookalike letters are matched up, a name spelled entirely in
- * letters that read as Latin ones, and a name that mixes scripts it has no
- * ordinary reason to. The whitespace reason is written first so that a label
- * shortened from its tail keeps it. None of the five is a complete answer — the lookalike
- * tables hold the common pairs rather than all of them, a name written entirely
+ * Six things are reported: a name that carries more whitespace than the row
+ * shows, a name that carries an enclosing mark outside an emoji keycap, two
+ * names with the same display form, two names that read the same once the
+ * lookalike letters are matched up, a name spelled entirely in letters that
+ * read as Latin ones, and a name that mixes scripts it has no ordinary reason
+ * to. The first two are written first so that a label shortened from its tail
+ * keeps them: they say the row itself is drawn as something it is not, which
+ * nothing else on the label would imply. None of the six is a complete answer
+ * — the lookalike tables hold the common pairs rather than all of them, a name
+ * written entirely
  * in a script the tables do not map is compared against nothing, and a
  * hand-picked pair of unrelated-looking names from one script escapes every
  * check — so the note is a prompt to look closer, not a guarantee that unmarked
@@ -698,6 +701,12 @@ export function describeConfusableNames(params: {
     // left on the label would imply once it is cut away.
     if (hasWhitespaceThatDoesNotShow(entry.name)) {
       reasons.push("carries more whitespace than the row shows");
+    }
+    // Next for the same reason: an enclosing mark is drawn over the character
+    // before it and takes no column, so the row is drawn as a name it is not,
+    // whether or not any other row is on the list.
+    if (hasEnclosingMarkOutsideKeycap(entry.name)) {
+      reasons.push("carries a mark drawn over the character before it");
     }
     const sameDisplayForm = counts.displayForms.get(entry.displayForm) ?? 0;
     const sameLocalDisplayForm = localCounts.displayForms.get(entry.displayForm) ?? 0;
