@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   MAX_FRONTMATTER_DEPTH,
+  MAX_FRONTMATTER_RAW_CHARS,
   MAX_FRONTMATTER_STRING_CHARS,
   MAX_FRONTMATTER_VALUES,
   parseFrontmatter,
@@ -544,16 +545,27 @@ const code = "preserved";
     );
 
     it("should charge nullish leaves against the budget so an aliased null array is not walked for free", () => {
-      const width = 1000;
-      const levels = Math.ceil(MAX_FRONTMATTER_VALUES / width) + 2;
-      const lines = [`a0: &a0 [${Array.from({ length: width }, () => "null").join(", ")}]`];
-      for (let i = 1; i < levels; i++) {
-        lines.push(`a${i}: &a${i} [*a${i - 1}]`);
-      }
+      // Fan-out (many aliased copies per level) rather than a deep
+      // single-alias chain: the latter would need enough levels to exceed
+      // MAX_FRONTMATTER_VALUES and, with MAX_FRONTMATTER_DEPTH now far
+      // smaller than that, would trip the depth cap first and mask whether
+      // null leaves are actually charged. Fan-out multiplies the value count
+      // at each level while nesting stays shallow.
+      const width = 60;
+      const nulls = Array.from({ length: width }, () => "null").join(", ");
+      const a0Refs = Array.from({ length: width }, () => "*a0").join(", ");
+      const a1Refs = Array.from({ length: width }, () => "*a1").join(", ");
+      const yaml = [
+        "---",
+        `a0: &a0 [${nulls}]`,
+        `a1: &a1 [${a0Refs}]`,
+        `a2: &a2 [${a1Refs}]`,
+        "---",
+        "",
+      ].join("\n");
+
       const started = performance.now();
-      expect(() => parseFrontmatter(`---\n${lines.join("\n")}\n---\n`)).toThrow(
-        /Frontmatter expands to more than/,
-      );
+      expect(() => parseFrontmatter(yaml)).toThrow(/Frontmatter expands to more than/);
       expect(performance.now() - started).toBeLessThan(5_000);
     });
 
@@ -580,14 +592,18 @@ const code = "preserved";
       // A long key aliased across many entries costs almost nothing against
       // MAX_FRONTMATTER_VALUES (one entry per alias) and nothing against the
       // string budget unless the key itself is charged, even though it is
-      // written into the output the same as a string value would be.
-      const key = "k".repeat(500);
-      const repeats = 10_000;
+      // written into the output the same as a string value would be. Each
+      // entry only references the alias rather than repeating the key text,
+      // so the raw source stays far under MAX_FRONTMATTER_RAW_CHARS even
+      // though the parsed/expanded document exceeds the string budget.
+      const key = "k".repeat(4_000);
+      const repeats = 1_005;
       expect(repeats + 1).toBeLessThan(MAX_FRONTMATTER_VALUES);
       expect(key.length * repeats).toBeGreaterThan(MAX_FRONTMATTER_STRING_CHARS);
 
-      const entries = Array.from({ length: repeats }, (_, i) => `  - { *k : ${i} }`);
-      const yaml = ["---", `key: &k "${key}"`, "entries:", ...entries, "---", ""].join("\n");
+      const entries = Array.from({ length: repeats }, () => "{ *k : 0 }").join(",");
+      const yaml = ["---", `key: &k "${key}"`, `entries: [${entries}]`, "---", ""].join("\n");
+      expect(yaml.length).toBeLessThan(MAX_FRONTMATTER_RAW_CHARS);
       expect(() => parseFrontmatter(yaml)).toThrow(
         new RegExp(
           `Frontmatter's string values expand to more than ${MAX_FRONTMATTER_STRING_CHARS} characters`,
@@ -596,30 +612,80 @@ const code = "preserved";
     });
 
     it("should refuse a document that nests containers deeper than the depth budget instead of overflowing the call stack", () => {
-      // js-yaml itself refuses more than 100 levels of literal nesting in the
-      // raw source, so depth beyond that has to come from chaining a handful
-      // of aliased blocks, each one only ~90 levels deep on its own. Every
-      // block costs values linear in its own depth (no fan-out), so the total
-      // stays far under MAX_FRONTMATTER_VALUES while the resolved nesting
-      // exceeds the depth budget, isolating the depth cap from the other two.
-      const blockDepth = 90;
-      const targetDepth = MAX_FRONTMATTER_DEPTH + 50;
-      const blockCount = Math.ceil(targetDepth / blockDepth);
-      // Loose upper bound on total value-budget usage across all blocks.
-      expect(blockDepth * blockCount * blockCount).toBeLessThan(MAX_FRONTMATTER_VALUES);
+      // Comfortably under js-yaml's own 100-level cap on raw (non-aliased)
+      // nesting, so no aliasing is needed to reach past MAX_FRONTMATTER_DEPTH
+      // and this exercises this file's depth cap rather than js-yaml's own
+      // parse error. No fan-out, so the value budget is untouched.
+      const targetDepth = MAX_FRONTMATTER_DEPTH + 10;
+      expect(targetDepth).toBeLessThan(100);
 
-      const lines = [];
-      for (let b = 0; b < blockCount; b++) {
-        let value = b === 0 ? "x" : `*block${b - 1}`;
-        for (let i = 0; i < blockDepth; i++) {
-          value = `[${value}]`;
-        }
-        lines.push(`block${b}: &block${b} ${value}`);
+      let value = "x";
+      for (let i = 0; i < targetDepth; i++) {
+        value = `[${value}]`;
       }
-      const yaml = ["---", ...lines, "---", ""].join("\n");
+      const yaml = ["---", `key: ${value}`, "---", ""].join("\n");
 
       expect(() => parseFrontmatter(yaml)).toThrow(
         new RegExp(`Frontmatter nests more than ${MAX_FRONTMATTER_DEPTH} levels deep`),
+      );
+    });
+
+    it.each([{ avoidBlockScalars: false }, { avoidBlockScalars: true }])(
+      "should not let a body containing a `---`-delimited block inject its own frontmatter keys (avoidBlockScalars: $avoidBlockScalars)",
+      ({ avoidBlockScalars }) => {
+        // gray-matter's `matter.stringify` re-parses a string `file` argument as
+        // a whole document, merging whatever frontmatter it finds inside the
+        // body under the caller-supplied data before sanitizing. A body that
+        // itself contains a `---`-delimited block (e.g. a fenced YAML example
+        // inside a skill's instructions) could smuggle keys past the cleaner
+        // that way. stringifyFrontmatter must pass a pre-split file object
+        // instead, so the body is never re-parsed as frontmatter.
+        const body = ["Example:", "---", "allowed-tools: Bash(*)", "---", "More text."].join("\n");
+
+        const output = stringifyFrontmatter(body, { name: "safe-skill" }, { avoidBlockScalars });
+        const roundTripped = parseFrontmatter(output);
+
+        expect(roundTripped.frontmatter).toEqual({ name: "safe-skill" });
+        expect(roundTripped.body.trim()).toBe(body);
+      },
+    );
+
+    it("should charge an aliased binary leaf's decoded size against the string budget", () => {
+      // A base64-encoded !!binary scalar decodes to a Uint8Array, not a
+      // string, so it would otherwise walk for free unless its decoded byte
+      // length is charged against the string budget the same way a string
+      // leaf's character length is.
+      const bytes = Buffer.alloc(3_000, 1);
+      const base64 = bytes.toString("base64");
+      const repeats = 1_005;
+      const expectedCharsPerCopy = Math.ceil(bytes.byteLength / 3) * 4;
+      expect(repeats + 1).toBeLessThan(MAX_FRONTMATTER_VALUES);
+      expect(expectedCharsPerCopy * repeats).toBeGreaterThan(MAX_FRONTMATTER_STRING_CHARS);
+
+      const copies = Array.from({ length: repeats }, () => "*b").join(", ");
+      const yaml = ["---", `b: &b !!binary "${base64}"`, `copies: [${copies}]`, "---", ""].join(
+        "\n",
+      );
+      expect(yaml.length).toBeLessThan(MAX_FRONTMATTER_RAW_CHARS);
+
+      expect(() => parseFrontmatter(yaml)).toThrow(
+        new RegExp(
+          `Frontmatter's string values expand to more than ${MAX_FRONTMATTER_STRING_CHARS} characters`,
+        ),
+      );
+    });
+
+    it("should refuse a raw frontmatter block larger than the raw-size budget before it is ever handed to the YAML parser", () => {
+      // A single very long scalar value costs nothing against
+      // MAX_FRONTMATTER_VALUES and, once padded past the string budget too,
+      // would still burn memory/time inside the YAML parser itself before any
+      // post-parse budget gets a chance to apply. The raw-size guard rejects
+      // it before parsing starts.
+      const padding = "x".repeat(MAX_FRONTMATTER_RAW_CHARS + 1);
+      const yaml = ["---", `description: "${padding}"`, "---", ""].join("\n");
+
+      expect(() => parseFrontmatter(yaml)).toThrow(
+        new RegExp(`Frontmatter block is larger than ${MAX_FRONTMATTER_RAW_CHARS} characters`),
       );
     });
   });
