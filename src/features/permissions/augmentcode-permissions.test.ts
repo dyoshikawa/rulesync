@@ -146,7 +146,111 @@ describe("AugmentcodePermissions", () => {
         shellInputRegex: "^git push .*$",
         permission: { type: "ask-user" },
       },
+      // Every other managed tool has no rules of its own, so the all-tools `deny` (from `rm *`)
+      // still fails closed onto them even though AugmentCode has no per-input matcher for them.
+      { toolName: "view", permission: { type: "deny" } },
+      { toolName: "str-replace-editor", permission: { type: "deny" } },
+      { toolName: "save-file", permission: { type: "deny" } },
+      { toolName: "web-fetch", permission: { type: "deny" } },
+      { toolName: "web-search", permission: { type: "deny" } },
     ]);
+  });
+
+  it("should fail-closed onto every managed tool when the all-tools category is deny-only, and honor an explicit category's own rules instead", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "*": "deny" },
+          read: { "*": "allow" },
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      permission: { type: string };
+    }>;
+    // `read` stated its own rules, so the all-tools deny does not override it.
+    expect(entries).toContainEqual({ toolName: "view", permission: { type: "allow" } });
+    // Every other managed tool has no rules of its own, so it fails closed to the all-tools deny.
+    for (const toolName of [
+      "launch-process",
+      "str-replace-editor",
+      "save-file",
+      "web-fetch",
+      "web-search",
+    ]) {
+      expect(entries).toContainEqual({ toolName, permission: { type: "deny" } });
+    }
+    expect(entries).not.toContainEqual(expect.objectContaining({ toolName: "*" }));
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("the all-tools '*' category cannot be emitted"),
+    );
+  });
+
+  it("should fail-closed to 'ask-user' (not deny) when the all-tools category only asks", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "*": "ask" },
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      permission: { type: string };
+    }>;
+    for (const toolName of ["view", "str-replace-editor", "save-file", "web-fetch", "web-search"]) {
+      expect(entries).toContainEqual({ toolName, permission: { type: "ask-user" } });
+    }
+  });
+
+  it("should not synthesize entries for other managed tools when the all-tools category is allow-only", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "*": "allow" },
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+    }>;
+    for (const toolName of [
+      "launch-process",
+      "view",
+      "str-replace-editor",
+      "save-file",
+      "web-fetch",
+      "web-search",
+    ]) {
+      expect(entries).not.toContainEqual(expect.objectContaining({ toolName }));
+    }
   });
 
   it("should preserve unrelated toolPermissions entries, top-level keys, and existing launch-process deny entries (fail-closed)", async () => {

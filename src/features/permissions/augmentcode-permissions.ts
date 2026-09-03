@@ -555,12 +555,20 @@ function convertRulesyncToAugmentEntries({
       ? { ...config.permission, bash: resolvedBashRules }
       : config.permission;
 
+  // The other managed tools (view / save-file / str-replace-editor / web-fetch / web-search) have
+  // no per-input matcher either, so an all-tools restriction can only be carried as a blanket
+  // deny/ask for the whole tool — the same collapse `hasAnyDeny` below applies to a category's own
+  // rules.
+  const allToolsFailClosedType = computeAllToolsFailClosedType(config.permission["*"]);
+
   for (const [category, rules] of Object.entries(permission)) {
     if (category === "*") {
       logger?.warn(
-        `AugmentCode permissions: the all-tools '*' category cannot be emitted because ` +
-          `AugmentCode does not support a wildcard toolName. Any deny/ask rules are applied to ` +
-          `'launch-process'; rules for other tools and all-tools allow rules are skipped.`,
+        `AugmentCode permissions: the all-tools '*' category cannot be emitted as a single entry ` +
+          `because AugmentCode has no wildcard toolName. Deny/ask rules are folded into ` +
+          `'launch-process' and, for any other managed tool that has no explicit rules of its ` +
+          `own, applied as a blanket deny/ask; all-tools allow rules and tools that already ` +
+          `define their own rules are left untouched.`,
       );
       continue;
     }
@@ -635,7 +643,45 @@ function convertRulesyncToAugmentEntries({
     }
   }
 
+  entries.push(...synthesizeManagedToolFallbackEntries(config.permission, allToolsFailClosedType));
+
   return entries;
+}
+
+/**
+ * The strictest action the all-tools `*` category imposes, for tools with no per-input matcher to
+ * narrow it onto (see {@link synthesizeManagedToolFallbackEntries}). `deny` wins over `ask`,
+ * and an all-tools `allow` never forces an entry — there is nothing to fail closed on.
+ */
+function computeAllToolsFailClosedType(
+  allToolsRules: Record<string, PermissionAction> | undefined,
+): AugmentBasicPermissionType | undefined {
+  if (!allToolsRules) return undefined;
+  const actions = Object.values(allToolsRules);
+  if (actions.some((action) => action === "deny")) return "deny";
+  if (actions.some((action) => action === "ask")) return "ask-user";
+  return undefined;
+}
+
+/**
+ * Extend the same fail-closed treatment `bash` gets (via {@link bashRulesHonoringAllTools}) to the
+ * other managed tools: one the source left with no rules of its own must not fall back to
+ * AugmentCode's own default just because it has no per-input matcher to narrow the all-tools
+ * restriction onto. A tool that states its own rules is left untouched here.
+ */
+function synthesizeManagedToolFallbackEntries(
+  permission: PermissionsConfig["permission"],
+  allToolsFailClosedType: AugmentBasicPermissionType | undefined,
+): AugmentToolPermission[] {
+  if (allToolsFailClosedType === undefined) return [];
+  return Object.entries(CANONICAL_TO_AUGMENT_TOOL_NAMES)
+    .filter(
+      ([canonicalName]) => canonicalName !== "bash" && permission[canonicalName] === undefined,
+    )
+    .map(([, augmentToolName]) => ({
+      toolName: augmentToolName,
+      permission: { type: allToolsFailClosedType },
+    }));
 }
 
 /**
