@@ -137,6 +137,36 @@ export class AugmentcodeHooks extends ToolHooks {
     const paths = AugmentcodeHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
+
+    // The `hooks` key is owned wholesale by this feature (see
+    // SHARED_CONFIG_OWNERSHIP for `.augment/settings.json`), so
+    // `applySharedConfigPatch` below replaces the entire object. Auggie also
+    // recognizes several undocumented event keys beyond the ones rulesync's
+    // canonical model maps to (e.g. `afterFileEdit`, lowercase `stop`) — see
+    // https://github.com/dyoshikawa/rulesync/issues/2670. Preserve any such
+    // key that isn't one rulesync itself authors, so hand-authored entries
+    // under those keys survive regeneration instead of being silently erased.
+    // Malformed existing content is left for `applySharedConfigPatch` below to
+    // reject with its own consistent parse-error message; here it is treated
+    // as having no preservable hooks.
+    let existingHooks: Record<string, unknown> = {};
+    try {
+      const parsed: unknown = JSON.parse(existingContent);
+      const candidate =
+        parsed && typeof parsed === "object" && !Array.isArray(parsed)
+          ? (parsed as Record<string, unknown>).hooks
+          : undefined;
+      if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+        existingHooks = candidate as Record<string, unknown>;
+      }
+    } catch {
+      existingHooks = {};
+    }
+    const nativeEventKeys = new Set(Object.values(CANONICAL_TO_AUGMENTCODE_EVENT_NAMES));
+    const preservedHooks = Object.fromEntries(
+      Object.entries(existingHooks).filter(([key]) => !nativeEventKeys.has(key)),
+    );
+
     const config = rulesyncHooks.getJson();
     const augmentHooks = canonicalToToolHooks({
       config,
@@ -148,7 +178,7 @@ export class AugmentcodeHooks extends ToolHooks {
       fileKey: sharedConfigFileKey(paths),
       feature: "hooks",
       existingContent,
-      patch: { hooks: augmentHooks },
+      patch: { hooks: { ...preservedHooks, ...augmentHooks } },
       filePath,
     });
     return new AugmentcodeHooks({
