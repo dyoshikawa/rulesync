@@ -1137,6 +1137,7 @@ export class RulesProcessor extends FeatureProcessor {
 
     const outputFiles = [...toolRules, ...extraFiles];
     this.warnForOutputPathCollisions({ outputFiles, convertedRules });
+    await this.warnForDeactivatedImportOnlyRoots({ toolRules, factory });
     return outputFiles;
   }
 
@@ -1530,6 +1531,71 @@ export class RulesProcessor extends FeatureProcessor {
       }
       seen.set(key, file);
     }
+  }
+
+  /**
+   * Warn when this generate run is about to write a root rule file that will
+   * make the tool stop reading paths it currently reads instead — Junie's
+   * `.junie/rules/*.md` and `.junie/playbook.md` become unreachable the
+   * moment `.junie/AGENTS.md` exists, since Junie reads the root file
+   * exclusively once it is present. `importOnlyRoots` with
+   * `onlyWhenRootAbsent` already models exactly this shape for import; this
+   * reuses the same declaration so the
+   * `generate` path — which never calls `loadToolFiles` and so never reached
+   * the existing import-side warning — surfaces it too. Without this, a repo
+   * that only ever runs `generate` never sees any warning: the deactivated
+   * files stay on disk, untouched and not gitignored, silently unread.
+   */
+  private async warnForDeactivatedImportOnlyRoots({
+    toolRules,
+    factory,
+  }: {
+    toolRules: ToolRule[];
+    factory: ToolRuleFactory;
+  }): Promise<void> {
+    const rootRule = toolRules.find((rule) => rule.isRoot());
+    if (!rootRule) {
+      return;
+    }
+
+    const settablePaths = factory.class.getSettablePaths({ global: this.global });
+    const importOnlyRoots =
+      "importOnlyRoots" in settablePaths ? settablePaths.importOnlyRoots : undefined;
+    if (!importOnlyRoots || importOnlyRoots.length === 0) {
+      return;
+    }
+
+    const existingPaths: string[] = [];
+    for (const importOnlyRoot of importOnlyRoots) {
+      if (importOnlyRoot.onlyWhenRootAbsent !== true) {
+        continue;
+      }
+      const matchedPaths = await findFilesByGlobs(
+        rootRelativeGlob(
+          importOnlyRoot.relativeDirPath,
+          importOnlyRoot.relativeFilePath ?? `*.${factory.meta.extension}`,
+        ),
+        { cwd: this.outputRoot, type: "file" },
+      );
+      existingPaths.push(...matchedPaths);
+    }
+
+    if (existingPaths.length === 0) {
+      return;
+    }
+
+    const rootFileRelativePath = join(
+      rootRule.getRelativeDirPath(),
+      rootRule.getRelativeFilePath(),
+    );
+    const names = existingPaths.map((filePath) =>
+      stripControlCharacters(relative(this.outputRoot, filePath)),
+    );
+    const listedNames = names.slice(0, MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS);
+    const remainingCount = names.length - listedNames.length;
+    this.logger.warn(
+      `Writing ${stripControlCharacters(rootFileRelativePath)} for ${this.toolTarget} means ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} will no longer be read. Run \`rulesync import --targets ${this.toolTarget}\` first to carry that content into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, or delete ${listedNames.length === 1 ? "it" : "them"} once you have checked the content is already in the root file.`,
+    );
   }
 
   /**
