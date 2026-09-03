@@ -69,6 +69,11 @@ takt: # takt specific parameters (optional; emitted under .takt/facets/policies/
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
   facet: "output-contracts" # (optional) "policies" (default) or "output-contracts": redirect this rule to Takt's output-structure/report-template facet
+factorydroid: # factorydroid specific parameters
+  # Route this non-root rule's body to Factory Droid's design-guidelines file
+  # (DESIGN.md) instead of folding it into AGENTS.md / .factory/rules/*.md.
+  # This option is available only if root is false. Project scope only.
+  channel: "design"
 ---
 
 # Rulesync Project Overview
@@ -131,6 +136,19 @@ Multiple files can set `root: true` for the same target in project and global mo
 > ```
 >
 > See the [Pi usage docs](https://pi.dev/docs/latest/usage) and the [context-file discovery in the Pi source](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/resource-loader.ts).
+
+> **Factory Droid note (rules):** Beyond the root `AGENTS.md` (project) / `~/.factory/AGENTS.md` (global, via `--global`) and non-root rules in `.factory/rules/*.md`, Factory Droid also loads a separate `DESIGN.md` at the project root: "Always-on design-system, UX, visual, and interaction guidance", loaded independently of `AGENTS.md`'s coding guidelines. Rulesync emits it from any non-root rule that opts in via a `factorydroid.channel: design` frontmatter block — those rule bodies are routed to `DESIGN.md` instead of `AGENTS.md`/`.factory/rules/*.md`, multiple opted-in rules concatenate in source order, and the file is managed by generate/import/delete like the root file. `DESIGN.md` is excluded from the TOON reference list Factory Droid's root file otherwise embeds for non-root rules, since Factory Droid already auto-loads it and listing it there would double it up. The opt-in is ignored on the `root: true` rule and in global mode: Factory's docs describe root and nested `DESIGN.md` files like `AGENTS.md`, but document no personal/global home-directory equivalent. Example:
+>
+> ```yaml
+> ---
+> targets: ["factorydroid"]
+> description: "Color palette and spacing scale"
+> factorydroid:
+>   channel: design # routes this rule's body to DESIGN.md
+> ---
+> ```
+>
+> See the [Factory Droid AGENTS.md configuration docs](https://docs.factory.ai/cli/configuration/agents-md).
 
 > **Devin note:** The root rule is emitted to the project-root `AGENTS.md` — the file [Devin CLI / Devin Local actually reads](https://docs.devin.ai/cli/extensibility/rules) (its rules page does not list `.devin/rules/` among its sources) — as plain markdown, while non-root rules keep going to `.devin/rules/*.md`, the Devin Desktop Cascade directory whose `trigger` activation modes (`always_on`, `glob`, `manual`, `model_decision`) are driven by the `devin` frontmatter block. Global mode mirrors that layout: the root rule is a plain `~/.config/devin/AGENTS.md`, and non-root rules are emitted one file per rule into `~/.devin/rules/*.md` with the same `trigger`/`globs` frontmatter. Note the directory split — the per-rule global directory is the home `~/.devin/`, not the `~/.config/devin/` tree the global root and Devin's other global surfaces use; that is what the rules page documents (`~/.devin/rules/*.md`, `~/.devin/global_rules.md`).
 

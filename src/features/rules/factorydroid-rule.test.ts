@@ -46,6 +46,10 @@ This is a test factorydroid rule.`;
         nonRoot: {
           relativeDirPath: ".factory/rules",
         },
+        design: {
+          relativeDirPath: ".",
+          relativeFilePath: "DESIGN.md",
+        },
       });
     });
 
@@ -57,6 +61,23 @@ This is a test factorydroid rule.`;
           relativeFilePath: "AGENTS.md",
         },
       });
+    });
+  });
+
+  describe("getExtraFixedFiles", () => {
+    it("should include the design-guidelines file for project scope", () => {
+      const files = FactorydroidRule.getExtraFixedFiles();
+      expect(files).toEqual([
+        {
+          relativeDirPath: ".",
+          relativeFilePath: "DESIGN.md",
+        },
+      ]);
+    });
+
+    it("should return no extra files for global scope", () => {
+      const files = FactorydroidRule.getExtraFixedFiles({ global: true });
+      expect(files).toEqual([]);
     });
   });
 
@@ -142,6 +163,96 @@ This is a test factorydroid rule.`;
       expect(factorydroidRule.isRoot()).toBe(false);
       expect(factorydroidRule.getRelativeFilePath()).toBe("memory-1.md");
     });
+
+    it("should route a rule with factorydroid.channel: design to DESIGN.md", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "design-system.md",
+        frontmatter: {
+          root: false,
+          targets: ["factorydroid"],
+          description: "Test design rule",
+          globs: ["**/*"],
+          factorydroid: { channel: "design" },
+        },
+        body: "# Design Guidelines\n\nUse the shared design tokens.",
+        validate: true,
+      });
+
+      const factorydroidRule = FactorydroidRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        validate: true,
+      });
+
+      expect(factorydroidRule).toBeInstanceOf(FactorydroidRule);
+      expect(factorydroidRule.isRoot()).toBe(false);
+      expect(factorydroidRule.getRelativeDirPath()).toBe(".");
+      expect(factorydroidRule.getRelativeFilePath()).toBe("DESIGN.md");
+      expect(factorydroidRule.getFileContent()).toBe(
+        "# Design Guidelines\n\nUse the shared design tokens.",
+      );
+      expect(factorydroidRule.isExcludedFromRootReferences()).toBe(true);
+    });
+
+    it("should not route a root rule to DESIGN.md even with factorydroid.channel: design", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "AGENTS.md",
+        frontmatter: {
+          root: true,
+          targets: ["factorydroid"],
+          description: "Test root rule",
+          globs: ["**/*"],
+          factorydroid: { channel: "design" },
+        },
+        body: "# Root Rule",
+        validate: true,
+      });
+
+      const factorydroidRule = FactorydroidRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        validate: true,
+      });
+
+      expect(factorydroidRule.isRoot()).toBe(true);
+      expect(factorydroidRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should not route to DESIGN.md in global mode, since Factory Droid documents no global design-guidelines file", () => {
+      // The design routing is guarded by `!global`, so a non-root rule with
+      // `factorydroid.channel: design` falls through to the ordinary
+      // AGENTS.md-family handling in global mode instead of being routed to a
+      // design file that Factory Droid does not support globally.
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "design-system.md",
+        frontmatter: {
+          root: false,
+          targets: ["factorydroid"],
+          description: "Test design rule",
+          globs: ["**/*"],
+          factorydroid: { channel: "design" },
+        },
+        body: "# Design Guidelines",
+        validate: true,
+      });
+
+      const factorydroidRule = FactorydroidRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        validate: true,
+        global: true,
+      });
+
+      expect(factorydroidRule.getRelativeFilePath()).toBe("design-system.md");
+      expect(factorydroidRule.getRelativeDirPath()).not.toBe(".");
+      expect(factorydroidRule.isExcludedFromRootReferences()).toBe(false);
+    });
   });
 
   describe("fromFile", () => {
@@ -186,6 +297,25 @@ This is a test factorydroid rule.`;
         }),
       ).rejects.toThrow();
     });
+
+    it("should load the design-guidelines file and mark it as excluded from root references", async () => {
+      const designFile = join(testDir, "DESIGN.md");
+      const designContent = "# Design Guidelines\n\nUse the shared design tokens.";
+
+      await writeFileContent(designFile, designContent);
+
+      const rule = await FactorydroidRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "DESIGN.md",
+        validate: true,
+      });
+
+      expect(rule).toBeInstanceOf(FactorydroidRule);
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getRelativeDirPath()).toBe(".");
+      expect(rule.getFileContent()).toBe(designContent);
+      expect(rule.isExcludedFromRootReferences()).toBe(true);
+    });
   });
 
   describe("toRulesyncRule", () => {
@@ -204,6 +334,22 @@ This is a test factorydroid rule.`;
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getFileContent()).toContain("# Test Rule");
       expect(rulesyncRule.getFileContent()).toContain("This is a test factorydroid rule.");
+    });
+
+    it("should round-trip a design-guidelines instance back to factorydroid.channel: design", async () => {
+      await writeFileContent(join(testDir, "DESIGN.md"), "# Design Guidelines");
+
+      const rule = await FactorydroidRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "DESIGN.md",
+        validate: true,
+      });
+
+      const rulesyncRule = rule.toRulesyncRule();
+
+      expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
+      expect(rulesyncRule.getFrontmatter().root).toBe(false);
+      expect(rulesyncRule.getFrontmatter().factorydroid).toEqual({ channel: "design" });
     });
   });
 
@@ -289,6 +435,18 @@ This is a test factorydroid rule.`;
 
       expect(rule).toBeInstanceOf(FactorydroidRule);
       expect(rule.isRoot()).toBe(false);
+    });
+
+    it("should mark the design-guidelines file as a non-root, excluded-from-references deletion target", () => {
+      const rule = FactorydroidRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "DESIGN.md",
+      });
+
+      expect(rule).toBeInstanceOf(FactorydroidRule);
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.isExcludedFromRootReferences()).toBe(true);
     });
   });
 });
