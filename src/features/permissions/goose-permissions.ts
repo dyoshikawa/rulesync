@@ -118,6 +118,20 @@ export class GoosePermissions extends ToolPermissions {
     return false;
   }
 
+  /**
+   * `permission.yaml` is Goose's file, not one rulesync owns: rulesync merges
+   * into it when it exists but has no business bringing it into existence to
+   * hold nothing. When no rule maps, the `user` block holds three empty lists,
+   * which would otherwise be written as a fresh permission.yaml that says
+   * nothing — an absent file and empty lists both mean "no user override, so
+   * Goose decides on its own". An existing file is still rewritten as before,
+   * so user content is never dropped — the skip only applies when there is no
+   * file yet.
+   */
+  override shouldSkipCreationWhenPayloadEmpty(): boolean {
+    return true;
+  }
+
   static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: GOOSE_GLOBAL_DIR,

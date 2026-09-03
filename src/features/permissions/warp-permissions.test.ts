@@ -5,8 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { isRecord } from "../../utils/type-guards.js";
+import { PermissionsProcessor } from "./permissions-processor.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { WarpPermissions } from "./warp-permissions.js";
 
@@ -72,6 +73,86 @@ describe("WarpPermissions", () => {
         validate: false,
       });
       expect(perms.isDeletable()).toBe(false);
+    });
+  });
+
+  describe("shouldSkipCreationWhenPayloadEmpty", () => {
+    let homeDir: string;
+    let cleanupHome: () => Promise<void>;
+
+    beforeEach(async () => {
+      ({ testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true }));
+      // `getHomeDirectory()` honours HOME_DIR ahead of everything else, so the
+      // pseudo-home is reached without module-mocking the whole file utils.
+      vi.stubEnv("HOME_DIR", homeDir);
+    });
+
+    afterEach(async () => {
+      vi.unstubAllEnvs();
+      await cleanupHome();
+    });
+
+    const settingsPath = (): string => {
+      const paths = WarpPermissions.getSettablePaths();
+      return join(homeDir, paths.relativeDirPath, paths.relativeFilePath);
+    };
+
+    const generateThroughProcessor = async (
+      permission: Record<string, Record<string, string>>,
+    ): Promise<void> => {
+      const processor = new PermissionsProcessor({
+        logger: createMockLogger(),
+        outputRoot: homeDir,
+        toolTarget: "warp",
+        global: true,
+      });
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([
+        rulesyncPermissions(permission),
+      ]);
+      await processor.writeAiFiles(toolFiles);
+    };
+
+    it("is skipped: settings.toml is Warp's file, not one to conjure for an empty payload", () => {
+      const perms = new WarpPermissions({
+        relativeDirPath: ".config/warp-terminal",
+        relativeFilePath: "settings.toml",
+        fileContent: "",
+        validate: false,
+      });
+      expect(perms.shouldSkipCreationWhenPayloadEmpty()).toBe(true);
+    });
+
+    it("does not create settings.toml when nothing maps and the file does not exist", async () => {
+      // No rule maps, so both command lists are dropped and the serialized
+      // payload is a bare `[agents.profiles]` table — a file that would say
+      // nothing.
+      await generateThroughProcessor({});
+
+      expect(await fileExists(settingsPath())).toBe(false);
+    });
+
+    it("still creates settings.toml when an allow rule maps", async () => {
+      await generateThroughProcessor({ bash: { "^git .*$": "allow" } });
+
+      expect(profilesOf(await readFileContent(settingsPath()))[ALLOWLIST_KEY]).toEqual([
+        "^git .*$",
+      ]);
+    });
+
+    it("still rewrites an existing settings.toml when nothing maps", async () => {
+      await writeFileContent(
+        settingsPath(),
+        `[agents.profiles]\n${ALLOWLIST_KEY} = ["^git .*$"]\n\n[theme]\nname = "dark"\n`,
+      );
+
+      await generateThroughProcessor({});
+
+      // The stale allowlist is removed, and the unrelated table survives, so
+      // the skip never withholds a write from a file the user already has.
+      const content = await readFileContent(settingsPath());
+      expect(profilesOf(content)[ALLOWLIST_KEY]).toBeUndefined();
+      const parsed = smolToml.parse(content);
+      expect(parsed.theme).toEqual({ name: "dark" });
     });
   });
 

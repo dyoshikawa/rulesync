@@ -170,6 +170,20 @@ export class WarpPermissions extends ToolPermissions {
     return false;
   }
 
+  /**
+   * `settings.toml` is Warp's file, not one rulesync owns: rulesync merges into
+   * it when it exists but has no business bringing it into existence to hold
+   * nothing. When no rule maps, both command lists are dropped and the payload
+   * is a bare `[agents.profiles]` table, which would otherwise be written as a
+   * fresh settings file that says nothing — an absent file and an empty table
+   * both mean "Warp's own defaults". An existing file is still rewritten as
+   * before, so user content is never dropped — the skip only applies when
+   * there is no file yet.
+   */
+  override shouldSkipCreationWhenPayloadEmpty(): boolean {
+    return true;
+  }
+
   static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: warpSettingsDir(),
