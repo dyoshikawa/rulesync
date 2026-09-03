@@ -23,6 +23,7 @@ import {
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -192,14 +193,17 @@ function kimiCodeHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
     if (typeof entry.event !== "string" || typeof entry.command !== "string") {
       continue;
     }
-    const event = KIMI_CODE_TO_CANONICAL_EVENT_NAMES[entry.event] ?? entry.event;
+    const event =
+      lookupOwn({ record: KIMI_CODE_TO_CANONICAL_EVENT_NAMES, key: entry.event }) ?? entry.event;
     const definition: HookDefinition = {
       type: "command",
       command: stripTrustedDirectoryWrapper(entry.command),
       ...(typeof entry.matcher === "string" && { matcher: entry.matcher }),
       ...(typeof entry.timeout === "number" && { timeout: entry.timeout }),
     };
-    (result[event] ??= []).push(definition);
+    const list = lookupOwn({ record: result, key: event }) ?? [];
+    list.push(definition);
+    result[event] = list;
   }
   return result;
 }

@@ -15,6 +15,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
@@ -245,7 +246,9 @@ function qwencodeHooksToCanonical(qwencodeHooks: unknown): HooksConfig["hooks"] 
   }
   const canonical: HooksConfig["hooks"] = {};
   for (const [qwencodeEventName, matcherEntries] of Object.entries(qwencodeHooks)) {
-    const eventName = QWENCODE_TO_CANONICAL_EVENT_NAMES[qwencodeEventName] ?? qwencodeEventName;
+    const eventName =
+      lookupOwn({ record: QWENCODE_TO_CANONICAL_EVENT_NAMES, key: qwencodeEventName }) ??
+      qwencodeEventName;
     if (!Array.isArray(matcherEntries)) continue;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of matcherEntries) {

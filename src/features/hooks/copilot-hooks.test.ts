@@ -918,6 +918,35 @@ describe("CopilotHooks", () => {
       expect(entry.command).toBe("run.sh");
       expect(entry.customKey).toBeUndefined();
     });
+
+    it("should carry an event named toString through as a plain string key (#2757)", () => {
+      const copilotHooks = new CopilotHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilot-hooks.json",
+        // JSON.parse yields an own enumerable `toString` key, unlike an object
+        // literal whose `toString` the lookup map would inherit from
+        // Object.prototype.
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [{ type: "command", bash: "echo start" }],
+            toString: [{ type: "command", bash: "echo crafted" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = copilotHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
+      expect(Object.keys(json.hooks)).toEqual(["sessionStart"]);
+      // The unmapped name must fall through verbatim rather than resolving to
+      // Object.prototype.toString and landing under its stringified source.
+      const overrideHooks = (json as { copilot?: { hooks?: Record<string, unknown[]> } }).copilot
+        ?.hooks;
+      expect(Object.keys(overrideHooks ?? {})).toEqual(["toString"]);
+      expect(overrideHooks?.["toString"]?.[0]).toMatchObject({ command: "echo crafted" });
+    });
   });
 
   describe("fromFile", () => {

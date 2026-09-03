@@ -470,6 +470,32 @@ describe("KiroHooks", () => {
         ?.hooks;
       expect(overrideHooks?.someUnknownEvent?.[0]).toMatchObject({ command: "echo unknown" });
     });
+
+    it("should carry an event named toString through as a plain string key (#2757)", () => {
+      const kiroHooks = new KiroHooks(
+        createMockAiFileParams({
+          // JSON.parse yields an own enumerable `toString` key, unlike an
+          // object literal whose `toString` the lookup map would inherit from
+          // Object.prototype.
+          fileContent: JSON.stringify({
+            hooks: {
+              agentSpawn: [{ command: "echo start" }],
+              toString: [{ command: "echo crafted" }],
+            },
+          }),
+        }),
+      );
+
+      const parsed = kiroHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.sessionStart?.[0]).toMatchObject({ command: "echo start" });
+      expect(Object.keys(parsed.hooks)).toEqual(["sessionStart"]);
+      // The unmapped name must fall through verbatim rather than resolving to
+      // Object.prototype.toString and landing under its stringified source.
+      const overrideHooks = (parsed as { kiro?: { hooks?: Record<string, unknown[]> } }).kiro
+        ?.hooks;
+      expect(Object.keys(overrideHooks ?? {})).toEqual(["toString"]);
+      expect(overrideHooks?.["toString"]?.[0]).toMatchObject({ command: "echo crafted" });
+    });
   });
 
   describe("fromFile", () => {

@@ -621,6 +621,35 @@ describe("CopilotcliHooks", () => {
       const json = hooks.toRulesyncHooks().getJson();
       expect(json.hooks.sessionStart?.[0]?.command).toBe("echo no-type");
     });
+
+    it("should carry an event named toString through as a plain string key (#2757)", () => {
+      const hooks = new CopilotcliHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilotcli-hooks.json",
+        // JSON.parse yields an own enumerable `toString` key, unlike an object
+        // literal whose `toString` the lookup map would inherit from
+        // Object.prototype.
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [{ type: "command", bash: "echo start" }],
+            toString: [{ type: "command", bash: "echo crafted" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = hooks.toRulesyncHooks().getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
+      expect(Object.keys(json.hooks)).toEqual(["sessionStart"]);
+      // The unmapped name must fall through verbatim rather than resolving to
+      // Object.prototype.toString and landing under its stringified source.
+      const overrideHooks = (json as { copilotcli?: { hooks?: Record<string, unknown[]> } })
+        .copilotcli?.hooks;
+      expect(Object.keys(overrideHooks ?? {})).toEqual(["toString"]);
+      expect(overrideHooks?.["toString"]?.[0]).toMatchObject({ command: "echo crafted" });
+    });
   });
 
   describe("fromFile", () => {

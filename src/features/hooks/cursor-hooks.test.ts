@@ -173,6 +173,35 @@ describe("CursorHooks", () => {
       expect(json.hooks.afterFileEdit).toHaveLength(1);
       expect(json.version).toBe(1);
     });
+
+    it("should carry an event named toString through as a plain string key (#2757)", () => {
+      const cursorHooks = new CursorHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".cursor",
+        relativeFilePath: "hooks.json",
+        // JSON.parse yields an own enumerable `toString` key, unlike an object
+        // literal whose `toString` the lookup map would inherit from
+        // Object.prototype.
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [{ type: "command", command: "echo start" }],
+            toString: [{ type: "command", command: "echo crafted" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = cursorHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
+      expect(Object.keys(json.hooks)).toEqual(["sessionStart"]);
+      // The unmapped name must fall through verbatim rather than resolving to
+      // Object.prototype.toString and landing under its stringified source.
+      const overrideHooks = (json as { cursor?: { hooks?: Record<string, unknown[]> } }).cursor
+        ?.hooks;
+      expect(Object.keys(overrideHooks ?? {})).toEqual(["toString"]);
+      expect(overrideHooks?.["toString"]?.[0]).toMatchObject({ command: "echo crafted" });
+    });
   });
 
   describe("round-trip", () => {

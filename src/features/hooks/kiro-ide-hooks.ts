@@ -14,6 +14,7 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
@@ -158,7 +159,8 @@ function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hook
   const canonical: HooksConfig["hooks"] = {};
   for (const entry of entries) {
     if (entry.trigger === undefined || entry.action === undefined) continue;
-    const eventName = KIRO_IDE_TO_CANONICAL_EVENT_NAMES[entry.trigger] ?? entry.trigger;
+    const eventName =
+      lookupOwn({ record: KIRO_IDE_TO_CANONICAL_EVENT_NAMES, key: entry.trigger }) ?? entry.trigger;
     // A crafted `trigger` (e.g. "__proto__") would otherwise make the
     // `canonical[eventName] ??= []` bracket access resolve to a prototype member
     // and throw; skip prototype-pollution keys defensively.
@@ -186,7 +188,9 @@ function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hook
     // it would add noise to every imported hook definition.
     if (entry.enabled === false) def.enabled = false;
 
-    (canonical[eventName] ??= []).push(def);
+    const list = lookupOwn({ record: canonical, key: eventName }) ?? [];
+    list.push(def);
+    canonical[eventName] = list;
   }
   return canonical;
 }

@@ -20,6 +20,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -178,7 +179,9 @@ function copilotHooksToCanonical(copilotHooks: unknown, logger?: Logger): HooksC
 
   const canonical: HooksConfig["hooks"] = {};
   for (const [copilotEventName, hookEntries] of Object.entries(copilotHooks)) {
-    const eventName = COPILOT_TO_CANONICAL_EVENT_NAMES[copilotEventName] ?? copilotEventName;
+    const eventName =
+      lookupOwn({ record: COPILOT_TO_CANONICAL_EVENT_NAMES, key: copilotEventName }) ??
+      copilotEventName;
     if (!Array.isArray(hookEntries)) continue;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of hookEntries) {

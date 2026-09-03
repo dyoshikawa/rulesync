@@ -16,6 +16,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
@@ -154,7 +155,8 @@ function kiroHooksToCanonical(kiroHooks: unknown): HooksConfig["hooks"] {
   }
   const canonical: HooksConfig["hooks"] = {};
   for (const [kiroEventName, entries] of Object.entries(kiroHooks)) {
-    const eventName = KIRO_TO_CANONICAL_EVENT_NAMES[kiroEventName] ?? kiroEventName;
+    const eventName =
+      lookupOwn({ record: KIRO_TO_CANONICAL_EVENT_NAMES, key: kiroEventName }) ?? kiroEventName;
     if (!Array.isArray(entries)) continue;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of entries) {

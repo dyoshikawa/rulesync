@@ -183,6 +183,33 @@ describe("KimiCodeHooks", () => {
       expect(config["kimi-code"].hooks.SessionHeartbeat).toHaveLength(1);
     });
 
+    it("carries an event named toString through as a plain string key (#2757)", () => {
+      const hooks = new KimiCodeHooks({
+        outputRoot: testDir,
+        fileContent: [
+          "[[hooks]]",
+          'event = "SessionStart"',
+          'command = "./start.sh"',
+          "",
+          "[[hooks]]",
+          'event = "toString"',
+          'command = "./crafted.sh"',
+          "",
+        ].join("\n"),
+        validate: false,
+      });
+
+      const config = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+      expect(config.hooks.sessionStart).toEqual([{ type: "command", command: "./start.sh" }]);
+      expect(Object.keys(config.hooks)).toEqual(["sessionStart"]);
+      // The unmapped name must fall through verbatim rather than resolving to
+      // Object.prototype.toString and landing under its stringified source.
+      expect(Object.keys(config["kimi-code"].hooks)).toEqual(["toString"]);
+      expect(config["kimi-code"].hooks["toString"]).toEqual([
+        { type: "command", command: "./crafted.sh" },
+      ]);
+    });
+
     it("preserves a matcher on the matcher-less events, unlike generate", () => {
       const hooks = new KimiCodeHooks({
         outputRoot: testDir,

@@ -12,6 +12,7 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
@@ -129,14 +130,16 @@ function vibeEntryToCanonicalDef(
   if (vibeEvent === undefined) {
     return null;
   }
-  // A crafted `type` (e.g. "__proto__") would otherwise make the bracket lookup
-  // below resolve to a prototype member instead of falling back to the raw name,
-  // keying the canonical record by that member. Skip such names, as
-  // `kiroIdeHooksToCanonical` does.
+  // The lookup below is own-property-only, so a crafted `type` such as
+  // "toString" falls back to the raw name instead of a prototype member. The
+  // raw name is still written as a key of the canonical record, so a
+  // prototype-pollution key is skipped outright, as `kiroIdeHooksToCanonical`
+  // does.
   if (isPrototypePollutionKey(vibeEvent)) {
     return null;
   }
-  const canonicalEvent = VIBE_TO_CANONICAL_EVENT_NAMES[vibeEvent] ?? vibeEvent;
+  const canonicalEvent =
+    lookupOwn({ record: VIBE_TO_CANONICAL_EVENT_NAMES, key: vibeEvent }) ?? vibeEvent;
   const def: HookDefinition = { type: "command" };
   if (typeof entry.command === "string") {
     def.command = entry.command;
@@ -177,7 +180,7 @@ function vibeHooksToCanonical(parsed: unknown): HooksConfig["hooks"] {
     if (result === null) {
       continue;
     }
-    const list = canonical[result.canonicalEvent] ?? [];
+    const list = lookupOwn({ record: canonical, key: result.canonicalEvent }) ?? [];
     list.push(result.def);
     canonical[result.canonicalEvent] = list;
   }

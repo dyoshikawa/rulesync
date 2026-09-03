@@ -12,6 +12,7 @@ import {
 } from "../../types/hooks.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 
@@ -1336,7 +1337,9 @@ export function toolHooksToCanonical({
   const warn = warnOnce(logger);
   const canonical: HooksConfig["hooks"] = {};
   for (const [toolEventName, matcherEntries] of Object.entries(hooks)) {
-    const eventName = converterConfig.toolToCanonicalEventNames[toolEventName] ?? toolEventName;
+    const eventName =
+      lookupOwn({ record: converterConfig.toolToCanonicalEventNames, key: toolEventName }) ??
+      toolEventName;
     if (!Array.isArray(matcherEntries)) continue;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of matcherEntries) {
