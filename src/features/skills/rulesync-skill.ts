@@ -130,11 +130,14 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   opencode: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
-      license: z.optional(z.string()),
-      // OpenCode documents `compatibility` as a free-form string; the object
-      // form stays accepted for back-compat. See https://opencode.ai/docs/skills/
-      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
-      metadata: z.optional(z.looseObject({})),
+      // OpenCode's actual `Frontmatter` schema (`packages/core/src/skill.ts`
+      // in sst/opencode) does not define `license`, `compatibility`, or
+      // `metadata` at all, so it never validates or rejects them. Left
+      // untyped so rulesync never aborts on a value the tool itself
+      // tolerates. See https://opencode.ai/docs/skills/
+      license: z.optional(z.unknown()),
+      compatibility: z.optional(z.unknown()),
+      metadata: z.optional(z.unknown()),
     }),
   ),
   kilo: z.optional(
@@ -142,11 +145,14 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       // `allowed-tools` is not part of Kilo's official SKILL.md frontmatter; it is
       // retained for backward compatibility with existing rulesync skill files.
       "allowed-tools": z.optional(z.array(z.string())),
-      license: z.optional(z.string()),
-      // `compatibility` is a free-form string per the Agent Skills spec; the
-      // object form is kept for back-compat with existing rulesync skill files.
-      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
-      metadata: z.optional(z.looseObject({})),
+      // Kilo Code's SKILL.md parser is forked from OpenCode's engine, whose
+      // schema does not model `license`, `compatibility`, or `metadata` at
+      // all, so it cannot reject any shape rulesync writes for them. Left
+      // untyped so rulesync never aborts on a value the tool itself
+      // tolerates.
+      license: z.optional(z.unknown()),
+      compatibility: z.optional(z.unknown()),
+      metadata: z.optional(z.unknown()),
     }),
   ),
   kiro: z.optional(
@@ -162,11 +168,15 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   deepagents: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),
-      license: z.optional(z.string()),
-      // The Agent Skills spec defines `compatibility` as a free-form string
-      // (1–500 chars); an object form is also tolerated for back-compat.
-      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
-      metadata: z.optional(z.looseObject({})),
+      // dcode's `_parse_skill_metadata` never hard-fails on an unexpected
+      // shape for `license`, `compatibility`, or `metadata`: values are
+      // coerced with `str()`, an overlong `compatibility` is truncated with a
+      // logged warning, and non-dict `metadata` is replaced with `{}` and a
+      // logged warning. Left untyped so rulesync never aborts on a value the
+      // tool itself tolerates.
+      license: z.optional(z.unknown()),
+      compatibility: z.optional(z.unknown()),
+      metadata: z.optional(z.unknown()),
     }),
   ),
   copilot: z.optional(
@@ -403,15 +413,15 @@ export type RulesyncSkillFrontmatterInput = {
   };
   opencode?: {
     "allowed-tools"?: string[];
-    license?: string;
-    compatibility?: string | Record<string, unknown>;
-    metadata?: Record<string, unknown>;
+    license?: unknown;
+    compatibility?: unknown;
+    metadata?: unknown;
   };
   kilo?: {
     "allowed-tools"?: string[];
-    license?: string;
-    compatibility?: string | Record<string, unknown>;
-    metadata?: Record<string, unknown>;
+    license?: unknown;
+    compatibility?: unknown;
+    metadata?: unknown;
   };
   kiro?: {
     license?: string;
@@ -420,9 +430,9 @@ export type RulesyncSkillFrontmatterInput = {
   };
   deepagents?: {
     "allowed-tools"?: string[];
-    license?: string;
-    compatibility?: string | Record<string, unknown>;
-    metadata?: Record<string, unknown>;
+    license?: unknown;
+    compatibility?: unknown;
+    metadata?: unknown;
   };
   copilot?: {
     license?: string;

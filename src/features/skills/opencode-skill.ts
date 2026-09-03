@@ -27,16 +27,15 @@ import {
 export const OpenCodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
-  // OpenCode's SKILL.md parser recognizes exactly five frontmatter fields:
-  // `name`, `description`, `license`, `compatibility`, and `metadata`.
-  // See https://opencode.ai/docs/skills.md
-  license: z.optional(z.string()),
-  // OpenCode documents `compatibility` as a free-form string (e.g.
-  // `compatibility: opencode`, see https://opencode.ai/docs/skills/ ). The
-  // object form is also tolerated for backward compatibility with skills that
-  // model it as a per-tool version-constraint map.
-  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
-  metadata: z.optional(z.looseObject({})),
+  // OpenCode's docs mention `name`, `description`, `license`, `compatibility`,
+  // and `metadata` (https://opencode.ai/docs/skills/), but the actual
+  // `Frontmatter` schema it parses SKILL.md with (`packages/core/src/skill.ts`
+  // in sst/opencode) does not define `license`, `compatibility`, or
+  // `metadata` at all, so it never validates or rejects them. Left untyped so
+  // rulesync never aborts on a value the underlying tool itself tolerates.
+  license: z.optional(z.unknown()),
+  compatibility: z.optional(z.unknown()),
+  metadata: z.optional(z.unknown()),
   // `allowed-tools` is NOT recognized by OpenCode (it is an Anthropic-spec
   // field that OpenCode silently ignores). It is kept as an optional
   // passthrough purely for lossless round-trip with the rulesync frontmatter.

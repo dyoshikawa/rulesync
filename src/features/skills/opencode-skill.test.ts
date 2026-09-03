@@ -498,6 +498,18 @@ Body content.`;
       const result = OpenCodeSkillFrontmatterSchema.safeParse(validFrontmatter);
       expect(result.success).toBe(true);
     });
+
+    it("should accept packaging metadata shapes a typed schema would reject", () => {
+      const result = OpenCodeSkillFrontmatterSchema.safeParse({
+        name: "Test Skill",
+        description: "Test description",
+        license: 2024,
+        compatibility: ["opencode", "claude-code"],
+        metadata: "platform-team",
+      });
+
+      expect(result.success).toBe(true);
+    });
   });
   describe("getConfiguredImportRoots", () => {
     it("returns the skills.paths entries opencode.json configures", async () => {

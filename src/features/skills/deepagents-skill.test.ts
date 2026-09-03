@@ -99,6 +99,39 @@ Do the thing.`;
       expect(skill.getFrontmatter().name).toBe("My Skill");
       expect(skill.getFrontmatter().description).toBe("A useful skill.");
     });
+
+    it("should import the packaging metadata in the shapes YAML actually produces", async () => {
+      const skillDir = join(testDir, ".deepagents", "skills", "packaged-skill");
+      // dcode never hard-fails on these fields: it coerces with `str()`,
+      // truncates an overlong `compatibility`, and drops non-dict `metadata`
+      // with a warning, so none of them may fail the import of a SKILL.md it
+      // happily loads.
+      const skillContent = `---
+name: packaged-skill
+description: A skill shared through a catalog
+license: MIT
+compatibility:
+  - deepagents
+  - claude-code
+metadata: platform-team
+---
+
+Packaged body`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await DeepagentsSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "packaged-skill",
+        global: false,
+      });
+
+      const section = skill.toRulesyncSkill().getFrontmatter().deepagents;
+      expect(section).toEqual({
+        license: "MIT",
+        compatibility: ["deepagents", "claude-code"],
+        metadata: "platform-team",
+      });
+    });
   });
 
   describe("fromRulesyncSkill", () => {

@@ -386,5 +386,17 @@ It can be multiline.`;
       const result = KiloSkillFrontmatterSchema.safeParse(validFrontmatter);
       expect(result.success).toBe(true);
     });
+
+    it("should accept packaging metadata shapes a typed schema would reject", () => {
+      const result = KiloSkillFrontmatterSchema.safeParse({
+        name: "Test Skill",
+        description: "Test description",
+        license: 2024,
+        compatibility: ["kilo", "claude-code"],
+        metadata: "platform-team",
+      });
+
+      expect(result.success).toBe(true);
+    });
   });
 });
