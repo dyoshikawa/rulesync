@@ -97,6 +97,55 @@ describe("RulesProcessor", () => {
       expect(result[1]).toBeInstanceOf(CopilotRule);
     });
 
+    it("should warn that generating Junie's root file deactivates existing .junie/rules/*.md", async () => {
+      // Junie reads `.junie/AGENTS.md` exclusively once it exists, so the
+      // multi-file branch (`.junie/rules/*.md`) becomes unreachable the
+      // moment `generate` writes the root file. Unlike `loadToolFiles`
+      // (import), `convertRulesyncFilesToToolFiles` never scanned for this
+      // before, so a repo that only ever runs `generate` saw no warning.
+      await writeFileContent(join(testDir, ".junie", "rules", "style.md"), "# Style");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { targets: ["*"], root: true },
+          body: "Shared team instructions",
+        }),
+      ];
+
+      await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      const warning = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("will no longer be read"));
+      expect(warning).toBeDefined();
+      expect(warning).toContain(join(".junie", "AGENTS.md"));
+      expect(warning).toContain(join(".junie", "rules", "style.md"));
+      expect(warning).toContain("rulesync import --targets junie");
+    });
+
+    it("should not warn about deactivated import-only roots when none exist on disk", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "junie" });
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { targets: ["*"], root: true },
+          body: "Shared team instructions",
+        }),
+      ];
+
+      await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("will no longer be read"),
+      );
+    });
+
     it("should emit a localRoot rule to .qwen/QWEN.local.md for qwencode", async () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "qwencode" });
 
