@@ -382,6 +382,34 @@ describe("ReasonixHooks", () => {
       expect(json.hooks.stop?.[0]?.command).toBe("audit.sh");
     });
 
+    it("should carry an event named toString through as a plain string key (#2757)", () => {
+      const reasonixHooks = new ReasonixHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".reasonix",
+        relativeFilePath: "settings.json",
+        // JSON.parse yields an own enumerable `toString` key, unlike an object
+        // literal whose `toString` the lookup map would inherit from
+        // Object.prototype.
+        fileContent: JSON.stringify({
+          hooks: {
+            Stop: [{ command: "audit.sh" }],
+            toString: [{ command: "crafted.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = reasonixHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.stop?.[0]?.command).toBe("audit.sh");
+      expect(Object.keys(json.hooks)).toEqual(["stop"]);
+      // The unmapped name must fall through verbatim rather than resolving to
+      // Object.prototype.toString and landing under its stringified source.
+      const overrideHooks = (json as { reasonix?: { hooks?: Record<string, unknown[]> } }).reasonix
+        ?.hooks;
+      expect(Object.keys(overrideHooks ?? {})).toEqual(["toString"]);
+      expect(overrideHooks?.["toString"]?.[0]).toMatchObject({ command: "crafted.sh" });
+    });
+
     it("should handle an empty or missing hooks key", () => {
       const reasonixHooks = new ReasonixHooks({
         outputRoot: testDir,

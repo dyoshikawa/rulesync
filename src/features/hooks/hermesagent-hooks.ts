@@ -23,6 +23,7 @@ import {
   getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import {
@@ -203,7 +204,10 @@ function canonicalToHermesHooks({
     if (!HERMESAGENT_CANONICAL_EVENTS.has(canonicalEvent)) {
       continue;
     }
-    const nativeEvent = CANONICAL_TO_HERMESAGENT_EVENT_NAMES[canonicalEvent];
+    const nativeEvent = lookupOwn({
+      record: CANONICAL_TO_HERMESAGENT_EVENT_NAMES,
+      key: canonicalEvent,
+    });
     if (nativeEvent) {
       setHermesHookEntries({
         result,
@@ -219,7 +223,10 @@ function canonicalToHermesHooks({
     if (!HERMESAGENT_CANONICAL_EVENTS.has(canonicalEvent)) {
       continue;
     }
-    const nativeEvent = CANONICAL_TO_HERMESAGENT_EVENT_NAMES[canonicalEvent];
+    const nativeEvent = lookupOwn({
+      record: CANONICAL_TO_HERMESAGENT_EVENT_NAMES,
+      key: canonicalEvent,
+    });
     if (nativeEvent) {
       setHermesHookEntries({
         result,
@@ -327,7 +334,8 @@ function hermesHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
     if (!isHermesHookEventEntry(nativeEvent, entries)) {
       continue;
     }
-    const rulesyncEvent = HERMESAGENT_TO_CANONICAL_EVENT_NAMES[nativeEvent] ?? nativeEvent;
+    const rulesyncEvent =
+      lookupOwn({ record: HERMESAGENT_TO_CANONICAL_EVENT_NAMES, key: nativeEvent }) ?? nativeEvent;
 
     const defs = entries
       .map((raw) => hermesEntryToDefinition({ nativeEvent, raw }))

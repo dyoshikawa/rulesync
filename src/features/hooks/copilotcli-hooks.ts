@@ -20,6 +20,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -272,7 +273,8 @@ function canonicalToCopilotCliHooks(
   };
   const out: Record<string, CopilotCliHookEntry[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
-    const copilotEventName = CANONICAL_TO_COPILOTCLI_EVENT_NAMES[eventName] ?? eventName;
+    const copilotEventName =
+      lookupOwn({ record: CANONICAL_TO_COPILOTCLI_EVENT_NAMES, key: eventName }) ?? eventName;
     const entries = buildCopilotCliEntriesForEvent({
       eventName,
       definitions,
@@ -338,7 +340,9 @@ function copilotCliHooksToCanonical(rawHooks: unknown, logger?: Logger): HooksCo
 
   const canonical: HooksConfig["hooks"] = {};
   for (const [copilotEventName, hookEntries] of Object.entries(rawHooks)) {
-    const eventName = COPILOTCLI_TO_CANONICAL_EVENT_NAMES[copilotEventName] ?? copilotEventName;
+    const eventName =
+      lookupOwn({ record: COPILOTCLI_TO_CANONICAL_EVENT_NAMES, key: copilotEventName }) ??
+      copilotEventName;
     if (!Array.isArray(hookEntries)) continue;
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of hookEntries) {

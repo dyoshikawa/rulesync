@@ -281,6 +281,35 @@ describe("VibeHooks", () => {
       expect(Object.keys(parsed.hooks)).toEqual(["preToolUse"]);
       expect(parsed.vibe).toBeUndefined();
     });
+
+    it("should carry an event type named toString through as a plain string key (#2757)", () => {
+      // `toString` is not a prototype-pollution key, so it reaches the event
+      // name lookup; the lookup must not resolve Object.prototype.toString.
+      const fileContent = smolToml.stringify({
+        hooks: [
+          { name: "ok", type: "pre_tool", match: "bash", command: "./guard" },
+          { name: "crafted", type: "toString", command: "./crafted" },
+        ],
+      });
+
+      const vibeHooks = new VibeHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".vibe",
+          relativeFilePath: "hooks.toml",
+          fileContent,
+        }),
+      );
+
+      const parsed = vibeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preToolUse?.[0]).toMatchObject({ command: "./guard", matcher: "bash" });
+      expect(Object.keys(parsed.hooks)).toEqual(["preToolUse"]);
+      // The unmapped name must fall through verbatim rather than resolving to
+      // Object.prototype.toString and landing under its stringified source.
+      const overrideHooks = (parsed as { vibe?: { hooks?: Record<string, unknown[]> } }).vibe
+        ?.hooks;
+      expect(Object.keys(overrideHooks ?? {})).toEqual(["toString"]);
+      expect(overrideHooks?.["toString"]?.[0]).toMatchObject({ command: "./crafted" });
+    });
   });
 
   describe("fromFile", () => {

@@ -314,4 +314,39 @@ describe("KiroIdeHooks", () => {
     // generate run does not fail on it.
     expect(HooksConfigSchema.safeParse(canonical).success).toBe(true);
   });
+
+  it("carries a trigger named toString through as a plain string key (#2757)", () => {
+    // `toString` is not a prototype-pollution key, so it reaches the event
+    // name lookup; the lookup must not resolve Object.prototype.toString.
+    const hooks = new KiroIdeHooks({
+      outputRoot: testDir,
+      relativeDirPath: join(".kiro", "hooks"),
+      relativeFilePath: "rulesync.json",
+      fileContent: JSON.stringify({
+        version: "v1",
+        hooks: [
+          {
+            name: "lint",
+            trigger: "PreToolUse",
+            action: { type: "command", command: "echo lint" },
+            enabled: true,
+          },
+          {
+            name: "crafted",
+            trigger: "toString",
+            action: { type: "command", command: "echo crafted" },
+            enabled: true,
+          },
+        ],
+      }),
+    });
+
+    const canonical = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+    expect(canonical.hooks.preToolUse[0].command).toBe("echo lint");
+    expect(Object.keys(canonical.hooks)).toEqual(["preToolUse"]);
+    // The unmapped trigger must fall through verbatim rather than resolving to
+    // Object.prototype.toString and landing under its stringified source.
+    expect(Object.keys(canonical.kiro.hooks)).toEqual(["toString"]);
+    expect(canonical.kiro.hooks["toString"][0].command).toBe("echo crafted");
+  });
 });

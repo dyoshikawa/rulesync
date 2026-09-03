@@ -599,6 +599,27 @@ hooks:
       });
     });
 
+    it("carries an event named toString through as a plain string key (#2757)", () => {
+      // `toString` is not a prototype-pollution key, so it reaches the event
+      // name lookup; the lookup must not resolve Object.prototype.toString.
+      const hooks = new HermesagentHooks({
+        outputRoot: ".",
+        fileContent: `hooks:
+  pre_tool_call:
+    - command: guard.sh
+  toString:
+    - command: crafted.sh
+`,
+      });
+
+      const json = hooks.toRulesyncHooks().getJson();
+      expect(json.hooks.preToolUse).toEqual([{ type: "command", command: "guard.sh" }]);
+      expect(Object.keys(json.hooks)).toEqual(["preToolUse"]);
+      const overrideHooks = json.hermesagent?.hooks ?? {};
+      expect(Object.keys(overrideHooks)).toEqual(["toString"]);
+      expect(overrideHooks["toString"]).toEqual([{ type: "command", command: "crafted.sh" }]);
+    });
+
     it("imports both fail_closed spellings back into canonical failClosed (#2414)", () => {
       const hooks = new HermesagentHooks({
         outputRoot: ".",

@@ -393,6 +393,32 @@ describe("DeepagentsHooks", () => {
       expect(rulesyncHooks.getJson().hooks).toEqual({});
     });
 
+    it("should drop a v2 event named toString instead of keying by Object.prototype.toString (#2757)", () => {
+      const hooks = new DeepagentsHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "hooks.json",
+        // JSON.parse yields an own enumerable `toString` key, unlike an object
+        // literal whose `toString` the lookup map would inherit from
+        // Object.prototype.
+        fileContent: JSON.stringify({
+          hooks: {
+            SessionStart: [{ hooks: [{ type: "command", command: "echo start" }] }],
+            toString: [{ hooks: [{ type: "command", command: "echo crafted" }] }],
+          },
+        }),
+      });
+
+      const canonical = hooks.toRulesyncHooks().getJson();
+
+      expect(canonical.hooks.sessionStart).toEqual([{ type: "command", command: "echo start" }]);
+      // deepagents only imports events it maps, so the unmapped name is dropped
+      // like any other unknown event rather than resolving to
+      // Object.prototype.toString and landing under its stringified source.
+      expect(Object.keys(canonical.hooks)).toEqual(["sessionStart"]);
+      expect((canonical as { deepagents?: unknown }).deepagents).toBeUndefined();
+    });
+
     it("should import the pre-v2 flat list format", () => {
       const hooks = new DeepagentsHooks({
         outputRoot: testDir,
@@ -415,6 +441,26 @@ describe("DeepagentsHooks", () => {
       ]);
       expect(canonical.hooks.sessionEnd).toEqual([{ type: "command", command: "echo multi" }]);
       expect(canonical.hooks.stop).toEqual([{ type: "command", command: "pnpm test --runInBand" }]);
+    });
+
+    it("should drop a legacy event named toString instead of keying by Object.prototype.toString (#2757)", () => {
+      const hooks = new DeepagentsHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: [{ command: ["bash", "-c", "echo start"], events: ["session.start", "toString"] }],
+        }),
+      });
+
+      const canonical = hooks.toRulesyncHooks().getJson();
+
+      expect(canonical.hooks.sessionStart).toEqual([{ type: "command", command: "echo start" }]);
+      // The legacy event list is filtered the same way as the v2 record: an
+      // unmapped name is dropped, never resolved through the lookup map's
+      // prototype.
+      expect(Object.keys(canonical.hooks)).toEqual(["sessionStart"]);
+      expect((canonical as { deepagents?: unknown }).deepagents).toBeUndefined();
     });
 
     it("should import the legacy context.offload event as canonical contextOffload", () => {

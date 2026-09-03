@@ -12,6 +12,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -70,7 +71,8 @@ function canonicalToReasonixHooks({
     if (!SUPPORTED_REASONIX_EVENTS.has(event)) {
       continue;
     }
-    const reasonixEvent = CANONICAL_TO_REASONIX_EVENT_NAMES[event] ?? event;
+    const reasonixEvent =
+      lookupOwn({ record: CANONICAL_TO_REASONIX_EVENT_NAMES, key: event }) ?? event;
     const isMatcherEvent = REASONIX_MATCHER_EVENTS.has(reasonixEvent);
     const entries: ReasonixHookEntry[] = [];
     for (const def of defs) {
@@ -103,7 +105,10 @@ function canonicalToReasonixHooks({
       entries.push(entry);
     }
     if (entries.length > 0) {
-      result[reasonixEvent] = [...(result[reasonixEvent] ?? []), ...entries];
+      result[reasonixEvent] = [
+        ...(lookupOwn({ record: result, key: reasonixEvent }) ?? []),
+        ...entries,
+      ];
     }
   }
   return result;
@@ -122,7 +127,8 @@ function reasonixHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
     if (!Array.isArray(rawEntries)) {
       continue;
     }
-    const canonicalEvent = REASONIX_TO_CANONICAL_EVENT_NAMES[reasonixEvent] ?? reasonixEvent;
+    const canonicalEvent =
+      lookupOwn({ record: REASONIX_TO_CANONICAL_EVENT_NAMES, key: reasonixEvent }) ?? reasonixEvent;
     const defs: HookDefinition[] = [];
     for (const rawEntry of rawEntries) {
       if (rawEntry === null || typeof rawEntry !== "object" || Array.isArray(rawEntry)) {
@@ -145,7 +151,10 @@ function reasonixHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
       defs.push(def);
     }
     if (defs.length > 0) {
-      canonical[canonicalEvent] = [...(canonical[canonicalEvent] ?? []), ...defs];
+      canonical[canonicalEvent] = [
+        ...(lookupOwn({ record: canonical, key: canonicalEvent }) ?? []),
+        ...defs,
+      ];
     }
   }
   return canonical;

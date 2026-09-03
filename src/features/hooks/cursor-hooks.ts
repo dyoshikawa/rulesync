@@ -10,6 +10,7 @@ import {
   CANONICAL_TO_CURSOR_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -90,7 +91,8 @@ export class CursorHooks extends ToolHooks {
     // types are skipped (the HooksProcessor warns about them).
     const cursorSupportedTypes = new Set(["command", "prompt"]);
     for (const [eventName, defs] of Object.entries(mergedHooks)) {
-      const cursorEventName = CANONICAL_TO_CURSOR_EVENT_NAMES[eventName] ?? eventName;
+      const cursorEventName =
+        lookupOwn({ record: CANONICAL_TO_CURSOR_EVENT_NAMES, key: eventName }) ?? eventName;
       const mappedDefs = defs
         .filter((def) => cursorSupportedTypes.has(def.type ?? "command"))
         .map((def) => ({
@@ -134,7 +136,9 @@ export class CursorHooks extends ToolHooks {
     // (see CANONICAL_TO_CURSOR_EVENT_NAMES in types/hooks.ts).
     const canonicalHooks: HooksConfig["hooks"] = {};
     for (const [cursorEventName, defs] of Object.entries(cursorHooks)) {
-      const eventName = CURSOR_TO_CANONICAL_EVENT_NAMES[cursorEventName] ?? cursorEventName;
+      const eventName =
+        lookupOwn({ record: CURSOR_TO_CANONICAL_EVENT_NAMES, key: cursorEventName }) ??
+        cursorEventName;
       canonicalHooks[eventName] = defs;
     }
     const version = parsed.version ?? 1;

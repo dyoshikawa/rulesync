@@ -14,6 +14,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
@@ -75,7 +76,7 @@ function flattenAntigravityHooks(parsed: unknown): Record<string, unknown> {
     if (isPrototypePollutionKey(event) || !Array.isArray(entries)) {
       return;
     }
-    const existing = Object.hasOwn(flat, event) ? flat[event] : undefined;
+    const existing = lookupOwn({ record: flat, key: event });
     flat[event] = existing ? [...existing, ...entries] : [...entries];
   };
   for (const [key, value] of Object.entries(parsed)) {

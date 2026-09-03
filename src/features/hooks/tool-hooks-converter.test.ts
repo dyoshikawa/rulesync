@@ -594,3 +594,26 @@ describe("ClaudecodeHooks.toRulesyncHooks", () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 });
+
+describe("toolHooksToCanonical with an event named after an Object.prototype member (#2757)", () => {
+  it("carries a toString event through as a plain string key", () => {
+    const logger = createMockLogger();
+    // JSON.parse yields an own enumerable `toString` key, unlike an object
+    // literal whose `toString` the lookup map would inherit from
+    // Object.prototype.
+    const hooks: unknown = JSON.parse(
+      JSON.stringify({
+        PreToolUse: [{ hooks: [{ type: "command", command: "./guard.sh" }] }],
+        toString: [{ hooks: [{ type: "command", command: "./crafted.sh" }] }],
+      }),
+    );
+
+    const canonical = toolHooksToCanonical({ hooks, converterConfig: BASE_CONFIG, logger });
+
+    expect(canonical.preToolUse).toEqual([{ type: "command", command: "./guard.sh" }]);
+    // The unmapped name must fall through verbatim rather than resolving to
+    // Object.prototype.toString and landing under its stringified source.
+    expect(Object.keys(canonical)).toEqual(["preToolUse", "toString"]);
+    expect(canonical["toString"]).toEqual([{ type: "command", command: "./crafted.sh" }]);
+  });
+});

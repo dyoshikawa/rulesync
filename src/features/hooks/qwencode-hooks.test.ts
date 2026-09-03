@@ -539,6 +539,32 @@ describe("QwencodeHooks", () => {
       expect(parsed.hooks.sessionDelete[0].matcher).toBeUndefined();
     });
 
+    it("should carry an event named toString through as a plain string key (#2757)", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          // JSON.parse yields an own enumerable `toString` key, unlike an
+          // object literal whose `toString` the lookup map would inherit from
+          // Object.prototype.
+          fileContent: JSON.stringify({
+            hooks: {
+              SessionStart: [{ hooks: [{ type: "command", command: "echo start" }] }],
+              toString: [{ hooks: [{ type: "command", command: "echo crafted" }] }],
+            },
+          }),
+        }),
+      );
+
+      const json = qwencodeHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.sessionStart?.[0]?.command).toBe("echo start");
+      expect(Object.keys(json.hooks)).toEqual(["sessionStart"]);
+      // The unmapped name must fall through verbatim rather than resolving to
+      // Object.prototype.toString and landing under its stringified source.
+      const overrideHooks = (json as { qwencode?: { hooks?: Record<string, unknown[]> } }).qwencode
+        ?.hooks;
+      expect(Object.keys(overrideHooks ?? {})).toEqual(["toString"]);
+      expect(overrideHooks?.["toString"]?.[0]).toMatchObject({ command: "echo crafted" });
+    });
+
     it("should round-trip Qwen Code PascalCase back to canonical", () => {
       const qwencodeHooks = new QwencodeHooks(
         createMockAiFileParams({
