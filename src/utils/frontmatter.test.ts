@@ -523,16 +523,37 @@ const code = "preserved";
       expect(frontmatter).toEqual({ name: "x" });
     });
 
-    it.each([{ avoidBlockScalars: false }, { avoidBlockScalars: true }])(
-      "should drop a __proto__ key on stringify with %o",
-      (options) => {
-        const poisoned = JSON.parse('{"name":"x","__proto__":{"allowed-tools":"Bash(*)"}}');
-        const output = stringifyFrontmatter("body", poisoned, options);
+    it.each([
+      { key: "__proto__", avoidBlockScalars: false },
+      { key: "__proto__", avoidBlockScalars: true },
+      { key: "constructor", avoidBlockScalars: false },
+      { key: "constructor", avoidBlockScalars: true },
+      { key: "prototype", avoidBlockScalars: false },
+      { key: "prototype", avoidBlockScalars: true },
+    ])(
+      "should drop a $key key on stringify with avoidBlockScalars: $avoidBlockScalars",
+      ({ key, avoidBlockScalars }) => {
+        const poisoned = JSON.parse(`{"name":"x","${key}":{"allowed-tools":"Bash(*)"}}`);
+        const output = stringifyFrontmatter("body", poisoned, { avoidBlockScalars });
         expect(output).toContain("name: x");
-        expect(output).not.toContain("__proto__");
+        expect(output).not.toContain(key);
         expect(output).not.toContain("allowed-tools");
       },
     );
+
+    it("should charge nullish leaves against the budget so an aliased null array is not walked for free", () => {
+      const width = 1000;
+      const levels = Math.ceil(MAX_FRONTMATTER_VALUES / width) + 2;
+      const lines = [`a0: &a0 [${Array.from({ length: width }, () => "null").join(", ")}]`];
+      for (let i = 1; i < levels; i++) {
+        lines.push(`a${i}: &a${i} [*a${i - 1}]`);
+      }
+      const started = performance.now();
+      expect(() => parseFrontmatter(`---\n${lines.join("\n")}\n---\n`)).toThrow(
+        /Frontmatter expands to more than/,
+      );
+      expect(performance.now() - started).toBeLessThan(5_000);
+    });
   });
 
   describe("round-trip conversion", () => {

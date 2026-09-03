@@ -53,11 +53,13 @@ function consumeBudget(options: DeepCleanOptions): void {
  * bounded by {@link MAX_FRONTMATTER_VALUES} instead.
  */
 function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
+  // Charge nullish leaves too: an aliased array of nulls would otherwise be
+  // walked for free, and the walk is the work being bounded.
+  consumeBudget(options);
+
   if (value === null || value === undefined) {
     return undefined;
   }
-
-  consumeBudget(options);
 
   if (typeof value === "string") {
     return options.transformString ? options.transformString(value) : value;
