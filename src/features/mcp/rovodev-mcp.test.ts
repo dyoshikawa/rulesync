@@ -1,4 +1,5 @@
-import { join } from "node:path";
+import { symlink } from "node:fs/promises";
+import { basename, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -76,6 +77,220 @@ describe("RovodevMcp", () => {
 
       const imported = await RovodevMcp.fromFile({ outputRoot: testDir, validate: true });
       expect(imported).toBeInstanceOf(RovodevMcp);
+    });
+
+    it("imports the project MCP config selected by mcp.mcpConfigPath", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await ensureDir(join(testDir, "custom"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        "mcp:\n  mcpConfigPath: custom/mcp.json\n",
+      );
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp.json"),
+        JSON.stringify({ mcpServers: { inactive: { command: "inactive-server" } } }),
+      );
+      await writeFileContent(
+        join(testDir, "custom", "mcp.json"),
+        JSON.stringify({ mcpServers: { active: { command: "active-server" } } }),
+      );
+
+      const imported = await RovodevMcp.fromFile({
+        outputRoot: testDir,
+        logger: createMockLogger(),
+      });
+
+      expect(imported.getRelativeDirPath()).toBe("custom");
+      expect(imported.toRulesyncMcp().getJson().mcpServers).toEqual({
+        active: { command: "active-server" },
+      });
+    });
+
+    it("keeps the legacy path when mcp.mcpConfigPath is absent and warns", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp.json"),
+        JSON.stringify({ mcpServers: { legacy: { command: "legacy-server" } } }),
+      );
+
+      const imported = await RovodevMcp.fromFile({ outputRoot: testDir, logger });
+
+      expect(imported.toRulesyncMcp().getJson().mcpServers).toEqual({
+        legacy: { command: "legacy-server" },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("mcp.mcpConfigPath is unset"),
+      );
+    });
+
+    it.each(["", "   "])(
+      "keeps the legacy path for an empty mcp.mcpConfigPath (%j)",
+      async (value) => {
+        const logger = createMockLogger();
+        await ensureDir(join(testDir, ".rovodev"));
+        await writeFileContent(
+          join(testDir, ".rovodev", "config.yml"),
+          `mcp:\n  mcpConfigPath: ${JSON.stringify(value)}\n`,
+        );
+        await writeFileContent(
+          join(testDir, ".rovodev", "mcp.json"),
+          JSON.stringify({ mcpServers: { fallback: { command: "fallback-server" } } }),
+        );
+
+        const imported = await RovodevMcp.fromFile({ outputRoot: testDir, logger });
+
+        expect(imported.toRulesyncMcp().getJson().mcpServers).toEqual({
+          fallback: { command: "fallback-server" },
+        });
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("must be a non-empty string"),
+        );
+      },
+    );
+
+    it("does not follow a project pointer outside the import scope", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        "mcp:\n  mcpConfigPath: ../outside/mcp.json\n",
+      );
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp.json"),
+        JSON.stringify({ mcpServers: { fallback: { command: "fallback-server" } } }),
+      );
+
+      const imported = await RovodevMcp.fromFile({ outputRoot: testDir, logger });
+
+      expect(imported.toRulesyncMcp().getJson().mcpServers).toEqual({
+        fallback: { command: "fallback-server" },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("outside the import scope"));
+    });
+
+    it("does not follow a project pointer that escapes the import scope through a symlink", async () => {
+      const logger = createMockLogger();
+      const outsideDir = join(testDir, "..", `outside-${basename(testDir)}`);
+      await ensureDir(outsideDir);
+      await writeFileContent(
+        join(outsideDir, "mcp.json"),
+        JSON.stringify({ mcpServers: { escaped: { command: "escaped-server" } } }),
+      );
+      await ensureDir(testDir);
+      await symlink(outsideDir, join(testDir, "linked"));
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        "mcp:\n  mcpConfigPath: linked/mcp.json\n",
+      );
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp.json"),
+        JSON.stringify({ mcpServers: { fallback: { command: "fallback-server" } } }),
+      );
+
+      const imported = await RovodevMcp.fromFile({ outputRoot: testDir, logger });
+
+      expect(imported.toRulesyncMcp().getJson().mcpServers).toEqual({
+        fallback: { command: "fallback-server" },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("outside the import scope"));
+    });
+
+    it("does not follow a home-anchored pointer in project scope", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        "mcp:\n  mcpConfigPath: ~/.rovodev/mcp_config.json\n",
+      );
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp.json"),
+        JSON.stringify({ mcpServers: { fallback: { command: "fallback-server" } } }),
+      );
+
+      const imported = await RovodevMcp.fromFile({ outputRoot: testDir, logger });
+
+      expect(imported.toRulesyncMcp().getJson().mcpServers).toEqual({
+        fallback: { command: "fallback-server" },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("cannot be imported as part of a project"),
+      );
+    });
+  });
+
+  describe("global scope", () => {
+    it("imports the home-anchored MCP config selected by mcp.mcpConfigPath", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        "mcp:\n  mcpConfigPath: ~/.rovodev/mcp_config.json\n",
+      );
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp.json"),
+        JSON.stringify({ mcpServers: { inactive: { command: "inactive-server" } } }),
+      );
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp_config.json"),
+        JSON.stringify({ mcpServers: { active: { command: "active-server" } } }),
+      );
+
+      const imported = await RovodevMcp.fromFile({ outputRoot: testDir, global: true });
+
+      expect(imported.getRelativeDirPath()).toBe(".rovodev");
+      expect(imported.getRelativeFilePath()).toBe("mcp_config.json");
+      expect(imported.toRulesyncMcp().getJson().mcpServers).toEqual({
+        active: { command: "active-server" },
+      });
+    });
+
+    it("does not follow a relative, non-home-anchored pointer in global scope", async () => {
+      const logger = createMockLogger();
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        "mcp:\n  mcpConfigPath: custom/mcp.json\n",
+      );
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp.json"),
+        JSON.stringify({ mcpServers: { fallback: { command: "fallback-server" } } }),
+      );
+
+      const imported = await RovodevMcp.fromFile({ outputRoot: testDir, global: true, logger });
+
+      expect(imported.toRulesyncMcp().getJson().mcpServers).toEqual({
+        fallback: { command: "fallback-server" },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Only home-anchored or absolute paths"),
+      );
+    });
+
+    it("does not follow an absolute pointer outside the home directory in global scope", async () => {
+      const logger = createMockLogger();
+      const outsideDir = join(testDir, "..", `outside-${basename(testDir)}`);
+      await ensureDir(outsideDir);
+      await writeFileContent(
+        join(outsideDir, "mcp.json"),
+        JSON.stringify({ mcpServers: { escaped: { command: "escaped-server" } } }),
+      );
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        `mcp:\n  mcpConfigPath: ${JSON.stringify(join(outsideDir, "mcp.json"))}\n`,
+      );
+      await writeFileContent(
+        join(testDir, ".rovodev", "mcp.json"),
+        JSON.stringify({ mcpServers: { fallback: { command: "fallback-server" } } }),
+      );
+
+      const imported = await RovodevMcp.fromFile({ outputRoot: testDir, global: true, logger });
+
+      expect(imported.toRulesyncMcp().getJson().mcpServers).toEqual({
+        fallback: { command: "fallback-server" },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("outside the import scope"));
     });
   });
 

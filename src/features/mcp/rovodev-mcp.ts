@@ -1,4 +1,4 @@
-import { join, posix } from "node:path";
+import { basename, dirname, isAbsolute, join, posix, relative, resolve } from "node:path";
 
 import {
   ROVODEV_CONFIG_FILE_NAME,
@@ -10,7 +10,13 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
+import {
+  pathEscapesRoot,
+  readFileContentOrNull,
+  resolvedPathEscapesRoot,
+  splitPathSegments,
+  toPosixPath,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
@@ -211,6 +217,147 @@ async function readRovodevConfigYaml({
     fileContent: content,
     filePath: join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME),
   });
+}
+
+/**
+ * The MCP JSON file an import may safely read after considering Rovo Dev's
+ * sibling config.yml. The relative path remains available for parse errors and
+ * for the ToolFile metadata returned by fromFile.
+ */
+type RovodevMcpImportPath = {
+  filePath: string;
+  relativeDirPath: string;
+  relativeFilePath: string;
+};
+
+/**
+ * Either the scope-appropriate absolute path a pointer resolves to, or the
+ * warning to log when its shape does not fit the given scope at all
+ * (home-anchored in project scope, a bare relative path in global scope).
+ */
+type McpConfigCandidateResult = { path: string } | { rejectionMessage: string };
+
+/**
+ * Decide the absolute path a configured `mcpConfigPath` would name in the
+ * given scope, without yet checking whether that path stays inside it. Split
+ * out of resolveRovodevMcpImportPath so each function's branching stays
+ * within the project's complexity budget.
+ */
+function resolveMcpConfigCandidatePath({
+  outputRoot,
+  global,
+  normalizedPath,
+  configuredPath,
+}: {
+  outputRoot: string;
+  global: boolean;
+  normalizedPath: string;
+  configuredPath: string;
+}): McpConfigCandidateResult {
+  if (global && normalizedPath.startsWith("~/")) {
+    return { path: resolve(outputRoot, normalizedPath.slice(2)) };
+  }
+  if (!global && normalizedPath.startsWith("~/")) {
+    // `resolve()` never expands `~` — left unchecked, this would fall through
+    // to the plain relative-path case below and join `~` as a literal
+    // directory name, producing a path that is technically "in scope" (no
+    // `..`, not absolute) but guaranteed not to exist. That would silently
+    // import an empty config instead of warning and falling back to the real
+    // one, so it is rejected here the same way every other unsupported shape
+    // is.
+    return {
+      rejectionMessage:
+        `Rovo Dev MCP: mcp.mcpConfigPath is ${quoteValueForWarning(configuredPath)} in project scope. ` +
+        `A home-anchored path cannot be imported as part of a project, so importing ` +
+        `${join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME)} instead.`,
+    };
+  }
+  if (isAbsolute(normalizedPath)) {
+    return { path: resolve(normalizedPath) };
+  }
+  if (!global) {
+    return { path: resolve(outputRoot, normalizedPath) };
+  }
+  return {
+    rejectionMessage:
+      `Rovo Dev MCP: mcp.mcpConfigPath is ${quoteValueForWarning(configuredPath)} in global scope. ` +
+      `Only home-anchored or absolute paths can be imported safely, so importing ` +
+      `${join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME)} instead.`,
+  };
+}
+
+/**
+ * Resolve the active Rovo Dev MCP config without following a pointer outside
+ * the import scope. The implementation is deliberately separate from
+ * fromFile: it keeps path-policy decisions testable without changing the
+ * public ToolMcp contract.
+ */
+async function resolveRovodevMcpImportPath({
+  outputRoot,
+  global,
+  config,
+  logger,
+}: {
+  outputRoot: string;
+  global: boolean;
+  config: Record<string, unknown> | null;
+  logger?: Logger;
+}): Promise<RovodevMcpImportPath> {
+  const fallback: RovodevMcpImportPath = {
+    filePath: join(outputRoot, ROVODEV_DIR, ROVODEV_MCP_FILE_NAME),
+    relativeDirPath: ROVODEV_DIR,
+    relativeFilePath: ROVODEV_MCP_FILE_NAME,
+  };
+  const mcp = config && isRecord(config.mcp) ? config.mcp : {};
+  const configuredPath = mcp.mcpConfigPath;
+
+  if (configuredPath === undefined) {
+    logger?.warn(
+      `Rovo Dev MCP: mcp.mcpConfigPath is unset in ${join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME)}. ` +
+        `Importing ${join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME)}, which may not be the file Rovo Dev reads.`,
+    );
+    return fallback;
+  }
+  if (typeof configuredPath !== "string" || configuredPath.trim() === "") {
+    logger?.warn(
+      `Rovo Dev MCP: mcp.mcpConfigPath in ${join(ROVODEV_DIR, ROVODEV_CONFIG_FILE_NAME)} must be a ` +
+        `non-empty string. Importing ${join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME)} instead.`,
+    );
+    return fallback;
+  }
+
+  const normalizedPath = normalizeMcpConfigPathValue(configuredPath.trim());
+  const candidateResult = resolveMcpConfigCandidatePath({
+    outputRoot,
+    global,
+    normalizedPath,
+    configuredPath,
+  });
+  if ("rejectionMessage" in candidateResult) {
+    logger?.warn(candidateResult.rejectionMessage);
+    return fallback;
+  }
+  const candidatePath = candidateResult.path;
+
+  const relativePath = relative(resolve(outputRoot), candidatePath);
+  if (
+    relativePath === "" ||
+    splitPathSegments(normalizedPath).includes("..") ||
+    pathEscapesRoot(relativePath) ||
+    (await resolvedPathEscapesRoot({ rootPath: outputRoot, targetPath: candidatePath }))
+  ) {
+    logger?.warn(
+      `Rovo Dev MCP: mcp.mcpConfigPath is ${quoteValueForWarning(configuredPath)}, which is outside ` +
+        `the import scope or traverses a symbolic link. Importing ${join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME)} instead.`,
+    );
+    return fallback;
+  }
+
+  return {
+    filePath: candidatePath,
+    relativeDirPath: dirname(relativePath),
+    relativeFilePath: basename(relativePath),
+  };
 }
 
 function disabledNamesOf(config: Record<string, unknown> | null): string[] {
@@ -672,10 +819,16 @@ export class RovodevMcp extends ToolMcp {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromFileParams): Promise<RovodevMcp> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
+    const rovodevConfig = await readRovodevConfigYaml({ outputRoot });
+    const paths = await resolveRovodevMcpImportPath({
+      outputRoot,
+      global,
+      config: rovodevConfig,
+      logger,
+    });
+    const fileContent = (await readFileContentOrNull(paths.filePath)) ?? '{"mcpServers":{}}';
     const json = parseRovodevMcpJson(fileContent, paths.relativeDirPath, paths.relativeFilePath);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
@@ -684,7 +837,7 @@ export class RovodevMcp extends ToolMcp {
     // import round-trips the toggle into the canonical config. A malformed
     // config.yml throws here (fail-closed): importing past it would re-enable
     // every disabled server in the canonical config.
-    const disabledNames = disabledNamesOf(await readRovodevConfigYaml({ outputRoot }));
+    const disabledNames = disabledNamesOf(rovodevConfig);
     if (disabledNames.length > 0 && isMcpServers(newJson.mcpServers)) {
       const servers = newJson.mcpServers as Record<string, unknown>;
       for (const name of disabledNames) {
