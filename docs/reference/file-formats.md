@@ -69,6 +69,11 @@ takt: # takt specific parameters (optional; emitted under .takt/facets/policies/
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
   facet: "output-contracts" # (optional) "policies" (default) or "output-contracts": redirect this rule to Takt's output-structure/report-template facet
+factorydroid: # factorydroid specific parameters
+  # Route this non-root rule's body to Factory Droid's design-guidelines file
+  # (DESIGN.md) instead of folding it into AGENTS.md / .factory/rules/*.md.
+  # This option is available only if root is false. Project scope only.
+  channel: "design"
 ---
 
 # Rulesync Project Overview
@@ -108,6 +113,8 @@ Multiple files can set `root: true` for the same target in project and global mo
 
 > **Warp note (rules):** Warp reads project rules from the root `AGENTS.md` (or the back-compat `WARP.md`) and does not scan a modular rules directory, so non-root rule bodies are folded into the single root `./AGENTS.md`. In global mode (via `--global`), the root rule is written to the cross-tool `~/.agents/AGENTS.md` — Warp's third rule source alongside project and Warp Drive rules, also used from remote hosts in SSH sessions — with the same folding. Other targets (e.g. Cline) own the same global path; as with the shared project-root `AGENTS.md`, each target regenerates the file per its own semantics. See the [Warp rules docs](https://docs.warp.dev/agent-platform/capabilities/rules/) and [file locations](https://docs.warp.dev/terminal/settings/file-locations/).
 
+> **Crush note (rules):** Crush reads project context from the root `CRUSH.md` (it also opportunistically reads `crush.md`/`Crush.md`, their `.local` variants, and the cross-tool `AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.cursorrules`/`.cursor/rules/`/`.github/copilot-instructions.md`, all owned by other targets) and does not scan a modular non-root instructions directory, so non-root rule bodies are folded into the single root `./CRUSH.md`. In global mode (via `--global`), the root rule is written to `~/.config/crush/CRUSH.md` with the same folding. See the [Crush config source](https://github.com/charmbracelet/crush/blob/main/internal/config/config.go) and [context-file loading](https://github.com/charmbracelet/crush/blob/main/internal/config/load.go).
+
 > **Pi note:** Pi writes the root rule to the auto-loaded `AGENTS.md` (project) / `~/.pi/agent/AGENTS.md` (global, via `--global`) as plain Markdown, and folds non-root rules into that single file (Pi has no modular rules directory). Pi additionally loads two system-prompt instruction files. `.pi/APPEND_SYSTEM.md` (project) / `~/.pi/agent/APPEND_SYSTEM.md` (global) **appends** to the default system prompt, and Rulesync emits it from any rule that opts in via a `pi.systemPrompt: append` frontmatter block — those rule bodies are routed to `APPEND_SYSTEM.md` instead of `AGENTS.md`, multiple opted-in rules concatenate in source order, and the file is managed by generate/import/delete like the root file (note: if you hand-authored `.pi/APPEND_SYSTEM.md` before this feature existed, `generate --delete` for the `pi` target now treats it as a managed path and removes it unless a rule opts in — import it first to convert it into a canonical rule). The opt-in is ignored on the `root: true` rule, which always stays on `AGENTS.md` (routing the root away would leave the context file without a merge target). `.pi/SYSTEM.md` (project) / `~/.pi/agent/SYSTEM.md` (global) **replaces** the default system prompt entirely — which silently disables Pi's built-in tool instructions — so Rulesync deliberately never emits it and leaves it to be authored by hand. Example:
 >
 > ```yaml
@@ -132,6 +139,19 @@ Multiple files can set `root: true` for the same target in project and global mo
 >
 > See the [Pi usage docs](https://pi.dev/docs/latest/usage) and the [context-file discovery in the Pi source](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/resource-loader.ts).
 
+> **Factory Droid note (rules):** Beyond the root `AGENTS.md` (project) / `~/.factory/AGENTS.md` (global, via `--global`) and non-root rules in `.factory/rules/*.md`, Factory Droid also loads a separate `DESIGN.md` at the project root: "Always-on design-system, UX, visual, and interaction guidance", loaded independently of `AGENTS.md`'s coding guidelines. Rulesync emits it from any non-root rule that opts in via a `factorydroid.channel: design` frontmatter block — those rule bodies are routed to `DESIGN.md` instead of `AGENTS.md`/`.factory/rules/*.md`, multiple opted-in rules concatenate in source order, and the file is managed by generate/import/delete like the root file. `DESIGN.md` is excluded from the TOON reference list Factory Droid's root file otherwise embeds for non-root rules, since Factory Droid already auto-loads it and listing it there would double it up. The opt-in is ignored on the `root: true` rule and in global mode: Factory's docs describe root and nested `DESIGN.md` files like `AGENTS.md`, but document no personal/global home-directory equivalent. Example:
+>
+> ```yaml
+> ---
+> targets: ["factorydroid"]
+> description: "Color palette and spacing scale"
+> factorydroid:
+>   channel: design # routes this rule's body to DESIGN.md
+> ---
+> ```
+>
+> See the [Factory Droid AGENTS.md configuration docs](https://docs.factory.ai/cli/configuration/agents-md).
+
 > **Devin note:** The root rule is emitted to the project-root `AGENTS.md` — the file [Devin CLI / Devin Local actually reads](https://docs.devin.ai/cli/extensibility/rules) (its rules page does not list `.devin/rules/` among its sources) — as plain markdown, while non-root rules keep going to `.devin/rules/*.md`, the Devin Desktop Cascade directory whose `trigger` activation modes (`always_on`, `glob`, `manual`, `model_decision`) are driven by the `devin` frontmatter block. Global mode mirrors that layout: the root rule is a plain `~/.config/devin/AGENTS.md`, and non-root rules are emitted one file per rule into `~/.devin/rules/*.md` with the same `trigger`/`globs` frontmatter. Note the directory split — the per-rule global directory is the home `~/.devin/`, not the `~/.config/devin/` tree the global root and Devin's other global surfaces use; that is what the rules page documents (`~/.devin/rules/*.md`, `~/.devin/global_rules.md`).
 
 > **Amp note:** Amp gates an @-mentioned guidance file on `globs:` YAML frontmatter — the file is loaded only after Amp has read a file matching one of the globs, and **without** the frontmatter it is always loaded. Rulesync therefore emits each non-root rule's `globs` as that frontmatter on the generated `.agents/memories/*.md` file (in addition to the advisory `applyTo` value in the root file's TOON table, which Amp does not enforce), and restores it into the canonical `globs` on import. Amp implicitly prefixes each glob with `**/` unless it starts with `./` or `../`, so canonical globs pass through verbatim. See [Globs in AGENTS.md](https://ampcode.com/news/globs-in-AGENTS.md).
@@ -145,6 +165,8 @@ Multiple files can set `root: true` for the same target in project and global mo
 > **Meta Muse Code note:** Muse Code walks up from the working directory to the `.git` boundary and loads one instruction file per directory level, preferring `AGENTS.md` over `CLAUDE.md` when both exist. The `musecode` target writes the root rule to the shared project-root `AGENTS.md` (the same file `agentsmd`, `codexcli` and others write) and folds non-root rules into it, since Muse Code has no modular rules directory. Muse Code has user/global rules, but their path is not documented, so the `musecode` rules target is project-scope only. See the [Muse Code configuration docs](https://dev.meta.ai/docs/muse-code/configuration.md).
 
 > **ZCode note:** ZCode (Z.ai's agentic development environment for the GLM family) reads exactly two instruction files — the user-global `~/.zcode/AGENTS.md` and the workspace `AGENTS.md` at the project root — and appends them in that order. Its docs are explicit that it "does not merge multiple `AGENTS.md` files across directory levels" and "does not scan child directories", so there is no nested rules surface to emit: rulesync writes the project-root `AGENTS.md` (project) / `~/.zcode/AGENTS.md` (global, via `--global`) and folds non-root rules into that single file. `CLAUDE.md` is deliberately not written for `zcode`: ZCode reads it only once, during onboarding, as a migration source. See the [ZCode AGENTS.md docs](https://zcode.z.ai/en/docs/agents).
+
+> **CodeBuddy Code note:** CodeBuddy Code (Tencent Cloud's terminal coding agent, `@tencent-ai/codebuddy-code`) mirrors Claude Code's configuration surface closely. Rulesync writes the root rule to `CODEBUDDY.md` at the project root (also read from `.codebuddy/CODEBUDDY.md` as an alternative root) / `~/.codebuddy/CODEBUDDY.md` (global, via `--global`), and non-root rules to `.codebuddy/rules/*.md` (project) / `~/.codebuddy/rules/*.md` (global), auto-loaded without needing a reference section. A personal, gitignored `CODEBUDDY.local.md` is materialized next to the root file, mirroring Claude Code's `CLAUDE.local.md`. Non-root frontmatter supports `description`, `paths` (glob patterns gating when the rule is loaded) and `alwaysApply`, closer to the Cursor rule model than Claude Code's `paths`-only schema; put tool-specific overrides in the `codebuddy:` block of the canonical rule. See the [CodeBuddy Code memory docs](https://www.codebuddy.ai/docs/cli/memory) and the [`.codebuddy` directory docs](https://www.codebuddy.ai/docs/cli/codebuddy-dir).
 
 ## `.rulesync/hooks.jsonc`
 
@@ -694,15 +716,15 @@ description: >- # skill description
   A sample skill that demonstrates the skill format
 targets: ["*"] # * = all, or specific tools
 # (optional) shared default for tools that support the flag — claudecode, copilot,
-# copilotcli, cursor, zed, pi, qwencode, grokcli, and factorydroid. Any of those
-# tool sections can override it by setting their own `disable-model-invocation`
+# copilotcli, crush, cursor, zed, pi, qwencode, grokcli, and factorydroid. Any of
+# those tool sections can override it by setting their own `disable-model-invocation`
 # value below. devin also reads this root value (true maps onto a user-only
 # `triggers` list); it has no section key of the same name, but devin.triggers
 # overrides it.
 disable-model-invocation: true
 # (optional) shared default for tools that support the flag — claudecode, copilot,
-# copilotcli, cursor, qwencode, vibe, grokcli, and factorydroid. Any of those tool
-# sections can override it by setting their own `user-invocable` value below.
+# copilotcli, crush, cursor, qwencode, vibe, grokcli, and factorydroid. Any of those
+# tool sections can override it by setting their own `user-invocable` value below.
 # devin also reads this root value (false maps onto a model-only `triggers`
 # list); it has no section key of the same name, but devin.triggers overrides it.
 user-invocable: false
@@ -713,8 +735,8 @@ user-invocable: false
 # the Agent Skills writers (agentsskills, hermesagent, agentsmd) flatten an object
 # `compatibility` to a string and stringify `metadata` values — apply the same
 # normalization to a root value as to a section value.
-# `license`: claudecode, opencode, kilo, kiro, deepagents, copilot, copilotcli, pi,
-# replit, rovodev, factorydroid, agentsskills (plus hermesagent and agentsmd), vibe.
+# `license`: claudecode, opencode, kilo, kiro, deepagents, copilot, copilotcli, crush,
+# pi, replit, rovodev, factorydroid, agentsskills (plus hermesagent and agentsmd), vibe.
 license: MIT
 # `compatibility`: the same tools minus copilot and copilotcli. A free-form string
 # per the Agent Skills spec (1–500 chars); the object form is also accepted.
@@ -989,6 +1011,8 @@ When `claudecode.scheduled-task: true` is set, that skill is emitted only as a C
 > **Kimi Code note:** Kimi Code discovers skills under `.kimi-code/skills/` (project) and `~/.kimi-code/skills/` (global), plus the shared `.agents/skills/` root at either scope. Rulesync generates the recommended directory layout (`<name>/SKILL.md`) and imports both that layout and flat `<name>.md` skills; for flat files, a missing `name` comes from the filename and a missing `description` falls back to the first non-empty body line (up to 240 characters), matching Kimi. Imported skills are written to `.rulesync/skills/<logical-name>/SKILL.md`, using the normalized logical frontmatter name rather than the source directory or filename. Duplicate precedence follows Kimi's case-insensitive logical frontmatter `name`: the Kimi-specific root takes precedence over `.agents/skills/`, and a directory skill takes precedence over a same-named flat file within one root. Shared roots are import-only and are never removed by Kimi-target orphan deletion. Besides `name`/`description`, Rulesync maps Kimi's `type`, `whenToUse`, `disableModelInvocation`, and `arguments` frontmatter through the `kimi-code:` block and preserves supporting files beside directory-layout `SKILL.md`. The shared top-level `disable-model-invocation` value supplies the Kimi flag unless the tool-specific block overrides it. See the [Kimi Code Agent Skills docs](https://moonshotai.github.io/kimi-code/en/customization/skills.html).
 
 > **ZCode note:** ZCode discovers Anthropic-style directory-layout skills (`<name>/SKILL.md`) and invokes them with `$`. The documented location is the user one, `~/.zcode/skills/`; the workspace scope its import dialog offers is taken to be served from the project's own `.zcode/skills/`, so rulesync writes `.zcode/skills/<name>/SKILL.md` in project mode and `~/.zcode/skills/<name>/SKILL.md` with `--global`. That project path is inferred from the import dialog and from ZCode's other workspace assets, not documented. Only the portable `name`/`description` pair is modeled; the schema is loose, so an imported `SKILL.md` carrying extra keys still parses, but — as with every other skill target — only that pair is carried into the canonical skill. ZCode rejects a `description` longer than 1024 characters and truncates a body past 100KB when it loads the skill; rulesync does not enforce either limit, since the canonical skill is shared with every other target. See the [ZCode skills docs](https://zcode.z.ai/en/docs/skill).
+
+> **Crush note:** Crush auto-discovers standard Agent Skills (`<name>/SKILL.md`) under `.crush/skills/` in project mode and `~/.config/crush/skills/` in global mode (via `--global`) — the same `~/.config/crush/` root Crush's global `CRUSH.md` and MCP config live under, distinct from the project-only `.crush/` directory name. Unless `$CRUSH_SKILLS_DIR` is set, Crush also scans several shared directories it does not own (globally `~/.config/agents/skills/`, `~/.agents/skills/`, `~/.claude/skills/`; per-project `.agents/skills/`, `.claude/skills/`, `.cursor/skills/`, also checked at a git worktree's common root) — rulesync writes only the Crush-specific path above, leaving those shared roots to their own targets. Besides `name`/`description`, the `crush:` block round-trips `user-invocable`, `disable-model-invocation`, and the shared `license`/`compatibility`/`metadata` packaging trio, all falling back to their root-level defaults when the section omits them; since Crush's `UserInvocable` field is a non-pointer Go `bool`, an omitted `user-invocable` resolves to `false`, keeping the skill reachable by the model but hidden from Crush's command palette. `compatibility` and `metadata` are normalized to the bare string / `map[string]string` shapes Crush's parser requires before being written, even if the rulesync root default holds the legacy object form. See [Crush's skill loader](https://github.com/charmbracelet/crush/blob/main/internal/skills/skills.go).
 
 ## `.rulesync/mcp.jsonc`
 
@@ -1277,6 +1301,8 @@ Zed has no ignore file: its deny list is the `private_files` array inside the sh
 Goose retired `.gooseignore` upstream ("removed some time ago in favour of other ignore things like gitignore etc" — [goose#10343](https://github.com/aaif-goose/goose/issues/10343)), so rulesync no longer generates it; the replacement guidance is `.gitignore` plus tool permissions. Stale `.gooseignore` files from earlier versions stay gitignored but are not cleaned up automatically.
 
 Cline's `.clineignore` is still emitted, but its own docs now title it "deprecate soon" and state it is not a security or access-control boundary — upstream's replacement direction is a Cline plugin enforcing via a `beforeTool` hook. Treat the matrix ✅ as a deprecated surface.
+
+Crush writes `.crushignore` at the project root only (no global equivalent), using the same gitignore-style patterns Crush already applies to its own built-in exclusion list in [`internal/fsext/fileutil.go`](https://github.com/charmbracelet/crush/blob/main/internal/fsext/fileutil.go).
 
 Hermes Agent uses a project-local `rulesync-ignore` plugin under `.hermes/plugins/`. It applies the canonical gitignore-style patterns through [`pre_tool_call`](https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks/#pre-tool-call) to `read_file`, `write_file`, and `patch` before execution, and filters ignored paths from `search_files` results through `transform_tool_result`. This is defense in depth around Hermes file tools; terminal commands and paths already present in conversation context are outside the plugin's enforcement surface. Hermes deliberately requires [explicit trust for project plugins](https://hermes-agent.nousresearch.com/docs/user-guide/features/plugins/), so run it from the trusted project root with that invocation opted in:
 

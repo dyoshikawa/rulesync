@@ -23,6 +23,7 @@ import {
 // Tools whose root rule lands in a single memory file.
 const rulesRootTargets = [
   { target: "claudecode", outputPath: "CLAUDE.md" },
+  { target: "codebuddy", outputPath: "CODEBUDDY.md" },
   { target: "cursor", outputPath: join(".cursor", "rules", "overview.mdc") },
   { target: "aiassistant", outputPath: join(".aiassistant", "rules", "overview.md") },
   { target: "amp", outputPath: "AGENTS.md" },
@@ -35,6 +36,7 @@ const rulesRootTargets = [
   { target: "antigravity-ide", outputPath: "AGENTS.md" },
   { target: "goose", outputPath: ".goosehints" },
   { target: "copilotcli", outputPath: join(".github", "copilot-instructions.md") },
+  { target: "crush", outputPath: "CRUSH.md" },
   { target: "kilo", outputPath: "AGENTS.md" },
   { target: "kimi-code", outputPath: join(".kimi-code", "AGENTS.md") },
   { target: "agentsmd", outputPath: "AGENTS.md" },
@@ -345,6 +347,79 @@ description: "Detail rule"
     );
     expect(imported).toContain("contextFile: override");
     expect(imported).toContain("Pi Root Rule");
+  });
+
+  it("should route factorydroid.channel:design rules to DESIGN.md and round-trip", async () => {
+    const testDir = getTestDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["factorydroid"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Factory Droid Root Rule
+`;
+    const designOneContent = `---
+targets: ["factorydroid"]
+description: "Color palette"
+factorydroid:
+  channel: design
+---
+
+# Factory Droid Design One
+`;
+    const designTwoContent = `---
+targets: ["factorydroid"]
+description: "Spacing scale"
+factorydroid:
+  channel: design
+---
+
+# Factory Droid Design Two
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "colors.md"),
+      designOneContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "spacing.md"),
+      designTwoContent,
+    );
+
+    await runGenerate({ target: "factorydroid", features: "rules" });
+
+    // Opted-in bodies land in DESIGN.md (concatenated in source order), not in
+    // AGENTS.md, and are not listed in AGENTS.md's TOON reference section since
+    // Factory Droid already auto-loads DESIGN.md itself.
+    const rootContent = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(rootContent).toContain("Factory Droid Root Rule");
+    expect(rootContent).not.toContain("Factory Droid Design One");
+    expect(rootContent).not.toContain("DESIGN.md");
+
+    const designPath = join(testDir, "DESIGN.md");
+    const designContent = await readFileContent(designPath);
+    expect(designContent).toContain("Factory Droid Design One");
+    expect(designContent).toContain("Factory Droid Design Two");
+    expect(designContent.indexOf("Factory Droid Design One")).toBeLessThan(
+      designContent.indexOf("Factory Droid Design Two"),
+    );
+
+    // Import the generated DESIGN.md back and confirm the routing frontmatter
+    // is recovered.
+    await runImport({ target: "factorydroid", features: "rules" });
+
+    const importedDesign = await readFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "DESIGN.md"),
+    );
+    expect(importedDesign).toContain("channel: design");
+    expect(importedDesign).toContain("Factory Droid Design One");
+    expect(importedDesign).toContain("Factory Droid Design Two");
   });
 
   it("should nest a rule under the directory derived from its globs when deriveSubprojectPathFromGlobs is on", async () => {
@@ -1097,6 +1172,7 @@ This is a test project for E2E testing.
 
 const rulesGlobalTargets = [
   { target: "claudecode", outputPath: join(".claude", "CLAUDE.md") },
+  { target: "codebuddy", outputPath: join(".codebuddy", "CODEBUDDY.md") },
   { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
   { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
@@ -1108,6 +1184,7 @@ const rulesGlobalTargets = [
   { target: "antigravity-cli", outputPath: join(".gemini", "GEMINI.md") },
   { target: "goose", outputPath: join(".config", "goose", ".goosehints") },
   { target: "copilotcli", outputPath: join(".copilot", "copilot-instructions.md") },
+  { target: "crush", outputPath: join(".config", "crush", "CRUSH.md") },
   { target: "deepagents", outputPath: join(".deepagents", "agent", "AGENTS.md") },
   { target: "factorydroid", outputPath: join(".factory", "AGENTS.md") },
   { target: "kilo", outputPath: join(".config", "kilo", "AGENTS.md") },

@@ -52,6 +52,16 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       paths: z.optional(z.array(z.string())),
     }),
   ),
+  codebuddy: z.optional(
+    z.looseObject({
+      // Glob patterns for conditional rules, matched with `matchBase` enabled
+      // (takes precedence over globs). @see https://www.codebuddy.ai/docs/cli/memory
+      // @example ["src/**/*.ts", "tests/**/*.test.ts"]
+      paths: z.optional(z.array(z.string())),
+      alwaysApply: z.optional(z.boolean()),
+      description: z.optional(z.string()),
+    }),
+  ),
   cursor: z.optional(
     z.looseObject({
       alwaysApply: z.optional(z.boolean()),
@@ -147,6 +157,17 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       // facet (output structure / report templates) instead. Both facets support
       // `{extends:...}` inheritance. See docs/reference/file-formats.md.
       facet: z.optional(z.enum(["policies", "output-contracts"])),
+    }),
+  ),
+  factorydroid: z.optional(
+    z.looseObject({
+      // Route this non-root rule's body to Factory Droid's design-guidelines
+      // channel (`DESIGN.md`) instead of folding it into the coding-guidelines
+      // `AGENTS.md` / `.factory/rules/*.md`. Factory Droid loads `DESIGN.md`
+      // as "Always-on design-system, UX, visual, and interaction guidance",
+      // separately from `AGENTS.md`'s coding guidelines. Project scope only —
+      // see docs/reference/file-formats.md.
+      channel: z.optional(z.enum(["design"])),
     }),
   ),
 });

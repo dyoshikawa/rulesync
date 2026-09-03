@@ -229,6 +229,8 @@ rulesync.local.jsonc
 **/CLAUDE.local.md
 **/.qwen/QWEN.local.md
 **/.claude/CLAUDE.local.md
+**/CODEBUDDY.local.md
+**/.codebuddy/CODEBUDDY.local.md
 **/.vibe/prompts/
 **/.claude/*.lock
 **/.claude/settings.local.json
@@ -288,11 +290,16 @@ rulesync.local.jsonc
 **/.claude/CLAUDE.md
 **/.claude/rules/
 **/.clinerules/
+**/CODEBUDDY.md
+**/.codebuddy/CODEBUDDY.md
+**/.codebuddy/rules/
 **/.github/copilot-instructions.md
 **/.github/instructions/
+**/CRUSH.md
 **/.cursor/rules/
 **/.deepagents/AGENTS.md
 **/.factory/rules/
+**/DESIGN.md
 **/.goosehints
 **/.hermes.md
 **/.grok/rules/
@@ -341,6 +348,7 @@ rulesync.local.jsonc
 **/.claude/skills/
 **/.cline/skills/
 **/.github/skills/
+**/.crush/skills/
 **/.cursor/skills/
 **/.deepagents/skills/
 **/.factory/skills/**
@@ -426,6 +434,7 @@ rulesync.local.jsonc
 **/.geminiignore
 **/.augmentignore
 **/.clineignore
+**/.crushignore
 **/.cursorignore
 **/.hermes/plugins/rulesync-ignore/patterns.gitignore
 **/.kilocodeignore

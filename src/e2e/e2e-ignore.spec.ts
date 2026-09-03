@@ -45,6 +45,7 @@ const ignoreGenerateTargets = [
     format: "plaintext" as const,
   },
   { target: "cline", outputPath: ".clineignore", format: "plaintext" as const },
+  { target: "crush", outputPath: ".crushignore", format: "plaintext" as const },
   { target: "kilo", outputPath: ".kilocodeignore", format: "plaintext" as const },
   { target: "roo", outputPath: ".rooignore", format: "plaintext" as const },
   { target: "zoocode", outputPath: ".rooignore", format: "plaintext" as const },
@@ -181,6 +182,7 @@ credentials/
     // claudecode uses settings.json (isDeletable=false) — excluded
     { target: "antigravity-cli", orphanPath: ".geminiignore" },
     { target: "cline", orphanPath: ".clineignore" },
+    { target: "crush", orphanPath: ".crushignore" },
     { target: "kilo", orphanPath: ".kilocodeignore" },
     { target: "roo", orphanPath: ".rooignore" },
     { target: "qwencode", orphanPath: ".qwenignore" },
@@ -252,6 +254,7 @@ describe("E2E: ignore (import)", () => {
       sourcePath: join(".hermes", "plugins", "rulesync-ignore", "patterns.gitignore"),
     },
     { target: "cline", sourcePath: ".clineignore" },
+    { target: "crush", sourcePath: ".crushignore" },
     { target: "kilo", sourcePath: ".kilocodeignore" },
     { target: "roo", sourcePath: ".rooignore" },
     { target: "qwencode", sourcePath: ".qwenignore" },
