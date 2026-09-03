@@ -155,6 +155,10 @@ describe("registry derivation", () => {
       // but never committable (issue #2507).
       "qwencode::rules::**/.qwen/QWEN.local.md",
       "claudecode::rules::**/.claude/CLAUDE.local.md",
+      // CodeBuddy Code's personal project memory file, mirroring Claude
+      // Code's CLAUDE.local.md convention (issue #2760).
+      "codebuddy::rules::**/CODEBUDDY.local.md",
+      "codebuddy::rules::**/.codebuddy/CODEBUDDY.local.md",
       "claudecode::general::**/.claude/*.lock",
       "claudecode::general::**/.claude/settings.local.json",
       "claudecode::general::**/.claude/memories/",
