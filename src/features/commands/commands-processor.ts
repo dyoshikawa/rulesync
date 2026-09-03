@@ -22,6 +22,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { commandsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
   checkPathTraversal,
@@ -958,7 +959,11 @@ export class CommandsProcessor extends FeatureProcessor {
       });
       for (const command of additionalCommands) {
         const key = command.getRelativeFilePath();
-        const collision = keysOf(command, true)
+        // A flat command's own key already equals its basename, so
+        // `keysOf(command, true)` would otherwise yield the same candidate
+        // twice; claiming it once and then checking the second copy against
+        // the claim it just made would report a collision with itself.
+        const collision = [...new Set(keysOf(command, true))]
           .map((candidate) => {
             const claimed = claimedKeys.claim({ identity: candidate, source: secondarySource });
             return claimed === null ? undefined : { candidate, claimed };
@@ -968,18 +973,18 @@ export class CommandsProcessor extends FeatureProcessor {
           const { candidate, claimed } = collision;
           if (claimed.spelling === candidate) {
             this.logger.warn(
-              `Duplicate ${this.toolTarget} command "${key}" from ${secondarySource}; ` +
-                `keeping the one already loaded.`,
+              `Duplicate ${this.toolTarget} command "${stripControlCharacters(key)}" from ` +
+                `${secondarySource}; keeping the one already loaded.`,
             );
           } else {
             // The dropped copy is not the one the user would search for by
             // name, and on a case-sensitive filesystem — where the two really
             // are separate commands — this is the only sign one was dropped.
             this.logger.warn(
-              `Case-insensitive ${this.toolTarget} command collision: "${claimed.spelling}" and ` +
-                `"${candidate}" resolve to the same command file. Keeping "${claimed.spelling}" ` +
+              `Case-insensitive ${this.toolTarget} command collision: "${stripControlCharacters(claimed.spelling)}" and ` +
+                `"${stripControlCharacters(candidate)}" resolve to the same command file. Keeping "${stripControlCharacters(claimed.spelling)}" ` +
                 `from ${claimed.source === secondarySource ? "earlier in the same source" : `the higher-precedence ${claimed.source}`} ` +
-                `and ignoring "${key}" from ${secondarySource}, which is not imported.`,
+                `and ignoring "${stripControlCharacters(key)}" from ${secondarySource}, which is not imported.`,
             );
           }
           continue;

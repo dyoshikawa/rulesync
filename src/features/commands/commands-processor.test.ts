@@ -1615,12 +1615,10 @@ describe("CommandsProcessor secondary import roots", () => {
     // itself is covered by opencode-command.test.ts, so this test mocks
     // `loadAdditionalImportFiles` directly to isolate the dedupe logic below.
     const mockLogger = createMockLogger();
-    vi.mocked(OpenCodeCommand).loadAdditionalImportFiles = vi
-      .fn()
-      .mockResolvedValue([
-        { getRelativeFilePath: () => "Commit.md" },
-        { getRelativeFilePath: () => "commit.md" },
-      ]);
+    vi.mocked(OpenCodeCommand.loadAdditionalImportFiles).mockResolvedValueOnce([
+      { getRelativeFilePath: () => "Commit.md" } as unknown as OpenCodeCommand,
+      { getRelativeFilePath: () => "commit.md" } as unknown as OpenCodeCommand,
+    ]);
 
     const processor = new CommandsProcessor({
       outputRoot: testDir,
@@ -1634,6 +1632,39 @@ describe("CommandsProcessor secondary import roots", () => {
       expect.stringMatching(
         /Case-insensitive opencode command collision: "Commit\.md" and "commit\.md" .* Keeping "Commit\.md" from earlier in the same source/,
       ),
+    );
+  });
+
+  it("keeps a flat shared-root command that does not collide with anything", async () => {
+    // A flat command's own relative path already equals its basename, so
+    // checking a basename-matching tool's secondary candidates against both
+    // must not treat that command as colliding with itself.
+    const mockLogger = createMockLogger();
+    const actualFile =
+      await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+    vi.mocked(findFilesByGlobs).mockImplementation(actualFile.findFilesByGlobs);
+    await writeFileContent(
+      join(testDir, ".augment", "commands", "other.md"),
+      ["---", "description: Other", "---", "", "Other command.", ""].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "commands", "unique.md"),
+      ["---", "description: Unique", "---", "", "Unique command.", ""].join("\n"),
+    );
+
+    const processor = new CommandsProcessor({
+      outputRoot: testDir,
+      toolTarget: "augmentcode",
+      logger: mockLogger,
+    });
+    const loaded = await processor.loadToolFiles();
+
+    expect(loaded.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+      "other.md",
+      "unique.md",
+    ]);
+    expect(mockLogger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("augmentcode command"),
     );
   });
 
