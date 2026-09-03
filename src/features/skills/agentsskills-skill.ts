@@ -121,8 +121,12 @@ export function toAllowedToolsArray(value: string | string[]): string[] {
  * The spec types `compatibility` as a free-form string. An object from a legacy
  * rulesync input is flattened to `key: value` pairs instead of being emitted as
  * a YAML mapping, which conformant clients reject.
+ *
+ * Exported for `CrushSkill`, which requires the same bare-string shape (Crush's
+ * Go struct types `Compatibility` as a plain `string`) and reuses this
+ * implementation rather than maintaining a second, divergent copy.
  */
-function toCompatibilityString(value: string | Record<string, unknown>): string {
+export function toCompatibilityString(value: string | Record<string, unknown>): string {
   if (typeof value === "string") {
     return value;
   }
@@ -134,8 +138,12 @@ function toCompatibilityString(value: string | Record<string, unknown>): string 
 /**
  * The spec types `metadata` as "a map from string keys to string values", so
  * non-string values (e.g. a YAML number `version: 1`) are stringified.
+ *
+ * Exported for `CrushSkill`, which requires the same `map[string]string`
+ * shape (Crush's Go struct types `Metadata` that way) and reuses this
+ * implementation rather than maintaining a second, divergent copy.
  */
-function toStringMetadata(metadata: Record<string, unknown>): Record<string, string> {
+export function toStringMetadata(metadata: Record<string, unknown>): Record<string, string> {
   return Object.fromEntries(
     Object.entries(metadata).map(([key, value]) => [key, stringifyValue(value)]),
   );

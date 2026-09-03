@@ -43,6 +43,7 @@ import { ClineSkill } from "./cline-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
 import { CopilotSkill } from "./copilot-skill.js";
 import { CopilotcliSkill } from "./copilotcli-skill.js";
+import { CrushSkill } from "./crush-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
 import { DeepagentsSkill } from "./deepagents-skill.js";
 import { DevinSkill } from "./devin-skill.js";
@@ -340,6 +341,15 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // Copilot CLI reads project skills from `.github/skills/` and personal
       // skills from `~/.copilot/skills/`, so it supports both project and global.
       class: CopilotcliSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "crush",
+    {
+      // Crush auto-discovers project skills from `.crush/skills/` and global
+      // skills from `~/.config/crush/skills/` (or `$CRUSH_SKILLS_DIR`).
+      class: CrushSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

@@ -1810,6 +1810,7 @@ Content that would fail parsing`;
         "codexcli",
         "copilot",
         "copilotcli",
+        "crush",
         "deepagents",
         "factorydroid",
         "goose",
@@ -1864,6 +1865,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("codexcli");
       expect(globalTargets).toContain("copilot");
       expect(globalTargets).toContain("copilotcli");
+      expect(globalTargets).toContain("crush");
       expect(globalTargets).toContain("deepagents");
       expect(globalTargets).toContain("factorydroid");
       expect(globalTargets).toContain("junie");
@@ -1884,7 +1886,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kiro-ide");
       expect(globalTargets).toContain("reasonix");
       expect(globalTargets).toContain("warp");
-      expect(globalTargets.length).toBe(34);
+      expect(globalTargets.length).toBe(35);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -4065,6 +4067,7 @@ targets: ["claudecode"]
     it("should expose every global-capable folded target to the regression matrix", () => {
       expect(globalFoldTargets).toEqual([
         "codexcli",
+        "crush",
         "deepagents",
         "goose",
         // `grokcli` left this list when it gained `.grok/rules/`.

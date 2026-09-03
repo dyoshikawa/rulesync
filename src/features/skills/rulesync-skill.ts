@@ -348,6 +348,22 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       extends: z.optional(z.string()),
     }),
   ),
+  // Crush's `Skill` struct (internal/skills/skills.go) fields beyond
+  // `name`/`description`: both invocation gates plus the Agent Skills
+  // packaging trio. Crush itself types `compatibility` as a free-form
+  // string, but the section also accepts the legacy object form (mirrors
+  // every other tool section that resolves this field) so an object-shaped
+  // root default round-trips instead of failing validation.
+  // https://github.com/charmbracelet/crush/blob/main/internal/skills/skills.go
+  crush: z.optional(
+    z.looseObject({
+      "disable-model-invocation": z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+      metadata: z.optional(z.looseObject({})),
+    }),
+  ),
 });
 
 // Export schema with targets optional for input but guaranteed in output
@@ -533,6 +549,13 @@ export type RulesyncSkillFrontmatterInput = {
   takt?: {
     name?: string;
     extends?: string;
+  };
+  crush?: {
+    "disable-model-invocation"?: boolean;
+    "user-invocable"?: boolean;
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
   };
 };
 

@@ -295,6 +295,7 @@ rulesync.local.jsonc
 **/.codebuddy/rules/
 **/.github/copilot-instructions.md
 **/.github/instructions/
+**/CRUSH.md
 **/.cursor/rules/
 **/.deepagents/AGENTS.md
 **/.factory/rules/
@@ -347,6 +348,7 @@ rulesync.local.jsonc
 **/.claude/skills/
 **/.cline/skills/
 **/.github/skills/
+**/.crush/skills/
 **/.cursor/skills/
 **/.deepagents/skills/
 **/.factory/skills/**
@@ -432,6 +434,7 @@ rulesync.local.jsonc
 **/.geminiignore
 **/.augmentignore
 **/.clineignore
+**/.crushignore
 **/.cursorignore
 **/.hermes/plugins/rulesync-ignore/patterns.gitignore
 **/.kilocodeignore
