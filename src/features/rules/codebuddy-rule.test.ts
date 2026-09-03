@@ -373,7 +373,7 @@ Rules for TypeScript files.`;
       expect(codebuddyRule.getFrontmatter().description).toBe("CodeBuddy-specific description");
     });
 
-    it("should set alwaysApply from the codebuddy passthrough block", () => {
+    it("should set alwaysApply from the codebuddy passthrough block and drop the redundant universal glob", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "always.md",
@@ -391,6 +391,52 @@ Rules for TypeScript files.`;
       });
 
       expect(codebuddyRule.getFrontmatter().alwaysApply).toBe(true);
+      // alwaysApply already applies the rule everywhere, so the universal
+      // glob carried over from the canonical `globs` would be redundant
+      // and, on a later import/generate round-trip, misleading.
+      expect(codebuddyRule.getFrontmatter().paths).toBeUndefined();
+    });
+
+    it("should drop an explicit universal codebuddy.paths when alwaysApply is true", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "always-explicit.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: ["**/*"],
+          codebuddy: { alwaysApply: true, paths: ["**/*"] },
+        },
+        body: "# Always Apply Rule With Explicit Universal Path",
+      });
+
+      const codebuddyRule = CodebuddyRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(codebuddyRule.getFrontmatter().alwaysApply).toBe(true);
+      expect(codebuddyRule.getFrontmatter().paths).toBeUndefined();
+    });
+
+    it("should keep non-universal paths even when alwaysApply is true", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "always-scoped.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: ["**/*"],
+          codebuddy: { alwaysApply: true, paths: ["src/**/*.ts"] },
+        },
+        body: "# Always Apply Rule With Scoped Path",
+      });
+
+      const codebuddyRule = CodebuddyRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(codebuddyRule.getFrontmatter().alwaysApply).toBe(true);
+      expect(codebuddyRule.getFrontmatter().paths).toEqual(["src/**/*.ts"]);
     });
 
     it("should not set paths for root rule", () => {

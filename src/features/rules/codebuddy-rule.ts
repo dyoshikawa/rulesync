@@ -37,6 +37,17 @@ const CodebuddyRuleFrontmatterSchema = z.object({
 
 export type CodebuddyRuleFrontmatter = z.infer<typeof CodebuddyRuleFrontmatterSchema>;
 
+/**
+ * A universal glob (matching everything) is redundant on an Always Apply
+ * rule and, paired with `alwaysApply: true`, is the same semantic conflict
+ * `CursorRule.resolveCursorGlobs` avoids for Cursor: `alwaysApply` already
+ * applies the rule everywhere, so also emitting an explicit
+ * `paths: ["**\/*"]` is at best redundant and, on a subsequent
+ * import/generate round-trip, misleadingly implies the rule is scoped by
+ * path rather than always-on.
+ */
+const UNIVERSAL_PATHS = new Set(["**/*", "*"]);
+
 export type CodebuddyRuleParams = Omit<ToolRuleParams, "fileContent"> & {
   frontmatter: CodebuddyRuleFrontmatter;
   body: string;
@@ -223,6 +234,22 @@ export class CodebuddyRule extends ToolRule {
     });
   }
 
+  private static resolveCodebuddyPaths({
+    paths,
+    alwaysApply,
+  }: {
+    paths: string[] | undefined;
+    alwaysApply: boolean;
+  }): string[] | undefined {
+    if (!paths || paths.length === 0) {
+      return undefined;
+    }
+    if (alwaysApply && paths.every((path) => UNIVERSAL_PATHS.has(path.trim()))) {
+      return undefined;
+    }
+    return paths;
+  }
+
   static fromRulesyncRule({
     outputRoot = process.cwd(),
     rulesyncRule,
@@ -253,7 +280,11 @@ export class CodebuddyRule extends ToolRule {
     // codebuddy.paths takes precedence over the canonical globs.
     const codebuddyPaths = rulesyncFrontmatter.codebuddy?.paths;
     const globs = rulesyncFrontmatter.globs;
-    const pathsValue = codebuddyPaths ?? (globs?.length ? globs : undefined);
+    const alwaysApply = rulesyncFrontmatter.codebuddy?.alwaysApply;
+    const pathsValue = CodebuddyRule.resolveCodebuddyPaths({
+      paths: codebuddyPaths ?? (globs?.length ? globs : undefined),
+      alwaysApply: alwaysApply === true,
+    });
 
     // For overlapping parameters, the tool-specific value takes precedence
     // over the shared rulesync value.
@@ -263,7 +294,7 @@ export class CodebuddyRule extends ToolRule {
     const codebuddyFrontmatter: CodebuddyRuleFrontmatter = {
       description,
       paths: pathsValue,
-      alwaysApply: rulesyncFrontmatter.codebuddy?.alwaysApply,
+      alwaysApply,
     };
 
     return new CodebuddyRule({

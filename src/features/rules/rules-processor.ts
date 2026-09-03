@@ -3,6 +3,7 @@ import { basename, dirname, join, posix, relative, sep } from "node:path";
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
+import { CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../../constants/codebuddy-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
@@ -501,7 +502,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         localRootMode: "separate-local-file",
-        localRootFileName: "CODEBUDDY.local.md",
+        localRootFileName: CODEBUDDY_LOCAL_RULE_FILE_NAME,
       },
     },
   ],
