@@ -7,6 +7,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import { toCompatibilityString, toStringMetadata } from "./agentsskills-skill.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   resolveCompatibility,
@@ -35,7 +36,10 @@ const CrushSkillFrontmatterSchema = z.looseObject({
   // values every other adapter resolves via `resolveCompatibility`/
   // `resolveMetadata`) purely so a loosely-shaped root default still parses;
   // `fromRulesyncSkill` below normalizes both fields to the shapes Crush's
-  // parser actually requires before a `CrushSkill` is ever constructed.
+  // parser actually requires — reusing `toCompatibilityString`/
+  // `toStringMetadata` from `agentsskills-skill.ts` (also shared by
+  // `HermesagentSkill`) rather than a second, divergent implementation —
+  // before a `CrushSkill` is ever constructed.
   // https://github.com/charmbracelet/crush/blob/main/internal/skills/skills.go
   "user-invocable": z.optional(z.boolean()),
   "disable-model-invocation": z.optional(z.boolean()),
@@ -43,45 +47,6 @@ const CrushSkillFrontmatterSchema = z.looseObject({
   compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
 });
-
-/**
- * Crush's `Skill` struct (`internal/skills/skills.go`) types `Compatibility`
- * as a bare Go `string` and `Metadata` as `map[string]string`; its
- * `yaml.Unmarshal` call fails to parse the entire `SKILL.md` if either field
- * holds any other shape. A rulesync root default can still carry the legacy
- * object form of `compatibility` or non-string `metadata` values (the shapes
- * `resolveCompatibility`/`resolveMetadata` may return), so both are coerced
- * to what Crush's parser accepts before being written — mirroring
- * `toCompatibilityString`/`toStringMetadata` in `agentsskills-skill.ts`,
- * which normalizes for the same real-spec reason.
- */
-function stringifyCrushValue(value: unknown): string {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (value === null || value === undefined) {
-    return "";
-  }
-  if (typeof value === "object") {
-    return JSON.stringify(value);
-  }
-  return String(value);
-}
-
-function toCrushCompatibilityString(value: string | Record<string, unknown>): string {
-  if (typeof value === "string") {
-    return value;
-  }
-  return Object.entries(value)
-    .map(([key, entry]) => `${key}: ${stringifyCrushValue(entry)}`)
-    .join(", ");
-}
-
-function toCrushMetadata(metadata: Record<string, unknown>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(metadata).map(([key, value]) => [key, stringifyCrushValue(value)]),
-  );
-}
 
 export type CrushSkillFrontmatter = z.infer<typeof CrushSkillFrontmatterSchema>;
 
@@ -246,6 +211,9 @@ export class CrushSkill extends ToolSkill {
       section: crushSection,
     });
 
+    const compatibilityString =
+      compatibility === undefined ? undefined : toCompatibilityString(compatibility);
+
     const crushFrontmatter: CrushSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
@@ -254,10 +222,9 @@ export class CrushSkill extends ToolSkill {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),
       ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && {
-        compatibility: toCrushCompatibilityString(compatibility),
-      }),
-      ...(metadata !== undefined && { metadata: toCrushMetadata(metadata) }),
+      ...(compatibilityString !== undefined &&
+        compatibilityString.length > 0 && { compatibility: compatibilityString }),
+      ...(metadata !== undefined && { metadata: toStringMetadata(metadata) }),
     };
 
     return new CrushSkill({

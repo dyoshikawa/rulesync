@@ -274,4 +274,29 @@ describe("CrushSkill packaging metadata", () => {
     expect(fm.compatibility).toBe("Requires Python 3.14+ and uv");
     expect(fm.metadata).toEqual({ author: "rulesync" });
   });
+
+  it("coerces an object compatibility and non-string metadata to the shapes Crush's Go struct requires", () => {
+    // Crush's `Skill` struct types `Compatibility` as a bare string and
+    // `Metadata` as `map[string]string`; its `yaml.Unmarshal` fails the whole
+    // document on a type mismatch, so both must be flattened/stringified
+    // before being written.
+    const frontmatter = buildCrushSkill({
+      compatibility: { runtime: "node", packages: ["jq"] },
+      metadata: { version: 1, released: new Date("2024-01-01T00:00:00.000Z") },
+    }).getFrontmatter();
+
+    expect(frontmatter.compatibility).toBe('runtime: node, packages: ["jq"]');
+    expect(frontmatter.metadata).toEqual({
+      version: "1",
+      released: "2024-01-01T00:00:00.000Z",
+    });
+  });
+
+  it("drops an object compatibility that flattens to the empty string instead of writing an empty value", () => {
+    const frontmatter = buildCrushSkill({
+      compatibility: {},
+    }).getFrontmatter();
+
+    expect(frontmatter.compatibility).toBeUndefined();
+  });
 });
