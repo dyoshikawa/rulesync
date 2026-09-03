@@ -229,6 +229,8 @@ rulesync.local.jsonc
 **/CLAUDE.local.md
 **/.qwen/QWEN.local.md
 **/.claude/CLAUDE.local.md
+**/CODEBUDDY.local.md
+**/.codebuddy/CODEBUDDY.local.md
 **/.vibe/prompts/
 **/.claude/*.lock
 **/.claude/settings.local.json
@@ -288,6 +290,9 @@ rulesync.local.jsonc
 **/.claude/CLAUDE.md
 **/.claude/rules/
 **/.clinerules/
+**/CODEBUDDY.md
+**/.codebuddy/CODEBUDDY.md
+**/.codebuddy/rules/
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/CRUSH.md

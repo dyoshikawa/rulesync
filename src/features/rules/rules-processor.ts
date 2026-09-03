@@ -3,6 +3,7 @@ import { basename, dirname, join, posix, relative, sep } from "node:path";
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
+import { CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../../constants/codebuddy-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
@@ -58,6 +59,7 @@ import { ClaudecodeLanguageSettings } from "./claudecode-language-settings.js";
 import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
 import { ClineRule } from "./cline-rule.js";
+import { CodebuddyRule } from "./codebuddy-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CopilotcliRule } from "./copilotcli-rule.js";
@@ -481,6 +483,27 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
+    "codebuddy",
+    {
+      class: CodebuddyRule,
+      meta: {
+        // CodeBuddy Code's configuration surface mirrors Claude Code closely:
+        // a root `CODEBUDDY.md` (project) / `~/.codebuddy/CODEBUDDY.md`
+        // (global) plus non-root `.codebuddy/rules/*.md` files auto-loaded
+        // without needing a reference section. Non-root frontmatter also
+        // supports `description` and `alwaysApply`, closer to the Cursor rule
+        // model than Claude Code's `paths`-only schema.
+        // https://www.codebuddy.ai/docs/cli/memory
+        // https://www.codebuddy.ai/docs/cli/codebuddy-dir
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        localRootMode: "separate-local-file",
+        localRootFileName: CODEBUDDY_LOCAL_RULE_FILE_NAME,
       },
     },
   ],
