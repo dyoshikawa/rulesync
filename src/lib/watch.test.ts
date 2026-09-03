@@ -379,6 +379,23 @@ describe("formatTriggerPaths", () => {
       }),
     ).toBe(`${join(".rulesync", "rules", "a.md")}, ${join(".rulesync", "rules", "b.md")}`);
   });
+
+  it("strips control characters from a relative trigger path", () => {
+    expect(
+      formatTriggerPaths({
+        triggers: [join(baseDir, ".rulesync", "rules", "a\u001b[31m.md")],
+        inputRoots: [baseDir],
+      }),
+    ).toBe(join(".rulesync", "rules", "a[31m.md"));
+  });
+
+  it("strips control characters from a trigger displayed absolute", () => {
+    const outside = join("/", "sibling", "b\u001b[31m.md");
+
+    expect(formatTriggerPaths({ triggers: [outside], inputRoots: [baseDir] })).toBe(
+      join("/", "sibling", "b[31m.md"),
+    );
+  });
 });
 
 describe("watchTargets", () => {
