@@ -2,6 +2,7 @@ import { existsSync, type FSWatcher, watch as fsWatch, statSync } from "node:fs"
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
 import { RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 
 /**
  * Trailing debounce window applied to file-system events before a regeneration
@@ -423,6 +424,11 @@ export function buildConfigFilePaths({ configFilePath }: { configFilePath: strin
  * path a caller passes explicitly — is displayed absolute, which is what
  * users expect from the "configuration file changed" message. Long bursts
  * are truncated so a `git checkout` does not flood the terminal.
+ *
+ * Trigger paths come from filesystem watch events, so a repository whose
+ * working tree holds a maliciously named file could embed control characters
+ * (e.g. ANSI escapes or bidirectional overrides) in what becomes a single
+ * terminal line; each displayed path is sanitized before joining.
  */
 export function formatTriggerPaths({
   triggers,
@@ -450,10 +456,10 @@ export function formatTriggerPaths({
         continue;
       }
 
-      return rel;
+      return stripControlCharacters(rel);
     }
 
-    return trigger;
+    return stripControlCharacters(trigger);
   });
 
   const remaining = triggers.length - displayed.length;
