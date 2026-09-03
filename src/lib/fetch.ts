@@ -321,6 +321,13 @@ const NON_SKILL_PATH: SkillPathClass = Object.freeze({ kind: "non-skill" });
 
 /** A name with no character in it that draws anything of its own. */
 const NOTHING_DRAWN_PATTERN = /^[\s\p{M}]*$/u;
+/**
+ * The marks a name begins with. A mark is drawn over the character before it,
+ * and a name has nothing before it of its own: a leading one is drawn over
+ * whatever the terminal printed last — the checkbox, the quote around a name
+ * in a warning — while the name reads as if it began with its first letter.
+ */
+const LEADING_MARKS_PATTERN = /^\p{M}+/u;
 
 /**
  * A name ending in a dot or an ASCII space, which Win32 strips before it opens
@@ -412,7 +419,9 @@ function findWindowsFoldableSegment(relativePath: string): string | undefined {
  * `skills/pd<U+200B>f/` is drawn exactly like `skills/pdf/`, and nothing later
  * in the prompt could tell the two apart. A name that draws as nothing but
  * blank space, or as nothing but marks with no letter to sit on, goes the same
- * way, since an empty row is no easier to pick out than an invisible one. Names
+ * way, since an empty row is no easier to pick out than an invisible one, and
+ * so does a name that begins with a mark: it is drawn over whatever the
+ * terminal printed before the name, and reads as the letters after it. Names
  * like that are reported as `unsafe-name` so callers can leave them out instead
  * of writing a skill the user never saw.
  *
@@ -459,9 +468,13 @@ function classifySkillPath(relativePath: string): SkillPathClass {
   // one that strips down to nothing: both draw as a row with no name on it. So
   // is a name of nothing but combining marks, which have no character of their
   // own to sit on and draw as a smear over whatever the terminal puts beside
-  // them.
-  const display = NOTHING_DRAWN_PATTERN.test(stripped) ? "" : stripped;
-  if (display === "" || hasDeceptiveHiddenCharacters(name)) {
+  // them. A name that merely begins with a mark is dropped for the same
+  // reason, and shown without it: the mark sits on nothing the name owns.
+  const beginsWithMark = LEADING_MARKS_PATTERN.test(stripped);
+  const display = NOTHING_DRAWN_PATTERN.test(stripped)
+    ? ""
+    : stripped.replace(LEADING_MARKS_PATTERN, "");
+  if (display === "" || beginsWithMark || hasDeceptiveHiddenCharacters(name)) {
     return { kind: "unsafe-name", raw: name, display, reason: "hidden" };
   }
   // Checked after the hidden characters, so a name that is both is reported

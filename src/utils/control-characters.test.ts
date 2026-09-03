@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   hasDeceptiveHiddenCharacters,
+  hasEnclosingMarkOutsideKeycap,
   quoteForLog,
   stripControlCharacters,
   stripControlCharactersKeepingLineFeeds,
@@ -171,6 +172,36 @@ describe("hasDeceptiveHiddenCharacters", () => {
     ["a keycap with a selector after it", "1\ufe0f\u20e3\ufe0f"],
   ])("should reject %s", (_label, name) => {
     expect(hasDeceptiveHiddenCharacters(name)).toBe(true);
+  });
+});
+
+describe("hasEnclosingMarkOutsideKeycap", () => {
+  it.each([
+    ["a plain ASCII name", "pdf"],
+    ["a digit keycap", "1\ufe0f\u20e3"],
+    ["a hash keycap", "#\ufe0f\u20e3"],
+    ["a keycap at the end of a longer name", "step1\ufe0f\u20e3"],
+    // Non-spacing marks are how these scripts write, and are not enclosing.
+    ["a Devanagari name", "\u0928\u093f\u092f\u092e"],
+    ["a Vietnamese name written with combining marks", "tie\u0301ng"],
+    ["a Japanese name", "\u8a2d\u5b9a"],
+  ])("should accept %s", (_label, name) => {
+    expect(hasEnclosingMarkOutsideKeycap(name)).toBe(false);
+  });
+
+  it.each([
+    // The keycap of a keycap sequence, on a letter: no sequence, so the box is
+    // drawn over the `f` for free.
+    ["an enclosing keycap on a letter", "pdf\u20e3"],
+    ["an enclosing keycap on a digit with no selector", "1\u20e3"],
+    ["an enclosing keycap with the text presentation selector", "1\ufe0e\u20e3"],
+    ["an enclosing circle", "pdf\u20dd"],
+    ["an enclosing square", "pdf\u20de"],
+    ["a Cyrillic hundred thousands sign", "pdf\u0488"],
+    ["a Vedic tone sign", "pdf\u1abe"],
+    ["a keycap sequence beside a stray mark", "1\ufe0f\u20e3\u20dd"],
+  ])("should report %s", (_label, name) => {
+    expect(hasEnclosingMarkOutsideKeycap(name)).toBe(true);
   });
 });
 

@@ -18,6 +18,8 @@ const TWIN_NOTE = "another entry differs from it only by lookalike letters";
 const SAME_FORM_NOTE = "another entry has the same display form";
 /** The note a name carrying more whitespace than it shows is given. */
 const WHITESPACE_NOTE = "carries more whitespace than the row shows";
+/** The note a name carrying an enclosing mark outside a keycap is given. */
+const ENCLOSING_MARK_NOTE = "carries a mark drawn over the character before it";
 
 describe("mixedScriptsOf", () => {
   it.each([
@@ -188,6 +190,36 @@ describe("describeConfusableNames", () => {
     // be seen of it.
     expect(describeConfusableNames({ names: [name], localNames: [] })).toEqual(
       new Map([[name, WHITESPACE_NOTE]]),
+    );
+  });
+
+  it.each([
+    ["an enclosing keycap on a letter", "pdf\u20e3"],
+    ["an enclosing circle", "pdf\u20dd"],
+    ["an enclosing keycap on a digit with no selector", "1\u20e3"],
+  ])("should note %s with nothing to compare it to", (_label, name) => {
+    // The mark is drawn over the character before it and takes no column, so
+    // the row is drawn as the plain name whether or not that name is listed.
+    expect(describeConfusableNames({ names: [name], localNames: [] })).toEqual(
+      new Map([[name, ENCLOSING_MARK_NOTE]]),
+    );
+  });
+
+  it("should not note an emoji keycap for the mark it is built from", () => {
+    expect(describeConfusableNames({ names: ["1\ufe0f\u20e3"], localNames: [] })).toEqual(
+      new Map(),
+    );
+  });
+
+  it("should put the mark note after the whitespace note and before the rest", () => {
+    // A padded, mixed-script name with a stray mark carries the reasons that
+    // say what the row itself is ahead of the one that reads its letters.
+    // cspell:disable-next-line
+    const name = "pdf\u20e3  r\u0435ader";
+    const notes = describeConfusableNames({ names: [name], localNames: [] });
+
+    expect(notes.get(name)).toBe(
+      `${WHITESPACE_NOTE}; ${ENCLOSING_MARK_NOTE}; mixes characters from Cyrillic and Latin`,
     );
   });
 

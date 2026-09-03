@@ -240,3 +240,38 @@ export function hasDeceptiveHiddenCharacters(text: string): boolean {
     return !joinsCharacter(characters[index - 1]) || !joinsCharacter(characters[index + 1]);
   });
 }
+
+/** A mark that draws around the character before it — a circle, a square, a keycap box. */
+const ENCLOSING_MARK_PATTERN = /\p{Me}/u;
+
+/**
+ * Whether `text` carries an enclosing mark that is not the keycap of an emoji
+ * keycap sequence.
+ *
+ * An enclosing mark (`\p{Me}`: U+20DD COMBINING ENCLOSING CIRCLE, U+20E3
+ * COMBINING ENCLOSING KEYCAP, the Cyrillic and Vedic ones) is drawn over the
+ * character before it and takes no column of its own, so `pdf` with one after
+ * it occupies the three columns of `pdf` and is a fourth directory underneath.
+ * Unlike a joiner or a variation selector it is not invisible — the box is
+ * drawn — which is why `hasDeceptiveHiddenCharacters` does not refuse it and
+ * why it is a question for the confusable-name note instead: the row is drawn,
+ * only not the way its name reads. The one place an enclosing mark belongs in
+ * a name is the keycap sequence of UTS #51, which `isKeycapSequence` matches
+ * whole; every other one is left over.
+ *
+ * Restricted to `\p{Me}` on purpose: a non-spacing mark (`\p{Mn}`) is how
+ * Devanagari, Arabic and Vietnamese write, and folding those would mark
+ * ordinary names in every one of them.
+ */
+export function hasEnclosingMarkOutsideKeycap(text: string): boolean {
+  const characters = [...text];
+  return characters.some(
+    (character, index) =>
+      ENCLOSING_MARK_PATTERN.test(character) &&
+      !isKeycapSequence({
+        base: characters[index - 2],
+        selector: characters[index - 1] ?? "",
+        following: character,
+      }),
+  );
+}

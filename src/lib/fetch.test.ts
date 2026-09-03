@@ -1813,6 +1813,8 @@ describe("fetchFiles with skill selection", () => {
       "skills/skill-b/SKILL.md",
     ]);
     expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("hidden characters"));
+    // The enclosing keycap is the sequence's own, not a mark left over.
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("drawn over"));
   });
 
   it("should not fetch a skill directory whose name is nothing but blank space", async () => {
@@ -1876,6 +1878,56 @@ describe("fetchFiles with skill selection", () => {
       "skills/skill-b/SKILL.md",
     ]);
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("and 2 more"));
+  });
+
+  it("should skip a skill directory whose name begins with a mark", async () => {
+    // A combining acute accent in front of `pdf`: the name reads as `pdf`, and
+    // the accent is drawn over whatever the terminal printed before it — the
+    // checkbox, or the quote around a name in a warning.
+    mockSkillRepositoryWithSkills(["\u0301pdf"]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    // Shown without the mark, so the warning does not carry it either.
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Skipping one skill directory whose name contains hidden"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"pdf"'));
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("\u0301"));
+  });
+
+  it("should fetch a name carrying an enclosing mark and say so", async () => {
+    // U+20E3 on a letter is no keycap: the box is drawn over the `f` and takes
+    // no column, so the directory is drawn as `pdf`. Drawn, so it is offered
+    // with a note rather than dropped.
+    const marked = "pdf\u20e3";
+    mockSkillRepositoryWithSkills([marked]);
+
+    const summary = await fetchFiles({
+      logger,
+      source: "owner/repo",
+      options: {},
+      outputRoot: testDir,
+    });
+
+    expect(summary.files.map((file) => file.relativePath).toSorted()).toEqual([
+      `skills/${marked}/SKILL.md`,
+      "skills/skill-a/SKILL.md",
+      "skills/skill-b/SKILL.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("carries a mark drawn over the character before it"),
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("hidden characters"));
   });
 
   it("should skip a skill directory named with marks that have nothing to sit on", async () => {
