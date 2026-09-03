@@ -92,12 +92,14 @@ function removeEmptyCategories(permission: CanonicalPermissionBlock): void {
 }
 
 /**
- * Make the native `command_allowlist` authoritative for the `bash` allow rules,
- * and for those only. The allowlist is a list of shell-command patterns, so it
- * is generated from `bash` alone (see `fromRulesyncPermissions`); an allow in
- * any other category names something Hermes's allowlist cannot carry, so its
- * absence from the list says nothing about it and it is kept as provenance
- * wrote it.
+ * Make the native `command_allowlist` authoritative for the `bash` allow rules
+ * it can speak for, and for those only. The allowlist is a list of shell-command
+ * patterns, so it is generated from `bash` alone (see `fromRulesyncPermissions`);
+ * an allow in any other category names something Hermes's allowlist cannot
+ * carry, so its absence from the list says nothing about it and it is kept as
+ * provenance wrote it. The same holds for a `bash` allow the generator withheld
+ * because a stricter `*` or `bash` rule covers it: the allowlist never carried
+ * it, so its absence is not a retraction and the rule is kept too.
  */
 function reconcileCommandAllowlist({
   permission,
@@ -106,8 +108,18 @@ function reconcileCommandAllowlist({
   permission: CanonicalPermissionBlock;
   commandAllowlist: readonly string[];
 }): void {
+  const { rules: commandRules } = collectShellCommandRules(permission);
+  const { shadowedAllowPatterns } = partitionCommandRules({
+    rules: commandRules,
+    writesAllToolsDeny: false,
+  });
+  const withheld = new Set(shadowedAllowPatterns);
   const rules = ensureCategory(permission, SHELL_PERMISSION_CATEGORY);
-  deleteRulesByAction(rules, "allow");
+  for (const [pattern, action] of Object.entries(rules)) {
+    if (action === "allow" && !withheld.has(pattern)) {
+      delete rules[pattern];
+    }
+  }
   for (const pattern of commandAllowlist) {
     rules[pattern] = "allow";
   }
@@ -389,9 +401,10 @@ export class HermesagentPermissions extends ToolPermissions {
     // Map the two canonical deny surfaces onto the structures Hermes's runtime
     // actually enforces: `bash` deny -> `approvals.deny` (a hard denylist
     // evaluated before autonomy mode) and `webfetch` deny ->
-    // `security.website_blocklist.domains`. Other categories' deny and every
-    // `ask` rule have no native per-pattern Hermes primitive, so they survive
-    // only in the round-trip blob below.
+    // `security.website_blocklist.domains`. A `*` deny or ask and a `bash` ask
+    // already shaped the output above by withholding the allows they cover;
+    // other categories' deny and ask rules have no native per-pattern Hermes
+    // primitive, so they survive only in the round-trip blob below.
     const webfetchDeny = patternsByAction(permissionBlock[WEBFETCH_PERMISSION_CATEGORY], "deny");
 
     let config: Record<string, unknown> = {};

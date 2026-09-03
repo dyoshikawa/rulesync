@@ -496,6 +496,48 @@ security:
     expect(generated.toRulesyncPermissions().getJson()).toEqual(canonical);
   });
 
+  it.each([
+    {
+      label: "a catch-all ask",
+      canonical: { permission: { "*": { "*": "ask" }, bash: { "git *": "allow" } } },
+      allowlist: undefined,
+    },
+    {
+      label: "an all-tools deny",
+      canonical: {
+        permission: {
+          "*": { "npm *": "deny" },
+          bash: { "npm publish": "allow", "git *": "allow" },
+        },
+      },
+      allowlist: ["git *"],
+    },
+    {
+      label: "a narrower bash ask",
+      canonical: { permission: { bash: { "git *": "allow", "git push *": "ask" } } },
+      allowlist: undefined,
+    },
+  ])(
+    "keeps a bash allow withheld by $label through a round-trip",
+    async ({ canonical, allowlist }) => {
+      const generated = await HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify(canonical),
+        }),
+        logger: createMockLogger(),
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      expect(config.command_allowlist).toEqual(allowlist);
+      // The allowlist never carried the withheld allow, so its absence there is
+      // not a retraction: import must keep the rule as provenance wrote it.
+      expect(generated.toRulesyncPermissions().getJson()).toEqual(canonical);
+    },
+  );
+
   it("round-trips deny, webfetch, and the hermes override back to canonical", () => {
     const canonical = {
       permission: {
