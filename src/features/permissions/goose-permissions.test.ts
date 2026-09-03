@@ -5,9 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { GoosePermissions } from "./goose-permissions.js";
+import { PermissionsProcessor } from "./permissions-processor.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
 function rulesyncPermissions(
@@ -57,6 +58,87 @@ describe("GoosePermissions", () => {
         validate: false,
       });
       expect(perms.isDeletable()).toBe(false);
+    });
+  });
+
+  describe("shouldSkipCreationWhenPayloadEmpty", () => {
+    let homeDir: string;
+    let cleanupHome: () => Promise<void>;
+
+    beforeEach(async () => {
+      ({ testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true }));
+      // `getHomeDirectory()` honours HOME_DIR ahead of everything else, so the
+      // pseudo-home is reached without module-mocking the whole file utils.
+      vi.stubEnv("HOME_DIR", homeDir);
+    });
+
+    afterEach(async () => {
+      vi.unstubAllEnvs();
+      await cleanupHome();
+    });
+
+    const permissionPath = (): string => join(homeDir, ".config", "goose", "permission.yaml");
+
+    const generateThroughProcessor = async (
+      permission: Record<string, Record<string, string>>,
+    ): Promise<void> => {
+      const processor = new PermissionsProcessor({
+        logger: createMockLogger(),
+        outputRoot: homeDir,
+        toolTarget: "goose",
+        global: true,
+      });
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([
+        rulesyncPermissions(permission),
+      ]);
+      await processor.writeAiFiles(toolFiles);
+    };
+
+    it("is skipped: permission.yaml is Goose's file, not one to conjure for an empty payload", () => {
+      const perms = new GoosePermissions({
+        relativeDirPath: join(".config", "goose"),
+        relativeFilePath: "permission.yaml",
+        fileContent: "",
+        validate: false,
+      });
+      expect(perms.shouldSkipCreationWhenPayloadEmpty()).toBe(true);
+    });
+
+    it("does not create permission.yaml when nothing maps and the file does not exist", async () => {
+      // No rule maps, so the `user` block holds three empty lists — a file
+      // that would say nothing.
+      await generateThroughProcessor({});
+
+      expect(await fileExists(permissionPath())).toBe(false);
+    });
+
+    it("still creates permission.yaml when a rule maps", async () => {
+      await generateThroughProcessor({ bash: { "*": "allow" } });
+
+      expect(userPermissionOf(await readFileContent(permissionPath())).always_allow).toEqual([
+        "developer__shell",
+      ]);
+    });
+
+    it("still rewrites an existing permission.yaml when nothing maps", async () => {
+      await writeFileContent(
+        permissionPath(),
+        dump({
+          user: { always_allow: ["developer__shell"], ask_before: [], never_allow: [] },
+          smart_approve: { always_allow: ["developer__text_editor"] },
+        }),
+      );
+
+      await generateThroughProcessor({});
+
+      // The stale allowlist is emptied, and the unrelated block survives, so
+      // the skip never withholds a write from a file the user already has.
+      const content = await readFileContent(permissionPath());
+      expect(userPermissionOf(content).always_allow).toEqual([]);
+      const parsed = load(content);
+      expect(isRecord(parsed) ? parsed.smart_approve : undefined).toEqual({
+        always_allow: ["developer__text_editor"],
+      });
     });
   });
 
