@@ -306,6 +306,7 @@ This is a test factorydroid rule.`;
 
       const rule = await FactorydroidRule.fromFile({
         outputRoot: testDir,
+        relativeDirPath: ".",
         relativeFilePath: "DESIGN.md",
         validate: true,
       });
@@ -315,6 +316,29 @@ This is a test factorydroid rule.`;
       expect(rule.getRelativeDirPath()).toBe(".");
       expect(rule.getFileContent()).toBe(designContent);
       expect(rule.isExcludedFromRootReferences()).toBe(true);
+    });
+
+    it("should load a non-root rule literally named DESIGN.md as a regular non-root rule, not the design channel", async () => {
+      const collidingFile = join(testDir, ".factory", "rules", "DESIGN.md");
+      const collidingContent = "# Just a normal rule that happens to be named DESIGN.md";
+      await writeFileContent(collidingFile, collidingContent);
+
+      // A real design-channel file at the project root, to prove it is not
+      // what gets read for the non-root collision below.
+      await writeFileContent(join(testDir, "DESIGN.md"), "# Real design channel content");
+
+      const rule = await FactorydroidRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: ".factory/rules",
+        relativeFilePath: "DESIGN.md",
+        validate: true,
+      });
+
+      expect(rule).toBeInstanceOf(FactorydroidRule);
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getRelativeDirPath()).toBe(".factory/rules");
+      expect(rule.getFileContent()).toBe(collidingContent);
+      expect(rule.isExcludedFromRootReferences()).toBe(false);
     });
   });
 
@@ -341,6 +365,7 @@ This is a test factorydroid rule.`;
 
       const rule = await FactorydroidRule.fromFile({
         outputRoot: testDir,
+        relativeDirPath: ".",
         relativeFilePath: "DESIGN.md",
         validate: true,
       });

@@ -135,6 +135,7 @@ export class FactorydroidRule extends ToolRule {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
     validate = true,
     global = false,
@@ -142,9 +143,18 @@ export class FactorydroidRule extends ToolRule {
     const paths = this.getSettablePaths({ global });
 
     // Route the design-guidelines file to its own instance; everything else
-    // resolves through the existing root/non-root handling.
-    if (!global && relativeFilePath === FACTORYDROID_DESIGN_FILE_NAME) {
-      const { design } = paths as FactorydroidRuleSettablePaths;
+    // resolves through the existing root/non-root handling. Matching on
+    // `relativeDirPath` too (not just the basename) keeps a non-root rule
+    // that happens to be named `DESIGN.md` under `.factory/rules/` from
+    // being routed here by mistake — mirrors the equivalent guard in
+    // `forDeletion`.
+    const design = !global ? (paths as FactorydroidRuleSettablePaths).design : undefined;
+    const isDesign =
+      design !== undefined &&
+      relativeDirPath === design.relativeDirPath &&
+      relativeFilePath === design.relativeFilePath;
+
+    if (isDesign) {
       const relativePath = join(design.relativeDirPath, design.relativeFilePath);
       const fileContent = await readFileContent(join(outputRoot, relativePath));
 
