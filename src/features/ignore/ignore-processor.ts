@@ -18,6 +18,7 @@ import { AntigravityCliIgnore } from "./antigravity-cli-ignore.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
+import { CrushIgnore } from "./crush-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { DevinIgnore } from "./devin-ignore.js";
 import { HermesagentIgnore } from "./hermesagent-ignore.js";
@@ -67,6 +68,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["claudecode", { class: ClaudecodeIgnore }],
   ["claudecode-legacy", { class: ClaudecodeIgnore }],
   ["cline", { class: ClineIgnore }],
+  ["crush", { class: CrushIgnore }],
   ["cursor", { class: CursorIgnore }],
   ["hermesagent", { class: HermesagentIgnore }],
   ["junie", { class: JunieIgnore }],

@@ -61,6 +61,7 @@ import { ClineRule } from "./cline-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CopilotcliRule } from "./copilotcli-rule.js";
+import { CrushRule } from "./crush-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { DeepagentsRule } from "./deepagents-rule.js";
 import { DevinRule } from "./devin-rule.js";
@@ -514,6 +515,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
+    "crush",
+    {
+      class: CrushRule,
+      meta: {
+        // Crush reads project context from the root CRUSH.md and a global
+        // rules file from ~/.config/crush/CRUSH.md. It has no modular
+        // non-root instructions directory, so topic rules fold into the root
+        // file (mirrors zcode/codexcli).
+        // https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],

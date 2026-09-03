@@ -30,6 +30,7 @@ describe("tool targets", () => {
         "codexcli",
         "copilot",
         "copilotcli",
+        "crush",
         "cursor",
         "deepagents",
         "factorydroid",
