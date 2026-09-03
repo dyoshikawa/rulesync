@@ -1584,8 +1584,7 @@ export class RulesProcessor extends FeatureProcessor {
       return;
     }
 
-    const rootFilePath = join(
-      this.outputRoot,
+    const rootFileRelativePath = join(
       rootRule.getRelativeDirPath(),
       rootRule.getRelativeFilePath(),
     );
@@ -1595,7 +1594,7 @@ export class RulesProcessor extends FeatureProcessor {
     const listedNames = names.slice(0, MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS);
     const remainingCount = names.length - listedNames.length;
     this.logger.warn(
-      `Writing ${stripControlCharacters(relative(this.outputRoot, rootFilePath))} for ${this.toolTarget} means ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} will no longer be read. Run \`rulesync import --targets ${this.toolTarget}\` first to carry that content into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, or delete ${listedNames.length === 1 ? "it" : "them"} once you have checked the content is already in the root file.`,
+      `Writing ${stripControlCharacters(rootFileRelativePath)} for ${this.toolTarget} means ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} will no longer be read. Run \`rulesync import --targets ${this.toolTarget}\` first to carry that content into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, or delete ${listedNames.length === 1 ? "it" : "them"} once you have checked the content is already in the root file.`,
     );
   }
 

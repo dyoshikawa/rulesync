@@ -146,6 +146,37 @@ describe("RulesProcessor", () => {
       );
     });
 
+    it("should not warn about deactivated import-only roots in Junie's global mode, since global settable paths have none", async () => {
+      // Junie's global scope writes a single `~/.junie/AGENTS.md` root file
+      // and has no multi-file `importOnlyRoots` branch at all (see
+      // `JunieRule.getSettablePaths({ global: true })`), so this generate run
+      // must never warn here even though the exact same on-disk files that
+      // trigger the warning in project mode are present.
+      await writeFileContent(join(testDir, ".junie", "rules", "style.md"), "# Style");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "junie",
+        global: true,
+      });
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { targets: ["*"], root: true },
+          body: "Shared team instructions",
+        }),
+      ];
+
+      await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("will no longer be read"),
+      );
+    });
+
     it("should emit a localRoot rule to .qwen/QWEN.local.md for qwencode", async () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "qwencode" });
 
