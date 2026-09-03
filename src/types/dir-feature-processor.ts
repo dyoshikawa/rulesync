@@ -28,6 +28,7 @@ import { type Logger, warnOnceWithFallback } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { hasIncompleteCarriedFiles } from "../utils/warned-once.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
+import { caseFoldIdentity } from "./feature-processor.js";
 import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolTarget } from "./tool-targets.js";
 
@@ -281,7 +282,11 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
    * This only deletes directories that are no longer in the rulesync source, not directories that will be overwritten.
    */
   async removeOrphanAiDirs(existingDirs: AiDir[], generatedDirs: AiDir[]): Promise<number> {
-    const generatedPaths = new Set(generatedDirs.map((d) => d.getDirPath()));
+    // Case-folded for the same reason as `removeOrphanAiFiles`: on a
+    // case-insensitive filesystem, renaming a directory only by case still
+    // writes into the existing directory, and comparing paths exactly would
+    // otherwise classify it as an orphan and delete what was just generated.
+    const generatedPaths = new Set(generatedDirs.map((d) => caseFoldIdentity(d.getDirPath())));
     // A set, so two candidates that report the same directory delete it once
     // and are counted once.
     const orphanPaths = new Set<string>();
@@ -351,7 +356,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         continue;
       }
 
-      if (!generatedPaths.has(dirPath)) {
+      if (!generatedPaths.has(caseFoldIdentity(dirPath))) {
         orphanPaths.add(dirPath);
       }
     }
@@ -510,7 +515,9 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // renamed from `Ref.md` to `ref.md` is written through the directory
       // entry that is still spelled `Ref.md`, and the name read back would
       // otherwise match nothing this run wrote and be swept as an orphan.
-      const generatedNamesFolded = new Set([...generatedNames].map((name) => name.toLowerCase()));
+      const generatedNamesFolded = new Set(
+        [...generatedNames].map((name) => caseFoldIdentity(name)),
+      );
 
       // A subdirectory this run cannot read is refused the same way as the
       // rest, not thrown: every file has been written by now, and a sweep is
@@ -534,7 +541,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
           continue;
         }
         const filePath = join(dirPath, existingName);
-        if (generatedNamesFolded.has(posixName.toLowerCase())) {
+        if (generatedNamesFolded.has(caseFoldIdentity(posixName))) {
           // Reported rather than skipped in silence, as the flat-file sweep
           // reports it: on a case-sensitive filesystem the two names really are
           // two files, and the one this run did not write is stale — exactly
@@ -634,7 +641,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     // enumeration reads back never matches the path this run wrote and the
     // file the run just produced would be swept as an orphan.
     const generatedPathsFolded = new Set(
-      [...generatedPaths].map((generatedPath) => generatedPath.toLowerCase()),
+      [...generatedPaths].map((generatedPath) => caseFoldIdentity(generatedPath)),
     );
     // A set, for the same reason the directory sweep uses one: two candidates
     // that report the same file delete it once and are counted once.
@@ -698,7 +705,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       if (generatedPaths.has(filePath)) {
         continue;
       }
-      if (generatedPathsFolded.has(filePath.toLowerCase())) {
+      if (generatedPathsFolded.has(caseFoldIdentity(filePath))) {
         this.logger.warn(
           `Refusing to delete ${quotedFilePath}: this run wrote a file whose path differs from ` +
             `it only in case, which on a case-insensitive filesystem is the very file it wrote`,

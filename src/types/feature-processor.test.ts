@@ -145,6 +145,21 @@ describe("FeatureProcessor", () => {
       expect(removeFile).not.toHaveBeenCalled();
     });
 
+    it("should not treat a case-only rename as an orphan", async () => {
+      const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+
+      // On a case-insensitive filesystem, renaming `my-skill.md` to
+      // `My-Skill.md` writes the generated file over the existing one, so the
+      // existing path here is not actually a leftover from the old spelling.
+      const existingFiles = [createMockFile("/path/to/my-skill.md")];
+      const generatedFiles = [createMockFile("/path/to/My-Skill.md")];
+
+      const count = await processor.removeOrphanAiFiles(existingFiles, generatedFiles);
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+    });
+
     it("should remove all files when generated is empty", async () => {
       const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
 
