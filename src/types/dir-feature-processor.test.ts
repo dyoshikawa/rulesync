@@ -902,6 +902,44 @@ describe("DirFeatureProcessor", () => {
       );
     });
 
+    it("should treat the composed and decomposed spelling of an accented name as the same file", async () => {
+      // Most Linux filesystems store whichever byte sequence they were given
+      // and never normalize it, so a source that writes the decomposed form
+      // (`e` + a combining acute accent) reads back a name that never exactly
+      // matches the composed form (`\u00e9`) rulesync generated -- even though
+      // macOS resolves both to a single file, which is exactly what
+      // `caseFoldIdentity`'s NFC pass folds them onto here too.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: testDir });
+      const dirPath = join(testDir, "demo");
+      // "e" (U+0065) plus a combining acute accent (U+0301): the decomposed spelling.
+      const decomposedName = "cafe\u0301.md";
+      await writeFiles(dirPath, [decomposedName]);
+
+      const count = await processor.removeOrphanFilesInAiDirs({
+        generatedDirs: [
+          createMockDirWithFiles({
+            dirPath,
+            mainFileBody: "body",
+            otherFiles: [
+              {
+                // The same name spelled with the precomposed "\u00e9" (U+00E9).
+                relativeFilePathToDirPath: "caf\u00e9.md",
+                fileBuffer: Buffer.from("content"),
+              } as unknown as AiDirFile,
+            ],
+          }),
+        ],
+        isClaimed: () => false,
+      });
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("differs from it only in case"),
+      );
+    });
+
     it("should report a candidate that owns no tree and is not a shared root either", async () => {
       // A `getDirPath()` override out of agreement with `ownsDirTree()`. The
       // directory sweep reports that shape rather than passing it over, and so
@@ -1055,6 +1093,32 @@ describe("DirFeatureProcessor", () => {
 
       expect(count).toBe(1);
       expect(removeFile).toHaveBeenCalledExactlyOnceWith(join(root, "stale.md"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("differs from it only in case"),
+      );
+    });
+
+    it("should treat the composed and decomposed spelling of an accented name as the same file", async () => {
+      // Most Linux filesystems store whichever byte sequence they were given
+      // and never normalize it, so a source that writes the decomposed form
+      // (`e` + a combining acute accent) reads back a name that never exactly
+      // matches the composed form rulesync generated -- even though macOS
+      // resolves both to a single file, which is exactly what
+      // `caseFoldIdentity`'s NFC pass folds them onto here too.
+      const logger = createMockLogger();
+      const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });
+
+      const count = await processor.removeOrphanFlatFiles({
+        existingFlatFiles: [
+          // "e" (U+0065) plus a combining acute accent (U+0301): the decomposed spelling.
+          createMockFlatDir({ root, fileName: "cafe\u0301.md" }),
+        ],
+        // The same name spelled with the precomposed "\u00e9" (U+00E9).
+        generatedDirs: [createMockFlatDir({ root, fileName: "caf\u00e9.md" })],
+      });
+
+      expect(count).toBe(0);
+      expect(removeFile).not.toHaveBeenCalled();
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("differs from it only in case"),
       );
