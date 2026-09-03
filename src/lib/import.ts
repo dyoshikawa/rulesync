@@ -151,6 +151,8 @@ async function importRulesCore(params: {
     return 0;
   }
 
+  await rulesProcessor.warnForFoldImportDuplicationRisk();
+
   const rulesyncFiles = await rulesProcessor.convertToolFilesToRulesyncFiles(toolFiles);
   const { count: writtenCount } = await rulesProcessor.writeAiFiles(rulesyncFiles);
 
