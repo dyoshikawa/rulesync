@@ -15,6 +15,7 @@ import { globToAnchoredRegexSource } from "../../utils/glob.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -416,6 +417,10 @@ export class AugmentcodePermissions extends ToolPermissions {
     );
 
     const preservedBasicEntries = basicExistingEntries.filter((entry) => {
+      // Older rulesync versions emitted the canonical all-tools category as this literal tool
+      // name, but AugmentCode only matches exact tool names. Remove that known-inert legacy row.
+      if (entry.toolName === "*") return false;
+
       // Keep all entries whose toolName is unmanaged.
       if (!MANAGED_AUGMENT_TOOL_NAMES.has(entry.toolName)) return true;
 
@@ -542,7 +547,24 @@ function convertRulesyncToAugmentEntries({
 }): AugmentToolPermission[] {
   const entries: AugmentToolPermission[] = [];
 
-  for (const [category, rules] of Object.entries(config.permission)) {
+  // AugmentCode has no wildcard toolName, so resolve the all-tools restrictions into its exact
+  // shell tool even when the source did not state a separate `bash` category.
+  const resolvedBashRules = bashRulesHonoringAllTools(config.permission);
+  const permission =
+    config.permission.bash !== undefined || Object.keys(resolvedBashRules).length > 0
+      ? { ...config.permission, bash: resolvedBashRules }
+      : config.permission;
+
+  for (const [category, rules] of Object.entries(permission)) {
+    if (category === "*") {
+      logger?.warn(
+        `AugmentCode permissions: the all-tools '*' category cannot be emitted because ` +
+          `AugmentCode does not support a wildcard toolName. Any deny/ask rules are applied to ` +
+          `'launch-process'; rules for other tools and all-tools allow rules are skipped.`,
+      );
+      continue;
+    }
+
     const augmentToolName = toAugmentToolName(category);
     const isManaged = MANAGED_AUGMENT_TOOL_NAMES.has(augmentToolName);
 

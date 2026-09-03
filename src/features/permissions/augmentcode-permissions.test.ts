@@ -70,6 +70,85 @@ describe("AugmentcodePermissions", () => {
     expect(view.permission.type).toBe("allow");
   });
 
+  it("should apply all-tools restrictions to launch-process entries", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "rm *": "deny" },
+          bash: { "rm *": "allow", "git *": "allow" },
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+      toolName: string;
+      shellInputRegex?: string;
+      permission: { type: string };
+    }>;
+    const launchEntries = entries.filter((entry) => entry.toolName === "launch-process");
+
+    expect(launchEntries).toEqual([
+      {
+        toolName: "launch-process",
+        shellInputRegex: "^rm .*$",
+        permission: { type: "deny" },
+      },
+      {
+        toolName: "launch-process",
+        shellInputRegex: "^git .*$",
+        permission: { type: "allow" },
+      },
+    ]);
+    expect(entries).not.toContainEqual(expect.objectContaining({ toolName: "*" }));
+  });
+
+  it("should synthesize launch-process restrictions and remove legacy wildcard entries", async () => {
+    const settingsDir = join(testDir, ".augment");
+    await ensureDir(settingsDir);
+    await writeFileContent(
+      join(settingsDir, "settings.json"),
+      JSON.stringify({
+        toolPermissions: [{ toolName: "*", permission: { type: "deny" } }],
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "rm *": "deny", "git push *": "ask", "git status": "allow" },
+        },
+      }),
+    });
+
+    const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const entries = JSON.parse(instance.getFileContent()).toolPermissions;
+    expect(entries).toEqual([
+      {
+        toolName: "launch-process",
+        shellInputRegex: "^rm .*$",
+        permission: { type: "deny" },
+      },
+      {
+        toolName: "launch-process",
+        shellInputRegex: "^git push .*$",
+        permission: { type: "ask-user" },
+      },
+    ]);
+  });
+
   it("should preserve unrelated toolPermissions entries, top-level keys, and existing launch-process deny entries (fail-closed)", async () => {
     const settingsDir = join(testDir, ".augment");
     await ensureDir(settingsDir);
