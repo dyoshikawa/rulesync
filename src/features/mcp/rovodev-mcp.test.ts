@@ -10,7 +10,7 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, toPosixPath, writeFileContent } from "../../utils/file.js";
-import { RovodevMcp } from "./rovodev-mcp.js";
+import { classifyExistingPointer, RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("RovodevMcp", () => {
@@ -36,6 +36,18 @@ describe("RovodevMcp", () => {
   afterEach(async () => {
     await cleanup();
     vi.restoreAllMocks();
+  });
+
+  describe("classifyExistingPointer", () => {
+    it.each([
+      ["an unset pointer", undefined, false, "unset"],
+      ["the generated project file", ".rovodev/mcp.json", false, "already-generated"],
+      ["Atlassian's documented default", "~/.rovodev/mcp_config.json", true, "documented-default"],
+      ["an environment-variable spelling", "$HOME/.rovodev/mcp.json", true, "env-var-spelling"],
+      ["a user-chosen project file", "custom/mcp.json", false, "unrelated"],
+    ] as const)("classifies %s", (_label, existing, global, kind) => {
+      expect(classifyExistingPointer({ existing, global, outputRoot: testDir })).toEqual({ kind });
+    });
   });
 
   describe("getSettablePaths", () => {
@@ -1042,7 +1054,7 @@ describe("RovodevMcp", () => {
       expect(message).toContain("defines legacy");
       // This user already has a value, so the message has to end on the change
       // to make rather than on rulesync leaving their value alone.
-      expect(message).toContain('change mcp.mcpConfigPath to "~/.rovodev/mcp.json"');
+      expect(message).toMatch(/change mcp\.mcpConfigPath to "~\/\.rovodev\/mcp\.json"\.$/);
       expect(message).not.toContain("will not overwrite");
     });
 

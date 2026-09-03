@@ -354,6 +354,50 @@ function envVarMcpFileSpellings({ fileName }: { fileName: string }): string[] {
   return [`$HOME/${tail}`, `\${HOME}/${tail}`];
 }
 
+export type ExistingPointerClassification =
+  | { kind: "unset" }
+  | { kind: "already-generated" }
+  | { kind: "documented-default" }
+  | { kind: "env-var-spelling" }
+  | { kind: "unrelated" };
+
+/**
+ * Classify the existing `mcpConfigPath` without deciding how to report it.
+ * Keep the known-file checks in this order: the generated file is valid in
+ * either scope, while the documented default and environment-variable
+ * spellings are global-only alternatives that need their own warnings.
+ */
+export function classifyExistingPointer({
+  existing,
+  global,
+  outputRoot,
+}: {
+  existing: unknown;
+  global: boolean;
+  outputRoot: string;
+}): ExistingPointerClassification {
+  if (existing === undefined) return { kind: "unset" };
+
+  const normalized =
+    typeof existing === "string" ? normalizeMcpConfigPathValue(existing) : undefined;
+  const namesFile = (fileName: string): boolean =>
+    normalized !== undefined &&
+    mcpFileSpellings({ fileName, global, outputRoot }).includes(normalized);
+
+  if (namesFile(ROVODEV_MCP_FILE_NAME)) return { kind: "already-generated" };
+  if (global && namesFile(ROVODEV_ALTERNATE_MCP_FILE_NAME)) {
+    return { kind: "documented-default" };
+  }
+  if (
+    global &&
+    normalized !== undefined &&
+    envVarMcpFileSpellings({ fileName: ROVODEV_MCP_FILE_NAME }).includes(normalized)
+  ) {
+    return { kind: "env-var-spelling" };
+  }
+  return { kind: "unrelated" };
+}
+
 /**
  * Point `mcp.mcpConfigPath` at the `mcp.json` rulesync writes for this scope,
  * and report whether the block gained a value it did not already carry.
@@ -511,17 +555,11 @@ async function applyMcpConfigPointer({
   logger?: Logger;
 }): Promise<boolean> {
   const { pointer, configLabel, mcpLabel } = pointerLabels(global);
-
   const existing = existingMcp.mcpConfigPath;
-  const normalizedExisting =
-    typeof existing === "string" ? normalizeMcpConfigPathValue(existing) : undefined;
-  const namesFile = (fileName: string): boolean =>
-    normalizedExisting !== undefined &&
-    mcpFileSpellings({ fileName, global, outputRoot }).includes(normalizedExisting);
-  const pointsAtGeneratedFile = namesFile(ROVODEV_MCP_FILE_NAME);
+  const classification = classifyExistingPointer({ existing, global, outputRoot });
 
   if (!hasLiveServers) {
-    if (pointsAtGeneratedFile) {
+    if (classification.kind === "already-generated") {
       logger?.warn(
         `Rovo Dev MCP: mcp.mcpConfigPath in ${configLabel} points at ${mcpLabel}, which now has ` +
           `no enabled server. Rovo Dev reads MCP servers from that file and nowhere else, so ` +
@@ -533,60 +571,48 @@ async function applyMcpConfigPointer({
     return false;
   }
 
-  if (existing === undefined) {
-    const displaced = global ? await describeDisplacedGlobalServers({ outputRoot }) : null;
-    if (displaced !== null) {
+  switch (classification.kind) {
+    case "unset": {
+      const displaced = global ? await describeDisplacedGlobalServers({ outputRoot }) : null;
+      if (displaced !== null) {
+        logger?.warn(
+          `Rovo Dev MCP: leaving mcp.mcpConfigPath unset in ${configLabel}, because ${displaced}. ` +
+            `Atlassian documents that path and ${mcpLabel} as two different defaults for the ` +
+            `setting, and mcpConfigPath names one config rather than merging, so pointing it at ` +
+            `${mcpLabel} would stop those servers being read on every project. Move the ones you ` +
+            `want to keep into .rulesync/mcp.jsonc — or none at all, if it turns out to hold ` +
+            `nothing you need — then set mcp.mcpConfigPath to "${pointer}" yourself, which ` +
+            `rulesync will not overwrite.`,
+        );
+        return false;
+      }
+
+      existingMcp.mcpConfigPath = pointer;
+      announcePointer({ global, logger });
+      return true;
+    }
+    case "already-generated":
+      return false;
+    case "documented-default":
+      await warnAtDocumentedDefault({ existing, outputRoot, logger });
+      return false;
+    case "env-var-spelling":
       logger?.warn(
-        `Rovo Dev MCP: leaving mcp.mcpConfigPath unset in ${configLabel}, because ${displaced}. ` +
-          `Atlassian documents that path and ${mcpLabel} as two different defaults for the ` +
-          `setting, and mcpConfigPath names one config rather than merging, so pointing it at ` +
-          `${mcpLabel} would stop those servers being read on every project. Move the ones you ` +
-          `want to keep into .rulesync/mcp.jsonc — or none at all, if it turns out to hold ` +
-          `nothing you need — then set mcp.mcpConfigPath to "${pointer}" yourself, which ` +
-          `rulesync will not overwrite.`,
+        `Rovo Dev MCP: mcp.mcpConfigPath in ${configLabel} is ${quoteValueForWarning(existing)}. That ` +
+          `names ${mcpLabel} only if Rovo Dev expands environment variables in this setting, ` +
+          `which Atlassian does not document — if it does not, the path resolves literally and ` +
+          `Rovo Dev reads no MCP servers at all. Write "${pointer}" instead, the form its own ` +
+          `documented default uses.`,
       );
       return false;
-    }
-
-    existingMcp.mcpConfigPath = pointer;
-    announcePointer({ global, logger });
-    return true;
+    case "unrelated":
+      logger?.warn(
+        `Rovo Dev MCP: leaving mcp.mcpConfigPath as ${quoteValueForWarning(existing)} in ${configLabel}. ` +
+          `Rovo Dev reads MCP servers from that path, so the generated ${mcpLabel} is unused until ` +
+          `it is set to "${pointer}".`,
+      );
+      return false;
   }
-  if (pointsAtGeneratedFile) {
-    return false;
-  }
-
-  // Quite possibly Rovo Dev's own writing rather than a destination the user
-  // chose, so it gets a message that says what to do rather than the generic
-  // "you aimed this somewhere else".
-  if (global && namesFile(ROVODEV_ALTERNATE_MCP_FILE_NAME)) {
-    await warnAtDocumentedDefault({ existing, outputRoot, logger });
-    return false;
-  }
-
-  // Aimed at the right file under a spelling that only works if Rovo Dev
-  // expands environment variables, which nothing documents that it does.
-  if (
-    global &&
-    normalizedExisting !== undefined &&
-    envVarMcpFileSpellings({ fileName: ROVODEV_MCP_FILE_NAME }).includes(normalizedExisting)
-  ) {
-    logger?.warn(
-      `Rovo Dev MCP: mcp.mcpConfigPath in ${configLabel} is ${quoteValueForWarning(existing)}. That ` +
-        `names ${mcpLabel} only if Rovo Dev expands environment variables in this setting, ` +
-        `which Atlassian does not document — if it does not, the path resolves literally and ` +
-        `Rovo Dev reads no MCP servers at all. Write "${pointer}" instead, the form its own ` +
-        `documented default uses.`,
-    );
-    return false;
-  }
-
-  logger?.warn(
-    `Rovo Dev MCP: leaving mcp.mcpConfigPath as ${quoteValueForWarning(existing)} in ${configLabel}. ` +
-      `Rovo Dev reads MCP servers from that path, so the generated ${mcpLabel} is unused until ` +
-      `it is set to "${pointer}".`,
-  );
-  return false;
 }
 
 /**
