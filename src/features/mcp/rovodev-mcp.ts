@@ -231,6 +231,62 @@ type RovodevMcpImportPath = {
 };
 
 /**
+ * Either the scope-appropriate absolute path a pointer resolves to, or the
+ * warning to log when its shape does not fit the given scope at all
+ * (home-anchored in project scope, a bare relative path in global scope).
+ */
+type McpConfigCandidateResult = { path: string } | { rejectionMessage: string };
+
+/**
+ * Decide the absolute path a configured `mcpConfigPath` would name in the
+ * given scope, without yet checking whether that path stays inside it. Split
+ * out of resolveRovodevMcpImportPath so each function's branching stays
+ * within the project's complexity budget.
+ */
+function resolveMcpConfigCandidatePath({
+  outputRoot,
+  global,
+  normalizedPath,
+  configuredPath,
+}: {
+  outputRoot: string;
+  global: boolean;
+  normalizedPath: string;
+  configuredPath: string;
+}): McpConfigCandidateResult {
+  if (global && normalizedPath.startsWith("~/")) {
+    return { path: resolve(outputRoot, normalizedPath.slice(2)) };
+  }
+  if (!global && normalizedPath.startsWith("~/")) {
+    // `resolve()` never expands `~` — left unchecked, this would fall through
+    // to the plain relative-path case below and join `~` as a literal
+    // directory name, producing a path that is technically "in scope" (no
+    // `..`, not absolute) but guaranteed not to exist. That would silently
+    // import an empty config instead of warning and falling back to the real
+    // one, so it is rejected here the same way every other unsupported shape
+    // is.
+    return {
+      rejectionMessage:
+        `Rovo Dev MCP: mcp.mcpConfigPath is ${quoteValueForWarning(configuredPath)} in project scope. ` +
+        `A home-anchored path cannot be imported as part of a project, so importing ` +
+        `${join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME)} instead.`,
+    };
+  }
+  if (isAbsolute(normalizedPath)) {
+    return { path: resolve(normalizedPath) };
+  }
+  if (!global) {
+    return { path: resolve(outputRoot, normalizedPath) };
+  }
+  return {
+    rejectionMessage:
+      `Rovo Dev MCP: mcp.mcpConfigPath is ${quoteValueForWarning(configuredPath)} in global scope. ` +
+      `Only home-anchored or absolute paths can be imported safely, so importing ` +
+      `${join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME)} instead.`,
+  };
+}
+
+/**
  * Resolve the active Rovo Dev MCP config without following a pointer outside
  * the import scope. The implementation is deliberately separate from
  * fromFile: it keeps path-policy decisions testable without changing the
@@ -271,21 +327,17 @@ async function resolveRovodevMcpImportPath({
   }
 
   const normalizedPath = normalizeMcpConfigPathValue(configuredPath.trim());
-  let candidatePath: string;
-  if (global && normalizedPath.startsWith("~/")) {
-    candidatePath = resolve(outputRoot, normalizedPath.slice(2));
-  } else if (isAbsolute(normalizedPath)) {
-    candidatePath = resolve(normalizedPath);
-  } else if (!global) {
-    candidatePath = resolve(outputRoot, normalizedPath);
-  } else {
-    logger?.warn(
-      `Rovo Dev MCP: mcp.mcpConfigPath is ${quoteValueForWarning(configuredPath)} in global scope. ` +
-        `Only home-anchored or absolute paths can be imported safely, so importing ` +
-        `${join(ROVODEV_DIR, ROVODEV_MCP_FILE_NAME)} instead.`,
-    );
+  const candidateResult = resolveMcpConfigCandidatePath({
+    outputRoot,
+    global,
+    normalizedPath,
+    configuredPath,
+  });
+  if ("rejectionMessage" in candidateResult) {
+    logger?.warn(candidateResult.rejectionMessage);
     return fallback;
   }
+  const candidatePath = candidateResult.path;
 
   const relativePath = relative(resolve(outputRoot), candidatePath);
   if (
