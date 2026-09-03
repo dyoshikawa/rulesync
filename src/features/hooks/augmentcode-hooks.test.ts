@@ -281,6 +281,54 @@ describe("AugmentcodeHooks", () => {
       expect(parsed.hooks.PreToolUse).toBeDefined();
     });
 
+    it("should preserve undocumented AugmentCode hook event keys when regenerating", async () => {
+      await ensureDir(join(testDir, ".augment"));
+      await writeFileContent(
+        join(testDir, ".augment", "settings.json"),
+        JSON.stringify({
+          hooks: {
+            afterFileEdit: [{ hookType: "command", command: "echo edited" }],
+            stop: [{ hookType: "command", command: "echo lowercase-stop" }],
+            PreToolUse: [{ matcher: "Bash", hooks: [{ hookType: "command", command: "stale" }] }],
+          },
+        }),
+      );
+
+      const config = {
+        version: 1,
+        hooks: { preToolUse: [{ command: "echo fresh" }] },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const augmentcodeHooks = await AugmentcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(augmentcodeHooks.getFileContent());
+      // Undocumented keys not owned by rulesync's canonical model survive verbatim.
+      expect(parsed.hooks.afterFileEdit).toEqual([{ hookType: "command", command: "echo edited" }]);
+      expect(parsed.hooks.stop).toEqual([{ hookType: "command", command: "echo lowercase-stop" }]);
+      // The native, rulesync-owned key is replaced by the freshly generated hooks.
+      expect(
+        parsed.hooks.PreToolUse.some((entry: { hooks: Array<{ command: string }> }) =>
+          entry.hooks.some((hook) => hook.command === "stale"),
+        ),
+      ).toBe(false);
+      expect(
+        parsed.hooks.PreToolUse.some((entry: { hooks: Array<{ command: string }> }) =>
+          entry.hooks.some((hook) => hook.command === "echo fresh"),
+        ),
+      ).toBe(true);
+    });
+
     it("should throw a descriptive error when existing settings.json contains invalid JSON", async () => {
       await ensureDir(join(testDir, ".augment"));
       await writeFileContent(join(testDir, ".augment", "settings.json"), "invalid json {");
