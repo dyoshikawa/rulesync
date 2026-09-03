@@ -16,6 +16,7 @@ import {
   applySharedConfigPatch,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -625,7 +626,7 @@ function convertRulesyncToRovodevToolPermissions({
 
   warnOnEditWriteConflict({ config, logger });
 
-  for (const [category, rules] of Object.entries(config.permission)) {
+  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     if (category === CATCH_ALL_PATTERN) {
       const toolWideDefault = convertAllToolsRules({ rules, logger });
       if (toolWideDefault) {

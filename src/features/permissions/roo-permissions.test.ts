@@ -404,6 +404,28 @@ describe("RooPermissions", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("withholds a bash allow that an all-tools deny covers, and warns about skipped categories", async () => {
+      const logger = createMockLogger();
+
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          "*": { "rm *": "deny" },
+          bash: { "rm *": "allow", "git *": "allow" },
+          read: { ".env": "deny" },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json[ALLOWED_KEY]).toEqual(["git *"]);
+      expect(json[DENIED_KEY]).toEqual(["rm *", "rm "]);
+      const warning = logger.warn.mock.calls.map(([message]) => String(message)).join("\n");
+      expect(warning).toContain("Roo Code");
+      expect(warning).toContain("read");
+      expect(warning).toContain("rm *");
+    });
+
     it("leaves hand-authored command lists untouched when no bash category is stated", async () => {
       await writeSettings(testDir, { [ALLOWED_KEY]: ["git "], "editor.tabSize": 2 });
 
@@ -416,6 +438,22 @@ describe("RooPermissions", () => {
         [ALLOWED_KEY]: ["git "],
         "editor.tabSize": 2,
       });
+    });
+
+    it("does not warn about an all-tools restriction when no bash category is stated", async () => {
+      // Regression: Roo isn't touching either list in this shape at all (see
+      // above), so claiming it "did not write" a denylist entry into a file it
+      // never opened for writing would be misleading.
+      const logger = createMockLogger();
+
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ "*": { "rm *": "deny" } }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({});
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 

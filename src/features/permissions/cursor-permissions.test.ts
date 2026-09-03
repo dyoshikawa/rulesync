@@ -79,6 +79,26 @@ describe("CursorPermissions", () => {
       expect(parsed.permissions.deny).toContain("Shell(rm -rf *)");
     });
 
+    it("should not auto-approve a bash allow that an all-tools deny covers", async () => {
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {
+              "*": { "rm *": "deny" },
+              bash: { "rm *": "allow", "git *": "allow" },
+            },
+          }),
+        }),
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.permissions.allow).toEqual(["Shell(git *)"]);
+      expect(parsed.permissions.deny).toContain("Shell(rm *)");
+    });
+
     it("should warn and skip 'ask' rules because Cursor CLI does not support ask", async () => {
       const logger = createMockLogger();
       const rulesyncPermissions = new RulesyncPermissions({

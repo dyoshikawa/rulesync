@@ -8,6 +8,7 @@ import {
   parsedGlobsIntersect,
 } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 
 /** The canonical category that names a shell command's permissions. */
 export const SHELL_PERMISSION_CATEGORY = "bash";
@@ -460,4 +461,134 @@ export function warnAboutUnwrittenCommandRules({
         `stricter rule wins whatever its width.`,
     );
   }
+}
+
+/** The `bash` map plus allow/deny lists after all-tools `*` restrictions apply. */
+export type ResolvedShellCommandLists = {
+  allow: string[];
+  deny: string[];
+  /**
+   * The `bash` category an adapter should write: bash `ask` rules kept, shadowed
+   * allows dropped, and — when `writesAllToolsDeny` — all-tools `*` denies copied
+   * in so a command list can enforce them.
+   */
+  bash: Record<string, PermissionAction>;
+};
+
+function resolveShellCommandState(
+  permission: PermissionsConfig["permission"],
+  writesAllToolsDeny: boolean,
+): ResolvedShellCommandLists & {
+  foreignRestrictingCategories: string[];
+  ignoredAllToolsAllowPatterns: string[];
+  shadowedAllowPatterns: string[];
+  unwrittenDenyPatterns: string[];
+  unenforcedAllToolsDenyPatterns: string[];
+  unenforcedAllToolsAskPatterns: string[];
+  intersectionBudgetExhausted: boolean;
+} {
+  const { rules, foreignRestrictingCategories, ignoredAllToolsAllowPatterns } =
+    collectShellCommandRules(permission);
+  const partitioned = partitionCommandRules({ rules, writesAllToolsDeny });
+  return {
+    allow: partitioned.allow,
+    deny: partitioned.deny,
+    bash: bashRulesHonoringAllTools(permission),
+    foreignRestrictingCategories,
+    ignoredAllToolsAllowPatterns,
+    shadowedAllowPatterns: partitioned.shadowedAllowPatterns,
+    unwrittenDenyPatterns: partitioned.unwrittenDenyPatterns,
+    unenforcedAllToolsDenyPatterns: partitioned.unenforcedAllToolsDenyPatterns,
+    unenforcedAllToolsAskPatterns: partitioned.unenforcedAllToolsAskPatterns,
+    intersectionBudgetExhausted: partitioned.intersectionBudgetExhausted,
+  };
+}
+
+/**
+ * Collect shell-command allow/deny lists the way the command-only adapters do,
+ * and report every restriction the surface cannot carry.
+ */
+export function resolveShellCommandLists({
+  permission,
+  writesAllToolsDeny,
+  toolLabel,
+  surfaceLabel,
+  logger,
+}: {
+  permission: PermissionsConfig["permission"];
+  writesAllToolsDeny: boolean;
+  toolLabel: string;
+  surfaceLabel: string;
+  logger?: Logger;
+}): ResolvedShellCommandLists {
+  const resolved = resolveShellCommandState(permission, writesAllToolsDeny);
+  warnAboutUnwrittenCommandRules({
+    toolLabel,
+    surfaceLabel,
+    foreignRestrictingCategories: resolved.foreignRestrictingCategories,
+    shadowedAllowPatterns: resolved.shadowedAllowPatterns,
+    unwrittenDenyPatterns: resolved.unwrittenDenyPatterns,
+    unenforcedAllToolsDenyPatterns: resolved.unenforcedAllToolsDenyPatterns,
+    unenforcedAllToolsAskPatterns: resolved.unenforcedAllToolsAskPatterns,
+    ignoredAllToolsAllowPatterns: resolved.ignoredAllToolsAllowPatterns,
+    intersectionBudgetExhausted: resolved.intersectionBudgetExhausted,
+    logger,
+  });
+  return { allow: resolved.allow, deny: resolved.deny, bash: resolved.bash };
+}
+
+/**
+ * The `bash` category after all-tools `*` restrictions have been applied. A
+ * `deny`/`ask` written under `*` covers shell commands too, so a bash `allow`
+ * it overlaps is withheld, a `*` deny is copied in, and a `*` ask is copied in
+ * wherever `bash` says nothing about that exact pattern yet — otherwise it
+ * would vanish from the resolved category entirely rather than falling back to
+ * a tier that still prompts. An existing `bash` entry for the same pattern is
+ * never downgraded by a `*` ask (a bash `allow` was already dropped above, and
+ * a bash `deny`/`ask` there is at least as strict already).
+ */
+export function bashRulesHonoringAllTools(
+  permission: PermissionsConfig["permission"],
+): Record<string, PermissionAction> {
+  const { rules } = collectShellCommandRules(permission);
+  const allToolsRestrictions = rules.filter(({ fromAllToolsCategory }) => fromAllToolsCategory);
+  const shadowingRestrictions = createShadowingRestrictionsTest(allToolsRestrictions);
+  const bash: Record<string, PermissionAction> = { ...permission.bash };
+  for (const [pattern, action] of Object.entries(bash)) {
+    if (action === "allow" && shadowingRestrictions(pattern).length > 0) {
+      delete bash[pattern];
+    }
+  }
+  for (const { pattern, action } of allToolsRestrictions) {
+    if (isPrototypePollutionKey(pattern)) {
+      continue;
+    }
+    if (action === "deny") {
+      if (bash[pattern] !== "ask") {
+        bash[pattern] = "deny";
+      }
+      continue;
+    }
+    if (bash[pattern] === undefined) {
+      bash[pattern] = "ask";
+    }
+  }
+  return bash;
+}
+
+/**
+ * Return a permission block whose `bash` category honors all-tools `*`
+ * restrictions. Other categories are unchanged, so adapters that already model
+ * `*` keep doing so.
+ */
+export function honorAllToolsOnBash(
+  permission: PermissionsConfig["permission"],
+): PermissionsConfig["permission"] {
+  // Do not invent a `bash` category. Adapters that already model `*` as a
+  // tool-wide default (Zed, Rovo, OpenCode) would otherwise grow a redundant
+  // bash deny that pollutes import.
+  if (permission.bash === undefined) {
+    return permission;
+  }
+  return { ...permission, bash: bashRulesHonoringAllTools(permission) };
 }

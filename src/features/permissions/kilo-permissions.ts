@@ -17,6 +17,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -290,7 +291,7 @@ export class KiloPermissions extends ToolPermissions {
     // notebook_edit, ...) authorable from rulesync rather than only pass-through.
     const kiloOverride = rulesyncJson.kilo;
     const incomingPermission: Record<string, unknown> = {
-      ...rulesyncJson.permission,
+      ...honorAllToolsOnBash(rulesyncJson.permission),
       ...kiloOverride?.permission,
     };
 

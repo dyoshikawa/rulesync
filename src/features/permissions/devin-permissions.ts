@@ -15,6 +15,7 @@ import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -286,7 +287,7 @@ function convertRulesyncToDevinPermissions(config: PermissionsConfig): {
   const ask: string[] = [];
   const deny: string[] = [];
 
-  for (const [category, rules] of Object.entries(config.permission)) {
+  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     const scope = toDevinScope(category);
     for (const [pattern, action] of Object.entries(rules)) {
       const entry = buildDevinPermissionEntry(scope, pattern);

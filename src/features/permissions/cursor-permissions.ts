@@ -14,6 +14,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -570,7 +571,7 @@ function convertRulesyncToCursorPermissions(
   const allow: string[] = [];
   const deny: string[] = [];
 
-  for (const [category, rules] of Object.entries(config.permission)) {
+  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     const cursorType = toCursorType(category);
     for (const [pattern, action] of Object.entries(rules)) {
       const cursorPattern = toCursorPattern(category, pattern);
