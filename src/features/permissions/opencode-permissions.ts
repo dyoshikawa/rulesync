@@ -22,6 +22,7 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -267,7 +268,9 @@ export class OpencodePermissions extends ToolPermissions {
     // (`agent` → `task`) before emitting them, so subagent-launch gating is
     // written under the key OpenCode actually reads.
     const sharedPermission: Record<string, OpencodePermission> = {};
-    for (const [category, value] of Object.entries(rulesyncJson.permission ?? {})) {
+    for (const [category, value] of Object.entries(
+      honorAllToolsOnBash(rulesyncJson.permission ?? {}),
+    )) {
       sharedPermission[toOpencodePermissionKey(category)] = value;
     }
 

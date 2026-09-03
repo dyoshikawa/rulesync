@@ -16,6 +16,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -499,7 +500,7 @@ export class ZedPermissions extends ToolPermissions {
     const existingTools = asRecord(toolPermissions.tools);
 
     const { managedDefault, managedTools, excludedCategories, inertMcpCategories } =
-      buildZedToolPermissions({ permission: config.permission, logger });
+      buildZedToolPermissions({ permission: honorAllToolsOnBash(config.permission), logger });
 
     if (excludedCategories.length > 0) {
       logger?.warn(

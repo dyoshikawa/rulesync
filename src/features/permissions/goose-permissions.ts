@@ -11,6 +11,7 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -267,7 +268,7 @@ function convertRulesyncToGoosePermissionConfig({
 
   // Apply `edit` after `write` so the shared `developer__text_editor` mapping
   // resolves deterministically to `edit`, consistent with the import direction.
-  const orderedEntries = Object.entries(config.permission).toSorted(
+  const orderedEntries = Object.entries(honorAllToolsOnBash(config.permission)).toSorted(
     ([a], [b]) => (a === "edit" ? 1 : 0) - (b === "edit" ? 1 : 0),
   );
 

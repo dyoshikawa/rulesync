@@ -11,6 +11,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -400,7 +401,7 @@ function convertRulesyncToJunieRules({
 }): Record<string, JunieRuleSet> {
   const ruleLists: Partial<Record<JunieRuleGroup, JunieRule[]>> = {};
 
-  for (const [category, patterns] of Object.entries(config.permission)) {
+  for (const [category, patterns] of Object.entries(honorAllToolsOnBash(config.permission))) {
     const group = CANONICAL_TO_JUNIE_GROUP[category];
     if (!group) {
       if (Object.keys(patterns).length > 0) {

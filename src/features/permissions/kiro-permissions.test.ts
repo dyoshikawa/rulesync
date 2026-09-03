@@ -362,4 +362,25 @@ describe("KiroPermissions", () => {
     const content = JSON.parse(kiroPermissions.getFileContent());
     expect(content.allowedTools).toEqual(["read"]);
   });
+
+  it("should not auto-approve a bash allow that an all-tools deny covers", async () => {
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {
+            "*": { "rm *": "deny" },
+            bash: { "rm *": "allow", "git *": "allow" },
+          },
+        }),
+      }),
+    });
+
+    const shell = JSON.parse(kiroPermissions.getFileContent()).toolsSettings.shell;
+    expect(shell.allowedCommands).toEqual(["git *"]);
+    expect(shell.deniedCommands).toEqual(["rm *"]);
+  });
 });

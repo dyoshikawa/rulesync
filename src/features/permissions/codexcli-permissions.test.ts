@@ -1467,6 +1467,25 @@ command = "node"
     expect(content).toContain('decision = "forbidden"');
   });
 
+  it("should not auto-approve a bash allow that an all-tools deny covers", () => {
+    const rulesFile = createCodexcliBashRulesFile({
+      outputRoot: testDir,
+      config: {
+        permission: {
+          "*": { "rm *": "deny" },
+          bash: { "rm *": "allow", "git status": "allow" },
+        },
+      },
+    });
+
+    const content = rulesFile.getFileContent();
+    expect(content).toContain('pattern = ["git", "status"]');
+    expect(content).toContain('decision = "allow"');
+    expect(content).toContain('pattern = ["rm", "*"]');
+    expect(content).toContain('decision = "forbidden"');
+    expect(content).not.toMatch(/pattern = \["rm", "\*"\][\s\S]*decision = "allow"/);
+  });
+
   describe("codexcli override (approval_policy / sandbox_mode / apps)", () => {
     it("authors override keys as top-level config.toml keys on generate", async () => {
       const logger = createMockLogger();

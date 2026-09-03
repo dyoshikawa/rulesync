@@ -404,6 +404,28 @@ describe("RooPermissions", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("withholds a bash allow that an all-tools deny covers, and warns about skipped categories", async () => {
+      const logger = createMockLogger();
+
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          "*": { "rm *": "deny" },
+          bash: { "rm *": "allow", "git *": "allow" },
+          read: { ".env": "deny" },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json[ALLOWED_KEY]).toEqual(["git *"]);
+      expect(json[DENIED_KEY]).toEqual(["rm *", "rm "]);
+      const warning = logger.warn.mock.calls.map(([message]) => String(message)).join("\n");
+      expect(warning).toContain("Roo Code");
+      expect(warning).toContain("read");
+      expect(warning).toContain("rm *");
+    });
+
     it("leaves hand-authored command lists untouched when no bash category is stated", async () => {
       await writeSettings(testDir, { [ALLOWED_KEY]: ["git "], "editor.tabSize": 2 });
 

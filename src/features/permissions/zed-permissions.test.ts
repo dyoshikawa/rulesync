@@ -265,6 +265,20 @@ describe("ZedPermissions", () => {
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('pattern "src/**"'));
     });
 
+    it("should not auto-approve a bash allow that an all-tools deny covers", async () => {
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          "*": { "rm *": "deny" },
+          bash: { "rm *": "allow", "git *": "allow" },
+        }),
+      });
+
+      const tools = JSON.parse(permissions.getFileContent()).agent.tool_permissions.tools;
+      expect(tools.terminal.always_allow).toEqual([{ pattern: "git *", case_sensitive: false }]);
+      expect(tools.terminal.always_deny).toEqual([{ pattern: "rm *", case_sensitive: false }]);
+    });
+
     it("should replace the stale tools['*'] entry older versions wrote for the * category", async () => {
       await writeFileContent(
         join(testDir, ".zed", "settings.json"),

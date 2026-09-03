@@ -16,6 +16,7 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -458,7 +459,7 @@ function buildGrokPermissionArrays(
   // Map each managed entry to a single action; on collision keep the strictest
   // (and warn), so no entry ends up contradictorily in two arrays.
   const ranked = new Map<string, PermissionAction>();
-  for (const [category, rules] of Object.entries(config.permission)) {
+  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     for (const [pattern, action] of Object.entries(rules)) {
       const entry = buildGrokEntry(category, pattern);
       if (entry === null) {
