@@ -1414,6 +1414,43 @@ describe("RulesProcessor", () => {
         expect.stringContaining("will re-add content already folded from"),
       );
     });
+
+    it("should not emit loadRulesyncFiles's 'no root rule found' warning, since this runs before the imported root file is written", async () => {
+      // `rulesync import` calls this before writing the imported root file to
+      // `.rulesync/rules/`, so at this point no rule targets codexcli yet —
+      // that's expected and not something to warn about here. A rule for an
+      // unrelated tool is present so `loadRulesyncFiles`'s "no root rule
+      // found" check (which fires whenever `.rulesync/rules/` is non-empty
+      // but has no root targeting this tool) would otherwise trip.
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "other-tool-root.md"),
+        `---\nroot: true\ntargets: ["cursor"]\n---\n# Overview\n`,
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("No root rulesync rule file found"),
+      );
+    });
+
+    it("should not throw on a pre-existing localRoot misconfiguration targeting this tool", async () => {
+      // `loadRulesyncFiles` throws when a `localRoot: true` rule exists for
+      // this target without an accompanying `root: true` rule. That
+      // validation is for `generate`-time correctness; a fold-duplication
+      // check during `import` must not fail the whole import over it.
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "orphaned-local-root.md"),
+        `---\nroot: false\nlocalRoot: true\ntargets: ["codexcli"]\n---\nlocal body\n`,
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await expect(processor.warnForFoldImportDuplicationRisk()).resolves.toBeUndefined();
+    });
   });
 
   describe("loadToolFiles with forDeletion: true", () => {

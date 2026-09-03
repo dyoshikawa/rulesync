@@ -2003,6 +2003,31 @@ As this project's AI coding tool, you must follow the additional conventions bel
   }
 
   /**
+   * Load and merge rulesync rule files from every configured input root's
+   * `.rulesync/rules/` directory, by relative path, so that a rule with the
+   * same target path from a later root replaces the earlier root's copy
+   * (case-insensitive, matching the intra-root collision handling).
+   *
+   * This is the side-effect-free half of `loadRulesyncFiles`: it does not
+   * warn about a missing root rule or validate `localRoot` placement, so it
+   * is also safe to call from code paths — like
+   * `warnForFoldImportDuplicationRisk` — that only need the merged rule set
+   * and must not trigger `loadRulesyncFiles`'s generate-time checks.
+   */
+  private async loadMergedRulesyncRules(): Promise<RulesyncRule[]> {
+    const perRoot = await Promise.all(
+      this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
+    );
+
+    return mergeByCaseInsensitiveIdentity({
+      perRoot,
+      identity: (rule) => rule.getRelativeFilePath(),
+      artifactName: "rule",
+      logger: this.logger,
+    });
+  }
+
+  /**
    * Implementation of abstract method from FeatureProcessor
    * Load and parse rulesync rule files from every configured input root's
    * `.rulesync/rules/` directory, merging by relative path so that a rule
@@ -2010,16 +2035,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
    * copy (case-insensitive, matching the intra-root collision handling).
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
-    const perRoot = await Promise.all(
-      this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
-    );
-
-    const rulesyncRules = mergeByCaseInsensitiveIdentity({
-      perRoot,
-      identity: (rule) => rule.getRelativeFilePath(),
-      artifactName: "rule",
-      logger: this.logger,
-    });
+    const rulesyncRules = await this.loadMergedRulesyncRules();
 
     const factory = this.getFactory(this.toolTarget);
 
@@ -2165,6 +2181,13 @@ As this project's AI coding tool, you must follow the additional conventions bel
    * it has confirmed there is something to import) — `loadToolFiles` is also
    * the entry point for `rulesync convert` and `rulesync fetch`, neither of
    * which writes to `.rulesync/rules/` or carries this duplication risk.
+   *
+   * Reads via `loadMergedRulesyncRules` rather than `loadRulesyncFiles`
+   * deliberately: this runs before the imported root file is written, so
+   * `.rulesync/rules/` never yet has a root rule targeting this tool, and
+   * `loadRulesyncFiles`'s "no root rule found" warning and `localRoot`
+   * validation (which can throw) would fire spuriously on every fold-tool
+   * import — including ones where nothing is actually misconfigured.
    */
   async warnForFoldImportDuplicationRisk(): Promise<void> {
     const factory = this.getFactory(this.toolTarget);
@@ -2172,9 +2195,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
       return;
     }
 
-    const rulesyncFiles = await this.loadRulesyncFiles();
-    const nonRootRules = rulesyncFiles.filter(
-      (file): file is RulesyncRule => file instanceof RulesyncRule && !file.getFrontmatter().root,
+    const mergedRules = await this.loadMergedRulesyncRules();
+    const nonRootRules = mergedRules.filter(
+      (rule) => !rule.getFrontmatter().root && factory.class.isTargetedByRulesyncRule(rule),
     );
     if (nonRootRules.length === 0) {
       return;
