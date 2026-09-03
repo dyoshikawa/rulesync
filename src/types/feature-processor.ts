@@ -155,8 +155,15 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
    * This only deletes files that are no longer in the rulesync source, not files that will be overwritten.
    */
   async removeOrphanAiFiles(existingFiles: AiFile[], generatedFiles: AiFile[]): Promise<number> {
-    const generatedPaths = new Set(generatedFiles.map((f) => f.getFilePath()));
-    const orphanFiles = existingFiles.filter((f) => !generatedPaths.has(f.getFilePath()));
+    // Case-folded so a rename that only changes case (e.g. `my-skill.md` ->
+    // `My-Skill.md`) is not treated as deleting one file and creating another:
+    // on a case-insensitive filesystem the write already landed on the
+    // existing path, and comparing exactly would classify it as an orphan and
+    // delete the file that was just (re)written.
+    const generatedPaths = new Set(generatedFiles.map((f) => caseFoldIdentity(f.getFilePath())));
+    const orphanFiles = existingFiles.filter(
+      (f) => !generatedPaths.has(caseFoldIdentity(f.getFilePath())),
+    );
 
     for (const aiFile of orphanFiles) {
       const filePath = aiFile.getFilePath();

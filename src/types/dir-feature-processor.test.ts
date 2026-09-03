@@ -210,6 +210,24 @@ describe("DirFeatureProcessor", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("should not treat a case-only rename as an orphan", async () => {
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+      });
+
+      // On a case-insensitive filesystem, renaming `my-skill` to `My-Skill`
+      // writes the generated directory over the existing one, so the existing
+      // path here is not actually a leftover from the old spelling.
+      const existingDirs = [createMockDir({ dirPath: "/path/to/my-skill" })];
+      const generatedDirs = [createMockDir({ dirPath: "/path/to/My-Skill" })];
+
+      const count = await processor.removeOrphanAiDirs(existingDirs, generatedDirs);
+
+      expect(count).toBe(0);
+      expect(removeDirectory).not.toHaveBeenCalled();
+    });
+
     it("should strip control characters from the deletion log", async () => {
       const logger = createMockLogger();
       const processor = new TestDirProcessor({ logger, outputRoot: "/path/to" });

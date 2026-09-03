@@ -28,6 +28,7 @@ import { type Logger, warnOnceWithFallback } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { hasIncompleteCarriedFiles } from "../utils/warned-once.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
+import { caseFoldIdentity } from "./feature-processor.js";
 import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolTarget } from "./tool-targets.js";
 
@@ -281,7 +282,11 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
    * This only deletes directories that are no longer in the rulesync source, not directories that will be overwritten.
    */
   async removeOrphanAiDirs(existingDirs: AiDir[], generatedDirs: AiDir[]): Promise<number> {
-    const generatedPaths = new Set(generatedDirs.map((d) => d.getDirPath()));
+    // Case-folded for the same reason as `removeOrphanAiFiles`: on a
+    // case-insensitive filesystem, renaming a directory only by case still
+    // writes into the existing directory, and comparing paths exactly would
+    // otherwise classify it as an orphan and delete what was just generated.
+    const generatedPaths = new Set(generatedDirs.map((d) => caseFoldIdentity(d.getDirPath())));
     // A set, so two candidates that report the same directory delete it once
     // and are counted once.
     const orphanPaths = new Set<string>();
@@ -351,7 +356,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         continue;
       }
 
-      if (!generatedPaths.has(dirPath)) {
+      if (!generatedPaths.has(caseFoldIdentity(dirPath))) {
         orphanPaths.add(dirPath);
       }
     }
