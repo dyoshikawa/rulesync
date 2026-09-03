@@ -1451,6 +1451,32 @@ describe("RulesProcessor", () => {
 
       await expect(processor.warnForFoldImportDuplicationRisk()).resolves.toBeUndefined();
     });
+
+    it("should not warn about fold duplication for a localRoot rule in global mode, since generate ignores localRoot there", async () => {
+      // `loadRulesyncFiles`'s global-mode branch excludes `localRoot: true`
+      // rules from `nonRootRules` because `generate` ignores `localRoot`
+      // entirely in global mode, so such a rule is never actually folded
+      // into the global root output. This check must mirror that exclusion.
+      expect(globalFoldTargets).toContain("codexcli");
+
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "orphaned-local-root.md"),
+        `---\nroot: false\nlocalRoot: true\ntargets: ["codexcli"]\n---\nlocal body\n`,
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+        global: true,
+      });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("will re-add content already folded from"),
+      );
+    });
   });
 
   describe("loadToolFiles with forDeletion: true", () => {

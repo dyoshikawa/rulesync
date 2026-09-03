@@ -2188,6 +2188,12 @@ As this project's AI coding tool, you must follow the additional conventions bel
    * `loadRulesyncFiles`'s "no root rule found" warning and `localRoot`
    * validation (which can throw) would fire spuriously on every fold-tool
    * import — including ones where nothing is actually misconfigured.
+   *
+   * In global mode, a `localRoot: true` rule is excluded from the
+   * duplication check the same way `loadRulesyncFiles`'s global-mode branch
+   * excludes it from `nonRootRules`: `generate` ignores `localRoot` entirely
+   * in global mode, so such a rule is never actually folded into the global
+   * root output and warning about it here would be inaccurate.
    */
   async warnForFoldImportDuplicationRisk(): Promise<void> {
     const factory = this.getFactory(this.toolTarget);
@@ -2197,7 +2203,10 @@ As this project's AI coding tool, you must follow the additional conventions bel
 
     const mergedRules = await this.loadMergedRulesyncRules();
     const nonRootRules = mergedRules.filter(
-      (rule) => !rule.getFrontmatter().root && factory.class.isTargetedByRulesyncRule(rule),
+      (rule) =>
+        !rule.getFrontmatter().root &&
+        (!this.global || !rule.getFrontmatter().localRoot) &&
+        factory.class.isTargetedByRulesyncRule(rule),
     );
     if (nonRootRules.length === 0) {
       return;
