@@ -96,19 +96,129 @@ export type SharedConfigJsoncParseErrorsPolicy = "tolerate" | "error";
  *
  * Dates are the one object the YAML and TOML parsers produce that is not a
  * mapping, so they are passed through rather than flattened into `{}`.
+ *
+ * The rebuild is bounded, because a YAML alias makes one parsed container
+ * reachable from many keys and every alias is copied out independently (the
+ * writers dump with `noRefs: true`, so memoizing here would only move the
+ * blowup into serialization). A small "alias bomb" of nested anchors would
+ * otherwise cost exponential time and memory, and a self-referencing anchor
+ * would recurse until the stack overflowed — both reachable from a config
+ * file committed to a cloned repository. The walk therefore charges every
+ * value against {@link MAX_SHARED_CONFIG_VALUES}, every string and key
+ * against {@link MAX_SHARED_CONFIG_STRING_CHARS}, caps nesting at
+ * {@link MAX_SHARED_CONFIG_DEPTH}, and refuses a reference back to an
+ * ancestor outright, each with a clear error instead of a hang or a crash.
  */
 function sanitizeSharedConfigValue(value: unknown): unknown {
+  return sanitizeSharedConfigValueBounded(value, {
+    ancestors: new WeakSet(),
+    valuesRemaining: MAX_SHARED_CONFIG_VALUES,
+    stringCharsRemaining: MAX_SHARED_CONFIG_STRING_CHARS,
+    depth: 0,
+  });
+}
+
+/**
+ * Upper bound on the number of values a shared config document may expand
+ * to once every YAML alias is written out. Real config files hold a few
+ * hundred values at most; even a large MCP server catalog stays orders of
+ * magnitude below the limit.
+ */
+export const MAX_SHARED_CONFIG_VALUES = 100_000;
+
+/**
+ * Upper bound on the total character count of the string leaves and keys a
+ * shared config document may expand to. The value budget bounds how many
+ * values are visited, but one long string aliased thousands of times fits
+ * that budget while the duplicated output balloons; charging every visited
+ * string's length separately bounds the output regardless of alias count.
+ */
+export const MAX_SHARED_CONFIG_STRING_CHARS = 4_000_000;
+
+/**
+ * Upper bound on how many containers deep a shared config document may nest.
+ * A chain of aliases that each wrap the previous one is deep rather than
+ * wide, so it overflows the call stack long before either budget above
+ * trips; capping depth well below that point keeps the failure a clear error.
+ */
+export const MAX_SHARED_CONFIG_DEPTH = 64;
+
+const ALIAS_HINT = "(a chain of YAML aliases may be amplifying the document)";
+
+type SanitizeWalk = {
+  /**
+   * Containers on the current descent path. A reference back to one of them
+   * (a YAML anchor that aliases its own ancestor) is a cycle no output format
+   * can represent, so it is refused rather than walked until the stack
+   * overflows.
+   */
+  ancestors: WeakSet<object>;
+  valuesRemaining: number;
+  stringCharsRemaining: number;
+  depth: number;
+};
+
+function chargeSharedConfigChars(walk: SanitizeWalk, chars: number): void {
+  walk.stringCharsRemaining -= chars;
+  if (walk.stringCharsRemaining < 0) {
+    throw new Error(
+      `Shared config's string values expand to more than ${MAX_SHARED_CONFIG_STRING_CHARS} characters; refusing to process it ${ALIAS_HINT}`,
+    );
+  }
+}
+
+function enterSharedConfigContainer(walk: SanitizeWalk, container: object): void {
+  if (walk.ancestors.has(container)) {
+    throw new Error(
+      "Shared config contains a value that refers back to itself (a circular YAML alias); refusing to process it",
+    );
+  }
+  walk.depth += 1;
+  if (walk.depth > MAX_SHARED_CONFIG_DEPTH) {
+    throw new Error(
+      `Shared config nests more than ${MAX_SHARED_CONFIG_DEPTH} levels deep; refusing to process it ${ALIAS_HINT}`,
+    );
+  }
+  walk.ancestors.add(container);
+}
+
+function leaveSharedConfigContainer(walk: SanitizeWalk, container: object): void {
+  walk.ancestors.delete(container);
+  walk.depth -= 1;
+}
+
+function sanitizeSharedConfigValueBounded(value: unknown, walk: SanitizeWalk): unknown {
+  walk.valuesRemaining -= 1;
+  if (walk.valuesRemaining < 0) {
+    throw new Error(
+      `Shared config expands to more than ${MAX_SHARED_CONFIG_VALUES} values; refusing to process it ${ALIAS_HINT}`,
+    );
+  }
+  if (typeof value === "string") {
+    chargeSharedConfigChars(walk, value.length);
+    return value;
+  }
   if (Array.isArray(value)) {
-    return value.map(sanitizeSharedConfigValue);
+    enterSharedConfigContainer(walk, value);
+    const items = value.map((item) => sanitizeSharedConfigValueBounded(item, walk));
+    leaveSharedConfigContainer(walk, value);
+    return items;
   }
   if (value === null || typeof value !== "object" || value instanceof Date) {
     return value;
   }
+  enterSharedConfigContainer(walk, value);
   const result: SharedConfigDocument = {};
   for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    // A mapping key can itself be an alias, so it is charged like a string
+    // leaf; the value under a dropped pollution key is still walked so the
+    // key cannot hide an unbudgeted alias chain.
+    chargeSharedConfigChars(walk, key.length);
+    const sanitized = sanitizeSharedConfigValueBounded(nested, walk);
     if (isPrototypePollutionKey(key)) continue;
-    result[key] = sanitizeSharedConfigValue(nested);
+    result[key] = sanitized;
   }
+  leaveSharedConfigContainer(walk, value);
   return result;
 }
 
@@ -167,7 +277,15 @@ export function parseSharedConfig({
   // leaves the parser holding an object whose prototype is the injected value,
   // which `isPlainObject` rejects — and coercing that to `{}` would throw away
   // every setting the file visibly states next to it.
-  const sanitized = sanitizeSharedConfigValue(parsed);
+  let sanitized: unknown;
+  try {
+    sanitized = sanitizeSharedConfigValue(parsed);
+  } catch (error) {
+    // An alias bomb or circular alias is refused by the sanitizer rather than
+    // the parser, but it is still the file that is at fault, so it carries the
+    // same path prefix as a syntax error.
+    throw new Error(`Failed to parse shared config${at}: ${formatError(error)}`, { cause: error });
+  }
   if (!isPlainObject(sanitized)) {
     if (invalidRootPolicy === "error") {
       throw new Error(`Failed to parse shared config${at}: expected a mapping at the root`);
