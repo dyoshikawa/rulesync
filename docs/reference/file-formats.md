@@ -1703,4 +1703,23 @@ For Reasonix, this generates `permissions.allow`, `permissions.ask`, and `permis
 >
 > The retired `[[plugins]].trusted_read_only_tools` MCP read-only trust list is per-plugin (an array-of-tables shared with the MCP feature) and is not covered by this override.
 
+For Devin Local, this generates the `permissions.allow`, `permissions.ask`, and `permissions.deny` arrays of the shared `.devin/config.json` (project mode) or `~/.config/devin/config.json` (global mode) — the same file the hooks feature patches (MCP moved out to `mcp_config.json` in v3000.3). Entries are Devin's scope matchers: `read` → `Read(<glob>)`, `write`/`edit` → `Write(<glob>)`, `bash` → `Exec(<prefix>)`, `webfetch` → `Fetch(<pattern>)`, plus `mcp__server__tool` names passed through verbatim. A `*` pattern collapses to the bare scope (`Exec`). Devin evaluates the arrays with `deny` > `ask` > `allow` precedence, so a deny rule always wins; on import `Write` maps back to `write`, so `edit` rules round-trip as `write`. Only the `permissions` key is rewritten — every other key is preserved and the file is never deleted. See the [Devin permissions reference](https://docs.devin.ai/cli/reference/permissions).
+
+> **Devin-only override (`devin` key):** the sibling top-level `sandbox` block decides what a permitted command may _reach_ rather than which commands are permitted, so it has no canonical category: `allowed_domains` / `denied_domains` (proxy domain patterns, deny beating allow), `network_mode` (`full` allows every HTTP method, `limited` only GET/HEAD/OPTIONS) and `excluded` (`allow` / `ask` / `deny` lists of `Exec(...)` matchers naming the commands that run _outside_ the sandbox). Author it through a tool-scoped `devin` override; it is shallow-merged into the `sandbox` object at its top level, so the override's keys win while sibling keys you set directly are preserved, and the whole block round-trips back into the override on import. Devin documents `sandbox` as a **User Config Only** key, so it is written in global mode only — at project scope it is dropped with a warning rather than written into a file Devin would ignore. The block only takes effect when Devin runs with `--sandbox`.
+>
+> ```json
+> {
+>   "permission": { "bash": { "git status *": "allow" } },
+>   "devin": {
+>     "sandbox": {
+>       "allowed_domains": ["github.com", "**.npmjs.org"],
+>       "network_mode": "limited",
+>       "excluded": { "allow": ["Exec(git status *)"], "deny": ["Exec(git tag *)"] }
+>     }
+>   }
+> }
+> ```
+>
+> See the [Devin sandbox docs](https://docs.devin.ai/cli/sandbox) and the [config-file reference](https://docs.devin.ai/cli/reference/configuration/config-file).
+
 > **Note: Interaction with deprecated ignore feature.** Both the ignore feature and the permissions feature can manage `Read` tool deny entries in `.claude/settings.json`. When both features configure the `Read` tool, the **permissions feature takes precedence** and a warning is emitted. Migrate the ignore patterns to `read` deny rules in `.rulesync/permissions.jsonc`, then remove `ignore` from the project features and delete the obsolete ignore source.

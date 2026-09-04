@@ -1512,7 +1512,9 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     format: "json",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+      // `sandbox` is a User Config Only key upstream, so the permissions feature
+      // owns it here and nowhere else; the project file above must not list it.
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions", "sandbox"] },
     },
   },
   // Muse Code user settings (`~/.config/muse/settings.json`): mcp is its only

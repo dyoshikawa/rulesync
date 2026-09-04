@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { DevinPermissions } from "./devin-permissions.js";
@@ -134,6 +135,76 @@ describe("DevinPermissions", () => {
       expect(parsed.permissions.allow).toContain("Read(src/**)");
     });
 
+    it("should write the devin.sandbox override into the global config.json", async () => {
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: {
+            sandbox: {
+              allowed_domains: ["github.com"],
+              network_mode: "limited",
+              excluded: { allow: ["Exec(git status *)"], deny: ["Exec(git tag *)"] },
+            },
+          },
+        }),
+        global: true,
+        logger,
+      });
+
+      const parsed = JSON.parse(perms.getFileContent());
+      expect(parsed.sandbox).toEqual({
+        allowed_domains: ["github.com"],
+        network_mode: "limited",
+        excluded: { allow: ["Exec(git status *)"], deny: ["Exec(git tag *)"] },
+      });
+      expect(parsed.permissions.allow).toEqual(["Read(src/**)"]);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should shallow-merge the devin.sandbox override over sibling keys already in the file", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "config.json"),
+        JSON.stringify({ sandbox: { denied_domains: ["evil.example.com"], network_mode: "full" } }),
+      );
+
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: { sandbox: { network_mode: "limited" } },
+        }),
+        global: true,
+      });
+
+      const parsed = JSON.parse(perms.getFileContent());
+      // The override wins on the key it states; the sibling key survives.
+      expect(parsed.sandbox).toEqual({
+        denied_domains: ["evil.example.com"],
+        network_mode: "limited",
+      });
+    });
+
+    it("should drop the devin.sandbox override at project scope with a warning", async () => {
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: { sandbox: { network_mode: "limited" } },
+        }),
+        logger,
+      });
+
+      const parsed = JSON.parse(perms.getFileContent());
+      expect(parsed.sandbox).toBeUndefined();
+      expect(parsed.permissions.allow).toEqual(["Read(src/**)"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("user config only"));
+    });
+
     it("should write to the global config.json path", async () => {
       const perms = await DevinPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -170,6 +241,41 @@ describe("DevinPermissions", () => {
       expect(parsed.permission.bash.rm).toBe("deny");
       expect(parsed.permission.write["*.lock"]).toBe("deny");
       expect(parsed.permission.webfetch["domain:npmjs.org"]).toBe("ask");
+    });
+
+    it("should route the sandbox block into the devin override", () => {
+      const perms = new DevinPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".config/devin",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Read(src/**)"] },
+          sandbox: {
+            allowed_domains: ["github.com"],
+            excluded: { ask: ["Exec(git push *)"] },
+          },
+        }),
+      });
+
+      const parsed = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(parsed.devin).toEqual({
+        sandbox: {
+          allowed_domains: ["github.com"],
+          excluded: { ask: ["Exec(git push *)"] },
+        },
+      });
+      expect(parsed.permission.read).toEqual({ "src/**": "allow" });
+    });
+
+    it("should not emit a devin override when the config has no sandbox block", () => {
+      const perms = new DevinPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({ permissions: { allow: ["Read(src/**)"] } }),
+      });
+
+      expect(JSON.parse(perms.toRulesyncPermissions().getFileContent()).devin).toBeUndefined();
     });
 
     it("should skip prototype-pollution keys when importing", () => {

@@ -98,6 +98,10 @@ function buildDevinPermissionEntry(scope: string, pattern: string): string {
   return `${scope}(${pattern})`;
 }
 
+function asDevinRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? { ...value } : {};
+}
+
 /**
  * Permissions generator for Devin Local (native `.devin/` configuration).
  *
@@ -116,7 +120,14 @@ function buildDevinPermissionEntry(scope: string, pattern: string): string {
  * merge into the existing JSON and the file is never deleted; only the managed
  * `permissions` key is rewritten.
  *
+ * The sibling `sandbox` block — which decides what a permitted command may
+ * reach rather than which commands are permitted — has no canonical category
+ * and is authored through the `devin` override in `.rulesync/permissions.jsonc`.
+ * Devin documents it as a user-config-only key, so it is written at global
+ * scope only.
+ *
  * @see https://docs.devin.ai/cli/reference/permissions
+ * @see https://docs.devin.ai/cli/sandbox
  */
 export class DevinPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -171,6 +182,7 @@ export class DevinPermissions extends ToolPermissions {
     rulesyncPermissions,
     global = false,
     validate = true,
+    logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<DevinPermissions> {
     const paths = DevinPermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -213,6 +225,27 @@ export class DevinPermissions extends ToolPermissions {
     if (mergedDeny.length > 0) mergedPermissions.deny = mergedDeny;
     else delete mergedPermissions.deny;
 
+    const patch: Record<string, unknown> = { permissions: mergedPermissions };
+
+    // The `devin` override's `sandbox` block. Shallow-merged at its top level so
+    // the override's keys win while sibling keys the user set directly are kept.
+    // Devin lists `sandbox` as a User Config Only key, so a project config that
+    // stated it would simply be ignored — drop it with a warning instead.
+    const authoredSandbox = config.devin?.sandbox;
+    if (authoredSandbox !== undefined) {
+      if (global) {
+        patch.sandbox = {
+          ...asDevinRecord(settings.sandbox),
+          ...asDevinRecord(authoredSandbox),
+        };
+      } else {
+        logger?.warn(
+          "Devin reads 'sandbox' from the user config only, so the 'devin.sandbox' override was " +
+            "dropped from the project config. Generate with --global to author it.",
+        );
+      }
+    }
+
     return new DevinPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
@@ -221,7 +254,7 @@ export class DevinPermissions extends ToolPermissions {
         fileKey: sharedConfigFileKey(paths),
         feature: "permissions",
         existingContent,
-        patch: { permissions: mergedPermissions },
+        patch,
         filePath,
       }),
       validate,
@@ -249,8 +282,17 @@ export class DevinPermissions extends ToolPermissions {
       deny: Array.isArray(permissions.deny) ? permissions.deny : [],
     });
 
+    // Route the `sandbox` block into the `devin` override — it has no canonical
+    // category. The whole block round-trips, so a key the override did not
+    // author is pulled in on the next import rather than being lost.
+    const sandbox = asDevinRecord(settings.sandbox);
+    const result: Record<string, unknown> = { ...config };
+    if (Object.keys(sandbox).length > 0) {
+      result.devin = { sandbox };
+    }
+
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify(config, null, 2),
+      fileContent: JSON.stringify(result, null, 2),
     });
   }
 
