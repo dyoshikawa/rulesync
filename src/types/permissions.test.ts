@@ -247,5 +247,20 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
       );
       expect(result.success).toBe(true);
     });
+
+    it("devin.sandbox accepts arbitrary values (Devin keeps adding sandbox keys)", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({
+          devin: {
+            sandbox: {
+              network_mode: "anything",
+              excluded: "not-an-object",
+              some_future_key: { nested: 1 },
+            },
+          },
+        }),
+      );
+      expect(result.success).toBe(true);
+    });
   });
 });

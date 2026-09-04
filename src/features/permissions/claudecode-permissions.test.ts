@@ -1785,7 +1785,7 @@ describe("ClaudecodePermissions", () => {
       // "review this as you would a hook" advice per key buries them.
       expect(warnSpy).toHaveBeenCalledTimes(1);
       const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain("writing 4 trust-affecting settings to settings.json");
+      expect(message).toContain("writing 4 trust-affecting settings to .claude/settings.json");
       expect(message).toContain(`'permissions.defaultMode: "acceptEdits"' —`);
       expect(message).toContain("'sandbox.enabled' —");
       expect(message).toContain("'sandbox.network.allowedDomains' —");
@@ -1812,8 +1812,34 @@ describe("ClaudecodePermissions", () => {
 
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          "writing 1 trust-affecting setting to settings.json; review it as you would a hook",
+          "writing 1 trust-affecting setting to .claude/settings.json; review it as you would a hook",
         ),
+      );
+    });
+
+    it("names a sandbox container that is not the object its settings live in", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          // `network` holds the sandbox's host and proxy settings. Written as a
+          // string none of them can be read, and going quiet would claim the
+          // write cannot loosen anything.
+          claudecode: { sandbox: { network: "off" } },
+        }),
+      });
+
+      await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'sandbox.network' — is not the object it has to be"),
       );
     });
 

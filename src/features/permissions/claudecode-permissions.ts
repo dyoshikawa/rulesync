@@ -6,9 +6,10 @@ import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import { isRecord } from "../../utils/type-guards.js";
 import {
   applyPermissions,
   CLAUDE_SETTINGS_SHARED_FILE_KEY,
@@ -16,6 +17,17 @@ import {
   SHARED_CONFIG_OWNERSHIP,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import {
+  collectTrustAffectingSandboxPaths,
+  isNonEmptyList,
+  isNonEmptyMap,
+  isNotFalse,
+  isNotTrue,
+  readSandboxPath,
+  type TrustAffectingEntry,
+  type TrustAffectingSandboxPath,
+  warnOnTrustAffectingEntries,
+} from "./sandbox-trust.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY } from "./shell-command-categories.js";
 import {
   ToolPermissions,
@@ -76,20 +88,6 @@ function parseClaudePermissionEntry(entry: string): { toolName: string; pattern:
 }
 
 /**
- * Claude Code's file permission checks match only `Edit(path)` and `Read(path)`
- * rules. A `Write(path)`, `NotebookEdit(path)` or `Glob(path)` rule "is accepted
- * but never matched by those checks, so Claude Code warns at startup for each
- * allow, deny, or ask rule in one of these unmatched forms" — so a canonical
- * `write`/`notebookedit`/`glob` rule with a pattern is emitted in the form the
- * docs prescribe instead. A tool-name rule with no path is unaffected: it
- * matches the tool everywhere and produces no warning.
- * @see https://code.claude.com/docs/en/permissions
- */
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
  * Merge `patch` into `base`, recursing into plain objects so a sibling key at
  * any depth survives. Arrays and scalars are replaced, since a list the author
  * states is the list they mean.
@@ -102,8 +100,7 @@ function deepMergeRecords(
   for (const [key, value] of Object.entries(patch)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
     const existing = merged[key];
-    merged[key] =
-      isPlainRecord(existing) && isPlainRecord(value) ? deepMergeRecords(existing, value) : value;
+    merged[key] = isRecord(existing) && isRecord(value) ? deepMergeRecords(existing, value) : value;
   }
   return merged;
 }
@@ -180,13 +177,8 @@ function resolveSandboxParent({
   root: Record<string, unknown>;
   segments: readonly string[];
 }): Record<string, unknown> | undefined {
-  let parent: Record<string, unknown> = root;
-  for (const segment of segments) {
-    const next = parent[segment];
-    if (!isPlainRecord(next)) return undefined;
-    parent = next;
-  }
-  return parent;
+  const resolved = readSandboxPath({ sandbox: root, path: segments });
+  return isRecord(resolved) ? resolved : undefined;
 }
 
 /**
@@ -218,42 +210,6 @@ function deleteSandboxPath({
     delete holder[name];
   }
   return true;
-}
-
-/**
- * One setting this generate is about to write that widens what Claude Code
- * trusts. `label` names the setting as it appears in the target file (with the
- * value spliced in where the value is what widens), and `reason` is the verb
- * phrase that completes "it ...". They are collected rather than logged one by
- * one so a file that sets many of them produces a single summary line instead
- * of a run of near-identical warnings.
- */
-type TrustAffectingEntry = {
-  readonly label: string;
-  readonly reason: string;
-};
-
-/**
- * The one warning that names every trust-affecting setting this generate wrote
- * to `relativeFilePath`. Emitted once per file: the individual reasons are what
- * matter, but the "review this as you would a hook" framing only needs saying
- * once, and repeating it per key buries the reasons in boilerplate.
- */
-function warnOnTrustAffectingEntries({
-  entries,
-  relativeFilePath,
-  logger,
-}: {
-  entries: readonly TrustAffectingEntry[];
-  relativeFilePath: string;
-  logger?: Logger;
-}): void {
-  if (entries.length === 0) return;
-  const one = entries.length === 1;
-  const details = entries.map(({ label, reason }) => `'${label}' — ${reason}`).join("; ");
-  logger?.warn(
-    `Claude Code permissions: writing ${entries.length} trust-affecting ${one ? "setting" : "settings"} to ${relativeFilePath}; review ${one ? "it" : "them"} as you would a hook, especially if this permissions file came from 'rulesync fetch'. ${details}.`,
-  );
 }
 
 /**
@@ -318,20 +274,6 @@ const CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS: readonly (readonly string[])[]
 ];
 
 /**
- * The predicates the "which value actually widens?" tables are built from.
- * Each names the value that does *not* widen and reports everything else, never
- * the reverse: the override is authored JSONC, so a key can carry any value at
- * all, and one Claude Code coerces is still honored. Reporting an off-type value
- * keeps the warning fail-safe — silence has to mean "this cannot loosen
- * anything", not "this is not the type the table expected".
- */
-const isNotFalse = (value: unknown): boolean => value !== false;
-const isNotTrue = (value: unknown): boolean => value !== true;
-const isNonEmptyList = (value: unknown): boolean => !Array.isArray(value) || value.length > 0;
-const isNonEmptyMap = (value: unknown): boolean =>
-  !isPlainRecord(value) || Object.keys(value).length > 0;
-
-/**
  * `sandbox` paths that loosen the sandbox rather than naming something to run:
  * they let commands out of it, weaken the isolation it provides, or redirect
  * where its traffic goes. They are written like `env` is — the ordinary uses are
@@ -347,11 +289,7 @@ const isNonEmptyMap = (value: unknown): boolean =>
  *
  * @see https://code.claude.com/docs/en/sandboxing
  */
-const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
-  readonly path: readonly string[];
-  readonly reason: string;
-  readonly widens: (value: unknown) => boolean;
-}[] = [
+const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath[] = [
   {
     path: ["allowAppleEvents"],
     reason: "lets sandboxed commands send Apple Events, which removes code-execution isolation",
@@ -453,29 +391,6 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
     widens: () => true,
   },
 ];
-
-/**
- * Every authored `sandbox` path that loosens the sandbox. Nothing is removed —
- * the values are written, just not silently. Called on the filtered `sandbox`
- * so it never claims to be writing a path the scope filters dropped.
- */
-function collectTrustAffectingSandboxPaths({
-  sandbox,
-}: {
-  sandbox: Record<string, unknown>;
-}): TrustAffectingEntry[] {
-  const entries: TrustAffectingEntry[] = [];
-  for (const { path, reason, widens } of CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS) {
-    const leaf = path.at(-1);
-    if (leaf === undefined) continue;
-    const parent = resolveSandboxParent({ root: sandbox, segments: path.slice(0, -1) });
-    if (parent === undefined) continue;
-    const value = parent[leaf];
-    if (value === undefined || !widens(value)) continue;
-    entries.push({ label: `sandbox.${path.join(".")}`, reason });
-  }
-  return entries;
-}
 
 /**
  * One class of `sandbox` paths rulesync refuses to write, paired with the
@@ -580,14 +495,14 @@ function stripProjectIgnoredMaskEntries({
   logger?: Logger;
 }): Record<string, unknown> {
   const credentials = sandbox.credentials;
-  if (!isPlainRecord(credentials)) return sandbox;
+  if (!isRecord(credentials)) return sandbox;
 
   const filteredCredentials: Record<string, unknown> = { ...credentials };
   let changed = false;
   for (const listKey of CLAUDECODE_MASKABLE_CREDENTIAL_LISTS) {
     const list = filteredCredentials[listKey];
     if (!Array.isArray(list)) continue;
-    const kept = list.filter((entry) => !(isPlainRecord(entry) && entry.mode === "mask"));
+    const kept = list.filter((entry) => !(isRecord(entry) && entry.mode === "mask"));
     if (kept.length === list.length) continue;
     changed = true;
     const dropped = list.length - kept.length;
@@ -950,6 +865,16 @@ function stripUnhonoredTopLevelKeys({
   return { filtered, trustAffecting };
 }
 
+/**
+ * Claude Code's file permission checks match only `Edit(path)` and `Read(path)`
+ * rules. A `Write(path)`, `NotebookEdit(path)` or `Glob(path)` rule "is accepted
+ * but never matched by those checks, so Claude Code warns at startup for each
+ * allow, deny, or ask rule in one of these unmatched forms" — so a canonical
+ * `write`/`notebookedit`/`glob` rule with a pattern is emitted in the form the
+ * docs prescribe instead. A tool-name rule with no path is unaffected: it
+ * matches the tool everywhere and produces no warning.
+ * @see https://code.claude.com/docs/en/permissions
+ */
 const CLAUDE_PATH_RULE_ALIASES: Record<string, string> = {
   Write: "Edit",
   NotebookEdit: "Edit",
@@ -1062,7 +987,7 @@ export class ClaudecodePermissions extends ToolPermissions {
     // (`network.deniedDomains`, `filesystem.denyRead`), so replacing `network`
     // wholesale to set one flag would drop the restrictions beside it.
     const overrideSandbox = config.claudecode?.sandbox;
-    if (isPlainRecord(overrideSandbox)) {
+    if (isRecord(overrideSandbox)) {
       // A subset of `sandbox.*` is ignored in a repository's settings.json, so
       // at project scope those paths are dropped rather than committed as a
       // policy that never applies.
@@ -1085,10 +1010,15 @@ export class ClaudecodePermissions extends ToolPermissions {
           });
       // Collected from the filtered result so the summary never names a path
       // the scope filters just dropped.
-      trustAffecting.push(...collectTrustAffectingSandboxPaths({ sandbox: scopedSandbox }));
+      trustAffecting.push(
+        ...collectTrustAffectingSandboxPaths({
+          sandbox: scopedSandbox,
+          paths: CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS,
+        }),
+      );
       if (Object.keys(scopedSandbox).length > 0) {
         settings.sandbox = deepMergeRecords(
-          isPlainRecord(settings.sandbox) ? settings.sandbox : {},
+          isRecord(settings.sandbox) ? settings.sandbox : {},
           scopedSandbox,
         );
       }
@@ -1125,8 +1055,9 @@ export class ClaudecodePermissions extends ToolPermissions {
     }
 
     warnOnTrustAffectingEntries({
+      toolLabel: "Claude Code",
       entries: trustAffecting,
-      relativeFilePath: paths.relativeFilePath,
+      relativeFilePath: toPosixPath(join(paths.relativeDirPath, paths.relativeFilePath)),
       logger,
     });
 
@@ -1195,7 +1126,7 @@ export class ClaudecodePermissions extends ToolPermissions {
     // `CLAUDECODE_MANAGED_ONLY_SANDBOX_PATHS` for why keeping the author's value
     // is worth the warning it costs on every generate.
     const { sandbox } = settings;
-    if (isPlainRecord(sandbox)) {
+    if (isRecord(sandbox)) {
       const importedSandbox = structuredClone(sandbox);
       for (const path of CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS) {
         deleteSandboxPath({ target: importedSandbox, path });

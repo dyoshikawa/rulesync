@@ -1064,6 +1064,34 @@ const ZedPermissionsOverrideSchema = z.looseObject({
 export type ZedPermissionsOverride = z.infer<typeof ZedPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Devin Local. `sandbox` is the sibling
+ * top-level `config.json` block that governs the sandbox Devin runs commands
+ * in: `allowed_domains` / `denied_domains` (proxy domain patterns, deny beating
+ * allow), `network_mode` (`full`, the upstream default, allows every HTTP
+ * method; `limited` only GET/HEAD/OPTIONS) and `excluded` (`allow` / `ask` /
+ * `deny` lists of `Exec(...)` matchers deciding which commands run *outside* the
+ * sandbox — `deny` pins them inside it). It constrains how
+ * a permitted command runs rather than which commands are permitted, so it has
+ * no canonical category and is authored here.
+ *
+ * Upstream lists `sandbox` as a **User Config Only** key, so it is emitted at
+ * global scope only; at project scope it is dropped with a warning rather than
+ * written into a file Devin would ignore.
+ *
+ * @example
+ * { "sandbox": { "allowed_domains": ["github.com"], "network_mode": "limited" } }
+ * @example
+ * { "sandbox": { "excluded": { "allow": ["Exec(git status *)"], "deny": ["Exec(git tag *)"] } } }
+ * @see https://docs.devin.ai/cli/sandbox
+ * @see https://docs.devin.ai/cli/reference/configuration/config-file
+ */
+const DevinPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  sandbox: z.optional(z.looseObject({})),
+});
+export type DevinPermissionsOverride = z.infer<typeof DevinPermissionsOverrideSchema>;
+
+/**
  * Permissions configuration.
  * Keys are tool category names (e.g., "bash", "edit", "read", "webfetch").
  * Values are pattern-to-action mappings for that tool category.
@@ -1113,12 +1141,12 @@ export const PermissionsConfigSchema = z.looseObject({
   kiro: z.optional(KiroPermissionsOverrideSchema),
   codexcli: z.optional(CodexcliPermissionsOverrideSchema),
   zed: z.optional(ZedPermissionsOverrideSchema),
+  devin: z.optional(DevinPermissionsOverrideSchema),
   // Tools without tool-specific override keys still accept the canonical
   // tool-scoped `permission` block (see ToolScopedPermissionSchema).
   "antigravity-ide": z.optional(CanonicalPermissionsOverrideSchema),
   copilot: z.optional(CanonicalPermissionsOverrideSchema),
   copilotcli: z.optional(CanonicalPermissionsOverrideSchema),
-  devin: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),
   "kimi-code": z.optional(KimiCodePermissionsOverrideSchema),
