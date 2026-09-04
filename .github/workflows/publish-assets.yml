@@ -78,7 +78,9 @@ jobs:
         run: pnpm generate:schema
 
       - name: Generate repomix XML variants
-        run: bun scripts/generate-repomix-xml.ts
+        # Run under Node via tsx: repomix's tinypool worker pool crashes with
+        # "Terminating worker thread" when driven from Bun (see #2922).
+        run: pnpm exec tsx scripts/generate-repomix-xml.ts
 
       - name: Bundle XML files into zip
         run: zip repomix-xml.zip repomix-output-*.xml
