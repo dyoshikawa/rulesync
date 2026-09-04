@@ -189,14 +189,16 @@ const REASONIX_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath
  * Whether a `workspace_root` points somewhere other than inside the project the
  * generate runs in. The key moves the write confinement rather than adding to
  * it, so the ordinary value — the project directory, spelled relatively — would
- * otherwise be announced on every generate; an absolute path, a home-relative
- * one, a shell or environment expansion, or one that climbs out with `..` is
- * the case worth naming, since it is how a fetched permissions file would put
- * `~/.ssh` or `C:\\Users\\<user>` inside the jail. Both path flavours are asked,
- * because the file is authored on one machine and generated on another, so a
- * Windows-shaped root reaching a POSIX check must not read as relative. Anything
- * that is not a string is reported, per the fail-safe rule the predicates in
- * `sandbox-trust.ts` follow.
+ * otherwise be announced on every generate; anything else is the case worth
+ * naming, since it is how a fetched permissions file would put `~/.ssh` or
+ * `C:\\Users\\<user>` inside the jail: an absolute path in either flavour, one
+ * carrying a drive letter, a home-relative one, a shell or environment
+ * expansion, and any path holding a `..` segment — even one that would land back
+ * inside, since resolving it here would only be a guess at what Reasonix does.
+ * Both path flavours are asked because the file is authored on one machine and
+ * generated on another, so a Windows-shaped root reaching a POSIX check must not
+ * read as relative. Anything that is not a string is reported, per the fail-safe
+ * rule the predicates in `sandbox-trust.ts` follow.
  */
 function escapesTheProject(value: unknown): boolean {
   if (typeof value !== "string") return true;
