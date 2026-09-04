@@ -195,6 +195,86 @@ describe("ReasonixPermissions", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("should write allow_dynamic_bash = false over an existing true", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", "allow_dynamic_bash = true"].join("\n"),
+      );
+
+      const logger = createMockLogger();
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            reasonix: { allowDynamicBash: false },
+          }),
+        }),
+        logger,
+      });
+
+      // The authored value wins over the one already in the file, and closing
+      // the opt-in is a narrowing, so it lands in silence.
+      expect(
+        (smolToml.parse(instance.getFileContent()) as any).permissions.allow_dynamic_bash,
+      ).toBe(false);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should leave an existing allow_dynamic_bash that is not a boolean untouched", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", 'allow_dynamic_bash = "yes"'].join("\n"),
+      );
+
+      const logger = createMockLogger();
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+        }),
+        logger,
+      });
+
+      // Rulesync manages the key only when the override authors it; anything
+      // else in the file is the user's own and is not rewritten or reported.
+      expect(
+        (smolToml.parse(instance.getFileContent()) as any).permissions.allow_dynamic_bash,
+      ).toBe("yes");
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should round-trip allowDynamicBash through generate and import", async () => {
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            reasonix: { allowDynamicBash: true },
+          }),
+        }),
+        logger: createMockLogger(),
+      });
+
+      const imported = JSON.parse(
+        new ReasonixPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".",
+          relativeFilePath: "reasonix.toml",
+          fileContent: instance.getFileContent(),
+        })
+          .toRulesyncPermissions()
+          .getFileContent(),
+      );
+      expect(imported.reasonix.allowDynamicBash).toBe(true);
+    });
+
     it("should preserve on-disk exact entries even when the tool is managed", async () => {
       await writeFileContent(
         join(testDir, "reasonix.toml"),
@@ -460,6 +540,104 @@ describe("ReasonixPermissions", () => {
       expect(parsed.sandbox).toEqual({ bash: "enforce", network: false, allow_write: ["/tmp"] });
       expect(parsed.agent.plan_mode_read_only_commands).toEqual(["gh pr diff"]);
       expect(parsed.permissions.allow).toContain("Bash(git *)");
+    });
+
+    it("announces the [sandbox] values that loosen the enforcement layer", async () => {
+      const logger = createMockLogger();
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            reasonix: { sandbox: { bash: "off", network: true, allow_write: ["/etc"] } },
+          }),
+        }),
+        logger,
+      });
+
+      // One warning per file, naming every setting it wrote.
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("3 trust-affecting settings to reasonix.toml");
+      expect(warning).toContain("'sandbox.bash'");
+      expect(warning).toContain("'sandbox.network'");
+      expect(warning).toContain("'sandbox.allow_write'");
+    });
+
+    it("stays quiet about a [sandbox] block that only restricts", async () => {
+      const logger = createMockLogger();
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            reasonix: {
+              sandbox: {
+                bash: "enforce",
+                network: false,
+                allow_write: [],
+                forbid_read: ["/secrets"],
+                workspace_root: "/repo",
+              },
+            },
+          }),
+        }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("does not re-announce a loosening [sandbox] value only the file holds", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        smolToml.stringify({ sandbox: { bash: "off" } }),
+      );
+
+      const logger = createMockLogger();
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            reasonix: { sandbox: { network: false } },
+          }),
+        }),
+        logger,
+      });
+
+      // The `bash = "off"` is the user's own, and it survives the merge; only
+      // what this generate authored is worth naming.
+      expect((smolToml.parse(instance.getFileContent()) as any).sandbox.bash).toBe("off");
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("names the [sandbox] and [permissions] openings in a single warning", async () => {
+      const logger = createMockLogger();
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            reasonix: { allowDynamicBash: true, sandbox: { network: true } },
+          }),
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("2 trust-affecting settings to reasonix.toml");
+      expect(warning).toContain("'permissions.allow_dynamic_bash'");
+      expect(warning).toContain("'sandbox.network'");
     });
 
     it("preserves unrelated [sandbox] keys while the override sets its own", async () => {
