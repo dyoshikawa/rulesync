@@ -259,6 +259,128 @@ describe("QwencodePermissions", () => {
       expect(config.qwencode.tools).toEqual({ visible: ["WebSearch"] });
     });
 
+    it("authors and imports tools.listDirectory through the qwencode override (issue #2668)", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { listDirectory: { enabled: true } } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ listDirectory: { enabled: true } });
+
+      // And the import direction lifts it back into the override.
+      const imported = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { listDirectory: { enabled: true } } }),
+      });
+      const config = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+      expect(config.qwencode.tools).toEqual({ listDirectory: { enabled: true } });
+    });
+
+    it("authors tools.workflowsEnabled in global scope (issue #2668)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { approvalMode: "auto-edit", workflowsEnabled: true } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ approvalMode: "auto-edit", workflowsEnabled: true });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("skips tools.workflowsEnabled with a warning in project scope (issue #2668)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { approvalMode: "auto-edit", workflowsEnabled: true } },
+          }),
+        }),
+      });
+
+      // Qwen Code ignores a Workspace-scoped `workflowsEnabled`, so only the
+      // approval mode is emitted here.
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ approvalMode: "auto-edit" });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("tools.workflowsEnabled"));
+    });
+
+    it("writes no tools object when the scope gate empties the override (issue #2668)", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger: createMockLogger(),
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { workflowsEnabled: true } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).tools).toBeUndefined();
+    });
+
+    it("keeps a pre-existing project-scoped tools.workflowsEnabled untouched (issue #2668)", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ tools: { workflowsEnabled: true } }),
+      );
+
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger: createMockLogger(),
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { workflowsEnabled: false } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ workflowsEnabled: true });
+    });
+
+    it("lifts tools.workflowsEnabled back into the override on import (issue #2668)", () => {
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { workflowsEnabled: true } }),
+      });
+
+      const json = instance.toRulesyncPermissions().getJson();
+      expect(json.qwencode).toEqual({ tools: { workflowsEnabled: true } });
+    });
+
     it("preserves unrelated tools keys while the override sets its own", async () => {
       const settingsDir = join(testDir, ".qwen");
       await ensureDir(settingsDir);
