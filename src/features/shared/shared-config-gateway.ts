@@ -25,6 +25,7 @@ import {
 } from "../../constants/takt-paths.js";
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { Feature } from "../../types/features.js";
+import { type BoundedWalk, createBoundedWalk } from "../../utils/bounded-walk.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
@@ -82,6 +83,33 @@ export type SharedConfigInvalidRootPolicy = "coerce-empty" | "error";
 export type SharedConfigJsoncParseErrorsPolicy = "tolerate" | "error";
 
 /**
+ * Upper bound on the number of values a shared config document may expand
+ * to once every YAML alias is written out. Real config files hold a few
+ * hundred values at most; even a large MCP server catalog stays orders of
+ * magnitude below the limit.
+ */
+export const MAX_SHARED_CONFIG_VALUES = 100_000;
+
+/**
+ * Upper bound on the total character count of the string leaves and keys a
+ * shared config document may expand to. The value budget bounds how many
+ * values are visited, but one long string aliased thousands of times fits
+ * that budget while the duplicated output balloons; charging every visited
+ * string's length separately bounds the output regardless of alias count.
+ */
+export const MAX_SHARED_CONFIG_STRING_CHARS = 4_000_000;
+
+/**
+ * Upper bound on how many containers deep a shared config document may nest.
+ * A chain of aliases that each wrap the previous one is deep rather than
+ * wide, so it overflows the call stack long before either budget above
+ * trips; capping depth well below that point keeps the failure a clear error.
+ * The same bounds apply to JSON, JSONC and TOML files, which have no aliases
+ * to amplify them but share the walk.
+ */
+export const MAX_SHARED_CONFIG_DEPTH = 64;
+
+/**
  * Rebuild a parsed document without its prototype-pollution keys.
  *
  * Every object is rebuilt, not just the ones that are already plain: a literal
@@ -110,98 +138,44 @@ export type SharedConfigJsoncParseErrorsPolicy = "tolerate" | "error";
  * ancestor outright, each with a clear error instead of a hang or a crash.
  */
 function sanitizeSharedConfigValue(value: unknown): unknown {
-  return sanitizeSharedConfigValueBounded(value, {
-    ancestors: new WeakSet(),
-    valuesRemaining: MAX_SHARED_CONFIG_VALUES,
-    stringCharsRemaining: MAX_SHARED_CONFIG_STRING_CHARS,
-    depth: 0,
-  });
+  return sanitizeSharedConfigValueBounded(
+    value,
+    createBoundedWalk({
+      subject: "Shared config",
+      limits: {
+        maxValues: MAX_SHARED_CONFIG_VALUES,
+        maxStringChars: MAX_SHARED_CONFIG_STRING_CHARS,
+        maxDepth: MAX_SHARED_CONFIG_DEPTH,
+      },
+    }),
+  );
 }
 
 /**
- * Upper bound on the number of values a shared config document may expand
- * to once every YAML alias is written out. Real config files hold a few
- * hundred values at most; even a large MCP server catalog stays orders of
- * magnitude below the limit.
+ * Refuse a container that is already on the descent path. Unlike the
+ * frontmatter cleaner, which drops such a cycle and keeps the rest of the
+ * document, a shared config file is refused outright: silently dropping part
+ * of a user's settings file would let a later write-back persist the loss.
  */
-export const MAX_SHARED_CONFIG_VALUES = 100_000;
-
-/**
- * Upper bound on the total character count of the string leaves and keys a
- * shared config document may expand to. The value budget bounds how many
- * values are visited, but one long string aliased thousands of times fits
- * that budget while the duplicated output balloons; charging every visited
- * string's length separately bounds the output regardless of alias count.
- */
-export const MAX_SHARED_CONFIG_STRING_CHARS = 4_000_000;
-
-/**
- * Upper bound on how many containers deep a shared config document may nest.
- * A chain of aliases that each wrap the previous one is deep rather than
- * wide, so it overflows the call stack long before either budget above
- * trips; capping depth well below that point keeps the failure a clear error.
- */
-export const MAX_SHARED_CONFIG_DEPTH = 64;
-
-const ALIAS_HINT = "(a chain of YAML aliases may be amplifying the document)";
-
-type SanitizeWalk = {
-  /**
-   * Containers on the current descent path. A reference back to one of them
-   * (a YAML anchor that aliases its own ancestor) is a cycle no output format
-   * can represent, so it is refused rather than walked until the stack
-   * overflows.
-   */
-  ancestors: WeakSet<object>;
-  valuesRemaining: number;
-  stringCharsRemaining: number;
-  depth: number;
-};
-
-function chargeSharedConfigChars(walk: SanitizeWalk, chars: number): void {
-  walk.stringCharsRemaining -= chars;
-  if (walk.stringCharsRemaining < 0) {
-    throw new Error(
-      `Shared config's string values expand to more than ${MAX_SHARED_CONFIG_STRING_CHARS} characters; refusing to process it ${ALIAS_HINT}`,
-    );
-  }
-}
-
-function enterSharedConfigContainer(walk: SanitizeWalk, container: object): void {
-  if (walk.ancestors.has(container)) {
+function enterSharedConfigContainer(walk: BoundedWalk, container: object): void {
+  if (walk.isAncestor(container)) {
     throw new Error(
       "Shared config contains a value that refers back to itself (a circular YAML alias); refusing to process it",
     );
   }
-  walk.depth += 1;
-  if (walk.depth > MAX_SHARED_CONFIG_DEPTH) {
-    throw new Error(
-      `Shared config nests more than ${MAX_SHARED_CONFIG_DEPTH} levels deep; refusing to process it ${ALIAS_HINT}`,
-    );
-  }
-  walk.ancestors.add(container);
+  walk.enter(container);
 }
 
-function leaveSharedConfigContainer(walk: SanitizeWalk, container: object): void {
-  walk.ancestors.delete(container);
-  walk.depth -= 1;
-}
-
-function sanitizeSharedConfigValueBounded(value: unknown, walk: SanitizeWalk): unknown {
-  walk.valuesRemaining -= 1;
-  if (walk.valuesRemaining < 0) {
-    throw new Error(
-      `Shared config expands to more than ${MAX_SHARED_CONFIG_VALUES} values; refusing to process it ${ALIAS_HINT}`,
-    );
-  }
+function sanitizeSharedConfigValueBounded(value: unknown, walk: BoundedWalk): unknown {
   if (typeof value === "string") {
-    chargeSharedConfigChars(walk, value.length);
+    walk.chargeValue(value.length);
     return value;
   }
+  walk.chargeValue();
   if (Array.isArray(value)) {
     enterSharedConfigContainer(walk, value);
     const items = value.map((item) => sanitizeSharedConfigValueBounded(item, walk));
-    leaveSharedConfigContainer(walk, value);
+    walk.leave(value);
     return items;
   }
   if (value === null || typeof value !== "object" || value instanceof Date) {
@@ -213,12 +187,12 @@ function sanitizeSharedConfigValueBounded(value: unknown, walk: SanitizeWalk): u
     // A mapping key can itself be an alias, so it is charged like a string
     // leaf; the value under a dropped pollution key is still walked so the
     // key cannot hide an unbudgeted alias chain.
-    chargeSharedConfigChars(walk, key.length);
+    walk.chargeChars(key.length);
     const sanitized = sanitizeSharedConfigValueBounded(nested, walk);
     if (isPrototypePollutionKey(key)) continue;
     result[key] = sanitized;
   }
-  leaveSharedConfigContainer(walk, value);
+  walk.leave(value);
   return result;
 }
 

@@ -1,6 +1,7 @@
 import matter from "gray-matter";
 import { dump } from "js-yaml";
 
+import { type BoundedWalk, createBoundedWalk } from "./bounded-walk.js";
 import { stripControlCharacters } from "./control-characters.js";
 import { formatError } from "./error.js";
 import { toPosixPath } from "./file.js";
@@ -79,71 +80,12 @@ type DeepCleanOptions = {
   /** Applied to every string leaf; the default keeps strings as they are. */
   transformString?: (value: string) => string;
   /**
-   * Containers on the current descent path. A reference back to one of them
-   * (a YAML anchor that aliases its own ancestor) is a cycle and is dropped
-   * rather than walked until the stack overflows.
+   * The budgets, depth cap and descent path of this walk. A reference back
+   * to a container on the path (a YAML anchor that aliases its own ancestor)
+   * is a cycle and is dropped rather than walked until the stack overflows.
    */
-  ancestors: WeakSet<object>;
-  /** Values still allowed before the walk refuses the document. */
-  budget: { remaining: number; stringCharsRemaining: number };
-  /** Current container nesting depth, mutated as the walk descends and returns. */
-  depth: number;
+  walk: BoundedWalk;
 };
-
-/** Charge string content (a string leaf or an object key) against the character budget. */
-function chargeStringChars({ options, chars }: { options: DeepCleanOptions; chars: number }): void {
-  options.budget.stringCharsRemaining -= chars;
-  if (options.budget.stringCharsRemaining < 0) {
-    throw new Error(
-      `Frontmatter's string values expand to more than ${MAX_FRONTMATTER_STRING_CHARS} characters; refusing to process it (a chain of YAML aliases may be amplifying the document)`,
-    );
-  }
-}
-
-function consumeBudget({
-  options,
-  stringChars = 0,
-}: {
-  options: DeepCleanOptions;
-  stringChars?: number;
-}): void {
-  options.budget.remaining -= 1;
-  if (options.budget.remaining < 0) {
-    throw new Error(
-      `Frontmatter expands to more than ${MAX_FRONTMATTER_VALUES} values; refusing to process it (a chain of YAML aliases may be amplifying the document)`,
-    );
-  }
-  chargeStringChars({ options, chars: stringChars });
-}
-
-/** Enter one more container level, throwing if the depth cap is exceeded. */
-function enterContainer({
-  options,
-  container,
-}: {
-  options: DeepCleanOptions;
-  container: object;
-}): void {
-  options.depth += 1;
-  if (options.depth > MAX_FRONTMATTER_DEPTH) {
-    throw new Error(
-      `Frontmatter nests more than ${MAX_FRONTMATTER_DEPTH} levels deep; refusing to process it (a chain of YAML aliases may be amplifying the document)`,
-    );
-  }
-  options.ancestors.add(container);
-}
-
-/** Leave a container level entered via {@link enterContainer}. */
-function leaveContainer({
-  options,
-  container,
-}: {
-  options: DeepCleanOptions;
-  container: object;
-}): void {
-  options.ancestors.delete(container);
-  options.depth -= 1;
-}
 
 /**
  * Estimate the serialized character cost of a leaf that is not a string (a
@@ -173,7 +115,7 @@ function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
   // Charge nullish leaves too: an aliased array of nulls would otherwise be
   // walked for free, and the walk is the work being bounded.
   const leafChars = typeof value === "string" ? value.length : estimateLeafChars(value);
-  consumeBudget({ options, stringChars: leafChars });
+  options.walk.chargeValue(leafChars);
 
   if (value === null || value === undefined) {
     return undefined;
@@ -184,10 +126,10 @@ function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
   }
 
   if (Array.isArray(value)) {
-    if (options.ancestors.has(value)) {
+    if (options.walk.isAncestor(value)) {
       return undefined;
     }
-    enterContainer({ options, container: value });
+    options.walk.enter(value);
     const cleanedArray: unknown[] = [];
     for (const item of value) {
       const cleaned = deepCleanValue(item, options);
@@ -195,17 +137,17 @@ function deepCleanValue(value: unknown, options: DeepCleanOptions): unknown {
         cleanedArray.push(cleaned);
       }
     }
-    leaveContainer({ options, container: value });
+    options.walk.leave(value);
     return cleanedArray;
   }
 
   if (isPlainObject(value)) {
-    if (options.ancestors.has(value)) {
+    if (options.walk.isAncestor(value)) {
       return undefined;
     }
-    enterContainer({ options, container: value });
+    options.walk.enter(value);
     const result = cleanOwnEntries(value, options);
-    leaveContainer({ options, container: value });
+    options.walk.leave(value);
     return result;
   }
 
@@ -232,7 +174,7 @@ function cleanOwnEntries(
     // A YAML mapping key can itself be an alias, so its length has to be
     // charged against the character budget the same as a string leaf's; the
     // key is written into the output regardless of whether its value survives.
-    chargeStringChars({ options, chars: key.length });
+    options.walk.chargeChars(key.length);
     // Walk the value — and so charge its budget — even under a dropped
     // prototype-pollution key. Skipping the walk for `__proto__:` and its
     // siblings would let them hide an unbudgeted alias chain: free space to
@@ -250,21 +192,23 @@ function cleanOwnEntries(
 
 function deepCleanObject(
   obj: Record<string, unknown> | null | undefined,
-  options: Omit<DeepCleanOptions, "ancestors" | "budget" | "depth">,
+  options: Omit<DeepCleanOptions, "walk">,
 ): Record<string, unknown> {
   if (!obj || typeof obj !== "object") {
     return {};
   }
   return cleanOwnEntries(obj, {
     ...options,
-    ancestors: new WeakSet([obj]),
-    budget: {
-      remaining: MAX_FRONTMATTER_VALUES,
-      stringCharsRemaining: MAX_FRONTMATTER_STRING_CHARS,
-    },
-    // The root object is itself one level of nesting, matching the +1 that
-    // enterContainer applies to every container nested inside it.
-    depth: 1,
+    walk: createBoundedWalk({
+      subject: "Frontmatter",
+      limits: {
+        maxValues: MAX_FRONTMATTER_VALUES,
+        maxStringChars: MAX_FRONTMATTER_STRING_CHARS,
+        maxDepth: MAX_FRONTMATTER_DEPTH,
+      },
+      // The root object is itself one level of nesting.
+      root: obj,
+    }),
   });
 }
 
