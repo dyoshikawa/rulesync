@@ -1817,6 +1817,32 @@ describe("ClaudecodePermissions", () => {
       );
     });
 
+    it("names a sandbox container that is not the object its settings live in", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          // `network` holds the sandbox's host and proxy settings. Written as a
+          // string none of them can be read, and going quiet would claim the
+          // write cannot loosen anything.
+          claudecode: { sandbox: { network: "off" } },
+        }),
+      });
+
+      await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'sandbox.network' — is not the object it has to be"),
+      );
+    });
+
     it("stays silent when nothing the override writes is trust-affecting", async () => {
       const mockLogger = createMockLogger();
       const warnSpy = vi.spyOn(mockLogger, "warn");

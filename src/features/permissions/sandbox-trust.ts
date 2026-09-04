@@ -26,14 +26,12 @@ export type TrustAffectingSandboxPath = {
   readonly widens: (value: unknown) => boolean;
 };
 
-/**
- * The predicates the "which value actually widens?" tables are built from.
- * Each names the value that does *not* widen and reports everything else, never
- * the reverse: an override is authored JSONC, so a key can carry any value at
- * all, and one the target tool coerces is still honored. Reporting an off-type
- * value keeps the warning fail-safe — silence has to mean "this cannot loosen
- * anything", not "this is not the type the table expected".
- */
+// The predicates the "which value actually widens?" tables are built from.
+// Each names the value that does *not* widen and reports everything else, never
+// the reverse: an override is authored JSONC, so a key can carry any value at
+// all, and one the target tool coerces is still honored. Reporting an off-type
+// value keeps the warning fail-safe — silence has to mean "this cannot loosen
+// anything", not "this is not the type the table expected".
 
 /** A key whose quiet value is an explicit `false`. */
 export const isNotFalse = (value: unknown): boolean => value !== false;
@@ -127,9 +125,11 @@ const UNREADABLE_CONTAINER_REASON =
 
 /**
  * The prefix of `path` that {@link readSandboxPath} could not walk past, as a
- * label. `undefined` when the walk was not blocked at all.
+ * label. `undefined` when the walk was not blocked at all. Callers that report
+ * an unreadable path name the container rather than the leaf, because the leaf
+ * is not what the file actually holds.
  */
-function findUnreadableContainer({
+export function findUnreadableContainer({
   sandbox,
   path,
 }: {
@@ -140,7 +140,9 @@ function findUnreadableContainer({
   const walked: string[] = [];
   for (const segment of path) {
     if (cursor === undefined) return undefined;
-    if (!isRecord(cursor)) return `sandbox.${walked.join(".")}`;
+    // The root itself can be the blocked container, and `sandbox.` is not a
+    // path anyone can look up.
+    if (!isRecord(cursor)) return walked.length === 0 ? "sandbox" : `sandbox.${walked.join(".")}`;
     walked.push(segment);
     cursor = cursor[segment];
   }

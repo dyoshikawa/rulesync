@@ -1067,9 +1067,10 @@ export type ZedPermissionsOverride = z.infer<typeof ZedPermissionsOverrideSchema
  * Tool-scoped override block for Devin Local. `sandbox` is the sibling
  * top-level `config.json` block that governs the sandbox Devin runs commands
  * in: `allowed_domains` / `denied_domains` (proxy domain patterns, deny beating
- * allow), `network_mode` (`full` allows every HTTP method, `limited` only
- * GET/HEAD/OPTIONS) and `excluded` (`allow` / `ask` / `deny` lists of `Exec(...)`
- * matchers deciding which commands run *outside* the sandbox). It constrains how
+ * allow), `network_mode` (`full`, the upstream default, allows every HTTP
+ * method; `limited` only GET/HEAD/OPTIONS) and `excluded` (`allow` / `ask` /
+ * `deny` lists of `Exec(...)` matchers deciding which commands run *outside* the
+ * sandbox — `deny` pins them inside it). It constrains how
  * a permitted command runs rather than which commands are permitted, so it has
  * no canonical category and is authored here.
  *

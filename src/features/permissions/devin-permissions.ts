@@ -17,10 +17,12 @@ import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-co
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   collectTrustAffectingSandboxPaths,
+  findUnreadableContainer,
   isNonEmptyList,
   readSandboxPath,
   type TrustAffectingEntry,
   type TrustAffectingSandboxPath,
+  UNREADABLE_SANDBOX_PATH,
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
@@ -197,15 +199,19 @@ const DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS: readonly RestrictionLosingSandboxP
 ];
 
 /**
+ * The reason printed for a value the file held in a shape that cannot be read,
+ * which this generate is about to replace. `shape` names what Devin documents
+ * there, so the message says which expectation the file's value missed.
+ */
+const replacedUnreadableReason = (shape: "list" | "object"): string =>
+  `replaces a value already in the file that is not the ${shape} Devin documents, so what it restricted cannot be read`;
+
+/**
  * The restrictions this generate would weaken, compared between the `sandbox`
  * already in the file and the one about to replace it. A `before` that is
  * present but not a list is reported outright: a shape Devin may still honor is
  * not something to go quiet about just because it cannot be diffed.
  */
-/** The reason printed for a restricting value the file held in an unusable shape. */
-const REPLACED_UNREADABLE_REASON =
-  "replaces a value already in the file that is not the list Devin documents, so what it restricted cannot be read";
-
 function collectRestrictionLosingSandboxEntries({
   existing,
   merged,
@@ -214,6 +220,7 @@ function collectRestrictionLosingSandboxEntries({
   merged: Record<string, unknown>;
 }): TrustAffectingEntry[] {
   const entries: TrustAffectingEntry[] = [];
+  const reportedContainers = new Set<string>();
   for (const { path, reason, loosens } of DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS) {
     const before = readSandboxPath({ sandbox: existing, path });
     if (before === undefined) continue;
@@ -231,9 +238,18 @@ function collectRestrictionLosingSandboxEntries({
     // A value the file holds that is not the list Devin documents, replaced by
     // one that is: whatever it meant, it is not something to overwrite quietly.
     // The row's own reason would claim entries were dropped, which is exactly
-    // what cannot be read here.
+    // what cannot be read here. When it is a container on the way that blocks
+    // the read, that container is what the file holds — naming the leaf would
+    // send the user looking for a path their file does not have.
+    if (before === UNREADABLE_SANDBOX_PATH) {
+      const container = findUnreadableContainer({ sandbox: existing, path });
+      if (container === undefined || reportedContainers.has(container)) continue;
+      reportedContainers.add(container);
+      entries.push({ label: container, reason: replacedUnreadableReason("object") });
+      continue;
+    }
     if (!Array.isArray(before)) {
-      entries.push({ label, reason: REPLACED_UNREADABLE_REASON });
+      entries.push({ label, reason: replacedUnreadableReason("list") });
       continue;
     }
     if (before.length === 0) continue;
@@ -387,9 +403,16 @@ export class DevinPermissions extends ToolPermissions {
         };
         // Materializing `"sandbox": {}` would put a meaningless key — and a
         // diff — into a file that never had one.
-        if (Object.keys(mergedSandbox).length > 0) {
+        const writesSandbox = Object.keys(mergedSandbox).length > 0;
+        if (writesSandbox) {
           patch.sandbox = mergedSandbox;
         }
+
+        // `asDevinRecord` flattens a `sandbox` the file holds in some other
+        // shape to `{}`, so the per-path comparison below sees nothing to lose.
+        // Whatever it meant to Devin, the write replaces it wholesale.
+        const replacesUnreadableSandbox =
+          writesSandbox && settings.sandbox !== undefined && !isRecord(settings.sandbox);
 
         warnOnTrustAffectingEntries({
           toolLabel: "Devin",
@@ -397,6 +420,9 @@ export class DevinPermissions extends ToolPermissions {
           // the file, not a setting written into it — so "change" covers both.
           noun: "sandbox change",
           entries: [
+            ...(replacesUnreadableSandbox
+              ? [{ label: "sandbox", reason: replacedUnreadableReason("object") }]
+              : []),
             // The authored block rather than the merged one: a loosening value
             // the file already held is the user's own, and re-announcing it on
             // every generate would bury the values rulesync actually wrote.

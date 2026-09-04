@@ -430,7 +430,59 @@ describe("DevinPermissions", () => {
       });
 
       expect(logger.warn).toHaveBeenCalledTimes(1);
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'sandbox.excluded.deny'"));
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      // `excluded` is what the file holds; `excluded.deny` is a path it does
+      // not have, so naming the leaf would send the user looking for nothing.
+      expect(warning).toContain("'sandbox.excluded' —");
+      expect(warning).not.toContain("'sandbox.excluded.deny'");
+    });
+
+    it("should warn when the sandbox block already in the file is not an object", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(join(dir, "config.json"), JSON.stringify({ sandbox: "off" }));
+
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: { sandbox: { network_mode: "limited" } },
+        }),
+        global: true,
+        logger,
+      });
+
+      // The write replaces the whole block, and nothing under a string can be
+      // compared, so the loss is announced at the root instead of per path.
+      expect(JSON.parse(perms.getFileContent()).sandbox).toEqual({ network_mode: "limited" });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("1 trust-affecting sandbox change");
+      expect(warning).toContain("'sandbox' —");
+      expect(warning).toContain("not the object Devin documents");
+    });
+
+    it("should not warn about an unreadable sandbox block the generate leaves alone", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(join(dir, "config.json"), JSON.stringify({ sandbox: "off" }));
+
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          // An empty override writes no sandbox key at all, so the file keeps
+          // the value it had and there is no replacement to announce.
+          devin: { sandbox: {} },
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(JSON.parse(perms.getFileContent()).sandbox).toBe("off");
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should not warn about a loosening value the file already held", async () => {
