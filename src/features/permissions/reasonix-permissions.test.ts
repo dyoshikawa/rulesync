@@ -644,13 +644,14 @@ describe("ReasonixPermissions", () => {
       ["/etc", "a POSIX absolute path"],
       ["~/secrets", "a home-relative path"],
       ["C:\\Users\\dev", "a Windows drive-letter path"],
+      ["C:temp", "a Windows drive-relative path"],
       ["\\\\server\\share", "a UNC path"],
       ["%USERPROFILE%", "a Windows environment expansion"],
       ["${HOME}", "a shell expansion"],
       ["../..", "a path climbing out of the project"],
       [42, "a value that is not a string at all"],
     ])(
-      "announces a workspace_root that moves the jail out of the project: %s",
+      "announces a workspace_root that moves the jail out of the project: %s (%s)",
       async (workspaceRoot) => {
         const logger = createMockLogger();
         await ReasonixPermissions.fromRulesyncPermissions({

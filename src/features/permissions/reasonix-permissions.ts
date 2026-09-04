@@ -206,6 +206,10 @@ function escapesTheProject(value: unknown): boolean {
   if (trimmed === "") return false;
   if (trimmed.startsWith("~")) return true;
   if (posix.isAbsolute(trimmed) || win32.isAbsolute(trimmed)) return true;
+  // A drive letter is neither `isAbsolute` flavour's idea of absolute when the
+  // slash is missing (`C:temp`), yet it resolves against that drive's own
+  // working directory, so it is not project-relative either.
+  if (/^[A-Za-z]:/.test(trimmed)) return true;
   // `$HOME`/`${HOME}` and its `%USERPROFILE%` counterpart: what the value
   // expands to is not knowable here, so it is never the quiet case.
   if (trimmed.includes("$") || /%[^%]+%/.test(trimmed)) return true;
@@ -482,10 +486,13 @@ export class ReasonixPermissions extends ToolPermissions {
         }),
       );
     }
-    // `[agent]` carries no trust rows: its one override-authored key,
-    // `plan_mode_read_only_commands`, is documented upstream as kept for
-    // config round-trips only — Plan-mode Bash goes through `[permissions]`
-    // now — so a longer list grants nothing the permission policy did not.
+    // `[agent]` carries no trust rows: the keys rulesync models there are the
+    // plan-mode lists, which upstream keeps for config round-trips only —
+    // Plan-mode Bash goes through `[permissions]` now — and no documented
+    // `[agent]` key widens what may run. The override is loose, so any other key
+    // authored there is written through unchecked; keeping up with a Reasonix
+    // release that adds a widening one is the same upkeep the `[sandbox]` tables
+    // above need, not something this generate can settle by itself.
     if (override?.agent !== undefined) {
       const mergedAgent = {
         ...asReasonixRecord(parsed.agent),
@@ -512,7 +519,7 @@ export class ReasonixPermissions extends ToolPermissions {
       toolLabel: REASONIX_TOOL_LABEL,
       // Not every entry is an addition — a restriction the overlay drops is a
       // change to the file, not a setting written into it — so "change" covers
-      // both, the same word the Devin generate settled on.
+      // both, the same noun Devin's sandbox warning is built on.
       noun: "change",
       entries: trustAffecting,
       relativeFilePath: relativeFilePathForLog,
