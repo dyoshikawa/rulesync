@@ -160,13 +160,15 @@ describe("DevinPermissions", () => {
         excluded: { allow: ["Exec(git status *)"], deny: ["Exec(git tag *)"] },
       });
       expect(parsed.permissions.allow).toEqual(["Read(src/**)"]);
-      // `allowed_domains` and `excluded.allow` both loosen the sandbox, so the
-      // write is announced; `network_mode: "limited"` and `excluded.deny` are not.
+      // `excluded.allow` names commands that escape the sandbox, so the write is
+      // announced. `network_mode: "limited"` and `excluded.deny` restrict, and a
+      // non-empty `allowed_domains` is itself an allowlist — narrower than the
+      // absent key it replaces — so none of the three is named.
       expect(logger.warn).toHaveBeenCalledTimes(1);
       const [warning] = logger.warn.mock.calls[0] as [string];
-      expect(warning).toContain("2 trust-affecting sandbox settings");
-      expect(warning).toContain("'sandbox.allowed_domains'");
+      expect(warning).toContain("1 trust-affecting sandbox change");
       expect(warning).toContain("'sandbox.excluded.allow'");
+      expect(warning).not.toContain("'sandbox.allowed_domains'");
       expect(warning).not.toContain("'sandbox.network_mode'");
       expect(warning).not.toContain("'sandbox.excluded.deny'");
     });
@@ -181,7 +183,7 @@ describe("DevinPermissions", () => {
             sandbox: {
               denied_domains: ["evil.example.com"],
               network_mode: "limited",
-              allowed_domains: [],
+              allowed_domains: ["github.com"],
               excluded: { deny: ["Exec(git tag *)"] },
             },
           },
@@ -210,7 +212,7 @@ describe("DevinPermissions", () => {
 
       expect(logger.warn).toHaveBeenCalledTimes(1);
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("1 trust-affecting sandbox setting"),
+        expect.stringContaining("1 trust-affecting sandbox change"),
       );
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'sandbox.network_mode'"));
     });
@@ -272,7 +274,7 @@ describe("DevinPermissions", () => {
 
       expect(logger.warn).toHaveBeenCalledTimes(1);
       const [warning] = logger.warn.mock.calls[0] as [string];
-      expect(warning).toContain("2 trust-affecting sandbox settings");
+      expect(warning).toContain("2 trust-affecting sandbox changes");
       expect(warning).toContain("'sandbox.denied_domains'");
       expect(warning).toContain("'sandbox.excluded.deny'");
     });
@@ -297,6 +299,61 @@ describe("DevinPermissions", () => {
       });
 
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should warn about a widened key and a dropped restriction in one message", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "config.json"),
+        JSON.stringify({ sandbox: { denied_domains: ["evil.example.com"] } }),
+      );
+
+      const logger = createMockLogger();
+      await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          // One entry from each collector: a key whose value widens on its own,
+          // and a list that loses an entry the file already had.
+          devin: {
+            sandbox: { denied_domains: [], excluded: { allow: ["Exec(git status *)"] } },
+          },
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("2 trust-affecting sandbox changes");
+      expect(warning).toContain("'sandbox.excluded.allow'");
+      expect(warning).toContain("'sandbox.denied_domains'");
+    });
+
+    it("should warn when a restricting key in the file is not a list at all", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "config.json"),
+        // Hand-written or corrupted: not the list Devin expects. Whatever it
+        // meant, replacing it is not something to do silently.
+        JSON.stringify({ sandbox: { denied_domains: "evil.example.com" } }),
+      );
+
+      const logger = createMockLogger();
+      await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: { sandbox: { denied_domains: [] } },
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'sandbox.denied_domains'"));
     });
 
     it("should not materialize an empty sandbox block", async () => {
@@ -352,6 +409,21 @@ describe("DevinPermissions", () => {
       expect(parsed.sandbox).toBeUndefined();
       expect(parsed.permissions.allow).toEqual(["Read(src/**)"]);
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("user config only"));
+    });
+
+    it("should not warn about an empty devin.sandbox override at project scope", async () => {
+      const logger = createMockLogger();
+      await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: { sandbox: {} },
+        }),
+        logger,
+      });
+
+      // Nothing was dropped, so there is nothing to announce.
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should write to the global config.json path", async () => {

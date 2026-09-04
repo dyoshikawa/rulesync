@@ -15,6 +15,14 @@ import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import {
+  collectTrustAffectingSandboxPaths,
+  isNonEmptyList,
+  readSandboxPath,
+  type TrustAffectingEntry,
+  type TrustAffectingSandboxPath,
+  warnOnTrustAffectingEntries,
+} from "./sandbox-trust.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
@@ -102,38 +110,29 @@ function asDevinRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? { ...value } : {};
 }
 
-/** Mirrors the Claude Code predicate: a malformed non-array counts as widening. */
-const isNonEmptyList = (value: unknown): boolean => !Array.isArray(value) || value.length > 0;
-
 /**
- * `sandbox` paths that loosen the sandbox rather than tightening it: they let a
- * command out of it, or widen what a command left inside it may reach. They are
- * written — the ordinary uses are far too common to refuse — but never
+ * `sandbox` paths whose authored value loosens the sandbox on its own: they let
+ * a command out of it, or widen what a command left inside it may reach. They
+ * are written — the ordinary uses are far too common to refuse — but never
  * silently, because a permissions file is shareable (`rulesync fetch` copies one
  * into a project) and should not be able to open the sandbox without saying so.
  * This is the same stance `CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS` takes for
- * the equivalent Claude Code keys. `widens` keeps the warning to the value that
- * actually loosens the policy, so `network_mode: "limited"` and an empty list
- * stay quiet. The two paths that only ever restrict — `denied_domains` and
- * `excluded.deny` — are not here; they loosen only by going missing, which
- * `DEVIN_NARROWING_SANDBOX_PATHS` below covers.
+ * the equivalent Claude Code keys, and `widens` follows the same convention of
+ * naming the restrictive value rather than the permissive ones, so a spelling
+ * Devin does not recognize is reported rather than waved through.
+ *
+ * The three keys that restrict — `allowed_domains` (an allowlist only while it
+ * has entries), `denied_domains` and `excluded.deny` — are not here: they loosen
+ * by losing entries, which `DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS` covers.
  *
  * @see https://docs.devin.ai/cli/sandbox
  */
-const DEVIN_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
-  readonly path: readonly string[];
-  readonly reason: string;
-  readonly widens: (value: unknown) => boolean;
-}[] = [
-  {
-    path: ["allowed_domains"],
-    reason: "adds domains the sandbox's proxy lets a sandboxed command reach",
-    widens: isNonEmptyList,
-  },
+const DEVIN_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath[] = [
   {
     path: ["network_mode"],
-    reason: "'full' lets sandboxed requests use every HTTP method, not just GET/HEAD/OPTIONS",
-    widens: (value) => value === "full",
+    reason:
+      "anything but 'limited' lets sandboxed requests use every HTTP method, not just GET/HEAD/OPTIONS",
+    widens: (value) => value !== "limited",
   },
   {
     path: ["excluded", "allow"],
@@ -148,81 +147,76 @@ const DEVIN_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
 ];
 
 /**
- * `sandbox` paths that only ever restrict, so they loosen the policy by going
- * missing rather than by holding a value. Devin's config is one file rather
- * than a stack of settings scopes, and the override is shallow-merged over the
- * existing `sandbox` at its top level: `denied_domains` is replaced wholesale,
+ * `sandbox` paths that restrict, and that therefore loosen the policy by losing
+ * entries rather than by holding a value. Devin's config is one file rather than
+ * a stack of settings scopes, and the override is shallow-merged over the
+ * existing `sandbox` at its top level: each of these lists is replaced whole,
  * and `excluded.deny` vanishes as soon as the override states any other
- * `excluded` key. Dropping an entry from either has the same effect as adding
- * one to their counterparts above, so it is announced the same way. Claude Code
- * needs no equivalent — it merges these lists across settings scopes, so a file
- * can only ever add to them.
+ * `excluded` key. Losing an entry has the same effect as adding one to the
+ * permissive keys above, so it is announced the same way. Claude Code needs no
+ * equivalent — it merges its lists across settings scopes, so a file can only
+ * ever add to them.
+ *
+ * `loosens` is asked only about a `before` that actually restricted something,
+ * and the two directions are not symmetric: `allowed_domains` restricts by
+ * listing what is reachable, so it loosens by gaining entries or by emptying
+ * out altogether, while the deny lists loosen by losing entries.
  *
  * @see https://docs.devin.ai/cli/sandbox
  */
-const DEVIN_NARROWING_SANDBOX_PATHS: readonly {
+const DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS: readonly {
   readonly path: readonly string[];
   readonly reason: string;
+  readonly loosens: (args: { before: readonly unknown[]; after: readonly unknown[] }) => boolean;
 }[] = [
+  {
+    path: ["allowed_domains"],
+    reason:
+      "adds to the proxy allowlist already in the file, or empties it so every domain becomes reachable again",
+    loosens: ({ before, after }) =>
+      after.length === 0 || after.some((entry) => !before.includes(entry)),
+  },
   {
     path: ["denied_domains"],
     reason: "drops domains the deny list already in the file kept out of reach",
+    loosens: ({ before, after }) => before.some((entry) => !after.includes(entry)),
   },
   {
     path: ["excluded", "deny"],
     reason: "drops commands the list already in the file pinned inside the sandbox",
+    loosens: ({ before, after }) => before.some((entry) => !after.includes(entry)),
   },
 ];
 
-/** Reads `sandbox` at `path`; `undefined` when a segment is missing or not an object. */
-function readSandboxPath(sandbox: Record<string, unknown>, path: readonly string[]): unknown {
-  let cursor: unknown = sandbox;
-  for (const segment of path) {
-    if (!isRecord(cursor)) return undefined;
-    cursor = cursor[segment];
-  }
-  return cursor;
-}
-
 /**
- * Every trust-affecting `sandbox` path the override authored, as the phrases the
- * one warning joins. Nothing is removed — the values are written, just not
- * silently. Called on the authored block rather than the merged one: a key that
- * was already in the file is preserved by the shallow merge, and preserving a
- * value the user set by hand is not rulesync opening the sandbox.
+ * The restrictions this generate would weaken, compared between the `sandbox`
+ * already in the file and the one about to replace it. A `before` that is
+ * present but not a list is reported outright: a shape Devin may still honor is
+ * not something to go quiet about just because it cannot be diffed.
  */
-function collectTrustAffectingSandboxEntries(sandbox: Record<string, unknown>): string[] {
-  const entries: string[] = [];
-  for (const { path, reason, widens } of DEVIN_TRUST_AFFECTING_SANDBOX_PATHS) {
-    const value = readSandboxPath(sandbox, path);
-    if (value === undefined || !widens(value)) continue;
-    entries.push(`'sandbox.${path.join(".")}' — ${reason}`);
-  }
-  return entries;
-}
-
-/**
- * The restricting entries this generate would drop, compared between the
- * `sandbox` already in the file and the one about to replace it. Only losses
- * count: adding to a deny list needs no warning.
- */
-function collectDroppedNarrowingSandboxEntries({
+function collectRestrictionLosingSandboxEntries({
   existing,
   merged,
 }: {
   existing: Record<string, unknown>;
   merged: Record<string, unknown>;
-}): string[] {
-  const entries: string[] = [];
-  for (const { path, reason } of DEVIN_NARROWING_SANDBOX_PATHS) {
-    const before = readSandboxPath(existing, path);
-    if (!Array.isArray(before) || before.length === 0) continue;
+}): TrustAffectingEntry[] {
+  const entries: TrustAffectingEntry[] = [];
+  for (const { path, reason, loosens } of DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS) {
+    const before = readSandboxPath({ sandbox: existing, path });
+    if (before === undefined) continue;
 
-    const after = readSandboxPath(merged, path);
-    const kept: unknown[] = Array.isArray(after) ? after : [];
-    if (before.every((entry: unknown) => kept.includes(entry))) continue;
+    const label = `sandbox.${path.join(".")}`;
+    if (!Array.isArray(before)) {
+      entries.push({ label, reason });
+      continue;
+    }
+    if (before.length === 0) continue;
 
-    entries.push(`'sandbox.${path.join(".")}' — ${reason}`);
+    const after = readSandboxPath({ sandbox: merged, path });
+    if (!loosens({ before, after: Array.isArray(after) ? after : [] })) continue;
+
+    entries.push({ label, reason });
   }
   return entries;
 }
@@ -360,11 +354,12 @@ export class DevinPermissions extends ToolPermissions {
     // stated it would simply be ignored — drop it with a warning instead.
     const authoredSandbox = config.devin?.sandbox;
     if (authoredSandbox !== undefined) {
+      const authoredSandboxRecord = asDevinRecord(authoredSandbox);
       if (global) {
         const existingSandbox = asDevinRecord(settings.sandbox);
         const mergedSandbox = {
           ...existingSandbox,
-          ...asDevinRecord(authoredSandbox),
+          ...authoredSandboxRecord,
         };
         // Materializing `"sandbox": {}` would put a meaningless key — and a
         // diff — into a file that never had one.
@@ -372,22 +367,26 @@ export class DevinPermissions extends ToolPermissions {
           patch.sandbox = mergedSandbox;
         }
 
-        const trustAffecting = [
-          ...collectTrustAffectingSandboxEntries(asDevinRecord(authoredSandbox)),
-          ...collectDroppedNarrowingSandboxEntries({
-            existing: existingSandbox,
-            merged: mergedSandbox,
-          }),
-        ];
-        if (trustAffecting.length > 0) {
-          const one = trustAffecting.length === 1;
-          logger?.warn(
-            `Devin permissions: writing ${trustAffecting.length} trust-affecting sandbox ${
-              one ? "setting" : "settings"
-            } to ${filePath}; review ${one ? "it" : "them"} as you would a hook, especially if this permissions file came from 'rulesync fetch'. ${trustAffecting.join("; ")}.`,
-          );
-        }
-      } else {
+        warnOnTrustAffectingEntries({
+          toolLabel: "Devin",
+          // Not every entry is an addition — a lost restriction is a change to
+          // the file, not a setting written into it — so "change" covers both.
+          noun: "sandbox change",
+          entries: [
+            ...collectTrustAffectingSandboxPaths({
+              sandbox: authoredSandboxRecord,
+              paths: DEVIN_TRUST_AFFECTING_SANDBOX_PATHS,
+            }),
+            ...collectRestrictionLosingSandboxEntries({
+              existing: existingSandbox,
+              merged: mergedSandbox,
+            }),
+          ],
+          relativeFilePath: filePath,
+          logger,
+        });
+      } else if (Object.keys(authoredSandboxRecord).length > 0) {
+        // An empty override drops nothing, so announcing a loss would be a lie.
         logger?.warn(
           "Devin reads 'sandbox' from the user config only, so the 'devin.sandbox' override was " +
             "dropped from the project config. Generate with --global to author it.",

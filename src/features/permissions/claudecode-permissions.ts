@@ -16,6 +16,15 @@ import {
   SHARED_CONFIG_OWNERSHIP,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import {
+  collectTrustAffectingSandboxPaths as collectTrustAffectingSandboxPathsShared,
+  isNonEmptyList,
+  isNonEmptyMap,
+  isNotFalse,
+  type TrustAffectingEntry,
+  type TrustAffectingSandboxPath,
+  warnOnTrustAffectingEntries,
+} from "./sandbox-trust.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY } from "./shell-command-categories.js";
 import {
   ToolPermissions,
@@ -221,42 +230,6 @@ function deleteSandboxPath({
 }
 
 /**
- * One setting this generate is about to write that widens what Claude Code
- * trusts. `label` names the setting as it appears in the target file (with the
- * value spliced in where the value is what widens), and `reason` is the verb
- * phrase that completes "it ...". They are collected rather than logged one by
- * one so a file that sets many of them produces a single summary line instead
- * of a run of near-identical warnings.
- */
-type TrustAffectingEntry = {
-  readonly label: string;
-  readonly reason: string;
-};
-
-/**
- * The one warning that names every trust-affecting setting this generate wrote
- * to `relativeFilePath`. Emitted once per file: the individual reasons are what
- * matter, but the "review this as you would a hook" framing only needs saying
- * once, and repeating it per key buries the reasons in boilerplate.
- */
-function warnOnTrustAffectingEntries({
-  entries,
-  relativeFilePath,
-  logger,
-}: {
-  entries: readonly TrustAffectingEntry[];
-  relativeFilePath: string;
-  logger?: Logger;
-}): void {
-  if (entries.length === 0) return;
-  const one = entries.length === 1;
-  const details = entries.map(({ label, reason }) => `'${label}' — ${reason}`).join("; ");
-  logger?.warn(
-    `Claude Code permissions: writing ${entries.length} trust-affecting ${one ? "setting" : "settings"} to ${relativeFilePath}; review ${one ? "it" : "them"} as you would a hook, especially if this permissions file came from 'rulesync fetch'. ${details}.`,
-  );
-}
-
-/**
  * The `permissions.defaultMode` values that start a session with fewer prompts
  * than the default. `plan` and `default` are absent because they do not widen
  * anything.
@@ -325,11 +298,7 @@ const CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS: readonly (readonly string[])[]
  * keeps the warning fail-safe — silence has to mean "this cannot loosen
  * anything", not "this is not the type the table expected".
  */
-const isNotFalse = (value: unknown): boolean => value !== false;
 const isNotTrue = (value: unknown): boolean => value !== true;
-const isNonEmptyList = (value: unknown): boolean => !Array.isArray(value) || value.length > 0;
-const isNonEmptyMap = (value: unknown): boolean =>
-  !isPlainRecord(value) || Object.keys(value).length > 0;
 
 /**
  * `sandbox` paths that loosen the sandbox rather than naming something to run:
@@ -347,11 +316,7 @@ const isNonEmptyMap = (value: unknown): boolean =>
  *
  * @see https://code.claude.com/docs/en/sandboxing
  */
-const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
-  readonly path: readonly string[];
-  readonly reason: string;
-  readonly widens: (value: unknown) => boolean;
-}[] = [
+const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath[] = [
   {
     path: ["allowAppleEvents"],
     reason: "lets sandboxed commands send Apple Events, which removes code-execution isolation",
@@ -455,26 +420,19 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
 ];
 
 /**
- * Every authored `sandbox` path that loosens the sandbox. Nothing is removed —
- * the values are written, just not silently. Called on the filtered `sandbox`
- * so it never claims to be writing a path the scope filters dropped.
+ * Every authored `sandbox` path that loosens the sandbox. Called on the
+ * filtered `sandbox` so it never claims to be writing a path the scope filters
+ * dropped.
  */
 function collectTrustAffectingSandboxPaths({
   sandbox,
 }: {
   sandbox: Record<string, unknown>;
 }): TrustAffectingEntry[] {
-  const entries: TrustAffectingEntry[] = [];
-  for (const { path, reason, widens } of CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS) {
-    const leaf = path.at(-1);
-    if (leaf === undefined) continue;
-    const parent = resolveSandboxParent({ root: sandbox, segments: path.slice(0, -1) });
-    if (parent === undefined) continue;
-    const value = parent[leaf];
-    if (value === undefined || !widens(value)) continue;
-    entries.push({ label: `sandbox.${path.join(".")}`, reason });
-  }
-  return entries;
+  return collectTrustAffectingSandboxPathsShared({
+    sandbox,
+    paths: CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS,
+  });
 }
 
 /**
@@ -1125,6 +1083,7 @@ export class ClaudecodePermissions extends ToolPermissions {
     }
 
     warnOnTrustAffectingEntries({
+      toolLabel: "Claude Code",
       entries: trustAffecting,
       relativeFilePath: paths.relativeFilePath,
       logger,
