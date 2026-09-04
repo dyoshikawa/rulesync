@@ -14,6 +14,9 @@ import {
   CLAUDE_SETTINGS_SHARED_FILE_KEY,
   HERMES_CONFIG_SHARED_FILE_KEY,
   isReadDenyEntry,
+  MAX_SHARED_CONFIG_DEPTH,
+  MAX_SHARED_CONFIG_STRING_CHARS,
+  MAX_SHARED_CONFIG_VALUES,
   mergeSharedConfigDeep,
   mergeSharedConfigShallow,
   parseSharedConfig,
@@ -23,6 +26,22 @@ import {
   stringifySharedConfig,
   TAKT_CONFIG_SHARED_FILE_KEY,
 } from "./shared-config-gateway.js";
+
+/**
+ * A YAML document whose `metadata` key holds `levels` nested anchors, each an
+ * array of `width` aliases to the previous one: `width ** levels` values once
+ * every alias is expanded, from a file of a few hundred bytes.
+ */
+function aliasChain(levels: number, width: number): string {
+  const names = "abcdefghijklmnopqrstuvwxyz";
+  const lines = ["metadata:"];
+  for (let i = 0; i < levels; i += 1) {
+    const items = Array.from({ length: width }, () => (i === 0 ? "x" : `*${names[i - 1]}`));
+    lines.push(`  ${names[i]}: &${names[i]} [${items.join(", ")}]`);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
 
 /** The whole-document fallback warnings `logger` received, in order. */
 const wholeRewriteWarnings = (logger: ReturnType<typeof createMockLogger>): string[] =>
@@ -116,6 +135,68 @@ plugins:
       },
     });
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it("refuses a YAML alias bomb instead of expanding it", () => {
+    expect(() =>
+      parseSharedConfig({
+        format: "yaml",
+        fileContent: aliasChain(6, 10),
+        filePath: ".rovodev/config.yml",
+      }),
+    ).toThrow(
+      new RegExp(
+        `^Failed to parse shared config at \\.rovodev/config\\.yml: .*Shared config expands to more than ${MAX_SHARED_CONFIG_VALUES} values`,
+      ),
+    );
+  });
+
+  it("refuses a self-referencing YAML anchor instead of overflowing the stack", () => {
+    expect(() =>
+      parseSharedConfig({ format: "yaml", fileContent: "a: &a\n  keep: 1\n  self: *a\n" }),
+    ).toThrow(/circular YAML alias/);
+    expect(() =>
+      parseSharedConfig({ format: "yaml", fileContent: "items: &a\n  - 1\n  - *a\n" }),
+    ).toThrow(/circular YAML alias/);
+  });
+
+  it("refuses a long string aliased past the character budget", () => {
+    const chunk = "x".repeat(50_000);
+    const lines = [`s: &s "${chunk}"`, "many:"];
+    for (let i = 0; i < 100; i += 1) {
+      lines.push("  - *s");
+    }
+    expect(() => parseSharedConfig({ format: "yaml", fileContent: lines.join("\n") })).toThrow(
+      `Shared config's string values expand to more than ${MAX_SHARED_CONFIG_STRING_CHARS} characters`,
+    );
+  });
+
+  it("refuses a document nested past the depth cap", () => {
+    // Each alias wraps the previous one, so the document stays tiny per
+    // level while nesting one container deeper each time.
+    const lines = ["a0: &a0 [x]"];
+    for (let i = 1; i <= MAX_SHARED_CONFIG_DEPTH + 1; i += 1) {
+      lines.push(`a${i}: &a${i} [*a${i - 1}]`);
+    }
+    expect(() => parseSharedConfig({ format: "yaml", fileContent: lines.join("\n") })).toThrow(
+      `Shared config nests more than ${MAX_SHARED_CONFIG_DEPTH} levels deep`,
+    );
+  });
+
+  it("keeps a shared YAML reference that is not a cycle", () => {
+    const config = parseSharedConfig({
+      format: "yaml",
+      fileContent: "shared: &s\n  k: v\nfirst: *s\nsecond: *s\n",
+    });
+    expect(config).toEqual({ shared: { k: "v" }, first: { k: "v" }, second: { k: "v" } });
+    expect(config.first).not.toBe(config.second);
+  });
+
+  it("charges the value under a dropped pollution key so it cannot hide an alias bomb", () => {
+    const bomb = aliasChain(6, 10).replace("metadata:", "__proto__:");
+    expect(() => parseSharedConfig({ format: "yaml", fileContent: bomb })).toThrow(
+      `Shared config expands to more than ${MAX_SHARED_CONFIG_VALUES} values`,
+    );
   });
 
   it("keeps the rest of a JSONC file that states a root-level pollution key", () => {
