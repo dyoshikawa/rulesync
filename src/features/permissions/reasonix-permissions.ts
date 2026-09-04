@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, posix, win32 } from "node:path";
 
 import { uniq } from "es-toolkit";
 import * as smolToml from "smol-toml";
@@ -11,14 +11,26 @@ import {
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
 import {
   toReasonixStringArray as toStringArray,
   toReasonixTable as toPermissionsTable,
 } from "../shared/reasonix-config-table.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import {
+  collectRestrictionLosingSandboxEntries,
+  collectTrustAffectingSandboxPaths,
+  isNonEmptyList,
+  isNotFalse,
+  replacedUnreadableReason,
+  type RestrictionLosingSandboxPath,
+  type TrustAffectingEntry,
+  type TrustAffectingSandboxPath,
+  warnOnTrustAffectingEntries,
+} from "./sandbox-trust.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -123,6 +135,182 @@ type ReasonixPermissionsTable = Record<string, unknown> & {
   deny?: string[];
 };
 
+/** How Reasonix is named in the warnings this file emits. */
+const REASONIX_TOOL_LABEL = "Reasonix";
+
+/** The `[permissions]` key the override's `allowDynamicBash` writes and reads. */
+const REASONIX_ALLOW_DYNAMIC_BASH_KEY = "allow_dynamic_bash";
+
+/**
+ * `[sandbox]` keys whose authored value loosens the enforcement layer beneath
+ * the permission policy: they take Bash out of its OS jail, open that jail to
+ * the network, or widen where the file-writing built-ins may write. Written —
+ * the ordinary uses are far too common to refuse — but never silently, the same
+ * stance `DEVIN_TRUST_AFFECTING_SANDBOX_PATHS` takes, and `widens` likewise
+ * names the restrictive value so a spelling Reasonix does not recognize is
+ * reported rather than waved through.
+ *
+ * `forbid_read` is not here: it restricts, so it loosens by losing entries
+ * rather than by holding one, which needs the before/after comparison
+ * {@link REASONIX_RESTRICTION_LOSING_SANDBOX_PATHS} below does instead.
+ *
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
+ */
+const REASONIX_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath[] = [
+  {
+    path: ["bash"],
+    reason:
+      "anything but 'enforce' takes Bash out of the OS sandbox, so a command may write and read " +
+      "wherever the user can",
+    widens: (value) => value !== "enforce",
+  },
+  {
+    path: ["network"],
+    reason: "lets sandboxed Bash reach the network",
+    widens: isNotFalse,
+  },
+  {
+    path: ["allow_write"],
+    reason:
+      "adds directories the file-writing tools may modify outside the workspace root, which a " +
+      "headless run would otherwise refuse",
+    widens: isNonEmptyList,
+  },
+  {
+    path: ["workspace_root"],
+    reason:
+      "moves the root the file-writing tools and sandboxed Bash are confined to, so what they " +
+      "may reach is decided by this path rather than by the project directory",
+    widens: escapesTheProject,
+  },
+];
+
+/**
+ * Whether a `workspace_root` points somewhere other than inside the project the
+ * generate runs in. The key moves the write confinement rather than adding to
+ * it, so the ordinary value — the project directory, spelled relatively — would
+ * otherwise be announced on every generate; anything else is the case worth
+ * naming, since it is how a fetched permissions file would put `~/.ssh` or
+ * `C:\\Users\\<user>` inside the jail: an absolute path in either flavour, one
+ * carrying a drive letter, a home-relative one, a shell or environment
+ * expansion, and any path holding a `..` segment — even one that would land back
+ * inside, since resolving it here would only be a guess at what Reasonix does.
+ * Both path flavours are asked because the file is authored on one machine and
+ * generated on another, so a Windows-shaped root reaching a POSIX check must not
+ * read as relative. Anything that is not a string is reported, per the fail-safe
+ * rule the predicates in `sandbox-trust.ts` follow.
+ */
+function escapesTheProject(value: unknown): boolean {
+  if (typeof value !== "string") return true;
+  const trimmed = value.trim();
+  // The empty string is the documented default: it resolves to the directory
+  // the run is already confined to, so it is not a move at all.
+  if (trimmed === "") return false;
+  if (trimmed.startsWith("~")) return true;
+  if (posix.isAbsolute(trimmed) || win32.isAbsolute(trimmed)) return true;
+  // A drive letter is neither `isAbsolute` flavour's idea of absolute when the
+  // slash is missing (`C:temp`), yet it resolves against that drive's own
+  // working directory, so it is not project-relative either.
+  if (/^[A-Za-z]:/.test(trimmed)) return true;
+  // `$HOME`/`${HOME}` and its `%USERPROFILE%` counterpart: what the value
+  // expands to is not knowable here, so it is never the quiet case.
+  if (trimmed.includes("$") || /%[^%]+%/.test(trimmed)) return true;
+  return trimmed.split(/[\\/]/).includes("..");
+}
+
+/**
+ * The `[sandbox]` key that restricts, and so loosens by losing entries rather
+ * than by holding a value. The override is shallow-merged over the existing
+ * `[sandbox]` at its top level, so an authored `forbid_read` replaces the list
+ * the file had whole — emptying it, or dropping the `${HOME}/.ssh` entry
+ * Reasonix's own example recommends, opens exactly what the list kept closed.
+ *
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
+ */
+const REASONIX_RESTRICTION_LOSING_SANDBOX_PATHS: readonly RestrictionLosingSandboxPath[] = [
+  {
+    path: ["forbid_read"],
+    reason: "drops paths the list already in the file kept out of read, list and search",
+    loosens: ({ before, after }) => before.some((entry) => !after.includes(entry)),
+  },
+];
+
+/**
+ * Everything worth naming about the `[sandbox]` table this generate is about to
+ * write: the authored values that loosen enforcement, the restrictions the
+ * shallow merge would drop, and a `[sandbox]` the file holds in some shape other
+ * than a table, which the write replaces wholesale. The widening check reads the
+ * authored block alone — a loosening value the file already held is the user's
+ * own, and re-announcing it on every generate would bury the values rulesync
+ * actually wrote — while a loss can only be seen from both sides.
+ */
+function collectSandboxOverlayEntries({
+  existing,
+  authored,
+  merged,
+}: {
+  existing: unknown;
+  authored: unknown;
+  merged: Record<string, unknown>;
+}): TrustAffectingEntry[] {
+  return [
+    // `asReasonixRecord` flattens a `[sandbox]` the file holds in some other
+    // shape to `{}`, so the comparison below sees nothing to lose. Whatever it
+    // meant to Reasonix, the write replaces it wholesale.
+    ...(existing !== undefined && !isRecord(existing)
+      ? [
+          {
+            label: "sandbox",
+            reason: replacedUnreadableReason({ shape: "object", toolLabel: REASONIX_TOOL_LABEL }),
+          },
+        ]
+      : []),
+    ...collectTrustAffectingSandboxPaths({
+      sandbox: asReasonixRecord(authored),
+      paths: REASONIX_TRUST_AFFECTING_SANDBOX_PATHS,
+    }),
+    ...collectRestrictionLosingSandboxEntries({
+      existing: asReasonixRecord(existing),
+      merged,
+      paths: REASONIX_RESTRICTION_LOSING_SANDBOX_PATHS,
+      toolLabel: REASONIX_TOOL_LABEL,
+    }),
+  ];
+}
+
+/**
+ * Writes the override's `allow_dynamic_bash` into `[permissions]`, where it sits
+ * beside allow/ask/deny rather than in a table of its own, and reports it when
+ * it is being turned on: it widens what a shareable permissions file lets run
+ * with no human in the loop. Only an authored value is written — leaving the key
+ * out of the override keeps whatever the file already had — and turning it off
+ * narrows, so that stays quiet. Only a literal `false` is quiet, not everything
+ * falsy: `getJson()` casts rather than parses, so a `--no-validate` run can put
+ * a value the schema forbids here, and a value Reasonix might still coerce is
+ * not something to write in silence. The entries are returned rather than logged so
+ * one generate still produces one warning naming everything it wrote.
+ */
+function applyAllowDynamicBash({
+  permissions,
+  authored,
+}: {
+  permissions: ReasonixPermissionsTable;
+  authored: boolean | undefined;
+}): TrustAffectingEntry[] {
+  if (authored === undefined) return [];
+  permissions[REASONIX_ALLOW_DYNAMIC_BASH_KEY] = authored;
+  if (!isNotFalse(authored)) return [];
+  return [
+    {
+      label: `permissions.${REASONIX_ALLOW_DYNAMIC_BASH_KEY}`,
+      reason:
+        "lets an Allow fallback, Auto included, run the nested and indirect Bash that " +
+        "otherwise needs a human or an exact-literal grant — command and process substitution, " +
+        "a dynamic command name, 'eval', 'source', 'sh -c' and their kind",
+    },
+  ];
+}
+
 function parseReasonixConfig(fileContent: string): ReasonixConfig {
   const parsed = smolToml.parse(fileContent || smolToml.stringify({}));
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -221,6 +409,7 @@ export class ReasonixPermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<ReasonixPermissions> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const relativeFilePathForLog = toPosixPath(join(paths.relativeDirPath, paths.relativeFilePath));
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const parsed = parseReasonixConfig(existingContent);
 
@@ -273,17 +462,39 @@ export class ReasonixPermissions extends ToolPermissions {
     setOrDeleteEntries(mergedPermissions, "ask", [...preservedAsk, ...ask, ...rawAsk]);
     setOrDeleteEntries(mergedPermissions, "deny", [...preservedDeny, ...deny, ...rawDeny]);
 
+    // Collected rather than logged as they are found: one generate writes one
+    // warning naming everything trust-affecting it put in the file.
+    const trustAffecting: TrustAffectingEntry[] = applyAllowDynamicBash({
+      permissions: mergedPermissions,
+      authored: override?.allowDynamicBash,
+    });
+
     const patch: Record<string, unknown> = { permissions: mergedPermissions };
 
     // Overlay the Reasonix-scoped override's `[sandbox]`/`[agent]` tables. Shallow
     // merged at the table's top level, so the override's keys win while unrelated
     // sibling keys the user set directly (e.g. `[agent].model`) are preserved.
     if (override?.sandbox !== undefined) {
-      patch.sandbox = {
+      const mergedSandbox = {
         ...asReasonixRecord(parsed.sandbox),
         ...asReasonixRecord(override.sandbox),
       };
+      patch.sandbox = mergedSandbox;
+      trustAffecting.push(
+        ...collectSandboxOverlayEntries({
+          existing: parsed.sandbox,
+          authored: override.sandbox,
+          merged: mergedSandbox,
+        }),
+      );
     }
+    // `[agent]` carries no trust rows: the keys rulesync models there are the
+    // plan-mode lists, which upstream keeps for config round-trips only —
+    // Plan-mode Bash goes through `[permissions]` now — and no documented
+    // `[agent]` key widens what may run. The override is loose, so any other key
+    // authored there is written through unchecked; keeping up with a Reasonix
+    // release that adds a widening one is the same upkeep the `[sandbox]` tables
+    // above need, not something this generate can settle by itself.
     if (override?.agent !== undefined) {
       const mergedAgent = {
         ...asReasonixRecord(parsed.agent),
@@ -299,12 +510,23 @@ export class ReasonixPermissions extends ToolPermissions {
       if (retired.length > 0) {
         logger?.warn(
           `Reasonix permissions: removing ${retired.map((key) => `"${key}"`).join(", ")} from ` +
-            `[agent] in ${filePath}; Reasonix took the key off its config surface in v1.17.18, ` +
+            `[agent] in ${relativeFilePathForLog}; Reasonix took the key off its config surface in v1.17.18, ` +
             `so what it used to express now belongs in the shared \`permission\` block.`,
         );
       }
       patch.agent = mergedAgent;
     }
+
+    warnOnTrustAffectingEntries({
+      toolLabel: REASONIX_TOOL_LABEL,
+      // Not every entry is an addition — a restriction the overlay drops is a
+      // change to the file, not a setting written into it — so "change" covers
+      // both, the same noun Devin's sandbox warning is built on.
+      noun: "change",
+      entries: trustAffecting,
+      relativeFilePath: relativeFilePathForLog,
+      logger,
+    });
 
     return new ReasonixPermissions({
       outputRoot,
@@ -355,6 +577,14 @@ export class ReasonixPermissions extends ToolPermissions {
       ...REASONIX_RETIRED_AGENT_KEYS,
     ]);
     const reasonixOverride: Record<string, unknown> = {};
+    // `[permissions] allow_dynamic_bash` is lifted only when it is the boolean
+    // Reasonix documents: any other shape is left in the table the generate
+    // preserves, rather than round-tripped through a typed override field that
+    // would have to reshape it.
+    const allowDynamicBash = permissions[REASONIX_ALLOW_DYNAMIC_BASH_KEY];
+    if (typeof allowDynamicBash === "boolean") {
+      reasonixOverride.allowDynamicBash = allowDynamicBash;
+    }
     if (Object.keys(sandbox).length > 0) reasonixOverride.sandbox = sandbox;
     if (Object.keys(agentPlanMode).length > 0) reasonixOverride.agent = agentPlanMode;
     if (allowSplit.exact.length > 0) reasonixOverride.rawAllow = allowSplit.exact;

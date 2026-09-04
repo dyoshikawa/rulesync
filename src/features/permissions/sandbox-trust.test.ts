@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import {
+  collectRestrictionLosingSandboxEntries,
   collectTrustAffectingSandboxPaths,
   isNonEmptyList,
   isNonEmptyMap,
   isNotFalse,
   isNotTrue,
   readSandboxPath,
+  replacedUnreadableReason,
+  type RestrictionLosingSandboxPath,
   type TrustAffectingSandboxPath,
   UNREADABLE_SANDBOX_PATH,
   warnOnTrustAffectingEntries,
@@ -188,6 +191,106 @@ describe("sandbox-trust", () => {
           relativeFilePath: ".config/devin/config.json",
         }),
       ).not.toThrow();
+    });
+  });
+
+  describe("collectRestrictionLosingSandboxEntries", () => {
+    const paths: readonly RestrictionLosingSandboxPath[] = [
+      {
+        path: ["denied"],
+        reason: "drops entries the file kept out",
+        loosens: ({ before, after }) => before.some((entry) => !after.includes(entry)),
+      },
+      {
+        path: ["excluded", "deny"],
+        reason: "drops nested entries the file kept out",
+        loosens: ({ before, after }) => before.some((entry) => !after.includes(entry)),
+      },
+    ];
+
+    it("reports a list the merge shortens", () => {
+      const entries = collectRestrictionLosingSandboxEntries({
+        existing: { denied: ["a", "b"] },
+        merged: { denied: ["a"] },
+        paths,
+        toolLabel: "Tool",
+      });
+
+      expect(entries).toEqual([
+        { label: "sandbox.denied", reason: "drops entries the file kept out" },
+      ]);
+    });
+
+    it("stays quiet about a list the merge only adds to, or does not touch", () => {
+      expect(
+        collectRestrictionLosingSandboxEntries({
+          existing: { denied: ["a"] },
+          merged: { denied: ["a", "b"] },
+          paths,
+          toolLabel: "Tool",
+        }),
+      ).toEqual([]);
+
+      // The same array instance means the overlay never wrote the key.
+      const untouched = ["a"];
+      expect(
+        collectRestrictionLosingSandboxEntries({
+          existing: { denied: untouched },
+          merged: { denied: untouched },
+          paths,
+          toolLabel: "Tool",
+        }),
+      ).toEqual([]);
+    });
+
+    it("reports a value the file holds in a shape that cannot be diffed", () => {
+      const entries = collectRestrictionLosingSandboxEntries({
+        existing: { denied: "a" },
+        merged: { denied: ["b"] },
+        paths,
+        toolLabel: "Tool",
+      });
+
+      expect(entries).toEqual([
+        {
+          label: "sandbox.denied",
+          reason: replacedUnreadableReason({ shape: "list", toolLabel: "Tool" }),
+        },
+      ]);
+    });
+
+    it("names an unreadable container once, however many rows it hides", () => {
+      const entries = collectRestrictionLosingSandboxEntries({
+        existing: { excluded: "off", denied: ["a"] },
+        merged: { excluded: { deny: [] }, denied: ["a", "b"] },
+        paths: [
+          ...paths,
+          {
+            path: ["excluded", "other"],
+            reason: "also under the same container",
+            loosens: () => true,
+          },
+        ],
+        toolLabel: "Tool",
+      });
+
+      expect(entries).toEqual([
+        {
+          label: "sandbox.excluded",
+          reason: replacedUnreadableReason({ shape: "object", toolLabel: "Tool" }),
+        },
+      ]);
+    });
+
+    it("says nothing about a path the file does not have", () => {
+      expect(
+        collectRestrictionLosingSandboxEntries({
+          existing: {},
+          merged: { denied: [] },
+          paths,
+          toolLabel: "Tool",
+        }),
+      ).toEqual([]);
     });
   });
 });
