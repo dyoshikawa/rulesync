@@ -356,6 +356,90 @@ describe("DevinPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'sandbox.denied_domains'"));
     });
 
+    it("should not warn about a malformed restricting key the override never touches", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "config.json"),
+        JSON.stringify({ sandbox: { denied_domains: "evil.example.com" } }),
+      );
+
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: { sandbox: { network_mode: "limited" } },
+        }),
+        global: true,
+        logger,
+      });
+
+      // The shallow merge leaves the malformed value exactly as it was, so
+      // naming it as a dropped restriction would be a warning about nothing.
+      expect(JSON.parse(perms.getFileContent()).sandbox.denied_domains).toBe("evil.example.com");
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should not warn about a loosening value the file already held", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "config.json"),
+        JSON.stringify({ sandbox: { excluded: { allow: ["Exec(git status *)"] } } }),
+      );
+
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: { sandbox: { denied_domains: ["evil.example.com"] } },
+        }),
+        global: true,
+        logger,
+      });
+
+      // Preserving what the user put there by hand is not rulesync opening the
+      // sandbox, so only the block this generate authored is inspected.
+      expect(JSON.parse(perms.getFileContent()).sandbox.excluded).toEqual({
+        allow: ["Exec(git status *)"],
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should round-trip the sandbox block through import and back", async () => {
+      const authored = {
+        allowed_domains: ["github.com"],
+        denied_domains: ["evil.example.com"],
+        network_mode: "limited",
+        excluded: { allow: ["Exec(git status *)"], ask: [], deny: ["Exec(git tag *)"] },
+      };
+
+      const generated = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: { sandbox: authored },
+        }),
+        global: true,
+      });
+
+      const imported = JSON.parse(generated.toRulesyncPermissions().getFileContent());
+      expect(imported.devin.sandbox).toEqual(authored);
+
+      const regenerated = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: imported.permission,
+          devin: imported.devin,
+        }),
+        global: true,
+      });
+
+      expect(JSON.parse(regenerated.getFileContent()).sandbox).toEqual(authored);
+    });
+
     it("should not materialize an empty sandbox block", async () => {
       const perms = await DevinPermissions.fromRulesyncPermissions({
         outputRoot: testDir,

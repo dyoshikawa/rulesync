@@ -26,14 +26,22 @@ export type TrustAffectingSandboxPath = {
   readonly widens: (value: unknown) => boolean;
 };
 
-/** A key whose permissive value is anything but an explicit `false`. */
+/**
+ * The predicates the "which value actually widens?" tables are built from.
+ * Each names the value that does *not* widen and reports everything else, never
+ * the reverse: an override is authored JSONC, so a key can carry any value at
+ * all, and one the target tool coerces is still honored. Reporting an off-type
+ * value keeps the warning fail-safe — silence has to mean "this cannot loosen
+ * anything", not "this is not the type the table expected".
+ */
+
+/** A key whose quiet value is an explicit `false`. */
 export const isNotFalse = (value: unknown): boolean => value !== false;
 
-/**
- * A list-valued key that widens once it has entries. A value that is not a list
- * at all counts as widening too: a malformed entry is not a reason to go quiet
- * about a key whose whole purpose is to open something up.
- */
+/** A key whose quiet value is an explicit `true`. */
+export const isNotTrue = (value: unknown): boolean => value !== true;
+
+/** A list-valued key whose quiet value is the empty list. */
 export const isNonEmptyList = (value: unknown): boolean =>
   !Array.isArray(value) || value.length > 0;
 
@@ -42,11 +50,22 @@ export const isNonEmptyMap = (value: unknown): boolean =>
   !isRecord(value) || Object.keys(value).length > 0;
 
 /**
- * Reads `sandbox` at `path`, returning `undefined` when a segment is missing or
- * is not an object. Shared by everything that addresses a `sandbox` path so a
- * nested path added to one of the tables is actually traversed rather than
- * silently skipped, and so a hostile shape (an array, a string, `null`) reads as
- * absent instead of throwing.
+ * What {@link readSandboxPath} returns when a container on the way to the leaf
+ * is present but is not an object, so the leaf cannot be read at all. It is not
+ * `undefined`, because the two mean opposite things to a caller: `undefined` is
+ * "this path is not being written", while this is "something is being written
+ * here and its shape hides what". The same fail-safe rule the predicates follow
+ * applies to the walk — silence must mean "this cannot loosen anything", not
+ * "this is not the shape the table expected".
+ */
+export const UNREADABLE_SANDBOX_PATH = Symbol("unreadable-sandbox-path");
+
+/**
+ * Reads `sandbox` at `path`. Returns `undefined` when a segment is absent, and
+ * {@link UNREADABLE_SANDBOX_PATH} when one is present but is not an object.
+ * Shared by everything that addresses a `sandbox` path so a nested path added to
+ * one of the tables is actually traversed rather than silently skipped, and so a
+ * hostile shape (an array, a string, `null`) is reported rather than throwing.
  */
 export function readSandboxPath({
   sandbox,
@@ -57,7 +76,8 @@ export function readSandboxPath({
 }): unknown {
   let cursor: unknown = sandbox;
   for (const segment of path) {
-    if (!isRecord(cursor)) return undefined;
+    if (cursor === undefined) return undefined;
+    if (!isRecord(cursor)) return UNREADABLE_SANDBOX_PATH;
     cursor = cursor[segment];
   }
   return cursor;
@@ -65,9 +85,10 @@ export function readSandboxPath({
 
 /**
  * Every path in `paths` whose value in `sandbox` loosens the policy. Nothing is
- * removed — the values are written, just not silently. Call it on the block
- * that is actually being written, so it never claims to be writing a path a
- * scope filter dropped.
+ * removed — the values are written, just not silently. Call it on the block this
+ * generate authored, after any scope filter has run: a value the file already
+ * held is the user's own, not something rulesync opened, and a path a filter
+ * dropped is not being written at all.
  */
 export function collectTrustAffectingSandboxPaths({
   sandbox,
@@ -79,7 +100,11 @@ export function collectTrustAffectingSandboxPaths({
   const entries: TrustAffectingEntry[] = [];
   for (const { path, reason, widens } of paths) {
     const value = readSandboxPath({ sandbox, path });
-    if (value === undefined || !widens(value)) continue;
+    if (value === undefined) continue;
+    // An unreadable container is reported without consulting `widens`: the
+    // predicate is written for the leaf's own values, and a shape that hides the
+    // leaf is exactly the case silence must not cover.
+    if (value !== UNREADABLE_SANDBOX_PATH && !widens(value)) continue;
     entries.push({ label: `sandbox.${path.join(".")}`, reason });
   }
   return entries;

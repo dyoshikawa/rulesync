@@ -1785,7 +1785,7 @@ describe("ClaudecodePermissions", () => {
       // "review this as you would a hook" advice per key buries them.
       expect(warnSpy).toHaveBeenCalledTimes(1);
       const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain("writing 4 trust-affecting settings to settings.json");
+      expect(message).toContain("writing 4 trust-affecting settings to .claude/settings.json");
       expect(message).toContain(`'permissions.defaultMode: "acceptEdits"' —`);
       expect(message).toContain("'sandbox.enabled' —");
       expect(message).toContain("'sandbox.network.allowedDomains' —");
@@ -1812,7 +1812,7 @@ describe("ClaudecodePermissions", () => {
 
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining(
-          "writing 1 trust-affecting setting to settings.json; review it as you would a hook",
+          "writing 1 trust-affecting setting to .claude/settings.json; review it as you would a hook",
         ),
       );
     });

@@ -10,7 +10,7 @@ import {
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
@@ -164,11 +164,19 @@ const DEVIN_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath[] 
  *
  * @see https://docs.devin.ai/cli/sandbox
  */
-const DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS: readonly {
+/**
+ * One row of the restriction-loss table. It is the mirror of
+ * {@link TrustAffectingSandboxPath}: the value alone says nothing, because these
+ * paths restrict, so what matters is what the merge takes away from the list the
+ * file already had.
+ */
+type RestrictionLosingSandboxPath = {
   readonly path: readonly string[];
   readonly reason: string;
   readonly loosens: (args: { before: readonly unknown[]; after: readonly unknown[] }) => boolean;
-}[] = [
+};
+
+const DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS: readonly RestrictionLosingSandboxPath[] = [
   {
     path: ["allowed_domains"],
     reason:
@@ -206,14 +214,21 @@ function collectRestrictionLosingSandboxEntries({
     const before = readSandboxPath({ sandbox: existing, path });
     if (before === undefined) continue;
 
+    const after = readSandboxPath({ sandbox: merged, path });
+    // The shallow merge left this path exactly as the file had it — the override
+    // states neither it nor the container above it — so nothing was dropped,
+    // whatever shape the value is in.
+    if (after === before) continue;
+
     const label = `sandbox.${path.join(".")}`;
+    // A value the file holds that is not the list Devin documents, replaced by
+    // one that is: whatever it meant, it is not something to overwrite quietly.
     if (!Array.isArray(before)) {
       entries.push({ label, reason });
       continue;
     }
     if (before.length === 0) continue;
 
-    const after = readSandboxPath({ sandbox: merged, path });
     if (!loosens({ before, after: Array.isArray(after) ? after : [] })) continue;
 
     entries.push({ label, reason });
@@ -373,6 +388,9 @@ export class DevinPermissions extends ToolPermissions {
           // the file, not a setting written into it — so "change" covers both.
           noun: "sandbox change",
           entries: [
+            // The authored block rather than the merged one: a loosening value
+            // the file already held is the user's own, and re-announcing it on
+            // every generate would bury the values rulesync actually wrote.
             ...collectTrustAffectingSandboxPaths({
               sandbox: authoredSandboxRecord,
               paths: DEVIN_TRUST_AFFECTING_SANDBOX_PATHS,
@@ -382,7 +400,7 @@ export class DevinPermissions extends ToolPermissions {
               merged: mergedSandbox,
             }),
           ],
-          relativeFilePath: filePath,
+          relativeFilePath: toPosixPath(join(paths.relativeDirPath, paths.relativeFilePath)),
           logger,
         });
       } else if (Object.keys(authoredSandboxRecord).length > 0) {

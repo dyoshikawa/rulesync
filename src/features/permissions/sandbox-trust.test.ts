@@ -6,8 +6,10 @@ import {
   isNonEmptyList,
   isNonEmptyMap,
   isNotFalse,
+  isNotTrue,
   readSandboxPath,
   type TrustAffectingSandboxPath,
+  UNREADABLE_SANDBOX_PATH,
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
 
@@ -19,6 +21,15 @@ describe("sandbox-trust", () => {
       // A malformed value is not a reason to go quiet about a permissive key.
       expect(isNotFalse("false")).toBe(true);
       expect(isNotFalse(null)).toBe(true);
+    });
+  });
+
+  describe("isNotTrue", () => {
+    it("should treat only an explicit true as the quiet value", () => {
+      expect(isNotTrue(true)).toBe(false);
+      expect(isNotTrue(false)).toBe(true);
+      expect(isNotTrue("true")).toBe(true);
+      expect(isNotTrue(undefined)).toBe(true);
     });
   });
 
@@ -49,14 +60,17 @@ describe("sandbox-trust", () => {
       expect(readSandboxPath({ sandbox: {}, path: ["excluded", "allow"] })).toBeUndefined();
     });
 
-    it("should return undefined when a segment is not an object", () => {
-      // A hostile shape reads as absent instead of throwing.
-      expect(
-        readSandboxPath({ sandbox: { excluded: "nope" }, path: ["excluded", "allow"] }),
-      ).toBeUndefined();
-      expect(readSandboxPath({ sandbox: { excluded: null }, path: ["excluded", "allow"] })).toBe(
-        undefined,
+    it("should report an unreadable path when a segment is not an object", () => {
+      // A hostile shape is reported rather than read as absent: the leaf cannot
+      // be inspected, and silence would claim it cannot loosen anything.
+      expect(readSandboxPath({ sandbox: { excluded: "nope" }, path: ["excluded", "allow"] })).toBe(
+        UNREADABLE_SANDBOX_PATH,
       );
+      expect(readSandboxPath({ sandbox: { excluded: null }, path: ["excluded", "allow"] })).toBe(
+        UNREADABLE_SANDBOX_PATH,
+      );
+      // An absent segment stays `undefined` — nothing is being written there.
+      expect(readSandboxPath({ sandbox: {}, path: ["excluded", "allow", "deep"] })).toBeUndefined();
     });
 
     it("should return the sandbox itself for an empty path", () => {
@@ -84,6 +98,15 @@ describe("sandbox-trust", () => {
       // `undefined` means the key is not being written, so there is nothing to
       // announce — even though `widens` would say `undefined !== "limited"`.
       expect(collectTrustAffectingSandboxPaths({ sandbox: {}, paths })).toEqual([]);
+    });
+
+    it("should report a nested path whose container is not an object", () => {
+      // `excluded` is a list here, so neither leaf can be read. Reporting both
+      // is the fail-safe reading: something is being written under a shape that
+      // hides what.
+      expect(
+        collectTrustAffectingSandboxPaths({ sandbox: { excluded: ["Exec(rm -rf /)"] }, paths }),
+      ).toEqual([{ label: "sandbox.excluded.allow", reason: "escapes the sandbox" }]);
     });
 
     it("should label a nested path with dots", () => {

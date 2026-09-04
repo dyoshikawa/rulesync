@@ -6,9 +6,10 @@ import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import { isRecord } from "../../utils/type-guards.js";
 import {
   applyPermissions,
   CLAUDE_SETTINGS_SHARED_FILE_KEY,
@@ -17,10 +18,12 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
-  collectTrustAffectingSandboxPaths as collectTrustAffectingSandboxPathsShared,
+  collectTrustAffectingSandboxPaths,
   isNonEmptyList,
   isNonEmptyMap,
   isNotFalse,
+  isNotTrue,
+  readSandboxPath,
   type TrustAffectingEntry,
   type TrustAffectingSandboxPath,
   warnOnTrustAffectingEntries,
@@ -94,10 +97,6 @@ function parseClaudePermissionEntry(entry: string): { toolName: string; pattern:
  * matches the tool everywhere and produces no warning.
  * @see https://code.claude.com/docs/en/permissions
  */
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 /**
  * Merge `patch` into `base`, recursing into plain objects so a sibling key at
  * any depth survives. Arrays and scalars are replaced, since a list the author
@@ -111,8 +110,7 @@ function deepMergeRecords(
   for (const [key, value] of Object.entries(patch)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
     const existing = merged[key];
-    merged[key] =
-      isPlainRecord(existing) && isPlainRecord(value) ? deepMergeRecords(existing, value) : value;
+    merged[key] = isRecord(existing) && isRecord(value) ? deepMergeRecords(existing, value) : value;
   }
   return merged;
 }
@@ -189,13 +187,8 @@ function resolveSandboxParent({
   root: Record<string, unknown>;
   segments: readonly string[];
 }): Record<string, unknown> | undefined {
-  let parent: Record<string, unknown> = root;
-  for (const segment of segments) {
-    const next = parent[segment];
-    if (!isPlainRecord(next)) return undefined;
-    parent = next;
-  }
-  return parent;
+  const resolved = readSandboxPath({ sandbox: root, path: segments });
+  return isRecord(resolved) ? resolved : undefined;
 }
 
 /**
@@ -289,16 +282,6 @@ const CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS: readonly (readonly string[])[]
   ["bwrapPath"],
   ["socatPath"],
 ];
-
-/**
- * The predicates the "which value actually widens?" tables are built from.
- * Each names the value that does *not* widen and reports everything else, never
- * the reverse: the override is authored JSONC, so a key can carry any value at
- * all, and one Claude Code coerces is still honored. Reporting an off-type value
- * keeps the warning fail-safe — silence has to mean "this cannot loosen
- * anything", not "this is not the type the table expected".
- */
-const isNotTrue = (value: unknown): boolean => value !== true;
 
 /**
  * `sandbox` paths that loosen the sandbox rather than naming something to run:
@@ -420,22 +403,6 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPa
 ];
 
 /**
- * Every authored `sandbox` path that loosens the sandbox. Called on the
- * filtered `sandbox` so it never claims to be writing a path the scope filters
- * dropped.
- */
-function collectTrustAffectingSandboxPaths({
-  sandbox,
-}: {
-  sandbox: Record<string, unknown>;
-}): TrustAffectingEntry[] {
-  return collectTrustAffectingSandboxPathsShared({
-    sandbox,
-    paths: CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS,
-  });
-}
-
-/**
  * One class of `sandbox` paths rulesync refuses to write, paired with the
  * warning that explains the refusal. The three classes differ only in the table
  * they scan and the remediation they name, so they share `stripSandboxPaths`
@@ -538,14 +505,14 @@ function stripProjectIgnoredMaskEntries({
   logger?: Logger;
 }): Record<string, unknown> {
   const credentials = sandbox.credentials;
-  if (!isPlainRecord(credentials)) return sandbox;
+  if (!isRecord(credentials)) return sandbox;
 
   const filteredCredentials: Record<string, unknown> = { ...credentials };
   let changed = false;
   for (const listKey of CLAUDECODE_MASKABLE_CREDENTIAL_LISTS) {
     const list = filteredCredentials[listKey];
     if (!Array.isArray(list)) continue;
-    const kept = list.filter((entry) => !(isPlainRecord(entry) && entry.mode === "mask"));
+    const kept = list.filter((entry) => !(isRecord(entry) && entry.mode === "mask"));
     if (kept.length === list.length) continue;
     changed = true;
     const dropped = list.length - kept.length;
@@ -1020,7 +987,7 @@ export class ClaudecodePermissions extends ToolPermissions {
     // (`network.deniedDomains`, `filesystem.denyRead`), so replacing `network`
     // wholesale to set one flag would drop the restrictions beside it.
     const overrideSandbox = config.claudecode?.sandbox;
-    if (isPlainRecord(overrideSandbox)) {
+    if (isRecord(overrideSandbox)) {
       // A subset of `sandbox.*` is ignored in a repository's settings.json, so
       // at project scope those paths are dropped rather than committed as a
       // policy that never applies.
@@ -1043,10 +1010,15 @@ export class ClaudecodePermissions extends ToolPermissions {
           });
       // Collected from the filtered result so the summary never names a path
       // the scope filters just dropped.
-      trustAffecting.push(...collectTrustAffectingSandboxPaths({ sandbox: scopedSandbox }));
+      trustAffecting.push(
+        ...collectTrustAffectingSandboxPaths({
+          sandbox: scopedSandbox,
+          paths: CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS,
+        }),
+      );
       if (Object.keys(scopedSandbox).length > 0) {
         settings.sandbox = deepMergeRecords(
-          isPlainRecord(settings.sandbox) ? settings.sandbox : {},
+          isRecord(settings.sandbox) ? settings.sandbox : {},
           scopedSandbox,
         );
       }
@@ -1085,7 +1057,7 @@ export class ClaudecodePermissions extends ToolPermissions {
     warnOnTrustAffectingEntries({
       toolLabel: "Claude Code",
       entries: trustAffecting,
-      relativeFilePath: paths.relativeFilePath,
+      relativeFilePath: toPosixPath(join(paths.relativeDirPath, paths.relativeFilePath)),
       logger,
     });
 
@@ -1154,7 +1126,7 @@ export class ClaudecodePermissions extends ToolPermissions {
     // `CLAUDECODE_MANAGED_ONLY_SANDBOX_PATHS` for why keeping the author's value
     // is worth the warning it costs on every generate.
     const { sandbox } = settings;
-    if (isPlainRecord(sandbox)) {
+    if (isRecord(sandbox)) {
       const importedSandbox = structuredClone(sandbox);
       for (const path of CLAUDECODE_COMMAND_EXECUTING_SANDBOX_PATHS) {
         deleteSandboxPath({ target: importedSandbox, path });
