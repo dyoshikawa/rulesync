@@ -244,6 +244,61 @@ describe("DevinPermissions", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("should warn when the override drops restricting sandbox entries already in the file", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "config.json"),
+        JSON.stringify({
+          sandbox: {
+            denied_domains: ["evil.example.com"],
+            excluded: { deny: ["Exec(git tag *)"] },
+          },
+        }),
+      );
+
+      const logger = createMockLogger();
+      await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          // Shrinks the deny list, and replaces `excluded` wholesale so its
+          // `deny` list disappears — both loosen the policy by omission.
+          devin: { sandbox: { denied_domains: [], excluded: {} } },
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("2 trust-affecting sandbox settings");
+      expect(warning).toContain("'sandbox.denied_domains'");
+      expect(warning).toContain("'sandbox.excluded.deny'");
+    });
+
+    it("should not warn when the override only adds to a restricting sandbox list", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "config.json"),
+        JSON.stringify({ sandbox: { denied_domains: ["evil.example.com"] } }),
+      );
+
+      const logger = createMockLogger();
+      await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: { sandbox: { denied_domains: ["evil.example.com", "worse.example.com"] } },
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("should not materialize an empty sandbox block", async () => {
       const perms = await DevinPermissions.fromRulesyncPermissions({
         outputRoot: testDir,

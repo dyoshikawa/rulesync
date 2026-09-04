@@ -114,8 +114,9 @@ const isNonEmptyList = (value: unknown): boolean => !Array.isArray(value) || val
  * This is the same stance `CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS` takes for
  * the equivalent Claude Code keys. `widens` keeps the warning to the value that
  * actually loosens the policy, so `network_mode: "limited"` and an empty list
- * stay quiet. `denied_domains` and `excluded.deny` are absent because they only
- * ever narrow.
+ * stay quiet. The two paths that only ever restrict — `denied_domains` and
+ * `excluded.deny` — are not here; they loosen only by going missing, which
+ * `DEVIN_NARROWING_SANDBOX_PATHS` below covers.
  *
  * @see https://docs.devin.ai/cli/sandbox
  */
@@ -147,6 +148,43 @@ const DEVIN_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
 ];
 
 /**
+ * `sandbox` paths that only ever restrict, so they loosen the policy by going
+ * missing rather than by holding a value. Devin's config is one file rather
+ * than a stack of settings scopes, and the override is shallow-merged over the
+ * existing `sandbox` at its top level: `denied_domains` is replaced wholesale,
+ * and `excluded.deny` vanishes as soon as the override states any other
+ * `excluded` key. Dropping an entry from either has the same effect as adding
+ * one to their counterparts above, so it is announced the same way. Claude Code
+ * needs no equivalent — it merges these lists across settings scopes, so a file
+ * can only ever add to them.
+ *
+ * @see https://docs.devin.ai/cli/sandbox
+ */
+const DEVIN_NARROWING_SANDBOX_PATHS: readonly {
+  readonly path: readonly string[];
+  readonly reason: string;
+}[] = [
+  {
+    path: ["denied_domains"],
+    reason: "drops domains the deny list already in the file kept out of reach",
+  },
+  {
+    path: ["excluded", "deny"],
+    reason: "drops commands the list already in the file pinned inside the sandbox",
+  },
+];
+
+/** Reads `sandbox` at `path`; `undefined` when a segment is missing or not an object. */
+function readSandboxPath(sandbox: Record<string, unknown>, path: readonly string[]): unknown {
+  let cursor: unknown = sandbox;
+  for (const segment of path) {
+    if (!isRecord(cursor)) return undefined;
+    cursor = cursor[segment];
+  }
+  return cursor;
+}
+
+/**
  * Every trust-affecting `sandbox` path the override authored, as the phrases the
  * one warning joins. Nothing is removed — the values are written, just not
  * silently. Called on the authored block rather than the merged one: a key that
@@ -156,22 +194,34 @@ const DEVIN_TRUST_AFFECTING_SANDBOX_PATHS: readonly {
 function collectTrustAffectingSandboxEntries(sandbox: Record<string, unknown>): string[] {
   const entries: string[] = [];
   for (const { path, reason, widens } of DEVIN_TRUST_AFFECTING_SANDBOX_PATHS) {
-    const leaf = path.at(-1);
-    if (leaf === undefined) continue;
-
-    let parent: Record<string, unknown> | undefined = sandbox;
-    for (const segment of path.slice(0, -1)) {
-      const next: unknown = parent[segment];
-      if (!isRecord(next)) {
-        parent = undefined;
-        break;
-      }
-      parent = next;
-    }
-    if (parent === undefined) continue;
-
-    const value = parent[leaf];
+    const value = readSandboxPath(sandbox, path);
     if (value === undefined || !widens(value)) continue;
+    entries.push(`'sandbox.${path.join(".")}' — ${reason}`);
+  }
+  return entries;
+}
+
+/**
+ * The restricting entries this generate would drop, compared between the
+ * `sandbox` already in the file and the one about to replace it. Only losses
+ * count: adding to a deny list needs no warning.
+ */
+function collectDroppedNarrowingSandboxEntries({
+  existing,
+  merged,
+}: {
+  existing: Record<string, unknown>;
+  merged: Record<string, unknown>;
+}): string[] {
+  const entries: string[] = [];
+  for (const { path, reason } of DEVIN_NARROWING_SANDBOX_PATHS) {
+    const before = readSandboxPath(existing, path);
+    if (!Array.isArray(before) || before.length === 0) continue;
+
+    const after = readSandboxPath(merged, path);
+    const kept: unknown[] = Array.isArray(after) ? after : [];
+    if (before.every((entry: unknown) => kept.includes(entry))) continue;
+
     entries.push(`'sandbox.${path.join(".")}' — ${reason}`);
   }
   return entries;
@@ -311,8 +361,9 @@ export class DevinPermissions extends ToolPermissions {
     const authoredSandbox = config.devin?.sandbox;
     if (authoredSandbox !== undefined) {
       if (global) {
+        const existingSandbox = asDevinRecord(settings.sandbox);
         const mergedSandbox = {
-          ...asDevinRecord(settings.sandbox),
+          ...existingSandbox,
           ...asDevinRecord(authoredSandbox),
         };
         // Materializing `"sandbox": {}` would put a meaningless key — and a
@@ -321,7 +372,13 @@ export class DevinPermissions extends ToolPermissions {
           patch.sandbox = mergedSandbox;
         }
 
-        const trustAffecting = collectTrustAffectingSandboxEntries(asDevinRecord(authoredSandbox));
+        const trustAffecting = [
+          ...collectTrustAffectingSandboxEntries(asDevinRecord(authoredSandbox)),
+          ...collectDroppedNarrowingSandboxEntries({
+            existing: existingSandbox,
+            merged: mergedSandbox,
+          }),
+        ];
         if (trustAffecting.length > 0) {
           const one = trustAffecting.length === 1;
           logger?.warn(
