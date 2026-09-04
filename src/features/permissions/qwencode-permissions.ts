@@ -5,7 +5,11 @@ import { z } from "zod/mini";
 
 import { QWENCODE_DIR, QWENCODE_SETTINGS_FILE_NAME } from "../../constants/qwencode-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import type {
+  PermissionAction,
+  PermissionsConfig,
+  QwencodePermissionsOverride,
+} from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
@@ -138,7 +142,9 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
 // SystemDefaults scopes only, with workspace values ignored, so emitting it into
 // project settings would be dead configuration. Generate drops it there with a
 // warning, exactly as it does for the global-only `security` keys.
-const QWEN_GLOBAL_ONLY_TOOLS_KEYS = ["workflowsEnabled"] as const;
+const QWEN_GLOBAL_ONLY_TOOLS_KEYS: readonly (typeof QWEN_OVERRIDE_TOOLS_KEYS)[number][] = [
+  "workflowsEnabled",
+];
 // `allowedHttpHookUrls` (URL patterns allowed as `type: "http"` hook targets; an
 // empty list means allow-all) and `allowPrivateNetworkHooks` (relaxes the SSRF
 // private-IP check) gate the HTTP hooks rulesync emits. Both are authored through
@@ -153,7 +159,17 @@ const QWEN_OVERRIDE_SECURITY_KEYS = [
 // by design so that a cloned repository cannot self-grant private-network access.
 // Emitting it into project settings would therefore be dead configuration, so
 // generate drops it there with a warning.
-const QWEN_GLOBAL_ONLY_SECURITY_KEYS = ["allowPrivateNetworkHooks"] as const;
+const QWEN_GLOBAL_ONLY_SECURITY_KEYS: readonly (typeof QWEN_OVERRIDE_SECURITY_KEYS)[number][] = [
+  "allowPrivateNetworkHooks",
+];
+// The single source of truth pairing each override group with its global-only
+// keys. Both directions read it — the generate-side scope gate and the
+// import-side promotion warning — so a new group or key cannot be wired into
+// one of them and forgotten in the other.
+const QWEN_GLOBAL_ONLY_GROUPS = [
+  { groupName: "tools", globalOnlyKeys: QWEN_GLOBAL_ONLY_TOOLS_KEYS },
+  { groupName: "security", globalOnlyKeys: QWEN_GLOBAL_ONLY_SECURITY_KEYS },
+] as const;
 // The `permissions` sub-keys the `qwencode` override authors. `autoMode` (the
 // Auto Mode classifier config) is a sibling of `allow`/`ask`/`deny` under
 // `permissions` with no canonical category, so it round-trips through the
@@ -177,34 +193,58 @@ function pickQwenOverrideKeys(group: unknown, keys: readonly string[]): Record<s
 }
 
 /**
- * Drop the global-only keys of a settings group from the override when generating
- * project settings, warning once per dropped key. Only the override copy is
- * filtered, so a value the user already wrote into the project file stays
- * untouched.
+ * Apply the scope rule for a settings group's global-only keys.
+ *
+ * Generating project settings drops them — Qwen Code ignores a workspace value
+ * by design, so writing one would be dead configuration — and warns once per
+ * dropped key. Only the override copy is filtered, so a value the user already
+ * wrote into the project file stays untouched.
+ *
+ * Generating global settings keeps them, but a key whose whole point is that a
+ * workspace cannot self-grant it is worth announcing when it is granted: the
+ * `.rulesync/permissions.jsonc` carrying it may have arrived with a cloned or
+ * fetched repository, and the global file applies to every project on this
+ * machine. So a value that widens what Qwen Code does without asking is named,
+ * alongside the value it replaces, exactly as the deepagents startup override
+ * announces its own relaxations.
  */
 function scopeOverrideGroup(
   overrideGroup: unknown,
   {
     groupName,
     globalOnlyKeys,
+    existingGroup,
     global,
     relativeFilePath,
     logger,
   }: {
     groupName: string;
     globalOnlyKeys: readonly string[];
+    existingGroup: unknown;
     global: boolean;
     relativeFilePath: string;
     logger?: Logger;
   },
 ): Record<string, unknown> {
   const scoped = { ...asPlainRecord(overrideGroup) };
-  if (global) return scoped;
+  const previous = asPlainRecord(existingGroup);
   for (const key of globalOnlyKeys) {
-    if (scoped[key] === undefined) continue;
-    delete scoped[key];
+    const value = scoped[key];
+    if (value === undefined) continue;
+    if (!global) {
+      delete scoped[key];
+      logger?.warn(
+        `Qwen permissions: '${groupName}.${key}' is only honored in user/system settings, so it is skipped for the project-scoped ${relativeFilePath}. Author it in the global scope instead.`,
+      );
+      continue;
+    }
+    // Every global-only key is a boolean that grants something when `true`, so
+    // `false` (and a value the file already had) relaxes nothing and would only
+    // bury the case that does.
+    if (value !== true || previous[key] === true) continue;
+    const replaced = previous[key] === undefined ? "" : ` (was ${JSON.stringify(previous[key])})`;
     logger?.warn(
-      `Qwen permissions: '${groupName}.${key}' is only honored in user/system settings, so it is skipped for the project-scoped ${relativeFilePath}. Author it in the global scope instead.`,
+      `Qwen permissions: the qwencode override wrote '${groupName}.${key}' = true${replaced} into ${relativeFilePath}, your global Qwen Code settings. Qwen Code ignores this key in workspace settings so a repository cannot grant it per project; in the global scope it applies to every project on this machine.`,
     );
   }
   return scoped;
@@ -213,7 +253,7 @@ function scopeOverrideGroup(
 /**
  * Build the `tools`/`security` patch groups contributed by the `qwencode`
  * override. Each group is shallow-merged over what `settings.json` already has,
- * after the scope gate has dropped the keys Qwen Code ignores in this scope.
+ * after the scope gate has handled the keys Qwen Code honors in one scope only.
  */
 function buildOverrideGroupsPatch({
   settings,
@@ -223,37 +263,25 @@ function buildOverrideGroupsPatch({
   logger,
 }: {
   settings: QwenSettings;
-  override: { tools?: unknown; security?: unknown } | undefined;
+  override: QwencodePermissionsOverride | undefined;
   global: boolean;
   relativeFilePath: string;
   logger?: Logger;
 }): Record<string, unknown> {
-  const groups = [
-    {
-      groupName: "tools",
-      existing: settings.tools,
-      overrideGroup: override?.tools,
-      globalOnlyKeys: QWEN_GLOBAL_ONLY_TOOLS_KEYS,
-    },
-    {
-      groupName: "security",
-      existing: settings.security,
-      overrideGroup: override?.security,
-      globalOnlyKeys: QWEN_GLOBAL_ONLY_SECURITY_KEYS,
-    },
-  ] as const;
-
   const patch: Record<string, unknown> = {};
-  for (const { groupName, existing, overrideGroup, globalOnlyKeys } of groups) {
+  for (const { groupName, globalOnlyKeys } of QWEN_GLOBAL_ONLY_GROUPS) {
+    const overrideGroup = override?.[groupName];
     if (overrideGroup === undefined) continue;
+    const existingGroup = settings[groupName];
     const scoped = scopeOverrideGroup(overrideGroup, {
       groupName,
       globalOnlyKeys,
+      existingGroup,
       global,
       relativeFilePath,
       logger,
     });
-    const merged = { ...asPlainRecord(existing), ...scoped };
+    const merged = { ...asPlainRecord(existingGroup), ...scoped };
     // An override whose only key was scoped away leaves nothing to write, so do
     // not add an empty group object to a file that had none.
     if (Object.keys(merged).length > 0) {
@@ -261,6 +289,26 @@ function buildOverrideGroupsPatch({
     }
   }
   return patch;
+}
+
+/**
+ * Warn about a global-only key lifted out of a settings file being imported.
+ * The file carries no scope marker, so import keeps the key either way — but
+ * regenerating in the global scope would turn a value Qwen Code ignored in a
+ * workspace into one it enforces everywhere, and a settings file read out of a
+ * cloned repository is exactly where such a value comes from.
+ */
+function warnAboutImportedGlobalOnlyKeys(groups: Record<string, Record<string, unknown>>): void {
+  for (const { groupName, globalOnlyKeys } of QWEN_GLOBAL_ONLY_GROUPS) {
+    const group = groups[groupName] ?? {};
+    for (const key of globalOnlyKeys) {
+      // Only a granting value is worth flagging; see `scopeOverrideGroup`.
+      if (group[key] !== true) continue;
+      moduleLogger.warn(
+        `Qwen permissions: imported '${groupName}.${key}' = true. Qwen Code ignores it in workspace settings but enforces it in user/system settings, so review it before generating with the global scope.`,
+      );
+    }
+  }
 }
 
 export class QwencodePermissions extends ToolPermissions {
@@ -462,20 +510,7 @@ export class QwencodePermissions extends ToolPermissions {
     // a user's real setting. The scope gate lives on the generate side.
     const overrideTools = pickQwenOverrideKeys(settings.tools, QWEN_OVERRIDE_TOOLS_KEYS);
     const overrideSecurity = pickQwenOverrideKeys(settings.security, QWEN_OVERRIDE_SECURITY_KEYS);
-    // Regenerating in global scope turns a value Qwen Code ignores in a workspace
-    // file into one it enforces, so flag the promotion rather than letting a
-    // setting imported from a cloned repository slip through.
-    for (const [groupName, group, globalOnlyKeys] of [
-      ["tools", overrideTools, QWEN_GLOBAL_ONLY_TOOLS_KEYS],
-      ["security", overrideSecurity, QWEN_GLOBAL_ONLY_SECURITY_KEYS],
-    ] as const) {
-      for (const key of globalOnlyKeys) {
-        if (group[key] === undefined) continue;
-        moduleLogger.warn(
-          `Qwen permissions: imported '${groupName}.${key}'. Qwen Code ignores it in workspace settings but enforces it in user/system settings, so review it before generating with the global scope.`,
-        );
-      }
-    }
+    warnAboutImportedGlobalOnlyKeys({ tools: overrideTools, security: overrideSecurity });
     const overridePermissions = pickQwenOverrideKeys(
       settings.permissions,
       QWEN_OVERRIDE_PERMISSIONS_KEYS,

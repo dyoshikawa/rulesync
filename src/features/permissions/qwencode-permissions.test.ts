@@ -9,6 +9,7 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -285,7 +286,7 @@ describe("QwencodePermissions", () => {
       expect(config.qwencode.tools).toEqual({ listDirectory: { enabled: true } });
     });
 
-    it("authors tools.workflowsEnabled in global scope (issue #2668)", async () => {
+    it("authors tools.workflowsEnabled in global scope, announcing the grant (issue #2668)", async () => {
       const logger = createMockLogger();
       const instance = await QwencodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -303,7 +304,41 @@ describe("QwencodePermissions", () => {
 
       const content = JSON.parse(instance.getFileContent());
       expect(content.tools).toEqual({ approvalMode: "auto-edit", workflowsEnabled: true });
-      expect(logger.warn).not.toHaveBeenCalled();
+      // The global scope is the only place a shareable permissions file can turn
+      // this key on, so the grant is named rather than written silently.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("wrote 'tools.workflowsEnabled' = true"),
+      );
+    });
+
+    it("stays quiet when global tools.workflowsEnabled grants nothing (issue #2668)", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ tools: { workflowsEnabled: true } }),
+      );
+
+      for (const workflowsEnabled of [false, true]) {
+        const logger = createMockLogger();
+        await QwencodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          global: true,
+          logger,
+          rulesyncPermissions: new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent: JSON.stringify({
+              permission: {},
+              qwencode: { tools: { workflowsEnabled } },
+            }),
+          }),
+        });
+
+        // `false` relaxes nothing, and `true` over a file that already had `true`
+        // changes nothing — warning about either would bury the real grant.
+        expect(logger.warn).not.toHaveBeenCalled();
+      }
     });
 
     it("skips tools.workflowsEnabled with a warning in project scope (issue #2668)", async () => {
@@ -379,6 +414,26 @@ describe("QwencodePermissions", () => {
 
       const json = instance.toRulesyncPermissions().getJson();
       expect(json.qwencode).toEqual({ tools: { workflowsEnabled: true } });
+    });
+
+    it("warns only about a granting global-only key on import (issue #2668)", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { workflowsEnabled: false } }),
+      }).toRulesyncPermissions();
+      expect(warn).not.toHaveBeenCalled();
+
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { workflowsEnabled: true } }),
+      }).toRulesyncPermissions();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("imported 'tools.workflowsEnabled' = true"),
+      );
     });
 
     it("preserves unrelated tools keys while the override sets its own", async () => {
@@ -460,7 +515,11 @@ describe("QwencodePermissions", () => {
         allowedHttpHookUrls: ["https://hooks.example.com/*"],
         allowPrivateNetworkHooks: true,
       });
-      expect(logger.warn).not.toHaveBeenCalled();
+      // Nothing is skipped here, but relaxing the SSRF check for every project on
+      // the machine is announced rather than written silently.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("wrote 'security.allowPrivateNetworkHooks' = true"),
+      );
     });
 
     it("skips allowPrivateNetworkHooks with a warning in project scope (issue #2595)", async () => {
