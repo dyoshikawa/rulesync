@@ -160,7 +160,101 @@ describe("DevinPermissions", () => {
         excluded: { allow: ["Exec(git status *)"], deny: ["Exec(git tag *)"] },
       });
       expect(parsed.permissions.allow).toEqual(["Read(src/**)"]);
+      // `allowed_domains` and `excluded.allow` both loosen the sandbox, so the
+      // write is announced; `network_mode: "limited"` and `excluded.deny` are not.
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("2 trust-affecting sandbox settings");
+      expect(warning).toContain("'sandbox.allowed_domains'");
+      expect(warning).toContain("'sandbox.excluded.allow'");
+      expect(warning).not.toContain("'sandbox.network_mode'");
+      expect(warning).not.toContain("'sandbox.excluded.deny'");
+    });
+
+    it("should not warn for a devin.sandbox override that only narrows the sandbox", async () => {
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: {
+            sandbox: {
+              denied_domains: ["evil.example.com"],
+              network_mode: "limited",
+              allowed_domains: [],
+              excluded: { deny: ["Exec(git tag *)"] },
+            },
+          },
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(JSON.parse(perms.getFileContent()).sandbox.denied_domains).toEqual([
+        "evil.example.com",
+      ]);
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should warn once when network_mode opens every HTTP method", async () => {
+      const logger = createMockLogger();
+      await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: { sandbox: { network_mode: "full" } },
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("1 trust-affecting sandbox setting"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'sandbox.network_mode'"));
+    });
+
+    it("should preserve an existing sandbox block when no devin override is authored", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "config.json"),
+        JSON.stringify({ sandbox: { denied_domains: ["evil.example.com"], network_mode: "full" } }),
+      );
+
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+        }),
+        global: true,
+        logger,
+      });
+
+      // `sandbox` is an owned key of this feature now, so the untouched block
+      // must survive a generate that says nothing about it — and preserving a
+      // value the user set by hand is not rulesync opening the sandbox.
+      const parsed = JSON.parse(perms.getFileContent());
+      expect(parsed.sandbox).toEqual({
+        denied_domains: ["evil.example.com"],
+        network_mode: "full",
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should not materialize an empty sandbox block", async () => {
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: { sandbox: {} },
+        }),
+        global: true,
+      });
+
+      expect(perms.getFileContent()).not.toContain("sandbox");
     });
 
     it("should shallow-merge the devin.sandbox override over sibling keys already in the file", async () => {
