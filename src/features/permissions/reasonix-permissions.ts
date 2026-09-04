@@ -11,7 +11,7 @@ import {
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   toReasonixStringArray as toStringArray,
@@ -19,6 +19,7 @@ import {
 } from "../shared/reasonix-config-table.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { warnOnTrustAffectingEntries } from "./sandbox-trust.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -122,6 +123,44 @@ type ReasonixPermissionsTable = Record<string, unknown> & {
   ask?: string[];
   deny?: string[];
 };
+
+/**
+ * Writes the override's `allow_dynamic_bash` into `[permissions]`, where it sits
+ * beside allow/ask/deny rather than in a table of its own. Only an authored
+ * value is written: leaving the key out of the override keeps whatever the file
+ * already had. Turning it on is announced the way the trust-affecting keys of
+ * the other tools are, because it widens what a shareable permissions file lets
+ * run with no human in the loop; turning it off narrows, so it stays quiet.
+ */
+function applyAllowDynamicBash({
+  permissions,
+  authored,
+  relativeFilePath,
+  logger,
+}: {
+  permissions: ReasonixPermissionsTable;
+  authored: boolean | undefined;
+  relativeFilePath: string;
+  logger?: Logger;
+}): void {
+  if (authored === undefined) return;
+  permissions.allow_dynamic_bash = authored;
+  if (!authored) return;
+  warnOnTrustAffectingEntries({
+    toolLabel: "Reasonix",
+    entries: [
+      {
+        label: "permissions.allow_dynamic_bash",
+        reason:
+          "lets an Allow fallback, Auto included, run the nested and indirect Bash that " +
+          "otherwise always needs a human — command and process substitution, a dynamic " +
+          "command name, 'eval', 'source', 'sh -c' and their kind",
+      },
+    ],
+    relativeFilePath,
+    logger,
+  });
+}
 
 function parseReasonixConfig(fileContent: string): ReasonixConfig {
   const parsed = smolToml.parse(fileContent || smolToml.stringify({}));
@@ -273,6 +312,13 @@ export class ReasonixPermissions extends ToolPermissions {
     setOrDeleteEntries(mergedPermissions, "ask", [...preservedAsk, ...ask, ...rawAsk]);
     setOrDeleteEntries(mergedPermissions, "deny", [...preservedDeny, ...deny, ...rawDeny]);
 
+    applyAllowDynamicBash({
+      permissions: mergedPermissions,
+      authored: override?.allowDynamicBash,
+      relativeFilePath: toPosixPath(join(paths.relativeDirPath, paths.relativeFilePath)),
+      logger,
+    });
+
     const patch: Record<string, unknown> = { permissions: mergedPermissions };
 
     // Overlay the Reasonix-scoped override's `[sandbox]`/`[agent]` tables. Shallow
@@ -355,6 +401,14 @@ export class ReasonixPermissions extends ToolPermissions {
       ...REASONIX_RETIRED_AGENT_KEYS,
     ]);
     const reasonixOverride: Record<string, unknown> = {};
+    // `[permissions] allow_dynamic_bash` is lifted only when it is the boolean
+    // Reasonix documents: any other shape is left in the table the generate
+    // preserves, rather than round-tripped through a typed override field that
+    // would have to reshape it.
+    const allowDynamicBash = toPermissionsTable(this.toml.permissions).allow_dynamic_bash;
+    if (typeof allowDynamicBash === "boolean") {
+      reasonixOverride.allowDynamicBash = allowDynamicBash;
+    }
     if (Object.keys(sandbox).length > 0) reasonixOverride.sandbox = sandbox;
     if (Object.keys(agentPlanMode).length > 0) reasonixOverride.agent = agentPlanMode;
     if (allowSplit.exact.length > 0) reasonixOverride.rawAllow = allowSplit.exact;

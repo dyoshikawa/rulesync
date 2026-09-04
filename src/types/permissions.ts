@@ -372,6 +372,8 @@ export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOver
  *
  * @example
  * { "sandbox": { "bash": "enforce", "network": false }, "agent": { "plan_mode_read_only_commands": ["gh pr diff"] } }
+ * @example
+ * { "allowDynamicBash": true, "rawAllow": ["Bash=pnpm test"] }
  */
 const ReasonixPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
@@ -384,13 +386,22 @@ const ReasonixPermissionsOverrideSchema = z.looseObject({
   // pattern-level way to pre-authorize nested or indirect Bash — command and
   // process substitution, `eval`, `source`, `sh -c` and friends, which SPEC
   // §3.7 gates harder than a merely dynamic command line — in a headless
-  // `reasonix run`; upstream also has the blanket `[permissions]
-  // allow_dynamic_bash` opt-in (v1.19.0) and YOLO, neither of which rulesync
-  // can author today. Entries are passed through untranslated, so any Reasonix
-  // entry syntax is valid.
+  // `reasonix run`. Entries are passed through untranslated, so any Reasonix
+  // entry syntax is valid. The blanket alternative is `allowDynamicBash` below;
+  // YOLO cannot be authored at all, being a run-time posture rather than config.
   rawAllow: z.optional(z.array(z.string())),
   rawAsk: z.optional(z.array(z.string())),
   rawDeny: z.optional(z.array(z.string())),
+  // `[permissions] allow_dynamic_bash` (v1.19.0): the blanket opt-in that lets
+  // an Allow fallback — Auto included — cover the nested and indirect Bash the
+  // `rawAllow` entries above can only pre-authorize one exact literal at a
+  // time. Explicit `ask` and `deny` rules keep precedence over it. Written into
+  // the `[permissions]` table beside allow/ask/deny rather than into a table of
+  // its own, so it is named here instead of riding along in a passthrough
+  // object; enabling it is announced, as with the other keys that widen what a
+  // shareable permissions file lets run without a human.
+  // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
+  allowDynamicBash: z.optional(z.boolean()),
 });
 export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOverrideSchema>;
 

