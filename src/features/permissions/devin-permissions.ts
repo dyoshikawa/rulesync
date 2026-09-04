@@ -147,6 +147,18 @@ const DEVIN_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath[] 
 ];
 
 /**
+ * One row of the restriction-loss table. It is the mirror of
+ * {@link TrustAffectingSandboxPath}: the value alone says nothing, because these
+ * paths restrict, so what matters is what the merge takes away from the list the
+ * file already had.
+ */
+type RestrictionLosingSandboxPath = {
+  readonly path: readonly string[];
+  readonly reason: string;
+  readonly loosens: (args: { before: readonly unknown[]; after: readonly unknown[] }) => boolean;
+};
+
+/**
  * `sandbox` paths that restrict, and that therefore loosen the policy by losing
  * entries rather than by holding a value. Devin's config is one file rather than
  * a stack of settings scopes, and the override is shallow-merged over the
@@ -164,18 +176,6 @@ const DEVIN_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath[] 
  *
  * @see https://docs.devin.ai/cli/sandbox
  */
-/**
- * One row of the restriction-loss table. It is the mirror of
- * {@link TrustAffectingSandboxPath}: the value alone says nothing, because these
- * paths restrict, so what matters is what the merge takes away from the list the
- * file already had.
- */
-type RestrictionLosingSandboxPath = {
-  readonly path: readonly string[];
-  readonly reason: string;
-  readonly loosens: (args: { before: readonly unknown[]; after: readonly unknown[] }) => boolean;
-};
-
 const DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS: readonly RestrictionLosingSandboxPath[] = [
   {
     path: ["allowed_domains"],
@@ -202,6 +202,10 @@ const DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS: readonly RestrictionLosingSandboxP
  * present but not a list is reported outright: a shape Devin may still honor is
  * not something to go quiet about just because it cannot be diffed.
  */
+/** The reason printed for a restricting value the file held in an unusable shape. */
+const REPLACED_UNREADABLE_REASON =
+  "replaces a value already in the file that is not the list Devin documents, so what it restricted cannot be read";
+
 function collectRestrictionLosingSandboxEntries({
   existing,
   merged,
@@ -214,17 +218,22 @@ function collectRestrictionLosingSandboxEntries({
     const before = readSandboxPath({ sandbox: existing, path });
     if (before === undefined) continue;
 
+    // The merge is shallow at the sandbox's top level, so a path is untouched
+    // exactly when its first segment still holds the value the file had —
+    // nothing was dropped, whatever shape that value is in. Comparing the leaf
+    // reads instead would call two unreadable containers identical.
+    const [rootKey] = path;
+    if (rootKey !== undefined && existing[rootKey] === merged[rootKey]) continue;
+
     const after = readSandboxPath({ sandbox: merged, path });
-    // The shallow merge left this path exactly as the file had it — the override
-    // states neither it nor the container above it — so nothing was dropped,
-    // whatever shape the value is in.
-    if (after === before) continue;
 
     const label = `sandbox.${path.join(".")}`;
     // A value the file holds that is not the list Devin documents, replaced by
     // one that is: whatever it meant, it is not something to overwrite quietly.
+    // The row's own reason would claim entries were dropped, which is exactly
+    // what cannot be read here.
     if (!Array.isArray(before)) {
-      entries.push({ label, reason });
+      entries.push({ label, reason: REPLACED_UNREADABLE_REASON });
       continue;
     }
     if (before.length === 0) continue;

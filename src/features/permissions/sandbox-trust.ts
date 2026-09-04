@@ -98,16 +98,53 @@ export function collectTrustAffectingSandboxPaths({
   paths: readonly TrustAffectingSandboxPath[];
 }): TrustAffectingEntry[] {
   const entries: TrustAffectingEntry[] = [];
+  const reportedContainers = new Set<string>();
   for (const { path, reason, widens } of paths) {
     const value = readSandboxPath({ sandbox, path });
     if (value === undefined) continue;
+
     // An unreadable container is reported without consulting `widens`: the
     // predicate is written for the leaf's own values, and a shape that hides the
-    // leaf is exactly the case silence must not cover.
-    if (value !== UNREADABLE_SANDBOX_PATH && !widens(value)) continue;
+    // leaf is exactly the case silence must not cover. One container usually
+    // hides several table rows, so it is named once rather than once per row.
+    if (value === UNREADABLE_SANDBOX_PATH) {
+      const label = findUnreadableContainer({ sandbox, path });
+      if (label === undefined || reportedContainers.has(label)) continue;
+      reportedContainers.add(label);
+      entries.push({ label, reason: UNREADABLE_CONTAINER_REASON });
+      continue;
+    }
+
+    if (!widens(value)) continue;
     entries.push({ label: `sandbox.${path.join(".")}`, reason });
   }
   return entries;
+}
+
+/** The reason printed for a container that hides the settings underneath it. */
+const UNREADABLE_CONTAINER_REASON =
+  "is not the object it has to be, so nothing under it can be checked for what it opens";
+
+/**
+ * The prefix of `path` that {@link readSandboxPath} could not walk past, as a
+ * label. `undefined` when the walk was not blocked at all.
+ */
+function findUnreadableContainer({
+  sandbox,
+  path,
+}: {
+  sandbox: Record<string, unknown>;
+  path: readonly string[];
+}): string | undefined {
+  let cursor: unknown = sandbox;
+  const walked: string[] = [];
+  for (const segment of path) {
+    if (cursor === undefined) return undefined;
+    if (!isRecord(cursor)) return `sandbox.${walked.join(".")}`;
+    walked.push(segment);
+    cursor = cursor[segment];
+  }
+  return undefined;
 }
 
 /**

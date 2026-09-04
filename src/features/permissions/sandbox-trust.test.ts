@@ -100,13 +100,21 @@ describe("sandbox-trust", () => {
       expect(collectTrustAffectingSandboxPaths({ sandbox: {}, paths })).toEqual([]);
     });
 
-    it("should report a nested path whose container is not an object", () => {
-      // `excluded` is a list here, so neither leaf can be read. Reporting both
-      // is the fail-safe reading: something is being written under a shape that
-      // hides what.
-      expect(
-        collectTrustAffectingSandboxPaths({ sandbox: { excluded: ["Exec(rm -rf /)"] }, paths }),
-      ).toEqual([{ label: "sandbox.excluded.allow", reason: "escapes the sandbox" }]);
+    it("should report the container itself when it is not an object", () => {
+      // `excluded` is a list here, so no leaf under it can be read. The
+      // container is named once, not once per row it hides, and the reason says
+      // what is actually known: the shape blocks the check.
+      const entries = collectTrustAffectingSandboxPaths({
+        sandbox: { excluded: ["Exec(rm -rf /)"] },
+        paths: [
+          ...paths,
+          { path: ["excluded", "ask"], reason: "escapes the sandbox", widens: isNonEmptyList },
+        ],
+      });
+
+      expect(entries).toHaveLength(1);
+      expect(entries[0]?.label).toBe("sandbox.excluded");
+      expect(entries[0]?.reason).toContain("nothing under it can be checked");
     });
 
     it("should label a nested path with dots", () => {

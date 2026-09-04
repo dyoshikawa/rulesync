@@ -88,16 +88,6 @@ function parseClaudePermissionEntry(entry: string): { toolName: string; pattern:
 }
 
 /**
- * Claude Code's file permission checks match only `Edit(path)` and `Read(path)`
- * rules. A `Write(path)`, `NotebookEdit(path)` or `Glob(path)` rule "is accepted
- * but never matched by those checks, so Claude Code warns at startup for each
- * allow, deny, or ask rule in one of these unmatched forms" — so a canonical
- * `write`/`notebookedit`/`glob` rule with a pattern is emitted in the form the
- * docs prescribe instead. A tool-name rule with no path is unaffected: it
- * matches the tool everywhere and produces no warning.
- * @see https://code.claude.com/docs/en/permissions
- */
-/**
  * Merge `patch` into `base`, recursing into plain objects so a sibling key at
  * any depth survives. Arrays and scalars are replaced, since a list the author
  * states is the list they mean.
@@ -875,6 +865,16 @@ function stripUnhonoredTopLevelKeys({
   return { filtered, trustAffecting };
 }
 
+/**
+ * Claude Code's file permission checks match only `Edit(path)` and `Read(path)`
+ * rules. A `Write(path)`, `NotebookEdit(path)` or `Glob(path)` rule "is accepted
+ * but never matched by those checks, so Claude Code warns at startup for each
+ * allow, deny, or ask rule in one of these unmatched forms" — so a canonical
+ * `write`/`notebookedit`/`glob` rule with a pattern is emitted in the form the
+ * docs prescribe instead. A tool-name rule with no path is unaffected: it
+ * matches the tool everywhere and produces no warning.
+ * @see https://code.claude.com/docs/en/permissions
+ */
 const CLAUDE_PATH_RULE_ALIASES: Record<string, string> = {
   Write: "Edit",
   NotebookEdit: "Edit",

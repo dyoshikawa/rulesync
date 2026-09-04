@@ -198,6 +198,32 @@ describe("DevinPermissions", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("should warn once when the authored excluded block is not an object", async () => {
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          // The override is authored JSONC, so `excluded` can hold anything.
+          // Neither `excluded.allow` nor `excluded.ask` can be read through a
+          // string, and going quiet would claim the write cannot loosen
+          // anything — so the container is named once instead.
+          devin: { sandbox: { excluded: "Exec(git status *)" } },
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(JSON.parse(perms.getFileContent()).sandbox).toEqual({
+        excluded: "Exec(git status *)",
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("1 trust-affecting sandbox change");
+      expect(warning).toContain("'sandbox.excluded' —");
+      expect(warning).toContain("nothing under it can be checked");
+    });
+
     it("should warn once when network_mode opens every HTTP method", async () => {
       const logger = createMockLogger();
       await DevinPermissions.fromRulesyncPermissions({
@@ -379,6 +405,32 @@ describe("DevinPermissions", () => {
       // naming it as a dropped restriction would be a warning about nothing.
       expect(JSON.parse(perms.getFileContent()).sandbox.denied_domains).toBe("evil.example.com");
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should warn when an unreadable excluded container is replaced by another", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "config.json"),
+        JSON.stringify({ sandbox: { excluded: ["Exec(git tag *)"] } }),
+      );
+
+      const logger = createMockLogger();
+      await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          // Both shapes hide `excluded.deny`, so reading the leaf before and
+          // after says "unreadable" either way; only the top-level key shows
+          // that the override replaced what the file had.
+          devin: { sandbox: { excluded: {} } },
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'sandbox.excluded.deny'"));
     });
 
     it("should not warn about a loosening value the file already held", async () => {
