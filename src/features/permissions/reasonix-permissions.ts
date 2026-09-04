@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, posix, win32 } from "node:path";
 
 import { uniq } from "es-toolkit";
 import * as smolToml from "smol-toml";
@@ -190,16 +190,25 @@ const REASONIX_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath
  * generate runs in. The key moves the write confinement rather than adding to
  * it, so the ordinary value — the project directory, spelled relatively — would
  * otherwise be announced on every generate; an absolute path, a home-relative
- * one, or one that climbs out with `..` is the case worth naming, since it is
- * how a fetched permissions file would put `~/.ssh` or `/` inside the jail.
- * Anything that is not a string is reported, per the fail-safe rule the
- * predicates in `sandbox-trust.ts` follow.
+ * one, a shell or environment expansion, or one that climbs out with `..` is
+ * the case worth naming, since it is how a fetched permissions file would put
+ * `~/.ssh` or `C:\\Users\\<user>` inside the jail. Both path flavours are asked,
+ * because the file is authored on one machine and generated on another, so a
+ * Windows-shaped root reaching a POSIX check must not read as relative. Anything
+ * that is not a string is reported, per the fail-safe rule the predicates in
+ * `sandbox-trust.ts` follow.
  */
 function escapesTheProject(value: unknown): boolean {
   if (typeof value !== "string") return true;
   const trimmed = value.trim();
-  if (trimmed.startsWith("/") || trimmed.startsWith("~")) return true;
-  if (trimmed.includes("$")) return true;
+  // The empty string is the documented default: it resolves to the directory
+  // the run is already confined to, so it is not a move at all.
+  if (trimmed === "") return false;
+  if (trimmed.startsWith("~")) return true;
+  if (posix.isAbsolute(trimmed) || win32.isAbsolute(trimmed)) return true;
+  // `$HOME`/`${HOME}` and its `%USERPROFILE%` counterpart: what the value
+  // expands to is not knowable here, so it is never the quiet case.
+  if (trimmed.includes("$") || /%[^%]+%/.test(trimmed)) return true;
   return trimmed.split(/[\\/]/).includes("..");
 }
 
@@ -473,6 +482,10 @@ export class ReasonixPermissions extends ToolPermissions {
         }),
       );
     }
+    // `[agent]` carries no trust rows: its one override-authored key,
+    // `plan_mode_read_only_commands`, is documented upstream as kept for
+    // config round-trips only — Plan-mode Bash goes through `[permissions]`
+    // now — so a longer list grants nothing the permission policy did not.
     if (override?.agent !== undefined) {
       const mergedAgent = {
         ...asReasonixRecord(parsed.agent),

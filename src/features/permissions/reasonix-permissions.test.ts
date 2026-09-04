@@ -640,26 +640,61 @@ describe("ReasonixPermissions", () => {
       expect(warning).toContain("'sandbox.network'");
     });
 
-    it("announces a workspace_root that moves the jail out of the project", async () => {
-      const logger = createMockLogger();
-      await ReasonixPermissions.fromRulesyncPermissions({
-        outputRoot: testDir,
-        rulesyncPermissions: new RulesyncPermissions({
-          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-          fileContent: JSON.stringify({
-            permission: {},
-            reasonix: { sandbox: { workspace_root: "${HOME}" } },
+    it.each<[unknown, string]>([
+      ["/etc", "a POSIX absolute path"],
+      ["~/secrets", "a home-relative path"],
+      ["C:\\Users\\dev", "a Windows drive-letter path"],
+      ["\\\\server\\share", "a UNC path"],
+      ["%USERPROFILE%", "a Windows environment expansion"],
+      ["${HOME}", "a shell expansion"],
+      ["../..", "a path climbing out of the project"],
+      [42, "a value that is not a string at all"],
+    ])(
+      "announces a workspace_root that moves the jail out of the project: %s",
+      async (workspaceRoot) => {
+        const logger = createMockLogger();
+        await ReasonixPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent: JSON.stringify({
+              permission: {},
+              reasonix: { sandbox: { workspace_root: workspaceRoot } },
+            }),
           }),
-        }),
-        logger,
-      });
+          logger,
+        });
 
-      // Reasonix confines the file-writing tools and sandboxed Bash to this
-      // root, so pointing it at the home directory opens everything under it.
-      expect(logger.warn).toHaveBeenCalledTimes(1);
-      expect(logger.warn.mock.calls[0]?.[0]).toContain("'sandbox.workspace_root'");
-    });
+        // Reasonix confines the file-writing tools and sandboxed Bash to this
+        // root — on Windows it is the only confinement left, since the Bash
+        // sandbox is fixed to `off` there — so moving it out of the project
+        // opens everything under the new root.
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn.mock.calls[0]?.[0]).toContain("'sandbox.workspace_root'");
+      },
+    );
+
+    it.each<[string]>([["packages/app"], ["./sub"], ["."], [""]])(
+      "stays quiet about a workspace_root that stays inside the project: %s",
+      async (workspaceRoot) => {
+        const logger = createMockLogger();
+        await ReasonixPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent: JSON.stringify({
+              permission: {},
+              reasonix: { sandbox: { workspace_root: workspaceRoot } },
+            }),
+          }),
+          logger,
+        });
+
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
 
     it("announces the forbid_read entries the overlay would drop", async () => {
       await writeFileContent(
@@ -711,6 +746,34 @@ describe("ReasonixPermissions", () => {
       });
 
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("announces a forbid_read the file holds in a shape that cannot be compared", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        smolToml.stringify({ sandbox: { forbid_read: "/home/dev/.ssh" } }),
+      );
+
+      const logger = createMockLogger();
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            reasonix: { sandbox: { forbid_read: [] } },
+          }),
+        }),
+        logger,
+      });
+
+      // Whatever the string meant to Reasonix, what it kept out of read cannot
+      // be diffed against the list replacing it.
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("'sandbox.forbid_read'");
+      expect(warning).toContain("not the list Reasonix documents");
     });
 
     it("announces a [sandbox] the file holds in a shape the overlay replaces", async () => {

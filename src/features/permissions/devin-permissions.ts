@@ -16,12 +16,11 @@ import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
-  collectRestrictionLosingSandboxEntries as collectRestrictionLosingEntries,
+  collectRestrictionLosingSandboxEntries,
   collectTrustAffectingSandboxPaths,
   isNonEmptyList,
   replacedUnreadableReason,
   type RestrictionLosingSandboxPath,
-  type TrustAffectingEntry,
   type TrustAffectingSandboxPath,
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
@@ -188,25 +187,6 @@ const DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS: readonly RestrictionLosingSandboxP
     loosens: ({ before, after }) => before.some((entry) => !after.includes(entry)),
   },
 ];
-
-/**
- * The Devin rows of the shared restriction-loss check, so the call sites read as
- * one operation rather than repeating the tool's own table and label.
- */
-function collectRestrictionLosingSandboxEntries({
-  existing,
-  merged,
-}: {
-  existing: Record<string, unknown>;
-  merged: Record<string, unknown>;
-}): TrustAffectingEntry[] {
-  return collectRestrictionLosingEntries({
-    existing,
-    merged,
-    paths: DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS,
-    toolLabel: DEVIN_TOOL_LABEL,
-  });
-}
 
 /**
  * Permissions generator for Devin Local (native `.devin/` configuration).
@@ -388,6 +368,8 @@ export class DevinPermissions extends ToolPermissions {
             ...collectRestrictionLosingSandboxEntries({
               existing: existingSandbox,
               merged: mergedSandbox,
+              paths: DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS,
+              toolLabel: DEVIN_TOOL_LABEL,
             }),
           ],
           relativeFilePath: toPosixPath(join(paths.relativeDirPath, paths.relativeFilePath)),
