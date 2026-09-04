@@ -16,13 +16,13 @@ import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
+  collectRestrictionLosingSandboxEntries as collectRestrictionLosingEntries,
   collectTrustAffectingSandboxPaths,
-  findUnreadableContainer,
   isNonEmptyList,
-  readSandboxPath,
+  replacedUnreadableReason,
+  type RestrictionLosingSandboxPath,
   type TrustAffectingEntry,
   type TrustAffectingSandboxPath,
-  UNREADABLE_SANDBOX_PATH,
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
@@ -148,17 +148,8 @@ const DEVIN_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath[] 
   },
 ];
 
-/**
- * One row of the restriction-loss table. It is the mirror of
- * {@link TrustAffectingSandboxPath}: the value alone says nothing, because these
- * paths restrict, so what matters is what the merge takes away from the list the
- * file already had.
- */
-type RestrictionLosingSandboxPath = {
-  readonly path: readonly string[];
-  readonly reason: string;
-  readonly loosens: (args: { before: readonly unknown[]; after: readonly unknown[] }) => boolean;
-};
+/** How Devin is named in the warnings this file emits. */
+const DEVIN_TOOL_LABEL = "Devin";
 
 /**
  * `sandbox` paths that restrict, and that therefore loosen the policy by losing
@@ -199,18 +190,8 @@ const DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS: readonly RestrictionLosingSandboxP
 ];
 
 /**
- * The reason printed for a value the file held in a shape that cannot be read,
- * which this generate is about to replace. `shape` names what Devin documents
- * there, so the message says which expectation the file's value missed.
- */
-const replacedUnreadableReason = (shape: "list" | "object"): string =>
-  `replaces a value already in the file that is not the ${shape} Devin documents, so what it restricted cannot be read`;
-
-/**
- * The restrictions this generate would weaken, compared between the `sandbox`
- * already in the file and the one about to replace it. A `before` that is
- * present but not a list is reported outright: a shape Devin may still honor is
- * not something to go quiet about just because it cannot be diffed.
+ * The Devin rows of the shared restriction-loss check, so the call sites read as
+ * one operation rather than repeating the tool's own table and label.
  */
 function collectRestrictionLosingSandboxEntries({
   existing,
@@ -219,46 +200,12 @@ function collectRestrictionLosingSandboxEntries({
   existing: Record<string, unknown>;
   merged: Record<string, unknown>;
 }): TrustAffectingEntry[] {
-  const entries: TrustAffectingEntry[] = [];
-  const reportedContainers = new Set<string>();
-  for (const { path, reason, loosens } of DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS) {
-    const before = readSandboxPath({ sandbox: existing, path });
-    if (before === undefined) continue;
-
-    // The merge is shallow at the sandbox's top level, so a path is untouched
-    // exactly when its first segment still holds the value the file had —
-    // nothing was dropped, whatever shape that value is in. Comparing the leaf
-    // reads instead would call two unreadable containers identical.
-    const [rootKey] = path;
-    if (rootKey !== undefined && existing[rootKey] === merged[rootKey]) continue;
-
-    const after = readSandboxPath({ sandbox: merged, path });
-
-    const label = `sandbox.${path.join(".")}`;
-    // A value the file holds that is not the list Devin documents, replaced by
-    // one that is: whatever it meant, it is not something to overwrite quietly.
-    // The row's own reason would claim entries were dropped, which is exactly
-    // what cannot be read here. When it is a container on the way that blocks
-    // the read, that container is what the file holds — naming the leaf would
-    // send the user looking for a path their file does not have.
-    if (before === UNREADABLE_SANDBOX_PATH) {
-      const container = findUnreadableContainer({ sandbox: existing, path });
-      if (container === undefined || reportedContainers.has(container)) continue;
-      reportedContainers.add(container);
-      entries.push({ label: container, reason: replacedUnreadableReason("object") });
-      continue;
-    }
-    if (!Array.isArray(before)) {
-      entries.push({ label, reason: replacedUnreadableReason("list") });
-      continue;
-    }
-    if (before.length === 0) continue;
-
-    if (!loosens({ before, after: Array.isArray(after) ? after : [] })) continue;
-
-    entries.push({ label, reason });
-  }
-  return entries;
+  return collectRestrictionLosingEntries({
+    existing,
+    merged,
+    paths: DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS,
+    toolLabel: DEVIN_TOOL_LABEL,
+  });
 }
 
 /**
@@ -415,13 +362,21 @@ export class DevinPermissions extends ToolPermissions {
           writesSandbox && settings.sandbox !== undefined && !isRecord(settings.sandbox);
 
         warnOnTrustAffectingEntries({
-          toolLabel: "Devin",
+          toolLabel: DEVIN_TOOL_LABEL,
           // Not every entry is an addition — a lost restriction is a change to
           // the file, not a setting written into it — so "change" covers both.
           noun: "sandbox change",
           entries: [
             ...(replacesUnreadableSandbox
-              ? [{ label: "sandbox", reason: replacedUnreadableReason("object") }]
+              ? [
+                  {
+                    label: "sandbox",
+                    reason: replacedUnreadableReason({
+                      shape: "object",
+                      toolLabel: DEVIN_TOOL_LABEL,
+                    }),
+                  },
+                ]
               : []),
             // The authored block rather than the merged one: a loosening value
             // the file already held is the user's own, and re-announcing it on

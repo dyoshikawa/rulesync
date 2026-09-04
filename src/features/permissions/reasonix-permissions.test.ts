@@ -140,7 +140,7 @@ describe("ReasonixPermissions", () => {
       expect(logger.warn).toHaveBeenCalledTimes(1);
       const [warning] = logger.warn.mock.calls[0] as [string];
       expect(warning).toContain("Reasonix permissions:");
-      expect(warning).toContain("1 trust-affecting setting to reasonix.toml");
+      expect(warning).toContain("1 trust-affecting change to reasonix.toml");
       expect(warning).toContain("'permissions.allow_dynamic_bash'");
     });
 
@@ -560,7 +560,7 @@ describe("ReasonixPermissions", () => {
       // One warning per file, naming every setting it wrote.
       expect(logger.warn).toHaveBeenCalledTimes(1);
       const [warning] = logger.warn.mock.calls[0] as [string];
-      expect(warning).toContain("3 trust-affecting settings to reasonix.toml");
+      expect(warning).toContain("3 trust-affecting changes to reasonix.toml");
       expect(warning).toContain("'sandbox.bash'");
       expect(warning).toContain("'sandbox.network'");
       expect(warning).toContain("'sandbox.allow_write'");
@@ -581,7 +581,7 @@ describe("ReasonixPermissions", () => {
                 network: false,
                 allow_write: [],
                 forbid_read: ["/secrets"],
-                workspace_root: "/repo",
+                workspace_root: "packages/app",
               },
             },
           }),
@@ -635,9 +635,126 @@ describe("ReasonixPermissions", () => {
 
       expect(logger.warn).toHaveBeenCalledTimes(1);
       const [warning] = logger.warn.mock.calls[0] as [string];
-      expect(warning).toContain("2 trust-affecting settings to reasonix.toml");
+      expect(warning).toContain("2 trust-affecting changes to reasonix.toml");
       expect(warning).toContain("'permissions.allow_dynamic_bash'");
       expect(warning).toContain("'sandbox.network'");
+    });
+
+    it("announces a workspace_root that moves the jail out of the project", async () => {
+      const logger = createMockLogger();
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            reasonix: { sandbox: { workspace_root: "${HOME}" } },
+          }),
+        }),
+        logger,
+      });
+
+      // Reasonix confines the file-writing tools and sandboxed Bash to this
+      // root, so pointing it at the home directory opens everything under it.
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn.mock.calls[0]?.[0]).toContain("'sandbox.workspace_root'");
+    });
+
+    it("announces the forbid_read entries the overlay would drop", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        smolToml.stringify({ sandbox: { forbid_read: ["/home/dev/.ssh", "/home/dev/.aws"] } }),
+      );
+
+      const logger = createMockLogger();
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            reasonix: { sandbox: { forbid_read: [] } },
+          }),
+        }),
+        logger,
+      });
+
+      // The overlay replaces the list whole, so emptying it opens what the file
+      // kept out of read, list and search.
+      expect((smolToml.parse(instance.getFileContent()) as any).sandbox.forbid_read).toEqual([]);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("'sandbox.forbid_read'");
+      expect(warning).toContain("drops paths the list already in the file kept");
+    });
+
+    it("stays quiet about a forbid_read the overlay only adds to", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        smolToml.stringify({ sandbox: { forbid_read: ["/home/dev/.ssh"] } }),
+      );
+
+      const logger = createMockLogger();
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            reasonix: { sandbox: { forbid_read: ["/home/dev/.ssh", "/home/dev/.aws"] } },
+          }),
+        }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("announces a [sandbox] the file holds in a shape the overlay replaces", async () => {
+      await writeFileContent(join(testDir, "reasonix.toml"), 'sandbox = "off"');
+
+      const logger = createMockLogger();
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            reasonix: { sandbox: { bash: "enforce" } },
+          }),
+        }),
+        logger,
+      });
+
+      // Whatever the scalar meant to Reasonix, the write replaces it wholesale,
+      // and what it restricted cannot be read to compare.
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("'sandbox'");
+      expect(warning).toContain("not the object Reasonix documents");
+    });
+
+    it("names the global config path in the warning when global is true", async () => {
+      const logger = createMockLogger();
+      await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            reasonix: { allowDynamicBash: true },
+          }),
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(logger.warn.mock.calls[0]?.[0]).toContain(".reasonix/config.toml");
     });
 
     it("preserves unrelated [sandbox] keys while the override sets its own", async () => {
@@ -718,6 +835,8 @@ describe("ReasonixPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('"plan_mode_allowed_tools"'),
       );
+      // The path is the file as the user would write it, not an absolute one.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("in reasonix.toml"));
     });
 
     it("still lifts a retired [agent] key on import, so it is not lost silently", () => {
