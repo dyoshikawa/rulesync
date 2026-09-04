@@ -21,7 +21,7 @@ import { resolveGitignoreTargets } from "./commands/resolve-gitignore-targets.js
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
-const getVersion = () => "16.22.1";
+const getVersion = () => "16.23.0";
 const FEATURES_HELP = `${ALL_FEATURES.join(",")}; ignore is deprecated, use permissions`;
 
 function wrapCommand(
