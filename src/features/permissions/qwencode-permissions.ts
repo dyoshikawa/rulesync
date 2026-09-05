@@ -13,6 +13,7 @@ import type {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger, warnWithFallback } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -135,7 +136,10 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   "listDirectory",
   // Enables the Workflow tool and the `/workflows` command. Added in Qwen Code
   // v0.23.0 and honored in user/system settings only — see
-  // `QWEN_SCOPED_TOOLS_KEYS`. https://github.com/QwenLM/qwen-code/pull/9098
+  // `QWEN_SCOPED_TOOLS_KEYS`. `QWEN_CODE_ENABLE_WORKFLOWS` and
+  // `QWEN_CODE_DISABLE_WORKFLOWS` override it either way (disable wins), so a
+  // value written here is not the last word.
+  // https://github.com/QwenLM/qwen-code/pull/9098
   "workflowsEnabled",
 ] as const;
 // `allowedHttpHookUrls` (URL patterns allowed as `type: "http"` hook targets; an
@@ -177,14 +181,30 @@ const QWEN_OVERRIDE_SECURITY_KEYS = [
  *   wherever it is written. It is listed because writing it into the global file
  *   settles how much the agent may do on its own for every project on the
  *   machine, which is worth naming even though no scope forbids it.
+ * - `unmodeled` — the fallback for any other key the override carries. The
+ *   `tools`/`security` schemas are `z.looseObject`s so a key Qwen Code adds
+ *   works before rulesync knows about it, and some of those keys are as
+ *   powerful as the modeled ones (`tools.discoveryCommand`, for instance, is
+ *   spawned at startup). Rulesync cannot describe what it does not model, so it
+ *   writes the key and names it rather than staying silent.
  */
 type QwenScopeRule =
   | "workspace-stripped"
   | "workspace-non-overriding"
   | "user-scope-trust-check"
-  | "global-machine-wide";
+  | "global-machine-wide"
+  | "unmodeled";
 
-type QwenScopedKey<Key extends string> = { readonly key: Key; readonly rule: QwenScopeRule };
+/**
+ * A key paired with the scope rule that governs it. `globalNote` overrides the
+ * rule's own sentence for a key the rule's wording does not fit — the rules say
+ * what a scope does with a key, and only the key knows what it means.
+ */
+type QwenScopedKey<Key extends string> = {
+  readonly key: Key;
+  readonly rule: QwenScopeRule;
+  readonly globalNote?: string;
+};
 
 /**
  * What each rule means for the two directions, so a key's behavior is declared
@@ -202,7 +222,8 @@ type QwenScopedKey<Key extends string> = { readonly key: Key; readonly rule: Qwe
  * honored identically in either scope, so import neither promotes nor weakens
  * them and the announcement on the generate side is the control point.
  * `projectNote` is `null` for a rule that has nothing to say about the project
- * scope.
+ * scope. A `globalNote` here is the rule's default; a key whose meaning the
+ * default does not describe carries its own.
  */
 const QWEN_SCOPE_RULES: Record<
   QwenScopeRule,
@@ -249,8 +270,21 @@ const QWEN_SCOPE_RULES: Record<
     globalNote:
       "Qwen Code honors this key wherever it is written, so in the global scope it settles how much the agent may do unattended — how far approvals are skipped, and whether tool calls are contained at all — for every project on this machine.",
   },
+  unmodeled: {
+    stripInProjectScope: false,
+    announceOnlyGrants: false,
+    announceOnImport: false,
+    projectNote: null,
+    globalNote:
+      "This is not a key rulesync models, so it cannot say what Qwen Code does with it — and some settings in these groups are potent (`tools.discoveryCommand` and `tools.callCommand` are spawned as commands when Qwen Code starts). Check what it now says for every project on this machine.",
+  },
 };
 
+// Which keys each rule covers, transcribed from Qwen Code's own
+// `WORKSPACE_RESTRICTED_SETTINGS` and `WORKSPACE_NON_OVERRIDING_SETTINGS` in
+// `packages/cli/src/config/settingsUtils.ts`, verified against v0.23.0. Upstream
+// may add entries; an addition rulesync has not picked up means it writes a key
+// Qwen Code now ignores, so re-check these lists when supporting a new version.
 const QWEN_SCOPED_TOOLS_KEYS: readonly QwenScopedKey<(typeof QWEN_OVERRIDE_TOOLS_KEYS)[number]>[] =
   [
     { key: "workflowsEnabled", rule: "workspace-stripped" },
@@ -262,7 +296,28 @@ const QWEN_SCOPED_TOOLS_KEYS: readonly QwenScopedKey<(typeof QWEN_OVERRIDE_TOOLS
     { key: "approvalMode", rule: "global-machine-wide" },
     { key: "autoAccept", rule: "global-machine-wide" },
     { key: "sandbox", rule: "global-machine-wide" },
-    { key: "sandboxImage", rule: "global-machine-wide" },
+    {
+      key: "sandboxImage",
+      rule: "global-machine-wide",
+      // Not about whether tool calls are contained, but about what contains them.
+      globalNote:
+        "Qwen Code honors this key wherever it is written, so in the global scope every sandboxed run on this machine executes inside the named image — check that it is one you trust to run your code.",
+    },
+    {
+      key: "disabled",
+      rule: "global-machine-wide",
+      // Stronger than `permissions.deny`: a disabled tool is never registered, so
+      // the model cannot discover it at all. The override replaces the list
+      // wholesale, so writing a shorter one re-registers what it leaves out.
+      globalNote:
+        "Qwen Code honors this key wherever it is written, and the override replaces the list rather than adding to it, so in the global scope this decides which tools stay out of the registry — and which are handed back to the model — for every project on this machine.",
+    },
+    {
+      key: "visible",
+      rule: "global-machine-wide",
+      globalNote:
+        "Qwen Code honors this key wherever it is written, so in the global scope this decides which deferred tools are visible at startup for every project on this machine.",
+    },
   ];
 const QWEN_SCOPED_SECURITY_KEYS: readonly QwenScopedKey<
   (typeof QWEN_OVERRIDE_SECURITY_KEYS)[number]
@@ -273,12 +328,13 @@ const QWEN_SCOPED_SECURITY_KEYS: readonly QwenScopedKey<
   { key: "folderTrust", rule: "user-scope-trust-check" },
 ];
 
-// The single source of truth listing every group the override patches, paired
-// with the keys it owns there and the ones whose scope behavior needs a note
-// (an empty list is fine for a group that has none). Both directions read it —
-// the generate-side scope gate and the import-side extraction and promotion
-// warning — so a new group or key cannot be wired into one of them and forgotten
-// in the other.
+// The `tools` and `security` groups the override patches, paired with the keys
+// it owns there and the ones whose scope behavior needs a note (an empty list is
+// fine for a group that has none). Both directions read it — the generate-side
+// scope gate and the import-side extraction and promotion warning — so a key
+// cannot be wired into one of them and forgotten in the other. The override's
+// third surface, `permissions.autoMode`, is not a settings group of its own and
+// is handled separately at each call site.
 const QWEN_OVERRIDE_GROUPS = [
   {
     groupName: "tools",
@@ -363,12 +419,15 @@ function sameSettingsValue(a: unknown, b: unknown): boolean {
  * than dropping those. Either way only the override copy is touched, so a value
  * the user already wrote into the project file stays where it is.
  *
- * Generating global settings keeps every key, but a key a workspace deliberately
- * cannot decide for itself is worth announcing when the override decides it: the
+ * Generating global settings keeps every key, and announces the write: the
  * `.rulesync/permissions.jsonc` carrying it may have arrived with a cloned or
  * fetched repository, and the global file applies to every project on this
  * machine. So the new value is named alongside the one it replaces, exactly as
- * the deepagents startup override announces its own relaxations.
+ * the deepagents startup override announces its own relaxations. Every key the
+ * override writes is announced, not only the ones with a scope rule — the
+ * groups are `z.looseObject`s, so an unmodeled key falls back to the
+ * `unmodeled` rule rather than slipping past the gate that the modeled ones
+ * pass through.
  */
 function scopeOverrideGroup(
   overrideGroup: unknown,
@@ -390,11 +449,14 @@ function scopeOverrideGroup(
 ): Record<string, unknown> {
   const scoped = { ...asPlainRecord(overrideGroup) };
   const previous = asPlainRecord(existingGroup);
-  for (const { key, rule } of scopedKeys) {
+  const rulesByKey = new Map(scopedKeys.map((scopedKey) => [scopedKey.key, scopedKey]));
+  for (const key of Object.keys(scoped)) {
     const value = scoped[key];
     if (value === undefined) continue;
-    const { stripInProjectScope, announceOnlyGrants, projectNote, globalNote } =
-      QWEN_SCOPE_RULES[rule];
+    const scopedKey = rulesByKey.get(key);
+    const rule = scopedKey?.rule ?? "unmodeled";
+    const { stripInProjectScope, announceOnlyGrants, projectNote } = QWEN_SCOPE_RULES[rule];
+    const globalNote = scopedKey?.globalNote ?? QWEN_SCOPE_RULES[rule].globalNote;
     const previousValue = previous[key];
     // A value the file already had changes nothing, and neither does one that
     // grants nothing under a rule whose risk is the granting direction — warning
@@ -417,10 +479,11 @@ function scopeOverrideGroup(
     }
     if (unchanged) continue;
     if (announceOnlyGrants && !grantsSomething(value)) continue;
-    const replaced = previousValue === undefined ? "" : ` (was ${JSON.stringify(previousValue)})`;
+    const replaced =
+      previousValue === undefined ? "" : ` (was ${quoteValueForWarning(previousValue)})`;
     warnWithFallback(
       logger,
-      `Qwen permissions: the qwencode override wrote '${groupName}.${key}' = ${JSON.stringify(value)}${replaced} into ${filePath}, your global Qwen Code settings. ${globalNote}`,
+      `Qwen permissions: the qwencode override wrote '${groupName}.${key}' = ${quoteValueForWarning(value)}${replaced} into ${filePath}, your global Qwen Code settings. ${globalNote}`,
     );
   }
   return scoped;
@@ -468,29 +531,31 @@ function buildOverrideGroupsPatch({
 }
 
 /**
- * Warn about a scoped key lifted out of a settings file being imported. The file
- * carries no scope marker, so import keeps the key either way — but regenerating
- * in the global scope would turn a value a workspace could not decide for itself
- * into one Qwen Code enforces everywhere, and a settings file read out of a
- * cloned repository is exactly where such a value comes from. Keyed by group name
- * so adding a group to `QWEN_OVERRIDE_GROUPS` without feeding it in here is a
- * type error rather than a silently missing warning.
+ * Warn about a scoped key lifted out of a *project* settings file being
+ * imported. The file carries no scope marker, so import keeps the key either
+ * way — but regenerating in the global scope would turn a value a workspace
+ * could not decide for itself into one Qwen Code enforces everywhere, and a
+ * settings file read out of a cloned repository is exactly where such a value
+ * comes from. Importing the global file is the case this has nothing to say
+ * about: the value is already in the scope the warning would send it to.
  */
 function warnAboutImportedScopedKeys(
   groups: Record<QwenOverrideGroupName, Record<string, unknown>>,
 ): void {
   for (const { groupName, scopedKeys } of QWEN_OVERRIDE_GROUPS) {
     const group = groups[groupName];
-    for (const { key, rule } of scopedKeys) {
+    for (const scopedKey of scopedKeys) {
+      const { key, rule } = scopedKey;
       const value = group[key];
       if (value === undefined) continue;
-      const { announceOnlyGrants, announceOnImport, globalNote } = QWEN_SCOPE_RULES[rule];
+      const { announceOnlyGrants, announceOnImport } = QWEN_SCOPE_RULES[rule];
       if (!announceOnImport) continue;
       // Under a rule whose risk is the granting direction, only a granting value
       // is worth flagging; see `scopeOverrideGroup`.
       if (announceOnlyGrants && !grantsSomething(value)) continue;
+      const globalNote = scopedKey.globalNote ?? QWEN_SCOPE_RULES[rule].globalNote;
       moduleLogger.warn(
-        `Qwen permissions: imported '${groupName}.${key}' = ${JSON.stringify(value)}. ${globalNote} Review it before generating with the global scope.`,
+        `Qwen permissions: imported '${groupName}.${key}' = ${quoteValueForWarning(value)}. ${globalNote} Review it before generating with the global scope.`,
       );
     }
   }
@@ -540,6 +605,9 @@ export class QwencodePermissions extends ToolPermissions {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      // Forwarded so `toRulesyncPermissions()` knows which scope it read, which
+      // decides whether the promotion warning applies; `AiFile` records it.
+      global,
     });
   }
 
@@ -643,7 +711,9 @@ export class QwencodePermissions extends ToolPermissions {
         settings,
         override,
         global,
-        filePath,
+        // Named in warnings only, so keep it relative: the sibling adapters do,
+        // and a global run would otherwise put a home directory into the message.
+        filePath: join(paths.relativeDirPath, paths.relativeFilePath),
         logger,
       }),
     );
@@ -693,13 +763,13 @@ export class QwencodePermissions extends ToolPermissions {
     // Import lifts every override-managed key regardless of scope: the file being
     // read carries no scope marker, and dropping a global-only key here would lose
     // a user's real setting. The scope gate lives on the generate side.
-    const overrideGroups = Object.fromEntries(
-      QWEN_OVERRIDE_GROUPS.map(({ groupName, overrideKeys }) => [
-        groupName,
-        pickQwenOverrideKeys(settings[groupName], overrideKeys),
-      ]),
-    ) as Record<QwenOverrideGroupName, Record<string, unknown>>;
-    warnAboutImportedScopedKeys(overrideGroups);
+    const overrideGroups = {} as Record<QwenOverrideGroupName, Record<string, unknown>>;
+    for (const { groupName, overrideKeys } of QWEN_OVERRIDE_GROUPS) {
+      overrideGroups[groupName] = pickQwenOverrideKeys(settings[groupName], overrideKeys);
+    }
+    // Only a project file's values would be promoted by regenerating globally;
+    // a global file's are already there.
+    if (!this.global) warnAboutImportedScopedKeys(overrideGroups);
     const overridePermissions = pickQwenOverrideKeys(
       settings.permissions,
       QWEN_OVERRIDE_PERMISSIONS_KEYS,

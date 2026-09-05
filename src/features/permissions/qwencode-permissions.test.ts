@@ -911,6 +911,92 @@ describe("QwencodePermissions", () => {
       expect(projectLogger.warn).not.toHaveBeenCalled();
     });
 
+    // The `tools`/`security` schemas are loose objects, so a key rulesync does
+    // not model still reaches the file — including potent ones such as
+    // `tools.discoveryCommand`, which Qwen Code spawns at startup. A global write
+    // of one is announced rather than passing the gate the modeled keys go
+    // through, even though rulesync cannot say what the key does.
+    it("announces a global write of a key it does not model", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { discoveryCommand: "./bin/discover" } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`wrote 'tools.discoveryCommand' = "./bin/discover"`),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("not a key rulesync models"),
+      );
+    });
+
+    // `tools.disabled` keeps a tool out of the registry entirely, and the
+    // override replaces the list rather than adding to it, so a shorter list
+    // hands tools back to the model.
+    it("announces a global disabled list that re-registers a tool", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ tools: { disabled: ["run_shell_command"] } }),
+      );
+
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { disabled: [] } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`wrote 'tools.disabled' = [] (was ["run_shell_command"])`),
+      );
+    });
+
+    // The values come out of files rulesync did not write, so they are quoted
+    // through `quoteValueForWarning` rather than interpolated: a value cannot
+    // forge a second warning line out of control characters.
+    it("strips control characters out of an announced value", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { sandboxImage: "ghcr.io/ok\u009b2K forged" } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.sandboxImage"));
+      expect(announced).toBeDefined();
+      expect(announced).not.toContain("\u009b");
+    });
+
     // A key that is written rather than stripped only warrants a project-scope
     // note when the generated value differs from what the file already says, so
     // regenerating an unchanged project file stays silent.
@@ -937,6 +1023,24 @@ describe("QwencodePermissions", () => {
       });
 
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    // Importing the global file is the one case the promotion warning has
+    // nothing to say about: the value is already in the scope it warns about.
+    it("stays quiet about a scoped key imported from the global settings file", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ security: { folderTrust: { enabled: false } } }),
+      );
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const instance = await QwencodePermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = instance.toRulesyncPermissions().getJson();
+
+      expect(json.qwencode).toEqual({ security: { folderTrust: { enabled: false } } });
+      expect(warn).not.toHaveBeenCalled();
     });
 
     it("announces every imported key whose meaning depends on its scope", () => {
