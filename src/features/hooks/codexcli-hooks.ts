@@ -19,6 +19,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import {
@@ -177,6 +178,8 @@ export class CodexcliHooks extends ToolHooks {
     logger?: Logger;
   }): Promise<CodexcliHooks> {
     const paths = CodexcliHooks.getSettablePaths({ global });
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const config = rulesyncHooks.getJson();
     const codexHooks = canonicalToToolHooks({
       config,
@@ -184,7 +187,19 @@ export class CodexcliHooks extends ToolHooks {
       converterConfig: CODEXCLI_CONVERTER_CONFIG,
       logger,
     });
-    const fileContent = JSON.stringify({ hooks: codexHooks }, null, 2);
+    const fileContent = JSON.stringify(
+      {
+        hooks: mergeGeneratedHookLists({
+          existingContent,
+          generatedHooks: codexHooks,
+          shape: "matcher-groups",
+          preserveUnowned: config.preserveUnowned === true,
+          logger,
+        }),
+      },
+      null,
+      2,
+    );
 
     return new CodexcliHooks({
       outputRoot,

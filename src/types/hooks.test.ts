@@ -242,6 +242,14 @@ describe("HooksConfigSchema", () => {
     expect(JSON.stringify(result.error?.issues)).toContain("preToolUsee");
   });
 
+  it("should accept preserveUnowned as a top-level boolean", () => {
+    const result = HooksConfigSchema.safeParse({
+      preserveUnowned: true,
+      hooks: { sessionStart: [{ type: "command", command: "ls" }] },
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("should keep tool-override hook keys lenient for native passthrough triggers", () => {
     const result = HooksConfigSchema.safeParse({
       hooks: {},

@@ -436,6 +436,48 @@ describe("CodexcliHooks", () => {
       // preToolUse had only prompt hooks, so it should be excluded entirely
       expect(parsed.hooks.PreToolUse).toBeUndefined();
     });
+
+    it("should keep an existing third-party command when preserveUnowned is set", async () => {
+      await ensureDir(join(testDir, ".codex"));
+      await writeFileContent(
+        join(testDir, ".codex", "hooks.json"),
+        JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  { type: "command", command: "echo start" },
+                  { type: "command", command: "other-tool-hook codex-hook" },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            preserveUnowned: true,
+            hooks: { sessionStart: [{ command: "echo start" }] },
+          }),
+        }),
+      );
+
+      const parsed = JSON.parse(
+        (
+          await CodexcliHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks,
+            validate: true,
+          })
+        ).getFileContent(),
+      );
+      const commands = parsed.hooks.SessionStart[0].hooks.map(
+        (handler: { command: string }) => handler.command,
+      );
+      expect(commands).toEqual(["echo start", "other-tool-hook codex-hook"]);
+    });
   });
 
   describe("toRulesyncHooks", () => {

@@ -15,6 +15,7 @@ import {
   applySharedConfigPatch,
   CLAUDE_SETTINGS_SHARED_FILE_KEY,
 } from "../shared/shared-config-gateway.js";
+import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import {
@@ -149,11 +150,21 @@ export class ClaudecodeHooks extends ToolHooks {
       converterConfig: this.getConverterConfig(),
       logger,
     });
+    const preserveUnowned =
+      paths.relativeDirPath === CLAUDECODE_DIR && config.preserveUnowned === true;
     const fileContent = applySharedConfigPatch({
       fileKey: CLAUDE_SETTINGS_SHARED_FILE_KEY,
       feature: "hooks",
       existingContent,
-      patch: { hooks: claudeHooks },
+      patch: {
+        hooks: mergeGeneratedHookLists({
+          existingContent,
+          generatedHooks: claudeHooks,
+          shape: "matcher-groups",
+          preserveUnowned,
+          logger,
+        }),
+      },
       filePath,
     });
     return new this({
