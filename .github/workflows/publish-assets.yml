@@ -78,7 +78,11 @@ jobs:
         run: pnpm generate:schema
 
       - name: Generate repomix XML variants
-        run: bun scripts/generate-repomix-xml.ts
+        # Deliberately Node (tsx) and not Bun: repomix skips Tinypool#destroy()
+        # when it detects Bun, so each runCli() call leaks its worker pools and
+        # they race their idle timeout into a "Terminating worker thread" crash.
+        # See scripts/generate-repomix-xml.ts and #2922.
+        run: pnpm exec tsx scripts/generate-repomix-xml.ts
 
       - name: Bundle XML files into zip
         run: zip repomix-xml.zip repomix-output-*.xml

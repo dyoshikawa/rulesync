@@ -3,6 +3,18 @@ import { join } from "node:path";
 
 import { runCli } from "repomix";
 
+// This script must run under Node (tsx), never under Bun. repomix detects Bun in
+// its cleanupWorkerPool() helper and skips Tinypool#destroy() there, so every
+// runCli() call below would leak the worker pools it created. Generating every
+// variant in one process then leaves those orphan pools to hit their idle
+// timeout mid-run, which rejects an in-flight task with tinypool's "Terminating
+// worker thread" error and kills the process. See #2922.
+if (process.versions.bun !== undefined) {
+  throw new Error(
+    "generate-repomix-xml.ts must run under Node (e.g. `pnpm exec tsx scripts/generate-repomix-xml.ts`), not Bun.",
+  );
+}
+
 type Variant = {
   name: string;
   include?: string[];
