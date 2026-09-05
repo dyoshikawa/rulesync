@@ -329,10 +329,25 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * Tool-scoped override block for Qwen Code. Qwen's `settings.json` exposes
  * autonomy/sandbox controls with no canonical permission category — under
  * `tools` (`approvalMode` = plan/default/auto-edit/auto/yolo, `autoAccept`,
- * `sandbox`, `sandboxImage`, `disabled`) and `security` (`folderTrust`,
- * `allowedHttpHookUrls`, `allowPrivateNetworkHooks` — the latter is honored by
- * Qwen Code only in user/system settings, so generate skips it in project scope).
- * It also
+ * `sandbox`, `sandboxImage`, `disabled`, `visible`, `listDirectory`,
+ * `workflowsEnabled`) and `security` (`folderTrust`, `allowedHttpHookUrls`,
+ * `allowPrivateNetworkHooks`, `allowedInsecureVoiceBaseUrls`). Qwen Code strips
+ * `tools.workflowsEnabled`, `security.allowPrivateNetworkHooks` and
+ * `security.allowedInsecureVoiceBaseUrls` out of workspace settings, so generate
+ * skips those three in project scope and announces a granting value in global
+ * scope. `security.allowedHttpHookUrls` (honored in a workspace only while no
+ * higher scope sets it) and `security.folderTrust` (the initial trust decision
+ * is made from user/system settings alone, before the workspace merge) are
+ * written in both scopes, with a note in project scope and an announcement of
+ * any global change. Every other key is honored in either scope, so a write that
+ * changes what the file said is reported in either scope, naming what that key
+ * decides there — the autonomy and containment
+ * controls (`approvalMode`, `autoAccept`, `sandbox`, `sandboxImage`), the
+ * registry controls (`disabled`, `visible`, `listDirectory`), the Auto Mode
+ * classifier config, and, because these groups are loose objects, any key
+ * rulesync does not model. Import flags a scope-dependent key only when it read
+ * the project file, since that is the value a `--global` regenerate would
+ * promote. It also
  * exposes `permissions.autoMode` (the Auto Mode classifier config:
  * `hints.{allow,softDeny,hardDeny}`, `environment`, `classifyAllShell` — see
  * https://qwenlm.github.io/qwen-code-docs/en/users/features/auto-mode/), which

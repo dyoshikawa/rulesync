@@ -9,6 +9,7 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -259,6 +260,313 @@ describe("QwencodePermissions", () => {
       expect(config.qwencode.tools).toEqual({ visible: ["WebSearch"] });
     });
 
+    it("authors and imports tools.listDirectory through the qwencode override (issue #2668)", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { listDirectory: { enabled: true } } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ listDirectory: { enabled: true } });
+
+      // And the import direction lifts it back into the override.
+      const imported = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { listDirectory: { enabled: true } } }),
+      });
+      const config = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+      expect(config.qwencode.tools).toEqual({ listDirectory: { enabled: true } });
+    });
+
+    it("authors tools.workflowsEnabled in global scope, announcing the grant (issue #2668)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { approvalMode: "auto-edit", workflowsEnabled: true } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ approvalMode: "auto-edit", workflowsEnabled: true });
+      // The global scope is the only place a shareable permissions file can turn
+      // this key on, so the grant is named rather than written silently.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('wrote "tools.workflowsEnabled" = true'),
+      );
+    });
+
+    it("stays quiet when global tools.workflowsEnabled grants nothing (issue #2668)", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ tools: { workflowsEnabled: true } }),
+      );
+
+      for (const workflowsEnabled of [false, true]) {
+        const logger = createMockLogger();
+        await QwencodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          global: true,
+          logger,
+          rulesyncPermissions: new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent: JSON.stringify({
+              permission: {},
+              qwencode: { tools: { workflowsEnabled } },
+            }),
+          }),
+        });
+
+        // `false` relaxes nothing, and `true` over a file that already had `true`
+        // changes nothing — warning about either would bury the real grant.
+        expect(logger.warn).not.toHaveBeenCalled();
+      }
+    });
+
+    it("skips tools.workflowsEnabled with a warning in project scope (issue #2668)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { approvalMode: "auto-edit", workflowsEnabled: true } },
+          }),
+        }),
+      });
+
+      // Qwen Code ignores a Workspace-scoped `workflowsEnabled`, so only the
+      // approval mode is emitted here.
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ approvalMode: "auto-edit" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `"tools.workflowsEnabled" = true is only honored in user/system settings, so it is skipped`,
+        ),
+      );
+    });
+
+    it("writes no tools object when the scope gate empties the override (issue #2668)", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger: createMockLogger(),
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { workflowsEnabled: true } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).tools).toBeUndefined();
+    });
+
+    it("keeps a pre-existing project-scoped tools.workflowsEnabled untouched (issue #2668)", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ tools: { workflowsEnabled: true } }),
+      );
+
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger: createMockLogger(),
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { workflowsEnabled: false } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ workflowsEnabled: true });
+    });
+
+    it("lifts tools.workflowsEnabled back into the override on import (issue #2668)", () => {
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { workflowsEnabled: true } }),
+      });
+
+      const json = instance.toRulesyncPermissions().getJson();
+      expect(json.qwencode).toEqual({ tools: { workflowsEnabled: true } });
+    });
+
+    it("announces a truthy non-boolean global grant instead of writing it silently (issue #2668)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            // Qwen Code reads these with a plain truthiness check, so `1` turns
+            // the Workflow tool on and the string "false" turns the SSRF check
+            // off — the shape a reader skimming settings.json would misread.
+            qwencode: {
+              tools: { workflowsEnabled: 1 },
+              security: { allowPrivateNetworkHooks: "false" },
+            },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ workflowsEnabled: 1 });
+      expect(content.security).toEqual({ allowPrivateNetworkHooks: "false" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('wrote "tools.workflowsEnabled" = 1'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`wrote "security.allowPrivateNetworkHooks" = "false"`),
+      );
+    });
+
+    it("gates security.allowedInsecureVoiceBaseUrls by scope like the other restricted keys", async () => {
+      const authored = {
+        permission: {},
+        qwencode: { security: { allowedInsecureVoiceBaseUrls: ["http://10.0.0.1/v1"] } },
+      };
+
+      const projectLogger = createMockLogger();
+      const project = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger: projectLogger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify(authored),
+        }),
+      });
+      // Qwen Code strips it from workspace settings, so writing it here would
+      // only leave a cleartext API-key destination that never takes effect.
+      expect(JSON.parse(project.getFileContent()).security).toBeUndefined();
+      expect(projectLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `"security.allowedInsecureVoiceBaseUrls" = ["http://10.0.0.1/v1"] is only honored in user/system settings, so it is skipped`,
+        ),
+      );
+
+      const globalLogger = createMockLogger();
+      const globalInstance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger: globalLogger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify(authored),
+        }),
+      });
+      expect(JSON.parse(globalInstance.getFileContent()).security).toEqual({
+        allowedInsecureVoiceBaseUrls: ["http://10.0.0.1/v1"],
+      });
+      expect(globalLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `wrote "security.allowedInsecureVoiceBaseUrls" = ["http://10.0.0.1/v1"]`,
+        ),
+      );
+
+      // An empty list grants nothing, so it is written without an announcement.
+      const emptyLogger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger: emptyLogger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { allowedInsecureVoiceBaseUrls: [] } },
+          }),
+        }),
+      });
+      expect(emptyLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it("lifts security.allowedInsecureVoiceBaseUrls back into the override on import", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          security: { allowedInsecureVoiceBaseUrls: ["http://10.0.0.1/v1"] },
+        }),
+      });
+
+      const json = instance.toRulesyncPermissions().getJson();
+      expect(json.qwencode).toEqual({
+        security: { allowedInsecureVoiceBaseUrls: ["http://10.0.0.1/v1"] },
+      });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('imported "security.allowedInsecureVoiceBaseUrls"'),
+      );
+    });
+
+    it("warns only about a granting global-only key on import (issue #2668)", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { workflowsEnabled: false } }),
+      }).toRulesyncPermissions();
+      expect(warn).not.toHaveBeenCalled();
+
+      // Truthy non-booleans grant just as much as `true` does, so they are not
+      // filtered out with the `false` noise.
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { workflowsEnabled: 1 } }),
+      }).toRulesyncPermissions();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('imported "tools.workflowsEnabled" = 1'),
+      );
+      warn.mockClear();
+
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { workflowsEnabled: true } }),
+      }).toRulesyncPermissions();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('imported "tools.workflowsEnabled" = true'),
+      );
+    });
+
     it("preserves unrelated tools keys while the override sets its own", async () => {
       const settingsDir = join(testDir, ".qwen");
       await ensureDir(settingsDir);
@@ -338,7 +646,11 @@ describe("QwencodePermissions", () => {
         allowedHttpHookUrls: ["https://hooks.example.com/*"],
         allowPrivateNetworkHooks: true,
       });
-      expect(logger.warn).not.toHaveBeenCalled();
+      // Nothing is skipped here, but relaxing the SSRF check for every project on
+      // the machine is announced rather than written silently.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('wrote "security.allowPrivateNetworkHooks" = true'),
+      );
     });
 
     it("skips allowPrivateNetworkHooks with a warning in project scope (issue #2595)", async () => {
@@ -436,6 +748,583 @@ describe("QwencodePermissions", () => {
           allowPrivateNetworkHooks: true,
         },
       });
+    });
+
+    // `security.allowedHttpHookUrls` sits in upstream's second list,
+    // `WORKSPACE_NON_OVERRIDING_SETTINGS`: a workspace value is honored while no
+    // higher scope sets the key, so it is emitted rather than dropped — but a
+    // user whose own settings define it would never see the project value take
+    // effect, which is worth saying out loud.
+    it("emits a project-scoped allowedHttpHookUrls but says it may not win", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { allowedHttpHookUrls: ["https://hooks.example.com/*"] } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).security).toEqual({
+        allowedHttpHookUrls: ["https://hooks.example.com/*"],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("no user, system, or system-defaults scope sets the key"),
+      );
+    });
+
+    // The grant gate is deliberately not applied here: Qwen Code reads an empty
+    // allowlist as allow-all, so the emptiest value is the widest one.
+    it("announces a global allowedHttpHookUrls that replaces the user's allowlist", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ security: { allowedHttpHookUrls: ["https://user.example/*"] } }),
+      );
+
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { allowedHttpHookUrls: [] } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `wrote "security.allowedHttpHookUrls" = [] (was ["https://user.example/*"])`,
+        ),
+      );
+    });
+
+    // Qwen Code makes the initial trust decision from user and system settings
+    // alone, before the workspace file is merged at all, so a project
+    // `folderTrust` cannot vouch for its own repository. It still drives the
+    // folder-trust gate once the workspace is trusted, so it is emitted — just
+    // never silently.
+    it("emits a project-scoped folderTrust but says it cannot decide trust", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { folderTrust: { enabled: false } } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).security).toEqual({
+        folderTrust: { enabled: false },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("makes the initial trust decision from user and system"),
+      );
+    });
+
+    // The trust-check rule announces on the global side too: this is the write
+    // that decides which projects on the machine Qwen Code will trust.
+    it("announces a global folderTrust that turns the trust gate off", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ security: { folderTrust: { enabled: true } } }),
+      );
+
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { folderTrust: { enabled: false } } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `wrote "security.folderTrust" = {"enabled":false} (was {"enabled":true})`,
+        ),
+      );
+    });
+
+    // `tools.approvalMode` is honored in either scope, so there is nothing to
+    // say about the project one — but writing `yolo` into the global file makes
+    // every project on the machine auto-approve, which is announced.
+    it("announces an approvalMode relaxation in either scope", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ tools: { approvalMode: "default" } }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {},
+          qwencode: { tools: { approvalMode: "yolo", sandbox: false } },
+        }),
+      });
+
+      const globalLogger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger: globalLogger,
+        rulesyncPermissions,
+      });
+      expect(globalLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`wrote "tools.approvalMode" = "yolo" (was "default")`),
+      );
+      expect(globalLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`wrote "tools.sandbox" = false`),
+      );
+
+      const projectLogger = createMockLogger();
+      const projectInstance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger: projectLogger,
+        rulesyncPermissions,
+      });
+      expect(JSON.parse(projectInstance.getFileContent()).tools).toEqual({
+        approvalMode: "yolo",
+        sandbox: false,
+      });
+      // Qwen Code honors these in a workspace file too, so the project write is
+      // real — and the override may have arrived with a cloned repository just
+      // as easily as the one a global write comes from.
+      expect(projectLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`"tools.approvalMode" = "yolo" was written to the project-scoped`),
+      );
+      expect(projectLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Check it if the override arrived with a repository you cloned"),
+      );
+    });
+
+    // The rule covers the registry controls too, and what they do is not what
+    // `approvalMode` does — so the note a key carries is the key's own.
+    it("describes a project-scoped disabled list as a registry change", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { disabled: [], listDirectory: { enabled: true } } },
+          }),
+        }),
+      });
+
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      const disabled = messages.find((message) => message.includes("tools.disabled"));
+      expect(disabled).toContain("replacing the list in that file rather than adding to it");
+      expect(disabled).not.toContain("how far approvals are skipped");
+      const listDirectory = messages.find((message) => message.includes("tools.listDirectory"));
+      expect(listDirectory).toContain("whether the built-in `list_directory` tool is registered");
+      expect(listDirectory).not.toContain("how far approvals are skipped");
+    });
+
+    // A re-run writes the same values again, and repeating the notes would only
+    // bury the one that reports a change.
+    it("stays quiet in project scope when the file already says the same thing", async () => {
+      const projectSettingsDir = join(testDir, ".qwen");
+      await ensureDir(projectSettingsDir);
+      await writeFileContent(
+        join(projectSettingsDir, "settings.json"),
+        JSON.stringify({ tools: { approvalMode: "yolo", disabled: ["run_shell_command"] } }),
+      );
+
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { approvalMode: "yolo", disabled: ["run_shell_command"] } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    // Qwen Code reads these two with plain truthiness, and `[]` is truthy — so an
+    // empty array is a grant here, however harmless the shape looks.
+    it("announces a global grant written as an empty array", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: {
+              tools: { workflowsEnabled: [] },
+              security: { allowPrivateNetworkHooks: [], allowedInsecureVoiceBaseUrls: [] },
+            },
+          }),
+        }),
+      });
+
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages.some((message) => message.includes(`"tools.workflowsEnabled" = []`))).toBe(
+        true,
+      );
+      expect(
+        messages.some((message) => message.includes(`"security.allowPrivateNetworkHooks" = []`)),
+      ).toBe(true);
+      // The exception: Qwen Code matches a URL against this list, so an empty one
+      // allows nothing and is not worth a line of its own.
+      expect(
+        messages.some((message) => message.includes("security.allowedInsecureVoiceBaseUrls")),
+      ).toBe(false);
+    });
+
+    // The same reasoning reaches a key rulesync does not model: `generate`
+    // without `--global` is the common path, and `tools.discoveryCommand` is
+    // spawned when Qwen Code starts whichever file named it.
+    it("names an unmodeled key written into the project settings file", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { discoveryCommand: "./bin/discover" } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.discoveryCommand"));
+      expect(announced).toContain("not a key rulesync models");
+      expect(announced).toContain(".qwen/settings.json");
+    });
+
+    // A key name is authored by whoever wrote the override, so it is serialized
+    // rather than wrapped in quotes of rulesync's own: a name carrying a quote
+    // must not be able to close it and continue the sentence.
+    it("escapes a quote inside an announced key name", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { 'x" was skipped. Ignored: "': true } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("was skipped"));
+      expect(announced).toBeDefined();
+      expect(announced).toContain(String.raw`\" was skipped. Ignored: \"`);
+    });
+
+    // The `tools`/`security` schemas are loose objects, so a key rulesync does
+    // not model still reaches the file — including potent ones such as
+    // `tools.discoveryCommand`, which Qwen Code spawns at startup. A global write
+    // of one is announced rather than passing the gate the modeled keys go
+    // through, even though rulesync cannot say what the key does.
+    it("announces a global write of a key it does not model", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { discoveryCommand: "./bin/discover" } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`wrote "tools.discoveryCommand" = "./bin/discover"`),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("not a key rulesync models"),
+      );
+    });
+
+    // `tools.disabled` keeps a tool out of the registry entirely, and the
+    // override replaces the list rather than adding to it, so a shorter list
+    // hands tools back to the model.
+    it("announces a global disabled list that re-registers a tool", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ tools: { disabled: ["run_shell_command"] } }),
+      );
+
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { disabled: [] } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`wrote "tools.disabled" = [] (was ["run_shell_command"])`),
+      );
+      // Qwen Code unions the lists across scopes, so the note says "unless
+      // another scope still disables it" rather than promising a re-registration.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("unless another scope still disables it"),
+      );
+    });
+
+    // The values come out of files rulesync did not write, so they are quoted
+    // through `quoteValueForWarning` rather than interpolated: a value cannot
+    // forge a second warning line out of control characters.
+    it("strips control characters out of an announced value", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { sandboxImage: "ghcr.io/ok\u009b2K forged" } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.sandboxImage"));
+      expect(announced).toBeDefined();
+      expect(announced).not.toContain("\u009b");
+      // The wording belongs to the key, not to its rule: `sandboxImage` decides
+      // what contains a run, not whether it is contained.
+      expect(announced).toContain("every sandboxed run on this machine executes inside");
+    });
+
+    // The groups are loose objects, so an unmodeled key's *name* is authored by
+    // whoever wrote the `.rulesync/permissions.jsonc` — it is sanitized like a
+    // value so it cannot erase the line it appears on and write its own.
+    it("strips control characters out of an announced key name", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { "discoveryCommand\u001b[2K\rall clear": "./bin/x" } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("discoveryCommand"));
+      expect(announced).toBeDefined();
+      expect(announced).not.toContain("\u001b");
+      expect(announced).not.toContain("\r");
+    });
+
+    // `permissions.autoMode` is not one of the settings groups, but its hints are
+    // the text Auto Mode's classifier follows, so it goes through the same gate.
+    it("announces a global autoMode that rewrites the classifier's instructions", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ permissions: { autoMode: { hints: { hardDeny: ["deleting files"] } } } }),
+      );
+
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { autoMode: { hints: { allow: ["deleting any file"] } } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).permissions.autoMode).toEqual({
+        hints: { allow: ["deleting any file"] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('wrote "permissions.autoMode"'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("rewrites the instructions Auto Mode's classifier follows"),
+      );
+    });
+
+    // Every key the override owns has a rule, so the one key this PR added is
+    // described as itself rather than falling through to the unmodeled wording.
+    it("describes listDirectory as itself rather than as an unmodeled key", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { listDirectory: { enabled: true } } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.listDirectory"));
+      expect(announced).toContain("whether the built-in `list_directory` tool is registered");
+      expect(announced).not.toContain("not a key rulesync models");
+    });
+
+    // A key that is written rather than stripped only warrants a project-scope
+    // note when the generated value differs from what the file already says, so
+    // regenerating an unchanged project file stays silent.
+    it("skips the project-scope note when the emitted value is already in the file", async () => {
+      const projectSettingsDir = join(testDir, ".qwen");
+      await ensureDir(projectSettingsDir);
+      await writeFileContent(
+        join(projectSettingsDir, "settings.json"),
+        JSON.stringify({ security: { folderTrust: { enabled: false } } }),
+      );
+
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { folderTrust: { enabled: false } } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    // Importing the global file is the one case the promotion warning has
+    // nothing to say about: the value is already in the scope it warns about.
+    it("stays quiet about a scoped key imported from the global settings file", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ security: { folderTrust: { enabled: false } } }),
+      );
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const instance = await QwencodePermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = instance.toRulesyncPermissions().getJson();
+
+      expect(json.qwencode).toEqual({ security: { folderTrust: { enabled: false } } });
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it("announces every imported key whose meaning depends on its scope", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      // Regenerating this globally would replace the user's own allowlist.
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ security: { allowedHttpHookUrls: [] } }),
+      }).toRulesyncPermissions();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('imported "security.allowedHttpHookUrls" = []'),
+      );
+      warn.mockClear();
+
+      // Regenerating this globally would decide which projects Qwen Code trusts.
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ security: { folderTrust: { enabled: false } } }),
+      }).toRulesyncPermissions();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(`imported "security.folderTrust" = {"enabled":false}`),
+      );
+      warn.mockClear();
+
+      // `tools.approvalMode` means the same thing in either scope, so import
+      // neither promotes nor weakens it and has nothing to announce.
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { approvalMode: "yolo" } }),
+      }).toRulesyncPermissions();
+      expect(warn).not.toHaveBeenCalled();
     });
 
     it("routes tools/security autonomy settings back into the qwencode override on import", () => {
