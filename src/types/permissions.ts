@@ -342,8 +342,11 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * any global change. Every other key is honored in either scope, so it is
  * announced only when a global write changes it — the autonomy and containment
  * controls (`approvalMode`, `autoAccept`, `sandbox`, `sandboxImage`), the
- * registry controls (`disabled`, `visible`), and, because these groups are
- * loose objects, any key rulesync does not model. It also
+ * registry controls (`disabled`, `visible`, `listDirectory`), the Auto Mode
+ * classifier config, and, because these groups are loose objects, any key
+ * rulesync does not model. Import flags a scope-dependent key only when it read
+ * the project file, since that is the value a `--global` regenerate would
+ * promote. It also
  * exposes `permissions.autoMode` (the Auto Mode classifier config:
  * `hints.{allow,softDeny,hardDeny}`, `environment`, `classifyAllShell` — see
  * https://qwenlm.github.io/qwen-code-docs/en/users/features/auto-mode/), which

@@ -969,6 +969,11 @@ describe("QwencodePermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining(`wrote 'tools.disabled' = [] (was ["run_shell_command"])`),
       );
+      // Qwen Code unions the lists across scopes, so the note says "unless
+      // another scope still disables it" rather than promising a re-registration.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("unless another scope still disables it"),
+      );
     });
 
     // The values come out of files rulesync did not write, so they are quoted
@@ -995,6 +1000,97 @@ describe("QwencodePermissions", () => {
         .find((message) => message.includes("tools.sandboxImage"));
       expect(announced).toBeDefined();
       expect(announced).not.toContain("\u009b");
+      // The wording belongs to the key, not to its rule: `sandboxImage` decides
+      // what contains a run, not whether it is contained.
+      expect(announced).toContain("every sandboxed run on this machine executes inside");
+    });
+
+    // The groups are loose objects, so an unmodeled key's *name* is authored by
+    // whoever wrote the `.rulesync/permissions.jsonc` — it is sanitized like a
+    // value so it cannot erase the line it appears on and write its own.
+    it("strips control characters out of an announced key name", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { "discoveryCommand\u001b[2K\rall clear": "./bin/x" } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("discoveryCommand"));
+      expect(announced).toBeDefined();
+      expect(announced).not.toContain("\u001b");
+      expect(announced).not.toContain("\r");
+    });
+
+    // `permissions.autoMode` is not one of the settings groups, but its hints are
+    // the text Auto Mode's classifier follows, so it goes through the same gate.
+    it("announces a global autoMode that rewrites the classifier's instructions", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ permissions: { autoMode: { hints: { hardDeny: ["deleting files"] } } } }),
+      );
+
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { autoMode: { hints: { allow: ["deleting any file"] } } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).permissions.autoMode).toEqual({
+        hints: { allow: ["deleting any file"] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("wrote 'permissions.autoMode'"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("rewrites the instructions Auto Mode's classifier follows"),
+      );
+    });
+
+    // Every key the override owns has a rule, so the one key this PR added is
+    // described as itself rather than falling through to the unmodeled wording.
+    it("describes listDirectory as itself rather than as an unmodeled key", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { listDirectory: { enabled: true } } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.listDirectory"));
+      expect(announced).toContain("whether the built-in `list_directory` tool is registered");
+      expect(announced).not.toContain("not a key rulesync models");
     });
 
     // A key that is written rather than stripped only warrants a project-scope
