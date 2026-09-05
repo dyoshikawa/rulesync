@@ -1,7 +1,10 @@
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -124,6 +127,50 @@ describe("ClaudecodePluginHooks", () => {
       expect(parsed.hooks.DirectoryAdded[0].matcher).toBe("register_repo_root");
       // `taskCreated` is still a no-matcher event, so its matcher is dropped.
       expect(parsed.hooks.TaskCreated[0].matcher).toBeUndefined();
+    });
+
+    it("should replace previous plugin hooks even when preserveUnowned is set", async () => {
+      await ensureDir(join(testDir, "hooks"));
+      await writeFileContent(
+        join(testDir, "hooks", "hooks.json"),
+        JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  { type: "command", command: '"$CLAUDE_PLUGIN_ROOT"/scripts/fmt.sh' },
+                  { type: "command", command: "other-tool-hook plugin" },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          preserveUnowned: true,
+          hooks: { sessionStart: [{ type: "command", command: "./scripts/fmt.sh" }] },
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(
+        (
+          await ClaudecodePluginHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks,
+            validate: false,
+          })
+        ).getFileContent(),
+      );
+      expect(parsed.hooks.SessionStart[0].hooks).toEqual([
+        { type: "command", command: '"$CLAUDE_PLUGIN_ROOT"/scripts/fmt.sh' },
+      ]);
     });
   });
 

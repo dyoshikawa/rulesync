@@ -690,6 +690,95 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks).toBeDefined();
       expect(parsed.hooks.SessionStart).toBeDefined();
     });
+
+    it("should keep an existing third-party command on regenerate", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  { type: "command", command: "echo start" },
+                  { type: "command", command: "other-tool-hook claude-hook" },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          preserveUnowned: true,
+          hooks: { sessionStart: [{ command: "echo start" }] },
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(
+        (
+          await ClaudecodeHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks,
+            validate: false,
+          })
+        ).getFileContent(),
+      );
+      const commands = parsed.hooks.SessionStart[0].hooks.map(
+        (handler: { command: string }) => handler.command,
+      );
+      expect(commands).toEqual(["echo start", "other-tool-hook claude-hook"]);
+    });
+
+    it("should replace existing third-party commands unless preserveUnowned is set", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  { type: "command", command: "echo start" },
+                  { type: "command", command: "other-tool-hook claude-hook" },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { sessionStart: [{ command: "echo start" }] },
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(
+        (
+          await ClaudecodeHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks,
+            validate: false,
+          })
+        ).getFileContent(),
+      );
+      const commands = parsed.hooks.SessionStart[0].hooks.map(
+        (handler: { command: string }) => handler.command,
+      );
+      expect(commands).toEqual(["echo start"]);
+    });
   });
 
   describe("$schema", () => {
