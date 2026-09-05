@@ -1045,6 +1045,10 @@ const canonicalHooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSc
  */
 export const HooksConfigSchema = z.looseObject({
   version: z.optional(z.number()),
+  // When true, generate keeps dest handlers that rulesync does not own on
+  // Claude Code settings, Codex CLI hooks.json, and Cursor hooks.json.
+  // Default remains replace. Plugin dests always replace.
+  preserveUnowned: z.optional(z.boolean()),
   hooks: canonicalHooksRecordSchema,
   cursor: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   claudecode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),

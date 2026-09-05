@@ -220,6 +220,7 @@ Example:
 **Top-level keys:**
 
 - `version`: Schema version (currently `1`).
+- `preserveUnowned` (optional): When `true`, `generate` keeps handlers already in `.claude/settings.json`, `.codex/hooks.json`, and `.cursor/hooks.json` that rulesync does not own. Default is to replace those `hooks` objects. A handler is owned when generate emits the same type-aware identity, or when its command refers to `.rulesync/hooks`. Plugin dests always replace. Other JSON hook targets are unchanged.
 - `hooks`: Map of canonical event names to an array of hook entries. These are dispatched to every tool that supports the given event.
 - `amp.hooks`, `cursor.hooks`, `claudecode.hooks`, `opencode.hooks`, `kilo.hooks`, `copilot.hooks`, `copilotcli.hooks`, `factorydroid.hooks`, `codexcli.hooks`, `goose.hooks`, `deepagents.hooks`, `kiro.hooks`, `qwencode.hooks`, `grokcli.hooks`: Tool-specific **override keys**. Entries under these keys are emitted only for the corresponding tool, so tool-only events (e.g. `afterFileEdit` for Cursor/OpenCode/Kilo, `worktreeCreate` for Claude Code, `afterError` for Copilot/Copilot CLI, `PostFileSave`/`PreTaskExec` for Kiro) can coexist with shared ones without leaking to other tools. `copilotcli.hooks` falls back to `copilot.hooks`, which in turn falls back to the shared `hooks` block.
 

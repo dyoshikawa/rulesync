@@ -9,8 +9,9 @@ import {
   CURSOR_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_CURSOR_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
+import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -64,12 +65,13 @@ export class CursorHooks extends ToolHooks {
     });
   }
 
-  static fromRulesyncHooks({
+  static async fromRulesyncHooks({
     outputRoot = process.cwd(),
     rulesyncHooks,
     validate = true,
     global = false,
-  }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): CursorHooks {
+    logger,
+  }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<CursorHooks> {
     const config = rulesyncHooks.getJson();
     const cursorSupported: Set<string> = new Set(CURSOR_HOOK_EVENTS);
     const sharedHooks: HooksConfig["hooks"] = {};
@@ -111,12 +113,20 @@ export class CursorHooks extends ToolHooks {
         mappedHooks[cursorEventName] = mappedDefs;
       }
     }
+    const paths = CursorHooks.getSettablePaths({ global });
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const cursorConfig = {
       version: config.version ?? 1,
-      hooks: mappedHooks,
+      hooks: mergeGeneratedHookLists({
+        existingContent,
+        generatedHooks: mappedHooks as Record<string, unknown[]>,
+        shape: "flat",
+        preserveUnowned: config.preserveUnowned === true,
+        logger,
+      }),
     };
     const fileContent = JSON.stringify(cursorConfig, null, 2);
-    const paths = CursorHooks.getSettablePaths({ global });
     return new CursorHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
