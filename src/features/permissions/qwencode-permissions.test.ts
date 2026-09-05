@@ -744,6 +744,117 @@ describe("QwencodePermissions", () => {
       });
     });
 
+    // `security.allowedHttpHookUrls` sits in upstream's second list,
+    // `WORKSPACE_NON_OVERRIDING_SETTINGS`: a workspace value is honored while no
+    // higher scope sets the key, so it is emitted rather than dropped — but a
+    // user whose own settings define it would never see the project value take
+    // effect, which is worth saying out loud.
+    it("emits a project-scoped allowedHttpHookUrls but says it may not win", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { allowedHttpHookUrls: ["https://hooks.example.com/*"] } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).security).toEqual({
+        allowedHttpHookUrls: ["https://hooks.example.com/*"],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("no user, system, or system-defaults scope sets the key"),
+      );
+    });
+
+    // The grant gate is deliberately not applied here: Qwen Code reads an empty
+    // allowlist as allow-all, so the emptiest value is the widest one.
+    it("announces a global allowedHttpHookUrls that replaces the user's allowlist", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ security: { allowedHttpHookUrls: ["https://user.example/*"] } }),
+      );
+
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { allowedHttpHookUrls: [] } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `wrote 'security.allowedHttpHookUrls' = [] (was ["https://user.example/*"])`,
+        ),
+      );
+    });
+
+    // Qwen Code decides whether a workspace is trusted from user and system
+    // settings alone, before the workspace file is merged at all, so a project
+    // `folderTrust` is inert — it is still emitted (it is not stripped upstream),
+    // just never silently.
+    it("emits a project-scoped folderTrust but says it does not decide trust", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { folderTrust: { enabled: false } } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).security).toEqual({
+        folderTrust: { enabled: false },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("decides whether a workspace is trusted from user and system"),
+      );
+    });
+
+    it("announces an imported allowedHttpHookUrls but not an imported folderTrust", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      // Regenerating this globally would replace the user's own allowlist.
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ security: { allowedHttpHookUrls: [] } }),
+      }).toRulesyncPermissions();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("imported 'security.allowedHttpHookUrls' = []"),
+      );
+      warn.mockClear();
+
+      // A project `folderTrust` is inert rather than under-powered, so promoting
+      // it to the global scope adds nothing the user has not already chosen.
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ security: { folderTrust: { enabled: true } } }),
+      }).toRulesyncPermissions();
+      expect(warn).not.toHaveBeenCalled();
+    });
+
     it("routes tools/security autonomy settings back into the qwencode override on import", () => {
       const instance = new QwencodePermissions({
         relativeDirPath: ".qwen",
