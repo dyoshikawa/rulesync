@@ -309,11 +309,16 @@ temperature: "hot"
 Body content`,
     );
 
-    await expect(
-      KiloSubagent.fromFile({
-        relativeFilePath: "invalid-type.md",
-      }),
-    ).rejects.toThrow("Invalid input: expected number, received string");
+    const resultPromise = KiloSubagent.fromFile({
+      relativeFilePath: "invalid-type.md",
+    });
+
+    // Zod's human-readable wording for `invalid_type` differs between versions, so
+    // assert on the structured issue data that formatError serializes instead.
+    await expect(resultPromise).rejects.toThrow("Invalid frontmatter in");
+    await expect(resultPromise).rejects.toThrow('"code":"invalid_type"');
+    await expect(resultPromise).rejects.toThrow('"expected":"number"');
+    await expect(resultPromise).rejects.toThrow('"path":["temperature"]');
   });
 
   it("should preserve custom mode value when explicitly set", async () => {
