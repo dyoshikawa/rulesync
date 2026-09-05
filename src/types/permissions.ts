@@ -336,9 +336,13 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * `security.allowedInsecureVoiceBaseUrls` out of workspace settings, so generate
  * skips those three in project scope and announces a granting value in global
  * scope. `security.allowedHttpHookUrls` (honored in a workspace only while no
- * higher scope sets it) and `security.folderTrust` (read from user/system
- * settings before the workspace merge) are written in both scopes, with a note
- * in project scope and an announcement of any global change. It also
+ * higher scope sets it) and `security.folderTrust` (the initial trust decision
+ * is made from user/system settings alone, before the workspace merge) are
+ * written in both scopes, with a note in project scope and an announcement of
+ * any global change. The `tools` autonomy and containment controls
+ * (`approvalMode`, `autoAccept`, `sandbox`, `sandboxImage`) are honored in
+ * either scope, so they are only announced when a global write changes one. It
+ * also
  * exposes `permissions.autoMode` (the Auto Mode classifier config:
  * `hints.{allow,softDeny,hardDeny}`, `environment`, `classifyAllShell` — see
  * https://qwenlm.github.io/qwen-code-docs/en/users/features/auto-mode/), which

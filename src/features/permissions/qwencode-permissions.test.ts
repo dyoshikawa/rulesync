@@ -804,11 +804,12 @@ describe("QwencodePermissions", () => {
       );
     });
 
-    // Qwen Code decides whether a workspace is trusted from user and system
-    // settings alone, before the workspace file is merged at all, so a project
-    // `folderTrust` is inert — it is still emitted (it is not stripped upstream),
-    // just never silently.
-    it("emits a project-scoped folderTrust but says it does not decide trust", async () => {
+    // Qwen Code makes the initial trust decision from user and system settings
+    // alone, before the workspace file is merged at all, so a project
+    // `folderTrust` cannot vouch for its own repository. It still drives the
+    // folder-trust gate once the workspace is trusted, so it is emitted — just
+    // never silently.
+    it("emits a project-scoped folderTrust but says it cannot decide trust", async () => {
       const logger = createMockLogger();
       const instance = await QwencodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -827,11 +828,118 @@ describe("QwencodePermissions", () => {
         folderTrust: { enabled: false },
       });
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("decides whether a workspace is trusted from user and system"),
+        expect.stringContaining("makes the initial trust decision from user and system"),
       );
     });
 
-    it("announces an imported allowedHttpHookUrls but not an imported folderTrust", () => {
+    // The trust-check rule announces on the global side too: this is the write
+    // that decides which projects on the machine Qwen Code will trust.
+    it("announces a global folderTrust that turns the trust gate off", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ security: { folderTrust: { enabled: true } } }),
+      );
+
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { folderTrust: { enabled: false } } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `wrote 'security.folderTrust' = {"enabled":false} (was {"enabled":true})`,
+        ),
+      );
+    });
+
+    // `tools.approvalMode` is honored in either scope, so there is nothing to
+    // say about the project one — but writing `yolo` into the global file makes
+    // every project on the machine auto-approve, which is announced.
+    it("announces a global approvalMode relaxation and stays quiet in project scope", async () => {
+      const globalSettingsDir = join(testDir, ".qwen");
+      await ensureDir(globalSettingsDir);
+      await writeFileContent(
+        join(globalSettingsDir, "settings.json"),
+        JSON.stringify({ tools: { approvalMode: "default" } }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {},
+          qwencode: { tools: { approvalMode: "yolo", sandbox: false } },
+        }),
+      });
+
+      const globalLogger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger: globalLogger,
+        rulesyncPermissions,
+      });
+      expect(globalLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`wrote 'tools.approvalMode' = "yolo" (was "default")`),
+      );
+      expect(globalLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`wrote 'tools.sandbox' = false`),
+      );
+
+      const projectLogger = createMockLogger();
+      const projectInstance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger: projectLogger,
+        rulesyncPermissions,
+      });
+      expect(JSON.parse(projectInstance.getFileContent()).tools).toEqual({
+        approvalMode: "yolo",
+        sandbox: false,
+      });
+      expect(projectLogger.warn).not.toHaveBeenCalled();
+    });
+
+    // A key that is written rather than stripped only warrants a project-scope
+    // note when the generated value differs from what the file already says, so
+    // regenerating an unchanged project file stays silent.
+    it("skips the project-scope note when the emitted value is already in the file", async () => {
+      const projectSettingsDir = join(testDir, ".qwen");
+      await ensureDir(projectSettingsDir);
+      await writeFileContent(
+        join(projectSettingsDir, "settings.json"),
+        JSON.stringify({ security: { folderTrust: { enabled: false } } }),
+      );
+
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { folderTrust: { enabled: false } } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("announces every imported key whose meaning depends on its scope", () => {
       const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
 
       // Regenerating this globally would replace the user's own allowlist.
@@ -845,12 +953,23 @@ describe("QwencodePermissions", () => {
       );
       warn.mockClear();
 
-      // A project `folderTrust` is inert rather than under-powered, so promoting
-      // it to the global scope adds nothing the user has not already chosen.
+      // Regenerating this globally would decide which projects Qwen Code trusts.
       new QwencodePermissions({
         relativeDirPath: ".qwen",
         relativeFilePath: "settings.json",
-        fileContent: JSON.stringify({ security: { folderTrust: { enabled: true } } }),
+        fileContent: JSON.stringify({ security: { folderTrust: { enabled: false } } }),
+      }).toRulesyncPermissions();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(`imported 'security.folderTrust' = {"enabled":false}`),
+      );
+      warn.mockClear();
+
+      // `tools.approvalMode` means the same thing in either scope, so import
+      // neither promotes nor weakens it and has nothing to announce.
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { approvalMode: "yolo" } }),
       }).toRulesyncPermissions();
       expect(warn).not.toHaveBeenCalled();
     });

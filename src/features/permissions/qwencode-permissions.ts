@@ -167,12 +167,22 @@ const QWEN_OVERRIDE_SECURITY_KEYS = [
  *   scope sets the key: a repository may narrow where its own hooks send data,
  *   but never replace a whitelist the user configured, because an empty list
  *   means allow-all.
- * - `user-scope-trust-check` — read before the merge runs at all. Qwen Code
- *   decides whether a workspace is trusted from system + user settings only
+ * - `user-scope-trust-check` — read once before the merge runs at all. Qwen Code
+ *   makes the initial trust decision from system + user settings only
  *   (`loadSettings`' `initialTrustCheckSettings`), so a project-scoped value
- *   cannot change that decision.
+ *   cannot decide whether its own workspace is trusted. It is not stripped,
+ *   though: once the workspace is trusted the merged value still drives the
+ *   folder-trust feature itself.
+ * - `global-machine-wide` — not scope-restricted at all; Qwen Code honors it
+ *   wherever it is written. It is listed because writing it into the global file
+ *   settles how much the agent may do on its own for every project on the
+ *   machine, which is worth naming even though no scope forbids it.
  */
-type QwenScopeRule = "workspace-stripped" | "workspace-non-overriding" | "user-scope-trust-check";
+type QwenScopeRule =
+  | "workspace-stripped"
+  | "workspace-non-overriding"
+  | "user-scope-trust-check"
+  | "global-machine-wide";
 
 type QwenScopedKey<Key extends string> = { readonly key: Key; readonly rule: QwenScopeRule };
 
@@ -182,12 +192,17 @@ type QwenScopedKey<Key extends string> = { readonly key: Key; readonly rule: Qwe
  *
  * `stripInProjectScope` separates the keys a project file cannot use at all from
  * the ones whose project value still does something, just not unconditionally —
- * only the former are dropped. `announceOnlyGrants` marks the rules whose risk
- * is a value that turns something on; for the other two the dangerous value is
- * the falsy one (an empty allow-all list, folder trust switched off), so every
- * change is announced. `announceOnImport` is off for the trust check alone: its
- * project value is inert rather than under-powered, so promoting it to the
- * global scope adds nothing a user would not already have chosen.
+ * only the former are dropped. `announceOnlyGrants` marks the rule whose risk is
+ * a value that turns something on; for the others the dangerous value is often
+ * the falsy one (an empty allow-all list, folder trust switched off, a sandbox
+ * turned off), so every change is announced instead. `announceOnImport` marks
+ * the keys whose meaning depends on the scope they are written in — importing
+ * one and regenerating globally turns a value a workspace could not decide for
+ * itself into one Qwen Code enforces everywhere. `global-machine-wide` keys are
+ * honored identically in either scope, so import neither promotes nor weakens
+ * them and the announcement on the generate side is the control point.
+ * `projectNote` is `null` for a rule that has nothing to say about the project
+ * scope.
  */
 const QWEN_SCOPE_RULES: Record<
   QwenScopeRule,
@@ -195,7 +210,7 @@ const QWEN_SCOPE_RULES: Record<
     stripInProjectScope: boolean;
     announceOnlyGrants: boolean;
     announceOnImport: boolean;
-    projectNote: (qualifiedKey: string, filePath: string) => string;
+    projectNote: ((qualifiedKey: string, filePath: string) => string) | null;
     globalNote: string;
   }
 > = {
@@ -213,23 +228,42 @@ const QWEN_SCOPE_RULES: Record<
     announceOnlyGrants: false,
     announceOnImport: true,
     projectNote: (qualifiedKey, filePath) =>
-      `'${qualifiedKey}' was written to the project-scoped ${filePath}, but Qwen Code honors a workspace value for it only while no user, system, or system-defaults scope sets the key — a repository may narrow this list, never replace the one a user configured. Author it in the global scope if it has to apply unconditionally.`,
+      `'${qualifiedKey}' was written to the project-scoped ${filePath}, but Qwen Code honors a workspace value for it only while no user, system, or system-defaults scope sets the key — a repository cannot replace the list a user configured in a higher scope. It does replace one written by hand in this same file, and an empty list is Qwen Code's allow-all, so check what it now says. Author it in the global scope if it has to apply unconditionally.`,
     globalNote:
       "A global value outranks every repository's own list for this key, and an empty list means allow-all, so this decides where HTTP hooks may send data for every project on this machine.",
   },
   "user-scope-trust-check": {
     stripInProjectScope: false,
     announceOnlyGrants: false,
-    announceOnImport: false,
+    announceOnImport: true,
     projectNote: (qualifiedKey, filePath) =>
-      `'${qualifiedKey}' was written to the project-scoped ${filePath}, but Qwen Code decides whether a workspace is trusted from user and system settings alone, so a project value does not change that decision. Author it in the global scope instead.`,
+      `'${qualifiedKey}' was written to the project-scoped ${filePath}, but Qwen Code makes the initial trust decision from user and system settings alone, before a workspace file is merged, so a project value cannot decide whether this workspace is trusted (it still drives folder trust once the workspace is trusted). Author it in the global scope to decide it.`,
     globalNote:
       "Qwen Code reads this key from the global scope when it decides whether a workspace is trusted, so this changes which projects on this machine it trusts.",
+  },
+  "global-machine-wide": {
+    stripInProjectScope: false,
+    announceOnlyGrants: false,
+    announceOnImport: false,
+    projectNote: null,
+    globalNote:
+      "Qwen Code honors this key wherever it is written, so in the global scope it settles how much the agent may do unattended — how far approvals are skipped, and whether tool calls are contained at all — for every project on this machine.",
   },
 };
 
 const QWEN_SCOPED_TOOLS_KEYS: readonly QwenScopedKey<(typeof QWEN_OVERRIDE_TOOLS_KEYS)[number]>[] =
-  [{ key: "workflowsEnabled", rule: "workspace-stripped" }];
+  [
+    { key: "workflowsEnabled", rule: "workspace-stripped" },
+    // The autonomy and containment controls. Qwen Code accepts them in any scope,
+    // but `approvalMode: "yolo"`, `autoAccept`, a disabled `sandbox` or a
+    // `sandboxImage` naming someone else's image are exactly the settings a global
+    // write should not slip past — the same relaxations the deepagents adapter
+    // announces at startup.
+    { key: "approvalMode", rule: "global-machine-wide" },
+    { key: "autoAccept", rule: "global-machine-wide" },
+    { key: "sandbox", rule: "global-machine-wide" },
+    { key: "sandboxImage", rule: "global-machine-wide" },
+  ];
 const QWEN_SCOPED_SECURITY_KEYS: readonly QwenScopedKey<
   (typeof QWEN_OVERRIDE_SECURITY_KEYS)[number]
 >[] = [
@@ -298,6 +332,29 @@ function grantsSomething(value: unknown): boolean {
 }
 
 /**
+ * Compare two settings values without letting key order decide the answer, so
+ * re-emitting `{ enabled: true, note: "x" }` as `{ note: "x", enabled: true }`
+ * is not announced as a change.
+ */
+function stableStringify(value: unknown): string {
+  return (
+    JSON.stringify(value, (_key, nested: unknown) =>
+      nested !== null && typeof nested === "object" && !Array.isArray(nested)
+        ? Object.fromEntries(
+            Object.entries(nested as Record<string, unknown>).toSorted(([left], [right]) =>
+              left.localeCompare(right),
+            ),
+          )
+        : nested,
+    ) ?? "undefined"
+  );
+}
+
+function sameSettingsValue(a: unknown, b: unknown): boolean {
+  return stableStringify(a) === stableStringify(b);
+}
+
+/**
  * Apply the scope rules for a settings group's scoped keys.
  *
  * Generating project settings drops the keys Qwen Code strips from a workspace
@@ -338,16 +395,27 @@ function scopeOverrideGroup(
     if (value === undefined) continue;
     const { stripInProjectScope, announceOnlyGrants, projectNote, globalNote } =
       QWEN_SCOPE_RULES[rule];
-    if (!global) {
-      if (stripInProjectScope) delete scoped[key];
-      warnWithFallback(logger, `Qwen permissions: ${projectNote(`${groupName}.${key}`, filePath)}`);
-      continue;
-    }
+    const previousValue = previous[key];
     // A value the file already had changes nothing, and neither does one that
     // grants nothing under a rule whose risk is the granting direction — warning
     // about either would only bury the writes that do change what Qwen Code does.
-    const previousValue = previous[key];
-    if (JSON.stringify(previousValue) === JSON.stringify(value)) continue;
+    const unchanged = sameSettingsValue(previousValue, value);
+    if (!global) {
+      // A stripped key is dropped whatever the file says, so the notice is about
+      // what rulesync refused to write and is always worth printing. The keys
+      // that are actually written report a change, so a re-run that writes the
+      // same value again says nothing.
+      if (stripInProjectScope) delete scoped[key];
+      else if (unchanged) continue;
+      if (projectNote) {
+        warnWithFallback(
+          logger,
+          `Qwen permissions: ${projectNote(`${groupName}.${key}`, filePath)}`,
+        );
+      }
+      continue;
+    }
+    if (unchanged) continue;
     if (announceOnlyGrants && !grantsSomething(value)) continue;
     const replaced = previousValue === undefined ? "" : ` (was ${JSON.stringify(previousValue)})`;
     warnWithFallback(
