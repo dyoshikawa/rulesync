@@ -681,6 +681,7 @@ describe("HooksProcessor", () => {
         "qwencode",
         "reasonix",
         "grokcli",
+        "zcode",
       ]);
     });
 
@@ -713,6 +714,7 @@ describe("HooksProcessor", () => {
         "qwencode",
         "reasonix",
         "grokcli",
+        "zcode",
       ]);
     });
 
@@ -756,6 +758,7 @@ describe("HooksProcessor", () => {
         "qwencode",
         "reasonix",
         "grokcli",
+        "zcode",
       ]);
     });
 
@@ -783,6 +786,7 @@ describe("HooksProcessor", () => {
         "qwencode",
         "reasonix",
         "grokcli",
+        "zcode",
       ]);
     });
   });

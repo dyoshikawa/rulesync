@@ -1251,9 +1251,9 @@ const KIMI_CODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
  * rulesync does not own. The workspace copy (`<project>/.zcode/config.json`)
  * and the user copy (`~/.zcode/cli/config.json`) are the same file with the
  * same owners, so the declaration is written once and shared — a policy edit
- * cannot land on one scope only. `mcp` is owned as a whole key because the
- * writer recomputes it from the existing file (non-`servers` siblings carried
- * over) before applying the patch.
+ * cannot land on one scope only. `mcp` and `hooks` are owned as whole keys
+ * because their writers recompute each from the existing file (non-owned
+ * siblings carried over) before applying the patch.
  */
 const ZCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
   format: "json",
@@ -1262,6 +1262,7 @@ const ZCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
   invalidRootPolicy: "error",
   features: {
     mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
+    hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
   },
 };
 

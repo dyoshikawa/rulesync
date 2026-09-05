@@ -901,6 +901,46 @@ export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object
 );
 
 /**
+ * Hook events supported by ZCode.
+ *
+ * ZCode's configuration-file hooks expose exactly seven PascalCase events, all
+ * of which have a clean canonical equivalent: `SessionStart`, `PreToolUse`,
+ * `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `Stop`, and
+ * `UserPromptSubmit` ← `beforeSubmitPrompt`. An optional matcher (a
+ * case-sensitive regular expression) is honored on every one of them, tested
+ * against a per-event match value (tool name, prompt text, …). Configuration
+ * hooks additionally require `hooks.enabled: true` to run.
+ *
+ * ZCode also accepts a native `process` hook type (an argv run without a
+ * shell) which has no canonical equivalent; see ZcodeHooks.
+ *
+ * @see https://zcode.z.ai/en/docs
+ */
+export const ZCODE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "permissionRequest",
+  "stop",
+];
+
+export const CANONICAL_TO_ZCODE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  permissionRequest: "PermissionRequest",
+  stop: "Stop",
+};
+
+export const ZCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_ZCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
  * Hermes validates hook events against a fixed `VALID_HOOKS` set — 37 entries as
@@ -1071,6 +1111,7 @@ export const HooksConfigSchema = z.looseObject({
   reasonix: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   grokcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "kimi-code": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
     z.looseObject({
       hooks: z.optional(hooksRecordSchema),

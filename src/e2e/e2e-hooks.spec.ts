@@ -67,6 +67,7 @@ const hooksGenerateTargets = [
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
+  { target: "zcode", outputPath: join(".zcode", "config.json") },
 ] as const;
 
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -225,6 +226,18 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.Stop).toEqual([
           { hooks: [{ type: "command", command: ".rulesync/hooks/audit.sh" }] },
         ]);
+      } else if (target === "zcode") {
+        // ZCode nests the event map under `hooks.events` and states
+        // `enabled: true`, without which it runs no configuration hooks.
+        // Dot-relative commands gain the $ZCODE_PROJECT_DIR prefix.
+        // See CANONICAL_TO_ZCODE_EVENT_NAMES in src/types/hooks.ts.
+        expect(parsed.hooks.enabled).toBe(true);
+        expect(parsed.hooks.events.SessionStart[0].hooks[0].command).toBe(
+          '"$ZCODE_PROJECT_DIR"/.rulesync/hooks/session-start.sh',
+        );
+        expect(parsed.hooks.events.Stop[0].hooks[0].command).toBe(
+          '"$ZCODE_PROJECT_DIR"/.rulesync/hooks/audit.sh',
+        );
       } else {
         // codexcli, factorydroid, goose: event-name casing/mapping
         // varies per tool, so verify the configured hook command paths are preserved.
@@ -713,6 +726,23 @@ describe("E2E: hooks (import)", () => {
         },
       },
     },
+    {
+      // ZCode stores the event map under `hooks.events` of its config file,
+      // using PascalCase event names; SessionStart round-trips to canonical
+      // `sessionStart`.
+      target: "zcode",
+      sourcePath: join(".zcode", "config.json"),
+      sourceContent: {
+        hooks: {
+          enabled: true,
+          events: {
+            SessionStart: [
+              { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
+            ],
+          },
+        },
+      },
+    },
   ])(
     "should import $target hooks",
     async ({ target, sourcePath, sourceContent, expectedEvent }) => {
@@ -755,6 +785,7 @@ const hooksGlobalTargets = [
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join("Documents", "Cline", "Hooks", "rulesync-hooks.json") },
+  { target: "zcode", outputPath: join(".zcode", "cli", "config.json") },
 ] as const;
 
 // Global targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -838,6 +869,14 @@ describe("E2E: hooks (global mode)", () => {
         const parsed = JSON.parse(generatedContent);
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+      } else if (target === "zcode") {
+        // Global scope writes the same `hooks` block to ~/.zcode/cli/config.json.
+        const parsedHooks = JSON.parse(generatedContent).hooks;
+        expect(parsedHooks.enabled).toBe(true);
+        expect(parsedHooks.events.SessionStart).toBeDefined();
+        expect(parsedHooks.events.Stop).toBeDefined();
+        expect(JSON.stringify(parsedHooks.events)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsedHooks.events)).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "junie") {
         // Junie CLI supports SessionStart, UserPromptSubmit, Stop, and SessionEnd
         // (PascalCase), so both `sessionStart` and `stop` (audit.sh) survive.

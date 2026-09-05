@@ -31,6 +31,7 @@ import {
   QWENCODE_HOOK_EVENTS,
   REASONIX_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
+  ZCODE_HOOK_EVENTS,
   type HookEvent,
   type HookType,
 } from "../../types/hooks.js";
@@ -77,6 +78,7 @@ import type {
 } from "./tool-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
 import { VibeHooks } from "./vibe-hooks.js";
+import { ZcodeHooks } from "./zcode-hooks.js";
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
@@ -730,6 +732,23 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command", "http"],
       // Tool-name events honor `matcher`; the adapter drops it (with a warning)
       // on the matcher-less lifecycle events.
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "zcode",
+    {
+      // ZCode hooks live under the `hooks` key of its own config file,
+      // `.zcode/config.json` (workspace) / `~/.zcode/cli/config.json` (user),
+      // with the event map nested under `hooks.events`. Exactly seven
+      // PascalCase events, all mapping 1:1 onto canonical arms, and an
+      // optional matcher is honored on every one of them. Configuration-file
+      // hooks require `hooks.enabled: true`, which the adapter writes unless
+      // the existing file deliberately holds `false`.
+      class: ZcodeHooks,
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: ZCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
   ],

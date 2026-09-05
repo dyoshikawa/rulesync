@@ -205,6 +205,14 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        ".zcode/cli/config.json": [
+          "hooks",
+          "mcp",
+        ],
+        ".zcode/config.json": [
+          "hooks",
+          "mcp",
+        ],
         ".zed/settings.json": [
           "ignore",
           "mcp",
