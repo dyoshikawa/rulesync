@@ -925,6 +925,94 @@ describe("QwencodePermissions", () => {
       );
     });
 
+    // The rule covers the registry controls too, and what they do is not what
+    // `approvalMode` does — so the note a key carries is the key's own.
+    it("describes a project-scoped disabled list as a registry change", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { disabled: [], listDirectory: { enabled: true } } },
+          }),
+        }),
+      });
+
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      const disabled = messages.find((message) => message.includes("tools.disabled"));
+      expect(disabled).toContain("replacing the list in that file rather than adding to it");
+      expect(disabled).not.toContain("how far approvals are skipped");
+      const listDirectory = messages.find((message) => message.includes("tools.listDirectory"));
+      expect(listDirectory).toContain("whether the built-in `list_directory` tool is registered");
+      expect(listDirectory).not.toContain("how far approvals are skipped");
+    });
+
+    // A re-run writes the same values again, and repeating the notes would only
+    // bury the one that reports a change.
+    it("stays quiet in project scope when the file already says the same thing", async () => {
+      const projectSettingsDir = join(testDir, ".qwen");
+      await ensureDir(projectSettingsDir);
+      await writeFileContent(
+        join(projectSettingsDir, "settings.json"),
+        JSON.stringify({ tools: { approvalMode: "yolo", disabled: ["run_shell_command"] } }),
+      );
+
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { approvalMode: "yolo", disabled: ["run_shell_command"] } },
+          }),
+        }),
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    // Qwen Code reads these two with plain truthiness, and `[]` is truthy — so an
+    // empty array is a grant here, however harmless the shape looks.
+    it("announces a global grant written as an empty array", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: {
+              tools: { workflowsEnabled: [] },
+              security: { allowPrivateNetworkHooks: [], allowedInsecureVoiceBaseUrls: [] },
+            },
+          }),
+        }),
+      });
+
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages.some((message) => message.includes(`"tools.workflowsEnabled" = []`))).toBe(
+        true,
+      );
+      expect(
+        messages.some((message) => message.includes(`"security.allowPrivateNetworkHooks" = []`)),
+      ).toBe(true);
+      // The exception: Qwen Code matches a URL against this list, so an empty one
+      // allows nothing and is not worth a line of its own.
+      expect(
+        messages.some((message) => message.includes("security.allowedInsecureVoiceBaseUrls")),
+      ).toBe(false);
+    });
+
     // The same reasoning reaches a key rulesync does not model: `generate`
     // without `--global` is the common path, and `tools.discoveryCommand` is
     // spawned when Qwen Code starts whichever file named it.

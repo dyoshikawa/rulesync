@@ -153,7 +153,7 @@ const QWEN_OVERRIDE_SECURITY_KEYS = [
   "folderTrust",
   "allowedHttpHookUrls",
   "allowPrivateNetworkHooks",
-  // Added in Qwen Code v0.22.0, alongside `tools.listDirectory`.
+  // Added in Qwen Code v0.21.7.
   "allowedInsecureVoiceBaseUrls",
 ] as const;
 
@@ -198,11 +198,25 @@ type QwenScopeRule =
   | "unmodeled";
 
 /**
- * The scope rule that governs one key. `globalNote` overrides the rule's own
- * sentence for a key the rule's wording does not fit — the rules say what a
- * scope does with a key, and only the key knows what it means.
+ * The scope rule that governs one key. `globalNote` and `projectNote` override
+ * the rule's own sentence for a key the rule's wording does not fit — the rules
+ * say what a scope does with a key, and only the key knows what it means.
+ *
+ * `grants` overrides how the key reads a value as a grant. The default is Qwen
+ * Code's own reading, plain truthiness, because that is how it reads the
+ * booleans: `1` and the string `"false"` turn them on, and so does an empty
+ * array. A key whose value is a list Qwen Code matches against reads the empty
+ * list as granting nothing instead, and says so here.
  */
-type QwenScopedKeyRule = { readonly rule: QwenScopeRule; readonly globalNote?: string };
+type QwenScopedKeyRule = {
+  readonly rule: QwenScopeRule;
+  readonly globalNote?: string;
+  readonly projectNote?: (options: QwenScopeNoteOptions) => string;
+  readonly grants?: (value: unknown) => boolean;
+};
+
+/** What a note about one written key is given to describe it. */
+type QwenScopeNoteOptions = { qualifiedKey: string; quotedValue: string; filePath: string };
 
 /** Every key of a settings group, each with the rule that governs it. */
 type QwenScopedKeys<Key extends string> = Readonly<Record<Key, QwenScopedKeyRule>>;
@@ -232,9 +246,7 @@ const QWEN_SCOPE_RULES: Record<
     stripInProjectScope: boolean;
     announceOnlyGrants: boolean;
     announceOnImport: boolean;
-    projectNote:
-      | ((options: { qualifiedKey: string; quotedValue: string; filePath: string }) => string)
-      | null;
+    projectNote: ((options: QwenScopeNoteOptions) => string) | null;
     globalNote: string;
   }
 > = {
@@ -243,7 +255,7 @@ const QWEN_SCOPE_RULES: Record<
     announceOnlyGrants: true,
     announceOnImport: true,
     projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
-      `${qualifiedKey} = ${quotedValue} is only honored in user/system settings, so it is skipped for the project-scoped ${filePath} (a value already in that file is left as it is). Author it in the global scope only if that is a value you want every project on this machine to run under.`,
+      `${qualifiedKey} = ${quotedValue} is only honored in user/system settings, so it is skipped for the project-scoped ${filePath} (a value already in that file is left as it is). Check it if the override arrived with a repository you cloned, and author it in the global scope only if that is a value you want every project on this machine to run under.`,
     globalNote:
       "Qwen Code ignores this key in workspace settings so a repository cannot grant it per project; in the global scope it applies to every project on this machine.",
   },
@@ -261,7 +273,7 @@ const QWEN_SCOPE_RULES: Record<
     announceOnlyGrants: false,
     announceOnImport: true,
     projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
-      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, but Qwen Code makes the initial trust decision from user and system settings alone, before a workspace file is merged, so a project value cannot decide whether this workspace is trusted (it still drives folder trust once the workspace is trusted). Author it in the global scope only if that is a value you want every project on this machine to run under.`,
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, but Qwen Code makes the initial trust decision from user and system settings alone, before a workspace file is merged, so a project value cannot decide whether this workspace is trusted (it still drives folder trust once the workspace is trusted). Check it if the override arrived with a repository you cloned, and author it in the global scope only if that is a value you want every project on this machine to run under.`,
     globalNote:
       "Qwen Code reads this key from the global scope when it decides whether a workspace is trusted, so this changes which projects on this machine it trusts.",
   },
@@ -274,7 +286,7 @@ const QWEN_SCOPE_RULES: Record<
     // that carried it may have arrived with a cloned repository just as easily as
     // the one a global write comes from.
     projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
-      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}. Qwen Code honors this key in a workspace file, so it settles how far approvals are skipped and whether tool calls are contained while you work in this repository. Check it if the override arrived with a repository you cloned.`,
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}. Qwen Code honors this key in a workspace file, so it takes effect while you work in this repository. Check it if the override arrived with a repository you cloned.`,
     globalNote:
       "Qwen Code honors this key wherever it is written, so in the global scope it settles how much the agent may do unattended — how far approvals are skipped, and whether tool calls are contained at all — for every project on this machine.",
   },
@@ -301,12 +313,14 @@ const QWEN_SCOPED_TOOLS_KEYS = {
   // `sandboxImage` naming someone else's image are exactly the settings a global
   // write should not slip past — the same relaxations the deepagents adapter
   // announces at startup.
-  approvalMode: { rule: "global-machine-wide" },
-  autoAccept: { rule: "global-machine-wide" },
-  sandbox: { rule: "global-machine-wide" },
+  approvalMode: { rule: "global-machine-wide", projectNote: autonomyProjectNote },
+  autoAccept: { rule: "global-machine-wide", projectNote: autonomyProjectNote },
+  sandbox: { rule: "global-machine-wide", projectNote: autonomyProjectNote },
   sandboxImage: {
     rule: "global-machine-wide",
     // Not about whether tool calls are contained, but about what contains them.
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so a sandboxed run in this repository executes inside the named image — check that it is one you trust to run your code.`,
     globalNote:
       "Qwen Code honors this key wherever it is written, so in the global scope every sandboxed run on this machine executes inside the named image — check that it is one you trust to run your code.",
   },
@@ -315,23 +329,32 @@ const QWEN_SCOPED_TOOLS_KEYS = {
     // Stronger than `permissions.deny`: a disabled tool is never registered, so
     // the model cannot discover it at all. Qwen Code unions the lists across
     // scopes, but the override replaces the one in this file.
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, replacing the list in that file rather than adding to it, so a name that is gone is a tool the model can call again in this repository unless another scope still disables it.`,
     globalNote:
       "Qwen Code honors this key wherever it is written, and the override replaces the list in this file rather than adding to it, so in the global scope this decides which tools stay out of the registry for every project on this machine — dropping a name hands that tool back to the model unless another scope still disables it.",
   },
   visible: {
     rule: "global-machine-wide",
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it decides which deferred tools are visible at startup in this repository.`,
     globalNote:
       "Qwen Code honors this key wherever it is written, so in the global scope this decides which deferred tools are visible at startup for every project on this machine.",
   },
   listDirectory: {
     rule: "global-machine-wide",
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it decides whether the built-in \`list_directory\` tool is registered in this repository.`,
     globalNote:
       "Qwen Code honors this key wherever it is written, so in the global scope this decides whether the built-in `list_directory` tool is registered for every project on this machine.",
   },
 } as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_TOOLS_KEYS)[number]>;
 const QWEN_SCOPED_SECURITY_KEYS = {
   allowPrivateNetworkHooks: { rule: "workspace-stripped" },
-  allowedInsecureVoiceBaseUrls: { rule: "workspace-stripped" },
+  // The one key under `announceOnlyGrants` whose empty value grants nothing:
+  // Qwen Code matches the URL it is about to call against this list and refuses
+  // when nothing matches, so an empty list is fail-closed rather than allow-all.
+  allowedInsecureVoiceBaseUrls: { rule: "workspace-stripped", grants: isNonEmptyArray },
   allowedHttpHookUrls: { rule: "workspace-non-overriding" },
   folderTrust: { rule: "user-scope-trust-check" },
 } as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_SECURITY_KEYS)[number]>;
@@ -370,6 +393,8 @@ const QWEN_OVERRIDE_PERMISSIONS_KEYS = ["autoMode"] as const;
 const QWEN_SCOPED_PERMISSIONS_KEYS = {
   autoMode: {
     rule: "global-machine-wide",
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, replacing the whole block rather than merging into it, so it rewrites the instructions Auto Mode's classifier follows in this repository — including any deny hint you had configured.`,
     globalNote:
       "Qwen Code honors this key wherever it is written, and the override replaces the whole block rather than merging into it, so in the global scope this rewrites the instructions Auto Mode's classifier follows — including any deny hint you had configured — for every project on this machine.",
   },
@@ -404,8 +429,33 @@ function pickQwenOverrideKeys(group: unknown, keys: readonly string[]): Record<s
  * `security.allowedHttpHookUrls` is Qwen Code's allow-all, the widest value there
  * is, so that key is announced whatever it says.
  */
-function grantsSomething(value: unknown): boolean {
-  return Array.isArray(value) ? value.length > 0 : Boolean(value);
+function isNonEmptyArray(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0;
+}
+
+/**
+ * Whether a value turns something on, read the way Qwen Code reads it.
+ *
+ * Plain truthiness by default, because that is what Qwen Code applies to these
+ * settings: `1` and the string `"false"` enable them, and so does an empty array
+ * — which is why an empty list cannot be treated as harmless everywhere. A key
+ * whose list Qwen Code matches against, rather than tests for truth, carries its
+ * own `grants` instead.
+ */
+function grantsSomething(value: unknown, scopedKey: QwenScopedKeyRule | undefined): boolean {
+  return (scopedKey?.grants ?? Boolean)(value);
+}
+
+/**
+ * The autonomy and containment controls say the same thing in project scope, so
+ * they share one note rather than repeating it three times.
+ */
+function autonomyProjectNote({
+  qualifiedKey,
+  quotedValue,
+  filePath,
+}: QwenScopeNoteOptions): string {
+  return `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}. Qwen Code honors this key in a workspace file, so it settles how far approvals are skipped and whether tool calls are contained while you work in this repository. Check it if the override arrived with a repository you cloned.`;
 }
 
 /**
@@ -496,7 +546,8 @@ function scopeOverrideGroup(
     if (value === undefined) continue;
     const scopedKey = rulesByKey.get(key);
     const rule = scopedKey?.rule ?? "unmodeled";
-    const { stripInProjectScope, announceOnlyGrants, projectNote } = QWEN_SCOPE_RULES[rule];
+    const { stripInProjectScope, announceOnlyGrants } = QWEN_SCOPE_RULES[rule];
+    const projectNote = scopedKey?.projectNote ?? QWEN_SCOPE_RULES[rule].projectNote;
     const globalNote = scopedKey?.globalNote ?? QWEN_SCOPE_RULES[rule].globalNote;
     // `Object.hasOwn` for the same reason `rulesByKey` is a Map: a key named
     // `constructor` must not report `Object.prototype`'s value as the one the
@@ -526,7 +577,7 @@ function scopeOverrideGroup(
       continue;
     }
     if (unchanged) continue;
-    if (announceOnlyGrants && !grantsSomething(value)) continue;
+    if (announceOnlyGrants && !grantsSomething(value, scopedKey)) continue;
     const replaced =
       previousValue === undefined ? "" : ` (was ${quoteValueForWarning(previousValue)})`;
     warnWithFallback(
@@ -600,7 +651,7 @@ function warnAboutImportedScopedKeys(
       if (!announceOnImport) continue;
       // Under a rule whose risk is the granting direction, only a granting value
       // is worth flagging; see `scopeOverrideGroup`.
-      if (announceOnlyGrants && !grantsSomething(value)) continue;
+      if (announceOnlyGrants && !grantsSomething(value, scopedKey)) continue;
       const globalNote = scopedKey.globalNote ?? QWEN_SCOPE_RULES[rule].globalNote;
       moduleLogger.warn(
         `Qwen permissions: imported ${quoteQualifiedKey({ groupName, key })} = ${quoteValueForWarning(value)}. ${globalNote} Review it before generating with the global scope.`,

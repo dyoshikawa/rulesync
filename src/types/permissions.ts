@@ -339,8 +339,9 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * higher scope sets it) and `security.folderTrust` (the initial trust decision
  * is made from user/system settings alone, before the workspace merge) are
  * written in both scopes, with a note in project scope and an announcement of
- * any global change. Every other key is honored in either scope, so it is
- * announced only when a global write changes it — the autonomy and containment
+ * any global change. Every other key is honored in either scope, so a write that
+ * changes what the file said is reported in either scope, naming what that key
+ * decides there — the autonomy and containment
  * controls (`approvalMode`, `autoAccept`, `sandbox`, `sandboxImage`), the
  * registry controls (`disabled`, `visible`, `listDirectory`), the Auto Mode
  * classifier config, and, because these groups are loose objects, any key
