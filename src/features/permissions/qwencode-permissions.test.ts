@@ -307,7 +307,7 @@ describe("QwencodePermissions", () => {
       // The global scope is the only place a shareable permissions file can turn
       // this key on, so the grant is named rather than written silently.
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("wrote 'tools.workflowsEnabled' = true"),
+        expect.stringContaining('wrote "tools.workflowsEnabled" = true'),
       );
     });
 
@@ -360,7 +360,11 @@ describe("QwencodePermissions", () => {
       // approval mode is emitted here.
       const content = JSON.parse(instance.getFileContent());
       expect(content.tools).toEqual({ approvalMode: "auto-edit" });
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("tools.workflowsEnabled"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `"tools.workflowsEnabled" = true is only honored in user/system settings, so it is skipped`,
+        ),
+      );
     });
 
     it("writes no tools object when the scope gate empties the override (issue #2668)", async () => {
@@ -442,10 +446,10 @@ describe("QwencodePermissions", () => {
       expect(content.tools).toEqual({ workflowsEnabled: 1 });
       expect(content.security).toEqual({ allowPrivateNetworkHooks: "false" });
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("wrote 'tools.workflowsEnabled' = 1"),
+        expect.stringContaining('wrote "tools.workflowsEnabled" = 1'),
       );
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`wrote 'security.allowPrivateNetworkHooks' = "false"`),
+        expect.stringContaining(`wrote "security.allowPrivateNetworkHooks" = "false"`),
       );
     });
 
@@ -469,7 +473,9 @@ describe("QwencodePermissions", () => {
       // only leave a cleartext API-key destination that never takes effect.
       expect(JSON.parse(project.getFileContent()).security).toBeUndefined();
       expect(projectLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("security.allowedInsecureVoiceBaseUrls"),
+        expect.stringContaining(
+          `"security.allowedInsecureVoiceBaseUrls" = ["http://10.0.0.1/v1"] is only honored in user/system settings, so it is skipped`,
+        ),
       );
 
       const globalLogger = createMockLogger();
@@ -488,7 +494,7 @@ describe("QwencodePermissions", () => {
       });
       expect(globalLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining(
-          `wrote 'security.allowedInsecureVoiceBaseUrls' = ["http://10.0.0.1/v1"]`,
+          `wrote "security.allowedInsecureVoiceBaseUrls" = ["http://10.0.0.1/v1"]`,
         ),
       );
 
@@ -525,7 +531,7 @@ describe("QwencodePermissions", () => {
         security: { allowedInsecureVoiceBaseUrls: ["http://10.0.0.1/v1"] },
       });
       expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining("imported 'security.allowedInsecureVoiceBaseUrls'"),
+        expect.stringContaining('imported "security.allowedInsecureVoiceBaseUrls"'),
       );
     });
 
@@ -547,7 +553,7 @@ describe("QwencodePermissions", () => {
         fileContent: JSON.stringify({ tools: { workflowsEnabled: 1 } }),
       }).toRulesyncPermissions();
       expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining("imported 'tools.workflowsEnabled' = 1"),
+        expect.stringContaining('imported "tools.workflowsEnabled" = 1'),
       );
       warn.mockClear();
 
@@ -557,7 +563,7 @@ describe("QwencodePermissions", () => {
         fileContent: JSON.stringify({ tools: { workflowsEnabled: true } }),
       }).toRulesyncPermissions();
       expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining("imported 'tools.workflowsEnabled' = true"),
+        expect.stringContaining('imported "tools.workflowsEnabled" = true'),
       );
     });
 
@@ -643,7 +649,7 @@ describe("QwencodePermissions", () => {
       // Nothing is skipped here, but relaxing the SSRF check for every project on
       // the machine is announced rather than written silently.
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("wrote 'security.allowPrivateNetworkHooks' = true"),
+        expect.stringContaining('wrote "security.allowPrivateNetworkHooks" = true'),
       );
     });
 
@@ -799,7 +805,7 @@ describe("QwencodePermissions", () => {
 
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining(
-          `wrote 'security.allowedHttpHookUrls' = [] (was ["https://user.example/*"])`,
+          `wrote "security.allowedHttpHookUrls" = [] (was ["https://user.example/*"])`,
         ),
       );
     });
@@ -859,7 +865,7 @@ describe("QwencodePermissions", () => {
 
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining(
-          `wrote 'security.folderTrust' = {"enabled":false} (was {"enabled":true})`,
+          `wrote "security.folderTrust" = {"enabled":false} (was {"enabled":true})`,
         ),
       );
     });
@@ -867,7 +873,7 @@ describe("QwencodePermissions", () => {
     // `tools.approvalMode` is honored in either scope, so there is nothing to
     // say about the project one — but writing `yolo` into the global file makes
     // every project on the machine auto-approve, which is announced.
-    it("announces a global approvalMode relaxation and stays quiet in project scope", async () => {
+    it("announces an approvalMode relaxation in either scope", async () => {
       const globalSettingsDir = join(testDir, ".qwen");
       await ensureDir(globalSettingsDir);
       await writeFileContent(
@@ -892,10 +898,10 @@ describe("QwencodePermissions", () => {
         rulesyncPermissions,
       });
       expect(globalLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`wrote 'tools.approvalMode' = "yolo" (was "default")`),
+        expect.stringContaining(`wrote "tools.approvalMode" = "yolo" (was "default")`),
       );
       expect(globalLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`wrote 'tools.sandbox' = false`),
+        expect.stringContaining(`wrote "tools.sandbox" = false`),
       );
 
       const projectLogger = createMockLogger();
@@ -908,7 +914,66 @@ describe("QwencodePermissions", () => {
         approvalMode: "yolo",
         sandbox: false,
       });
-      expect(projectLogger.warn).not.toHaveBeenCalled();
+      // Qwen Code honors these in a workspace file too, so the project write is
+      // real — and the override may have arrived with a cloned repository just
+      // as easily as the one a global write comes from.
+      expect(projectLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`"tools.approvalMode" = "yolo" was written to the project-scoped`),
+      );
+      expect(projectLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Check it if the override arrived with a repository you cloned"),
+      );
+    });
+
+    // The same reasoning reaches a key rulesync does not model: `generate`
+    // without `--global` is the common path, and `tools.discoveryCommand` is
+    // spawned when Qwen Code starts whichever file named it.
+    it("names an unmodeled key written into the project settings file", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { discoveryCommand: "./bin/discover" } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.discoveryCommand"));
+      expect(announced).toContain("not a key rulesync models");
+      expect(announced).toContain(".qwen/settings.json");
+    });
+
+    // A key name is authored by whoever wrote the override, so it is serialized
+    // rather than wrapped in quotes of rulesync's own: a name carrying a quote
+    // must not be able to close it and continue the sentence.
+    it("escapes a quote inside an announced key name", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { 'x" was skipped. Ignored: "': true } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("was skipped"));
+      expect(announced).toBeDefined();
+      expect(announced).toContain(String.raw`\" was skipped. Ignored: \"`);
     });
 
     // The `tools`/`security` schemas are loose objects, so a key rulesync does
@@ -933,7 +998,7 @@ describe("QwencodePermissions", () => {
       });
 
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`wrote 'tools.discoveryCommand' = "./bin/discover"`),
+        expect.stringContaining(`wrote "tools.discoveryCommand" = "./bin/discover"`),
       );
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("not a key rulesync models"),
@@ -967,7 +1032,7 @@ describe("QwencodePermissions", () => {
       });
 
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`wrote 'tools.disabled' = [] (was ["run_shell_command"])`),
+        expect.stringContaining(`wrote "tools.disabled" = [] (was ["run_shell_command"])`),
       );
       // Qwen Code unions the lists across scopes, so the note says "unless
       // another scope still disables it" rather than promising a re-registration.
@@ -1061,7 +1126,7 @@ describe("QwencodePermissions", () => {
         hints: { allow: ["deleting any file"] },
       });
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("wrote 'permissions.autoMode'"),
+        expect.stringContaining('wrote "permissions.autoMode"'),
       );
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("rewrites the instructions Auto Mode's classifier follows"),
@@ -1149,7 +1214,7 @@ describe("QwencodePermissions", () => {
         fileContent: JSON.stringify({ security: { allowedHttpHookUrls: [] } }),
       }).toRulesyncPermissions();
       expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining("imported 'security.allowedHttpHookUrls' = []"),
+        expect.stringContaining('imported "security.allowedHttpHookUrls" = []'),
       );
       warn.mockClear();
 
@@ -1160,7 +1225,7 @@ describe("QwencodePermissions", () => {
         fileContent: JSON.stringify({ security: { folderTrust: { enabled: false } } }),
       }).toRulesyncPermissions();
       expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining(`imported 'security.folderTrust' = {"enabled":false}`),
+        expect.stringContaining(`imported "security.folderTrust" = {"enabled":false}`),
       );
       warn.mockClear();
 
