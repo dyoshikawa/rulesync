@@ -416,6 +416,119 @@ describe("QwencodePermissions", () => {
       expect(json.qwencode).toEqual({ tools: { workflowsEnabled: true } });
     });
 
+    it("announces a truthy non-boolean global grant instead of writing it silently (issue #2668)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            // Qwen Code reads these with a plain truthiness check, so `1` turns
+            // the Workflow tool on and the string "false" turns the SSRF check
+            // off — the shape a reader skimming settings.json would misread.
+            qwencode: {
+              tools: { workflowsEnabled: 1 },
+              security: { allowPrivateNetworkHooks: "false" },
+            },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ workflowsEnabled: 1 });
+      expect(content.security).toEqual({ allowPrivateNetworkHooks: "false" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("wrote 'tools.workflowsEnabled' = 1"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`wrote 'security.allowPrivateNetworkHooks' = "false"`),
+      );
+    });
+
+    it("gates security.allowedInsecureVoiceBaseUrls by scope like the other restricted keys", async () => {
+      const authored = {
+        permission: {},
+        qwencode: { security: { allowedInsecureVoiceBaseUrls: ["http://10.0.0.1/v1"] } },
+      };
+
+      const projectLogger = createMockLogger();
+      const project = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger: projectLogger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify(authored),
+        }),
+      });
+      // Qwen Code strips it from workspace settings, so writing it here would
+      // only leave a cleartext API-key destination that never takes effect.
+      expect(JSON.parse(project.getFileContent()).security).toBeUndefined();
+      expect(projectLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("security.allowedInsecureVoiceBaseUrls"),
+      );
+
+      const globalLogger = createMockLogger();
+      const globalInstance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger: globalLogger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify(authored),
+        }),
+      });
+      expect(JSON.parse(globalInstance.getFileContent()).security).toEqual({
+        allowedInsecureVoiceBaseUrls: ["http://10.0.0.1/v1"],
+      });
+      expect(globalLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `wrote 'security.allowedInsecureVoiceBaseUrls' = ["http://10.0.0.1/v1"]`,
+        ),
+      );
+
+      // An empty list grants nothing, so it is written without an announcement.
+      const emptyLogger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger: emptyLogger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { security: { allowedInsecureVoiceBaseUrls: [] } },
+          }),
+        }),
+      });
+      expect(emptyLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it("lifts security.allowedInsecureVoiceBaseUrls back into the override on import", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const instance = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          security: { allowedInsecureVoiceBaseUrls: ["http://10.0.0.1/v1"] },
+        }),
+      });
+
+      const json = instance.toRulesyncPermissions().getJson();
+      expect(json.qwencode).toEqual({
+        security: { allowedInsecureVoiceBaseUrls: ["http://10.0.0.1/v1"] },
+      });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("imported 'security.allowedInsecureVoiceBaseUrls'"),
+      );
+    });
+
     it("warns only about a granting global-only key on import (issue #2668)", () => {
       const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
 
@@ -425,6 +538,18 @@ describe("QwencodePermissions", () => {
         fileContent: JSON.stringify({ tools: { workflowsEnabled: false } }),
       }).toRulesyncPermissions();
       expect(warn).not.toHaveBeenCalled();
+
+      // Truthy non-booleans grant just as much as `true` does, so they are not
+      // filtered out with the `false` noise.
+      new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { workflowsEnabled: 1 } }),
+      }).toRulesyncPermissions();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("imported 'tools.workflowsEnabled' = 1"),
+      );
+      warn.mockClear();
 
       new QwencodePermissions({
         relativeDirPath: ".qwen",
