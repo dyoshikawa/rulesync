@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -118,6 +119,104 @@ describe("ZcodeHooks", () => {
       expect(parsed.hooks.events.SessionStart).toBeDefined();
     });
 
+    it("should not state enabled when no supported events are written", async () => {
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(join(testDir, ".zcode", "cli", "config.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        // sessionEnd is not one of ZCode's seven events, so nothing is written.
+        hooks: { sessionEnd: [{ command: "echo session ended" }] },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const zcodeHooks = await ZcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(zcodeHooks.getFileContent());
+      expect(parsed.hooks.events).toEqual({});
+      expect(parsed.hooks.enabled).toBeUndefined();
+    });
+
+    it("should preserve a non-boolean enabled value untouched", async () => {
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(
+        join(testDir, ".zcode", "cli", "config.json"),
+        JSON.stringify({ hooks: { enabled: "false" } }),
+      );
+
+      const config = {
+        version: 1,
+        hooks: { sessionStart: [{ command: "echo" }] },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const zcodeHooks = await ZcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(zcodeHooks.getFileContent());
+      expect(parsed.hooks.enabled).toBe("false");
+    });
+
+    it("should replace a stale event key from the existing file", async () => {
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(
+        join(testDir, ".zcode", "cli", "config.json"),
+        JSON.stringify({
+          hooks: {
+            enabled: true,
+            timeoutMs: 5000,
+            events: {
+              PostToolUse: [{ hooks: [{ type: "command", command: "stale.sh" }] }],
+            },
+          },
+        }),
+      );
+
+      const config = {
+        version: 1,
+        hooks: { sessionStart: [{ command: "echo" }] },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const zcodeHooks = await ZcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      // `hooks` is owned as a whole key: the stale PostToolUse entry vanishes
+      // while the non-`events` siblings survive.
+      const parsed = JSON.parse(zcodeHooks.getFileContent());
+      expect(parsed.hooks.events.PostToolUse).toBeUndefined();
+      expect(parsed.hooks.events.SessionStart).toBeDefined();
+      expect(parsed.hooks.timeoutMs).toBe(5000);
+    });
+
     it("should state enabled: true when the existing config has no hooks block", async () => {
       await ensureDir(join(testDir, ".zcode", "cli"));
       await writeFileContent(
@@ -148,7 +247,7 @@ describe("ZcodeHooks", () => {
       expect(parsed.hooks.enabled).toBe(true);
     });
 
-    it("should prefix dot-relative commands with $ZCODE_PROJECT_DIR and keep absolute ones", async () => {
+    it("should emit dot-relative commands verbatim and keep absolute ones", async () => {
       await ensureDir(join(testDir, ".zcode", "cli"));
       await writeFileContent(join(testDir, ".zcode", "cli", "config.json"), JSON.stringify({}));
 
@@ -175,7 +274,7 @@ describe("ZcodeHooks", () => {
 
       const parsed = JSON.parse(zcodeHooks.getFileContent());
       expect(parsed.hooks.events.SessionStart[0].hooks[0].command).toBe(
-        '"$ZCODE_PROJECT_DIR"/.rulesync/hooks/session-start.sh',
+        ".rulesync/hooks/session-start.sh",
       );
       expect(parsed.hooks.events.Stop[0].hooks[0].command).toBe("npx audit-tool");
     });
@@ -208,10 +307,49 @@ describe("ZcodeHooks", () => {
       });
 
       const parsed = JSON.parse(zcodeHooks.getFileContent());
-      // `*` is an invalid regular expression that would silently never match.
+      // `*` is an explicit match-all in ZCode, equivalent to an omitted matcher.
       expect(parsed.hooks.events.PreToolUse).toHaveLength(2);
       expect(parsed.hooks.events.PreToolUse[0].matcher).toBeUndefined();
       expect(parsed.hooks.events.PreToolUse[1].matcher).toBe("Bash");
+    });
+
+    it("should drop matchers on UserPromptSubmit and Stop, which expose no match value", async () => {
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(join(testDir, ".zcode", "cli", "config.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          beforeSubmitPrompt: [{ command: "prompt.sh", matcher: "*.js" }],
+          stop: [{ command: "stop.sh", matcher: "*.ts" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const zcodeHooks = await ZcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(zcodeHooks.getFileContent());
+      expect(parsed.hooks.events.UserPromptSubmit[0].matcher).toBeUndefined();
+      expect(parsed.hooks.events.Stop[0].matcher).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('matcher "*.js" on "beforeSubmitPrompt" hook will be ignored'),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('matcher "*.ts" on "stop" hook will be ignored'),
+      );
     });
 
     it("should emit events from the zcode override block verbatim", async () => {
@@ -367,10 +505,15 @@ describe("ZcodeHooks", () => {
         validate: false,
       });
 
-      const rulesyncHooks = zcodeHooks.toRulesyncHooks();
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const rulesyncHooks = zcodeHooks.toRulesyncHooks({ logger });
       const defs = rulesyncHooks.getJson().hooks.preToolUse;
       expect(defs).toHaveLength(1);
       expect(defs?.[0]?.command).toBe("keep.sh");
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Skipping a ZCode "process" hook on "PreToolUse"'),
+      );
     });
   });
 

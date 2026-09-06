@@ -907,11 +907,11 @@ export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object
  * of which have a clean canonical equivalent: `SessionStart`, `PreToolUse`,
  * `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `Stop`, and
  * `UserPromptSubmit` ← `beforeSubmitPrompt`. An optional matcher (a
- * case-sensitive regular expression) is honored on every one of them, tested
- * against a per-event match value (tool name, prompt text, …). Configuration
- * hooks are read only from the user config `~/.zcode/cli/config.json`
- * (workspace config hooks are never executed) and additionally require
- * `hooks.enabled: true` to run.
+ * case-sensitive regular expression) is honored on all of them except
+ * `UserPromptSubmit` and `Stop`, which expose no value to match against.
+ * Configuration hooks are read only from the user config
+ * `~/.zcode/cli/config.json` (workspace config hooks are never executed) and
+ * additionally require `hooks.enabled: true` to run.
  *
  * ZCode also accepts a native `process` hook type (an argv run without a
  * shell) which has no canonical equivalent; see ZcodeHooks.

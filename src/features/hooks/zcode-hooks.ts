@@ -65,7 +65,7 @@ function stripProcessHooks({
   logger: Logger | undefined;
 }): unknown {
   if (!isRecord(events)) return events;
-  const result: Record<string, unknown> = {};
+  const result: Record<string, unknown> = Object.create(null);
   for (const [eventName, entries] of Object.entries(events)) {
     if (!Array.isArray(entries)) {
       result[eventName] = entries;
@@ -94,24 +94,37 @@ function stripProcessHooks({
   return result;
 }
 
+// ZCode applies matchers only to events with a value to test them against;
+// UserPromptSubmit (beforeSubmitPrompt) and Stop (stop) expose no such value,
+// so a matcher on either is silently ignored — it is dropped to match the
+// upstream capability.
+const ZCODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["beforeSubmitPrompt", "stop"]);
+
 const ZCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: ZCODE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_ZCODE_EVENT_NAMES,
   toolToCanonicalEventNames: ZCODE_TO_CANONICAL_EVENT_NAMES,
-  projectDirVar: "$ZCODE_PROJECT_DIR",
-  prefixDotRelativeCommandsOnly: true,
+  // ZCode defines no project-directory variable, so commands are emitted
+  // verbatim; user-scope hooks run with the project as the working directory,
+  // where `.`-relative paths already resolve.
+  projectDirVar: "",
+  noMatcherEvents: ZCODE_NO_MATCHER_EVENTS,
   // Only canonical `command` hooks are emitted. ZCode's native `process` type
   // (an argv run without a shell) has no canonical equivalent: its `args` *is*
   // the command line, whereas the canonical `args` field means extra argv
   // appended by the runner, so mapping between them would change what runs.
   // Process hooks are skipped with a warning on import instead.
   supportedHookTypes: new Set(["command"]),
+  // ZCode hook objects support `async` (run in the background), which maps onto
+  // the canonical `async` field. A per-hook `enabled` has no canonical
+  // equivalent and is dropped on round-trip.
+  booleanPassthroughFields: [{ canonical: "async", tool: "async" }],
   stringPassthroughFields: [
     { canonical: "statusMessage", tool: "statusMessage" },
-    { canonical: "shell", tool: "shell" },
+    { canonical: "shell", tool: "shell", commandOnly: true },
   ],
-  // ZCode compiles `matcher` as a regular expression, where a bare `*` is a
-  // syntax error that silently never matches; an omitted matcher matches all.
+  // A `*` matcher is an explicit match-all in ZCode, equivalent to an omitted
+  // matcher, so a canonical `*` exports as no matcher.
   wildcardMatcherMeansAll: true,
 };
 
@@ -198,12 +211,16 @@ export class ZcodeHooks extends ToolHooks {
 
     // `hooks` is owned as a whole key, so its non-`events` siblings (the
     // `enabled` switch and a user-tuned `timeoutMs`) are carried over from the
-    // existing file before the events snapshot replaces `events`. An explicit
-    // `enabled: false` is the user's off switch and survives regeneration;
-    // anything else states `true`, without which ZCode runs no config hooks.
+    // existing file before the events snapshot replaces `events`. ZCode runs
+    // no configuration hooks while `enabled` is off, so `true` is stated when
+    // events are written and the existing file states no `enabled` preference;
+    // an authored value — including a deliberate `false` — survives
+    // regeneration untouched.
     const existingHooks = isRecord(existing[ZCODE_HOOKS_CONFIG_KEY])
       ? existing[ZCODE_HOOKS_CONFIG_KEY]
       : {};
+    const shouldStateEnabled =
+      Object.keys(events).length > 0 && existingHooks.enabled === undefined;
 
     return new ZcodeHooks({
       outputRoot,
@@ -216,7 +233,7 @@ export class ZcodeHooks extends ToolHooks {
         patch: {
           [ZCODE_HOOKS_CONFIG_KEY]: {
             ...existingHooks,
-            enabled: existingHooks.enabled !== false,
+            ...(shouldStateEnabled ? { enabled: true } : {}),
             [ZCODE_HOOKS_EVENTS_KEY]: events,
           },
         },
