@@ -24,9 +24,12 @@ describe("ZcodeHooks", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return .zcode and config.json for project mode", () => {
+    it("should return .zcode/cli and config.json for project mode", () => {
       const paths = ZcodeHooks.getSettablePaths({ global: false });
-      expect(paths).toEqual({ relativeDirPath: ".zcode", relativeFilePath: "config.json" });
+      expect(paths).toEqual({
+        relativeDirPath: join(".zcode", "cli"),
+        relativeFilePath: "config.json",
+      });
     });
 
     it("should return .zcode/cli and config.json for global mode", () => {
@@ -40,8 +43,8 @@ describe("ZcodeHooks", () => {
 
   describe("fromRulesyncHooks", () => {
     it("should emit the seven supported events under hooks.events and drop unsupported events", async () => {
-      await ensureDir(join(testDir, ".zcode"));
-      await writeFileContent(join(testDir, ".zcode", "config.json"), JSON.stringify({}));
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(join(testDir, ".zcode", "cli", "config.json"), JSON.stringify({}));
 
       const config = {
         version: 1,
@@ -84,9 +87,9 @@ describe("ZcodeHooks", () => {
     });
 
     it("should keep a pre-existing enabled: false and carry over hooks siblings", async () => {
-      await ensureDir(join(testDir, ".zcode"));
+      await ensureDir(join(testDir, ".zcode", "cli"));
       await writeFileContent(
-        join(testDir, ".zcode", "config.json"),
+        join(testDir, ".zcode", "cli", "config.json"),
         JSON.stringify({ otherKey: "preserved", hooks: { enabled: false, timeoutMs: 5000 } }),
       );
 
@@ -116,9 +119,9 @@ describe("ZcodeHooks", () => {
     });
 
     it("should state enabled: true when the existing config has no hooks block", async () => {
-      await ensureDir(join(testDir, ".zcode"));
+      await ensureDir(join(testDir, ".zcode", "cli"));
       await writeFileContent(
-        join(testDir, ".zcode", "config.json"),
+        join(testDir, ".zcode", "cli", "config.json"),
         JSON.stringify({ model: "glm-4.7" }),
       );
 
@@ -146,8 +149,8 @@ describe("ZcodeHooks", () => {
     });
 
     it("should prefix dot-relative commands with $ZCODE_PROJECT_DIR and keep absolute ones", async () => {
-      await ensureDir(join(testDir, ".zcode"));
-      await writeFileContent(join(testDir, ".zcode", "config.json"), JSON.stringify({}));
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(join(testDir, ".zcode", "cli", "config.json"), JSON.stringify({}));
 
       const config = {
         version: 1,
@@ -178,8 +181,8 @@ describe("ZcodeHooks", () => {
     });
 
     it("should export a canonical catch-all matcher as no matcher", async () => {
-      await ensureDir(join(testDir, ".zcode"));
-      await writeFileContent(join(testDir, ".zcode", "config.json"), JSON.stringify({}));
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(join(testDir, ".zcode", "cli", "config.json"), JSON.stringify({}));
 
       const config = {
         version: 1,
@@ -212,8 +215,8 @@ describe("ZcodeHooks", () => {
     });
 
     it("should emit events from the zcode override block verbatim", async () => {
-      await ensureDir(join(testDir, ".zcode"));
-      await writeFileContent(join(testDir, ".zcode", "config.json"), JSON.stringify({}));
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(join(testDir, ".zcode", "cli", "config.json"), JSON.stringify({}));
 
       const config = {
         version: 1,
@@ -245,8 +248,8 @@ describe("ZcodeHooks", () => {
     });
 
     it("should throw when the existing config.json is not parseable", async () => {
-      await ensureDir(join(testDir, ".zcode"));
-      await writeFileContent(join(testDir, ".zcode", "config.json"), "invalid json {");
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(join(testDir, ".zcode", "cli", "config.json"), "invalid json {");
 
       const config = { version: 1, hooks: {} };
       const rulesyncHooks = new RulesyncHooks({
@@ -268,10 +271,10 @@ describe("ZcodeHooks", () => {
   });
 
   describe("fromFile", () => {
-    it("should load from .zcode/config.json when it exists", async () => {
-      await ensureDir(join(testDir, ".zcode"));
+    it("should load from .zcode/cli/config.json when it exists", async () => {
+      await ensureDir(join(testDir, ".zcode", "cli"));
       await writeFileContent(
-        join(testDir, ".zcode", "config.json"),
+        join(testDir, ".zcode", "cli", "config.json"),
         JSON.stringify({ hooks: { enabled: true, events: { SessionStart: [] } } }),
       );
 
@@ -283,7 +286,7 @@ describe("ZcodeHooks", () => {
       expect(parsed.hooks.events.SessionStart).toEqual([]);
     });
 
-    it("should initialize an empty config when .zcode/config.json does not exist", async () => {
+    it("should initialize an empty config when .zcode/cli/config.json does not exist", async () => {
       const zcodeHooks = await ZcodeHooks.fromFile({
         outputRoot: testDir,
         validate: false,
@@ -296,7 +299,7 @@ describe("ZcodeHooks", () => {
     it("should convert ZCode PascalCase hooks to canonical camelCase (round-trip)", () => {
       const zcodeHooks = new ZcodeHooks({
         outputRoot: testDir,
-        relativeDirPath: ".zcode",
+        relativeDirPath: join(".zcode", "cli"),
         relativeFilePath: "config.json",
         fileContent: JSON.stringify({
           hooks: {
@@ -322,7 +325,7 @@ describe("ZcodeHooks", () => {
     it("should move native-only event keys into the zcode override block", () => {
       const zcodeHooks = new ZcodeHooks({
         outputRoot: testDir,
-        relativeDirPath: ".zcode",
+        relativeDirPath: join(".zcode", "cli"),
         relativeFilePath: "config.json",
         fileContent: JSON.stringify({
           hooks: {
@@ -344,7 +347,7 @@ describe("ZcodeHooks", () => {
     it("should skip process hooks, which have no canonical equivalent", () => {
       const zcodeHooks = new ZcodeHooks({
         outputRoot: testDir,
-        relativeDirPath: ".zcode",
+        relativeDirPath: join(".zcode", "cli"),
         relativeFilePath: "config.json",
         fileContent: JSON.stringify({
           hooks: {
@@ -375,7 +378,7 @@ describe("ZcodeHooks", () => {
     it("should return false", () => {
       const hooks = new ZcodeHooks({
         outputRoot: testDir,
-        relativeDirPath: ".zcode",
+        relativeDirPath: join(".zcode", "cli"),
         relativeFilePath: "config.json",
         fileContent: "{}",
         validate: false,
@@ -388,7 +391,7 @@ describe("ZcodeHooks", () => {
     it("should return a ZcodeHooks instance with empty events for the deletion path", () => {
       const hooks = ZcodeHooks.forDeletion({
         outputRoot: testDir,
-        relativeDirPath: ".zcode",
+        relativeDirPath: join(".zcode", "cli"),
         relativeFilePath: "config.json",
       });
       expect(hooks).toBeInstanceOf(ZcodeHooks);

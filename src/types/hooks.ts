@@ -909,7 +909,9 @@ export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object
  * `UserPromptSubmit` ← `beforeSubmitPrompt`. An optional matcher (a
  * case-sensitive regular expression) is honored on every one of them, tested
  * against a per-event match value (tool name, prompt text, …). Configuration
- * hooks additionally require `hooks.enabled: true` to run.
+ * hooks are read only from the user config `~/.zcode/cli/config.json`
+ * (workspace config hooks are never executed) and additionally require
+ * `hooks.enabled: true` to run.
  *
  * ZCode also accepts a native `process` hook type (an argv run without a
  * shell) which has no canonical equivalent; see ZcodeHooks.

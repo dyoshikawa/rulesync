@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 import {
   ZCODE_CONFIG_FILE_NAME,
-  ZCODE_DIR,
   ZCODE_GLOBAL_CONFIG_DIR_PATH,
   ZCODE_HOOKS_CONFIG_KEY,
   ZCODE_HOOKS_EVENTS_KEY,
@@ -119,13 +118,12 @@ const ZCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
 /**
  * ZCode hooks.
  *
- * ZCode reads configuration-file hooks from the `hooks` block of its own config
- * file — `<project>/.zcode/config.json` at workspace scope and
- * `~/.zcode/cli/config.json` at user scope. The event map is nested under
+ * ZCode reads configuration-file hooks from the `hooks` block of its user
+ * config file, `~/.zcode/cli/config.json`. Workspace config hooks are never
+ * executed — the workspace file is ignored regardless of `hooks.enabled` — so
+ * rulesync treats ZCode hooks as global-only. The event map is nested under
  * `hooks.events` beside the user-tunable `enabled` and `timeoutMs` siblings,
- * which are carried over while `events` is replaced. Configuration-file hooks
- * are disabled by default, so the writer states `enabled: true` unless the
- * existing file deliberately holds `false`.
+ * which are carried over while `events` is replaced.
  *
  * @see https://zcode.z.ai/en/docs
  */
@@ -146,9 +144,12 @@ export class ZcodeHooks extends ToolHooks {
     return false;
   }
 
-  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolHooksSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
+    // ZCode never executes workspace config hooks, so generation always
+    // targets the user config `~/.zcode/cli/config.json`. In global mode the
+    // same relative path is resolved under the user home.
     return {
-      relativeDirPath: global ? ZCODE_GLOBAL_CONFIG_DIR_PATH : ZCODE_DIR,
+      relativeDirPath: ZCODE_GLOBAL_CONFIG_DIR_PATH,
       relativeFilePath: ZCODE_CONFIG_FILE_NAME,
     };
   }

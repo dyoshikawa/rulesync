@@ -1248,20 +1248,26 @@ const KIMI_CODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
 
 /**
  * ZCode's settings file, which also carries model/theme/permission keys
- * rulesync does not own. The workspace copy (`<project>/.zcode/config.json`)
- * and the user copy (`~/.zcode/cli/config.json`) are the same file with the
- * same owners, so the declaration is written once and shared — a policy edit
- * cannot land on one scope only. `mcp` and `hooks` are owned as whole keys
- * because their writers recompute each from the existing file (non-owned
- * siblings carried over) before applying the patch.
+ * rulesync does not own. Both copies are the user's primary ZCode config, so
+ * every writer refuses to read-modify-write a file it could not parse rather
+ * than replacing it with generated output. `mcp` and `hooks` are owned as
+ * whole keys because their writers recompute each from the existing file
+ * (non-owned siblings carried over) before applying the patch. ZCode never
+ * executes workspace config hooks, so the workspace copy is declared with
+ * `mcp` alone and the user copy adds `hooks`.
  */
-const ZCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+const ZCODE_WORKSPACE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
   format: "json",
-  // The user's primary ZCode config: refuse to read-modify-write a file we
-  // could not parse rather than replacing it with generated output.
   invalidRootPolicy: "error",
   features: {
     mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
+  },
+};
+
+const ZCODE_USER_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  ...ZCODE_WORKSPACE_CONFIG_DECLARATION,
+  features: {
+    ...ZCODE_WORKSPACE_CONFIG_DECLARATION.features,
     hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
   },
 };
@@ -1535,8 +1541,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers", "schema_version"] },
     },
   },
-  ".zcode/config.json": ZCODE_CONFIG_DECLARATION,
-  ".zcode/cli/config.json": ZCODE_CONFIG_DECLARATION,
+  ".zcode/config.json": ZCODE_WORKSPACE_CONFIG_DECLARATION,
+  ".zcode/cli/config.json": ZCODE_USER_CONFIG_DECLARATION,
   // Kiro agent config: `allowedTools`/`toolsSettings` are recomputed from the
   // existing file (existing tools and settings folded in) before being applied.
   ".kiro/agents/default.json": {
