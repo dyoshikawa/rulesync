@@ -460,6 +460,46 @@ describe("ZcodeHooks", () => {
       expect(json.timeoutMs).toBeUndefined();
     });
 
+    it("should keep a per-hook enabled: false through import and regenerate", async () => {
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(join(testDir, ".zcode", "cli", "config.json"), JSON.stringify({}));
+
+      const zcodeHooks = new ZcodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".zcode", "cli"),
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            events: {
+              SessionStart: [
+                {
+                  hooks: [
+                    { type: "command", command: "on.sh" },
+                    { type: "command", command: "off.sh", enabled: false },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+        validate: false,
+      });
+
+      const rulesyncHooks = zcodeHooks.toRulesyncHooks();
+      const json = rulesyncHooks.getJson();
+      expect(json.hooks.sessionStart?.[0]?.enabled).toBeUndefined();
+      expect(json.hooks.sessionStart?.[1]?.enabled).toBe(false);
+
+      const regenerated = await ZcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+      const parsed = JSON.parse(regenerated.getFileContent());
+      expect(parsed.hooks.events.SessionStart[0].hooks[0].enabled).toBeUndefined();
+      expect(parsed.hooks.events.SessionStart[0].hooks[1].enabled).toBe(false);
+    });
+
     it("should move native-only event keys into the zcode override block", () => {
       const zcodeHooks = new ZcodeHooks({
         outputRoot: testDir,

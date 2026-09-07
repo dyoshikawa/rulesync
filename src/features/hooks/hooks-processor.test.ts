@@ -468,7 +468,7 @@ describe("HooksProcessor", () => {
       // The event list must be part of the same message, and must name only the
       // events that actually carry a disabled hook.
       expect(logger.warn).toHaveBeenCalledWith(
-        'Emitting "enabled: false" hook(s) as active for claudecode (only the kiro-cli / kiro-ide standalone hooks format supports the flag): preToolUse',
+        'Emitting "enabled: false" hook(s) as active for claudecode (only the kiro-cli / kiro-ide / zcode hooks formats support the flag): preToolUse',
       );
     });
 
@@ -495,7 +495,7 @@ describe("HooksProcessor", () => {
       );
     });
 
-    it.each(["kiro-ide", "kiro-cli"] as const)(
+    it.each(["kiro-ide", "kiro-cli", "zcode"] as const)(
       "should not warn about a disabled hook for %s, which honors the flag",
       async (toolTarget) => {
         const config = {
@@ -728,9 +728,7 @@ describe("HooksProcessor", () => {
 
       const files = await processor.loadToolFiles({ forDeletion: true });
 
-      expect(files.map((file) => file.getRelativePathFromCwd())).toEqual([
-        join(".codex", "hooks.json"),
-      ]);
+      expect(files.map((file) => file.getRelativePathFromCwd())).toEqual([".codex/hooks.json"]);
     });
 
     it("should exclude non-importable targets when importOnly is true", () => {

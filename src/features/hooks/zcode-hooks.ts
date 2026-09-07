@@ -115,10 +115,13 @@ const ZCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // appended by the runner, so mapping between them would change what runs.
   // Process hooks are skipped with a warning on import instead.
   supportedHookTypes: new Set(["command"]),
-  // ZCode hook objects support `async` (run in the background), which maps onto
-  // the canonical `async` field. A per-hook `enabled` has no canonical
-  // equivalent and is dropped on round-trip.
-  booleanPassthroughFields: [{ canonical: "async", tool: "async" }],
+  // ZCode hook objects support `async` (run in the background) and a per-hook
+  // `enabled` switch, both mapping onto the canonical fields of the same names
+  // so a deliberately disabled hook survives import → generate.
+  booleanPassthroughFields: [
+    { canonical: "async", tool: "async" },
+    { canonical: "enabled", tool: "enabled" },
+  ],
   stringPassthroughFields: [
     { canonical: "statusMessage", tool: "statusMessage" },
     { canonical: "shell", tool: "shell", commandOnly: true },
