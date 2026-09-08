@@ -171,6 +171,10 @@ describe("registry derivation", () => {
       // Muse Code's `--subagent-worktree-isolation` worktrees, which the
       // runtime removes only when they are clean (issue #2727).
       "musecode::general::**/.muse/worktrees/",
+      // Vibe Code's plugin data root: knowledge documents and vendored
+      // `libraries/` dependencies that a project plugin under `.vibe/plugins/`
+      // materializes at session open (issue #2958).
+      "vibe::general::**/.vibe/plugin-data/",
       // Legacy/aggregate/ghost outputs not produced via getSettablePaths.
       "augmentcode::rules::**/.augment-guidelines",
       "devin::commands::**/.devin/workflows/",
