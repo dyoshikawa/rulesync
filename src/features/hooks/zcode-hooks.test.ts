@@ -555,6 +555,92 @@ describe("ZcodeHooks", () => {
         expect.stringContaining('Skipping a ZCode "process" hook on "PreToolUse"'),
       );
     });
+
+    it("should drop a matcher group whose only hook is a process hook", async () => {
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(join(testDir, ".zcode", "cli", "config.json"), JSON.stringify({}));
+
+      const zcodeHooks = new ZcodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".zcode", "cli"),
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            events: {
+              PreToolUse: [
+                { matcher: "Read", hooks: [{ type: "process", command: "node", args: ["a.js"] }] },
+                { matcher: "Bash", hooks: [{ type: "command", command: "keep.sh" }] },
+              ],
+            },
+          },
+        }),
+        validate: false,
+      });
+
+      const rulesyncHooks = zcodeHooks.toRulesyncHooks({ logger: createMockLogger() });
+      const defs = rulesyncHooks.getJson().hooks.preToolUse;
+      expect(defs).toHaveLength(1);
+      expect(defs?.[0]?.matcher).toBe("Bash");
+
+      // The emptied group must not survive as a hook-less entry: regenerating
+      // would otherwise write a matcher that runs nothing.
+      const regenerated = await ZcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+      const groups = JSON.parse(regenerated.getFileContent()).hooks.events.PreToolUse;
+      expect(groups).toHaveLength(1);
+      expect(groups[0].matcher).toBe("Bash");
+    });
+
+    it("should round-trip the async, shell and statusMessage passthrough fields", async () => {
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(join(testDir, ".zcode", "cli", "config.json"), JSON.stringify({}));
+
+      const zcodeHooks = new ZcodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".zcode", "cli"),
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            events: {
+              PostToolUse: [
+                {
+                  matcher: "Write",
+                  hooks: [
+                    {
+                      type: "command",
+                      command: "format.sh",
+                      async: true,
+                      shell: "bash",
+                      statusMessage: "Formatting",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+        validate: false,
+      });
+
+      const rulesyncHooks = zcodeHooks.toRulesyncHooks();
+      const def = rulesyncHooks.getJson().hooks.postToolUse?.[0];
+      expect(def?.async).toBe(true);
+      expect(def?.shell).toBe("bash");
+      expect(def?.statusMessage).toBe("Formatting");
+
+      const regenerated = await ZcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+      const hook = JSON.parse(regenerated.getFileContent()).hooks.events.PostToolUse[0].hooks[0];
+      expect(hook.async).toBe(true);
+      expect(hook.shell).toBe("bash");
+      expect(hook.statusMessage).toBe("Formatting");
+    });
   });
 
   describe("isDeletable", () => {

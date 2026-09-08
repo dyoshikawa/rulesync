@@ -907,9 +907,14 @@ export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object
  * ZCode's configuration-file hooks expose exactly seven PascalCase events, all
  * of which have a clean canonical equivalent: `SessionStart`, `PreToolUse`,
  * `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `Stop`, and
- * `UserPromptSubmit` ← `beforeSubmitPrompt`. An optional matcher (a
- * case-sensitive regular expression) is honored on all of them except
- * `UserPromptSubmit` and `Stop`, which expose no value to match against.
+ * `UserPromptSubmit` ← `beforeSubmitPrompt`. An optional matcher is honored on
+ * all of them except `UserPromptSubmit` and `Stop`, which expose no value to
+ * match against. ZCode reads the matcher in one of two ways: a value made up
+ * solely of letters, digits, underscores and `|` is an exact name list
+ * (`Write|Edit` matches those two tool names, not the regex alternation), and
+ * any other character makes the whole value a case-sensitive JavaScript regex.
+ * Rulesync passes matchers through verbatim, so an authored value keeps
+ * whichever reading ZCode gives it — worth knowing before escaping one.
  * Configuration hooks are read only from the user config
  * `~/.zcode/cli/config.json` (workspace config hooks are never executed) and
  * additionally require `hooks.enabled: true` to run.
