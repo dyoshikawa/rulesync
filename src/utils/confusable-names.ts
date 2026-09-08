@@ -409,13 +409,14 @@ const REPEATED_WHITESPACE_PATTERN = /\s\s/u;
  * draws as one gap however many blanks are in it. Between them they are what
  * lets a name be padded to reach under the row beneath it.
  *
- * A single blank inside a name that is merely not the plain space — a no-break
- * space, an ideographic one — is deliberately not this check's business. It is
- * drawn, and it is a substitution rather than an extent, so the name it
- * imitates is one the display-form check already reports the pair of; marking
- * it here would put a warning on `設定 ガイド` written with the ideographic
- * space, which is an ordinary name written the ordinary way. At an edge it is
- * marked like any other blank, since there what is at stake is not which
+ * A single blank inside a name that is merely not the plain space is
+ * deliberately not this check's business. It is drawn, and it is a substitution
+ * rather than an extent, so it is a question about which character was chosen —
+ * `hasBlankDrawnAsPlainSpace` answers that one for the blanks that are drawn as
+ * a plain space, and the ideographic space, which is two columns wide and so
+ * tells itself apart, is left alone by both: marking it would put a warning on
+ * `設定 ガイド`, an ordinary name written the ordinary way. At an edge every
+ * blank is marked here alike, since there what is at stake is not which
  * character was chosen but that the name reaches past where it appears to end.
  * The tab and the other blank control characters are not here either: a name
  * carrying one is refused outright before it is ever offered.
@@ -428,6 +429,36 @@ const REPEATED_WHITESPACE_PATTERN = /\s\s/u;
 function hasWhitespaceThatDoesNotShow(name: string): boolean {
   const shown = stripHiddenCharacters(name);
   return EDGE_WHITESPACE_PATTERN.test(shown) || REPEATED_WHITESPACE_PATTERN.test(shown);
+}
+
+/**
+ * The blanks a terminal draws in one column, the way it draws the plain space:
+ * U+00A0 NO-BREAK SPACE, U+1680 OGHAM SPACE MARK, the U+2000–U+200A quads and
+ * spaces, U+202F NARROW NO-BREAK SPACE and U+205F MEDIUM MATHEMATICAL SPACE.
+ *
+ * U+3000 IDEOGRAPHIC SPACE is deliberately absent: it is two columns wide, so
+ * the row it is printed on already tells it apart from the plain space. U+200B
+ * ZERO WIDTH SPACE is not in the U+2000–U+200A range and is not wanted here
+ * either — it is drawn as nothing at all, which is the hidden-character check's
+ * business rather than this one's.
+ */
+const ONE_COLUMN_BLANK_PATTERN = /[\u00a0\u1680\u2000-\u200a\u202f\u205f]/u;
+
+/**
+ * Whether the name carries a blank that is drawn exactly as a plain space
+ * without being one.
+ *
+ * This is about which character was chosen, not how far the name reaches, so it
+ * is a reason of its own rather than part of `hasWhitespaceThatDoesNotShow`. A
+ * name is compared with its whitespace collapsed and NFKC-folded, so `pdf` +
+ * U+00A0 + `reader` beside a plain `pdf reader` is already reported as the pair
+ * it makes; alone on a list it has no pair and, until this check, no note —
+ * while reading on screen as exactly the plain name. The same argument the
+ * lookalike tables make for U+2010 HYPHEN, whose only tell is that it is not
+ * the ASCII one.
+ */
+function hasBlankDrawnAsPlainSpace(name: string): boolean {
+  return ONE_COLUMN_BLANK_PATTERN.test(name);
 }
 
 /**
@@ -707,6 +738,13 @@ export function describeConfusableNames(params: {
     // whether or not any other row is on the list.
     if (hasEnclosingMarkOutsideKeycap(entry.name)) {
       reasons.push("carries a mark drawn over the character before it");
+    }
+    // Last of the three that describe the row itself rather than the list it
+    // sits on, and ahead of the comparison reasons for the same reason they
+    // are: the row is drawn as a name it is not, whether or not the plain
+    // spelling is on the list to be compared against.
+    if (hasBlankDrawnAsPlainSpace(entry.name)) {
+      reasons.push("carries a character drawn as a plain space");
     }
     const sameDisplayForm = counts.displayForms.get(entry.displayForm) ?? 0;
     const sameLocalDisplayForm = localCounts.displayForms.get(entry.displayForm) ?? 0;

@@ -20,6 +20,8 @@ const SAME_FORM_NOTE = "another entry has the same display form";
 const WHITESPACE_NOTE = "carries more whitespace than the row shows";
 /** The note a name carrying an enclosing mark outside a keycap is given. */
 const ENCLOSING_MARK_NOTE = "carries a mark drawn over the character before it";
+/** The note a name carrying a blank drawn exactly as a plain space is given. */
+const PLAIN_SPACE_BLANK_NOTE = "carries a character drawn as a plain space";
 
 describe("mixedScriptsOf", () => {
   it.each([
@@ -225,23 +227,50 @@ describe("describeConfusableNames", () => {
 
   it.each([
     ["a single space inside a name", "pdf reader"],
-    // Drawn, and drawn wider than a plain space at that. A name that swaps one
-    // blank for another is the display-form check's business, and reporting it
-    // here would put a warning on an ordinary Japanese name.
+    // Drawn, and drawn wider than a plain space at that: two columns against
+    // one, so the row it is printed on tells it apart. Reporting it would put a
+    // warning on an ordinary Japanese name.
     ["a single ideographic space inside a name", "\u8a2d\u5b9a\u3000\u30ac\u30a4\u30c9"],
-    ["a single no-break space inside a name", "pdf\u00a0reader"],
   ])("should leave %s alone", (_label, name) => {
     expect(describeConfusableNames({ names: [name], localNames: [] })).toEqual(new Map());
   });
 
+  it.each([
+    ["a no-break space", "pdf\u00a0reader"],
+    ["a narrow no-break space", "pdf\u202freader"],
+    ["a medium mathematical space", "pdf\u205freader"],
+    ["an ogham space mark", "pdf\u1680reader"],
+    ["an en quad", "pdf\u2000reader"],
+    ["an em space", "pdf\u2003reader"],
+    ["a hair space", "pdf\u200areader"],
+  ])("should note %s inside a name with nothing to compare it to", (_label, name) => {
+    // One column each, drawn exactly as the plain space, so the row reads as
+    // `pdf reader` whether or not that name is on the list.
+    expect(describeConfusableNames({ names: [name], localNames: [] })).toEqual(
+      new Map([[name, PLAIN_SPACE_BLANK_NOTE]]),
+    );
+  });
+
   it("should still pair a name that swaps a blank for one drawn like it", () => {
-    // The pair is what makes the substitution visible, and the display form is
-    // what reports it.
+    // The pair is what makes the substitution visible; the display form reports
+    // it, and the substitution itself is reported alongside.
     const wide = "pdf\u00a0reader";
     const notes = describeConfusableNames({ names: ["pdf reader", wide], localNames: [] });
 
     expect(notes.get("pdf reader")).toBe(SAME_FORM_NOTE);
-    expect(notes.get(wide)).toBe(SAME_FORM_NOTE);
+    expect(notes.get(wide)).toBe(`${PLAIN_SPACE_BLANK_NOTE}; ${SAME_FORM_NOTE}`);
+  });
+
+  it("should put the plain-space note after the mark note and before the rest", () => {
+    // The three reasons that say what the row itself is come first, in the
+    // order the label is cut from its tail in.
+    // cspell:disable-next-line
+    const name = "pdf\u20e3 \u00a0r\u0435ader";
+    const notes = describeConfusableNames({ names: [name], localNames: [] });
+
+    expect(notes.get(name)).toBe(
+      `${WHITESPACE_NOTE}; ${ENCLOSING_MARK_NOTE}; ${PLAIN_SPACE_BLANK_NOTE}; mixes characters from Cyrillic and Latin`,
+    );
   });
 
   it("should not note names that differ within a single script", () => {
