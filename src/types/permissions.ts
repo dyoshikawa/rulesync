@@ -531,12 +531,34 @@ const DeepagentsStartupOverrideSchema = z.looseObject({
 });
 
 /**
+ * deepagents-cli's Python extension gate under `[extensions]` in
+ * `~/.deepagents/config.toml`. `discover_extensions` auto-loads `*.py` from the
+ * user's `~/.deepagents/extensions/` and from the checked-out project's
+ * `<root>/.deepagents/extensions/`, so these two keys decide whether
+ * repository-authored Python is imported into the agent process at all —
+ * the same class of knob as `[startup].mode`, and one that ships defaulting to
+ * a prompt a user can accept. Loose so a key added upstream passes through
+ * verbatim.
+ *
+ * `extensions.extra_paths` is deliberately absent: it names machine-local files
+ * and directories, which do not belong in a committed
+ * `.rulesync/permissions.jsonc`, and it only ever widens what loads.
+ *
+ * @see https://docs.langchain.com/oss/deepagents/code/configuration
+ */
+const DeepagentsExtensionsOverrideSchema = z.looseObject({
+  enabled: z.optional(z.boolean()),
+  trust: z.optional(z.enum(["ask", "always", "never"])),
+});
+
+/**
  * The `[shell].allow_list` array itself is rulesync-owned, driven by the
  * shared `permission.bash` block, so it has no key here.
  */
 const DeepagentsPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   startup: z.optional(DeepagentsStartupOverrideSchema),
+  extensions: z.optional(DeepagentsExtensionsOverrideSchema),
 });
 export type DeepagentsPermissionsOverride = z.infer<typeof DeepagentsPermissionsOverrideSchema>;
 
