@@ -1,11 +1,33 @@
 import { defineConfig } from "vitepress";
 
+const siteUrl = "https://rulesync.dyoshikawa.com";
+
 export default defineConfig({
   title: "Rulesync",
   description:
     "A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files.",
   base: "/",
   lastUpdated: true,
+
+  // Serve every page from a single extensionless URL. Without this, `/page` and
+  // `/page.html` both resolve and search engines split the ranking signals
+  // between them.
+  cleanUrls: true,
+
+  sitemap: {
+    hostname: `${siteUrl}/`,
+  },
+
+  // VitePress has no built-in canonical link, so emit one per page.
+  transformHead: ({ pageData }) => [
+    [
+      "link",
+      {
+        rel: "canonical",
+        href: `${siteUrl}/${pageData.relativePath.replace(/(?:index)?\.md$/, "")}`,
+      },
+    ],
+  ],
 
   head: [
     ["link", { rel: "icon", href: "/logo.jpg" }],
@@ -23,7 +45,7 @@ export default defineConfig({
       "meta",
       {
         property: "og:image",
-        content: "https://rulesync.dyoshikawa.com/logo.jpg",
+        content: `${siteUrl}/logo.jpg`,
       },
     ],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
@@ -40,7 +62,7 @@ export default defineConfig({
       "meta",
       {
         name: "twitter:image",
-        content: "https://rulesync.dyoshikawa.com/logo.jpg",
+        content: `${siteUrl}/logo.jpg`,
       },
     ],
   ],
