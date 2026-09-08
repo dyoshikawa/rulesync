@@ -49,7 +49,13 @@ export type ToolHooksConverterConfig = {
    * any other value is ignored so a malformed field can't leak through.
    */
   booleanPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "failClosed" | "async" | "once" | "asyncRewake" | "continueOnBlock";
+    readonly canonical:
+      | "failClosed"
+      | "async"
+      | "once"
+      | "asyncRewake"
+      | "continueOnBlock"
+      | "enabled";
     readonly tool: string;
     /** Emit only on `command` hooks, for a field the tool documents there only. */
     readonly commandOnly?: boolean;

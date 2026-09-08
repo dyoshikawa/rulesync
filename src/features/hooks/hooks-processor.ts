@@ -31,6 +31,7 @@ import {
   QWENCODE_HOOK_EVENTS,
   REASONIX_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
+  ZCODE_HOOK_EVENTS,
   type HookEvent,
   type HookType,
 } from "../../types/hooks.js";
@@ -77,6 +78,7 @@ import type {
 } from "./tool-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
 import { VibeHooks } from "./vibe-hooks.js";
+import { ZcodeHooks } from "./zcode-hooks.js";
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
@@ -227,8 +229,12 @@ const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   "kiro-ide": KIRO_HOOKS_OVERRIDE_KEY,
 };
 
-/** The targets writing the standalone `.kiro/hooks/*.json` v1 format. */
-const KIRO_STANDALONE_HOOKS_TARGETS: ReadonlySet<ToolTarget> = new Set(["kiro-cli", "kiro-ide"]);
+/** The targets whose hooks format carries a per-hook on-disk enable flag. */
+const PER_HOOK_ENABLED_TARGETS: ReadonlySet<ToolTarget> = new Set([
+  "kiro-cli",
+  "kiro-ide",
+  "zcode",
+]);
 
 export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
   [
@@ -733,6 +739,21 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportsMatcher: true,
     },
   ],
+  [
+    "zcode",
+    {
+      // ZCode hooks live under the `hooks` key of its user config file,
+      // `~/.zcode/cli/config.json`, with the event map nested under
+      // `hooks.events`. ZCode never executes workspace config hooks — the
+      // workspace file is ignored regardless of `hooks.enabled` — so rulesync
+      // treats ZCode hooks as global-only.
+      class: ZcodeHooks,
+      meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+      supportedEvents: ZCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
 ]);
 
 // Project-mode generation/import should only expose tools that actually write
@@ -919,14 +940,14 @@ export class HooksProcessor extends FeatureProcessor {
       }
     }
 
-    // Warn that `enabled: false` cannot be expressed outside the Kiro
-    // standalone hooks format, whose entries carry an on-disk per-definition
-    // enable flag (both `kiro-ide` and `kiro-cli` write it); everywhere
-    // else the hook is emitted as an ordinary, active hook, so a user who paused
-    // one hook would otherwise see it keep firing with no explanation.
+    // Warn that `enabled: false` cannot be expressed by targets whose hooks
+    // format carries no per-definition on-disk enable flag (`kiro-ide`,
+    // `kiro-cli` and `zcode` do); everywhere else the hook is emitted as an
+    // ordinary, active hook, so a user who paused one hook would otherwise see
+    // it keep firing with no explanation.
     // Only canonical definitions are considered: a tool-native `enabled` inside
     // an override block is passed through verbatim and honored by that tool.
-    if (!KIRO_STANDALONE_HOOKS_TARGETS.has(this.toolTarget)) {
+    if (!PER_HOOK_ENABLED_TARGETS.has(this.toolTarget)) {
       // Events the target does not support are already reported as skipped and
       // produce no output at all, so warning about them here would contradict
       // that message.
@@ -942,7 +963,7 @@ export class HooksProcessor extends FeatureProcessor {
         .map(([event]) => event);
       if (eventsWithDisabledHooks.length > 0) {
         this.logger.warn(
-          `Emitting "enabled: false" hook(s) as active for ${this.toolTarget} (only the kiro-cli / kiro-ide standalone hooks format supports the flag): ${eventsWithDisabledHooks.join(", ")}`,
+          `Emitting "enabled: false" hook(s) as active for ${this.toolTarget} (only the kiro-cli / kiro-ide / zcode hooks formats support the flag): ${eventsWithDisabledHooks.join(", ")}`,
         );
       }
     }
