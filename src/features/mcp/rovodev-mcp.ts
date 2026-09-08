@@ -97,9 +97,16 @@ function lookupTransport(map: Record<string, string>, key: string): string | und
 
 /**
  * Read the "put this server's own instructions into the agent's prompt" flag
- * off an unfiltered canonical entry, under either spelling. Anything other
- * than a literal `true` reads as not enabled, matching Rovo Dev, where the key
- * is absent by default.
+ * off an unfiltered canonical entry, under either spelling. `undefined` means
+ * the entry says nothing, which is Rovo Dev's own default.
+ *
+ * The flag is a **tri-state**, not a switch that only exists when on. Atlassian
+ * inverted the default on 2026-09-02: a server's instructions are now surfaced
+ * when the key is absent or `true`, and `false` is what suppresses them — the
+ * opposite of the opt-in wording this adapter was first written against, where
+ * absent and `false` meant the same thing. So `false` has to travel end to end;
+ * collapsing it away is what makes a suppression impossible to author, and
+ * erases one on import.
  *
  * The canonical key decides whenever it is present, the way codex resolves the
  * same two-spelling conflict for `experimental_environment`. OR-ing the two
@@ -107,35 +114,25 @@ function lookupTransport(map: Record<string, string>, key: string): string | und
  * `enable_instructions: true` copied out of Atlassian's docs — fail-open, on
  * the one key whose whole purpose is a trust decision.
  *
+ * A non-boolean under either spelling reads as `undefined` rather than as a
+ * suppression: Rovo Dev surfaces the instructions for anything that is not
+ * `false`, so writing `false` there would invent a restriction the tool is not
+ * applying. (The canonical key is a strict boolean in the schema, so only the
+ * raw spelling can carry one.)
+ *
  * `isPlainObject` rather than `isRecord`: this walks a user-supplied key set,
  * so a `constructor` entry must not resolve up the prototype chain.
  */
-function readEnableInstructions(rawServer: unknown): boolean {
+function readEnableInstructions(rawServer: unknown): boolean | undefined {
   if (!isPlainObject(rawServer)) {
-    return false;
+    return undefined;
   }
-  if (rawServer.rovodevEnableInstructions !== undefined) {
-    return rawServer.rovodevEnableInstructions === true;
+  const canonical = rawServer.rovodevEnableInstructions;
+  if (canonical !== undefined) {
+    return typeof canonical === "boolean" ? canonical : undefined;
   }
-  return rawServer.enable_instructions === true;
-}
-
-/**
- * Names that were emitted with `enable_instructions: true` during one
- * `fromRulesyncMcp` call, so the run can say so once rather than per server.
- * Atlassian gates this key on trust, and it is the only thing generate writes
- * that widens what steers the model — the quietest possible write is the wrong
- * one for it.
- */
-function warnEnabledInstructions(names: string[], logger?: Logger): void {
-  if (names.length === 0) {
-    return;
-  }
-  logger?.warn(
-    `Rovo Dev MCP: writing enable_instructions: true for ${names.join(", ")}. Rovo Dev pastes ` +
-      `${names.length === 1 ? "that server's" : "those servers'"} own instructions into the ` +
-      `agent's system prompt, so enable it only for servers you trust.`,
-  );
+  const raw = rawServer.enable_instructions;
+  return typeof raw === "boolean" ? raw : undefined;
 }
 
 function toRovodevServer(
@@ -150,10 +147,12 @@ function toRovodevServer(
   const { type, transport, disabled: _disabled, rovodevEnableInstructions, ...rest } = server;
   // Authored as `rovodevEnableInstructions` (or as the raw spelling, which
   // `fromRulesyncMcp` normalizes onto it) and written under Rovo Dev's own
-  // name. Only `true` is written: absent and `false` mean the same thing to
-  // Rovo Dev, and the shorter of the two is the one that cannot be misread.
-  if (rovodevEnableInstructions === true) {
-    rest.enable_instructions = true;
+  // name. Both booleans are written: since 2026-09-02 `false` is the only
+  // spelling that suppresses a third-party server's instructions, and an
+  // absent key surfaces them. Writing only `true` would leave the suppression
+  // with no way to be expressed at all.
+  if (typeof rovodevEnableInstructions === "boolean") {
+    rest.enable_instructions = rovodevEnableInstructions;
   }
   const declared =
     typeof transport === "string" ? transport : typeof type === "string" ? type : undefined;
@@ -178,10 +177,13 @@ function fromRovodevServer(server: Record<string, unknown>): Record<string, unkn
   // Lifted onto the canonical key so the next generate writes it again rather
   // than losing it, and so `getMcpServers()` keeps it out of the other targets
   // — the raw spelling would be stripped there and vanish on the round trip.
-  // Only a real `true` is carried: any other value means "not enabled" to Rovo
-  // Dev, and the canonical field is a strict boolean.
-  if (enableInstructions === true) {
-    rest.rovodevEnableInstructions = true;
+  // Either boolean is carried, `false` above all: it is the value that keeps a
+  // third-party server's instructions out of the prompt, so dropping it would
+  // make an import → generate round-trip switch that suppression back on. A
+  // non-boolean is left behind, since Rovo Dev reads only `false` as "do not
+  // surface" and the canonical field is a strict boolean.
+  if (typeof enableInstructions === "boolean") {
+    rest.rovodevEnableInstructions = enableInstructions;
   }
   if (typeof transport !== "string") {
     return rest;
@@ -900,12 +902,17 @@ export class RovodevMcp extends ToolMcp {
       Object.entries(rulesyncMcp.getMcpServers())
         .map(([name, server]) => {
           const rawServer = rulesyncMcp.getRawMcpServer(name);
+          // Both spellings are accepted in `.rulesync/mcp.json`: the canonical
+          // camelCase key, and Rovo Dev's own `enable_instructions` for anyone
+          // copying an entry straight out of Atlassian's docs. `undefined`
+          // means neither was authored, which is Rovo Dev's own default, so
+          // nothing is written — `false` is a value in its own right here.
+          const enableInstructions = readEnableInstructions(rawServer);
           const record: Record<string, unknown> = {
             ...(server as Record<string, unknown>),
-            // Both spellings are accepted in `.rulesync/mcp.json`: the
-            // canonical camelCase key, and Rovo Dev's own `enable_instructions`
-            // for anyone copying an entry straight out of Atlassian's docs.
-            ...(readEnableInstructions(rawServer) && { rovodevEnableInstructions: true }),
+            ...(enableInstructions !== undefined && {
+              rovodevEnableInstructions: enableInstructions,
+            }),
           };
           if (record.disabled === true && !canWriteDisableToggle) {
             logger?.warn(
@@ -920,13 +927,13 @@ export class RovodevMcp extends ToolMcp {
         .filter((entry) => entry !== null),
     );
 
-    warnEnabledInstructions(
-      Object.entries(mcpServers)
-        .filter(([, server]) => (server as Record<string, unknown>).enable_instructions === true)
-        .map(([name]) => name),
-      logger,
-    );
-
+    // No warning accompanies `enable_instructions` any more. It used to name
+    // every server written with `true`, back when that was the one write of
+    // this adapter's that widened what steers the model. Since Atlassian
+    // inverted the default on 2026-09-02, `true` restates what Rovo Dev does
+    // for an absent key and grants nothing, while the value that changes
+    // anything — `false` — restricts. Warning on `true` would report the
+    // default state and bury nothing.
     const rovodevConfig = { ...json, mcpServers };
 
     return new RovodevMcp({

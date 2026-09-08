@@ -496,9 +496,12 @@ describe("RovodevMcp", () => {
 
       const servers = JSON.parse(rovodevMcp.getFileContent()).mcpServers;
       expect(servers.trusted).toEqual({ command: "node", enable_instructions: true });
-      // Absent and `false` mean the same thing to Rovo Dev, so neither is written.
+      // Nothing authored means Rovo Dev's own default, so nothing is written.
       expect(servers.plain).toEqual({ command: "node" });
-      expect(servers.off).toEqual({ command: "node" });
+      // Since 2026-09-02 `false` is the only spelling that suppresses a
+      // server's instructions, so it has to be written rather than collapsed
+      // into the absent case (issue #2955).
+      expect(servers.off).toEqual({ command: "node", enable_instructions: false });
     });
 
     it("accepts Rovo Dev's own spelling in the canonical config", async () => {
@@ -551,10 +554,11 @@ describe("RovodevMcp", () => {
 
       expect(JSON.parse(rovodevMcp.getFileContent()).mcpServers.distrusted).toEqual({
         command: "node",
+        enable_instructions: false,
       });
     });
 
-    it("reports the servers whose instructions it enables", async () => {
+    it("says nothing about a flag that restates Rovo Dev's default", async () => {
       const logger = createMockLogger();
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
@@ -575,13 +579,12 @@ describe("RovodevMcp", () => {
         logger,
       });
 
-      // Atlassian gates this key on trust, and it is the only thing generate
-      // writes that widens what steers the model — it must not be the quietest.
-      const message = logger.warn.mock.calls
-        .map(([entry]) => String(entry))
-        .find((entry) => entry.includes("enable_instructions: true"));
-      expect(message).toContain("trusted");
-      expect(message).not.toContain("plain");
+      // The old warning named every server written with `true`, back when that
+      // was the write that widened what steers the model. Since the default
+      // inverted, `true` is what Rovo Dev already does for an absent key.
+      expect(logger.warn.mock.calls.map(([entry]) => String(entry)).join("\n")).not.toContain(
+        "enable_instructions",
+      );
     });
 
     it("keeps the flag through the pipeline generate actually runs", async () => {
@@ -624,8 +627,11 @@ describe("RovodevMcp", () => {
           mcpServers: {
             trusted: { transport: "stdio", command: "node", enable_instructions: true },
             plain: { transport: "stdio", command: "node" },
-            // Only a real `true` enables instructions in Rovo Dev, so nothing
-            // else may import as an enabled flag.
+            // The value that actually suppresses instructions upstream, and
+            // the one an import used to throw away (issue #2955).
+            suppressed: { transport: "stdio", command: "node", enable_instructions: false },
+            // Rovo Dev surfaces instructions for anything that is not `false`,
+            // so a non-boolean must not import as a suppression either.
             fuzzy: { transport: "stdio", command: "node", enable_instructions: "yes" },
           },
         }),
@@ -638,7 +644,40 @@ describe("RovodevMcp", () => {
         rovodevEnableInstructions: true,
       });
       expect(servers.plain).toEqual({ type: "stdio", command: "node" });
+      expect(servers.suppressed).toEqual({
+        type: "stdio",
+        command: "node",
+        rovodevEnableInstructions: false,
+      });
       expect(servers.fuzzy).toEqual({ type: "stdio", command: "node" });
+    });
+
+    it("round-trips a suppression instead of switching it back on", async () => {
+      // The fail-open outcome #2955 reports: import dropped `false`, so the
+      // next generate wrote the entry back without it and Rovo Dev surfaced
+      // the instructions the user had switched off.
+      const imported = new RovodevMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            suppressed: { transport: "stdio", command: "node", enable_instructions: false },
+          },
+        }),
+      }).toRulesyncMcp();
+
+      const regenerated = await RovodevMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: imported,
+        global: true,
+      });
+
+      expect(JSON.parse(regenerated.getFileContent()).mcpServers.suppressed).toEqual({
+        transport: "stdio",
+        command: "node",
+        enable_instructions: false,
+      });
     });
 
     it("survives an import followed by a generate", async () => {
