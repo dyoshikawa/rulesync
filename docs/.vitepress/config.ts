@@ -9,25 +9,28 @@ export default defineConfig({
   base: "/",
   lastUpdated: true,
 
-  // Serve every page from a single extensionless URL. Without this, `/page` and
-  // `/page.html` both resolve and search engines split the ranking signals
-  // between them.
+  // Advertise every page under a single extensionless URL. GitHub Pages keeps
+  // serving both `/page` and `/page.html`; this only controls the form used by
+  // internal links and the sitemap, and the canonical link below is what tells
+  // search engines which of the two is authoritative.
   cleanUrls: true,
 
   sitemap: {
     hostname: `${siteUrl}/`,
   },
 
-  // VitePress has no built-in canonical link, so emit one per page.
-  transformHead: ({ pageData }) => [
-    [
-      "link",
-      {
-        rel: "canonical",
-        href: `${siteUrl}/${pageData.relativePath.replace(/(?:index)?\.md$/, "")}`,
-      },
-    ],
-  ],
+  // VitePress has no built-in canonical link, so emit one per page. The URL is
+  // derived from the source path, which holds as long as `rewrites` is unused.
+  transformHead: ({ pageData }) => {
+    // 404 is not a real URL, so it must not declare itself canonical.
+    if (pageData.relativePath === "404.md") {
+      return [];
+    }
+
+    const pagePath = pageData.relativePath.replace(/(^|\/)index\.md$/, "$1").replace(/\.md$/, "");
+
+    return [["link", { rel: "canonical", href: `${siteUrl}/${encodeURI(pagePath)}` }]];
+  },
 
   head: [
     ["link", { rel: "icon", href: "/logo.jpg" }],
