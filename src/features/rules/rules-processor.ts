@@ -81,6 +81,7 @@ import { KiroRule } from "./kiro-rule.js";
 import { MusecodeRule } from "./musecode-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
+import { PoolRule } from "./pool-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { ReasonixRule } from "./reasonix-rule.js";
 import { ReplitRule } from "./replit-rule.js";
@@ -997,6 +998,25 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
+    "pool",
+    {
+      class: PoolRule,
+      meta: {
+        // Pool (Poolside's coding agent) reads personal, project, and nested
+        // per-directory `AGENTS.md` files — the project root plus every
+        // `AGENTS.md` from the repository root down through the working
+        // directory — so a directory-scoped rule is emitted as a nested
+        // `<subprojectPath>/AGENTS.md` while plain topic rules fold into the
+        // root file (mirrors vibe).
+        // https://docs.poolside.ai/agent-instructions
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],

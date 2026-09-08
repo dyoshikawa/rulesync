@@ -46,6 +46,7 @@ export const rulesProcessorToolTargetTuple = [
   "zcode",
   "zed",
   "zoocode",
+  "pool",
 ] as const;
 
 export const ignoreProcessorToolTargetTuple = [

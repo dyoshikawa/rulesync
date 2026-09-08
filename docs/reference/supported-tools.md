@@ -49,6 +49,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Pi Coding Agent           | pi                 | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Zed                       | zed                | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |          |           | ✅ 🌏  |       |    ✅ 🌏    |        |
 | ZCode (Z.ai)              | zcode              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |    🌏     | ✅ 🌏  |  🌏   |             |        |
+| Pool (Poolside)           | pool               | ✅ 🌏 |        |          |          |           |        |       |             |        |
 
 <!-- SUPPORTED_TOOLS_DOCS:END -->
 
