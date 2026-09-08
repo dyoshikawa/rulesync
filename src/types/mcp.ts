@@ -91,9 +91,11 @@ export const McpServerSchema = z.looseObject({
   // case where naming the file that holds the typo beats passing it along.
   // https://dev.meta.ai/docs/muse-code/extending.md
   musecodeMode: z.optional(z.enum(["required", "optional"])),
-  // Rovo Dev-specific: opts this server's initialization-response instructions
-  // into the agent's system prompt. Absent or `false` means Rovo Dev ignores
-  // them as untrusted; Atlassian's own built-in servers are enabled without it.
+  // Rovo Dev-specific: decides whether this server's initialization-response
+  // instructions join the agent's system prompt. A tri-state: absent or `true`
+  // surfaces them, `false` suppresses them. Atlassian inverted this default on
+  // 2026-09-02 — it used to be opt-in — so `false` is the value that carries a
+  // trust decision and must survive both directions.
   // Written as `enable_instructions` by `rovodev-mcp.ts` and stripped by
   // `RulesyncMcp.getMcpServers()`, like `envVars` — and here the strip is the
   // point rather than tidiness: the key decides whether a third-party server's
