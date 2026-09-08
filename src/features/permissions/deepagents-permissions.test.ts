@@ -908,6 +908,120 @@ describe("DeepagentsPermissions", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("writes the extensions gate into `[extensions]` (issue #2956)", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: {
+          permission: {},
+          deepagents: { extensions: { enabled: false, trust: "never" } },
+        },
+        logger,
+      });
+
+      expect(tableOf(content, "extensions")).toEqual({ enabled: false, trust: "never" });
+      // Both restrict what dcode loads, so neither is a relaxation to report.
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("keeps an extensions key the user set beside the gate", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        join(testDir, ".deepagents", "config.toml"),
+        '[extensions]\nextra_paths = ["tools"]\n',
+      );
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { extensions: { trust: "never" } } },
+        logger,
+      });
+
+      expect(tableOf(content, "extensions")).toEqual({
+        extra_paths: ["tools"],
+        trust: "never",
+      });
+    });
+
+    it("names an extensions key it cannot judge", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { extensions: { extra_paths: ["tools"] } } },
+        logger,
+      });
+
+      // `extra_paths` is not modeled, but the override is loose so it still
+      // reaches the machine's global config — named rather than passed silently.
+      expect(tableOf(content, "extensions")).toEqual({ extra_paths: ["tools"] });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("extra_paths"));
+    });
+
+    it("warns that an extensions override relaxes the machine's global config", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { extensions: { trust: "always" } } },
+        logger,
+      });
+
+      // `always` imports a checked-out project's Python with no prompt at all.
+      expect(tableOf(content, "extensions")).toEqual({ trust: "always" });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('trust = "always"'));
+    });
+
+    it("says nothing about `enabled` already true by default", async () => {
+      const logger = createMockLogger();
+
+      await generate({
+        config: { permission: {}, deepagents: { extensions: { enabled: true } } },
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("names the value an extensions override replaces", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        join(testDir, ".deepagents", "config.toml"),
+        "[extensions]\nenabled = false\n",
+      );
+
+      await generate({
+        config: { permission: {}, deepagents: { extensions: { enabled: true } } },
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("enabled = true (was false)"),
+      );
+    });
+
+    it("leaves an `extensions` that is not a table untouched", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(join(testDir, ".deepagents", "config.toml"), 'extensions = "none"\n');
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { extensions: { trust: "never" } } },
+        logger,
+      });
+
+      expect(smolToml.parse(content).extensions).toBe("none");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("is not a table"));
+    });
+
+    it("merges both override blocks into the same file", async () => {
+      const content = await generate({
+        config: {
+          permission: {},
+          deepagents: { startup: { mode: "manual" }, extensions: { trust: "never" } },
+        },
+      });
+
+      expect(tableOf(content, "startup")).toEqual({ mode: "manual" });
+      expect(tableOf(content, "extensions")).toEqual({ trust: "never" });
+    });
+
     it("leaves a `shell` that parsed as a datetime untouched", async () => {
       const logger = createMockLogger();
       await writeFileContent(join(testDir, ".deepagents", "config.toml"), "shell = 1979-05-27\n");
@@ -1147,6 +1261,52 @@ describe("DeepagentsPermissions", () => {
       expect(config).toEqual({
         permission: {},
         deepagents: { startup: { read_project_dotenv: true } },
+      });
+    });
+
+    it("lifts the extensions gate back into the override (issue #2956)", () => {
+      const config = importFrom('[extensions]\nenabled = false\ntrust = "never"\n');
+
+      expect(config).toEqual({
+        permission: {},
+        deepagents: { extensions: { enabled: false, trust: "never" } },
+      });
+    });
+
+    it("reads `trust` the way `parse_trust_policy` reads it", () => {
+      // Upstream trims and lowercases, so this is the policy dcode applies.
+      const config = importFrom('[extensions]\ntrust = " Always "\n');
+
+      expect(config).toEqual({
+        permission: {},
+        deepagents: { extensions: { trust: "always" } },
+      });
+    });
+
+    it("leaves behind an extensions value dcode cannot read", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const config = importFrom('[extensions]\ntrust = "sometimes"\nenabled = "yes"\n');
+
+      expect(config).toEqual({ permission: {} });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('enabled = "yes", trust = "sometimes"'),
+      );
+    });
+
+    it("does not lift the machine-local extension paths", () => {
+      const config = importFrom('[extensions]\nextra_paths = ["/home/me/tools"]\n');
+
+      // Machine-local paths do not belong in a committed permissions file.
+      expect(config).toEqual({ permission: {} });
+    });
+
+    it("lifts both override blocks from the same file", () => {
+      const config = importFrom('[startup]\nmode = "manual"\n\n[extensions]\ntrust = "never"\n');
+
+      expect(config).toEqual({
+        permission: {},
+        deepagents: { startup: { mode: "manual" }, extensions: { trust: "never" } },
       });
     });
 

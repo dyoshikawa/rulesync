@@ -71,6 +71,33 @@ const DEEPAGENTS_STARTUP_BOOLEAN_DEFAULTS: Record<string, boolean> = {
   read_project_dotenv: true,
 };
 
+/**
+ * `[extensions]` gates dcode's Python extension system. `discover_extensions`
+ * auto-loads `*.py` from the user's `~/.deepagents/extensions/` and from the
+ * checked-out project's `<root>/.deepagents/extensions/`, so this table decides
+ * whether a cloned repository's Python is imported into the agent process.
+ */
+const EXTENSIONS_TABLE_KEY = "extensions";
+/**
+ * Keys lifted back into the override on import. `extensions.extra_paths` is
+ * deliberately absent: it names machine-local files and directories, which do
+ * not belong in a committed `.rulesync/permissions.jsonc`, and it only ever
+ * widens what loads.
+ */
+const DEEPAGENTS_EXTENSIONS_KEYS = ["enabled", "trust"] as const;
+
+/** `TrustPolicy` in `extensions/settings.py`; dcode reads nothing else. */
+const DEEPAGENTS_EXTENSION_TRUST_POLICIES = ["ask", "always", "never"] as const;
+
+/**
+ * `[extensions].enabled` defaults to `true` upstream, so writing `true` on a
+ * machine that has not set it changes nothing — the same reasoning as
+ * `DEEPAGENTS_STARTUP_BOOLEAN_DEFAULTS`.
+ *
+ * @see https://github.com/langchain-ai/deepagents `config_manifest.py`
+ */
+const DEEPAGENTS_EXTENSIONS_ENABLED_DEFAULT = true;
+
 // Sentinels `parse_shell_allow_list_items` recognizes instead of a command
 // name: `all` allows everything (and must be the sole entry), `recommended`
 // expands to a curated list dcode owns.
@@ -158,7 +185,10 @@ const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
  * `DeepagentsPermissionsOverrideSchema`): `[startup].mode`
  * (`manual` / `auto` / `yolo`), `[startup].yolo_switcher` and
  * `[startup].read_project_dotenv` are merged into the file on generate and
- * lifted back into the override on import.
+ * lifted back into the override on import. The same override carries
+ * `[extensions].enabled` and `[extensions].trust` (`ask` / `always` / `never`),
+ * which decide whether the Python in a checked-out project's
+ * `.deepagents/extensions/` is imported into the agent process.
  *
  * On **import** the allowlist comes back as `bash` `allow` rules named by the
  * executable — skipping any entry dcode could not match in the first place, so
@@ -310,6 +340,11 @@ export class DeepagentsPermissions extends ToolPermissions {
       mergeStartupOverride({ settings, startupOverride, filePath, logger });
     }
 
+    const extensionsOverride = config.deepagents?.extensions;
+    if (isPlainObject(extensionsOverride) && Object.keys(extensionsOverride).length > 0) {
+      mergeExtensionsOverride({ settings, extensionsOverride, filePath, logger });
+    }
+
     return new DeepagentsPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
@@ -349,9 +384,21 @@ export class DeepagentsPermissions extends ToolPermissions {
     const startup = isPlainObject(settings[STARTUP_TABLE_KEY]) ? settings[STARTUP_TABLE_KEY] : {};
     const startupOverride = liftStartupOverride({ startup, selfPath });
 
+    const extensions = isPlainObject(settings[EXTENSIONS_TABLE_KEY])
+      ? settings[EXTENSIONS_TABLE_KEY]
+      : {};
+    const extensionsOverride = liftExtensionsOverride({ extensions, selfPath });
+
     const result: Record<string, unknown> = { ...config };
+    const deepagents: Record<string, unknown> = {};
     if (Object.keys(startupOverride).length > 0) {
-      result.deepagents = { startup: startupOverride };
+      deepagents.startup = startupOverride;
+    }
+    if (Object.keys(extensionsOverride).length > 0) {
+      deepagents.extensions = extensionsOverride;
+    }
+    if (Object.keys(deepagents).length > 0) {
+      result.deepagents = deepagents;
     }
 
     return this.toRulesyncPermissionsDefault({
@@ -647,33 +694,40 @@ function warnAboutUnwrittenBashRules({
 }
 
 /**
- * Lift the `[startup]` keys rulesync models back into the `deepagents`
- * override, keeping only values dcode itself accepts.
+ * Lift the keys rulesync models from one `config.toml` table back into the
+ * `deepagents` override, keeping only values dcode itself accepts.
  *
- * A `mode` outside the three approval modes, or a non-boolean where a switch
- * belongs, is `Invalid` upstream — dcode ignores it and falls back to its
- * default. Importing it anyway would record a setting the tool is not applying
- * and, because the canonical schema is stricter than TOML, would write a
- * `.rulesync/permissions.jsonc` the next `rulesync generate` cannot even read.
+ * A value outside what the option's own parser reads is `Invalid` upstream —
+ * dcode ignores it and falls back to its default. Importing it anyway would
+ * record a setting the tool is not applying and, because the canonical schema
+ * is stricter than TOML, would write a `.rulesync/permissions.jsonc` the next
+ * `rulesync generate` cannot even read.
+ *
+ * `normalize` returns the value to keep, or `null` for one dcode would not
+ * read — a wrapper rather than the bare value, so a legitimately falsy setting
+ * is not mistaken for a rejection.
  */
-function liftStartupOverride({
-  startup,
+function liftOverrideTable({
+  table,
+  tableKey,
+  keys,
+  normalize,
   selfPath,
 }: {
-  startup: Record<string, unknown>;
+  table: Record<string, unknown>;
+  tableKey: string;
+  keys: readonly string[];
+  normalize: (params: { key: string; value: unknown }) => { value: unknown } | null;
   selfPath: string;
 }): Record<string, unknown> {
-  const startupOverride: Record<string, unknown> = {};
+  const override: Record<string, unknown> = {};
   const rejected: string[] = [];
-  for (const key of DEEPAGENTS_STARTUP_KEYS) {
-    const value = startup[key];
+  for (const key of keys) {
+    const value = table[key];
     if (value === undefined) continue;
-    const acceptable =
-      key === "mode"
-        ? DEEPAGENTS_STARTUP_MODES.includes(value as (typeof DEEPAGENTS_STARTUP_MODES)[number])
-        : typeof value === "boolean";
-    if (acceptable) {
-      startupOverride[key] = value;
+    const normalized = normalize({ key, value });
+    if (normalized) {
+      override[key] = normalized.value;
     } else {
       rejected.push(`${key} = ${JSON.stringify(value)}`);
     }
@@ -682,20 +736,179 @@ function liftStartupOverride({
   if (rejected.length > 0) {
     warnWithFallback(
       undefined,
-      `deepagents-cli falls back to its own default for a '[${STARTUP_TABLE_KEY}]' value it ` +
+      `deepagents-cli falls back to its own default for a '[${tableKey}]' value it ` +
         `cannot read, so ${rejected.join(", ")} in ${selfPath} ${rejected.length === 1 ? "was" : "were"} ` +
         `not imported.`,
     );
   }
 
-  return startupOverride;
+  return override;
 }
 
 /**
- * Merge the `deepagents.startup` override into `[startup]`, preserving every
- * other key of that table. A `startup` that is not a table at all is something
- * rulesync did not write and cannot merge into, so it is left exactly as the
- * user has it rather than replaced.
+ * Lift the `[startup]` keys rulesync models back into the `deepagents`
+ * override. A `mode` outside the three approval modes, or a non-boolean where
+ * a switch belongs, is one dcode ignores.
+ */
+function liftStartupOverride({
+  startup,
+  selfPath,
+}: {
+  startup: Record<string, unknown>;
+  selfPath: string;
+}): Record<string, unknown> {
+  return liftOverrideTable({
+    table: startup,
+    tableKey: STARTUP_TABLE_KEY,
+    keys: DEEPAGENTS_STARTUP_KEYS,
+    normalize: ({ key, value }) => {
+      if (key === "mode") {
+        return DEEPAGENTS_STARTUP_MODES.includes(value as (typeof DEEPAGENTS_STARTUP_MODES)[number])
+          ? { value }
+          : null;
+      }
+      return typeof value === "boolean" ? { value } : null;
+    },
+    selfPath,
+  });
+}
+
+/**
+ * Lift the `[extensions]` keys rulesync models back into the `deepagents`
+ * override.
+ *
+ * `trust` is read the way `parse_trust_policy` reads it — trimmed and
+ * lowercased — so `"Always"` comes back as the policy dcode is actually
+ * applying rather than being dropped, the same courtesy the allowlist
+ * sentinels already get. The canonical enum holds only the lowercase
+ * spellings, so keeping the value verbatim would write a permissions file the
+ * next generate could not parse.
+ */
+function liftExtensionsOverride({
+  extensions,
+  selfPath,
+}: {
+  extensions: Record<string, unknown>;
+  selfPath: string;
+}): Record<string, unknown> {
+  return liftOverrideTable({
+    table: extensions,
+    tableKey: EXTENSIONS_TABLE_KEY,
+    keys: DEEPAGENTS_EXTENSIONS_KEYS,
+    normalize: ({ key, value }) => {
+      if (key === "trust") {
+        if (typeof value !== "string") return null;
+        const policy = value.trim().toLowerCase();
+        return DEEPAGENTS_EXTENSION_TRUST_POLICIES.includes(
+          policy as (typeof DEEPAGENTS_EXTENSION_TRUST_POLICIES)[number],
+        )
+          ? { value: policy }
+          : null;
+      }
+      return typeof value === "boolean" ? { value } : null;
+    },
+    selfPath,
+  });
+}
+
+/**
+ * Merge one block of the `deepagents` override into its `config.toml` table,
+ * preserving every other key of that table. A table that is not a table at all
+ * is something rulesync did not write and cannot merge into, so it is left
+ * exactly as the user has it rather than replaced.
+ */
+function mergeOverrideTable({
+  settings,
+  tableKey,
+  override,
+  knownKeys,
+  isDroppedKey,
+  warnAboutRelaxations,
+  filePath,
+  logger,
+}: {
+  settings: Record<string, unknown>;
+  tableKey: string;
+  override: Record<string, unknown>;
+  /** The keys rulesync models, so anything else can be named rather than passed silently. */
+  knownKeys: readonly string[];
+  isDroppedKey?: (key: string) => boolean;
+  warnAboutRelaxations: (params: {
+    override: Record<string, unknown>;
+    previous: Record<string, unknown>;
+    filePath: string;
+    logger?: Logger;
+  }) => void;
+  filePath: string;
+  logger?: Logger;
+}): void {
+  const existing = settings[tableKey];
+  if (existing !== undefined && !isPlainObject(existing)) {
+    warnWithFallback(
+      logger,
+      `deepagents-cli: '${tableKey}' in ${filePath} is not a table, so the ` +
+        `deepagents ${tableKey} override was skipped rather than overwriting it.`,
+    );
+    return;
+  }
+
+  const table = isPlainObject(existing) ? { ...existing } : {};
+  const previous = { ...table };
+  const writtenKeys: string[] = [];
+  // Copied key by key rather than `Object.assign`ed, so a `__proto__` coming
+  // from the JSON config cannot reach the object's prototype.
+  for (const [key, value] of Object.entries(override)) {
+    if (isPrototypePollutionKey(key)) continue;
+    if (isDroppedKey?.(key)) continue;
+    // TOML has no null, so smol-toml drops such a key on the way out. Writing
+    // it would leave a warning naming a setting the file does not hold.
+    if (value === null || value === undefined) continue;
+    // Verbatim, so a key added upstream passes through the loose override.
+    table[key] = value;
+    writtenKeys.push(key);
+  }
+  warnAboutRelaxations({ override, previous, filePath, logger });
+  warnAboutUncheckedKeys({ tableKey, knownKeys, writtenKeys, filePath, logger });
+  // An override of nothing but dropped keys leaves no table to write; an empty
+  // table header would suggest rulesync set something there.
+  if (Object.keys(table).length > 0) {
+    settings[tableKey] = table;
+  }
+}
+
+/**
+ * Name the keys the merge wrote that rulesync does not model. The override is a
+ * loose object so a key added upstream still reaches the config, but this one
+ * writes into the machine's global file: what rulesync cannot judge, it at
+ * least names.
+ */
+function warnAboutUncheckedKeys({
+  tableKey,
+  knownKeys,
+  writtenKeys,
+  filePath,
+  logger,
+}: {
+  tableKey: string;
+  knownKeys: readonly string[];
+  /** The keys the merge actually wrote, so no warning names one it dropped. */
+  writtenKeys: readonly string[];
+  filePath: string;
+  logger?: Logger;
+}): void {
+  const known = new Set<string>(knownKeys);
+  const unknownKeys = writtenKeys.filter((key) => !known.has(key));
+  if (unknownKeys.length === 0) return;
+  warnWithFallback(
+    logger,
+    `The deepagents ${tableKey} override wrote ${unknownKeys.join(", ")} into ${filePath} ` +
+      `unchecked — rulesync does not know what those keys grant, and that file is your ` +
+      `global deepagents-cli config.`,
+  );
+}
+
+/**
+ * Merge the `deepagents.startup` override into `[startup]`.
  */
 function mergeStartupOverride({
   settings,
@@ -708,36 +921,109 @@ function mergeStartupOverride({
   filePath: string;
   logger?: Logger;
 }): void {
-  const existingStartup = settings[STARTUP_TABLE_KEY];
-  if (existingStartup !== undefined && !isPlainObject(existingStartup)) {
-    warnWithFallback(
-      logger,
-      `deepagents-cli: '${STARTUP_TABLE_KEY}' in ${filePath} is not a table, so the ` +
-        `deepagents startup override was skipped rather than overwriting it.`,
-    );
-    return;
+  mergeOverrideTable({
+    settings,
+    tableKey: STARTUP_TABLE_KEY,
+    override: startupOverride,
+    knownKeys: DEEPAGENTS_STARTUP_KEYS,
+    isDroppedKey: (key) => key === STARTUP_RECENT_KEY,
+    warnAboutRelaxations: warnAboutStartupRelaxations,
+    filePath,
+    logger,
+  });
+}
+
+/**
+ * Merge the `deepagents.extensions` override into `[extensions]`. Nothing is
+ * dropped here — `extra_paths` is not modeled, but it is a key the user may
+ * legitimately want carried, so it passes through as any other unknown key
+ * does, named by the unchecked-key warning.
+ */
+function mergeExtensionsOverride({
+  settings,
+  extensionsOverride,
+  filePath,
+  logger,
+}: {
+  settings: Record<string, unknown>;
+  extensionsOverride: Record<string, unknown>;
+  filePath: string;
+  logger?: Logger;
+}): void {
+  mergeOverrideTable({
+    settings,
+    tableKey: EXTENSIONS_TABLE_KEY,
+    override: extensionsOverride,
+    knownKeys: DEEPAGENTS_EXTENSIONS_KEYS,
+    warnAboutRelaxations: warnAboutExtensionsRelaxations,
+    filePath,
+    logger,
+  });
+}
+
+/**
+ * Name the value an override key replaces, so a setting the user had turned
+ * down is visible as such rather than reported as a bare new value.
+ */
+function describeOverriddenValue({
+  key,
+  value,
+  previous,
+}: {
+  key: string;
+  value: unknown;
+  previous: Record<string, unknown>;
+}): string {
+  const previousValue = previous[key];
+  return previousValue === undefined || previousValue === value
+    ? `${key} = ${JSON.stringify(value)}`
+    : `${key} = ${JSON.stringify(value)} (was ${JSON.stringify(previousValue)})`;
+}
+
+/**
+ * Warn when the `deepagents` extensions override widens what dcode loads on its
+ * own, for the same reason the startup one does: this block is written into the
+ * user's **global** config from a `.rulesync/permissions.jsonc` a repository
+ * can carry.
+ *
+ * `trust` decides what happens to the Python in a checked-out project's
+ * `.deepagents/extensions/` — `always` imports it into the agent process with
+ * no prompt at all — and `enabled` is the switch above it. `never` and `false`
+ * restrict, so neither is reported.
+ */
+function warnAboutExtensionsRelaxations({
+  override,
+  previous,
+  filePath,
+  logger,
+}: {
+  override: Record<string, unknown>;
+  previous: Record<string, unknown>;
+  filePath: string;
+  logger?: Logger;
+}): void {
+  const relaxations: string[] = [];
+  if (override.trust === "always") {
+    relaxations.push(describeOverriddenValue({ key: "trust", value: "always", previous }));
+  }
+  // `enabled` defaults to `true` upstream, so writing `true` over a key the
+  // user never set is a no-op. Reporting it would bury the case that grants
+  // something — a switch the user had turned off being turned back on.
+  if (
+    override.enabled === true &&
+    (previous.enabled ?? DEEPAGENTS_EXTENSIONS_ENABLED_DEFAULT) !== true
+  ) {
+    relaxations.push(describeOverriddenValue({ key: "enabled", value: true, previous }));
   }
 
-  const startup = isPlainObject(existingStartup) ? { ...existingStartup } : {};
-  const previousStartup = { ...startup };
-  const writtenKeys: string[] = [];
-  // Copied key by key rather than `Object.assign`ed, so a `__proto__` coming
-  // from the JSON config cannot reach the object's prototype.
-  for (const [key, value] of Object.entries(startupOverride)) {
-    if (isPrototypePollutionKey(key)) continue;
-    if (key === STARTUP_RECENT_KEY) continue;
-    // TOML has no null, so smol-toml drops such a key on the way out. Writing
-    // it would leave a warning naming a setting the file does not hold.
-    if (value === null || value === undefined) continue;
-    // Verbatim, so a key added upstream passes through the loose override.
-    startup[key] = value;
-    writtenKeys.push(key);
-  }
-  warnAboutStartupRelaxations({ startupOverride, previousStartup, writtenKeys, filePath, logger });
-  // An override of nothing but dropped keys leaves no table to write; an empty
-  // `[startup]` header would suggest rulesync set something there.
-  if (Object.keys(startup).length > 0) {
-    settings[STARTUP_TABLE_KEY] = startup;
+  if (relaxations.length > 0) {
+    warnWithFallback(
+      logger,
+      `The deepagents extensions override wrote ${relaxations.join(", ")} into ${filePath}, ` +
+        `which is your global deepagents-cli config: it decides whether the Python in a ` +
+        `checked-out project's .deepagents/extensions/ is imported into dcode, for every ` +
+        `project on this machine, not just this one.`,
+    );
   }
 }
 
@@ -755,26 +1041,19 @@ function mergeStartupOverride({
  * setting the user had turned down is visible as such.
  */
 function warnAboutStartupRelaxations({
-  startupOverride,
-  previousStartup,
-  writtenKeys,
+  override: startupOverride,
+  previous: previousStartup,
   filePath,
   logger,
 }: {
-  startupOverride: Record<string, unknown>;
-  previousStartup: Record<string, unknown>;
-  /** The keys the merge actually wrote, so no warning names one it dropped. */
-  writtenKeys: readonly string[];
+  override: Record<string, unknown>;
+  previous: Record<string, unknown>;
   filePath: string;
   logger?: Logger;
 }): void {
   const relaxations: string[] = [];
-  const describe = (key: string, value: unknown): string => {
-    const previous = previousStartup[key];
-    return previous === undefined || previous === value
-      ? `${key} = ${JSON.stringify(value)}`
-      : `${key} = ${JSON.stringify(value)} (was ${JSON.stringify(previous)})`;
-  };
+  const describe = (key: string, value: unknown): string =>
+    describeOverriddenValue({ key, value, previous: previousStartup });
 
   const mode = startupOverride.mode;
   if (mode === "auto" || mode === "yolo") {
@@ -804,20 +1083,6 @@ function warnAboutStartupRelaxations({
       `The deepagents startup override's '${STARTUP_RECENT_KEY}' was not written to ${filePath}: ` +
         `dcode manages that key itself, and with no explicit 'mode' beside it, it is what ` +
         `restores auto-approval at launch. Set 'mode' if switching approval modes is the intent.`,
-    );
-  }
-
-  const known = new Set<string>(DEEPAGENTS_STARTUP_KEYS);
-  const unknownKeys = writtenKeys.filter((key) => !known.has(key));
-  if (unknownKeys.length > 0) {
-    // The override is a loose object so a key added upstream still reaches the
-    // config, but this one writes into the machine's global file: what rulesync
-    // cannot judge, it at least names.
-    warnWithFallback(
-      logger,
-      `The deepagents startup override wrote ${unknownKeys.join(", ")} into ${filePath} ` +
-        `unchecked — rulesync does not know what those keys grant, and that file is your ` +
-        `global deepagents-cli config.`,
     );
   }
 }
