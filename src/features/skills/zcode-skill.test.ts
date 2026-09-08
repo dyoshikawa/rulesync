@@ -57,6 +57,68 @@ describe("ZcodeSkill", () => {
       expect(back.getBody()).toBe("Skill body");
     });
 
+    it("should emit when_to_use from the zcode section and license/metadata from the root", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "test-skill",
+          description: "A test skill",
+          targets: ["*"],
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "example-org" },
+          zcode: { when_to_use: "When the user asks to review a PR" },
+        },
+        body: "Skill body",
+        validate: false,
+      });
+
+      const skill = ZcodeSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+
+      // ZCode documents no `compatibility` field, so it is deliberately dropped.
+      expect(skill.getFrontmatter()).toEqual({
+        name: "test-skill",
+        description: "A test skill",
+        when_to_use: "When the user asks to review a PR",
+        license: "MIT",
+        metadata: { author: "example-org" },
+      });
+
+      const back = skill.toRulesyncSkill();
+      expect(back.getFrontmatter().zcode).toEqual({
+        when_to_use: "When the user asks to review a PR",
+        license: "MIT",
+        metadata: { author: "example-org" },
+      });
+    });
+
+    it("should let the zcode section override the root license and metadata", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "test-skill",
+          description: "A test skill",
+          targets: ["*"],
+          license: "MIT",
+          metadata: { author: "example-org" },
+          zcode: { license: "Apache-2.0", metadata: { version: "1.0.0" } },
+        },
+        body: "Skill body",
+        validate: false,
+      });
+
+      const skill = ZcodeSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "test-skill",
+        description: "A test skill",
+        license: "Apache-2.0",
+        metadata: { version: "1.0.0" },
+      });
+    });
+
     it("should keep the same directory in global mode", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
