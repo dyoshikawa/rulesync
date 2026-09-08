@@ -685,6 +685,43 @@ describe("FactorydroidPermissions", () => {
       );
       expect(imported.factorydroid).toEqual(factorydroid);
     });
+    it("round-trips the five strict/URL/built-in siblings of keys already carried (issue #2957)", async () => {
+      const factorydroid = {
+        builtInToolAutonomyOverrides: { web_search: "high" },
+        mcpAutonomyUrlOverrides: [{ urlPattern: "https://*.internal/*", defaultLevel: "low" }],
+        allowManagedHooksOnly: true,
+        strictEnabledPlugins: true,
+        strictKnownMarketplaces: true,
+      };
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: {}, factorydroid }),
+        }),
+      });
+
+      const settings = JSON.parse(instance.getFileContent());
+      expect(settings.builtInToolAutonomyOverrides).toEqual(
+        factorydroid.builtInToolAutonomyOverrides,
+      );
+      expect(settings.mcpAutonomyUrlOverrides).toEqual(factorydroid.mcpAutonomyUrlOverrides);
+      expect(settings.allowManagedHooksOnly).toBe(true);
+      expect(settings.strictEnabledPlugins).toBe(true);
+      expect(settings.strictKnownMarketplaces).toBe(true);
+
+      const imported = JSON.parse(
+        new FactorydroidPermissions({
+          relativeDirPath: ".factory",
+          relativeFilePath: "settings.json",
+          fileContent: instance.getFileContent(),
+        })
+          .toRulesyncPermissions()
+          .getFileContent(),
+      );
+      expect(imported.factorydroid).toEqual(factorydroid);
+    });
   });
 
   describe("fromFile", () => {
