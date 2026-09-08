@@ -8,6 +8,7 @@ import { ZCODE_SKILLS_DIR_PATH } from "../../constants/zcode-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -17,16 +18,41 @@ import {
 } from "./tool-skill.js";
 
 // ZCode skills use the Anthropic Agent Skills format: a `<name>/SKILL.md`
-// directory whose YAML frontmatter carries `name` and `description` — the same
-// pair the canonical rulesync skill adapter emits. The schema is loose so an
-// imported file carrying extra keys still parses; only the portable pair is
-// carried into the canonical skill, the same as every other skill target.
+// directory whose YAML frontmatter ZCode allowlists to exactly five keys —
+// required `name` and `description`, plus optional `when_to_use` (extra
+// trigger-timing context), `license`, and `metadata` (an object that may carry
+// extras such as `author` / `version`). Fields outside that list "are ignored
+// and do not affect loading", so the schema stays loose: an imported file
+// carrying extra keys still parses, and only the five documented keys are
+// carried into the canonical skill. ZCode documents no `compatibility` field,
+// so the canonical `compatibility` is deliberately not emitted here.
+//
+// The three optional keys are typed to their documented shapes rather than left
+// as `z.unknown()`: they are the same shapes the canonical RulesyncSkill
+// frontmatter enforces, so a value this schema would reject could not have come
+// from — nor round-trip back into — a rulesync skill anyway. ZCode is not known
+// to validate them itself, so the strictness is rulesync's choice, not ZCode's.
+// @see https://zcode.z.ai/en/docs/plugin ("Skill SKILL.md Field Reference")
 export const ZcodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  when_to_use: z.optional(z.string()),
+  license: z.optional(z.string()),
+  metadata: z.optional(z.looseObject({})),
 });
 
 export type ZcodeSkillFrontmatter = z.infer<typeof ZcodeSkillFrontmatterSchema>;
+
+/**
+ * Shape of the `zcode` section stored inside a RulesyncSkill frontmatter.
+ * The RulesyncSkill frontmatter schema is a `z.looseObject`, so this section is
+ * accepted at runtime even though it is not part of `RulesyncSkillFrontmatterInput`.
+ */
+type ZcodeRulesyncSection = {
+  when_to_use?: string;
+  license?: string;
+  metadata?: Record<string, unknown>;
+};
 
 export type ZcodeSkillParams = {
   outputRoot?: string;
@@ -127,10 +153,16 @@ export class ZcodeSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const zcodeSection: ZcodeRulesyncSection = {
+      ...(frontmatter.when_to_use !== undefined && { when_to_use: frontmatter.when_to_use }),
+      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
+      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(Object.keys(zcodeSection).length > 0 && { zcode: zcodeSection }),
     };
 
     return new RulesyncSkill({
@@ -152,10 +184,25 @@ export class ZcodeSkill extends ToolSkill {
     global = false,
   }: ToolSkillFromRulesyncSkillParams): ZcodeSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const zcodeSection = (rulesyncFrontmatter as { zcode?: ZcodeRulesyncSection }).zcode;
+    // `license` and `metadata` fall back to the shared root-level Agent Skills
+    // packaging defaults when the `zcode` section omits them; `when_to_use` is
+    // ZCode-only and has no root-level equivalent.
+    const license = resolveLicense({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: zcodeSection,
+    });
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: zcodeSection,
+    });
 
     const zcodeFrontmatter: ZcodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(zcodeSection?.when_to_use !== undefined && { when_to_use: zcodeSection.when_to_use }),
+      ...(license !== undefined && { license }),
+      ...(metadata !== undefined && { metadata }),
     };
 
     const settablePaths = ZcodeSkill.getSettablePaths({ global });

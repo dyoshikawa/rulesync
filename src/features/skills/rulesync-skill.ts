@@ -364,6 +364,17 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.looseObject({})),
     }),
   ),
+  // ZCode's "Skill SKILL.md Field Reference" allowlists exactly five keys:
+  // required `name`/`description` plus optional `when_to_use`, `license` and
+  // `metadata`. There is no `compatibility` field, so it is not offered here.
+  // https://zcode.z.ai/en/docs/plugin
+  zcode: z.optional(
+    z.looseObject({
+      when_to_use: z.optional(z.string()),
+      license: z.optional(z.string()),
+      metadata: z.optional(z.looseObject({})),
+    }),
+  ),
 });
 
 // Export schema with targets optional for input but guaranteed in output
@@ -555,6 +566,11 @@ export type RulesyncSkillFrontmatterInput = {
     "user-invocable"?: boolean;
     license?: string;
     compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  };
+  zcode?: {
+    when_to_use?: string;
+    license?: string;
     metadata?: Record<string, unknown>;
   };
 };
