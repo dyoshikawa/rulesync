@@ -123,6 +123,12 @@ export const ConfigParamsSchema = z.object({
   simulateCommands: optional(z.boolean()),
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
+  // Keep hook entries a third party wrote into a destination rulesync also
+  // writes (`.claude/settings.json`, `.codex/hooks.json`, `.cursor/hooks.json`)
+  // instead of replacing the list. Off by default: with it on, rulesync records
+  // what it generated in a `.rulesync-hooks-lock.json` beside the destination so
+  // it can still retract its own hooks, and everything else is left alone.
+  preserveUnownedHooks: optional(z.boolean()),
   // Derive `agentsmd.subprojectPath` from each non-root rule's `globs`
   // (`["packages/api/**/*"]` → `packages/api`) so the rule is written as
   // `packages/api/AGENTS.md` by the targets that nest. Off by default: turning
@@ -427,6 +433,7 @@ export class Config {
   private readonly simulateCommands: boolean;
   private readonly simulateSubagents: boolean;
   private readonly simulateSkills: boolean;
+  private readonly preserveUnownedHooks: boolean;
   private readonly deriveSubprojectPathFromGlobs: boolean;
   private readonly flattenedCommandNaming: FlattenedCommandNaming;
   private readonly language: Language | undefined;
@@ -465,6 +472,7 @@ export class Config {
     simulateCommands,
     simulateSubagents,
     simulateSkills,
+    preserveUnownedHooks,
     deriveSubprojectPathFromGlobs,
     flattenedCommandNaming,
     language,
@@ -528,6 +536,7 @@ export class Config {
     this.simulateCommands = simulateCommands ?? false;
     this.simulateSubagents = simulateSubagents ?? false;
     this.simulateSkills = simulateSkills ?? false;
+    this.preserveUnownedHooks = preserveUnownedHooks ?? false;
     this.deriveSubprojectPathFromGlobs = deriveSubprojectPathFromGlobs ?? false;
     this.flattenedCommandNaming = flattenedCommandNaming ?? "basename";
     this.language = language;
@@ -822,6 +831,10 @@ export class Config {
 
   public getSimulateCommands(): boolean {
     return this.simulateCommands;
+  }
+
+  public getPreserveUnownedHooks(): boolean {
+    return this.preserveUnownedHooks;
   }
 
   public getFlattenedCommandNaming(): FlattenedCommandNaming {

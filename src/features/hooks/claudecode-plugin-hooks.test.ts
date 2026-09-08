@@ -153,7 +153,6 @@ describe("ClaudecodePluginHooks", () => {
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
           version: 1,
-          preserveUnowned: true,
           hooks: { sessionStart: [{ type: "command", command: "./scripts/fmt.sh" }] },
         }),
         validate: false,
@@ -164,6 +163,7 @@ describe("ClaudecodePluginHooks", () => {
           await ClaudecodePluginHooks.fromRulesyncHooks({
             outputRoot: testDir,
             rulesyncHooks,
+            preserveUnowned: true,
             validate: false,
           })
         ).getFileContent(),

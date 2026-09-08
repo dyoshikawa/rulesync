@@ -775,6 +775,7 @@ const hooksProcessorToolTargetsGlobalImportable: ToolTarget[] = [...toolHooksFac
 export class HooksProcessor extends FeatureProcessor {
   private readonly toolTarget: HooksProcessorToolTarget;
   private readonly global: boolean;
+  private readonly preserveUnownedHooks: boolean;
 
   constructor({
     outputRoot = process.cwd(),
@@ -782,6 +783,7 @@ export class HooksProcessor extends FeatureProcessor {
     toolTarget,
     global = false,
     dryRun = false,
+    preserveUnownedHooks = false,
     logger,
   }: {
     outputRoot?: string;
@@ -789,6 +791,7 @@ export class HooksProcessor extends FeatureProcessor {
     toolTarget: ToolTarget;
     global?: boolean;
     dryRun?: boolean;
+    preserveUnownedHooks?: boolean;
     logger: Logger;
   }) {
     super({ outputRoot, inputRoots, dryRun, logger });
@@ -800,6 +803,7 @@ export class HooksProcessor extends FeatureProcessor {
     }
     this.toolTarget = result.data;
     this.global = global;
+    this.preserveUnownedHooks = preserveUnownedHooks;
   }
 
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
@@ -981,6 +985,7 @@ export class HooksProcessor extends FeatureProcessor {
       rulesyncHooks,
       validate: true,
       global: this.global,
+      preserveUnowned: this.preserveUnownedHooks,
       // The converter is shared by every target, so its warnings say what is
       // wrong but not which file is being written. Every other warning here
       // names the tool, and one generate run walks all of them.

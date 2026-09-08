@@ -50,6 +50,24 @@ Example:
   "simulateSubagents": false, // Generate simulated subagents
   "simulateSkills": false, // Generate simulated skills
 
+  // Keep hook handlers Rulesync did not write when regenerating a tool's hooks
+  // file. By default the generated hooks replace the destination's hook list
+  // wholesale, so a handler another tool (or a person) added by hand is lost on
+  // the next `generate`. Turning this on keeps such handlers and appends the
+  // generated ones. It applies to Claude Code, Codex CLI and Cursor, in both
+  // project and global scope; the Claude Code *plugin* bundle always replaces,
+  // because Rulesync owns that directory outright. There is no CLI flag: this
+  // is a project policy, not a per-invocation one.
+  //
+  // To stay able to retract a hook it did write, Rulesync records what it
+  // generated in a `.rulesync-hooks-lock.json` next to each hooks file (e.g.
+  // `.claude/.rulesync-hooks-lock.json`). Commit it alongside the generated
+  // hooks. A handler listed there that the sources no longer define is removed;
+  // anything else is kept. The very first run after opting in has no lock yet,
+  // so a hook Rulesync wrote before is kept once and retracted from the run
+  // after that.
+  "preserveUnownedHooks": false,
+
   // Derive `agentsmd.subprojectPath` from each non-root rule's `globs`, so a
   // rule with `globs: ["packages/api/**/*"]` is written as
   // `packages/api/AGENTS.md` (nested AGENTS.md) by the targets that nest,

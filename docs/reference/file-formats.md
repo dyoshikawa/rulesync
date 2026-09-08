@@ -223,6 +223,8 @@ Example:
 - `hooks`: Map of canonical event names to an array of hook entries. These are dispatched to every tool that supports the given event.
 - `amp.hooks`, `cursor.hooks`, `claudecode.hooks`, `opencode.hooks`, `kilo.hooks`, `copilot.hooks`, `copilotcli.hooks`, `factorydroid.hooks`, `codexcli.hooks`, `goose.hooks`, `deepagents.hooks`, `kiro.hooks`, `qwencode.hooks`, `grokcli.hooks`, `zcode.hooks`: Tool-specific **override keys**. Entries under these keys are emitted only for the corresponding tool, so tool-only events (e.g. `afterFileEdit` for Cursor/OpenCode/Kilo, `worktreeCreate` for Claude Code, `afterError` for Copilot/Copilot CLI, `PostFileSave`/`PreTaskExec` for Kiro) can coexist with shared ones without leaking to other tools. `copilotcli.hooks` falls back to `copilot.hooks`, which in turn falls back to the shared `hooks` block.
 
+By default the generated hooks replace the destination's hook list wholesale, so a handler another tool or a person added by hand there is lost on the next `generate`. Setting `"preserveUnownedHooks": true` in `rulesync.jsonc` keeps those handlers and appends the generated ones instead; see [Configuration](../guide/configuration.md). It covers Claude Code, Codex CLI and Cursor (the Claude Code plugin bundle always replaces) and records what Rulesync generated in a `.rulesync-hooks-lock.json` next to each hooks file, so a hook Rulesync wrote and the sources no longer define is still retracted.
+
 **Hook entry keys:**
 
 - `command` (required): Shell command to execute when the event fires.

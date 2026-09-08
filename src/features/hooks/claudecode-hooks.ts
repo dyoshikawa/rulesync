@@ -1,13 +1,13 @@
 import { join } from "node:path";
 
 import { CLAUDECODE_DIR, CLAUDECODE_SETTINGS_FILE_NAME } from "../../constants/claudecode-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import {
   CLAUDE_HOOK_EVENTS,
   CLAUDE_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_CLAUDE_EVENT_NAMES,
 } from "../../types/hooks.js";
+import type { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -15,6 +15,7 @@ import {
   applySharedConfigPatch,
   CLAUDE_SETTINGS_SHARED_FILE_KEY,
 } from "../shared/shared-config-gateway.js";
+import { HOOKS_OWNERSHIP_LOCK_FILE_NAME, parseHooksOwnershipLock } from "./hooks-ownership-lock.js";
 import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
@@ -28,6 +29,7 @@ import {
   type ToolHooksForDeletionParams,
   type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
+  type ToolHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
@@ -87,7 +89,7 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
 };
 
 export class ClaudecodeHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
+  constructor(params: ToolHooksParams) {
     super({
       ...params,
       fileContent: params.fileContent ?? "{}",
@@ -130,11 +132,27 @@ export class ClaudecodeHooks extends ToolHooks {
     });
   }
 
+  static override supportsPreserveUnowned(): boolean {
+    return true;
+  }
+
+  static override async getAuxiliaryFiles({
+    toolHooks,
+  }: {
+    outputRoot?: string;
+    global?: boolean;
+    toolHooks?: ToolHooks;
+    logger?: Logger;
+  } = {}): Promise<ToolFile[]> {
+    return toolHooks instanceof ClaudecodeHooks ? toolHooks.getOwnershipLockFiles() : [];
+  }
+
   static async fromRulesyncHooks({
     outputRoot = process.cwd(),
     rulesyncHooks,
     validate = true,
     global = false,
+    preserveUnowned = false,
     logger,
   }: ToolHooksFromRulesyncHooksParams & {
     global?: boolean;
@@ -150,21 +168,27 @@ export class ClaudecodeHooks extends ToolHooks {
       converterConfig: this.getConverterConfig(),
       logger,
     });
-    const preserveUnowned =
-      paths.relativeDirPath === CLAUDECODE_DIR && config.preserveUnowned === true;
+    const preserving = preserveUnowned && this.supportsPreserveUnowned();
+    const previouslyOwned = preserving
+      ? parseHooksOwnershipLock(
+          await readFileContentOrNull(
+            join(outputRoot, paths.relativeDirPath, HOOKS_OWNERSHIP_LOCK_FILE_NAME),
+          ),
+        )
+      : undefined;
+    const merged = mergeGeneratedHookLists({
+      existingContent,
+      generatedHooks: claudeHooks,
+      shape: "matcher-groups",
+      preserveUnowned: preserving,
+      previouslyOwned,
+      logger,
+    });
     const fileContent = applySharedConfigPatch({
       fileKey: CLAUDE_SETTINGS_SHARED_FILE_KEY,
       feature: "hooks",
       existingContent,
-      patch: {
-        hooks: mergeGeneratedHookLists({
-          existingContent,
-          generatedHooks: claudeHooks,
-          shape: "matcher-groups",
-          preserveUnowned,
-          logger,
-        }),
-      },
+      patch: { hooks: merged.hooks },
       filePath,
     });
     return new this({
@@ -172,6 +196,7 @@ export class ClaudecodeHooks extends ToolHooks {
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
+      ownedHookRefs: preserving ? merged.owned : undefined,
       validate,
     });
   }

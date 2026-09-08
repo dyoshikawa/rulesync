@@ -170,7 +170,6 @@ describe("CursorHooks", () => {
         relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
           version: 1,
-          preserveUnowned: true,
           hooks: { sessionStart: [{ type: "command", command: "shared.sh" }] },
         }),
         validate: false,
@@ -181,6 +180,7 @@ describe("CursorHooks", () => {
           await CursorHooks.fromRulesyncHooks({
             outputRoot: testDir,
             rulesyncHooks,
+            preserveUnowned: true,
             validate: false,
           })
         ).getFileContent(),

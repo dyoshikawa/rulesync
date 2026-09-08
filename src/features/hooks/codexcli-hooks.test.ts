@@ -458,7 +458,6 @@ describe("CodexcliHooks", () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
           fileContent: JSON.stringify({
-            preserveUnowned: true,
             hooks: { sessionStart: [{ command: "echo start" }] },
           }),
         }),
@@ -469,6 +468,7 @@ describe("CodexcliHooks", () => {
           await CodexcliHooks.fromRulesyncHooks({
             outputRoot: testDir,
             rulesyncHooks,
+            preserveUnowned: true,
             validate: true,
           })
         ).getFileContent(),

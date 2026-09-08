@@ -68,6 +68,7 @@ const getDefaults = (): ConfigDefaults => ({
   simulateCommands: false,
   simulateSubagents: false,
   simulateSkills: false,
+  preserveUnownedHooks: false,
   deriveSubprojectPathFromGlobs: false,
   flattenedCommandNaming: "basename",
   gitignoreTargetsOnly: true,
@@ -145,6 +146,7 @@ const mergeConfigs = (
     simulateCommands: localConfig.simulateCommands ?? baseConfig.simulateCommands,
     simulateSubagents: localConfig.simulateSubagents ?? baseConfig.simulateSubagents,
     simulateSkills: localConfig.simulateSkills ?? baseConfig.simulateSkills,
+    preserveUnownedHooks: localConfig.preserveUnownedHooks ?? baseConfig.preserveUnownedHooks,
     deriveSubprojectPathFromGlobs:
       localConfig.deriveSubprojectPathFromGlobs ?? baseConfig.deriveSubprojectPathFromGlobs,
     flattenedCommandNaming: localConfig.flattenedCommandNaming ?? baseConfig.flattenedCommandNaming,
@@ -544,6 +546,13 @@ export class ConfigResolver {
         cli: simulateSkills,
         file: configByFile.simulateSkills,
         fallback: getDefaults().simulateSkills,
+      }),
+      // Config-file only: preserving is a property of the destination files a
+      // project shares with other tools, not of a single run.
+      preserveUnownedHooks: pick({
+        cli: undefined,
+        file: configByFile.preserveUnownedHooks,
+        fallback: getDefaults().preserveUnownedHooks,
       }),
       deriveSubprojectPathFromGlobs: pick({
         cli: deriveSubprojectPathFromGlobs,

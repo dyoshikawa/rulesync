@@ -1,102 +1,152 @@
 import type { Logger } from "../../utils/logger.js";
-import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
+import {
+  isPrototypePollutionKey,
+  omitPrototypePollutionKeys,
+} from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
+import { type OwnedHookRef, ownedHookKey } from "./hooks-ownership-lock.js";
 
 export type HookListShape = "matcher-groups" | "flat";
 
+export type MergedHookLists = {
+  /** The `hooks` value to write. */
+  hooks: Record<string, unknown[]>;
+  /**
+   * Every handler this run generated, to be recorded in the ownership lock.
+   * Preserved third-party handlers are deliberately absent: rulesync must not
+   * claim, and therefore must never retract, a hook it did not write.
+   */
+  owned: OwnedHookRef[];
+};
+
 /**
- * Read the `hooks` value from a dest JSON file. Empty and invalid files yield
- * `undefined`, so generate still writes the generated set.
+ * Read the `hooks` value from a destination JSON file.
+ *
+ * `malformed` separates "the file has no hooks" from "the file could not be
+ * read", so a caller that is about to preserve content can say out loud that
+ * it is replacing a file it failed to parse.
  */
-export function parseExistingHooksValue(existingContent: string): unknown {
+export function parseExistingHooksValue(existingContent: string): {
+  hooks: unknown;
+  malformed: boolean;
+} {
+  if (existingContent.trim() === "") {
+    return { hooks: undefined, malformed: false };
+  }
   try {
-    const parsed: unknown = existingContent.trim() === "" ? {} : JSON.parse(existingContent);
-    return isPlainObject(parsed) ? parsed.hooks : undefined;
+    const parsed: unknown = JSON.parse(existingContent);
+    return { hooks: isPlainObject(parsed) ? parsed.hooks : undefined, malformed: false };
   } catch {
-    return undefined;
+    return { hooks: undefined, malformed: true };
   }
 }
 
 /**
- * Replace the dest hooks list, or merge unowned existing handlers when
- * `preserveUnowned` is set in `.rulesync/hooks.jsonc`.
+ * Produce the destination hooks list, optionally keeping handlers rulesync does
+ * not own.
+ *
+ * Ownership is decided by `previouslyOwned` — the identities recorded in the
+ * destination's ownership lock on the previous run — and never by guessing from
+ * the command text. That is what makes removal work: a handler rulesync wrote
+ * before and no longer generates is retracted, while a handler rulesync has
+ * never written is left alone. Without a lock (the first run after opting in)
+ * nothing is retracted, which is the non-destructive direction.
+ *
+ * Callers must pass the destination's shape. Plugin destinations are fully
+ * owned by rulesync and must not call this.
  */
 export function mergeGeneratedHookLists({
   existingContent,
   generatedHooks,
   shape,
   preserveUnowned,
+  previouslyOwned,
   logger,
 }: {
   existingContent: string;
   generatedHooks: Record<string, unknown[]>;
   shape: HookListShape;
   preserveUnowned: boolean;
+  previouslyOwned?: ReadonlySet<string>;
   logger?: Logger;
-}): Record<string, unknown[]> {
+}): MergedHookLists {
+  const owned = collectOwnedRefs({ generatedHooks, shape });
   if (!preserveUnowned) {
-    return generatedHooks;
+    return { hooks: generatedHooks, owned };
   }
-  return preserveUnownedHookCommands({
-    existingHooks: parseExistingHooksValue(existingContent),
-    generatedHooks,
-    shape,
-    logger,
-  });
+  const { hooks: existingHooks, malformed } = parseExistingHooksValue(existingContent);
+  if (malformed) {
+    logger?.warn(
+      "Replacing hooks wholesale: the existing file is not valid JSON, so no third-party hook in it can be preserved.",
+    );
+  }
+  return {
+    hooks: preserveUnownedHookCommands({
+      existingHooks,
+      generatedHooks,
+      shape,
+      owned,
+      previouslyOwned: previouslyOwned ?? new Set(),
+      logger,
+    }),
+    owned,
+  };
 }
 
 /**
- * Keep dest handlers that the generated set does not own.
+ * Merge the destination's existing handlers into the generated set.
  *
- * A handler is owned when its type-aware identity is already in the generated
- * set for that event, or when its command refers to `.rulesync/hooks` (a stale
- * rulesync write). Identity is command / url / server+tool / prompt. Import is
- * unchanged. Callers must pass the dest shape; plugin destinations should not call this.
+ * Each existing handler falls into exactly one of three cases:
+ * - this run generates it → the generated copy stands, the existing one is dropped;
+ * - a previous run generated it and this one does not → it is retracted, with a warning;
+ * - neither → it is unowned, and kept.
  */
 export function preserveUnownedHookCommands({
   existingHooks,
   generatedHooks,
   shape,
+  owned,
+  previouslyOwned,
   logger,
 }: {
   existingHooks: unknown;
   generatedHooks: Record<string, unknown[]>;
   shape: HookListShape;
+  owned: readonly OwnedHookRef[];
+  previouslyOwned: ReadonlySet<string>;
   logger?: Logger;
 }): Record<string, unknown[]> {
+  const result = cloneGeneratedHooks({ generatedHooks, shape });
   if (!isPlainObject(existingHooks)) {
-    return generatedHooks;
+    return result;
   }
 
-  const result: Record<string, unknown[]> = Object.create(null);
-  for (const [event, value] of Object.entries(generatedHooks)) {
-    if (isPrototypePollutionKey(event) || !Array.isArray(value)) {
-      continue;
-    }
-    result[event] =
-      shape === "matcher-groups"
-        ? value.map((group) => cloneMatcherGroup(group))
-        : value.map((handler) => cloneHandler(handler));
-  }
+  const seen = new Set(owned.map((ref) => ownedHookKey(ref)));
 
   for (const [event, existingValue] of Object.entries(existingHooks)) {
-    if (isPrototypePollutionKey(event) || !Array.isArray(existingValue)) {
+    if (isPrototypePollutionKey(event)) {
       continue;
     }
-    const generatedValue = Object.hasOwn(result, event) ? result[event] : undefined;
-    const generatedList = Array.isArray(generatedValue) ? generatedValue : [];
+    if (!Array.isArray(existingValue)) {
+      warnSkip({ logger, event, expected: "an array of hook entries" });
+      continue;
+    }
     const merged =
       shape === "matcher-groups"
         ? mergeMatcherGroups({
             existing: existingValue,
-            generated: generatedList,
+            generated: result[event] ?? [],
             event,
+            seen,
+            previouslyOwned,
             logger,
           })
         : mergeFlatHandlers({
             existing: existingValue,
-            generated: generatedList,
+            generated: result[event] ?? [],
             event,
+            seen,
+            previouslyOwned,
             logger,
           });
     if (merged.length === 0) {
@@ -109,42 +159,102 @@ export function preserveUnownedHookCommands({
   return result;
 }
 
+function cloneGeneratedHooks({
+  generatedHooks,
+  shape,
+}: {
+  generatedHooks: Record<string, unknown[]>;
+  shape: HookListShape;
+}): Record<string, unknown[]> {
+  const result: Record<string, unknown[]> = Object.create(null);
+  for (const [event, value] of Object.entries(generatedHooks)) {
+    if (isPrototypePollutionKey(event) || !Array.isArray(value)) {
+      continue;
+    }
+    result[event] =
+      shape === "matcher-groups"
+        ? value.map((group) => cloneMatcherGroup(group))
+        : value.map((handler) => cloneHandler(handler));
+  }
+  return result;
+}
+
+/** The identities of every handler in the generated set, in destination order. */
+function collectOwnedRefs({
+  generatedHooks,
+  shape,
+}: {
+  generatedHooks: Record<string, unknown[]>;
+  shape: HookListShape;
+}): OwnedHookRef[] {
+  const owned: OwnedHookRef[] = [];
+  for (const [event, value] of Object.entries(generatedHooks)) {
+    if (isPrototypePollutionKey(event) || !Array.isArray(value)) {
+      continue;
+    }
+    if (shape === "flat") {
+      for (const handler of value) {
+        if (isPlainObject(handler)) {
+          owned.push({ event, identity: handlerIdentity(handler) });
+        }
+      }
+      continue;
+    }
+    for (const group of value) {
+      if (!isMatcherGroup(group)) {
+        continue;
+      }
+      const matcher = matcherKey(group.matcher);
+      for (const handler of group.hooks) {
+        if (isPlainObject(handler)) {
+          owned.push({ event, matcher, identity: handlerIdentity(handler) });
+        }
+      }
+    }
+  }
+  return owned;
+}
+
 function mergeMatcherGroups({
   existing,
   generated,
   event,
+  seen,
+  previouslyOwned,
   logger,
 }: {
   existing: unknown[];
   generated: unknown[];
   event: string;
+  seen: Set<string>;
+  previouslyOwned: ReadonlySet<string>;
   logger: Logger | undefined;
 }): unknown[] {
-  const merged = generated.map((group) => cloneMatcherGroup(group));
-  const owned = identitiesIn(merged, { matcherGroups: true });
+  const merged = [...generated];
 
   for (const group of existing) {
     if (!isMatcherGroup(group)) {
       warnSkip({ logger, event, expected: "a matcher group" });
       continue;
     }
-    const leftovers = group.hooks.filter((handler) => shouldPreserve({ handler, owned }));
-    if (leftovers.length === 0) {
+    const matcher = matcherKey(group.matcher);
+    const preserved = group.hooks
+      .filter((handler) =>
+        shouldPreserve({ handler, event, matcher, seen, previouslyOwned, logger }),
+      )
+      .map((handler) => cloneHandler(handler));
+    if (preserved.length === 0) {
       continue;
     }
-    const matcher = matcherKey(group.matcher);
     const target = merged.find(
       (candidate) => isMatcherGroup(candidate) && matcherKey(candidate.matcher) === matcher,
     );
-    const clonedLeftovers = leftovers.map((handler) => cloneHandler(handler));
     if (target !== undefined && isMatcherGroup(target)) {
-      target.hooks.push(...clonedLeftovers);
+      target.hooks.push(...preserved);
     } else {
-      merged.push({ ...group, hooks: clonedLeftovers });
-    }
-    for (const handler of leftovers) {
-      rememberOwned({ handler, owned });
-      warnPreserved({ logger, event, handler });
+      // Group-level keys other than `hooks` (a Factory Droid `commandRegex`,
+      // say) belong to the preserved handlers, so they ride along.
+      merged.push({ ...omitPrototypePollutionKeys(group), hooks: preserved });
     }
   }
 
@@ -155,31 +265,29 @@ function mergeFlatHandlers({
   existing,
   generated,
   event,
+  seen,
+  previouslyOwned,
   logger,
 }: {
   existing: unknown[];
   generated: unknown[];
   event: string;
+  seen: Set<string>;
+  previouslyOwned: ReadonlySet<string>;
   logger: Logger | undefined;
 }): unknown[] {
-  const owned = identitiesIn(generated, { matcherGroups: false });
-  const leftovers: unknown[] = [];
+  const preserved: unknown[] = [];
   for (const handler of existing) {
     if (isMatcherGroup(handler)) {
       warnSkip({ logger, event, expected: "a flat handler" });
       continue;
     }
-    if (!shouldPreserve({ handler, owned })) {
+    if (!shouldPreserve({ handler, event, matcher: undefined, seen, previouslyOwned, logger })) {
       continue;
     }
-    leftovers.push(cloneHandler(handler));
-    rememberOwned({ handler, owned });
-    warnPreserved({ logger, event, handler });
+    preserved.push(cloneHandler(handler));
   }
-  if (leftovers.length === 0) {
-    return generated.map((handler) => cloneHandler(handler));
-  }
-  return [...generated, ...leftovers];
+  return [...generated, ...preserved];
 }
 
 type MatcherGroup = {
@@ -199,64 +307,72 @@ function cloneMatcherGroup(group: unknown): unknown {
 }
 
 function cloneHandler(handler: unknown): unknown {
-  return isPlainObject(handler) ? { ...handler } : handler;
+  return isPlainObject(handler) ? omitPrototypePollutionKeys(handler) : handler;
 }
 
-function identitiesIn(
-  values: unknown[],
-  { matcherGroups }: { matcherGroups: boolean },
-): Set<string> {
-  const owned = new Set<string>();
-  for (const value of values) {
-    const handlers = matcherGroups && isMatcherGroup(value) ? value.hooks : [value];
-    for (const handler of handlers) {
-      rememberOwned({ handler, owned });
-    }
-  }
-  return owned;
-}
-
-function rememberOwned({ handler, owned }: { handler: unknown; owned: Set<string> }): void {
-  const identity = handlerIdentity(handler);
-  if (identity !== undefined) {
-    owned.add(identity);
-  }
-}
-
-function shouldPreserve({ handler, owned }: { handler: unknown; owned: Set<string> }): boolean {
-  if (isStaleRulesyncCommand(handler)) {
+/**
+ * Decide one existing handler, and remember it so an exact duplicate later in
+ * the same event is not appended twice.
+ */
+function shouldPreserve({
+  handler,
+  event,
+  matcher,
+  seen,
+  previouslyOwned,
+  logger,
+}: {
+  handler: unknown;
+  event: string;
+  matcher: string | undefined;
+  seen: Set<string>;
+  previouslyOwned: ReadonlySet<string>;
+  logger: Logger | undefined;
+}): boolean {
+  if (!isPlainObject(handler)) {
+    warnSkip({ logger, event, expected: "a hook object" });
     return false;
   }
   const identity = handlerIdentity(handler);
-  if (identity === undefined) {
-    return isPlainObject(handler);
+  const key = ownedHookKey({ event, matcher, identity });
+  if (seen.has(key)) {
+    return false;
   }
-  return !owned.has(identity);
+  if (previouslyOwned.has(key)) {
+    logger?.warn(`Removing hook rulesync no longer generates on ${event}: ${identity}`);
+    return false;
+  }
+  seen.add(key);
+  logger?.warn(`Preserving unowned hook on ${event}: ${identity}`);
+  return true;
 }
 
-function isStaleRulesyncCommand(handler: unknown): boolean {
-  return (
-    isPlainObject(handler) &&
-    typeof handler.command === "string" &&
-    handler.command.includes(".rulesync/hooks")
-  );
-}
-
-function handlerIdentity(handler: unknown): string | undefined {
-  if (!isPlainObject(handler)) {
-    return undefined;
-  }
+/**
+ * A handler's identity is its action, not its whole shape: two entries running
+ * the same command are the same hook even if their timeouts differ, so the
+ * generated one replaces the existing one instead of doubling it. Shapes with
+ * no recognizable action fall back to their full structure, which keeps them
+ * comparable across runs — the alternative, no identity at all, made them
+ * accumulate on every generate.
+ */
+function handlerIdentity(handler: Record<string, unknown>): string {
   const type = typeof handler.type === "string" ? handler.type : inferredType(handler);
   switch (type) {
     case "http":
-      return taggedIdentity("http", handler.url);
+      return taggedIdentity("http", handler.url) ?? structuralIdentity(handler);
     case "mcp_tool":
-      return mcpToolIdentity(handler);
+      return mcpToolIdentity(handler) ?? structuralIdentity(handler);
     case "prompt":
     case "agent":
-      return taggedIdentity(type, handler.prompt);
+      return taggedIdentity(type, handler.prompt) ?? structuralIdentity(handler);
+    case "function":
+      return taggedIdentity("function", handler.name) ?? structuralIdentity(handler);
     default:
-      return taggedIdentity("command", handler.command) ?? taggedIdentity("prompt", handler.prompt);
+      return (
+        taggedIdentity("command", handler.command) ??
+        taggedIdentity("prompt", handler.prompt) ??
+        structuralIdentity(handler)
+      );
   }
 }
 
@@ -271,31 +387,40 @@ function taggedIdentity(kind: string, value: unknown): string | undefined {
 function mcpToolIdentity(handler: Record<string, unknown>): string | undefined {
   const server = typeof handler.server === "string" ? handler.server : "";
   const tool = typeof handler.tool === "string" ? handler.tool : "";
-  return server !== "" || tool !== "" ? `mcp_tool:${server}:${tool}` : undefined;
+  if (server === "" && tool === "") {
+    return undefined;
+  }
+  // `input` is part of what the hook does, so two calls to the same tool with
+  // different arguments are different hooks.
+  return `mcp_tool:${server}:${tool}:${stableStringify(handler.input)}`;
 }
 
+function structuralIdentity(handler: Record<string, unknown>): string {
+  return `json:${stableStringify(handler)}`;
+}
+
+/** Key-order-independent JSON, so an identity survives a rewritten file. */
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
+  }
+  if (isPlainObject(value)) {
+    const entries = Object.entries(value)
+      .filter(([key]) => !isPrototypePollutionKey(key))
+      .toSorted(([left], [right]) => (left === right ? 0 : left < right ? -1 : 1))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/**
+ * Matcher groups are matched by the whole matcher value, not just strings: a
+ * non-string matcher is a shape rulesync does not emit, and collapsing every
+ * such group onto one key would merge unrelated third-party groups together.
+ */
 function matcherKey(matcher: unknown): string {
-  if (matcher === undefined) {
-    return "undefined-matcher";
-  }
-  return typeof matcher === "string" ? `s:${matcher}` : "other";
-}
-
-function warnPreserved({
-  logger,
-  event,
-  handler,
-}: {
-  logger: Logger | undefined;
-  event: string;
-  handler: unknown;
-}): void {
-  if (logger === undefined) {
-    return;
-  }
-  logger.warn(
-    `Preserving unowned hook on ${event}: ${handlerIdentity(handler) ?? "untyped handler"}`,
-  );
+  return matcher === undefined ? "" : stableStringify(matcher);
 }
 
 function warnSkip({
@@ -307,8 +432,5 @@ function warnSkip({
   event: string;
   expected: string;
 }): void {
-  if (logger === undefined) {
-    return;
-  }
-  logger.warn(`Skipping existing hook entry on ${event}: expected ${expected}`);
+  logger?.warn(`Skipping existing hook entry on ${event}: expected ${expected}`);
 }
