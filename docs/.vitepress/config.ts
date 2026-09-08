@@ -28,8 +28,15 @@ export default defineConfig({
     }
 
     const pagePath = pageData.relativePath.replace(/(^|\/)index\.md$/, "$1").replace(/\.md$/, "");
+    // Encode per segment: `encodeURI` would leave `#` and `?` intact, turning
+    // part of a filename into a fragment or a query string.
+    const pageUrl = `${siteUrl}/${pagePath.split("/").map(encodeURIComponent).join("/")}`;
 
-    return [["link", { rel: "canonical", href: `${siteUrl}/${encodeURI(pagePath)}` }]];
+    return [
+      ["link", { rel: "canonical", href: pageUrl }],
+      // Social crawlers canonicalize on og:url rather than on rel=canonical.
+      ["meta", { property: "og:url", content: pageUrl }],
+    ];
   },
 
   head: [
