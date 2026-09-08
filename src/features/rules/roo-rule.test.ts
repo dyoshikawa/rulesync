@@ -152,6 +152,52 @@ describe("RooRule", () => {
         }),
       ).rejects.toThrow();
     });
+
+    it("should import ~/.roo/rules/AGENTS.md as the root rule in global mode", async () => {
+      const rulesDir = join(testDir, ".roo/rules");
+      await ensureDir(rulesDir);
+      await writeFileContent(join(rulesDir, "AGENTS.md"), "# Global overview");
+
+      const rooRule = await RooRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "AGENTS.md",
+        global: true,
+      });
+
+      // The root rule shares the rules directory with the non-root files in
+      // global scope, so the basename is what identifies it on import.
+      expect(rooRule.isRoot()).toBe(true);
+      expect(rooRule.getRelativeDirPath()).toBe(".roo/rules");
+    });
+
+    it("should import a sibling of the global root rule as a non-root rule", async () => {
+      const rulesDir = join(testDir, ".roo/rules");
+      await ensureDir(rulesDir);
+      await writeFileContent(join(rulesDir, "topic.md"), "# Topic");
+
+      const rooRule = await RooRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "topic.md",
+        global: true,
+      });
+
+      expect(rooRule.isRoot()).toBe(false);
+    });
+
+    it("should import AGENTS.md as a non-root rule in project mode", async () => {
+      const rulesDir = join(testDir, ".roo/rules");
+      await ensureDir(rulesDir);
+      await writeFileContent(join(rulesDir, "AGENTS.md"), "# Not the project root");
+
+      const rooRule = await RooRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "AGENTS.md",
+      });
+
+      // Project scope keeps its root at the workspace-root `AGENTS.md`, so a
+      // file of the same name inside `.roo/rules/` is an ordinary rule.
+      expect(rooRule.isRoot()).toBe(false);
+    });
   });
 
   describe("fromRulesyncRule", () => {
@@ -197,6 +243,47 @@ describe("RooRule", () => {
       });
 
       expect(rooRule.getFilePath()).toBe("/custom/base/.roo/rules/custom-base.md");
+    });
+
+    it("should emit the root rule to the workspace root in project mode", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Root overview",
+          globs: ["**/*"],
+        },
+        body: "# Root overview",
+      });
+
+      const rooRule = RooRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(rooRule.getRelativeDirPath()).toBe(".");
+      expect(rooRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should emit the root rule to ~/.roo/rules/AGENTS.md in global mode", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "overview.md",
+        frontmatter: {
+          root: true,
+          targets: ["*"],
+          description: "Root overview",
+          globs: ["**/*"],
+        },
+        body: "# Root overview",
+      });
+
+      const rooRule = RooRule.fromRulesyncRule({ rulesyncRule, global: true });
+
+      // Not `~/AGENTS.md`: agent-rules discovery is workspace-only, so the
+      // root rule joins the non-root files in the directory Roo does load.
+      expect(rooRule.getRelativeDirPath()).toBe(".roo/rules");
+      expect(rooRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(rooRule.isRoot()).toBe(true);
     });
 
     it("should emit non-root rules to ~/.roo/rules in global mode", () => {
@@ -398,6 +485,22 @@ describe("RooRule", () => {
 
       expect(paths).toHaveProperty("nonRoot");
       expect(paths.nonRoot).toHaveProperty("relativeDirPath");
+    });
+
+    it("should declare no root in project mode, leaving the workspace AGENTS.md default", () => {
+      // Agent-rules discovery reads `cwd`, so the default project root is right.
+      expect(RooRule.getSettablePaths()).not.toHaveProperty("root");
+    });
+
+    it("should put the global root rule inside the rules directory Roo actually loads", () => {
+      const paths = RooRule.getSettablePaths({ global: true });
+
+      // Home scope has only `~/.roo` and `~/.agents`; `~/AGENTS.md` is never
+      // read, so the default project-scope root would be silently discarded.
+      expect("root" in paths && paths.root).toEqual({
+        relativeDirPath: ".roo/rules",
+        relativeFilePath: "AGENTS.md",
+      });
     });
 
     it("should return the same non-root directory in global mode (~/.roo/rules)", () => {
