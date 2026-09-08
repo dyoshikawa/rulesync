@@ -31,11 +31,29 @@ import {
  */
 const CodebuddyRuleFrontmatterSchema = z.object({
   description: z.optional(z.string()),
-  paths: z.optional(z.array(z.string())),
+  // Documented as `string`/`string[]`, and every example in the Rule Control
+  // Fields section uses the bare-string form, so both have to parse.
+  paths: z.optional(z.union([z.string(), z.array(z.string())])),
   alwaysApply: z.optional(z.boolean()),
+  // Defaults to `true`; `false` makes CodeBuddy skip loading the rule
+  // entirely, so it has to survive an import/generate round trip.
+  enabled: z.optional(z.boolean()),
 });
 
 export type CodebuddyRuleFrontmatter = z.infer<typeof CodebuddyRuleFrontmatterSchema>;
+
+/**
+ * Normalizes the documented `string` / `string[]` shapes of `paths` to the
+ * list form the rest of the adapter works with. An empty list and an empty
+ * string both mean "no paths".
+ */
+function normalizeCodebuddyPaths(paths: string | string[] | undefined): string[] | undefined {
+  if (paths === undefined) {
+    return undefined;
+  }
+  const list = (typeof paths === "string" ? [paths] : paths).filter((path) => path.trim() !== "");
+  return list.length > 0 ? list : undefined;
+}
 
 /**
  * A universal glob (matching everything) is redundant on an Always Apply
@@ -77,7 +95,7 @@ export type CodebuddyRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * Rules format:
  * - {project}/CODEBUDDY.md (root: true), also read from {project}/.codebuddy/CODEBUDDY.md
  * - {project}/.codebuddy/rules/*.md (root: false, with optional
- *   `description` / `paths` / `alwaysApply` frontmatter)
+ *   `description` / `paths` / `alwaysApply` / `enabled` frontmatter)
  * - Global: ~/.codebuddy/CODEBUDDY.md and ~/.codebuddy/rules/*.md
  *
  * @see https://www.codebuddy.ai/docs/cli/memory
@@ -139,7 +157,7 @@ export class CodebuddyRule extends ToolRule {
     super({
       ...rest,
       // Root file: no frontmatter (a plain memory file); Non-root file: with
-      // optional description/paths/alwaysApply frontmatter.
+      // optional description/enabled/alwaysApply/paths frontmatter.
       fileContent: rest.root ? body : CodebuddyRule.generateFileContent(body, frontmatter),
     });
 
@@ -151,12 +169,14 @@ export class CodebuddyRule extends ToolRule {
     if (
       frontmatter.description === undefined &&
       frontmatter.paths === undefined &&
-      frontmatter.alwaysApply === undefined
+      frontmatter.alwaysApply === undefined &&
+      frontmatter.enabled === undefined
     ) {
       return body;
     }
     return stringifyFrontmatter(body, {
       description: frontmatter.description,
+      enabled: frontmatter.enabled,
       alwaysApply: frontmatter.alwaysApply,
       paths: frontmatter.paths,
     });
@@ -234,20 +254,46 @@ export class CodebuddyRule extends ToolRule {
     });
   }
 
-  private static resolveCodebuddyPaths({
+  /**
+   * Resolves the `paths` / `alwaysApply` pair against CodeBuddy's Rule Type
+   * Determination table, which reads:
+   *
+   * | `alwaysApply`    | `paths`   | Rule type                          |
+   * | ---------------- | --------- | ---------------------------------- |
+   * | `true` (default) | any       | ALWAYS — always injected            |
+   * | `false`          | has value | MANUAL — triggered on matching file |
+   * | `false`          | none      | not supported; the rule is dropped  |
+   *
+   * The default being `true` is the opposite of Cursor, which the adapter was
+   * modeled on: `paths` alone scopes nothing, so a rule meant to be path
+   * triggered has to carry an explicit `alwaysApply: false` alongside it.
+   *
+   * @see https://www.codebuddy.ai/docs/cli/memory
+   */
+  private static resolveCodebuddyRuleType({
     paths,
     alwaysApply,
   }: {
     paths: string[] | undefined;
-    alwaysApply: boolean;
-  }): string[] | undefined {
-    if (!paths || paths.length === 0) {
-      return undefined;
+    alwaysApply: boolean | undefined;
+  }): Pick<CodebuddyRuleFrontmatter, "paths" | "alwaysApply"> {
+    const scopedPaths =
+      paths && paths.length > 0 && !paths.every((path) => UNIVERSAL_PATHS.has(path.trim()))
+        ? paths
+        : undefined;
+
+    if (alwaysApply === true) {
+      // ALWAYS ignores `paths`, so a universal glob is pure noise; a scoped
+      // one is kept because dropping it would lose the author's intent.
+      return { paths: scopedPaths, alwaysApply: true };
     }
-    if (alwaysApply && paths.every((path) => UNIVERSAL_PATHS.has(path.trim()))) {
-      return undefined;
+    if (scopedPaths === undefined) {
+      // `alwaysApply: false` with no paths is the row CodeBuddy refuses to
+      // load, so leave the key implicit and let the documented default apply
+      // rather than emitting a rule the tool silently ignores.
+      return { paths: undefined, alwaysApply: undefined };
     }
-    return paths;
+    return { paths: scopedPaths, alwaysApply: false };
   }
 
   static fromRulesyncRule({
@@ -278,12 +324,11 @@ export class CodebuddyRule extends ToolRule {
     }
 
     // codebuddy.paths takes precedence over the canonical globs.
-    const codebuddyPaths = rulesyncFrontmatter.codebuddy?.paths;
+    const codebuddyPaths = normalizeCodebuddyPaths(rulesyncFrontmatter.codebuddy?.paths);
     const globs = rulesyncFrontmatter.globs;
-    const alwaysApply = rulesyncFrontmatter.codebuddy?.alwaysApply;
-    const pathsValue = CodebuddyRule.resolveCodebuddyPaths({
+    const ruleType = CodebuddyRule.resolveCodebuddyRuleType({
       paths: codebuddyPaths ?? (globs?.length ? globs : undefined),
-      alwaysApply: alwaysApply === true,
+      alwaysApply: rulesyncFrontmatter.codebuddy?.alwaysApply,
     });
 
     // For overlapping parameters, the tool-specific value takes precedence
@@ -293,8 +338,9 @@ export class CodebuddyRule extends ToolRule {
 
     const codebuddyFrontmatter: CodebuddyRuleFrontmatter = {
       description,
-      paths: pathsValue,
-      alwaysApply,
+      paths: ruleType.paths,
+      alwaysApply: ruleType.alwaysApply,
+      enabled: rulesyncFrontmatter.codebuddy?.enabled,
     };
 
     return new CodebuddyRule({
@@ -331,10 +377,15 @@ export class CodebuddyRule extends ToolRule {
 
     // An Always Apply rule with no explicit paths is always-on for every
     // other tool too, so it maps to the universal glob, mirroring the Cursor
-    // adapter's `alwaysApply` handling.
-    const isAlways = this.frontmatter.alwaysApply === true;
-    const sourcePaths = this.frontmatter.paths ?? [];
+    // adapter's `alwaysApply` handling. `alwaysApply` defaults to `true`
+    // upstream, so only an explicit `false` makes a rule path triggered.
+    const sourcePaths = normalizeCodebuddyPaths(this.frontmatter.paths) ?? [];
+    const isAlways = this.frontmatter.alwaysApply !== false;
     const globs = sourcePaths.length === 0 && isAlways ? ["**/*"] : sourcePaths;
+    // Materialize that default when the file also carries `paths`: the rule is
+    // ALWAYS and ignores them, so leaving the key implicit would let the next
+    // generate read the paths as a scope and downgrade the rule to MANUAL.
+    const alwaysApply = this.frontmatter.alwaysApply ?? (sourcePaths.length > 0 ? true : undefined);
 
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
       targets,
@@ -343,10 +394,12 @@ export class CodebuddyRule extends ToolRule {
       globs,
       ...((this.frontmatter.paths !== undefined ||
         this.frontmatter.alwaysApply !== undefined ||
+        this.frontmatter.enabled !== undefined ||
         this.frontmatter.description !== undefined) && {
         codebuddy: {
-          paths: this.frontmatter.paths,
-          alwaysApply: this.frontmatter.alwaysApply,
+          paths: sourcePaths.length > 0 ? sourcePaths : undefined,
+          alwaysApply,
+          enabled: this.frontmatter.enabled,
           description: this.frontmatter.description,
         },
       }),

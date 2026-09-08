@@ -55,10 +55,15 @@ export const RulesyncRuleFrontmatterSchema = z.object({
   codebuddy: z.optional(
     z.looseObject({
       // Glob patterns for conditional rules, matched with `matchBase` enabled
-      // (takes precedence over globs). @see https://www.codebuddy.ai/docs/cli/memory
+      // (takes precedence over globs). CodeBuddy documents both the scalar and
+      // the list form. @see https://www.codebuddy.ai/docs/cli/memory
       // @example ["src/**/*.ts", "tests/**/*.test.ts"]
-      paths: z.optional(z.array(z.string())),
+      paths: z.optional(z.union([z.string(), z.array(z.string())])),
+      // Defaults to `true` upstream: `paths` only scopes a rule when
+      // `alwaysApply: false` is set alongside it.
       alwaysApply: z.optional(z.boolean()),
+      // `false` stops CodeBuddy from loading the rule at all.
+      enabled: z.optional(z.boolean()),
       description: z.optional(z.string()),
     }),
   ),

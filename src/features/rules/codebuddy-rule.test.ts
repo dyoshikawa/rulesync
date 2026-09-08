@@ -117,11 +117,36 @@ describe("CodebuddyRule", () => {
             relativeDirPath: ".codebuddy/rules",
             relativeFilePath: "bad.md",
             // @ts-expect-error intentionally invalid for the test
-            frontmatter: { paths: "not-an-array" },
+            frontmatter: { paths: 42 },
             body: "# Bad Rule",
             validate: true,
           }),
       ).toThrow();
+    });
+
+    it("should accept the documented scalar paths form", () => {
+      const codebuddyRule = new CodebuddyRule({
+        relativeDirPath: ".codebuddy/rules",
+        relativeFilePath: "api.md",
+        frontmatter: { alwaysApply: false, paths: "src/api/**/*.ts" },
+        body: "# API Rule",
+        validate: true,
+      });
+
+      expect(codebuddyRule.getFrontmatter().paths).toBe("src/api/**/*.ts");
+      expect(codebuddyRule.getFileContent()).toContain("paths: src/api/**/*.ts");
+    });
+
+    it("should emit the enabled flag when it is set", () => {
+      const codebuddyRule = new CodebuddyRule({
+        relativeDirPath: ".codebuddy/rules",
+        relativeFilePath: "off.md",
+        frontmatter: { enabled: false },
+        body: "# Rules not currently in use",
+        validate: true,
+      });
+
+      expect(codebuddyRule.getFileContent()).toContain("enabled: false");
     });
   });
 
@@ -231,6 +256,45 @@ Rules for TypeScript files.`;
       expect(codebuddyRule.getFrontmatter().alwaysApply).toBe(false);
       expect(codebuddyRule.getBody()).toBe("# TypeScript Rules\n\nRules for TypeScript files.");
       expect(codebuddyRule.isRoot()).toBe(false);
+    });
+
+    it("should create instance from a rules file using the documented scalar paths form", async () => {
+      const rulesDir = join(testDir, ".codebuddy/rules");
+      await ensureDir(rulesDir);
+      // Copied from the `paths` example in CodeBuddy's memory documentation.
+      const testContent = `---
+alwaysApply: false
+paths: src/api/**/*.ts
+---
+
+# API Rules`;
+      await writeFileContent(join(rulesDir, "api.md"), testContent);
+
+      const codebuddyRule = await CodebuddyRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "api.md",
+      });
+
+      expect(codebuddyRule.getFrontmatter().paths).toBe("src/api/**/*.ts");
+      expect(codebuddyRule.toRulesyncRule().getFrontmatter().globs).toEqual(["src/api/**/*.ts"]);
+    });
+
+    it("should create instance from a disabled rules file", async () => {
+      const rulesDir = join(testDir, ".codebuddy/rules");
+      await ensureDir(rulesDir);
+      const testContent = `---
+enabled: false
+---
+
+# Rules not currently in use`;
+      await writeFileContent(join(rulesDir, "off.md"), testContent);
+
+      const codebuddyRule = await CodebuddyRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "off.md",
+      });
+
+      expect(codebuddyRule.getFrontmatter().enabled).toBe(false);
     });
 
     it("should create instance from rules file without frontmatter", async () => {
@@ -439,6 +503,87 @@ Rules for TypeScript files.`;
       expect(codebuddyRule.getFrontmatter().paths).toEqual(["src/**/*.ts"]);
     });
 
+    it("should emit alwaysApply: false alongside scoped paths so they actually scope", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "api.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "API rules",
+          globs: ["src/api/**/*.ts"],
+        },
+        body: "# API Rules",
+      });
+
+      const codebuddyRule = CodebuddyRule.fromRulesyncRule({ rulesyncRule });
+
+      // `alwaysApply` defaults to `true` upstream, so emitting `paths` alone
+      // would produce an ALWAYS rule that ignores its own scoping.
+      expect(codebuddyRule.getFrontmatter().alwaysApply).toBe(false);
+      expect(codebuddyRule.getFrontmatter().paths).toEqual(["src/api/**/*.ts"]);
+    });
+
+    it("should drop alwaysApply: false when there are no paths to trigger on", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "manual.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: [],
+          codebuddy: { alwaysApply: false },
+        },
+        body: "# Manual Rule",
+      });
+
+      const codebuddyRule = CodebuddyRule.fromRulesyncRule({ rulesyncRule });
+
+      // CodeBuddy does not load an `alwaysApply: false` rule with no `paths`,
+      // so the key is left implicit rather than writing a dropped rule.
+      expect(codebuddyRule.getFrontmatter().alwaysApply).toBeUndefined();
+      expect(codebuddyRule.getFrontmatter().paths).toBeUndefined();
+      expect(codebuddyRule.getFileContent()).not.toContain("alwaysApply");
+    });
+
+    it("should normalize a scalar codebuddy.paths to the list form", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "scalar.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: ["**/*"],
+          codebuddy: { paths: "src/api/**/*.ts" },
+        },
+        body: "# Scalar Paths Rule",
+      });
+
+      const codebuddyRule = CodebuddyRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(codebuddyRule.getFrontmatter().paths).toEqual(["src/api/**/*.ts"]);
+      expect(codebuddyRule.getFrontmatter().alwaysApply).toBe(false);
+    });
+
+    it("should carry codebuddy.enabled through to the generated rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "off.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: [],
+          codebuddy: { enabled: false },
+        },
+        body: "# Rules not currently in use",
+      });
+
+      const codebuddyRule = CodebuddyRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(codebuddyRule.getFrontmatter().enabled).toBe(false);
+      expect(codebuddyRule.getFileContent()).toContain("enabled: false");
+    });
+
     it("should not set paths for root rule", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -517,6 +662,58 @@ Rules for TypeScript files.`;
 
       expect(rulesyncRule.getFrontmatter().globs).toEqual(["**/*"]);
       expect(rulesyncRule.getFrontmatter().codebuddy?.alwaysApply).toBe(true);
+    });
+
+    it("should treat a rule with neither alwaysApply nor paths as always-on", () => {
+      const codebuddyRule = new CodebuddyRule({
+        outputRoot: testDir,
+        relativeDirPath: ".codebuddy/rules",
+        relativeFilePath: "implicit.md",
+        frontmatter: { description: "Implicitly always-on" },
+        body: "# Implicit Always Rule",
+        root: false,
+      });
+
+      const rulesyncRule = codebuddyRule.toRulesyncRule();
+
+      // `alwaysApply` defaults to `true`, so this rule is ALWAYS upstream.
+      expect(rulesyncRule.getFrontmatter().globs).toEqual(["**/*"]);
+    });
+
+    it("should materialize the alwaysApply default on a rule that also has paths", () => {
+      const codebuddyRule = new CodebuddyRule({
+        outputRoot: testDir,
+        relativeDirPath: ".codebuddy/rules",
+        relativeFilePath: "always-with-paths.md",
+        frontmatter: { paths: "src/api/**/*.ts" },
+        body: "# Always Rule With Paths",
+        root: false,
+      });
+
+      const rulesyncRule = codebuddyRule.toRulesyncRule();
+
+      // Upstream reads this as ALWAYS and ignores the paths. Recording the
+      // default keeps the next generate from downgrading it to MANUAL.
+      expect(rulesyncRule.getFrontmatter().codebuddy?.alwaysApply).toBe(true);
+      expect(rulesyncRule.getFrontmatter().codebuddy?.paths).toEqual(["src/api/**/*.ts"]);
+    });
+
+    it("should preserve a disabled rule across the round trip", () => {
+      const codebuddyRule = new CodebuddyRule({
+        outputRoot: testDir,
+        relativeDirPath: ".codebuddy/rules",
+        relativeFilePath: "off.md",
+        frontmatter: { enabled: false },
+        body: "# Rules not currently in use",
+        root: false,
+      });
+
+      const rulesyncRule = codebuddyRule.toRulesyncRule();
+
+      expect(rulesyncRule.getFrontmatter().codebuddy?.enabled).toBe(false);
+      expect(CodebuddyRule.fromRulesyncRule({ rulesyncRule }).getFileContent()).toContain(
+        "enabled: false",
+      );
     });
 
     it("should not include the codebuddy passthrough block when no codebuddy-specific fields are set", () => {
