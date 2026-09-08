@@ -9,6 +9,10 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { HooksConfigSchema } from "../../types/hooks.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
+import {
+  HOOKS_OWNERSHIP_LOCK_FILE_NAME,
+  serializeHooksOwnershipLock,
+} from "./hooks-ownership-lock.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
 const logger = createMockLogger();
@@ -689,6 +693,176 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.otherKey).toBe("preserved");
       expect(parsed.hooks).toBeDefined();
       expect(parsed.hooks.SessionStart).toBeDefined();
+    });
+
+    it("should keep an existing third-party command on regenerate", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  { type: "command", command: "echo start" },
+                  { type: "command", command: "other-tool-hook claude-hook" },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { sessionStart: [{ command: "echo start" }] },
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(
+        (
+          await ClaudecodeHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks,
+            preserveUnowned: true,
+            validate: false,
+          })
+        ).getFileContent(),
+      );
+      const commands = parsed.hooks.SessionStart[0].hooks.map(
+        (handler: { command: string }) => handler.command,
+      );
+      expect(commands).toEqual(["echo start", "other-tool-hook claude-hook"]);
+    });
+
+    it("should retract its own hook that the sources no longer define", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  { type: "command", command: "echo start" },
+                  { type: "command", command: "other-tool-hook claude-hook" },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+      await writeFileContent(
+        join(testDir, ".claude", HOOKS_OWNERSHIP_LOCK_FILE_NAME),
+        serializeHooksOwnershipLock([
+          { event: "SessionStart", matcher: "", identity: "command:echo start" },
+        ]),
+      );
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({ version: 1, hooks: {} }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(
+        (
+          await ClaudecodeHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks,
+            preserveUnowned: true,
+            validate: false,
+          })
+        ).getFileContent(),
+      );
+      const commands = parsed.hooks.SessionStart[0].hooks.map(
+        (handler: { command: string }) => handler.command,
+      );
+      expect(commands).toEqual(["other-tool-hook claude-hook"]);
+    });
+
+    it("should write an ownership lock only when preserving", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { sessionStart: [{ command: "echo start" }] },
+        }),
+        validate: false,
+      });
+
+      const preserving = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        preserveUnowned: true,
+        validate: false,
+      });
+      const lockFiles = await ClaudecodeHooks.getAuxiliaryFiles({ toolHooks: preserving });
+      expect(lockFiles).toHaveLength(1);
+      expect(lockFiles[0]?.getRelativeFilePath()).toBe(HOOKS_OWNERSHIP_LOCK_FILE_NAME);
+      expect(JSON.parse(lockFiles[0]!.getFileContent()).owned).toEqual([
+        { event: "SessionStart", matcher: "", identity: "command:echo start" },
+      ]);
+
+      const replacing = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+      expect(await ClaudecodeHooks.getAuxiliaryFiles({ toolHooks: replacing })).toEqual([]);
+    });
+
+    it("should replace existing third-party commands unless preserveUnowned is set", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(
+        join(testDir, ".claude", "settings.json"),
+        JSON.stringify({
+          hooks: {
+            SessionStart: [
+              {
+                hooks: [
+                  { type: "command", command: "echo start" },
+                  { type: "command", command: "other-tool-hook claude-hook" },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { sessionStart: [{ command: "echo start" }] },
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(
+        (
+          await ClaudecodeHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks,
+            validate: false,
+          })
+        ).getFileContent(),
+      );
+      const commands = parsed.hooks.SessionStart[0].hooks.map(
+        (handler: { command: string }) => handler.command,
+      );
+      expect(commands).toEqual(["echo start"]);
     });
   });
 

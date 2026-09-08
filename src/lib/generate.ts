@@ -1423,6 +1423,7 @@ async function generateHooksCore(params: {
         toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
+        preserveUnownedHooks: config.getPreserveUnownedHooks(),
         logger,
       });
 

@@ -8,7 +8,7 @@ import {
   CODEXCLI_MCP_FILE_NAME,
 } from "../../constants/codexcli-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { ValidationResult } from "../../types/ai-file.js";
 import {
   CODEXCLI_HOOK_EVENTS,
   CODEXCLI_TO_CANONICAL_EVENT_NAMES,
@@ -19,6 +19,8 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import { HOOKS_OWNERSHIP_LOCK_FILE_NAME, parseHooksOwnershipLock } from "./hooks-ownership-lock.js";
+import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import {
@@ -31,6 +33,7 @@ import {
   type ToolHooksForDeletionParams,
   type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
+  type ToolHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
@@ -132,7 +135,7 @@ export class CodexcliConfigToml extends ToolFile {
 }
 
 export class CodexcliHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
+  constructor(params: ToolHooksParams) {
     super({
       ...params,
       fileContent: params.fileContent ?? "{}",
@@ -171,12 +174,15 @@ export class CodexcliHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
+    preserveUnowned = false,
     logger,
   }: ToolHooksFromRulesyncHooksParams & {
     global?: boolean;
     logger?: Logger;
   }): Promise<CodexcliHooks> {
     const paths = CodexcliHooks.getSettablePaths({ global });
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const config = rulesyncHooks.getJson();
     const codexHooks = canonicalToToolHooks({
       config,
@@ -184,13 +190,29 @@ export class CodexcliHooks extends ToolHooks {
       converterConfig: CODEXCLI_CONVERTER_CONFIG,
       logger,
     });
-    const fileContent = JSON.stringify({ hooks: codexHooks }, null, 2);
+    const previouslyOwned = preserveUnowned
+      ? parseHooksOwnershipLock(
+          await readFileContentOrNull(
+            join(outputRoot, paths.relativeDirPath, HOOKS_OWNERSHIP_LOCK_FILE_NAME),
+          ),
+        )
+      : undefined;
+    const merged = mergeGeneratedHookLists({
+      existingContent,
+      generatedHooks: codexHooks,
+      shape: "matcher-groups",
+      preserveUnowned,
+      previouslyOwned,
+      logger,
+    });
+    const fileContent = JSON.stringify({ hooks: merged.hooks }, null, 2);
 
     return new CodexcliHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
+      ownedHookRefs: preserveUnowned ? merged.owned : undefined,
       validate,
     });
   }
@@ -239,12 +261,22 @@ export class CodexcliHooks extends ToolHooks {
     });
   }
 
-  static async getAuxiliaryFiles({
+  static override supportsPreserveUnowned(): boolean {
+    return true;
+  }
+
+  static override async getAuxiliaryFiles({
     outputRoot = process.cwd(),
+    toolHooks,
   }: {
     outputRoot?: string;
     global?: boolean;
+    toolHooks?: ToolHooks;
+    logger?: Logger;
   } = {}): Promise<ToolFile[]> {
-    return [await CodexcliConfigToml.fromOutputRoot({ outputRoot })];
+    return [
+      await CodexcliConfigToml.fromOutputRoot({ outputRoot }),
+      ...(toolHooks instanceof CodexcliHooks ? toolHooks.getOwnershipLockFiles() : []),
+    ];
   }
 }

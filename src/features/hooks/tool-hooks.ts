@@ -5,15 +5,29 @@ import {
 import type { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import type { Logger } from "../../utils/logger.js";
+import { buildHooksOwnershipLockFile, type OwnedHookRef } from "./hooks-ownership-lock.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
-export type ToolHooksParams = AiFileParams;
+export type ToolHooksParams = AiFileParams & {
+  /**
+   * What this instance's hooks list claims as rulesync-generated, recorded so
+   * the next run can retract a hook that is no longer defined. Set only by
+   * adapters that support preservation, and only when it is enabled.
+   */
+  ownedHookRefs?: readonly OwnedHookRef[];
+};
 
 export type ToolHooksFromRulesyncHooksParams = Omit<
   AiFileParams,
   "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncHooks: RulesyncHooks;
+  /**
+   * Keep handlers in the destination file that rulesync did not generate,
+   * instead of replacing the list. Off by default; adapters that do not
+   * support it ignore it.
+   */
+  preserveUnowned?: boolean;
   /**
    * Adapters warn through this about what a conversion cannot represent. The
    * processor passes its own logger, so a warning an adapter emits reaches the
@@ -46,11 +60,15 @@ export type ToolHooksSettablePaths = {
 };
 
 export abstract class ToolHooks extends ToolFile {
+  private readonly ownedHookRefs: readonly OwnedHookRef[] | undefined;
+
   constructor(params: ToolHooksParams) {
     super({
       ...params,
       validate: true,
     });
+
+    this.ownedHookRefs = params.ownedHookRefs;
 
     if (params.validate) {
       const result = this.validate();
@@ -58,6 +76,33 @@ export abstract class ToolHooks extends ToolFile {
         throw result.error;
       }
     }
+  }
+
+  /**
+   * The ownership record for this destination, or nothing when preservation is
+   * off — in which case rulesync owns the whole list and needs no record.
+   */
+  getOwnershipLockFiles(): ToolFile[] {
+    if (this.ownedHookRefs === undefined) {
+      return [];
+    }
+    return [
+      buildHooksOwnershipLockFile({
+        outputRoot: this.getOutputRoot(),
+        relativeDirPath: this.getRelativeDirPath(),
+        owned: this.ownedHookRefs,
+      }),
+    ];
+  }
+
+  /**
+   * Whether the adapter can keep handlers it did not generate. Destinations
+   * rulesync owns outright (plugin bundles) must answer `false`: there is no
+   * third party writing into them, and preserving there would only make
+   * removals impossible.
+   */
+  static supportsPreserveUnowned(): boolean {
+    return false;
   }
 
   static getSettablePaths(_options?: { global?: boolean }): ToolHooksSettablePaths {

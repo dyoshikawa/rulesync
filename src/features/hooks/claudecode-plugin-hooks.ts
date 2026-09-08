@@ -24,6 +24,15 @@ export class ClaudecodePluginHooks extends ClaudecodeHooks {
     return { ...super.getConverterConfig(), projectDirVar: "$CLAUDE_PLUGIN_ROOT" };
   }
 
+  /**
+   * The plugin bundle is generated in full by rulesync — nothing else writes
+   * into it — so preserving there would buy nothing and cost the ability to
+   * remove a hook.
+   */
+  static override supportsPreserveUnowned(): boolean {
+    return false;
+  }
+
   static override getSettablePaths(): ToolHooksSettablePaths {
     return {
       relativeDirPath: CLAUDECODE_PLUGIN_HOOKS_DIR,
