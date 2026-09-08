@@ -14,6 +14,12 @@ import {
 
 export type CrushRuleParams = AiFileParams & {
   root?: boolean;
+  /**
+   * Set when the file is `CRUSH.local.md` rather than the shared `CRUSH.md`,
+   * so the import flow maps it back to a canonical `localRoot: true` rule
+   * instead of overwriting the shared root rule.
+   */
+  localRoot?: boolean;
 };
 
 /**
@@ -31,6 +37,12 @@ export type CrushRuleParams = AiFileParams & {
  * In global mode, Crush reads a global context file from
  * `~/.config/crush/CRUSH.md` (it also reads `~/.config/AGENTS.md`, owned by
  * the `agentsmd` target). The same root-fold policy applies.
+ *
+ * A `localRoot: true` rulesync rule maps to `./CRUSH.local.md`, materialized
+ * by the RulesProcessor's `separate-local-file` mode rather than by
+ * `getSettablePaths` — it is a personal file, so folding it into the shared
+ * `CRUSH.md` the way non-root rules are folded would commit it. Project scope
+ * only; Crush's global context paths have no `.local` variant.
  *
  * @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
  * @see https://github.com/charmbracelet/crush/blob/main/internal/config/load.go

@@ -4,6 +4,7 @@ import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
 import { CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../../constants/codebuddy-paths.js";
+import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
@@ -550,11 +551,19 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // rules file from ~/.config/crush/CRUSH.md. It has no modular
         // non-root instructions directory, so topic rules fold into the root
         // file (mirrors zcode/codexcli).
+        //
+        // `defaultContextPaths` also lists `CRUSH.local.md` (and its lower- and
+        // title-cased spellings) next to the shared file, so a localRoot rule
+        // gets its own file instead of being folded in — folding a personal
+        // rule into the committed `CRUSH.md` is what the separate file exists
+        // to avoid.
         // https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+        localRootMode: "separate-local-file",
+        localRootFileName: CRUSH_LOCAL_RULE_FILE_NAME,
       },
     },
   ],
@@ -1742,6 +1751,35 @@ export class RulesProcessor extends FeatureProcessor {
         relativeFilePath: fileName,
         frontmatter: {},
         body,
+        validate: true,
+        root: true,
+        localRoot,
+      });
+    }
+    if (isClassOrSubclassOf({ candidate: factory.class, base: CodebuddyRule })) {
+      // `CODEBUDDY.local.md` sits next to the project-root `CODEBUDDY.md` — the
+      // primary root, not the `.codebuddy/` alternative one — and is a plain
+      // memory file with no rule frontmatter.
+      const paths = CodebuddyRule.getSettablePaths({ global: this.global });
+      return new CodebuddyRule({
+        outputRoot: this.outputRoot,
+        relativeDirPath: relativeDirPath ?? paths.root.relativeDirPath,
+        relativeFilePath: fileName,
+        frontmatter: {},
+        body,
+        validate: true,
+        root: true,
+        localRoot,
+      });
+    }
+    if (isClassOrSubclassOf({ candidate: factory.class, base: CrushRule })) {
+      // Crush reads `CRUSH.local.md` from the working directory root, the same
+      // place as the shared `CRUSH.md`; it has no tool directory to put it in.
+      return new CrushRule({
+        outputRoot: this.outputRoot,
+        relativeDirPath: relativeDirPath ?? ".",
+        relativeFilePath: fileName,
+        fileContent: body,
         validate: true,
         root: true,
         localRoot,
