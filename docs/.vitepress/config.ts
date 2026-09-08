@@ -1,11 +1,43 @@
 import { defineConfig } from "vitepress";
 
+const siteUrl = "https://rulesync.dyoshikawa.com";
+
 export default defineConfig({
   title: "Rulesync",
   description:
     "A Node.js CLI tool that automatically generates configuration files for various AI development tools from unified AI rule files.",
   base: "/",
   lastUpdated: true,
+
+  // Advertise every page under a single extensionless URL. GitHub Pages keeps
+  // serving both `/page` and `/page.html`; this only controls the form used by
+  // internal links and the sitemap, and the canonical link below is what tells
+  // search engines which of the two is authoritative.
+  cleanUrls: true,
+
+  sitemap: {
+    hostname: `${siteUrl}/`,
+  },
+
+  // VitePress has no built-in canonical link, so emit one per page. The URL is
+  // derived from the source path, which holds as long as `rewrites` is unused.
+  transformHead: ({ pageData }) => {
+    // 404 is not a real URL, so it must not declare itself canonical.
+    if (pageData.relativePath === "404.md") {
+      return [];
+    }
+
+    const pagePath = pageData.relativePath.replace(/(^|\/)index\.md$/, "$1").replace(/\.md$/, "");
+    // Encode per segment: `encodeURI` would leave `#` and `?` intact, turning
+    // part of a filename into a fragment or a query string.
+    const pageUrl = `${siteUrl}/${pagePath.split("/").map(encodeURIComponent).join("/")}`;
+
+    return [
+      ["link", { rel: "canonical", href: pageUrl }],
+      // Social crawlers canonicalize on og:url rather than on rel=canonical.
+      ["meta", { property: "og:url", content: pageUrl }],
+    ];
+  },
 
   head: [
     ["link", { rel: "icon", href: "/logo.jpg" }],
@@ -23,7 +55,7 @@ export default defineConfig({
       "meta",
       {
         property: "og:image",
-        content: "https://rulesync.dyoshikawa.com/logo.jpg",
+        content: `${siteUrl}/logo.jpg`,
       },
     ],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
@@ -40,7 +72,7 @@ export default defineConfig({
       "meta",
       {
         name: "twitter:image",
-        content: "https://rulesync.dyoshikawa.com/logo.jpg",
+        content: `${siteUrl}/logo.jpg`,
       },
     ],
   ],

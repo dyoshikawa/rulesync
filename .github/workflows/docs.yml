@@ -21,6 +21,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          # `lastUpdated` reads each page's last commit time from git history. A
+          # shallow clone has only one commit, so every page would report the
+          # same timestamp — both in the footer and in the sitemap's `lastmod`.
+          fetch-depth: 0
 
       - name: Setup mise
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
