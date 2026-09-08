@@ -10,6 +10,7 @@ import {
 } from "../../constants/claudecode-paths.js";
 import { CODEBUDDY_DIR, CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../../constants/codebuddy-paths.js";
 import { CODEXCLI_BASH_RULES_FILE_NAME, CODEXCLI_DIR } from "../../constants/codexcli-paths.js";
+import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
 import {
   FACTORYDROID_DIR,
   FACTORYDROID_SETTINGS_LOCAL_FILE_NAME,
@@ -96,6 +97,9 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     feature: "rules",
     entry: `**/${CODEBUDDY_DIR}/${CODEBUDDY_LOCAL_RULE_FILE_NAME}`,
   },
+  // Crush's personal project context file. Unlike CodeBuddy Code, Crush does
+  // not add it to `.gitignore` itself, so the derived list has to.
+  { target: "crush", feature: "rules", entry: `**/${CRUSH_LOCAL_RULE_FILE_NAME}` },
 
   // Vibe subagent system prompts: written by the subagents feature next to the
   // agent TOML, but outside `getSettablePaths` (which names only

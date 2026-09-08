@@ -12,6 +12,15 @@ import { join } from "node:path";
 export const CRUSH_RULE_FILE_NAME = "CRUSH.md";
 export const CRUSH_GLOBAL_DIR = join(".config", "crush");
 
+// `defaultContextPaths` lists `crush.local.md`, `Crush.local.md` and
+// `CRUSH.local.md` next to their shared siblings, so Crush reads a personal,
+// uncommitted project context file the way Claude Code reads `CLAUDE.local.md`.
+// Project scope only: the global context path list has no `.local` entry.
+// Crush does not gitignore the file for you, so the derived `.gitignore`
+// carries it (see `HAND_MAINTAINED_GITIGNORE_ENTRIES`).
+// @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
+export const CRUSH_LOCAL_RULE_FILE_NAME = "CRUSH.local.md";
+
 // `.crushignore` uses gitignore syntax and is read hierarchically (root and
 // any subdirectory), the same way Crush walks `.gitignore`. Crush documents no
 // global/user-scope ignore file, so this is project-only.

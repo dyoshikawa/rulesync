@@ -205,6 +205,79 @@ describe("RulesProcessor", () => {
       expect(localRule?.getFileContent()).toBe("Personal overrides");
     });
 
+    it("should emit a localRoot rule to CRUSH.local.md for crush", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "crush" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { targets: ["*"], root: true },
+          body: "Shared team instructions",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { targets: ["*"], localRoot: true },
+          body: "Personal overrides",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      const localRule = result.find((rule) => rule.getRelativeFilePath() === "CRUSH.local.md");
+      expect(localRule).toBeDefined();
+      // Crush reads the `.local` context file from the working directory root,
+      // next to `CRUSH.md`; it has no tool directory to put it in.
+      expect(localRule?.getRelativeDirPath()).toBe(".");
+      expect(localRule?.getFileContent()).toBe("Personal overrides");
+      // The personal body must not also be folded into the shared root file,
+      // which is the committed one.
+      const rootRule = result.find((rule) => rule.getRelativeFilePath() === "CRUSH.md");
+      expect(rootRule?.getFileContent()).not.toContain("Personal overrides");
+    });
+
+    // `buildLocalRootFile` dispatches on the rule class and returns `null` for
+    // any class it has no branch for, which drops the file silently. That is how
+    // `zoocode` (fixed by `isClassOrSubclassOf`) and later `codebuddy` ended up
+    // declaring `separate-local-file` while emitting nothing. Declaring the mode
+    // is the visible half; this asserts the invisible half actually happens.
+    it.each(
+      [...RulesProcessor.getToolTargets({ global: false })]
+        .map((target) => ({ target, meta: RulesProcessor.getFactory(target)?.meta }))
+        .filter(({ meta }) => meta?.localRootMode === "separate-local-file")
+        .map(({ target, meta }) => ({ target, fileName: meta?.localRootFileName ?? "" })),
+    )(
+      "should emit $fileName for $target, which declares separate-local-file",
+      async ({ target, fileName }) => {
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: target });
+
+        const result = await processor.convertRulesyncFilesToToolFiles([
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "root.md",
+            frontmatter: { targets: ["*"], root: true },
+            body: "Shared team instructions",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "local.md",
+            frontmatter: { targets: ["*"], localRoot: true },
+            body: "Personal overrides",
+          }),
+        ]);
+
+        expect(fileName).not.toBe("");
+        const localRule = result.find((rule) => rule.getRelativeFilePath() === fileName);
+        expect(localRule).toBeDefined();
+        expect(localRule?.getFileContent()).toContain("Personal overrides");
+      },
+    );
+
     it("should return empty array when no rules match the tool target", async () => {
       const processor = new RulesProcessor({ logger, toolTarget: "warp" });
 

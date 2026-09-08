@@ -159,6 +159,9 @@ describe("registry derivation", () => {
       // Code's CLAUDE.local.md convention (issue #2760).
       "codebuddy::rules::**/CODEBUDDY.local.md",
       "codebuddy::rules::**/.codebuddy/CODEBUDDY.local.md",
+      // Crush's personal project context file: Crush reads `CRUSH.local.md`
+      // but, unlike CodeBuddy Code, does not gitignore it itself (issue #2954).
+      "crush::rules::**/CRUSH.local.md",
       "claudecode::general::**/.claude/*.lock",
       "claudecode::general::**/.claude/settings.local.json",
       "claudecode::general::**/.claude/memories/",
