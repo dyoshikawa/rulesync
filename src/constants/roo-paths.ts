@@ -15,6 +15,21 @@ export const ROO_MCP_FILE_NAME = "mcp.json";
 export const ROO_MODE_SLUG_PATTERN = /^[a-zA-Z0-9-]+$/;
 
 /**
+ * `~/.roo/rules/AGENTS.md` — where the root rule goes in global scope.
+ *
+ * Roo/Zoo Code discover the agent-rules files (`AGENTS.md`, `AGENT.md`,
+ * `AGENTS.local.md`) in the **workspace only**: `loadAllAgentRulesFiles` reads
+ * `cwd`, plus subdirectories holding a `.roo` folder when `enableSubfolderRules`
+ * is on. There is no home-directory branch, so a `~/AGENTS.md` is never read.
+ * The global rules directory `~/.roo/rules/` *is* loaded, so the root rule is
+ * written there alongside the non-root files rather than to an unread path.
+ * The basename is kept so the file still reads as the root overview.
+ * @see https://github.com/Zoo-Code-Org/Zoo-Code/blob/main/src/core/prompts/sections/custom-instructions.ts
+ * @see https://github.com/Zoo-Code-Org/Zoo-Code/blob/main/src/services/roo-config/index.ts
+ */
+export const ROO_GLOBAL_ROOT_RULE_FILE_NAME = "AGENTS.md";
+
+/**
  * `.roo/rules-{mode}/` — the mode-specific rule directory Roo/Zoo Code load
  * INSTEAD of `.roo/rules/` while that mode is active. The relative path is the
  * same in global scope, where it resolves under `~/.roo/`.

@@ -1,6 +1,11 @@
 import { dirname, join } from "node:path";
 
-import { ROO_DIR, ROO_MODE_SLUG_PATTERN, rooModeRulesDirName } from "../../constants/roo-paths.js";
+import {
+  ROO_DIR,
+  ROO_GLOBAL_ROOT_RULE_FILE_NAME,
+  ROO_MODE_SLUG_PATTERN,
+  rooModeRulesDirName,
+} from "../../constants/roo-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
@@ -13,6 +18,7 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
+  ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
 
@@ -22,6 +28,8 @@ export type RooRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   };
 };
 
+export type RooRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
+
 /**
  * Rule generator for Roo Code AI assistant
  *
@@ -29,24 +37,46 @@ export type RooRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
  * Supports plain Markdown without frontmatter, mode-specific rules,
  * and both directory-based and single-file configurations.
  *
- * - Project scope writes the non-root directory `.roo/rules/`.
+ * - Project scope writes the non-root directory `.roo/rules/`, and the root
+ *   rule to the workspace-root `AGENTS.md` the extension reads from `cwd`.
  * - Global scope writes the same non-root directory resolved under the home
- *   directory (`~/.roo/rules/`), which Roo loads before workspace rules.
+ *   directory (`~/.roo/rules/`), which Roo loads before workspace rules. The
+ *   root rule joins it as `~/.roo/rules/AGENTS.md`: agent-rules discovery is
+ *   workspace-only, so the default project-scope root would resolve to a
+ *   `~/AGENTS.md` nothing ever reads.
  *   @see https://roocodeinc.github.io/Roo-Code/features/custom-instructions
  */
 export class RooRule extends ToolRule {
-  static getSettablePaths(
-    _options: {
-      global?: boolean;
-      excludeToolDir?: boolean;
-    } = {},
-  ): RooRuleSettablePaths {
+  static getSettablePaths({
+    global,
+    excludeToolDir,
+  }: {
+    global?: boolean;
+    excludeToolDir?: boolean;
+  } = {}): RooRuleSettablePaths | RooRuleSettablePathsGlobal {
     // The relative directory is identical for project and global scope; global
     // mode differs only by output root (the home directory), so `~/.roo/rules/`
     // is produced without a separate branch here.
+    const rulesDirPath = buildToolPath(ROO_DIR, "rules", excludeToolDir);
+
+    if (global) {
+      // Home scope has exactly two roots, `~/.roo` and `~/.agents`; the root
+      // rule lives in the rules directory rather than at `~/AGENTS.md`, which
+      // the extension never loads.
+      return {
+        root: {
+          relativeDirPath: rulesDirPath,
+          relativeFilePath: ROO_GLOBAL_ROOT_RULE_FILE_NAME,
+        },
+        nonRoot: {
+          relativeDirPath: rulesDirPath,
+        },
+      };
+    }
+
     return {
       nonRoot: {
-        relativeDirPath: buildToolPath(ROO_DIR, "rules", _options.excludeToolDir),
+        relativeDirPath: rulesDirPath,
       },
     };
   }
@@ -56,16 +86,25 @@ export class RooRule extends ToolRule {
     relativeFilePath,
     relativeDirPath: overrideDirPath,
     validate = true,
+    global = false,
   }: ToolRuleFromFileParams): Promise<RooRule> {
+    const paths = this.getSettablePaths({ global });
     // A file discovered under `.roo/rules-{mode}/` by `getNestedFilePatterns`:
     // the processor passes its directory, which is not the generic rules
     // directory this class otherwise reads.
     const relativeDirPath =
       overrideDirPath !== undefined && RooRule.extractModeFromDirPath(overrideDirPath) !== undefined
         ? overrideDirPath
-        : this.getSettablePaths().nonRoot.relativeDirPath;
+        : (paths.nonRoot?.relativeDirPath ?? buildToolPath(ROO_DIR, "rules"));
 
     const fileContent = await readFileContent(join(outputRoot, relativeDirPath, relativeFilePath));
+
+    // In global scope the root rule shares the rules directory with the
+    // non-root files, so the basename is what tells them apart on import.
+    const isRoot =
+      "root" in paths &&
+      relativeDirPath === paths.root.relativeDirPath &&
+      relativeFilePath === paths.root.relativeFilePath;
 
     return new RooRule({
       outputRoot,
@@ -73,7 +112,7 @@ export class RooRule extends ToolRule {
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
-      root: false,
+      root: isRoot,
     });
   }
 
@@ -81,12 +120,17 @@ export class RooRule extends ToolRule {
     outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): RooRule {
+    const paths = this.getSettablePaths({ global });
     const params = this.buildToolRuleParamsDefault({
       outputRoot,
       rulesyncRule,
       validate,
-      nonRootPath: this.getSettablePaths().nonRoot,
+      // Project scope keeps the default workspace-root `AGENTS.md`; global
+      // scope routes the root rule into `~/.roo/rules/` instead.
+      ...("root" in paths && { rootPath: paths.root }),
+      nonRootPath: paths.nonRoot,
     });
 
     // A non-root rule scoped to one mode goes to `.roo/rules-{mode}/`, which
