@@ -245,6 +245,7 @@ rulesync.local.jsonc
 **/.takt/.cache/
 **/.takt/config.yaml
 **/.muse/worktrees/
+**/.vibe/plugin-data/
 **/.augment-guidelines
 **/.devin/workflows/
 **/.junie/memories/

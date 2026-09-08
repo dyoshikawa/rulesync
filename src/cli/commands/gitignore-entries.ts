@@ -150,6 +150,18 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   // https://dev.meta.ai/docs/cookbook/subagent-fanout
   { target: "musecode", feature: "general", entry: "**/.muse/worktrees/" },
 
+  // Vibe Code's plugin data root: a plugin installed under the project's
+  // `.vibe/plugins/<name>/` gets its data root from
+  // `root.parent.parent / "plugin-data"` whenever no `data_root_base` override
+  // is supplied — and the session-open path, `PluginResolver.from_harness_files`,
+  // supplies none — so a project plugin materializes into
+  // `<project>/.vibe/plugin-data/<plugin>/`. It holds generated knowledge
+  // documents and vendored `libraries/` dependencies (node_modules, Python
+  // packages), all written by Vibe rather than by rulesync. Only that directory
+  // is ignored, not `.vibe/` as a whole, which carries committed project config.
+  // https://github.com/mistralai/mistral-vibe/blob/v2.25.0/vibe/core/plugins/_native.py
+  { target: "vibe", feature: "general", entry: "**/.vibe/plugin-data/" },
+
   // Augment Code's legacy single-file rules path: accepted on import but never
   // generated (so not in getSettablePaths), gitignored as a convenience.
   { target: "augmentcode", feature: "rules", entry: "**/.augment-guidelines" },
