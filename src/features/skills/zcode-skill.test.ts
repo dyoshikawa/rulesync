@@ -162,7 +162,7 @@ describe("ZcodeSkill", () => {
       await ensureDir(skillDir);
       await writeFileContent(
         join(skillDir, SKILL_FILE_NAME),
-        `---\nname: extra\ndescription: Has extras\nlicense: MIT\n---\n\nBody`,
+        `---\nname: extra\ndescription: Has extras\ncompatibility: Requires git\n---\n\nBody`,
       );
 
       const skill = await ZcodeSkill.fromDir({
@@ -171,10 +171,12 @@ describe("ZcodeSkill", () => {
         dirName: "extra",
       });
 
+      // `compatibility` is undeclared on purpose — ZCode documents no such field —
+      // so it doubles as the fixture for the schema's loose passthrough.
       expect(skill.getFrontmatter()).toEqual({
         name: "extra",
         description: "Has extras",
-        license: "MIT",
+        compatibility: "Requires git",
       });
     });
 

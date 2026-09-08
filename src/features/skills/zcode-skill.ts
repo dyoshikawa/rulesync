@@ -26,6 +26,12 @@ import {
 // carrying extra keys still parses, and only the five documented keys are
 // carried into the canonical skill. ZCode documents no `compatibility` field,
 // so the canonical `compatibility` is deliberately not emitted here.
+//
+// The three optional keys are typed to their documented shapes rather than left
+// as `z.unknown()`: they are the same shapes the canonical RulesyncSkill
+// frontmatter enforces, so a value this schema would reject could not have come
+// from — nor round-trip back into — a rulesync skill anyway. ZCode is not known
+// to validate them itself, so the strictness is rulesync's choice, not ZCode's.
 // @see https://zcode.z.ai/en/docs/plugin ("Skill SKILL.md Field Reference")
 export const ZcodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
