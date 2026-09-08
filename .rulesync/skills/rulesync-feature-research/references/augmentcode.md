@@ -1,13 +1,18 @@
 # AugmentCode Map
 
 Auggie CLI (`@augmentcode/auggie`) keeps everything under one `.augment/` tree at
-two scopes — the workspace `<repo>/.augment/` and the user `~/.augment/`. Four of
-the nine dimensions (`mcp`, `hooks`, `permissions`, and the plugin-consumption
-keys) share a single layered `settings.json` rather than having a file each, so
-generation merges into it instead of overwriting; check the per-surface rows
-before assuming a dimension owns its own file. Since 0.16.0 Auggie also
-discovers commands, subagents and skills from the cross-tool `.agents/` and
-`.claude/` roots — Rulesync reads those on import but always generates into
+two writable scopes — the workspace `<repo>/.augment/` and the user
+`~/.augment/` — above a read-only system tier that only `settings.json` uses
+(see the `hooks` row). Three of the nine dimensions (`mcp`, `hooks`,
+`permissions`) — plus the plugin-consumption keys, which are not a dimension at
+all — share that single layered `settings.json` rather than having a file each,
+so generation merges into it instead of overwriting; check the per-surface rows
+before assuming a dimension owns its own file. Auggie also resolves commands,
+subagents and skills over the cross-tool `.agents/` and `.claude/` roots —
+`.agents/` for skills and subagents since 0.16.0, while the `.claude/`
+compatibility roots are documented unversioned on `/cli/custom-commands` and
+`/cli/skills`. Rulesync reads only the `.agents/` roots on import (there is no
+`.claude/` path constant in the AugmentCode adapters) and always generates into
 `.augment/`.
 
 ## Official Docs
@@ -38,16 +43,16 @@ which Rulesync can author. See #2959.
 
 Common adapter paths: `rulesync-source-map.md`.
 
-| Surface       | Anchor                                                                                                                                                                                                                                         |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| paths         | `augmentcode-paths.ts` — the `.augment/` roots, the `.agents/` import-only discovery roots, `settings.json` / `settings.local.json`, and `code_review_guidelines.yaml`                                                                         |
-| `rules`       | `.augment/rules` non-root conversion and frontmatter stripping in `augmentcode-rule.ts`; the retired root `.augment-guidelines` in `augmentcode-legacy-rule.ts`                                                                                |
-| `ignore`      | `.augmentignore` passthrough and gitignore-compatible comments in `augmentcode-ignore.ts`                                                                                                                                                      |
-| `mcp`         | `augmentcode-mcp.ts` merges the `mcpServers` block into `settings.json` at either scope and never deletes the file; project import overlays the gitignored `settings.local.json`                                                               |
-| `commands`    | `.augment/commands/*.md` (project) and `~/.augment/commands/*.md` (global) emitted in `augmentcode-command.ts`; `.agents/commands/` is read on import only                                                                                     |
-| `subagents`   | `.augment/agents/*.md` at both scopes in `augmentcode-subagent.ts`; `.agents/` is an import-only discovery root                                                                                                                                |
-| `skills`      | `.augment/skills/<name>/SKILL.md` at both scopes in `augmentcode-skill.ts`; `.agents/skills/` is an import-only discovery root                                                                                                                 |
-| `hooks`       | `augmentcode-hooks.ts` merges the `hooks` block into `settings.json`; seven canonical events map onto the PascalCase set — see `AUGMENTCODE_HOOK_EVENTS` in `types/hooks.ts` (`PromptSubmit` ← `beforeSubmitPrompt`, added upstream in 0.27.0) |
-| `permissions` | `.augment/settings.json`, `toolPermissions`, tool-name aliases, regex/glob fallback, and fail-closed ordering in `augmentcode-permissions.ts`                                                                                                  |
-| `checks`      | `.augment/code_review_guidelines.yaml` in `augmentcode-check.ts`; canonical `critical` folds one-way into Augment's `high`, and an unannotated check defaults to `medium`                                                                      |
-| `plugins`     | No target. `src/types/tool-targets.ts` lists only `antigravity-plugin` and `claudecode-plugin`; Auggie reads `.claude-plugin/` too, so the existing `claudecode-plugin` output is already partly consumable                                    |
+| Surface       | Anchor                                                                                                                                                                                                                                                            |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| paths         | `augmentcode-paths.ts` — the `.augment/` roots, the `.agents/` import-only discovery roots, `settings.json` / `settings.local.json`, and `code_review_guidelines.yaml`                                                                                            |
+| `rules`       | `.augment/rules` non-root conversion and frontmatter stripping in `augmentcode-rule.ts`; the still-supported root `.augment-guidelines` in `augmentcode-legacy-rule.ts`, which `/cli/rules` still lists below `CLAUDE.md`/`AGENTS.md` and above `.augment/rules/` |
+| `ignore`      | `.augmentignore` passthrough and gitignore-compatible comments in `augmentcode-ignore.ts`                                                                                                                                                                         |
+| `mcp`         | `augmentcode-mcp.ts` merges the `mcpServers` block into `settings.json` at either scope and never deletes the file; project import overlays the gitignored `settings.local.json`                                                                                  |
+| `commands`    | `.augment/commands/*.md` (project) and `~/.augment/commands/*.md` (global) emitted in `augmentcode-command.ts`; `.agents/commands/` is read on import only                                                                                                        |
+| `subagents`   | `.augment/agents/*.md` at both scopes in `augmentcode-subagent.ts`; `.agents/` is an import-only discovery root                                                                                                                                                   |
+| `skills`      | `.augment/skills/<name>/SKILL.md` at both scopes in `augmentcode-skill.ts`; `.agents/skills/` is an import-only discovery root                                                                                                                                    |
+| `hooks`       | `augmentcode-hooks.ts` merges the `hooks` block into `settings.json`; seven canonical events map onto the PascalCase set — see `AUGMENTCODE_HOOK_EVENTS` in `types/hooks.ts` (`PromptSubmit` ← `beforeSubmitPrompt`, added upstream in 0.27.0)                    |
+| `permissions` | `.augment/settings.json`, `toolPermissions`, tool-name aliases, regex/glob fallback, and fail-closed ordering in `augmentcode-permissions.ts`                                                                                                                     |
+| `checks`      | `.augment/code_review_guidelines.yaml` in `augmentcode-check.ts`; canonical `critical` folds one-way into Augment's `high`, and an unannotated check defaults to `medium`                                                                                         |
+| `plugins`     | No target. `src/types/tool-targets.ts` lists only `antigravity-plugin` and `claudecode-plugin`; Auggie reads `.claude-plugin/` too, so the existing `claudecode-plugin` output is already partly consumable                                                       |
