@@ -670,14 +670,15 @@ function countComparableForms(forms: ReadonlyArray<{ displayForm: string; skelet
  * still writes exactly what was picked — the note is there so the picker can
  * tell that two entries which look identical are not.
  *
- * Six things are reported: a name that carries more whitespace than the row
- * shows, a name that carries an enclosing mark outside an emoji keycap, two
- * names with the same display form, two names that read the same once the
- * lookalike letters are matched up, a name spelled entirely in letters that
- * read as Latin ones, and a name that mixes scripts it has no ordinary reason
- * to. The first two are written first so that a label shortened from its tail
- * keeps them: they say the row itself is drawn as something it is not, which
- * nothing else on the label would imply. None of the six is a complete answer
+ * Seven things are reported: a name that carries more whitespace than the row
+ * shows, a name that carries an enclosing mark outside an emoji keycap, a name
+ * that carries a blank drawn as a plain space without being one, two names with
+ * the same display form, two names that read the same once the lookalike
+ * letters are matched up, a name spelled entirely in letters that read as Latin
+ * ones, and a name that mixes scripts it has no ordinary reason to. The first
+ * three are written first so that a label shortened from its tail keeps them:
+ * they say the row itself is drawn as something it is not, which nothing else
+ * on the label would imply. None of the seven is a complete answer
  * — the lookalike tables hold the common pairs rather than all of them, a name
  * written entirely
  * in a script the tables do not map is compared against nothing, and a
