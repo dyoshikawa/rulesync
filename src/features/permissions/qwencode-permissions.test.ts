@@ -1274,7 +1274,7 @@ describe("QwencodePermissions", () => {
     });
 
     // `eager` shapes the prompt rather than the registry, and its list replaces
-    // a higher scope's rather than being unioned with it, so its note has to say
+    // a higher scope's rather than merging into it, so its note has to say
     // both of those rather than fall through to the rule's generic wording.
     it("describes eager as itself rather than as an unmodeled key", async () => {
       const logger = createMockLogger();

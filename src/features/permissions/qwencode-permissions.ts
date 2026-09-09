@@ -137,7 +137,7 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   // this shapes the prompt rather than the registry — the opposite direction of
   // `visible`, which pulls a deferred tool back up. Unlike `visible` and
   // `disabled`, it carries no `mergeStrategy` in Qwen Code's settings schema, so
-  // it takes the default replace rather than being unioned across scopes: a
+  // it takes the default replace rather than a union across scopes: a
   // workspace list stands in for a user one rather than adding to it. An
   // explicit `[]` defers every non-exempt eager-by-default tool, while omitting
   // the key means no restriction at all — the two are not interchangeable.
