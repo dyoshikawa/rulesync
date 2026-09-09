@@ -487,6 +487,9 @@ describe("ReasonixMcp", () => {
   // `reasonix.toml` on the next generate, and for these two that silently
   // changes how the server runs.
   describe("plugin scheduling fields round-trip", () => {
+    // `browser` is a name Reasonix's known-stateful substring list catches, so
+    // `parallel` here is the value that overrides a default rather than restating
+    // it — the case where dropping the key would change how the server runs.
     it("should export concurrency and auto_start", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
@@ -496,7 +499,7 @@ describe("ReasonixMcp", () => {
           mcpServers: {
             browser: {
               command: "reasonix-plugin-browser",
-              concurrency: "serial",
+              concurrency: "parallel",
               auto_start: false,
             },
           },
@@ -508,7 +511,7 @@ describe("ReasonixMcp", () => {
 
       expect(parsed.plugins[0]).toMatchObject({
         name: "browser",
-        concurrency: "serial",
+        concurrency: "parallel",
         auto_start: false,
       });
     });
@@ -518,7 +521,7 @@ describe("ReasonixMcp", () => {
         "[[plugins]]",
         'name = "browser"',
         'command = "reasonix-plugin-browser"',
-        'concurrency = "serial"',
+        'concurrency = "parallel"',
         "auto_start = false",
       ].join("\n");
 
@@ -531,7 +534,7 @@ describe("ReasonixMcp", () => {
 
       const parsed = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
 
-      expect(parsed.mcpServers.browser.concurrency).toBe("serial");
+      expect(parsed.mcpServers.browser.concurrency).toBe("parallel");
       expect(parsed.mcpServers.browser.auto_start).toBe(false);
     });
 
@@ -544,7 +547,7 @@ describe("ReasonixMcp", () => {
         relativeFilePath: "mcp.json",
         fileContent: JSON.stringify({
           mcpServers: {
-            lazy: { command: "reasonix-plugin-lazy", auto_start: false, concurrency: "parallel" },
+            lazy: { command: "reasonix-plugin-lazy", auto_start: false, concurrency: "serial" },
           },
         }),
       });
@@ -553,10 +556,10 @@ describe("ReasonixMcp", () => {
       const roundTripped = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
 
       expect(roundTripped.mcpServers.lazy.auto_start).toBe(false);
-      // An explicit `parallel` is not the same as saying nothing: Reasonix
-      // defaults known-stateful server names to `serial`, so the value is what
-      // overrides that default and it has to survive the trip.
-      expect(roundTripped.mcpServers.lazy.concurrency).toBe("parallel");
+      // `lazy` is not a name Reasonix's stateful list catches, so this `serial` is
+      // the only thing standing between the server and the parallel path: losing
+      // it on the trip would silently undo the author's containment choice.
+      expect(roundTripped.mcpServers.lazy.concurrency).toBe("serial");
     });
   });
 });

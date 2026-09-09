@@ -63,13 +63,15 @@ type ReasonixPlugin = Record<string, unknown> & {
 // rulesync rewrites the whole `plugins` key: a value only Reasonix knows about
 // would be deleted on the next generate, and for these two that deletion changes
 // behavior rather than losing a hint. `serial` is what keeps sub-agents sharing
-// one stdio process from interleaving on its session state, and Reasonix applies
-// it by default to servers whose names look stateful (browser, playwright,
-// puppeteer, chrome, chromium, selenium) — so dropping an explicit value can
-// either put a stateful server back on the parallel path or, on a name that does
-// not match that list, leave a serial one there. `auto_start = false` keeps a
-// server off the session-startup handshake until it is called; dropping it makes
-// the server connect at boot again. Neither has a canonical counterpart.
+// one stdio process from interleaving on its session state. Reasonix reads an
+// explicit value first and otherwise substring-matches the server name against a
+// known-stateful list (browser, playwright, puppeteer, chrome, chromium,
+// selenium), so dropping the key does not fall back to a neutral default — it
+// hands the decision to the name: a `serial` dropped from a server the list does
+// not catch puts it back on the parallel path, and a `parallel` dropped from one
+// it does catch forces it serial. `auto_start = false` keeps a server off the
+// session-startup handshake until it is called; dropping it makes the server
+// connect at boot again. Neither has a canonical counterpart.
 // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
 // (§3.16 for `concurrency`) and `internal/config/plugin_entry.go` for the
 // `[[plugins]]` field names.
