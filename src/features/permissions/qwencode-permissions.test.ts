@@ -286,6 +286,33 @@ describe("QwencodePermissions", () => {
       expect(config.qwencode.tools).toEqual({ listDirectory: { enabled: true } });
     });
 
+    it("authors and imports tools.eager through the qwencode override (issue #2668)", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { eager: ["read_file", "glob"] } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ eager: ["read_file", "glob"] });
+
+      // And the import direction lifts it back into the override, rather than
+      // dropping it out of the canonical file the way it used to.
+      const imported = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { eager: ["read_file", "glob"] } }),
+      });
+      const config = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+      expect(config.qwencode.tools).toEqual({ eager: ["read_file", "glob"] });
+    });
+
     it("authors tools.workflowsEnabled in global scope, announcing the grant (issue #2668)", async () => {
       const logger = createMockLogger();
       const instance = await QwencodePermissions.fromRulesyncPermissions({
