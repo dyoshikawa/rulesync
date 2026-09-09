@@ -964,7 +964,9 @@ describe("QwencodePermissions", () => {
           relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
           fileContent: JSON.stringify({
             permission: {},
-            qwencode: { tools: { disabled: [], listDirectory: { enabled: true } } },
+            qwencode: {
+              tools: { disabled: [], listDirectory: { enabled: true }, eager: ["read_file"] },
+            },
           }),
         }),
       });
@@ -976,6 +978,12 @@ describe("QwencodePermissions", () => {
       const listDirectory = messages.find((message) => message.includes("tools.listDirectory"));
       expect(listDirectory).toContain("whether the built-in `list_directory` tool is registered");
       expect(listDirectory).not.toContain("how far approvals are skipped");
+      // `eager` sits in the same rule but demotes rather than deregisters, so its
+      // project note has to say that instead of borrowing the `disabled` wording.
+      const eager = messages.find((message) => message.includes("tools.eager"));
+      expect(eager).toContain("demoted to deferred");
+      expect(eager).toContain("replacing the list in that file rather than adding to it");
+      expect(eager).not.toContain("how far approvals are skipped");
     });
 
     // A re-run writes the same values again, and repeating the notes would only

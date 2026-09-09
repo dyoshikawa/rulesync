@@ -10,9 +10,10 @@ exception in the other direction: `QWEN.md` sits at the repository root, not
 inside `.qwen/`.
 
 Every row below was re-verified against the `v0.23.0` docs and source, so no row
-carries a sentinel phrase: `commands`, `subagents` and `hooks` each have a
-documented upstream surface and a shipped Rulesync adapter, and `checks` has an
-upstream surface with no adapter.
+in the Official Docs table carries a sentinel phrase: `commands`, `subagents`
+and `hooks` each have a documented upstream surface and a shipped Rulesync
+adapter. The one sentinel left is the Client Anchors row for `checks`, and it is
+deliberate and accurate: the upstream surface exists, no Rulesync adapter does.
 
 ## Official Docs
 
@@ -62,7 +63,10 @@ from `.rulesync/permissions.jsonc` on `import`, even though `generate` spreads
 the user's existing block and so preserves a hand-written one. That asymmetry is
 where an unnoticed upstream addition turns into data loss on an import →
 generate round trip, so re-read the settings table above when supporting a new
-version.
+version. The key set is spelled out in prose in two places that no check keeps in
+sync — the `qwencode` blockquote in `docs/reference/file-formats.md` and the
+TSDoc on `QwencodePermissionsOverrideSchema` in `src/types/permissions.ts` —
+so update both whenever the allow-lists change.
 
 Each key also needs an entry in the matching `QWEN_SCOPED_*_KEYS` map — the type
 is a total `Record`, so the compiler enforces it. Pick the rule from upstream's
@@ -74,9 +78,11 @@ The rule alone is not the whole entry. The rules say what a _scope_ does with a
 key; only the key knows what it means, so write a `projectNote` / `globalNote`
 whenever the rule's default sentence does not describe the actual consequence —
 in **both** directions, since for several of these keys the dangerous edit is the
-one that widens rather than the one that restricts. Set `grants` when an empty
-value is the widest value rather than the narrowest (`allowedInsecureVoiceBaseUrls`
-is the worked example). Two upstream details belong in the note and are easy to
+one that widens rather than the one that restricts. Set `grants` when the key's empty
+value grants nothing, because the default reading is plain truthiness and would
+otherwise announce a fail-closed `[]` as a grant — `allowedInsecureVoiceBaseUrls`
+is the worked example, and `allowedHttpHookUrls`, whose empty list is Qwen Code's
+allow-all, is the counter-example that needs no `grants`. Two upstream details belong in the note and are easy to
 miss: `mergeStrategy` in `settingsSchema.ts` decides whether a project list is
 unioned with a higher scope's or replaces it outright, and a key may treat an
 explicit empty list differently from an omitted one.
