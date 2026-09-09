@@ -540,7 +540,7 @@ describe("ReasonixMcp", () => {
 
     // `false` is the value that carries the instruction here, so a truthiness
     // filter anywhere on either path would drop exactly the one worth keeping.
-    it("should keep an auto_start of false through export then import", async () => {
+    it("should keep both concurrency and an auto_start of false through export then import", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: ".rulesync",

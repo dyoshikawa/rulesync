@@ -58,8 +58,9 @@ type ReasonixPlugin = Record<string, unknown> & {
 // `call_timeout_seconds` (per-server MCP call timeout) and `tool_timeout_seconds`
 // (a per-tool inline table keyed by raw MCP tool name) have no canonical
 // equivalent at all and round-trip as passthrough fields too.
-// `concurrency` (`parallel` default | `serial`) and `auto_start` are the same
-// kind of passthrough. Both matter more than their size suggests, because
+// `concurrency` (`serial` | `parallel`, with no value meaning the server name
+// decides) and `auto_start` are the same kind of passthrough. Both matter more
+// than their size suggests, because
 // rulesync rewrites the whole `plugins` key: a value only Reasonix knows about
 // would be deleted on the next generate, and for these two that deletion changes
 // behavior rather than losing a hint. `serial` is what keeps sub-agents sharing
@@ -69,9 +70,19 @@ type ReasonixPlugin = Record<string, unknown> & {
 // selenium), so dropping the key does not fall back to a neutral default — it
 // hands the decision to the name: a `serial` dropped from a server the list does
 // not catch puts it back on the parallel path, and a `parallel` dropped from one
-// it does catch forces it serial. `auto_start = false` keeps a server off the
-// session-startup handshake until it is called; dropping it makes the server
-// connect at boot again. Neither has a canonical counterpart.
+// it does catch forces it serial. `auto_start = false` is not a delay: it takes
+// the server out of the enabled set entirely (`Config.EnabledPlugins` in
+// `internal/config/config.go`), so its tools never reach the model and Reasonix
+// reports it as `disabled` rather than `deferred`. Nothing a tool call does
+// brings it back — only a durable override in `mcp-activation.json`, written
+// when the user enables the server, outranks the file value. Dropping the key
+// therefore switches a server back on. `concurrency` has no canonical
+// counterpart. `auto_start` overlaps canonical `disabled`, but it stays a
+// passthrough here rather than a deep mapping: the activation store can flip a
+// server independently of the file, so the two are not interchangeable, and
+// settling which wins when a canonical `disabled` and a hand-written
+// `auto_start` disagree — in both the write and the import direction — is its
+// own decision, left on #2599.
 // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
 // (§3.16 for `concurrency`) and `internal/config/plugin_entry.go` for the
 // `[[plugins]]` field names.
