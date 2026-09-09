@@ -9,11 +9,10 @@ per-surface rows before assuming a dimension has its own file. Rules are the
 exception in the other direction: `QWEN.md` sits at the repository root, not
 inside `.qwen/`.
 
-Every row below was re-verified against the `v0.23.0` docs and source. Earlier
-revisions of this map recorded `commands`, `subagents` and `hooks` as having no
-upstream surface and no Rulesync target; all three claims were false, and the
-Collect step reads those exact sentinel phrases as "upstream has nothing here",
-so they were steering research runs away from three implemented dimensions.
+Every row below was re-verified against the `v0.23.0` docs and source, so no row
+carries a sentinel phrase: `commands`, `subagents` and `hooks` each have a
+documented upstream surface and a shipped Rulesync adapter, and `checks` has an
+upstream surface with no adapter.
 
 ## Official Docs
 
@@ -53,7 +52,7 @@ Common adapter paths: `rulesync-source-map.md`.
 | `skills`      | `.qwen/skills/<name>/SKILL.md` at both scopes in `qwencode-skill.ts`                                                                                                                                                                    |
 | `hooks`       | `qwencode-hooks.ts` merges the `hooks` block into `settings.json`; the canonical events map onto the PascalCase set in `QWENCODE_HOOK_EVENTS` (`src/types/hooks.ts`), which tracks the upstream list release by release                 |
 | `permissions` | `qwencode-permissions.ts` — `permissions.allow` / `ask` / `deny` mapping and tool aliases, plus the curated `QWEN_OVERRIDE_TOOLS_KEYS` / `QWEN_OVERRIDE_SECURITY_KEYS` allow-lists and the `QWEN_SCOPED_*_KEYS` scope rules beside them |
-| `checks`      | No target. `.qwen/review-rules.md` is unauthorable — see #2668                                                                                                                                                                          |
+| `checks`      | No Rulesync-supported checks target in map — `.qwen/review-rules.md` is unauthorable; see #2668                                                                                                                                         |
 
 ### Adding a `tools` / `security` key
 
@@ -70,3 +69,14 @@ is a total `Record`, so the compiler enforces it. Pick the rule from upstream's
 own `WORKSPACE_RESTRICTED_SETTINGS` and `WORKSPACE_NON_OVERRIDING_SETTINGS` in
 `packages/cli/src/config/settingsUtils.ts`, not from the prose on the docs page;
 a key absent from both lists is honored in any scope (`global-machine-wide`).
+
+The rule alone is not the whole entry. The rules say what a _scope_ does with a
+key; only the key knows what it means, so write a `projectNote` / `globalNote`
+whenever the rule's default sentence does not describe the actual consequence —
+in **both** directions, since for several of these keys the dangerous edit is the
+one that widens rather than the one that restricts. Set `grants` when an empty
+value is the widest value rather than the narrowest (`allowedInsecureVoiceBaseUrls`
+is the worked example). Two upstream details belong in the note and are easy to
+miss: `mergeStrategy` in `settingsSchema.ts` decides whether a project list is
+unioned with a higher scope's or replaces it outright, and a key may treat an
+explicit empty list differently from an omitted one.

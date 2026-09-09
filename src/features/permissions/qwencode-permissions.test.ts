@@ -1273,6 +1273,33 @@ describe("QwencodePermissions", () => {
       expect(announced).not.toContain("not a key rulesync models");
     });
 
+    // `eager` shapes the prompt rather than the registry, and its list replaces
+    // a higher scope's rather than being unioned with it, so its note has to say
+    // both of those rather than fall through to the rule's generic wording.
+    it("describes eager as itself rather than as an unmodeled key", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { eager: ["read_file"] } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.eager"));
+      expect(announced).toContain("demoted to deferred");
+      expect(announced).toContain("replaces the list in this file rather than adding to it");
+      expect(announced).not.toContain("not a key rulesync models");
+    });
+
     // A key that is written rather than stripped only warrants a project-scope
     // note when the generated value differs from what the file already says, so
     // regenerating an unchanged project file stays silent.
