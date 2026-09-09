@@ -131,6 +131,18 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   // merge across scopes) — the counterpart of the `disabled` registry control.
   // Added in Qwen Code v0.19.7. https://github.com/QwenLM/qwen-code/pull/6372
   "visible",
+  // Allowlist of eager-by-default built-in tool names whose schemas stay in the
+  // initial model request; every other non-exempt one is demoted to deferred.
+  // The demoted tools stay registered and callable through `tool_search`, so
+  // this shapes the prompt rather than the registry — the opposite direction of
+  // `visible`, which pulls a deferred tool back up. Unlike `visible` and
+  // `disabled`, it carries no `mergeStrategy` in Qwen Code's settings schema, so
+  // it takes the default replace rather than a union across scopes: a
+  // workspace list stands in for a user one rather than adding to it. An
+  // explicit `[]` defers every non-exempt eager-by-default tool, while omitting
+  // the key means no restriction at all — the two are not interchangeable.
+  // Added in Qwen Code v0.22.3. https://github.com/QwenLM/qwen-code/pull/10098
+  "eager",
   // `{ enabled: boolean }` toggle for the built-in `list_directory` tool, off by
   // default because `glob` covers the same ground. Added in Qwen Code v0.22.0.
   "listDirectory",
@@ -340,6 +352,19 @@ const QWEN_SCOPED_TOOLS_KEYS = {
       `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it decides which deferred tools are visible at startup in this repository.`,
     globalNote:
       "Qwen Code honors this key wherever it is written, so in the global scope this decides which deferred tools are visible at startup for every project on this machine.",
+  },
+  eager: {
+    rule: "global-machine-wide",
+    // Both directions are worth naming. Restricting: unlike `disabled`, a name
+    // missing from this list is not taken away, only demoted to deferred and
+    // still reachable through `tool_search` — except in a session where
+    // `tool_search` is not registered, where the demotion is final. Widening: the
+    // list replaces rather than unions across scopes, so an override can hand
+    // back the schemas a narrower list had been keeping out of the prompt.
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, replacing the list in that file rather than adding to it, so in this repository every non-exempt eager-by-default tool it does not name is demoted to deferred — still callable, but only after \`tool_search\` loads it, and out of reach for the session if \`tool_search\` is not registered. A name added back is a tool whose schema is in the initial request again.`,
+    globalNote:
+      "Qwen Code honors this key wherever it is written, and the override replaces the list in this file rather than adding to it, so in the global scope it decides which eager-by-default tools keep their schemas in the initial request for every project on this machine — the ones it does not name are demoted to deferred, reachable only through `tool_search`, and out of reach entirely for a session where `tool_search` is not registered, while a name it adds back is a tool declared up front again.",
   },
   listDirectory: {
     rule: "global-machine-wide",

@@ -286,6 +286,33 @@ describe("QwencodePermissions", () => {
       expect(config.qwencode.tools).toEqual({ listDirectory: { enabled: true } });
     });
 
+    it("authors and imports tools.eager through the qwencode override (issue #2668)", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { eager: ["read_file", "glob"] } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ eager: ["read_file", "glob"] });
+
+      // And the import direction lifts it back into the override, rather than
+      // dropping it out of the canonical file the way it used to.
+      const imported = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { eager: ["read_file", "glob"] } }),
+      });
+      const config = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+      expect(config.qwencode.tools).toEqual({ eager: ["read_file", "glob"] });
+    });
+
     it("authors tools.workflowsEnabled in global scope, announcing the grant (issue #2668)", async () => {
       const logger = createMockLogger();
       const instance = await QwencodePermissions.fromRulesyncPermissions({
@@ -937,7 +964,9 @@ describe("QwencodePermissions", () => {
           relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
           fileContent: JSON.stringify({
             permission: {},
-            qwencode: { tools: { disabled: [], listDirectory: { enabled: true } } },
+            qwencode: {
+              tools: { disabled: [], listDirectory: { enabled: true }, eager: ["read_file"] },
+            },
           }),
         }),
       });
@@ -949,6 +978,12 @@ describe("QwencodePermissions", () => {
       const listDirectory = messages.find((message) => message.includes("tools.listDirectory"));
       expect(listDirectory).toContain("whether the built-in `list_directory` tool is registered");
       expect(listDirectory).not.toContain("how far approvals are skipped");
+      // `eager` sits in the same rule but demotes rather than deregisters, so its
+      // project note has to say that instead of borrowing the `disabled` wording.
+      const eager = messages.find((message) => message.includes("tools.eager"));
+      expect(eager).toContain("demoted to deferred");
+      expect(eager).toContain("replacing the list in that file rather than adding to it");
+      expect(eager).not.toContain("how far approvals are skipped");
     });
 
     // A re-run writes the same values again, and repeating the notes would only
@@ -1243,6 +1278,33 @@ describe("QwencodePermissions", () => {
         .map(([message]) => String(message))
         .find((message) => message.includes("tools.listDirectory"));
       expect(announced).toContain("whether the built-in `list_directory` tool is registered");
+      expect(announced).not.toContain("not a key rulesync models");
+    });
+
+    // `eager` shapes the prompt rather than the registry, and its list replaces
+    // a higher scope's rather than merging into it, so its note has to say
+    // both of those rather than fall through to the rule's generic wording.
+    it("describes eager as itself rather than as an unmodeled key", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { eager: ["read_file"] } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.eager"));
+      expect(announced).toContain("demoted to deferred");
+      expect(announced).toContain("replaces the list in this file rather than adding to it");
       expect(announced).not.toContain("not a key rulesync models");
     });
 

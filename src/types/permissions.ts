@@ -329,7 +329,7 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * Tool-scoped override block for Qwen Code. Qwen's `settings.json` exposes
  * autonomy/sandbox controls with no canonical permission category — under
  * `tools` (`approvalMode` = plan/default/auto-edit/auto/yolo, `autoAccept`,
- * `sandbox`, `sandboxImage`, `disabled`, `visible`, `listDirectory`,
+ * `sandbox`, `sandboxImage`, `disabled`, `visible`, `eager`, `listDirectory`,
  * `workflowsEnabled`) and `security` (`folderTrust`, `allowedHttpHookUrls`,
  * `allowPrivateNetworkHooks`, `allowedInsecureVoiceBaseUrls`). Qwen Code strips
  * `tools.workflowsEnabled`, `security.allowPrivateNetworkHooks` and
@@ -343,7 +343,9 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * changes what the file said is reported in either scope, naming what that key
  * decides there — the autonomy and containment
  * controls (`approvalMode`, `autoAccept`, `sandbox`, `sandboxImage`), the
- * registry controls (`disabled`, `visible`, `listDirectory`), the Auto Mode
+ * registry controls (`disabled`, `visible`, `listDirectory`, and `eager`, which
+ * demotes an omitted tool to deferred rather than removing it, replacing rather
+ * than merging with the list a higher scope set), the Auto Mode
  * classifier config, and, because these groups are loose objects, any key
  * rulesync does not model. Import flags a scope-dependent key only when it read
  * the project file, since that is the value a `--global` regenerate would
