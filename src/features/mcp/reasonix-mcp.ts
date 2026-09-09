@@ -58,7 +58,21 @@ type ReasonixPlugin = Record<string, unknown> & {
 // `call_timeout_seconds` (per-server MCP call timeout) and `tool_timeout_seconds`
 // (a per-tool inline table keyed by raw MCP tool name) have no canonical
 // equivalent at all and round-trip as passthrough fields too.
+// `concurrency` (`parallel` default | `serial`) and `auto_start` are the same
+// kind of passthrough. Both matter more than their size suggests, because
+// rulesync rewrites the whole `plugins` key: a value only Reasonix knows about
+// would be deleted on the next generate, and for these two that deletion changes
+// behavior rather than losing a hint. `serial` is what keeps sub-agents sharing
+// one stdio process from interleaving on its session state, and Reasonix applies
+// it by default to servers whose names look stateful (browser, playwright,
+// puppeteer, chrome, chromium, selenium) — so dropping an explicit value can
+// either put a stateful server back on the parallel path or, on a name that does
+// not match that list, leave a serial one there. `auto_start = false` keeps a
+// server off the session-startup handshake until it is called; dropping it makes
+// the server connect at boot again. Neither has a canonical counterpart.
 // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
+// (§3.16 for `concurrency`) and `internal/config/plugin_entry.go` for the
+// `[[plugins]]` field names.
 const REASONIX_PLUGIN_FIELDS = [
   "type",
   "command",
@@ -69,6 +83,8 @@ const REASONIX_PLUGIN_FIELDS = [
   "startup_timeout_seconds",
   "call_timeout_seconds",
   "tool_timeout_seconds",
+  "concurrency",
+  "auto_start",
 ] as const;
 
 export class ReasonixMcp extends ToolMcp {

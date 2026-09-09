@@ -481,4 +481,82 @@ describe("ReasonixMcp", () => {
       });
     });
   });
+
+  // Rulesync owns the whole `plugins` key, so a field it does not carry cannot
+  // just be written by hand instead — it is deleted from a hand-written
+  // `reasonix.toml` on the next generate, and for these two that silently
+  // changes how the server runs.
+  describe("plugin scheduling fields round-trip", () => {
+    it("should export concurrency and auto_start", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            browser: {
+              command: "reasonix-plugin-browser",
+              concurrency: "serial",
+              auto_start: false,
+            },
+          },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+      expect(parsed.plugins[0]).toMatchObject({
+        name: "browser",
+        concurrency: "serial",
+        auto_start: false,
+      });
+    });
+
+    it("should import concurrency and auto_start from an existing [[plugins]] entry", () => {
+      const fileContent = [
+        "[[plugins]]",
+        'name = "browser"',
+        'command = "reasonix-plugin-browser"',
+        'concurrency = "serial"',
+        "auto_start = false",
+      ].join("\n");
+
+      const reasonixMcp = new ReasonixMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent,
+      });
+
+      const parsed = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      expect(parsed.mcpServers.browser.concurrency).toBe("serial");
+      expect(parsed.mcpServers.browser.auto_start).toBe(false);
+    });
+
+    // `false` is the value that carries the instruction here, so a truthiness
+    // filter anywhere on either path would drop exactly the one worth keeping.
+    it("should keep an auto_start of false through export then import", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            lazy: { command: "reasonix-plugin-lazy", auto_start: false, concurrency: "parallel" },
+          },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const roundTripped = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      expect(roundTripped.mcpServers.lazy.auto_start).toBe(false);
+      // An explicit `parallel` is not the same as saying nothing: Reasonix
+      // defaults known-stateful server names to `serial`, so the value is what
+      // overrides that default and it has to survive the trip.
+      expect(roundTripped.mcpServers.lazy.concurrency).toBe("parallel");
+    });
+  });
 });
