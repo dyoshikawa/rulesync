@@ -260,24 +260,43 @@ If `git switch -c` fails because the branch already exists, stop and look at
 what is on it. Do not reach for `-B`: a leftover branch means a previous attempt
 did not finish, and overwriting it hides whatever went wrong.
 
-Resolve each conflicted file per Step 3 — for a generated file, run its
-generator (`pnpm run generate:docs-content`, `pnpm run generate:tables`,
+List the conflicts the merge actually stopped on, before resolving any of them —
+this is the set every later check is measured against:
+
+```bash
+git diff --name-only --diff-filter=U
+```
+
+Resolve each of those per Step 3 — for a generated file, run its generator
+(`pnpm run generate:docs-content`, `pnpm run generate:tables`,
 `pnpm dev gitignore`) and stage the result rather than editing conflict markers
 out by hand. Then verify the staged tree, which is what the commit will contain:
 
 ```bash
 git diff --cached --check
 git grep --cached -n -e '^<<<<<<< ' -e '^||||||| ' -e '^=======$' -e '^>>>>>>> ' -- .
-git diff --cached --stat
 ```
 
 `--cached` is what makes the second command read the index rather than the
-working tree, so it checks the same content the two commands around it do. Its
-exit code is inverted too — `0` means it _found_ markers, `1` means the index is
-clean — so a passing run of this command exits `1`. It must find nothing — judge it by its output and exit status, not
-by a trailing `echo`. The `--stat` must list only conflicted and regenerated
-files; anything else means unrelated work is about to be pushed to someone
-else's repository.
+working tree, so it checks the same content the first one does. Its exit code is
+inverted — `0` means it _found_ markers, `1` means the index is clean — so a
+passing run of this command exits `1`. Judge it by its output and exit status,
+not by a trailing `echo`.
+
+Do not use `git diff --cached --stat` to look for stray work here. Mid-merge the
+index is compared against the PR head, so it legitimately lists every file
+`main` changed since the merge base — reading that as contamination would stop
+the run on every ordinary conflict. Check the resolution itself instead:
+
+```bash
+git diff --name-only --diff-filter=U
+git diff --name-only HEAD MERGE_HEAD
+```
+
+The first must now be empty — nothing left unmerged. Every path you touched must
+appear in the second, which is `main`'s own set of changes; a staged path that
+is not in it and was not one of the conflicts listed above is unrelated work
+about to be pushed to someone else's repository.
 
 Then run the full check before committing:
 
@@ -408,6 +427,15 @@ gh pr merge <pr_number> --admin --merge \
   --match-head-commit "$(cat tmp/merge-pr-<pr_number>/resolution-sha)"
 ```
 
+On the no-conflict path there is no `resolution-sha` file, and `cat` would fail
+or pin the merge to nothing. Read the reviewed head out of the saved payload
+instead — the pin matters most here, so it is never the part to skip:
+
+```bash
+gh pr merge <pr_number> --admin --merge \
+  --match-head-commit "$(jq -r .headRefOid tmp/merge-pr-<pr_number>/pr.json)"
+```
+
 `--match-head-commit` is what closes the window between the green check run and
 the merge: if the author pushes in that gap, the merge is refused instead of
 landing unreviewed code.
@@ -418,21 +446,21 @@ never a way past a check. The `gh pr checks` gate above is what makes it
 legitimate, so run it immediately before the merge; if it did not pass, `--admin`
 is not the answer.
 
-Then thank the author and clean up:
+Then thank the author:
 
 ```bash
 gh pr comment <pr_number> \
   --body "@$(jq -r .author.login tmp/merge-pr-<pr_number>/pr.json) Thank you!"
-rm -rf tmp/merge-pr-<pr_number>
-git checkout main && git pull --ff-only --prune
 ```
 
 ## Step 7: Verify the History
 
-Confirm the author's commits actually landed under their name:
+Pull the merge down and confirm the author's commits landed under their name —
+this is the run's one return to `main` after the merge, Step 5 having already
+put the repository there:
 
 ```bash
-git checkout main && git pull --ff-only --prune
+git pull --ff-only --prune
 MERGE_COMMIT="$(gh pr view <pr_number> --json mergeCommit --jq .mergeCommit.oid)"
 git log --format="%h %an <%ae> %s" "${MERGE_COMMIT}^1..${MERGE_COMMIT}^2"
 ```
@@ -449,6 +477,14 @@ attributed to someone else, something rewrote history — report it rather than
 glossing over it.
 
 ## Step 8: Report
+
+The saved payload is still needed for this report — the PR title and the author
+come from it, and Step 1's rule against re-querying per value holds to the end.
+Delete it once the report is written:
+
+```bash
+rm -rf tmp/merge-pr-<pr_number>
+```
 
 Report the PR number and title, the author, what the blocker was and how it was
 resolved, the merge commit, and the list of the author's commits that survived
