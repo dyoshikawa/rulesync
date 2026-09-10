@@ -52,8 +52,8 @@ own and touch nothing that already exists.
 ## Step 1: Read the Current State
 
 Start from a clean tree. Uncommitted local work would be carried onto the branch
-created in Step 3, swept into the resolution commit, and pushed to someone
-else's repository in Step 4:
+created in Step 4, swept into the resolution commit, and pushed to someone
+else's repository in Step 5:
 
 ```bash
 git status --porcelain
@@ -77,7 +77,7 @@ Record two values for the rest of the run:
 - `headRefOid` — the SHA that is about to be reviewed and resolved. Every later
   step is about _this_ commit; if the PR head moves, the run restarts.
 - `headRepository.name` and `headRepositoryOwner.login` — the push target in
-  Step 4. Do not assume the fork kept the upstream repository's name.
+  Step 5. Do not assume the fork kept the upstream repository's name.
 
 Stop and report instead of continuing when:
 
@@ -94,22 +94,40 @@ merges cleanly, skip Steps 2 through 5 and go straight to Step 6.
 
 ## Step 2: Gate on the High-Risk Paths — Before Running Anything
 
-Resolving locally means running the fork's code on your own machine: Step 3's
-`pnpm cicheck` executes the PR's tests, and the generators execute the PR's
-`src/` and `scripts/`. Your machine holds `gh`, npm and SSH credentials, so this
-gate comes **before** any command is run against the branch, not before the
-merge:
+Resolving locally means running the fork's code on your own machine: Step 4's
+`pnpm cicheck` executes the PR's tests, the generators execute the PR's `src/`
+and `scripts/`, and the pre-commit hook executes whatever `.lintstagedrc.js`
+names. Your machine holds `gh`, npm and SSH credentials, so this gate comes
+**before** any command is run against the branch, not before the merge:
 
 ```bash
 gh pr view <pr_number> --json files --jq '.files[].path'
 ```
 
-If the PR touches `.github/**`, `package.json`, a lockfile, `scripts/**`, or
-build/release configuration, do **not** run anything locally. Stop, report the
-paths, and ask the user to confirm — or ask the author to merge `main` into
-their branch themselves so nothing untrusted has to run here at all.
+Stop, report the paths, and ask the user to confirm — or ask the author to merge
+`main` into their branch themselves so nothing untrusted has to run here at all
+— when the PR touches any of:
 
-The same list is the confirmation gate before the merge in Step 5. Checking it
+- `.github/**`, `package.json` or a lockfile;
+- `scripts/**`, or anything else the build and release flow runs;
+- **any configuration file a local command loads**: `.lintstagedrc.js` (run by
+  the pre-commit hook), `vitest.config.ts` and `vitest.e2e.config.ts`,
+  `knip.ts`, `tsconfig.json`, `mise.toml`, `.claude/**`. When in doubt about a
+  dotfile or a config at the repository root, treat it as on the list — the
+  question is not whether it looks like build configuration, but whether some
+  command executed here would read it.
+
+That list bounds the damage; it does not eliminate it. `pnpm cicheck` runs
+`vitest`, which executes every `src/**/*.test.ts` in the fork's tree, so a PR
+touching only `src/**` still runs the contributor's code with your credentials
+in reach. Before running anything, read the whole diff — `gh pr diff
+<pr_number>` — and look in particular at added or modified test files, at
+anything that opens a network connection, a shell or the filesystem outside the
+repository, and at postinstall-style hooks. If the diff is too large to read, or
+anything in it is not plainly part of the stated change, do not run it here:
+hand the PR back, or resolve it in a disposable container.
+
+The same list is the confirmation gate before the merge in Step 6. Checking it
 here just moves the stop to the first moment it matters.
 
 ## Step 3: Inspect the Conflict Without Touching the Working Tree
@@ -133,12 +151,13 @@ Judge what the conflict is made of:
   between the `SUPPORTED_TOOLS_*` markers. A conflict inside those blocks is
   regenerated; a conflict in the prose around them is an ordinary prose
   conflict, where taking one side silently drops the other side's edit.
-- **`pnpm-lock.yaml`** is not resolved by editing at all. Take `main`'s copy and
-  let `pnpm install` re-apply the PR's own dependency change — and note that a
-  PR changing dependencies is a Step 2 stop, to be handed back rather than
-  resolved here. When it is merging `main` that brings a dependency change in,
-  run `pnpm install` before `pnpm cicheck`, or the checks run against stale
-  `node_modules`.
+- **`pnpm-lock.yaml`** is a Step 2 stop, not something to resolve. A PR that
+  changes dependencies is handed back to its author — never run `pnpm install`
+  against a fork's `package.json`, which is what executes the new dependency's
+  install scripts here. The lockfile is only in play when it is `main`'s own
+  dependency change being merged in: then take `main`'s copy, never edit it by
+  hand, and run `pnpm install` before `pnpm cicheck` so the checks do not run
+  against stale `node_modules`.
 - **Source and prose conflicts** that only interleave two independent additions
   are safe to resolve mechanically — keep both.
 - **A conflict that needs a judgement call about what the author meant** is not
@@ -171,11 +190,13 @@ out by hand. Then verify the staged tree, which is what the commit will contain:
 
 ```bash
 git diff --cached --check
-git grep -n -e '^<<<<<<< ' -e '^||||||| ' -e '^=======$' -e '^>>>>>>> ' -- .
+git grep --cached -n -e '^<<<<<<< ' -e '^||||||| ' -e '^=======$' -e '^>>>>>>> ' -- .
 git diff --cached --stat
 ```
 
-The `git grep` must find nothing — judge it by its output and exit status, not
+`--cached` is what makes the second command read the index rather than the
+working tree, so it checks the same content the two commands around it do. It
+must find nothing — judge it by its output and exit status, not
 by a trailing `echo`. The `--stat` must list only conflicted and regenerated
 files; anything else means unrelated work is about to be pushed to someone
 else's repository.
@@ -203,6 +224,12 @@ HEAD_REPO="$(gh pr view <pr_number> --json headRepository --jq .headRepository.n
 HEAD_REF="$(gh pr view <pr_number> --json headRefName --jq .headRefName)"
 git push "https://github.com/${HEAD_OWNER}/${HEAD_REPO}.git" "HEAD:refs/heads/${HEAD_REF}"
 ```
+
+These three values must equal the ones recorded in Step 1. Compare them before
+pushing: a PR's head repository and branch can be changed while a run is in
+progress, and pushing to a target that was never inspected sends the resolution
+commit to a repository nobody reviewed. If they differ, do not push — return to
+Step 1 and start over against the new head.
 
 `git check-ref-format` allows `$`, backticks, `;`, `&` and `|` in a branch name,
 so an unquoted `<head_ref_name>` written straight into a command is a command
@@ -251,6 +278,16 @@ leave the PR open.
 Before merging, re-read the PR head and confirm it is still the `headRefOid`
 from Step 1 plus your own resolution commit. Anything else the author pushed in
 between is unreviewed code, so review it before it is merged rather than after.
+Once it checks out, record that exact SHA — this, and not a fresh `gh pr view`
+at merge time, is what the merge is pinned to:
+
+```bash
+REVIEWED_SHA="$(gh pr view <pr_number> --json headRefOid --jq .headRefOid)"
+```
+
+Re-reading it at the moment of the merge instead would defeat the point: it
+would pin the merge to whatever was just pushed, which is the case the pin
+exists to catch.
 
 Merge with a merge commit — never `--squash`, never `--rebase` — pinned to the
 exact commit that was verified above:
@@ -272,7 +309,8 @@ is not the answer.
 Then thank the author and clean up:
 
 ```bash
-gh pr comment <pr_number> --body "@<author_login> Thank you!"
+AUTHOR_LOGIN="$(gh pr view <pr_number> --json author --jq .author.login)"
+gh pr comment <pr_number> --body "@${AUTHOR_LOGIN} Thank you!"
 git checkout main && git pull --ff-only --prune
 ```
 
@@ -293,5 +331,7 @@ glossing over it.
 
 Report the PR number and title, the author, what the blocker was and how it was
 resolved, the merge commit, and the list of the author's commits that survived
-into `main`. Mention anything deliberately left out of the resolution commit
+into `main`. State plainly that the merge used `--admin`, and which check run
+was verified green immediately before it, so the bypass is auditable rather than
+invisible. Mention anything deliberately left out of the resolution commit
 (review findings, follow-up issues) so it is not silently dropped.
