@@ -81,21 +81,25 @@ stale head is how their work gets clobbered.
 ```bash
 git fetch origin main
 git fetch origin pull/<pr_number>/head:refs/remotes/origin/pr-<pr_number> --force
-mkdir -p tmp/merge-pr-<pr_number>
-gh pr view <pr_number> --json number,title,state,isDraft,mergeable,mergeStateStatus,author,headRefName,headRefOid,headRepository,headRepositoryOwner,maintainerCanModify,files > tmp/merge-pr-<pr_number>/pr.json
+mkdir -p "$(git rev-parse --git-dir)/merge-pr-<pr_number>"
+gh pr view <pr_number> --json number,title,state,isDraft,mergeable,mergeStateStatus,author,headRefName,headRefOid,headRepository,headRepositoryOwner,maintainerCanModify,files > "$(git rev-parse --git-dir)/merge-pr-<pr_number>/pr.json"
 ```
 
-Under the repository's gitignored `tmp/`, not in the shared `/tmp`: the push
-target in Step 5 is read back out of this file, so a path any process on the
-machine can guess is a path it can swap for one pointing somewhere else. Delete
-the directory when the run ends.
+Inside `.git/`, and deliberately not in the working tree. The push target in
+Step 5 is read back out of this file, so it has to be somewhere the PR itself
+cannot reach. A gitignored path such as `tmp/` would be the wrong choice
+precisely because it looks safe: a fork can commit a file at that exact path —
+the PR number is not a secret — and `git switch` in Step 4 overwrites ignored
+files silently, leaving `git status` clean while the push target has been
+replaced. `.git/` is not part of any checkout, and the `git rev-parse` re-derives
+the path in each shell. Delete the directory when the run ends.
 
 Read that one payload for everything below rather than calling `gh pr view`
 again per value — a second call can return a different head, and then each step
 is working from a different PR:
 
 ```bash
-jq -r '.headRefOid, .headRepositoryOwner.login, .headRepository.name, .headRefName, .author.login' tmp/merge-pr-<pr_number>/pr.json
+jq -r '.headRefOid, .headRepositoryOwner.login, .headRepository.name, .headRefName, .author.login' "$(git rev-parse --git-dir)/merge-pr-<pr_number>/pr.json"
 ```
 
 - `headRefOid` is the SHA that is about to be reviewed and resolved. Every later
@@ -120,7 +124,7 @@ those are two separate reads and an author can push between them:
 
 ```bash
 test "$(git rev-parse "refs/remotes/origin/pr-<pr_number>")" \
-  = "$(jq -r .headRefOid tmp/merge-pr-<pr_number>/pr.json)"
+  = "$(jq -r .headRefOid "$(git rev-parse --git-dir)/merge-pr-<pr_number>/pr.json")"
 ```
 
 Everything downstream reviews `gh pr diff` output but _runs_ the fetched ref.
@@ -158,7 +162,7 @@ any command executes content from the branch — the read-only `git fetch` and
 merely before the merge:
 
 ```bash
-jq -r '.files[].path' tmp/merge-pr-<pr_number>/pr.json
+jq -r '.files[].path' "$(git rev-parse --git-dir)/merge-pr-<pr_number>/pr.json"
 ```
 
 Stop, report the paths, and ask the user to confirm — or ask the author to merge
@@ -180,7 +184,9 @@ Stop, report the paths, and ask the user to confirm — or ask the author to mer
 - **any configuration file a local command loads**: `.lintstagedrc.js` (run by
   the pre-commit hook, and it runs `npx`, which reads `.npmrc` too),
   `vitest.config.ts` and `vitest.e2e.config.ts`, `knip.ts`, `tsconfig.json`,
-  `mise.toml`, `.claude/**`. The bullets above are examples, not a closed list.
+  `mise.toml`, `.claude/**`, and the lint configuration every check loads —
+  `.oxlintrc.json`, `cspell.json`, `.secretlintrc.json`, the last of which runs
+  on _every_ staged file through the pre-commit hook. The bullets above are examples, not a closed list.
   When in doubt about a dotfile or a config at the repository root, treat it as
   on the list — the question is not whether it looks like build configuration,
   but whether some command executed here would read it.
@@ -310,6 +316,13 @@ Then commit the merge:
 git commit -m "<what conflicted, and how it was resolved>"
 ```
 
+Write that message yourself; do not paste conflicted paths or hunk text into it
+verbatim. Those strings are fork-controlled and may contain `"` or `$(...)`,
+which the shell expands — the same reason Step 5 refuses to interpolate a branch
+name. This repository forbids here-documents in `git commit`, so when a message
+genuinely needs such a string, write the file first and use
+`git commit -F <file>`.
+
 If `git merge` completed on its own — no conflict, nothing to stage, and the
 merge commit already made — do not try to commit again. Verify the result the
 same way (`git show --stat HEAD`) and carry on to Step 5.
@@ -330,9 +343,10 @@ Branch names are attacker-controlled, so put every PR-derived value in a quoted
 variable rather than interpolating it into the command line:
 
 ```bash
+PR_JSON="$(git rev-parse --git-dir)/merge-pr-<pr_number>/pr.json"
 git push \
-  "https://github.com/$(jq -r .headRepositoryOwner.login tmp/merge-pr-<pr_number>/pr.json)/$(jq -r .headRepository.name tmp/merge-pr-<pr_number>/pr.json).git" \
-  "HEAD:refs/heads/$(jq -r .headRefName tmp/merge-pr-<pr_number>/pr.json)"
+  "https://github.com/$(jq -r .headRepositoryOwner.login "$PR_JSON")/$(jq -r .headRepository.name "$PR_JSON").git" \
+  "HEAD:refs/heads/$(jq -r .headRefName "$PR_JSON")"
 ```
 
 Those come from Step 1's saved payload, deliberately not re-queried from GitHub
@@ -363,7 +377,7 @@ Record what was just pushed, before the branch that holds it is gone — to the
 same directory, for the same reason a shell variable will not do:
 
 ```bash
-git rev-parse HEAD > tmp/merge-pr-<pr_number>/resolution-sha
+git rev-parse HEAD > "$(git rev-parse --git-dir)/merge-pr-<pr_number>/resolution-sha"
 ```
 
 Then return the repository to `main` and drop the throwaway branch — its
@@ -401,7 +415,7 @@ at would pin the merge to an author's last-second push, which is exactly the
 case the pin exists to catch:
 
 ```bash
-REVIEWED_SHA="$(cat tmp/merge-pr-<pr_number>/resolution-sha)"   # see below when Steps 3-5 were skipped
+REVIEWED_SHA="$(cat "$(git rev-parse --git-dir)/merge-pr-<pr_number>/resolution-sha")"   # see below when Steps 3-5 were skipped
 test "$(gh pr view <pr_number> --json headRefOid --jq .headRefOid)" = "$REVIEWED_SHA"
 ```
 
@@ -424,7 +438,7 @@ exact commit that was verified above:
 
 ```bash
 gh pr merge <pr_number> --admin --merge \
-  --match-head-commit "$(cat tmp/merge-pr-<pr_number>/resolution-sha)"
+  --match-head-commit "$(cat "$(git rev-parse --git-dir)/merge-pr-<pr_number>/resolution-sha")"
 ```
 
 On the no-conflict path there is no `resolution-sha` file, and `cat` would fail
@@ -433,7 +447,7 @@ instead — the pin matters most here, so it is never the part to skip:
 
 ```bash
 gh pr merge <pr_number> --admin --merge \
-  --match-head-commit "$(jq -r .headRefOid tmp/merge-pr-<pr_number>/pr.json)"
+  --match-head-commit "$(jq -r .headRefOid "$(git rev-parse --git-dir)/merge-pr-<pr_number>/pr.json")"
 ```
 
 `--match-head-commit` is what closes the window between the green check run and
@@ -450,7 +464,7 @@ Then thank the author:
 
 ```bash
 gh pr comment <pr_number> \
-  --body "@$(jq -r .author.login tmp/merge-pr-<pr_number>/pr.json) Thank you!"
+  --body "@$(jq -r .author.login "$(git rev-parse --git-dir)/merge-pr-<pr_number>/pr.json") Thank you!"
 ```
 
 ## Step 7: Verify the History
@@ -483,7 +497,7 @@ come from it, and Step 1's rule against re-querying per value holds to the end.
 Delete it once the report is written:
 
 ```bash
-rm -rf tmp/merge-pr-<pr_number>
+rm -rf "$(git rev-parse --git-dir)/merge-pr-<pr_number>"
 ```
 
 Report the PR number and title, the author, what the blocker was and how it was
