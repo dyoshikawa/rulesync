@@ -176,7 +176,30 @@ the clean tree while `pnpm cicheck` and the pre-commit hook run the fetched one.
 Step 6 pins the merge with `--match-head-commit` for the same reason; here the
 pin matters more, because this is the last stop before code executes.
 
-Nor is it the `files` array of the saved payload: `gh pr view --json files` asks
+The path list is not the whole gate, because a file's _mode_ is part of the diff
+and `--name-only` never shows it:
+
+```bash
+git diff --raw --diff-filter=TM origin/main...origin/pr-<pr_number>
+git ls-tree -r origin/pr-<pr_number> | awk '$1 == "120000"'
+```
+
+Either command naming a symlink — mode `120000`, or a `T` type change into one —
+is a stop by itself, whatever the path is. `pnpm cicheck` does not merely compare
+the generated files, it _regenerates_ them first, and Node's `writeFileSync`
+follows a symlink to whatever it points at: `check:docs-content` writes
+`src/generated/docs-content.ts` and `docs/reference/file-formats.md`,
+`check:gitignore` writes `.gitignore` and `.gitattributes`, and
+`check:supported-tools` writes `README.md` and
+`docs/reference/supported-tools.md`. So a PR touching nothing but `docs/**` —
+the shape this step reads as the benign case — that also replaces one of those
+six with a symlink to `~/.bashrc` or `.git/hooks/pre-commit` has Step 4's
+`pnpm cicheck` write attacker-chosen content to an attacker-chosen path, and
+Step 3 tells you to run those generators on purpose. The path list cannot catch
+it, because those are the very paths an ordinary docs change is expected to
+touch.
+
+Nor is the input the `files` array of the saved payload: `gh pr view --json files` asks
 for the first 100 and says nothing when there are more. The list comes back
 sorted by path, so what falls off the end is the tail of the alphabet —
 `package.json`, `patches/**`, `pnpm-workspace.yaml`, `scripts/**`,
@@ -454,7 +477,8 @@ gh pr checks <pr_number>
 
 Both must exit `0`, with no check reported as `fail` or `pending`. `pass` is
 not the only word that clears the gate: a check GitHub reports as `skipping` —
-the aggregate `CodeQL` entry on this repository does — is neither failing nor
+a job whose own workflow conditions ruled it out, as the release-only
+`Build and upload assets` is on every non-release PR — is neither failing nor
 outstanding, and `gh pr checks` exits `0` beside it. A non-zero exit is not
 a broken command: `--watch` exits non-zero when a check fails, and both forms
 error out when the PR has no checks registered yet — which right after a push
