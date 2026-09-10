@@ -127,9 +127,9 @@ test "$(git rev-parse "refs/remotes/origin/pr-<pr_number>")" \
   = "$(jq -r .headRefOid "$(git rev-parse --git-dir)/merge-pr-<pr_number>/pr.json")"
 ```
 
-Everything downstream reviews `gh pr diff` output but _runs_ the fetched ref.
-If they disagree, the code being run is not the code being reviewed: re-fetch
-and start Step 1 again.
+This is the assertion that lets everything downstream read the fetched ref and
+know it is reading the head the PR advertises. If the two disagree, re-fetch and
+start Step 1 again.
 
 Stop and report instead of continuing when:
 
@@ -164,17 +164,25 @@ any command executes content from the branch — the read-only `git fetch` and
 merely before the merge:
 
 ```bash
-gh pr diff <pr_number> --name-only
+git diff --name-only origin/main...origin/pr-<pr_number>
 ```
 
-Not the `files` array of the saved payload: `gh pr view --json files` asks for
-the first 100 and says nothing when there are more. The list comes back sorted
-by path, so what falls off the end is the tail of the alphabet — `package.json`,
-`patches/**`, `pnpm-workspace.yaml`, `scripts/**`, `tsconfig.json`,
-`vitest.config.ts`. A PR with a hundred files under `docs/` would hide every one
-of them behind a gate that printed nothing at all. `gh pr diff --name-only`
-lists the whole diff; if you do use the payload for this, check `.files | length`
-against `.changedFiles` first.
+Gate the commit that will actually run, not the one GitHub reports now. Step 4
+checks out the ref Step 1 fetched, so that ref is what this has to describe.
+`gh pr diff <pr_number>` asks GitHub for whatever the branch points at at the
+moment of the call, and Step 1 already says a second call can return a different
+head: an author who pushes a clean head after the fetch gets a gate that reads
+the clean tree while `pnpm cicheck` and the pre-commit hook run the fetched one.
+Step 6 pins the merge with `--match-head-commit` for the same reason; here the
+pin matters more, because this is the last stop before code executes.
+
+Nor is it the `files` array of the saved payload: `gh pr view --json files` asks
+for the first 100 and says nothing when there are more. The list comes back
+sorted by path, so what falls off the end is the tail of the alphabet —
+`package.json`, `patches/**`, `pnpm-workspace.yaml`, `scripts/**`,
+`tsconfig.json`, `vitest.config.ts`. A PR with a hundred files under `docs/`
+would hide every one of them behind a gate that printed nothing at all. The
+local diff has no such cap.
 
 Stop, report the paths, and ask the user to confirm — or ask the author to merge
 `main` into their branch themselves so nothing untrusted has to run here at all
@@ -185,6 +193,14 @@ Stop, report the paths, and ask the user to confirm — or ask the author to mer
 - **`.rulesync/**`**, because `.lintstagedrc.js` maps it to `pnpm dev generate`:
   committing a change there in Step 4 runs the fork's own CLI through the
   pre-commit hook, and rewrites tracked generated files while it is at it;
+- **`rulesync.jsonc` and `rulesync.local.jsonc`**, which are what `pnpm generate`
+  reads — and `prepare` runs `pnpm generate` on every `pnpm install`. Their
+  `outputRoots` is a bare list of strings: unlike the `path` and `rulesPath`
+  fields beside it, nothing there rejects `..` or an absolute path, and this
+  repository's config sets `"delete": true`. A fork that leaves `.rulesync/**`
+  untouched and edits only `outputRoots` gets a generate that writes and deletes
+  outside the repository, the maintainer's own home-directory agent
+  configuration included;
 - **any `.lintstagedrc*` or `lint-staged.config.*`, anywhere in the tree**, not
   only the one at the root. lint-staged resolves the config nearest each staged
   file, so `src/.lintstagedrc.json` next to a file the PR deliberately made
@@ -199,6 +215,14 @@ Stop, report the paths, and ask the user to confirm — or ask the author to mer
   and `ignoreScripts: false`; and `patches/**` is applied to dependency source
   before it is ever imported. None of these is `package.json` or a lockfile, so
   none of them is caught by looking only at the obvious two;
+- **anything under a path `.gitignore` ignores**, `node_modules/**` first among
+  them. Git never writes there on its own, but a fork can commit a file there,
+  and Step 4's `git switch` overwrites an ignored file without a word — the same
+  silent overwrite that is why this run keeps its state under `.git/`. A
+  committed `node_modules/.bin/vitest`, or one replaced file inside a package
+  the test run imports, is executed by the next `pnpm cicheck` while
+  `git status` stays clean. `git check-ignore --stdin --no-index`, fed the
+  paths above, answers this for a diff too long to eyeball;
 - **any configuration file a local command loads**: `.lintstagedrc.js` (run by
   the pre-commit hook, and it runs `npx`, which reads `.npmrc` too),
   `vitest.config.ts` and `vitest.e2e.config.ts`, `knip.ts`, `tsconfig.json`,
@@ -217,8 +241,9 @@ Stop, report the paths, and ask the user to confirm — or ask the author to mer
 That list bounds the damage; it does not eliminate it. `pnpm cicheck` runs
 `vitest`, which executes every `src/**/*.test.ts` in the fork's tree, so a PR
 touching only `src/**` still runs the contributor's code with your credentials
-in reach. Before running anything, read the whole diff — `gh pr diff
-<pr_number>` — and look in particular at added or modified test files, at
+in reach. Before running anything, read the whole diff — `git diff
+origin/main...origin/pr-<pr_number>`, the fetched ref again for the reason
+above — and look in particular at added or modified test files, at
 anything that opens a network connection, a shell or the filesystem outside the
 repository, and at postinstall-style hooks. If the diff is too large to read, or
 anything in it is not plainly part of the stated change, do not run it here:
@@ -427,7 +452,10 @@ gh pr checks <pr_number> --watch
 gh pr checks <pr_number>
 ```
 
-Both must exit `0` with every check reported as `pass`. A non-zero exit is not
+Both must exit `0`, with no check reported as `fail` or `pending`. `pass` is
+not the only word that clears the gate: a check GitHub reports as `skipping` —
+the aggregate `CodeQL` entry on this repository does — is neither failing nor
+outstanding, and `gh pr checks` exits `0` beside it. A non-zero exit is not
 a broken command: `--watch` exits non-zero when a check fails, and both forms
 error out when the PR has no checks registered yet — which right after a push
 usually means they have not appeared, so wait and retry. Never merge while a
