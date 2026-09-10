@@ -69,15 +69,26 @@ stale head is how their work gets clobbered.
 ```bash
 git fetch origin main
 git fetch origin pull/<pr_number>/head:refs/remotes/origin/pr-<pr_number> --force
-gh pr view <pr_number> --json number,title,state,isDraft,mergeable,mergeStateStatus,author,headRefName,headRefOid,headRepository,headRepositoryOwner,maintainerCanModify,files
+gh pr view <pr_number> --json number,title,state,isDraft,mergeable,mergeStateStatus,author,headRefName,headRefOid,headRepository,headRepositoryOwner,maintainerCanModify,files > /tmp/pr-<pr_number>.json
 ```
 
-Record two values for the rest of the run:
+Read that one payload for everything below rather than calling `gh pr view`
+again per value — a second call can return a different head, and then each step
+is working from a different PR. Bind the values the later steps need, from the
+file, once:
 
-- `headRefOid` — the SHA that is about to be reviewed and resolved. Every later
+```bash
+HEAD_OID="$(jq -r .headRefOid /tmp/pr-<pr_number>.json)"
+HEAD_OWNER="$(jq -r .headRepositoryOwner.login /tmp/pr-<pr_number>.json)"
+HEAD_REPO="$(jq -r .headRepository.name /tmp/pr-<pr_number>.json)"
+HEAD_REF="$(jq -r .headRefName /tmp/pr-<pr_number>.json)"
+AUTHOR_LOGIN="$(jq -r .author.login /tmp/pr-<pr_number>.json)"
+```
+
+- `HEAD_OID` is the SHA that is about to be reviewed and resolved. Every later
   step is about _this_ commit; if the PR head moves, the run restarts.
-- `headRepository.name` and `headRepositoryOwner.login` — the push target in
-  Step 5. Do not assume the fork kept the upstream repository's name.
+- `HEAD_OWNER` / `HEAD_REPO` are the push target in Step 5. Do not assume the
+  fork kept the upstream repository's name.
 
 Stop and report instead of continuing when:
 
@@ -90,18 +101,27 @@ There is also nothing to resolve when `mergeable` is `MERGEABLE`. Read
 `mergeStateStatus` before concluding that: `BLOCKED` means the merge is held up
 by something other than a conflict — a required review, or checks that have not
 finished — while `DIRTY` is the conflict this skill exists for. When the tree
-merges cleanly, skip Steps 2 through 5 and go straight to Step 6.
+merges cleanly, run Step 2 anyway — it gates the merge as well as the local
+execution — then skip Steps 3 through 5 and go to Step 6.
+
+`mergeable` is also `UNKNOWN` for a few seconds after any push, while GitHub
+computes the merge. That is not a third case: wait, re-run the `gh pr view`
+above, and decide from the settled value. Never treat `UNKNOWN` as
+`MERGEABLE` — Step 4 would find nothing to resolve and the run would fall apart
+at the commit step.
 
 ## Step 2: Gate on the High-Risk Paths — Before Running Anything
 
 Resolving locally means running the fork's code on your own machine: Step 4's
 `pnpm cicheck` executes the PR's tests, the generators execute the PR's `src/`
 and `scripts/`, and the pre-commit hook executes whatever `.lintstagedrc.js`
-names. Your machine holds `gh`, npm and SSH credentials, so this gate comes
-**before** any command is run against the branch, not before the merge:
+names. Your machine holds `gh`, npm and SSH credentials, so this gate comes **before**
+any command executes content from the branch — the read-only `git fetch` and
+`gh pr view` of Step 1 are fine, everything after this point is not — and not
+merely before the merge:
 
 ```bash
-gh pr view <pr_number> --json files --jq '.files[].path'
+jq -r '.files[].path' /tmp/pr-<pr_number>.json
 ```
 
 Stop, report the paths, and ask the user to confirm — or ask the author to merge
@@ -140,16 +160,21 @@ git merge-tree --write-tree --name-only origin/main origin/pr-<pr_number>
 
 Judge what the conflict is made of:
 
-- **Fully generated files** — here `src/generated/docs-content.ts` and
-  `.gitignore` — are never resolved by hand. Take either side, then re-run the
+- **Fully generated files** — here `src/generated/docs-content.ts`, `.gitignore`
+  and `.gitattributes` (`pnpm dev gitignore` writes both) — are never resolved
+  by hand. Take either side, then re-run the
   generator and let it produce the merged output. Resolve their _sources_ first:
   `src/generated/docs-content.ts` embeds `docs/**/*.md`, so running the
   generator while a docs file still carries conflict markers embeds the markers
   into the generated file.
-- **Partially generated files** — `README.md` and
-  `docs/reference/supported-tools.md` — only have their tables rewritten,
-  between the `SUPPORTED_TOOLS_*` markers. A conflict inside those blocks is
-  regenerated; a conflict in the prose around them is an ordinary prose
+- **Partially generated files** only have one block rewritten, and the rest is
+  ordinary prose. `README.md` and `docs/reference/supported-tools.md` have their
+  tables regenerated between the `SUPPORTED_TOOLS_*` markers;
+  `docs/reference/file-formats.md` is one of these too — despite living under
+  `docs/**`, its hook-event matrix is rewritten by
+  `scripts/generate-docs-content.ts`, and `check:docs-content` diffs the file
+  itself, so a hand-resolved matrix fails `pnpm cicheck`. A conflict inside such
+  a block is regenerated; a conflict in the prose around it is an ordinary prose
   conflict, where taking one side silently drops the other side's edit.
 - **`pnpm-lock.yaml`** is a Step 2 stop, not something to resolve. A PR that
   changes dependencies is handed back to its author — never run `pnpm install`
@@ -207,8 +232,17 @@ Then run the full check before committing:
 pnpm cicheck
 ```
 
-Commit the merge with a message that says what was resolved and how. Only the
-conflict resolution belongs in this commit — no drive-by fixes, no review
+Then commit the merge:
+
+```bash
+git commit -m "<what conflicted, and how it was resolved>"
+```
+
+If `git merge` completed on its own — no conflict, nothing to stage, and the
+merge commit already made — do not try to commit again. Verify the result the
+same way (`git show --stat HEAD`) and carry on to Step 5.
+
+Only the conflict resolution belongs in this commit — no drive-by fixes, no review
 findings addressed on the author's behalf. Those go in a comment or a follow-up
 issue, so the PR the author opened stays the PR that gets merged.
 
@@ -219,23 +253,22 @@ Branch names are attacker-controlled, so put every PR-derived value in a quoted
 variable rather than interpolating it into the command line:
 
 ```bash
-HEAD_OWNER="$(gh pr view <pr_number> --json headRepositoryOwner --jq .headRepositoryOwner.login)"
-HEAD_REPO="$(gh pr view <pr_number> --json headRepository --jq .headRepository.name)"
-HEAD_REF="$(gh pr view <pr_number> --json headRefName --jq .headRefName)"
 git push "https://github.com/${HEAD_OWNER}/${HEAD_REPO}.git" "HEAD:refs/heads/${HEAD_REF}"
 ```
 
-These three values must equal the ones recorded in Step 1. Compare them before
-pushing: a PR's head repository and branch can be changed while a run is in
-progress, and pushing to a target that was never inspected sends the resolution
-commit to a repository nobody reviewed. If they differ, do not push — return to
-Step 1 and start over against the new head.
+Those are Step 1's variables, deliberately not re-queried here. A PR's head
+repository and branch can be changed while a run is in progress, and re-reading
+them at push time would send the resolution commit to a repository nobody
+inspected. If there is any reason to think the head moved, do not paper over it
+by fetching fresh values — return to Step 1 and start the run over.
 
 `git check-ref-format` allows `$`, backticks, `;`, `&` and `|` in a branch name,
 so an unquoted `<head_ref_name>` written straight into a command is a command
-injection. Never put a token in the push URL either — the credential helper
-already handles authentication, and a URL with a PAT in it leaks through the
-process list, the shell history and error output.
+injection. Never put a token in the push URL either — a URL with a PAT in it
+leaks through the process list, the shell history and error output. The https
+credential helper handles authentication instead, which needs
+`gh auth setup-git` to have been run once; on a clone that talks to GitHub over
+SSH it usually has not, and the push then stalls on a credential prompt.
 
 **Never pass `--force` or `--force-with-lease` here.** The push must be a
 fast-forward. If it is rejected, that is the safety net doing its job: the
@@ -245,6 +278,12 @@ whole resolution unnecessary, because the author rebased or fixed it themselves.
 
 Cap that loop at **3** attempts. A branch that keeps moving under you is one to
 hand back to its author, not to keep racing.
+
+Record what was just pushed, before the branch that holds it is gone:
+
+```bash
+RESOLUTION_SHA="$(git rev-parse HEAD)"
+```
 
 Then return the repository to `main` and drop the throwaway branch — its
 content now lives on the PR branch, so nothing is lost with it:
@@ -275,19 +314,21 @@ check is `fail` or `pending`, and never treat a red or unfinished check as
 something to work around — if a check fails on the merged result, report it and
 leave the PR open.
 
-Before merging, re-read the PR head and confirm it is still the `headRefOid`
-from Step 1 plus your own resolution commit. Anything else the author pushed in
-between is unreviewed code, so review it before it is merged rather than after.
-Once it checks out, record that exact SHA — this, and not a fresh `gh pr view`
-at merge time, is what the merge is pinned to:
+The SHA the merge is pinned to is the one that was verified locally, never one
+read fresh from the PR at merge time — taking whatever the PR currently points
+at would pin the merge to an author's last-second push, which is exactly the
+case the pin exists to catch:
 
 ```bash
-REVIEWED_SHA="$(gh pr view <pr_number> --json headRefOid --jq .headRefOid)"
+REVIEWED_SHA="$RESOLUTION_SHA"   # or "$HEAD_OID" when Steps 3-5 were skipped
+test "$(gh pr view <pr_number> --json headRefOid --jq .headRefOid)" = "$REVIEWED_SHA"
 ```
 
-Re-reading it at the moment of the merge instead would defeat the point: it
-would pin the merge to whatever was just pushed, which is the case the pin
-exists to catch.
+That `test` must succeed. When it fails the author pushed after the resolution:
+their commit is unreviewed code, so review it before it is merged rather than
+after, and restart from Step 1 rather than merging what was not looked at. Also
+confirm `${REVIEWED_SHA}^1` is the `HEAD_OID` from Step 1 — that is what proves
+the resolution sits on top of the reviewed head instead of replacing it.
 
 Merge with a merge commit — never `--squash`, never `--rebase` — pinned to the
 exact commit that was verified above:
@@ -309,7 +350,6 @@ is not the answer.
 Then thank the author and clean up:
 
 ```bash
-AUTHOR_LOGIN="$(gh pr view <pr_number> --json author --jq .author.login)"
 gh pr comment <pr_number> --body "@${AUTHOR_LOGIN} Thank you!"
 git checkout main && git pull --ff-only --prune
 ```
@@ -319,12 +359,16 @@ git checkout main && git pull --ff-only --prune
 Confirm the author's commits actually landed under their name:
 
 ```bash
-git log --format="%h %an <%ae> %s" <merge_commit>^1..<merge_commit>^2
+git checkout main && git pull --ff-only --prune
+MERGE_COMMIT="$(git rev-parse main)"
+git log --format="%h %an <%ae> %s" "${MERGE_COMMIT}^1..${MERGE_COMMIT}^2"
 ```
 
 That range is exactly the commits the merge brought in, however many there are —
-a `-5` window silently misses the rest. Every one of them must carry its own
-author. If they do not, something rewrote history — report it rather than
+a `-5` window silently misses the rest. Every commit in it must carry its own
+author, with one expected exception: the resolution merge commit made in Step 4
+is yours, and belongs to you. If any of the author's own commits is missing or
+attributed to someone else, something rewrote history — report it rather than
 glossing over it.
 
 ## Step 8: Report
