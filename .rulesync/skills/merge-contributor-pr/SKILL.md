@@ -296,12 +296,15 @@ the run on every ordinary conflict. Check the resolution itself instead:
 
 ```bash
 git diff --name-only --diff-filter=U
-git diff --name-only HEAD MERGE_HEAD
+git diff --name-only "$(git merge-base HEAD MERGE_HEAD)" MERGE_HEAD
 ```
 
-The first must now be empty — nothing left unmerged. Every path you touched must
-appear in the second, which is `main`'s own set of changes; a staged path that
-is not in it and was not one of the conflicts listed above is unrelated work
+The first must now be empty — nothing left unmerged. The second is what `main`
+alone changed since the merge base, which is the only thing this merge has any
+business bringing in. Diffing `HEAD MERGE_HEAD` directly would not do: that also
+lists every file the PR itself changed, so a drive-by edit to a file the PR
+already touches would pass unnoticed. Every path staged here must be either one
+of the conflicts listed above or in that set; anything else is unrelated work
 about to be pushed to someone else's repository.
 
 Then run the full check before committing:
@@ -469,11 +472,13 @@ gh pr comment <pr_number> \
 
 ## Step 7: Verify the History
 
-Pull the merge down and confirm the author's commits landed under their name —
-this is the run's one return to `main` after the merge, Step 5 having already
-put the repository there:
+Pull the merge down and confirm the author's commits landed under their name.
+Step 5 already left the repository on `main`, so the checkout below is a no-op
+on the path that resolved a conflict — and it is the one thing that gets the
+no-conflict path, which never ran Step 5, off whatever branch it started on:
 
 ```bash
+git checkout main
 git pull --ff-only --prune
 MERGE_COMMIT="$(gh pr view <pr_number> --json mergeCommit --jq .mergeCommit.oid)"
 git log --format="%h %an <%ae> %s" "${MERGE_COMMIT}^1..${MERGE_COMMIT}^2"
