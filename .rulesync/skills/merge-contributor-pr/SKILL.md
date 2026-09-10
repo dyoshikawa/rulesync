@@ -477,11 +477,13 @@ gh pr checks <pr_number>
 
 Both must exit `0`, with no check reported as `fail` or `pending`. `pass` is
 not the only word that clears the gate: a check GitHub reports as `skipping` —
-a job whose own workflow conditions ruled it out, as the release-only
-`Build and upload assets` is on every non-release PR — is neither failing nor
-outstanding, and `gh pr checks` exits `0` beside it. A non-zero exit is not
-a broken command: `--watch` exits non-zero when a check fails, and both forms
-error out when the PR has no checks registered yet — which right after a push
+a job its own workflow's conditions ruled out for this PR, or an aggregate
+entry standing in for jobs that all resolved — is neither failing nor
+outstanding, and `gh pr checks` exits `0` beside it. `CodeQL` reports that way
+here often enough that treating it as an anomaly would stall the merge.
+
+A non-zero exit is not a broken command: `--watch` exits non-zero when a check
+fails, and both forms error out when the PR has no checks registered yet — which right after a push
 usually means they have not appeared, so wait and retry. Never merge while a
 check is `fail` or `pending`, and never treat a red or unfinished check as
 something to work around — if a check fails on the merged result, report it and
