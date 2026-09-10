@@ -66,10 +66,13 @@ else's repository in Step 5:
 
 ```bash
 git status --porcelain
+git branch --show-current
 ```
 
-If that prints anything, stop. Do not stash, commit or discard it — report it
-and let the user deal with it.
+If the first prints anything, stop. Do not stash, commit or discard it — report
+it and let the user deal with it. Note the branch the second prints: Step 5
+leaves the repository on `main`, and the final report should say so if that is
+not where the run began.
 
 Always re-fetch next. A contributor may have pushed since the PR was last looked
 at — including in response to a review that was just posted — and acting on a
@@ -78,29 +81,37 @@ stale head is how their work gets clobbered.
 ```bash
 git fetch origin main
 git fetch origin pull/<pr_number>/head:refs/remotes/origin/pr-<pr_number> --force
-PR_JSON="$(mktemp)"
-gh pr view <pr_number> --json number,title,state,isDraft,mergeable,mergeStateStatus,author,headRefName,headRefOid,headRepository,headRepositoryOwner,maintainerCanModify,files > "$PR_JSON"
+mkdir -p tmp/merge-pr-<pr_number>
+gh pr view <pr_number> --json number,title,state,isDraft,mergeable,mergeStateStatus,author,headRefName,headRefOid,headRepository,headRepositoryOwner,maintainerCanModify,files > tmp/merge-pr-<pr_number>/pr.json
 ```
 
-`mktemp`, not a predictable `/tmp/pr-<n>.json`: the push target in Step 5 is read
-back out of this file, so a path another process on the machine can guess is a
-path it can swap for one pointing somewhere else. Delete it when the run ends.
+Under the repository's gitignored `tmp/`, not in the shared `/tmp`: the push
+target in Step 5 is read back out of this file, so a path any process on the
+machine can guess is a path it can swap for one pointing somewhere else. Delete
+the directory when the run ends.
 
 Read that one payload for everything below rather than calling `gh pr view`
 again per value — a second call can return a different head, and then each step
-is working from a different PR. Bind the values the later steps need, from the
-file, once:
+is working from a different PR:
 
 ```bash
-HEAD_OID="$(jq -r .headRefOid "$PR_JSON")"
-HEAD_OWNER="$(jq -r .headRepositoryOwner.login "$PR_JSON")"
-HEAD_REPO="$(jq -r .headRepository.name "$PR_JSON")"
-HEAD_REF="$(jq -r .headRefName "$PR_JSON")"
-AUTHOR_LOGIN="$(jq -r .author.login "$PR_JSON")"
+jq -r '.headRefOid, .headRepositoryOwner.login, .headRepository.name, .headRefName, .author.login' tmp/merge-pr-<pr_number>/pr.json
 ```
 
-Check that none of the five is empty or the string `null` before using any of
-them. A deleted fork returns `null` for `headRepository` and
+- `headRefOid` is the SHA that is about to be reviewed and resolved. Every later
+  step is about _this_ commit; if the PR head moves, the run restarts.
+- `headRepositoryOwner.login` / `headRepository.name` are the push target in
+  Step 5. Do not assume the fork kept the upstream repository's name.
+
+The file, not a shell variable, is what carries these values between steps. Each
+step below runs as its own shell, so a `HEAD_REF=...` assigned here is gone by
+Step 5; every command that needs one of these values re-derives it with `jq`
+inside that same command. That is also what keeps the quoting guarantee of
+Step 5 intact — the alternative, an agent pasting a branch name it read
+earlier, is exactly the injection that step warns about.
+
+Check that none of the five values is empty or the string `null` before using
+any of them. A deleted fork returns `null` for `headRepository` and
 `headRepositoryOwner`, and `jq -r` prints that as text — which would make Step 5
 push to `https://github.com/null/null.git`. Stop and report instead.
 
@@ -108,17 +119,13 @@ Then confirm the ref that was just fetched is the head the API reported, since
 those are two separate reads and an author can push between them:
 
 ```bash
-test "$(git rev-parse "refs/remotes/origin/pr-<pr_number>")" = "$HEAD_OID"
+test "$(git rev-parse "refs/remotes/origin/pr-<pr_number>")" \
+  = "$(jq -r .headRefOid tmp/merge-pr-<pr_number>/pr.json)"
 ```
 
 Everything downstream reviews `gh pr diff` output but _runs_ the fetched ref.
 If they disagree, the code being run is not the code being reviewed: re-fetch
 and start Step 1 again.
-
-- `HEAD_OID` is the SHA that is about to be reviewed and resolved. Every later
-  step is about _this_ commit; if the PR head moves, the run restarts.
-- `HEAD_OWNER` / `HEAD_REPO` are the push target in Step 5. Do not assume the
-  fork kept the upstream repository's name.
 
 Stop and report instead of continuing when:
 
@@ -151,7 +158,7 @@ any command executes content from the branch — the read-only `git fetch` and
 merely before the merge:
 
 ```bash
-jq -r '.files[].path' "$PR_JSON"
+jq -r '.files[].path' tmp/merge-pr-<pr_number>/pr.json
 ```
 
 Stop, report the paths, and ask the user to confirm — or ask the author to merge
@@ -160,6 +167,9 @@ Stop, report the paths, and ask the user to confirm — or ask the author to mer
 
 - `.github/**`, `package.json` or a lockfile;
 - `scripts/**`, or anything else the build and release flow runs;
+- **`.rulesync/**`**, because `.lintstagedrc.js` maps it to `pnpm dev generate`:
+  committing a change there in Step 4 runs the fork's own CLI through the
+  pre-commit hook, and rewrites tracked generated files while it is at it;
 - **`.npmrc`, `pnpm-workspace.yaml` and `patches/**`**, which are how a fork
   turns any `pnpm` command into arbitrary code. `.npmrc` sets the registry, so
   editing it redirects every install to a registry of the contributor's
@@ -195,6 +205,10 @@ Find out what actually conflicts before touching a branch:
 ```bash
 git merge-tree --write-tree --name-only origin/main origin/pr-<pr_number>
 ```
+
+Its exit code is inverted from the usual reading: `0` means the two sides merge
+cleanly, and `1` — the expected result here — means it conflicted and the paths
+it listed are the conflicts.
 
 Judge what the conflict is made of:
 
@@ -258,8 +272,9 @@ git diff --cached --stat
 ```
 
 `--cached` is what makes the second command read the index rather than the
-working tree, so it checks the same content the two commands around it do. It
-must find nothing — judge it by its output and exit status, not
+working tree, so it checks the same content the two commands around it do. Its
+exit code is inverted too — `0` means it _found_ markers, `1` means the index is
+clean — so a passing run of this command exits `1`. It must find nothing — judge it by its output and exit status, not
 by a trailing `echo`. The `--stat` must list only conflicted and regenerated
 files; anything else means unrelated work is about to be pushed to someone
 else's repository.
@@ -280,6 +295,11 @@ If `git merge` completed on its own — no conflict, nothing to stage, and the
 merge commit already made — do not try to commit again. Verify the result the
 same way (`git show --stat HEAD`) and carry on to Step 5.
 
+Re-run `git status --porcelain` after the commit either way. The pre-commit hook
+regenerates files, and anything it left behind is content that is about to be
+pushed to someone else's branch without having been looked at — amend it into
+the resolution commit only if it belongs there, and stop if it does not.
+
 Only the conflict resolution belongs in this commit — no drive-by fixes, no review
 findings addressed on the author's behalf. Those go in a comment or a follow-up
 issue, so the PR the author opened stays the PR that gets merged.
@@ -291,10 +311,13 @@ Branch names are attacker-controlled, so put every PR-derived value in a quoted
 variable rather than interpolating it into the command line:
 
 ```bash
-git push "https://github.com/${HEAD_OWNER}/${HEAD_REPO}.git" "HEAD:refs/heads/${HEAD_REF}"
+git push \
+  "https://github.com/$(jq -r .headRepositoryOwner.login tmp/merge-pr-<pr_number>/pr.json)/$(jq -r .headRepository.name tmp/merge-pr-<pr_number>/pr.json).git" \
+  "HEAD:refs/heads/$(jq -r .headRefName tmp/merge-pr-<pr_number>/pr.json)"
 ```
 
-Those are Step 1's variables, deliberately not re-queried here. A PR's head
+Those come from Step 1's saved payload, deliberately not re-queried from GitHub
+here. A PR's head
 repository and branch can be changed while a run is in progress, and re-reading
 them at push time would send the resolution commit to a repository nobody
 inspected. If there is any reason to think the head moved, do not paper over it
@@ -317,10 +340,11 @@ whole resolution unnecessary, because the author rebased or fixed it themselves.
 Cap that loop at **3** attempts. A branch that keeps moving under you is one to
 hand back to its author, not to keep racing.
 
-Record what was just pushed, before the branch that holds it is gone:
+Record what was just pushed, before the branch that holds it is gone — to the
+same directory, for the same reason a shell variable will not do:
 
 ```bash
-RESOLUTION_SHA="$(git rev-parse HEAD)"
+git rev-parse HEAD > tmp/merge-pr-<pr_number>/resolution-sha
 ```
 
 Then return the repository to `main` and drop the throwaway branch — its
@@ -358,21 +382,30 @@ at would pin the merge to an author's last-second push, which is exactly the
 case the pin exists to catch:
 
 ```bash
-REVIEWED_SHA="$RESOLUTION_SHA"   # or "$HEAD_OID" when Steps 3-5 were skipped
+REVIEWED_SHA="$(cat tmp/merge-pr-<pr_number>/resolution-sha)"   # see below when Steps 3-5 were skipped
 test "$(gh pr view <pr_number> --json headRefOid --jq .headRefOid)" = "$REVIEWED_SHA"
 ```
 
+Assign and use it inside one command; like every other value here it does not
+survive into the next shell. On the path where Steps 3 to 5 were skipped there
+is no resolution commit, so the reviewed SHA is `headRefOid` from Step 1's saved
+payload instead.
+
 That `test` must succeed. When it fails the author pushed after the resolution:
 their commit is unreviewed code, so review it before it is merged rather than
-after, and restart from Step 1 rather than merging what was not looked at. Also
-confirm `${REVIEWED_SHA}^1` is the `HEAD_OID` from Step 1 — that is what proves
-the resolution sits on top of the reviewed head instead of replacing it.
+after, and restart from Step 1 rather than merging what was not looked at.
+
+When a resolution commit _was_ made, also confirm its first parent is the
+`headRefOid` recorded in Step 1 — that is what proves the resolution sits on top
+of the reviewed head instead of replacing it. Skip that check on the no-conflict
+path, where `REVIEWED_SHA` _is_ that head and its parent is something older.
 
 Merge with a merge commit — never `--squash`, never `--rebase` — pinned to the
 exact commit that was verified above:
 
 ```bash
-gh pr merge <pr_number> --admin --merge --match-head-commit "$REVIEWED_SHA"
+gh pr merge <pr_number> --admin --merge \
+  --match-head-commit "$(cat tmp/merge-pr-<pr_number>/resolution-sha)"
 ```
 
 `--match-head-commit` is what closes the window between the green check run and
@@ -388,7 +421,9 @@ is not the answer.
 Then thank the author and clean up:
 
 ```bash
-gh pr comment <pr_number> --body "@${AUTHOR_LOGIN} Thank you!"
+gh pr comment <pr_number> \
+  --body "@$(jq -r .author.login tmp/merge-pr-<pr_number>/pr.json) Thank you!"
+rm -rf tmp/merge-pr-<pr_number>
 git checkout main && git pull --ff-only --prune
 ```
 
@@ -398,9 +433,13 @@ Confirm the author's commits actually landed under their name:
 
 ```bash
 git checkout main && git pull --ff-only --prune
-MERGE_COMMIT="$(git rev-parse main)"
+MERGE_COMMIT="$(gh pr view <pr_number> --json mergeCommit --jq .mergeCommit.oid)"
 git log --format="%h %an <%ae> %s" "${MERGE_COMMIT}^1..${MERGE_COMMIT}^2"
 ```
+
+Ask GitHub which commit the merge produced rather than assuming it is the tip of
+`main` — another PR may have landed in between, and then the range describes
+someone else's merge.
 
 That range is exactly the commits the merge brought in, however many there are —
 a `-5` window silently misses the rest. Every commit in it must carry its own
