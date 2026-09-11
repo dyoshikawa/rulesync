@@ -340,6 +340,7 @@ describe("resolveAndFetchSources", () => {
         "https://github.com/org/repo": {
           resolvedRef: "locked-sha-123",
           skills: { "cached-skill": { integrity: "sha256-cached" } },
+          skillSelection: ["*"],
         },
       },
     });
@@ -774,6 +775,7 @@ describe("resolveAndFetchSources", () => {
         "org/repo": {
           resolvedRef: "locked-sha",
           skills: { "cached-skill": { integrity: "sha256-cached" } },
+          skillSelection: ["*"],
           rules: { "testing-guidelines": { integrity: "sha256-old" } },
           ruleSelection: ["testing-guidelines"],
           rulesPath: "rules",
@@ -1805,7 +1807,7 @@ describe("resolveAndFetchSources", () => {
     });
   });
 
-  it("should skip re-fetch when a legacy lockfile without skillSelection locks every selected skill", async () => {
+  it("should skip re-fetch in frozen mode when a legacy lockfile without skillSelection locks every selected skill", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
     vi.mocked(readLockFile).mockResolvedValue({
@@ -1825,10 +1827,64 @@ describe("resolveAndFetchSources", () => {
       logger,
       sources: [{ source: "https://github.com/org/repo", skills: ["skill-a"] }],
       projectRoot: testDir,
+      options: { frozen: true },
     });
 
     expect(result.fetchedSkillCount).toBe(0);
     expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+  });
+
+  it("should refetch a legacy lockfile entry once to record its skill selection", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "https://github.com/org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: { "skill-a": { integrity: "sha256-a" } },
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+      return path === join(curatedDir, "skill-a");
+    });
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [
+            { name: "skill-a", path: "skills/skill-a", type: "dir" },
+            { name: "skill-b", path: "skills/skill-b", type: "dir" },
+          ];
+        }
+        if (path === "skills/skill-a" || path === "skills/skill-b") {
+          return [{ name: "SKILL.md", path: `${path}/SKILL.md`, type: "file", size: 10 }];
+        }
+        return [];
+      },
+    );
+
+    // The lock was written for an explicit list that is now a wildcard; a
+    // legacy entry cannot tell, so the ref is fetched again and the field recorded.
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo" }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(2);
+    // The ref is taken from the lock, not re-resolved over the network.
+    expect(mockClientInstance.resolveRefToSha).not.toHaveBeenCalled();
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "skills",
+      "locked-sha-123",
+    );
+    expect(vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]).toMatchObject({
+      resolvedRef: "locked-sha-123",
+      skillSelection: ["*"],
+    });
   });
 
   it("should refetch when a legacy lockfile without skillSelection lacks a newly selected skill", async () => {
@@ -2203,6 +2259,7 @@ describe("resolveAndFetchSources", () => {
           resolvedRef: "b".repeat(40),
           requestedRef: "main",
           skills: { "cached-skill": { integrity: "sha256-cached" } },
+          skillSelection: ["*"],
         },
       },
     });
@@ -2639,6 +2696,7 @@ describe("resolveAndFetchSources", () => {
         "org/humanizer:.": {
           resolvedRef: "locked-sha",
           skills: { humanizer: { integrity: "sha256-old" } },
+          skillSelection: ["humanizer"],
         },
       },
     });

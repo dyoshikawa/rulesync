@@ -398,7 +398,7 @@ export async function getInstalledSourceSkillNames({
     if (
       entry === undefined ||
       (getSourceFilters(source).skills !== undefined &&
-        !lockedSkillConfigMatches({ locked: entry, sourceEntry: source })) ||
+        !lockedSkillConfigMatches({ locked: entry, sourceEntry: source, acceptLegacy: true })) ||
       !(await checkLockedSkillsExist(curatedDir, lockedSkillNames))
     ) {
       throw new Error(
@@ -487,6 +487,7 @@ async function fetchSingleSource(params: {
       alreadyFetchedSkillNames: params.alreadyFetchedSkillNames,
       alreadyFetchedRuleNames: params.alreadyFetchedRuleNames,
       updateSources: params.updateSources,
+      frozen: params.frozen,
       logger: params.logger,
     });
     return {
@@ -660,7 +661,8 @@ function assertFrozenLockCoversSources(params: {
     const filters = getSourceFilters(source);
     const skillsCovered =
       filters.skills === undefined ||
-      (locked !== undefined && lockedSkillConfigMatches({ locked, sourceEntry: source }));
+      (locked !== undefined &&
+        lockedSkillConfigMatches({ locked, sourceEntry: source, acceptLegacy: true }));
     const rulesCovered =
       filters.rules === undefined ||
       (locked !== undefined && lockedRuleConfigMatches({ locked, sourceEntry: source }));
@@ -733,6 +735,7 @@ async function fetchSourceByTransport(params: {
     localSkillNames,
     alreadyFetchedSkillNames,
     updateSources,
+    frozen,
     logger,
   });
 }
@@ -1455,14 +1458,16 @@ function normalizeSkillSelection(skills: string[]): string[] {
  * newly selected skill is never fetched and `--frozen` never notices.
  *
  * Lockfiles written before the selection was recorded carry no
- * `skillSelection`; they fall back to the locked skill names, so a wildcard is
- * taken at face value and an explicit list is covered only when every name it
- * selects is locked. Either way the next non-frozen install records the
- * selection.
+ * `skillSelection`. An install that may write the lockfile fetches such an
+ * entry again at its locked ref so the selection gets recorded once; the checks that
+ * cannot write it (`--frozen`, adding a source) pass `acceptLegacy` and fall
+ * back to the locked skill names instead, so a wildcard is taken at face value
+ * and an explicit list is covered only when every name it selects is locked.
  */
 function lockedSkillConfigMatches(params: {
   locked: { skills: Record<string, unknown>; skillSelection?: string[] | undefined };
   sourceEntry: SourceEntry;
+  acceptLegacy: boolean;
 }): boolean {
   const skills = getSourceFilters(params.sourceEntry).skills;
   if (skills === undefined) {
@@ -1471,6 +1476,9 @@ function lockedSkillConfigMatches(params: {
   const selection = normalizeSkillSelection(skills);
   const lockedSelection = params.locked.skillSelection;
   if (lockedSelection === undefined) {
+    if (!params.acceptLegacy) {
+      return false;
+    }
     if (selection.length === 1 && selection[0] === "*") {
       return true;
     }
@@ -1491,16 +1499,18 @@ async function canReuseLockedSkills(params: {
   locked: LockedSource | undefined;
   resolvedSha: string;
   updateSources: boolean;
+  frozen: boolean;
   sourceEntry: SourceEntry;
   curatedDir: string;
   lockedSkillNames: string[];
 }): Promise<boolean> {
-  const { locked, resolvedSha, updateSources, sourceEntry, curatedDir, lockedSkillNames } = params;
+  const { locked, resolvedSha, updateSources, frozen, sourceEntry, curatedDir, lockedSkillNames } =
+    params;
   return (
     locked !== undefined &&
     resolvedSha === locked.resolvedRef &&
     !updateSources &&
-    lockedSkillConfigMatches({ locked, sourceEntry }) &&
+    lockedSkillConfigMatches({ locked, sourceEntry, acceptLegacy: frozen }) &&
     (await checkLockedSkillsExist(curatedDir, lockedSkillNames))
   );
 }
@@ -2077,6 +2087,7 @@ async function fetchSource(params: {
   localSkillNames: Set<string>;
   alreadyFetchedSkillNames: Set<string>;
   updateSources: boolean;
+  frozen: boolean;
   logger: Logger;
 }): Promise<{
   skillCount: number;
@@ -2090,6 +2101,7 @@ async function fetchSource(params: {
     localSkillNames,
     alreadyFetchedSkillNames,
     updateSources,
+    frozen,
     logger,
   } = params;
   const { lock } = params;
@@ -2126,6 +2138,7 @@ async function fetchSource(params: {
       locked,
       resolvedSha,
       updateSources,
+      frozen,
       sourceEntry,
       curatedDir,
       lockedSkillNames,
@@ -2278,6 +2291,7 @@ async function fetchSourceViaGit(params: {
       locked,
       resolvedSha,
       updateSources,
+      frozen,
       sourceEntry,
       curatedDir,
       lockedSkillNames,
@@ -2700,6 +2714,7 @@ async function canReuseLockedNpmArtifacts(params: {
   locked: NpmLockedSource | undefined;
   sourceEntry: SourceEntry;
   filters: ReturnType<typeof getSourceFilters>;
+  frozen: boolean;
   lockedSkillNames: string[];
   lockedRuleNames: string[];
   curatedSkillsDir: string;
@@ -2711,6 +2726,7 @@ async function canReuseLockedNpmArtifacts(params: {
     locked,
     sourceEntry,
     filters,
+    frozen,
     lockedSkillNames,
     lockedRuleNames,
     curatedSkillsDir,
@@ -2727,6 +2743,7 @@ async function canReuseLockedNpmArtifacts(params: {
       lockedSkillConfigMatches({
         locked,
         sourceEntry: { ...sourceEntry, skills: filters.skills },
+        acceptLegacy: frozen,
       }) &&
       (await checkLockedSkillsExist(curatedSkillsDir, lockedSkillNames)));
   if (!skillsExist) {
@@ -2760,6 +2777,7 @@ async function fetchSourceViaNpm(params: {
   alreadyFetchedSkillNames: Set<string>;
   alreadyFetchedRuleNames: Set<string>;
   updateSources: boolean;
+  frozen: boolean;
   logger: Logger;
 }): Promise<{
   skillCount: number;
@@ -2777,6 +2795,7 @@ async function fetchSourceViaNpm(params: {
     alreadyFetchedSkillNames,
     alreadyFetchedRuleNames,
     updateSources,
+    frozen,
     logger,
   } = params;
 
@@ -2807,6 +2826,7 @@ async function fetchSourceViaNpm(params: {
       locked,
       sourceEntry,
       filters,
+      frozen,
       lockedSkillNames,
       lockedRuleNames,
       curatedSkillsDir,
