@@ -6,10 +6,14 @@ loader runs, re-exports it to every child process, and falls back to
 `DEFAULT_PROFILE_DIR_NAME = ".deepagents"` under the home directory only when it
 is unset. When it is set, the whole `ProfilePaths` record moves — `config_file`,
 `dotenv_file`, `mcp_config_file`, `hooks_file`, `plugins_dir`, `state_dir` and
-`agent_profiles_dir`. Rulesync resolves one global output root for every target
-(`os.homedir()`), so every global path below is the default-profile spelling
-only. Tracked in #2956; `[agents].default`, which makes the `agent` segment of
-`~/.deepagents/agent/` configurable, is the same shape of problem.
+`agent_profiles_dir`. Rulesync follows it through `resolveToolOutputRoot`
+(`tool-output-root.ts`) and `getDeepagentsRelativeDirPath` (`deepagents.ts`):
+in global scope the override becomes the output root and the `.deepagents`
+segment is stripped from every path constant, so the global paths below are the
+default-profile spelling and each lands under `$DEEPAGENTS_HOME` verbatim minus
+that prefix. Only the two spellings upstream accepts (absolute, or `~/`-prefixed)
+are honored; other values throw. `[agents].default`, which makes the `agent`
+segment of `~/.deepagents/agent/` configurable, is still not followed (#2956).
 
 ## Official Docs
 
@@ -46,7 +50,7 @@ Common adapter paths: `rulesync-source-map.md`.
 
 | Surface       | Anchor                                                                                                                                                                   |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| paths         | `deepagents-paths.ts` — the `.deepagents` root and the `agent` global segment, both plain literals with no `DEEPAGENTS_HOME` awareness                                   |
+| paths         | `deepagents-paths.ts` — the `.deepagents` root and the `agent` global segment, plain literals; `deepagents.ts` maps them under `DEEPAGENTS_HOME` in global scope         |
 | `rules`       | `.deepagents/AGENTS.md` (project) and `~/.deepagents/<agent>/AGENTS.md` (global; `<agent>` defaults to `agent`), root-only, in `deepagents-rule.ts`                      |
 | `mcp`         | `.deepagents/.mcp.json`, `mcpServers`, and project/global handling in `deepagents-mcp.ts`                                                                                |
 | `subagents`   | `.deepagents/agents` project subagent directory in `deepagents-subagent.ts`                                                                                              |

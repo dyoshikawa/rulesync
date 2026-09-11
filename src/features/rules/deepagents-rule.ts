@@ -6,6 +6,7 @@ import {
   DEEPAGENTS_RULE_FILE_NAME,
 } from "../../constants/deepagents-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { getDeepagentsRelativeDirPath } from "../../utils/deepagents.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -56,11 +57,15 @@ export class DeepagentsRule extends ToolRule {
   } = {}): DeepagentsRuleSettablePaths {
     // dcode reads user-level context from `~/.deepagents/<agent_name>/AGENTS.md`
     // (default agent_name `agent`); the home directory is resolved by the
-    // processor through outputRoot in global mode. Project context lives in
+    // processor through outputRoot in global mode, and `DEEPAGENTS_HOME`
+    // replaces the `.deepagents` segment when set. Project context lives in
     // `<project>/.deepagents/AGENTS.md`.
     return {
       root: {
-        relativeDirPath: global ? DEEPAGENTS_GLOBAL_DIR : DEEPAGENTS_DIR,
+        relativeDirPath: getDeepagentsRelativeDirPath({
+          global,
+          relativeDirPath: global ? DEEPAGENTS_GLOBAL_DIR : DEEPAGENTS_DIR,
+        }),
         relativeFilePath: DEEPAGENTS_RULE_FILE_NAME,
       },
     };
@@ -88,6 +93,7 @@ export class DeepagentsRule extends ToolRule {
       fileContent,
       validate,
       root: true,
+      global,
     });
   }
 
@@ -95,12 +101,15 @@ export class DeepagentsRule extends ToolRule {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolRuleForDeletionParams): DeepagentsRule {
     // The deepagents root file is always `AGENTS.md`, under `.deepagents`
-    // (project) or `.deepagents/agent` (global).
+    // (project) or `.deepagents/agent` (global) — or `agent` alone when
+    // `DEEPAGENTS_HOME` is the profile root. Resolved for the requested scope
+    // only, so a project delete never consults (or trips over) the variable.
     const isRoot =
       relativeFilePath === DEEPAGENTS_RULE_FILE_NAME &&
-      (relativeDirPath === DEEPAGENTS_DIR || relativeDirPath === DEEPAGENTS_GLOBAL_DIR);
+      relativeDirPath === this.getSettablePaths({ global }).root.relativeDirPath;
 
     return new DeepagentsRule({
       outputRoot,

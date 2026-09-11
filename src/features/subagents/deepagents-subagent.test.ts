@@ -224,3 +224,47 @@ You are a test agent.`;
     });
   });
 });
+
+describe("DeepagentsSubagent with DEEPAGENTS_HOME", () => {
+  const originalDeepagentsHome = process.env.DEEPAGENTS_HOME;
+  const originalHomeDir = process.env.HOME_DIR;
+
+  beforeEach(() => {
+    // `getDeepagentsHome` compares the override against the home directory,
+    // which the test environment refuses to resolve without `HOME_DIR`.
+    process.env.HOME_DIR = "/rulesync-home";
+  });
+
+  afterEach(() => {
+    if (originalDeepagentsHome === undefined) delete process.env.DEEPAGENTS_HOME;
+    else process.env.DEEPAGENTS_HOME = originalDeepagentsHome;
+    if (originalHomeDir === undefined) delete process.env.HOME_DIR;
+    else process.env.HOME_DIR = originalHomeDir;
+  });
+
+  it("drops the .deepagents prefix in global scope when DEEPAGENTS_HOME is set", () => {
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    expect(DeepagentsSubagent.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: join("agent", "agents"),
+    });
+    expect(DeepagentsSubagent.getSettablePaths({ global: false })).toEqual({
+      relativeDirPath: join(".deepagents", "agents"),
+    });
+  });
+
+  it("imports back into the rulesync home rather than the profile root", () => {
+    process.env.HOME_DIR = "/rulesync-home";
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    const subagent = new DeepagentsSubagent({
+      outputRoot: "/custom-deepagents",
+      relativeDirPath: join("agent", "agents"),
+      relativeFilePath: join("my-agent", "AGENTS.md"),
+      frontmatter: { name: "My Agent", description: "Does things." },
+      body: "You are an agent.",
+      fileContent: "",
+      global: true,
+    });
+
+    expect(subagent.toRulesyncSubagent().getOutputRoot()).toBe("/rulesync-home");
+  });
+});

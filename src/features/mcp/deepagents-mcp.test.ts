@@ -269,3 +269,49 @@ describe("DeepagentsMcp", () => {
     });
   });
 });
+
+describe("DeepagentsMcp with DEEPAGENTS_HOME", () => {
+  const originalDeepagentsHome = process.env.DEEPAGENTS_HOME;
+  const originalHomeDir = process.env.HOME_DIR;
+
+  beforeEach(() => {
+    // `getDeepagentsHome` compares the override against the home directory,
+    // which the test environment refuses to resolve without `HOME_DIR`.
+    process.env.HOME_DIR = "/rulesync-home";
+  });
+
+  afterEach(() => {
+    if (originalDeepagentsHome === undefined) delete process.env.DEEPAGENTS_HOME;
+    else process.env.DEEPAGENTS_HOME = originalDeepagentsHome;
+    if (originalHomeDir === undefined) delete process.env.HOME_DIR;
+    else process.env.HOME_DIR = originalHomeDir;
+  });
+
+  it("drops the .deepagents prefix in global scope when DEEPAGENTS_HOME is set", () => {
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    expect(DeepagentsMcp.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: ".",
+      relativeFilePath: ".mcp.json",
+    });
+    expect(DeepagentsMcp.getSettablePaths({ global: false })).toEqual({
+      relativeDirPath: ".deepagents",
+      relativeFilePath: ".mcp.json",
+    });
+  });
+
+  it("imports back into the rulesync home rather than the profile root", () => {
+    // The profile root is where dcode reads `.mcp.json`; the `.rulesync/`
+    // sources produced from it still belong under the user's home.
+    process.env.HOME_DIR = "/rulesync-home";
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    const mcp = new DeepagentsMcp({
+      outputRoot: "/custom-deepagents",
+      relativeDirPath: ".",
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({ mcpServers: { srv: { command: "npx" } } }),
+      global: true,
+    });
+
+    expect(mcp.toRulesyncMcp().getOutputRoot()).toBe("/rulesync-home");
+  });
+});

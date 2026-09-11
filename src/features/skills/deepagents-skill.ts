@@ -9,6 +9,10 @@ import {
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import {
+  getDeepagentsRelativeDirPath,
+  getDeepagentsRulesyncOutputRoot,
+} from "../../utils/deepagents.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
@@ -89,9 +93,13 @@ export class DeepagentsSkill extends ToolSkill {
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
     // dcode discovers user-level skills in `~/.deepagents/<agent_name>/skills/`
     // (default agent_name `agent`); the home directory is resolved by the
-    // processor through outputRoot in global mode.
+    // processor through outputRoot in global mode, and `DEEPAGENTS_HOME`
+    // replaces the `.deepagents` segment when set.
     return {
-      relativeDirPath: global ? DEEPAGENTS_GLOBAL_SKILLS_DIR_PATH : DEEPAGENTS_SKILLS_DIR_PATH,
+      relativeDirPath: getDeepagentsRelativeDirPath({
+        global,
+        relativeDirPath: global ? DEEPAGENTS_GLOBAL_SKILLS_DIR_PATH : DEEPAGENTS_SKILLS_DIR_PATH,
+      }),
     };
   }
 
@@ -151,7 +159,10 @@ export class DeepagentsSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      outputRoot: this.outputRoot,
+      outputRoot: getDeepagentsRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: this.getDirName(),
       frontmatter: rulesyncFrontmatter,

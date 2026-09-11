@@ -6,6 +6,10 @@ import * as smolToml from "smol-toml";
 import { DEEPAGENTS_CONFIG_FILE_NAME, DEEPAGENTS_DIR } from "../../constants/deepagents-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import {
+  getDeepagentsRelativeDirPath,
+  getDeepagentsRulesyncOutputRoot,
+} from "../../utils/deepagents.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import {
@@ -232,9 +236,13 @@ export class DeepagentsPermissions extends ToolPermissions {
     return true;
   }
 
-  static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
+  static getSettablePaths({
+    global = false,
+  }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
+    // `DEEPAGENTS_HOME`, when set, is the profile directory `config.toml`
+    // sits in, so the `.deepagents` segment drops out.
     return {
-      relativeDirPath: DEEPAGENTS_DIR,
+      relativeDirPath: getDeepagentsRelativeDirPath({ global, relativeDirPath: DEEPAGENTS_DIR }),
       relativeFilePath: DEEPAGENTS_CONFIG_FILE_NAME,
     };
   }
@@ -401,7 +409,12 @@ export class DeepagentsPermissions extends ToolPermissions {
       result.deepagents = deepagents;
     }
 
-    return this.toRulesyncPermissionsDefault({
+    return RulesyncPermissions.fromImportedFileContent({
+      outputRoot: getDeepagentsRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
+      sourcePath: this.getRelativePathFromCwd(),
       fileContent: JSON.stringify(result, null, 2),
     });
   }

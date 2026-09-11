@@ -9,6 +9,10 @@ import {
   DEEPAGENTS_LEGACY_TO_CANONICAL_EVENT_NAMES,
   DEEPAGENTS_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
+import {
+  getDeepagentsRelativeDirPath,
+  getDeepagentsRulesyncOutputRoot,
+} from "../../utils/deepagents.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
@@ -192,9 +196,11 @@ export class DeepagentsHooks extends ToolHooks {
     return true;
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolHooksSettablePaths {
+    // `.deepagents/hooks.json` in both scopes; `DEEPAGENTS_HOME`, when set, is
+    // the global directory itself.
     return {
-      relativeDirPath: DEEPAGENTS_DIR,
+      relativeDirPath: getDeepagentsRelativeDirPath({ global, relativeDirPath: DEEPAGENTS_DIR }),
       relativeFilePath: DEEPAGENTS_HOOKS_FILE_NAME,
     };
   }
@@ -214,6 +220,7 @@ export class DeepagentsHooks extends ToolHooks {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      global,
     });
   }
 
@@ -258,6 +265,10 @@ export class DeepagentsHooks extends ToolHooks {
         : {};
 
     return this.toRulesyncHooksDefault({
+      outputRoot: getDeepagentsRulesyncOutputRoot({
+        nativeOutputRoot: this.outputRoot,
+        global: this.global,
+      }),
       fileContent: JSON.stringify(
         buildImportedHooksConfig({ hooks, overrideKey: "deepagents" }),
         null,
