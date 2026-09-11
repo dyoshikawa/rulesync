@@ -8,6 +8,10 @@ import {
 } from "../../constants/deepagents-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import {
+  getDeepagentsRelativeDirPath,
+  getDeepagentsRulesyncOutputRoot,
+} from "../../utils/deepagents.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -70,9 +74,13 @@ export class DeepagentsSubagent extends ToolSubagent {
   }: { global?: boolean } = {}): ToolSubagentSettablePaths {
     // dcode discovers user-level subagents in `~/.deepagents/<agent_name>/agents/`
     // (default agent_name `agent`); the home directory is resolved by the
-    // processor through outputRoot in global mode.
+    // processor through outputRoot in global mode, and `DEEPAGENTS_HOME`
+    // replaces the `.deepagents` segment when set.
     return {
-      relativeDirPath: global ? DEEPAGENTS_GLOBAL_AGENTS_DIR_PATH : DEEPAGENTS_AGENTS_DIR_PATH,
+      relativeDirPath: getDeepagentsRelativeDirPath({
+        global,
+        relativeDirPath: global ? DEEPAGENTS_GLOBAL_AGENTS_DIR_PATH : DEEPAGENTS_AGENTS_DIR_PATH,
+      }),
     };
   }
 
@@ -98,7 +106,10 @@ export class DeepagentsSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      outputRoot: this.getOutputRoot(),
+      outputRoot: getDeepagentsRulesyncOutputRoot({
+        nativeOutputRoot: this.getOutputRoot(),
+        global: this.global,
+      }),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -171,6 +182,7 @@ export class DeepagentsSubagent extends ToolSubagent {
       relativeFilePath: join(subagentName, DEEPAGENTS_SUBAGENT_FILE_NAME),
       fileContent,
       validate,
+      global,
     });
   }
 
@@ -223,6 +235,7 @@ export class DeepagentsSubagent extends ToolSubagent {
       body: content.trim(),
       fileContent,
       validate,
+      global,
     });
   }
 

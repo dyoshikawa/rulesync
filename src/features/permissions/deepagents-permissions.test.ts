@@ -1331,3 +1331,43 @@ describe("DeepagentsPermissions", () => {
     });
   });
 });
+
+describe("DeepagentsPermissions with DEEPAGENTS_HOME", () => {
+  const originalDeepagentsHome = process.env.DEEPAGENTS_HOME;
+  const originalHomeDir = process.env.HOME_DIR;
+
+  afterEach(() => {
+    if (originalDeepagentsHome === undefined) delete process.env.DEEPAGENTS_HOME;
+    else process.env.DEEPAGENTS_HOME = originalDeepagentsHome;
+    if (originalHomeDir === undefined) delete process.env.HOME_DIR;
+    else process.env.HOME_DIR = originalHomeDir;
+  });
+
+  it("drops the .deepagents prefix when DEEPAGENTS_HOME is the profile root itself", () => {
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    expect(DeepagentsPermissions.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: ".",
+      relativeFilePath: "config.toml",
+    });
+
+    delete process.env.DEEPAGENTS_HOME;
+    expect(DeepagentsPermissions.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: ".deepagents",
+      relativeFilePath: "config.toml",
+    });
+  });
+
+  it("imports back into the rulesync home rather than the profile root", () => {
+    process.env.HOME_DIR = "/rulesync-home";
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    const permissions = new DeepagentsPermissions({
+      outputRoot: "/custom-deepagents",
+      relativeDirPath: ".",
+      relativeFilePath: "config.toml",
+      fileContent: '[shell]\nallow_list = ["git status"]\n',
+      global: true,
+    });
+
+    expect(permissions.toRulesyncPermissions().getOutputRoot()).toBe("/rulesync-home");
+  });
+});

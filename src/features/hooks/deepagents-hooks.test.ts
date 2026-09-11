@@ -495,3 +495,41 @@ describe("DeepagentsHooks", () => {
     });
   });
 });
+
+describe("DeepagentsHooks with DEEPAGENTS_HOME", () => {
+  const originalDeepagentsHome = process.env.DEEPAGENTS_HOME;
+  const originalHomeDir = process.env.HOME_DIR;
+
+  afterEach(() => {
+    if (originalDeepagentsHome === undefined) delete process.env.DEEPAGENTS_HOME;
+    else process.env.DEEPAGENTS_HOME = originalDeepagentsHome;
+    if (originalHomeDir === undefined) delete process.env.HOME_DIR;
+    else process.env.HOME_DIR = originalHomeDir;
+  });
+
+  it("drops the .deepagents prefix in global scope when DEEPAGENTS_HOME is set", () => {
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    expect(DeepagentsHooks.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: ".",
+      relativeFilePath: "hooks.json",
+    });
+    expect(DeepagentsHooks.getSettablePaths({ global: false })).toEqual({
+      relativeDirPath: ".deepagents",
+      relativeFilePath: "hooks.json",
+    });
+  });
+
+  it("imports back into the rulesync home rather than the profile root", () => {
+    process.env.HOME_DIR = "/rulesync-home";
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    const hooks = new DeepagentsHooks({
+      outputRoot: "/custom-deepagents",
+      relativeDirPath: ".",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({ hooks: {} }),
+      global: true,
+    });
+
+    expect(hooks.toRulesyncHooks().getOutputRoot()).toBe("/rulesync-home");
+  });
+});

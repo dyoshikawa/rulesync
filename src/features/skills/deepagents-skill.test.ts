@@ -420,3 +420,40 @@ Packaged body`;
     });
   });
 });
+
+describe("DeepagentsSkill with DEEPAGENTS_HOME", () => {
+  const originalDeepagentsHome = process.env.DEEPAGENTS_HOME;
+  const originalHomeDir = process.env.HOME_DIR;
+
+  afterEach(() => {
+    if (originalDeepagentsHome === undefined) delete process.env.DEEPAGENTS_HOME;
+    else process.env.DEEPAGENTS_HOME = originalDeepagentsHome;
+    if (originalHomeDir === undefined) delete process.env.HOME_DIR;
+    else process.env.HOME_DIR = originalHomeDir;
+  });
+
+  it("drops the .deepagents prefix in global scope when DEEPAGENTS_HOME is set", () => {
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    expect(DeepagentsSkill.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: join("agent", "skills"),
+    });
+    expect(DeepagentsSkill.getSettablePaths({ global: false })).toEqual({
+      relativeDirPath: join(".deepagents", "skills"),
+    });
+  });
+
+  it("imports back into the rulesync home rather than the profile root", () => {
+    process.env.HOME_DIR = "/rulesync-home";
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    const skill = new DeepagentsSkill({
+      outputRoot: "/custom-deepagents",
+      relativeDirPath: join("agent", "skills"),
+      dirName: "my-skill",
+      frontmatter: { name: "My Skill", description: "Does something." },
+      body: "Instructions.",
+      global: true,
+    });
+
+    expect(skill.toRulesyncSkill().getOutputRoot()).toBe("/rulesync-home");
+  });
+});

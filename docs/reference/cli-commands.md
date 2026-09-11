@@ -247,9 +247,9 @@ rulesync generate --watch
 
 ### Tool home overrides win over the output root in global scope
 
-Two tools read their profile location from an environment variable: Hermes Agent (`HERMES_HOME`) and Kimi Code (`KIMI_CODE_HOME`). When one of them is set, `generate --global` and `convert --global` write that tool's output under it, **overriding both `outputRoots` and an explicit `--output-roots`** for that target. See [Supported Tools](./supported-tools.md) for what each profile root contains. This is deliberate — the variable names where the tool itself looks, so honoring the flag instead would produce files the tool never reads. Every other target still uses the configured output root.
+Three tools read their profile location from an environment variable: Hermes Agent (`HERMES_HOME`), Kimi Code (`KIMI_CODE_HOME`), and deepagents-cli (`DEEPAGENTS_HOME`). When one of them is set, `generate --global` and `convert --global` write that tool's output under it, **overriding both `outputRoots` and an explicit `--output-roots`** for that target. See [Supported Tools](./supported-tools.md) for what each profile root contains. This is deliberate — the variable names where the tool itself looks, so honoring the flag instead would produce files the tool never reads. Every other target still uses the configured output root.
 
-The override must be a usable directory: an empty value is ignored (the default profile location applies), and a value that is the filesystem root or an unnormalized path is rejected with an error naming the variable.
+The override must be a usable directory: an empty value is ignored (the default profile location applies), and a value that is the filesystem root or an unnormalized path is rejected with an error naming the variable. `DEEPAGENTS_HOME` is additionally held to the spellings dcode itself accepts — an absolute path, or one beginning with `~/` (expanded against the home directory) — so a relative value, a bare `~`, or a `~user` form is rejected rather than resolved against the working directory, since dcode would refuse to start with it.
 
 ### Shared config files are never created empty
 

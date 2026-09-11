@@ -1,4 +1,5 @@
 import type { ToolTarget } from "../types/tool-targets.js";
+import { getDeepagentsHome } from "./deepagents.js";
 import { formatError } from "./error.js";
 import { validateOutputRoot } from "./file.js";
 import { resolveHermesagentOutputRoot } from "./hermesagent.js";
@@ -6,13 +7,14 @@ import { getKimiCodeHome } from "./kimi-code.js";
 
 /** The environment variable each tool reads for its profile root. */
 const TOOL_HOME_ENV_VARS: Partial<Record<ToolTarget, string>> = {
+  deepagents: "DEEPAGENTS_HOME",
   hermesagent: "HERMES_HOME",
   "kimi-code": "KIMI_CODE_HOME",
 };
 
 /**
- * Substitute a tool's home override (`HERMES_HOME`, `KIMI_CODE_HOME`) for the
- * output root in global scope.
+ * Substitute a tool's home override (`DEEPAGENTS_HOME`, `HERMES_HOME`,
+ * `KIMI_CODE_HOME`) for the output root in global scope.
  *
  * The override wins over `--output-roots`: it names where the tool itself reads
  * its profile, so writing anywhere else would produce files the tool ignores.
@@ -37,7 +39,9 @@ export function resolveToolOutputRoot({
       ? resolveHermesagentOutputRoot({ outputRoot, global })
       : toolTarget === "kimi-code"
         ? (getKimiCodeHome() ?? outputRoot)
-        : outputRoot;
+        : toolTarget === "deepagents"
+          ? (getDeepagentsHome() ?? outputRoot)
+          : outputRoot;
   if (resolved === outputRoot) return resolved;
 
   try {

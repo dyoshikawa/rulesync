@@ -199,3 +199,50 @@ describe("DeepagentsRule", () => {
     });
   });
 });
+
+describe("DeepagentsRule with DEEPAGENTS_HOME", () => {
+  const originalDeepagentsHome = process.env.DEEPAGENTS_HOME;
+  const originalHomeDir = process.env.HOME_DIR;
+
+  afterEach(() => {
+    if (originalDeepagentsHome === undefined) delete process.env.DEEPAGENTS_HOME;
+    else process.env.DEEPAGENTS_HOME = originalDeepagentsHome;
+    if (originalHomeDir === undefined) delete process.env.HOME_DIR;
+    else process.env.HOME_DIR = originalHomeDir;
+  });
+
+  it("keeps .deepagents/agent/AGENTS.md when DEEPAGENTS_HOME is unset", () => {
+    delete process.env.DEEPAGENTS_HOME;
+    expect(DeepagentsRule.getSettablePaths({ global: true }).root).toEqual({
+      relativeDirPath: join(".deepagents", "agent"),
+      relativeFilePath: "AGENTS.md",
+    });
+  });
+
+  it("drops the .deepagents prefix when DEEPAGENTS_HOME is the profile root itself", () => {
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    expect(DeepagentsRule.getSettablePaths({ global: true }).root).toEqual({
+      relativeDirPath: "agent",
+      relativeFilePath: "AGENTS.md",
+    });
+    expect(DeepagentsRule.getSettablePaths({ global: false }).root.relativeDirPath).toBe(
+      ".deepagents",
+    );
+  });
+
+  it("recognizes the relocated global root file for deletion", () => {
+    process.env.DEEPAGENTS_HOME = "/custom-deepagents";
+    expect(
+      DeepagentsRule.forDeletion({
+        relativeDirPath: "agent",
+        relativeFilePath: "AGENTS.md",
+      }).isRoot(),
+    ).toBe(true);
+    expect(
+      DeepagentsRule.forDeletion({
+        relativeDirPath: ".deepagents",
+        relativeFilePath: "AGENTS.md",
+      }).isRoot(),
+    ).toBe(true);
+  });
+});
