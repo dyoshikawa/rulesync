@@ -16,8 +16,9 @@ updates:
         update-types:
           - "minor"
           - "patch"
-      # Majors get their own PR so a breaking bump is never buried inside a
+      # Semver-major bumps get their own PR so they are never buried inside a
       # 100-package batch and can be reviewed, reverted, or bisected alone.
+      # (0.x packages still classify 0.23 -> 0.24 as minor and stay above.)
       major-dependencies:
         patterns:
           - "*"
