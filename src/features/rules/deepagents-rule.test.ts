@@ -204,6 +204,12 @@ describe("DeepagentsRule with DEEPAGENTS_HOME", () => {
   const originalDeepagentsHome = process.env.DEEPAGENTS_HOME;
   const originalHomeDir = process.env.HOME_DIR;
 
+  beforeEach(() => {
+    // `getDeepagentsHome` compares the override against the home directory,
+    // which the test environment refuses to resolve without `HOME_DIR`.
+    process.env.HOME_DIR = "/rulesync-home";
+  });
+
   afterEach(() => {
     if (originalDeepagentsHome === undefined) delete process.env.DEEPAGENTS_HOME;
     else process.env.DEEPAGENTS_HOME = originalDeepagentsHome;
@@ -236,6 +242,7 @@ describe("DeepagentsRule with DEEPAGENTS_HOME", () => {
       DeepagentsRule.forDeletion({
         relativeDirPath: "agent",
         relativeFilePath: "AGENTS.md",
+        global: true,
       }).isRoot(),
     ).toBe(true);
     expect(
@@ -244,5 +251,16 @@ describe("DeepagentsRule with DEEPAGENTS_HOME", () => {
         relativeFilePath: "AGENTS.md",
       }).isRoot(),
     ).toBe(true);
+  });
+
+  it("leaves a project-scope deletion untouched by an invalid DEEPAGENTS_HOME", () => {
+    // Only global paths read the variable, so a project delete must neither
+    // consult it nor fail on a value dcode itself would reject.
+    process.env.DEEPAGENTS_HOME = "relative/profile";
+    const rule = DeepagentsRule.forDeletion({
+      relativeDirPath: ".deepagents",
+      relativeFilePath: "AGENTS.md",
+    });
+    expect(rule.isRoot()).toBe(true);
   });
 });

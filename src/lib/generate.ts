@@ -1087,8 +1087,9 @@ async function generateIgnoreCore(params: {
           // paths in `ConfigResolver`; with that change it is now consistent
           // to pass the same `outputRoot` value the other processors receive.
           // No `resolveToolOutputRoot` either: the tools with a home override
-          // (hermesagent, kimi-code) are not global ignore targets, so there is
-          // nothing to redirect. Route through it if that ever changes.
+          // (hermesagent, kimi-code, deepagents — see `TOOL_HOME_ENV_VARS`)
+          // are not global ignore targets, so there is nothing to redirect.
+          // Route through it if that ever changes.
           outputRoot,
           inputRoots: config.getInputRoots(),
           toolTarget,

@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { resolveToolOutputRoot } from "./tool-output-root.js";
 
@@ -8,8 +8,17 @@ describe("resolveToolOutputRoot", () => {
   const originalHermesHome = process.env.HERMES_HOME;
   const originalKimiHome = process.env.KIMI_CODE_HOME;
   const originalDeepagentsHome = process.env.DEEPAGENTS_HOME;
+  const originalHomeDir = process.env.HOME_DIR;
+
+  beforeEach(() => {
+    // `getDeepagentsHome` compares the override against the home directory,
+    // which the test environment refuses to resolve without `HOME_DIR`.
+    process.env.HOME_DIR = "/rulesync-home";
+  });
 
   afterEach(() => {
+    if (originalHomeDir === undefined) delete process.env.HOME_DIR;
+    else process.env.HOME_DIR = originalHomeDir;
     if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
     else process.env.HERMES_HOME = originalHermesHome;
     if (originalKimiHome === undefined) delete process.env.KIMI_CODE_HOME;
@@ -85,5 +94,11 @@ describe("resolveToolOutputRoot", () => {
     expect(() =>
       resolveToolOutputRoot({ outputRoot: "/home", toolTarget: "deepagents", global: true }),
     ).toThrow("Invalid DEEPAGENTS_HOME");
+
+    process.env.HOME_DIR = "/home";
+    process.env.DEEPAGENTS_HOME = "~/";
+    expect(() =>
+      resolveToolOutputRoot({ outputRoot: "/home", toolTarget: "deepagents", global: true }),
+    ).toThrow("the home directory itself cannot be a profile");
   });
 });

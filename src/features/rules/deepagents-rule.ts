@@ -93,6 +93,7 @@ export class DeepagentsRule extends ToolRule {
       fileContent,
       validate,
       root: true,
+      global,
     });
   }
 
@@ -100,14 +101,15 @@ export class DeepagentsRule extends ToolRule {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolRuleForDeletionParams): DeepagentsRule {
     // The deepagents root file is always `AGENTS.md`, under `.deepagents`
     // (project) or `.deepagents/agent` (global) — or `agent` alone when
-    // `DEEPAGENTS_HOME` is the profile root.
+    // `DEEPAGENTS_HOME` is the profile root. Resolved for the requested scope
+    // only, so a project delete never consults (or trips over) the variable.
     const isRoot =
       relativeFilePath === DEEPAGENTS_RULE_FILE_NAME &&
-      (relativeDirPath === DEEPAGENTS_DIR ||
-        relativeDirPath === this.getSettablePaths({ global: true }).root.relativeDirPath);
+      relativeDirPath === this.getSettablePaths({ global }).root.relativeDirPath;
 
     return new DeepagentsRule({
       outputRoot,

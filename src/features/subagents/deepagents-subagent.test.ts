@@ -229,6 +229,12 @@ describe("DeepagentsSubagent with DEEPAGENTS_HOME", () => {
   const originalDeepagentsHome = process.env.DEEPAGENTS_HOME;
   const originalHomeDir = process.env.HOME_DIR;
 
+  beforeEach(() => {
+    // `getDeepagentsHome` compares the override against the home directory,
+    // which the test environment refuses to resolve without `HOME_DIR`.
+    process.env.HOME_DIR = "/rulesync-home";
+  });
+
   afterEach(() => {
     if (originalDeepagentsHome === undefined) delete process.env.DEEPAGENTS_HOME;
     else process.env.DEEPAGENTS_HOME = originalDeepagentsHome;

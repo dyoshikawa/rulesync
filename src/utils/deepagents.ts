@@ -22,13 +22,28 @@ const DEEPAGENTS_HOME_ENV = "DEEPAGENTS_HOME";
 export function getDeepagentsHome(): string | undefined {
   const configured = process.env[DEEPAGENTS_HOME_ENV]?.trim();
   if (!configured) return undefined;
+
+  let root: string;
   if (configured.startsWith("~/")) {
-    return resolve(getHomeDirectory(), configured.slice(2).replace(/^\/+/, ""));
+    root = resolve(getHomeDirectory(), configured.slice(2).replace(/^\/+/, ""));
+  } else if (isAbsolute(configured)) {
+    root = resolve(configured);
+  } else {
+    throw new Error(
+      `Invalid ${DEEPAGENTS_HOME_ENV} ${JSON.stringify(configured)}: dcode accepts only an absolute path or a path beginning with "~/", so it would not start with this value. Unset it or point it at an absolute path.`,
+    );
   }
-  if (isAbsolute(configured)) return resolve(configured);
-  throw new Error(
-    `Invalid ${DEEPAGENTS_HOME_ENV} ${JSON.stringify(configured)}: dcode accepts only an absolute path or a path beginning with "~/", so it would not start with this value. Unset it or point it at an absolute path.`,
-  );
+
+  // Upstream also refuses the home directory itself (`DEEPAGENTS_HOME=~/`):
+  // a profile root owns everything beneath it, so that spelling would make
+  // `~/.env` the trusted profile dotenv. Writing there would likewise scatter
+  // `config.toml`, `.mcp.json` and `agent/` across the user's home.
+  if (root === resolve(getHomeDirectory())) {
+    throw new Error(
+      `Invalid ${DEEPAGENTS_HOME_ENV} ${JSON.stringify(configured)}: the home directory itself cannot be a profile, so dcode would not start with this value. Point it at a subdirectory such as "~/.deepagents".`,
+    );
+  }
+  return root;
 }
 
 /**

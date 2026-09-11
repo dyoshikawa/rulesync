@@ -1,6 +1,6 @@
 import { join, resolve } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   getDeepagentsHome,
@@ -11,6 +11,12 @@ import {
 describe("deepagents profile paths", () => {
   const originalDeepagentsHome = process.env.DEEPAGENTS_HOME;
   const originalHomeDir = process.env.HOME_DIR;
+
+  beforeEach(() => {
+    // `getDeepagentsHome` compares the override against the home directory,
+    // which the test environment refuses to resolve without `HOME_DIR`.
+    process.env.HOME_DIR = "/rulesync-home";
+  });
 
   afterEach(() => {
     if (originalDeepagentsHome === undefined) delete process.env.DEEPAGENTS_HOME;
@@ -37,9 +43,20 @@ describe("deepagents profile paths", () => {
       process.env.HOME_DIR = "/rulesync-home";
       process.env.DEEPAGENTS_HOME = "~/profiles/work";
       expect(getDeepagentsHome()).toBe(resolve("/rulesync-home", "profiles", "work"));
+    });
 
+    it("rejects the home directory itself, as dcode does", () => {
+      // Upstream's degenerate-root check: `~/` would make `~/.env` the profile
+      // dotenv, and rulesync would scatter profile files across the home.
+      process.env.HOME_DIR = "/rulesync-home";
       process.env.DEEPAGENTS_HOME = "~/";
-      expect(getDeepagentsHome()).toBe(resolve("/rulesync-home"));
+      expect(() => getDeepagentsHome()).toThrow("the home directory itself cannot be a profile");
+
+      process.env.DEEPAGENTS_HOME = "/rulesync-home";
+      expect(() => getDeepagentsHome()).toThrow("Invalid DEEPAGENTS_HOME");
+
+      process.env.DEEPAGENTS_HOME = "~/.deepagents";
+      expect(getDeepagentsHome()).toBe(resolve("/rulesync-home", ".deepagents"));
     });
 
     it("rejects the spellings dcode refuses to start with, naming the variable", () => {
