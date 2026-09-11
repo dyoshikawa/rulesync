@@ -234,7 +234,7 @@ describe("installCommand with npm-transport sources (happy path)", () => {
     );
 
     await expect(installCommand(logger, { frozen: true })).rejects.toThrow(
-      /lockfile is missing entries for: acme-skills/,
+      /lockfile is missing entries or does not cover the declared selection for: acme-skills/,
     );
   });
 

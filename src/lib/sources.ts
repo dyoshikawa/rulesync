@@ -672,7 +672,7 @@ function assertFrozenLockCoversSources(params: {
   }
   if (missingKeys.length > 0) {
     throw new Error(
-      `Frozen install failed: lockfile is missing entries for: ${missingKeys.join(", ")}. Run 'rulesync install' to update the lockfile.`,
+      `Frozen install failed: lockfile is missing entries or does not cover the declared selection for: ${missingKeys.join(", ")}. Run 'rulesync install' to update the lockfile.`,
     );
   }
 }
@@ -1463,6 +1463,8 @@ function normalizeSkillSelection(skills: string[]): string[] {
  * cannot write it (`--frozen`, adding a source) pass `acceptLegacy` and fall
  * back to the locked skill names instead, so a wildcard is taken at face value
  * and an explicit list is covered only when every name it selects is locked.
+ * An entry that locks no skills at all (a rules-only install) covers nothing:
+ * it was never written for a skill selection.
  */
 function lockedSkillConfigMatches(params: {
   locked: { skills: Record<string, unknown>; skillSelection?: string[] | undefined };
@@ -1476,13 +1478,13 @@ function lockedSkillConfigMatches(params: {
   const selection = normalizeSkillSelection(skills);
   const lockedSelection = params.locked.skillSelection;
   if (lockedSelection === undefined) {
-    if (!params.acceptLegacy) {
+    const lockedSkillNames = new Set(Object.keys(params.locked.skills));
+    if (!params.acceptLegacy || lockedSkillNames.size === 0) {
       return false;
     }
     if (selection.length === 1 && selection[0] === "*") {
       return true;
     }
-    const lockedSkillNames = new Set(Object.keys(params.locked.skills));
     return selection.every((skillName) => lockedSkillNames.has(skillName));
   }
   return (
@@ -2228,7 +2230,7 @@ async function fetchSource(params: {
     locked,
     requestedRef,
     resolvedSha,
-    skillSelection: normalizeSkillSelection(sourceEntry.skills ?? ["*"]),
+    skillSelection: normalizeSkillSelection(skillFilter),
     remoteSkillNames,
     logger,
   });
@@ -2363,7 +2365,7 @@ async function fetchSourceViaGit(params: {
     locked,
     requestedRef,
     resolvedSha,
-    skillSelection: normalizeSkillSelection(sourceEntry.skills ?? ["*"]),
+    skillSelection: normalizeSkillSelection(skillFilter),
     remoteSkillNames: filteredNames,
     logger,
   });

@@ -291,6 +291,32 @@ describe("resolveAndFetchSources", () => {
     ).rejects.toThrow(/Run 'rulesync install' before adding another source/);
   });
 
+  it("should reject an existing source whose skill selection widened past the lockfile", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/existing": {
+          resolvedRef: "sha-123",
+          skills: { "skill-a": { integrity: "sha256-a" } },
+          skillSelection: ["skill-a"],
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+      return path === join(curatedDir, "skill-a");
+    });
+
+    await expect(
+      getInstalledSourceSkillNames({
+        sources: [{ source: "org/existing", skills: ["skill-a", "skill-b"] }],
+        projectRoot: testDir,
+        logger,
+      }),
+    ).rejects.toThrow(/Run 'rulesync install' before adding another source/);
+  });
+
   it("should preserve locked skill directories when no remote skills match", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
@@ -1954,6 +1980,114 @@ describe("resolveAndFetchSources", () => {
     ).rejects.toThrow("Frozen install failed");
     expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
     expect(writeLockFile).not.toHaveBeenCalled();
+  });
+
+  it("should fetch skills when a rules-only lock entry gains a wildcard skill selection", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: {},
+          rules: { rule: { integrity: computeRuleIntegrity("") } },
+          ruleSelection: ["rule"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["rule"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "rules") {
+          return [{ name: "rule.md", path: "rules/rule.md", type: "file", size: 50 }];
+        }
+        if (path === "skills") {
+          return [{ name: "skill-a", path: "skills/skill-a", type: "dir" }];
+        }
+        if (path === "skills/skill-a") {
+          return [{ name: "SKILL.md", path: "skills/skill-a/SKILL.md", type: "file", size: 10 }];
+        }
+        return [];
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", skills: ["*"], rules: ["rule"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]).toMatchObject({
+      skills: { "skill-a": expect.anything() },
+      skillSelection: ["*"],
+      ruleSelection: ["rule"],
+    });
+  });
+
+  it("should throw when frozen and a rules-only lock entry gains a wildcard skill selection", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: {},
+          rules: { rule: { integrity: computeRuleIntegrity("") } },
+          ruleSelection: ["rule"],
+          rulesPath: "rules",
+          resolvedRuleNames: ["rule"],
+        },
+      },
+    });
+    vi.mocked(fileExists).mockResolvedValue(true);
+
+    await expect(
+      resolveAndFetchSources({
+        logger,
+        sources: [{ source: "org/repo", skills: ["*"], rules: ["rule"] }],
+        projectRoot: testDir,
+        options: { frozen: true },
+      }),
+    ).rejects.toThrow("Frozen install failed");
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+  });
+
+  it("should preserve the locked skill selection across a rules-only refetch", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: { "skill-a": { integrity: "sha256-a" } },
+          skillSelection: ["skill-a"],
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+      return path === join(curatedDir, "skill-a");
+    });
+    mockClientInstance.listDirectory.mockResolvedValue([
+      { name: "rule.md", path: "rules/rule.md", type: "file", size: 50 },
+    ]);
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", skills: ["skill-a"], rules: ["rule"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(result.fetchedRuleCount).toBe(1);
+    expect(vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]).toMatchObject({
+      skills: { "skill-a": { integrity: "sha256-a" } },
+      skillSelection: ["skill-a"],
+      ruleSelection: ["rule"],
+    });
   });
 
   it("should refetch when a cached rule fails its integrity check", async () => {
