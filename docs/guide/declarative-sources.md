@@ -258,7 +258,7 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
 
 To update locked refs, run `rulesync install --update`.
 
-Changing a source's `skills` or `rules` selection in `rulesync.jsonc` (for example, adding a skill name to an explicit list, or switching to `"*"`) is picked up by the next plain `rulesync install`: the entry is refetched at its locked ref and the lockfile records the new selection. Under `--frozen`, a selection the lockfile does not cover fails the install instead.
+Changing a source's `skills` or `rules` selection in `rulesync.jsonc` (for example, adding a skill name to an explicit list, or switching to `"*"`) is picked up by the next plain `rulesync install`: the entry is refetched at its locked ref and the lockfile records the new selection. Under `--frozen`, a selection the lockfile does not cover fails the install instead. A lockfile written before `skillSelection` was recorded is fetched again once, at its locked ref, by the next plain `rulesync install`, which then records the selection; commit the updated lockfile so `--frozen` installs keep reusing the cache.
 
 npm-transport sources (experimental) are pinned in a separate `rulesync-npm.lock.json`, because they lock a resolved package version and tarball integrity instead of a commit SHA:
 
