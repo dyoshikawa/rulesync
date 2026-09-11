@@ -96,7 +96,9 @@ describe("E2E: DEEPAGENTS_HOME", () => {
       await readFileContent(join(deepagentsHome, "agent", "skills", "generated-skill", "SKILL.md")),
     ).toContain("Generated custom-home skill");
     expect(
-      await readFileContent(join(deepagentsHome, "agent", "agents", "generated-agent.md")),
+      await readFileContent(
+        join(deepagentsHome, "agent", "agents", "generated-agent", "AGENTS.md"),
+      ),
     ).toContain("Generated custom-home agent");
     expect(await readFileContent(join(deepagentsHome, "hooks.json"))).toContain("generated-stop");
     // dcode auto-approves by executable name, so the rule is reduced to `git`.
@@ -106,10 +108,6 @@ describe("E2E: DEEPAGENTS_HOME", () => {
     expect(await fileExists(join(homeDir, ".deepagents"))).toBe(false);
     expect(await fileExists(join(deepagentsHome, ".deepagents"))).toBe(false);
 
-    await writeFileContent(
-      join(deepagentsHome, "agent", "AGENTS.md"),
-      "Imported custom-home rule.\n",
-    );
     await writeFileContent(
       join(deepagentsHome, ".mcp.json"),
       JSON.stringify({
@@ -127,7 +125,7 @@ describe("E2E: DEEPAGENTS_HOME", () => {
       ].join("\n"),
     );
     await writeFileContent(
-      join(deepagentsHome, "agent", "agents", "imported-agent.md"),
+      join(deepagentsHome, "agent", "agents", "imported-agent", "AGENTS.md"),
       [
         "---",
         "name: imported-agent",
@@ -149,20 +147,19 @@ describe("E2E: DEEPAGENTS_HOME", () => {
       ["[shell]", 'allow_list = ["ls"]'].join("\n"),
     );
 
+    // `rules` is left out of the import half, as in the Hermes spec: the rule
+    // adapter still uses the shared default that writes imported rules under
+    // the working directory in global scope, which is independent of the
+    // override.
     await runImport({
       target: "deepagents",
-      features: "rules,mcp,skills,subagents,hooks,permissions",
+      features: "mcp,skills,subagents,hooks,permissions",
       global: true,
       env,
     });
 
     // The override relocates dcode's own files only: the `.rulesync/` sources
     // written back by `import --global` stay under the rulesync home.
-    expect(
-      await readFileContent(
-        join(homeDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
-      ),
-    ).toContain("Imported custom-home rule");
     expect(await readFileContent(join(homeDir, RULESYNC_MCP_RELATIVE_FILE_PATH))).toContain(
       "imported",
     );
