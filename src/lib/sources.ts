@@ -395,7 +395,12 @@ export async function getInstalledSourceSkillNames({
         ? getNpmLockedSkillNames(entry as NpmLockedSource)
         : getLockedSkillNames(entry as LockedSource)
       : [];
-    if (entry === undefined || !(await checkLockedSkillsExist(curatedDir, lockedSkillNames))) {
+    if (
+      entry === undefined ||
+      (getSourceFilters(source).skills !== undefined &&
+        !lockedSkillConfigMatches({ locked: entry, sourceEntry: source })) ||
+      !(await checkLockedSkillsExist(curatedDir, lockedSkillNames))
+    ) {
       throw new Error(
         `Existing source "${source.source}" is not fully installed. Run 'rulesync install' before adding another source.`,
       );
@@ -652,10 +657,14 @@ function assertFrozenLockCoversSources(params: {
       (source.transport ?? "github") === "npm"
         ? getNpmLockedSource(npmLock, source.source)
         : getLockedSource(lock, source.source);
+    const filters = getSourceFilters(source);
+    const skillsCovered =
+      filters.skills === undefined ||
+      (locked !== undefined && lockedSkillConfigMatches({ locked, sourceEntry: source }));
     const rulesCovered =
-      getSourceFilters(source).rules === undefined ||
+      filters.rules === undefined ||
       (locked !== undefined && lockedRuleConfigMatches({ locked, sourceEntry: source }));
-    if (!locked || !rulesCovered) {
+    if (!locked || !skillsCovered || !rulesCovered) {
       missingKeys.push(source.source);
     }
   }
@@ -1229,6 +1238,7 @@ function buildLockUpdate(params: {
   locked: LockedSource | undefined;
   requestedRef: string | undefined;
   resolvedSha: string;
+  skillSelection: string[];
   remoteSkillNames: string[];
   logger: Logger;
 }): { updatedLock: SourcesLock; fetchedNames: string[] } {
@@ -1239,6 +1249,7 @@ function buildLockUpdate(params: {
     locked,
     requestedRef,
     resolvedSha,
+    skillSelection,
     remoteSkillNames,
     logger,
   } = params;
@@ -1255,6 +1266,7 @@ function buildLockUpdate(params: {
     resolvedRef: resolvedSha,
     resolvedAt: new Date().toISOString(),
     skills: mergedSkills,
+    skillSelection,
     rules: locked?.rules ?? {},
     ruleSelection: locked?.ruleSelection,
     rulesPath: locked?.rulesPath,
@@ -1298,6 +1310,7 @@ function buildRuleLockUpdate(params: {
     resolvedRef,
     resolvedAt: new Date().toISOString(),
     skills: locked?.skills ?? {},
+    skillSelection: locked?.skillSelection,
     rules: fetchedRules,
     ruleSelection,
     rulesPath,
@@ -1429,6 +1442,67 @@ function normalizeRuleFilterName(name: string): string {
 
 function normalizeRuleSelection(rules: string[]): string[] {
   return [...new Set(rules.map(normalizeRuleFilterName))].toSorted();
+}
+
+function normalizeSkillSelection(skills: string[]): string[] {
+  return [...new Set(skills)].toSorted();
+}
+
+/**
+ * Whether the locked entry was written for the `skills` selection the manifest
+ * declares now. Without it, widening the selection after an install is a
+ * silent no-op: the ref is unchanged and every locked skill is on disk, so the
+ * newly selected skill is never fetched and `--frozen` never notices.
+ *
+ * Lockfiles written before the selection was recorded carry no
+ * `skillSelection`; they fall back to the locked skill names, so a wildcard is
+ * taken at face value and an explicit list is covered only when every name it
+ * selects is locked. Either way the next non-frozen install records the
+ * selection.
+ */
+function lockedSkillConfigMatches(params: {
+  locked: { skills: Record<string, unknown>; skillSelection?: string[] | undefined };
+  sourceEntry: SourceEntry;
+}): boolean {
+  const skills = getSourceFilters(params.sourceEntry).skills;
+  if (skills === undefined) {
+    return false;
+  }
+  const selection = normalizeSkillSelection(skills);
+  const lockedSelection = params.locked.skillSelection;
+  if (lockedSelection === undefined) {
+    if (selection.length === 1 && selection[0] === "*") {
+      return true;
+    }
+    const lockedSkillNames = new Set(Object.keys(params.locked.skills));
+    return selection.every((skillName) => lockedSkillNames.has(skillName));
+  }
+  return (
+    selection.length === lockedSelection.length &&
+    selection.every((skillName, index) => skillName === lockedSelection[index])
+  );
+}
+
+/**
+ * Skip the re-fetch when the SHA and the skill selection match the lockfile and
+ * every curated skill the entry locks is still on disk.
+ */
+async function canReuseLockedSkills(params: {
+  locked: LockedSource | undefined;
+  resolvedSha: string;
+  updateSources: boolean;
+  sourceEntry: SourceEntry;
+  curatedDir: string;
+  lockedSkillNames: string[];
+}): Promise<boolean> {
+  const { locked, resolvedSha, updateSources, sourceEntry, curatedDir, lockedSkillNames } = params;
+  return (
+    locked !== undefined &&
+    resolvedSha === locked.resolvedRef &&
+    !updateSources &&
+    lockedSkillConfigMatches({ locked, sourceEntry }) &&
+    (await checkLockedSkillsExist(curatedDir, lockedSkillNames))
+  );
 }
 
 function normalizeRulesPath(rulesPath: string | undefined): string {
@@ -2047,17 +2121,22 @@ async function fetchSource(params: {
 
   const curatedDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
 
-  // Skip re-fetch if SHA matches lockfile and curated skills exist on disk
-  if (locked && resolvedSha === locked.resolvedRef && !updateSources) {
-    const allExist = await checkLockedSkillsExist(curatedDir, lockedSkillNames);
-    if (allExist) {
-      logger.debug(`SHA unchanged for ${sourceKey}, skipping re-fetch.`);
-      return {
-        skillCount: 0,
-        fetchedSkillNames: lockedSkillNames,
-        updatedLock: lock,
-      };
-    }
+  if (
+    await canReuseLockedSkills({
+      locked,
+      resolvedSha,
+      updateSources,
+      sourceEntry,
+      curatedDir,
+      lockedSkillNames,
+    })
+  ) {
+    logger.debug(`SHA unchanged for ${sourceKey}, skipping re-fetch.`);
+    return {
+      skillCount: 0,
+      fetchedSkillNames: lockedSkillNames,
+      updatedLock: lock,
+    };
   }
 
   // Determine which skills to fetch
@@ -2136,6 +2215,7 @@ async function fetchSource(params: {
     locked,
     requestedRef,
     resolvedSha,
+    skillSelection: normalizeSkillSelection(sourceEntry.skills ?? ["*"]),
     remoteSkillNames,
     logger,
   });
@@ -2193,10 +2273,17 @@ async function fetchSourceViaGit(params: {
   }
 
   const curatedDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
-  if (locked && resolvedSha === locked.resolvedRef && !updateSources) {
-    if (await checkLockedSkillsExist(curatedDir, lockedSkillNames)) {
-      return { skillCount: 0, fetchedSkillNames: lockedSkillNames, updatedLock: lock };
-    }
+  if (
+    await canReuseLockedSkills({
+      locked,
+      resolvedSha,
+      updateSources,
+      sourceEntry,
+      curatedDir,
+      lockedSkillNames,
+    })
+  ) {
+    return { skillCount: 0, fetchedSkillNames: lockedSkillNames, updatedLock: lock };
   }
 
   // Resolve requestedRef lazily (deferred from locked path to avoid unnecessary network calls)
@@ -2262,6 +2349,7 @@ async function fetchSourceViaGit(params: {
     locked,
     requestedRef,
     resolvedSha,
+    skillSelection: normalizeSkillSelection(sourceEntry.skills ?? ["*"]),
     remoteSkillNames: filteredNames,
     logger,
   });
@@ -2435,6 +2523,7 @@ function buildNpmLockEntry(params: {
   resolvedVersion: string;
   dist: { integrity?: string; shasum?: string };
   mergedSkills: Record<string, LockedSkill>;
+  skillSelection: string[] | undefined;
   mergedRules: Record<string, LockedRule>;
   resolvedRuleNames: string[];
 }): NpmLockedSource {
@@ -2444,6 +2533,7 @@ function buildNpmLockEntry(params: {
     resolvedVersion,
     dist,
     mergedSkills,
+    skillSelection,
     mergedRules,
     resolvedRuleNames,
   } = params;
@@ -2456,6 +2546,7 @@ function buildNpmLockEntry(params: {
     ...(integrity !== undefined && { integrity }),
     resolvedAt: new Date().toISOString(),
     skills: mergedSkills,
+    ...(skillSelection !== undefined && { skillSelection }),
     ...(sourceEntry.rules !== undefined && {
       rules: mergedRules,
       ruleSelection: normalizeRuleSelection(sourceEntry.rules),
@@ -2633,6 +2724,10 @@ async function canReuseLockedNpmArtifacts(params: {
   const skillsExist =
     filters.skills === undefined ||
     (lockedSkillNames.length > 0 &&
+      lockedSkillConfigMatches({
+        locked,
+        sourceEntry: { ...sourceEntry, skills: filters.skills },
+      }) &&
       (await checkLockedSkillsExist(curatedSkillsDir, lockedSkillNames)));
   if (!skillsExist) {
     return false;
@@ -2804,6 +2899,11 @@ async function fetchSourceViaNpm(params: {
       resolvedVersion,
       dist,
       mergedSkills,
+      // A rules-only source leaves the locked skills, and their selection, as they were.
+      skillSelection:
+        filters.skills === undefined
+          ? locked?.skillSelection
+          : normalizeSkillSelection(filters.skills),
       mergedRules,
       resolvedRuleNames,
     }),
