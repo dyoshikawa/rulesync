@@ -33,6 +33,11 @@ const NpmLockedSourceSchema = z.object({
   integrity: optional(z.string()),
   resolvedAt: optional(z.string()),
   skills: z.record(z.string(), NpmLockedSkillSchema),
+  /**
+   * The normalized `skills` selection the entry was written for. Absent from
+   * lockfiles written before the selection was recorded.
+   */
+  skillSelection: optional(z.array(z.string())),
   rules: optional(z.record(z.string(), NpmLockedSkillSchema)),
   ruleSelection: optional(z.array(z.string())),
   rulesPath: optional(z.string()),

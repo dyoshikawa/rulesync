@@ -204,12 +204,12 @@ Run with `npx rulesync install --mode gh`.
 
 The `install` command accepts these flags:
 
-| Flag              | Description                                                                                                                                                          |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--mode <mode>`   | Install mode: `rulesync` (default), `apm`, or `gh`. See **Install Modes** above.                                                                                     |
-| `--update`        | Force re-resolve all source refs, ignoring the lockfile (useful to pull new updates).                                                                                |
-| `--frozen`        | Fail if a lockfile is missing or does not cover declared sources and rule selections. Fetches missing locked artifacts without updating the lockfile. Useful for CI. |
-| `--token <token>` | GitHub token for private repositories.                                                                                                                               |
+| Flag              | Description                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--mode <mode>`   | Install mode: `rulesync` (default), `apm`, or `gh`. See **Install Modes** above.                                                                                                     |
+| `--update`        | Force re-resolve all source refs, ignoring the lockfile (useful to pull new updates).                                                                                                |
+| `--frozen`        | Fail if a lockfile is missing or does not cover declared sources and their skill and rule selections. Fetches missing locked artifacts without updating the lockfile. Useful for CI. |
+| `--token <token>` | GitHub token for private repositories.                                                                                                                                               |
 
 ```bash
 # Install rules and skills using locked refs
@@ -230,7 +230,7 @@ rulesync generate
 
 ## Lockfile
 
-The lockfile at `rulesync.lock` (at the project root) records the resolved commit SHA, rule selection metadata, and per-artifact integrity hashes for each source so that builds are reproducible. Rulesync verifies cached rule content against these hashes before reusing it. It is safe to commit this file. An example:
+The lockfile at `rulesync.lock` (at the project root) records the resolved commit SHA, the skill and rule selections each entry was written for, and per-artifact integrity hashes for each source so that builds are reproducible. Rulesync verifies cached rule content against these hashes before reusing it. It is safe to commit this file. An example:
 
 ```json
 {
@@ -244,6 +244,7 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
         "my-skill": { "integrity": "sha256-abcdef..." },
         "another-skill": { "integrity": "sha256-123456..." }
       },
+      "skillSelection": ["*"],
       "rules": {
         "testing-guidelines": { "integrity": "sha256-789abc..." }
       },
@@ -256,6 +257,8 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
 ```
 
 To update locked refs, run `rulesync install --update`.
+
+Changing a source's `skills` or `rules` selection in `rulesync.jsonc` (for example, adding a skill name to an explicit list, or switching to `"*"`) is picked up by the next plain `rulesync install`: the entry is refetched at its locked ref and the lockfile records the new selection. Under `--frozen`, a selection the lockfile does not cover fails the install instead. A lockfile written before `skillSelection` was recorded is fetched again once, at its locked ref, by the next plain `rulesync install`, which then records the selection; commit the updated lockfile so `--frozen` installs keep reusing the cache.
 
 npm-transport sources (experimental) are pinned in a separate `rulesync-npm.lock.json`, because they lock a resolved package version and tarball integrity instead of a commit SHA:
 
@@ -272,6 +275,7 @@ npm-transport sources (experimental) are pinned in a separate `rulesync-npm.lock
       "skills": {
         "my-skill": { "integrity": "sha256-abcdef..." }
       },
+      "skillSelection": ["my-skill"],
       "rules": {
         "testing-guidelines": { "integrity": "sha256-789abc..." }
       },

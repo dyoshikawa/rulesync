@@ -34,6 +34,11 @@ const LockedSourceSchema = z.object({
     .check(refine((v) => /^[0-9a-f]{40}$/.test(v), "resolvedRef must be a 40-character hex SHA")),
   resolvedAt: optional(z.string()),
   skills: z.record(z.string(), LockedSkillSchema),
+  /**
+   * The normalized `skills` selection the entry was written for. Absent from
+   * lockfiles written before the selection was recorded.
+   */
+  skillSelection: optional(z.array(z.string())),
   rules: optional(z.record(z.string(), LockedRuleSchema)),
   ruleSelection: optional(z.array(z.string())),
   rulesPath: optional(z.string()),
