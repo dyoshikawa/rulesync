@@ -361,6 +361,76 @@ describe("SkillsProcessor", () => {
       expect(toolDirs).toEqual([]);
     });
 
+    it("should skip a claudecode scheduled-task skill at project scope with a warning", async () => {
+      // Claude Code reads scheduled tasks only from ~/.claude/scheduled-tasks/,
+      // so a project-scope copy under <project>/.claude/scheduled-tasks/ would
+      // never fire; the processor warns and writes nothing instead.
+      const logger = createMockLogger();
+      const claudecodeProcessor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+
+      const scheduledTaskSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "scheduled-task-only",
+        frontmatter: {
+          name: "scheduled-task-only",
+          description: "Scheduled task only",
+          targets: ["*"],
+          claudecode: {
+            "scheduled-task": true,
+          },
+        },
+        body: "Content",
+        validate: false,
+      });
+
+      const toolDirs = await claudecodeProcessor.convertRulesyncDirsToToolDirs([
+        scheduledTaskSkill,
+      ]);
+
+      expect(toolDirs).toEqual([]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("scheduled-task-only"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("--global"));
+    });
+
+    it("should still emit a claudecode scheduled-task skill in global mode", async () => {
+      const logger = createMockLogger();
+      const claudecodeProcessor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+        global: true,
+      });
+
+      const scheduledTaskSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "scheduled-task-only",
+        frontmatter: {
+          name: "scheduled-task-only",
+          description: "Scheduled task only",
+          targets: ["*"],
+          claudecode: {
+            "scheduled-task": true,
+          },
+        },
+        body: "Content",
+        validate: false,
+      });
+
+      const toolDirs = await claudecodeProcessor.convertRulesyncDirsToToolDirs([
+        scheduledTaskSkill,
+      ]);
+
+      expect(toolDirs).toHaveLength(1);
+      expect(toolDirs[0]?.getRelativeDirPath()).toBe(join(".claude", "scheduled-tasks"));
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("scheduled-task-only"));
+    });
+
     it("should skip a directory it cannot name, or a hidden one, when importing", async () => {
       // Same two directories the sweep leaves alone, on the read side: the
       // backslash name is reported, and the hidden directory — which has no
