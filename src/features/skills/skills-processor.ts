@@ -677,6 +677,24 @@ export class SkillsProcessor extends DirFeatureProcessor {
             return null;
           }
           const dirName = rulesyncSkill.getDirName();
+          if (isClaudecodeScheduledTask && !this.global) {
+            // Claude Code reads scheduled tasks only from the user config
+            // directory (~/.claude/scheduled-tasks/ or CLAUDE_CONFIG_DIR); no
+            // project-level location is documented, so a project-scope copy
+            // would never fire. Same policy as the user-scope-only sandbox keys
+            // in claudecode-permissions.ts: warn and skip instead of writing a
+            // file that looks live and does nothing.
+            // @see https://code.claude.com/docs/en/desktop-scheduled-tasks
+            this.logger.warn(
+              `Skipping skill ${quoteForLog(dirName)} for '${this.toolTarget}': ` +
+                "'claudecode.scheduled-task' skills are only read from the user " +
+                "config directory (~/.claude/scheduled-tasks/), so nothing is written " +
+                "at project scope. Generate it with --global instead; a stale copy an " +
+                "earlier generate left under .claude/scheduled-tasks/ is removed by a " +
+                "generate with --delete.",
+            );
+            return null;
+          }
           const dirWriteBlockReason = await factory.class.getDirWriteBlockReason?.({
             outputRoot: this.outputRoot,
             relativeDirPath: factory.class.getSettablePaths({ global: this.global })

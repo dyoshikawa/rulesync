@@ -1145,7 +1145,10 @@ Non-root skill body
 describe("E2E: skills (claudecode scheduled-task)", () => {
   const { getTestDir } = useTestDirectory();
 
-  it("should route claudecode scheduled-task skills to .claude/scheduled-tasks/", async () => {
+  it("should skip claudecode scheduled-task skills at project scope with a warning", async () => {
+    // Claude Code reads scheduled tasks only from ~/.claude/scheduled-tasks/,
+    // so a project-scope copy would never fire: nothing is written and the
+    // user is pointed at --global.
     const testDir = getTestDir();
 
     const skillContent = `---
@@ -1162,13 +1165,18 @@ This is the scheduled task body content.
       skillContent,
     );
 
-    await runGenerate({ target: "claudecode", features: "skills" });
+    // NODE_ENV=test would suppress the warning in the child process.
+    const { stderr } = await runGenerate({
+      target: "claudecode",
+      features: "skills",
+      env: { NODE_ENV: "e2e" },
+    });
 
-    const generatedContent = await readFileContent(
-      join(testDir, ".claude", "scheduled-tasks", "weekly-review", "SKILL.md"),
-    );
-    expect(generatedContent).toContain("scheduled task body content");
-
+    expect(stderr).toContain("weekly-review");
+    expect(stderr).toContain("--global");
+    expect(
+      await fileExists(join(testDir, ".claude", "scheduled-tasks", "weekly-review", "SKILL.md")),
+    ).toBe(false);
     expect(await fileExists(join(testDir, ".claude", "skills", "weekly-review", "SKILL.md"))).toBe(
       false,
     );
@@ -1228,5 +1236,48 @@ This is the scheduled task body content.`;
     );
     expect(importedContent).toContain("scheduled task body content");
     expect(importedContent).toContain("scheduled-task: true");
+  });
+});
+
+describe("E2E: skills (claudecode scheduled-task, global mode)", () => {
+  const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
+
+  it("should route claudecode scheduled-task skills to ~/.claude/scheduled-tasks/", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    const skillContent = `---
+name: weekly-review
+description: "A scheduled-task skill for E2E testing"
+targets: ["*"]
+claudecode:
+  scheduled-task: true
+---
+This is the scheduled task body content.
+`;
+    await writeFileContent(
+      join(projectDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "weekly-review", "SKILL.md"),
+      skillContent,
+    );
+
+    const { stderr } = await runGenerate({
+      target: "claudecode",
+      features: "skills",
+      global: true,
+      env: { HOME_DIR: homeDir, NODE_ENV: "e2e" },
+    });
+
+    expect(stderr).not.toContain("Skipping skill");
+    const generatedContent = await readFileContent(
+      join(homeDir, ".claude", "scheduled-tasks", "weekly-review", "SKILL.md"),
+    );
+    expect(generatedContent).toContain("scheduled task body content");
+
+    expect(await fileExists(join(homeDir, ".claude", "skills", "weekly-review", "SKILL.md"))).toBe(
+      false,
+    );
+    expect(
+      await fileExists(join(projectDir, ".claude", "scheduled-tasks", "weekly-review", "SKILL.md")),
+    ).toBe(false);
   });
 });
