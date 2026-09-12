@@ -53,10 +53,14 @@ const MCP_CANONICAL_PREFIX = "mcp__";
 // `Glob` is an accepted alias onto the same filter as `Grep` (upstream
 // `tool_name_to_filter`: `"Grep" | "Glob" => Some(ToolFilter::Grep)`), so it
 // is emitted under its own spelling and enforced like a `Grep` rule. `agent`
-// maps onto `AgentMessage`, the filter Grok added in 1.0.10 for messages sent
-// to a subagent; its pattern tests the *target subagent id* (glob or prefix),
-// not the subagent type a Claude Code `Agent(...)` rule names, so only a `*`
-// pattern carries the same meaning across the two tools. The only category
+// maps onto `AgentMessage`, the nearest named filter (added in Grok 1.0.10),
+// which gates only messages sent to an already-running subagent — not the
+// launch of one, which upstream `AccessKind::from` checks as an `Edit` access
+// on an internal `task:<subagent_type>` key we deliberately do not target.
+// Its pattern tests the *target subagent id* (glob or prefix), not the
+// subagent type a Claude Code `Agent(...)` rule names, so a canonical `agent`
+// rule controls steering messages to Grok subagents, never their start. The
+// only category
 // with no Grok tool at all is `notebookedit`, which is skipped. MCP categories
 // are handled separately (see `buildGrokEntry`).
 // https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-workspace/src/permission/rules.rs
@@ -245,13 +249,13 @@ function parseGrokRule(
  *   - Generate: each `permission.<category>.<pattern> = allow|ask|deny` becomes
  *     the matching Grok entry and is bucketed into the `[permission]` array for
  *     that action. `bash|read|edit|grep|glob|webfetch|websearch|agent` map to
- *     their Grok
- *     tool; `write` collapses onto `Edit` (Grok has no `Write` tool); `glob`
- *     maps to `Glob` (an upstream alias of the `Grep` filter); `agent` maps to
- *     `AgentMessage` (whose pattern is a subagent id rather than a subagent
- *     type); `mcp__*` maps to `MCPTool(...)` (a scoped MCP category folds its
- *     address into the parentheses, so a non-`*` argument pattern on it is not
- *     represented). The one category with no Grok tool (`notebookedit`) is
+ *     their Grok tool; `write` collapses onto `Edit` (Grok has no `Write`
+ *     tool); `glob` maps to `Glob` (an upstream alias of the `Grep` filter);
+ *     `agent` maps to `AgentMessage` (which gates messages to a running
+ *     subagent rather than its launch, and whose pattern is a subagent id
+ *     rather than a subagent type); `mcp__*` maps to `MCPTool(...)` (a scoped
+ *     MCP category folds its address into the parentheses, so a non-`*`
+ *     argument pattern on it is not represented). The one category with no Grok tool (`notebookedit`) is
  *     skipped (with a warning when it carries a `deny` rule, to surface the
  *     gap). When two canonical rules collapse onto the same Grok
  *     entry with different actions (e.g. `edit` allow + `write` deny → `Edit`),
