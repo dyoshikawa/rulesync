@@ -85,9 +85,10 @@ function stripTrustedDirectoryWrapper(command: string): string {
  * to filter on in the first place.
  *
  * Keyed on native names because the check runs after the canonical → native
- * mapping: `SessionHeartbeat` and `Interrupt` have no canonical counterpart and
- * are only reachable through a per-tool `kimi-code` override naming them
- * directly.
+ * mapping: `SessionHeartbeat` and `Interrupt` are not mapped from a canonical
+ * event for Kimi (`Interrupt` is the shape of canonical `stopCancelled`, which
+ * other tools map, but stays native-only here) and are only reachable through
+ * a per-tool `kimi-code` override naming them directly.
  *
  * Deliberately narrower than Claude Code's equivalent set: Kimi Code's
  * `UserPromptSubmit` matches the submitted prompt text, and `PermissionResult`

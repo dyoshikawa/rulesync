@@ -280,7 +280,7 @@ describe("CodexcliHooks", () => {
       expect(parsed.hooks.PreCompact).toBeUndefined();
     });
 
-    it("should convert stopCancelled to Interrupt with a capped timeout", async () => {
+    it("should convert stopCancelled to Interrupt, forwarding the timeout as authored", async () => {
       // Codex ignores any `matcher` on Interrupt and caps command timeouts at
       // 3s; neither is enforced here, they are forwarded as authored.
       const rulesyncHooks = new RulesyncHooks(
