@@ -567,6 +567,15 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "postToolUse",
   "beforeSubmitPrompt",
   "stop",
+  // Codex's `Interrupt` (shipped in rust-v0.150.0) runs when the user
+  // interrupts an active turn on the main thread; it never fires for idle
+  // threads or subagents, and any configured `matcher` is ignored. Hook output
+  // cannot prevent the interruption (only an optional `systemMessage` JSON is
+  // honoured) and command timeouts are capped at 3s (1s default). None of that
+  // is modelled differently here: the matcher is already a free string and
+  // the timeout is the tool's to enforce.
+  // https://learn.chatgpt.com/docs/hooks.md
+  "stopCancelled",
   "permissionRequest",
   "subagentStart",
   "subagentStop",
@@ -1468,6 +1477,7 @@ export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
   postToolUse: "PostToolUse",
   beforeSubmitPrompt: "UserPromptSubmit",
   stop: "Stop",
+  stopCancelled: "Interrupt",
   permissionRequest: "PermissionRequest",
   subagentStart: "SubagentStart",
   subagentStop: "SubagentStop",

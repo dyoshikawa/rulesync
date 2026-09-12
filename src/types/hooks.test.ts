@@ -120,6 +120,19 @@ describe("Codex CLI event naming", () => {
     expect(CANONICAL_TO_CODEXCLI_EVENT_NAMES.preCompact).toBe("PreCompact");
     expect(CODEXCLI_TO_CANONICAL_EVENT_NAMES.PreCompact).toBe("preCompact");
   });
+
+  it("should support the stopCancelled event mapped to Codex's Interrupt", () => {
+    // Verified against https://learn.chatgpt.com/docs/hooks.md (Interrupt,
+    // shipped in rust-v0.150.0).
+    expect(CODEXCLI_HOOK_EVENTS).toContain("stopCancelled");
+    expect(CANONICAL_TO_CODEXCLI_EVENT_NAMES.stopCancelled).toBe("Interrupt");
+    expect(CODEXCLI_TO_CANONICAL_EVENT_NAMES.Interrupt).toBe("stopCancelled");
+  });
+
+  it("should keep stop distinct from stopCancelled", () => {
+    expect(CANONICAL_TO_CODEXCLI_EVENT_NAMES.stop).toBe("Stop");
+    expect(CODEXCLI_TO_CANONICAL_EVENT_NAMES.Stop).toBe("stop");
+  });
 });
 
 describe("Cursor event naming", () => {

@@ -280,6 +280,36 @@ describe("CodexcliHooks", () => {
       expect(parsed.hooks.PreCompact).toBeUndefined();
     });
 
+    it("should convert stopCancelled to Interrupt with a capped timeout", async () => {
+      // Codex ignores any `matcher` on Interrupt and caps command timeouts at
+      // 3s; neither is enforced here, they are forwarded as authored.
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              stopCancelled: [{ command: "./scripts/on-interrupt.sh", timeout: 2 }],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(codexHooks.getFileContent());
+      expect(parsed.hooks.Interrupt).toBeDefined();
+      expect(parsed.hooks.Interrupt[0].hooks[0]).toEqual({
+        type: "command",
+        command: "./scripts/on-interrupt.sh",
+        timeout: 2,
+      });
+      expect(parsed.hooks.Stop).toBeUndefined();
+      expect(parsed.hooks.StopCancelled).toBeUndefined();
+    });
+
     it("should not prefix commands with a project dir variable", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
@@ -691,6 +721,30 @@ describe("CodexcliHooks", () => {
         command: "echo post-compact",
         matcher: "manual",
       });
+    });
+
+    it("should convert Interrupt to canonical stopCancelled", () => {
+      const codexHooks = new CodexcliHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".codex",
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              Interrupt: [{ hooks: [{ command: "./scripts/on-interrupt.sh", timeout: 2 }] }],
+            },
+          }),
+        }),
+      );
+
+      const rulesyncHooks = codexHooks.toRulesyncHooks();
+      const parsed = rulesyncHooks.getJson();
+
+      expect(parsed.hooks.stopCancelled?.[0]).toEqual({
+        type: "command",
+        command: "./scripts/on-interrupt.sh",
+        timeout: 2,
+      });
+      expect(parsed.hooks.stop).toBeUndefined();
     });
 
     it("should ignore invalid entries", () => {
