@@ -1247,7 +1247,6 @@ describe("E2E: skills (claudecode scheduled-task, global mode)", () => {
     const homeDir = getHomeDir();
 
     const skillContent = `---
-root: true
 name: weekly-review
 description: "A scheduled-task skill for E2E testing"
 targets: ["*"]
