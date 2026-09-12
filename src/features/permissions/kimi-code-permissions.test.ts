@@ -32,6 +32,39 @@ function generate({
   return smolToml.parse(permissions.getFileContent()) as Record<string, unknown>;
 }
 
+describe("KimiCodePermissions [permission] section", () => {
+  it("should preserve hand-written siblings of rules when the table is regenerated", () => {
+    // The gateway replaces the owned `permission` key wholesale and rulesync only
+    // authors `rules`, so `dangerous_command_guard` (Kimi Code 0.40.0) must not
+    // be deleted — losing it silently re-enables the guard.
+    const config = generate({
+      json: { permission: { bash: { "git status": "allow" } } },
+      existingContent:
+        '[permission]\ndangerous_command_guard = false\n\n[[permission.rules]]\ndecision = "allow"\npattern = "Read"\n',
+    });
+
+    expect(config.permission).toEqual({
+      dangerous_command_guard: false,
+      rules: [{ decision: "allow", pattern: "Bash(git status)", scope: "user" }],
+    });
+  });
+
+  it("should still replace the rules list rather than merging it", () => {
+    const config = generate({
+      json: { permission: {} },
+      existingContent: '[[permission.rules]]\ndecision = "allow"\npattern = "Read"\n',
+    });
+
+    expect(config.permission).toEqual({ rules: [] });
+  });
+
+  it("should write only the rules table when the existing file has no permission table", () => {
+    const config = generate({ json: { permission: {} } });
+
+    expect(config.permission).toEqual({ rules: [] });
+  });
+});
+
 describe("KimiCodePermissions [tools] section", () => {
   it("should write the authored enable and disable lists", () => {
     const config = generate({

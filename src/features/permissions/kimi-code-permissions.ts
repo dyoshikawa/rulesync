@@ -99,6 +99,36 @@ function mergeKimiCodeToolsSection({
 }
 
 /**
+ * Carry the existing `[permission]` siblings of `rules` over onto the generated
+ * table. The gateway replaces the owned `permission` key wholesale and rulesync
+ * only ever authors `rules`, so a hand-written sibling such as
+ * `dangerous_command_guard = false` (Kimi Code 0.40.0) would otherwise be
+ * deleted on every generate. Rulesync does not model these keys; they pass
+ * through verbatim and `rules` always comes from the patch.
+ *
+ * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#permission
+ */
+function mergeKimiCodePermissionSection({
+  existingContent,
+  patch,
+}: {
+  existingContent: string;
+  patch: Record<string, unknown>;
+}): Record<string, unknown> {
+  let existing: unknown;
+  try {
+    existing = parseSharedConfig({ format: "toml", fileContent: existingContent }).permission;
+  } catch {
+    existing = undefined;
+  }
+  const { rules: _existingRules, ...siblings } = isRecord(existing) ? existing : {};
+  return {
+    ...siblings,
+    ...(isRecord(patch.permission) ? patch.permission : {}),
+  };
+}
+
+/**
  * Build Kimi's `[tools]` section from a rulesync override, or read one back on
  * import. Entries pass through verbatim: the section uses agent-file tool syntax
  * (exact built-in names, `mcp__server__*` globs), not the canonical
@@ -347,11 +377,20 @@ export class KimiCodePermissions extends ToolPermissions {
     // it is recomputed from the existing file: authoring only `enabled` must
     // not delete a hand-written `disabled` list.
     const mergedTools = mergeKimiCodeToolsSection({ existingContent: fileContent, patch });
+    // Likewise `permission` is a table of which rulesync authors only `rules`.
+    const mergedPermission = mergeKimiCodePermissionSection({
+      existingContent: fileContent,
+      patch,
+    });
     this.fileContent = applySharedConfigPatch({
       fileKey: getKimiCodeConfigSharedFileKey({ global: this.global }),
       feature: "permissions",
       existingContent: fileContent,
-      patch: { ...patch, ...(mergedTools && { tools: mergedTools }) },
+      patch: {
+        ...patch,
+        permission: mergedPermission,
+        ...(mergedTools && { tools: mergedTools }),
+      },
       filePath: join(paths.relativeDirPath, paths.relativeFilePath),
     });
   }
