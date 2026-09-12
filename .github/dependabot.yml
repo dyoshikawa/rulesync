@@ -49,6 +49,8 @@ updates:
       all-actions:
         patterns:
           - "*"
+    # actions/checkout is excluded from automatic bumps, so its SHA pins must
+    # be updated by hand and kept identical across every workflow file.
     ignore:
       - dependency-name: "actions/checkout"
     commit-message:
