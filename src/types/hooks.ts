@@ -567,6 +567,13 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "postToolUse",
   "beforeSubmitPrompt",
   "stop",
+  // Codex's `Interrupt` (shipped in rust-v0.150.0) runs when the user
+  // interrupts an active turn on the main thread; it never fires for idle
+  // threads or subagents. Codex ignores any `matcher` on it, exactly as it
+  // does on `Stop` and `UserPromptSubmit`, so it is forwarded as authored like
+  // those two; command timeouts (1s default, capped at 3s) are the tool's to
+  // enforce. https://learn.chatgpt.com/docs/hooks.md
+  "stopCancelled",
   "permissionRequest",
   "subagentStart",
   "subagentStop",
@@ -831,9 +838,14 @@ export const GROKCLI_HOOK_EVENTS: readonly HookEvent[] = [
  *
  * Kimi Code also exposes `PermissionResult`, `Interrupt`, and the four events
  * added in 0.32.0 (`TurnStarted`, `UserPromptQueued`, `TaskStarted`,
- * `SessionHeartbeat`), none of which have a canonical rulesync event. They are
- * listed in `KIMI_CODE_NATIVE_HOOK_EVENTS` so a per-tool `kimi-code` override
- * can address them by their native name.
+ * `SessionHeartbeat`), none of which is mapped onto a canonical rulesync event
+ * here. `Interrupt` (fires instead of `Stop` when the user interrupts a turn)
+ * does have a canonical shape — `stopCancelled`, which Grok CLI and Codex CLI
+ * map — but Kimi keeps it native-only for now, since an existing `kimi-code`
+ * override addressing it by name would otherwise double up with a canonical
+ * `stopCancelled` block; folding it in is a follow-up. All six are listed in
+ * `KIMI_CODE_NATIVE_HOOK_EVENTS` so a per-tool `kimi-code` override can
+ * address them by their native name.
  *
  * @see https://moonshotai.github.io/kimi-code/en/customization/hooks.html
  */
@@ -1468,6 +1480,7 @@ export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
   postToolUse: "PostToolUse",
   beforeSubmitPrompt: "UserPromptSubmit",
   stop: "Stop",
+  stopCancelled: "Interrupt",
   permissionRequest: "PermissionRequest",
   subagentStart: "SubagentStart",
   subagentStop: "SubagentStop",
