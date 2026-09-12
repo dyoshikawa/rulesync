@@ -50,28 +50,52 @@ const MCP_CANONICAL_PREFIX = "mcp__";
 
 // Canonical category ⇒ Grok Claude-style tool prefix. Grok exposes no separate
 // `Write` tool (writes gate through `Edit`), so `write` collapses onto `Edit`;
-// categories with no Grok tool (`glob`, `notebookedit`, `agent`) are skipped.
-// MCP categories are handled separately (see `buildGrokEntry`).
+// `Glob` is an accepted alias onto the same filter as `Grep` (upstream
+// `tool_name_to_filter`: `"Grep" | "Glob" => Some(ToolFilter::Grep)`), so it
+// is emitted under its own spelling and enforced like a `Grep` rule. `agent`
+// maps onto `AgentMessage`, the nearest named filter (added in Grok 1.0.10),
+// which gates only messages sent to an already-running subagent — not the
+// launch of one, which upstream `AccessKind::from` checks as an `Edit` access
+// on an internal `task:<subagent_type>` key we deliberately do not target.
+// Its pattern tests the *target subagent id* (glob or prefix), not the
+// subagent type a Claude Code `Agent(...)` rule names, so a canonical `agent`
+// rule controls steering messages to Grok subagents, never their start. The
+// only category
+// with no Grok tool at all is `notebookedit`, which is skipped. MCP categories
+// are handled separately (see `buildGrokEntry`).
+// https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-workspace/src/permission/rules.rs
 const CATEGORY_TO_GROK_TOOL: Record<string, string> = {
   bash: "Bash",
   read: "Read",
   edit: "Edit",
   write: "Edit",
   grep: "Grep",
+  glob: "Glob",
   webfetch: "WebFetch",
   websearch: "WebSearch",
+  agent: "AgentMessage",
 };
+
+// Grok's legacy spellings of the `AgentMessage` filter. Upstream still parses
+// them so already-persisted policies keep loading; rulesync reads them on
+// import but always emits the canonical `AgentMessage`.
+const GROK_LEGACY_AGENT_MESSAGE_TOOLS = ["SendSubagentMessage", "SendAgentMessage"] as const;
 
 // Grok tool prefix ⇒ canonical category (inverse of the above; `write` is not
 // recovered because it collapses onto `Edit` on export — a documented lossy
-// mapping). `MCPTool` is handled separately in `parseGrokEntry`.
+// mapping). `Grep` and `Glob` share one Grok filter but are kept apart here so
+// each spelling round-trips to the category it was authored under. `MCPTool`
+// is handled separately in `parseGrokEntry`.
 const GROK_TOOL_TO_CATEGORY: Record<string, string> = {
   Bash: "bash",
   Read: "read",
   Edit: "edit",
   Grep: "grep",
+  Glob: "glob",
   WebFetch: "webfetch",
   WebSearch: "websearch",
+  AgentMessage: "agent",
+  ...Object.fromEntries(GROK_LEGACY_AGENT_MESSAGE_TOOLS.map((tool) => [tool, "agent"])),
 };
 
 const GROK_MCP_TOOL = "MCPTool";
@@ -82,9 +106,15 @@ const GROK_MCP_TOOL = "MCPTool";
 // `any | bash | edit | read | grep | mcp | webfetch` (lowercase) while the
 // compact array entries are capitalized (`Bash(git *)`, `MCPTool(server__*)`) —
 // so the verbose lookup is case-insensitive and accepts both spellings.
-const GROK_TOOL_TO_CATEGORY_LOWER: Record<string, string> = Object.fromEntries(
-  Object.entries(GROK_TOOL_TO_CATEGORY).map(([tool, category]) => [tool.toLowerCase(), category]),
-);
+// The verbose form spells the agent filter `agent_message` (serde rename on
+// upstream `ToolFilter`, with the lowercased compact name as an accepted alias), so that
+// underscore spelling is added on top of the lowercased compact names.
+const GROK_TOOL_TO_CATEGORY_LOWER: Record<string, string> = {
+  ...Object.fromEntries(
+    Object.entries(GROK_TOOL_TO_CATEGORY).map(([tool, category]) => [tool.toLowerCase(), category]),
+  ),
+  agent_message: "agent",
+};
 
 // Both spellings of Grok's MCP tool: `mcp` is the documented verbose value,
 // and the lowercased compact name (`MCPTool`) is accepted for symmetry.
@@ -218,13 +248,16 @@ function parseGrokRule(
  * per-category, per-pattern model maps almost 1:1:
  *   - Generate: each `permission.<category>.<pattern> = allow|ask|deny` becomes
  *     the matching Grok entry and is bucketed into the `[permission]` array for
- *     that action. `bash|read|edit|grep|webfetch|websearch` map to their Grok
- *     tool; `write` collapses onto `Edit` (Grok has no `Write` tool); `mcp__*`
- *     maps to `MCPTool(...)` (a scoped MCP category folds its address into the
- *     parentheses, so a non-`*` argument pattern on it is not represented).
- *     Categories with no Grok tool (`glob`, `notebookedit`, `agent`) are
- *     skipped (with a warning when they carry a `deny` rule, to
- *     surface the gap). When two canonical rules collapse onto the same Grok
+ *     that action. `bash|read|edit|grep|glob|webfetch|websearch|agent` map to
+ *     their Grok tool; `write` collapses onto `Edit` (Grok has no `Write`
+ *     tool); `glob` maps to `Glob` (an upstream alias of the `Grep` filter);
+ *     `agent` maps to `AgentMessage` (which gates messages to a running
+ *     subagent rather than its launch, and whose pattern is a subagent id
+ *     rather than a subagent type); `mcp__*` maps to `MCPTool(...)` (a scoped
+ *     MCP category folds its address into the parentheses, so a non-`*`
+ *     argument pattern on it is not represented). The one category with no Grok tool (`notebookedit`) is
+ *     skipped (with a warning when it carries a `deny` rule, to surface the
+ *     gap). When two canonical rules collapse onto the same Grok
  *     entry with different actions (e.g. `edit` allow + `write` deny → `Edit`),
  *     the strictest wins (`deny > ask > allow`) and a warning is logged, so the
  *     entry never lands contradictorily in two arrays.
