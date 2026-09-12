@@ -110,7 +110,8 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       // `.ai/mcp/mcp.json` and global (user-level) config from
       // `~/.ai/mcp/mcp.json`. The relative path is identical for both scopes;
       // the base directory changes (cwd for project, home dir for global).
-      // https://www.jetbrains.com/help/ai-assistant/mcp.html
+      // Both are the plugin's registry-key defaults; see the note in
+      // `src/constants/aiassistant-paths.ts`.
       class: AiassistantMcp,
       meta: {
         supportsProject: true,

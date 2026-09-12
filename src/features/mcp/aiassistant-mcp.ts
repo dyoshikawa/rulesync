@@ -33,6 +33,10 @@ export class AiassistantMcp extends ToolMcp {
     // `.ai/mcp/mcp.json` and global (user-level) config from
     // `~/.ai/mcp/mcp.json`. The relative path is identical for both scopes;
     // the base directory changes (cwd for project, home dir for global).
+    // Both paths are the plugin's registry-key defaults
+    // (`llm.mcp.client.project.mcp.json.path`, resolved against the project
+    // directory, and `llm.mcp.client.global.mcp.json.path`, resolved against
+    // the user home); see the note in `src/constants/aiassistant-paths.ts`.
     return {
       relativeDirPath: AIASSISTANT_MCP_DIR_PATH,
       relativeFilePath: AIASSISTANT_MCP_FILE_NAME,
