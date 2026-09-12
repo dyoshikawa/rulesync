@@ -57,6 +57,7 @@ const rulesRootTargets = [
   { target: "musecode", outputPath: "AGENTS.md" },
   { target: "zcode", outputPath: "AGENTS.md" },
   { target: "pool", outputPath: "AGENTS.md" },
+  { target: "dsh", outputPath: "AGENTS.md" },
 ] as const;
 
 // Tools that emit every rule as a directory entry.
@@ -1078,6 +1079,7 @@ describe("E2E: rules (import)", () => {
     { target: "replit", sourcePath: "replit.md", importedFileName: "overview.md" },
     { target: "pi", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "pool", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "dsh", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "vibe", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {
       target: "cline",
@@ -1209,6 +1211,7 @@ const rulesGlobalTargets = [
   { target: "reasonix", outputPath: join(".reasonix", "REASONIX.md") },
   { target: "zcode", outputPath: join(".zcode", "AGENTS.md") },
   { target: "pool", outputPath: join(".config", "poolside", "AGENTS.md") },
+  { target: "dsh", outputPath: join(".dsh", "AGENTS.md") },
 ] as const;
 
 describe("E2E: rules (global mode)", () => {

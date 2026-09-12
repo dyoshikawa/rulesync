@@ -2544,6 +2544,7 @@ Content that would fail parsing`;
           "devin",
           "zed",
           "zcode",
+          "dsh",
         ]),
       );
     });
@@ -2594,6 +2595,7 @@ Content that would fail parsing`;
           "devin",
           "zed",
           "zcode",
+          "dsh",
         ]),
       );
     });
@@ -2643,6 +2645,7 @@ Content that would fail parsing`;
           "devin",
           "zed",
           "zcode",
+          "dsh",
         ]),
       );
     });
@@ -2700,6 +2703,7 @@ Content that would fail parsing`;
         "devin",
         "zcode",
         "zed",
+        "dsh",
       ]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });
@@ -2746,6 +2750,7 @@ Content that would fail parsing`;
         "devin",
         "zcode",
         "zed",
+        "dsh",
       ]);
       expect(targets).toEqual(skillsProcessorToolTargetsGlobal);
     });

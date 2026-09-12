@@ -183,6 +183,10 @@ const skillsGenerateTargets = [
     target: "zcode",
     outputPath: join(".zcode", "skills", "test-skill", "SKILL.md"),
   },
+  {
+    target: "dsh",
+    outputPath: join(".dsh", "skills", "test-skill", "SKILL.md"),
+  },
 ] as const;
 
 describe("E2E: skills", () => {
@@ -988,6 +992,11 @@ const skillsGlobalTargets = [
     // ZCode reads global skills from ~/.zcode/skills/.
     target: "zcode",
     outputPath: join(".zcode", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    // DeepSeek Harness reads global skills from ~/.dsh/skills/ ($DSH_HOME default).
+    target: "dsh",
+    outputPath: join(".dsh", "skills", "test-skill", "SKILL.md"),
   },
 ] as const;
 
