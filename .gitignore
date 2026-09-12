@@ -244,6 +244,7 @@ rulesync.local.jsonc
 **/.takt/runs/
 **/.takt/tasks/
 **/.takt/.cache/
+**/.takt/make/
 **/.takt/config.yaml
 **/.muse/worktrees/
 **/.vibe/plugin-data/

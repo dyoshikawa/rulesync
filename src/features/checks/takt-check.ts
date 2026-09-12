@@ -281,7 +281,9 @@ function slugForGate({
  *     agent step prompt as a completion directive;
  *   - with `command` in the check's `takt` frontmatter block, a **command
  *     gate** (`{type: command, name, command, cwd, timeout_ms}`), which Takt
- *     runs after the step and fails on a non-zero exit code.
+ *     runs after the step (since 0.62.0: after rule resolution and before the
+ *     transition, unless the selected rule sets `command_gates: skip`) and
+ *     fails on a non-zero exit code.
  *
  * `steps` / `personas` in that block scope a gate to named workflow steps or
  * personas (`workflow_overrides.steps.<step>.quality_gates`); an unscoped gate

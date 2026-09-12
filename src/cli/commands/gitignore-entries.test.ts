@@ -170,6 +170,8 @@ describe("registry derivation", () => {
       "takt::general::**/.takt/runs/",
       "takt::general::**/.takt/tasks/",
       "takt::general::**/.takt/.cache/",
+      // `takt make` run artifacts, never removed by Takt (issue #2421).
+      "takt::general::**/.takt/make/",
       "takt::general::**/.takt/config.yaml",
       // Muse Code's `--subagent-worktree-isolation` worktrees, which the
       // runtime removes only when they are clean (issue #2727).
