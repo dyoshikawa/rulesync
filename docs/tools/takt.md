@@ -50,7 +50,7 @@ Rulesync therefore emits **only** this allowlist into the shared `.takt/config.y
 
 `.rulesync/checks/*.md` become TAKT **quality gates** in the `workflow_overrides` block of the shared `config.yaml`. A check's body is a string gate — a completion directive TAKT injects into the agent step prompt — unless the check's `takt` frontmatter block names a `command`, which makes it a command gate TAKT runs after the step, failing the gate on a non-zero exit.
 
-**A command gate runs unconditionally.** TAKT's default-deny `workflow_command_gates.custom_scripts` policy applies to gates declared in workflow YAML, not to gates coming from `workflow_overrides`, so a `takt.command` in a check is executed after every step it applies to with no further gating. Read the frontmatter of any check you obtain with `rulesync fetch` before generating.
+**A command gate needs no policy switch to run.** TAKT's default-deny `workflow_command_gates.custom_scripts` policy applies to gates declared in workflow YAML, not to gates coming from `workflow_overrides`, so a `takt.command` in a check runs on every step it applies to without the user having enabled anything. Read the frontmatter of any check you obtain with `rulesync fetch` before generating. Since TAKT 0.62.0 the gate runs after rule resolution and before the transition is applied, and a workflow rule carrying `command_gates: skip` applies its transition without running it — so a gate is not a guaranteed post-step check either; a `needs_fix` or `ABORT` transition can leave a step even when its gate would fail.
 
 **Lossiness:** TAKT gates carry no severity or tool allowlist, so a check's `severity` and `tools` fields are not written and do not come back on import.
 

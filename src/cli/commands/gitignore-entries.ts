@@ -143,6 +143,9 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   { target: "takt", feature: "general", entry: "**/.takt/runs/" },
   { target: "takt", feature: "general", entry: "**/.takt/tasks/" },
   { target: "takt", feature: "general", entry: "**/.takt/.cache/" },
+  // `takt make` (0.64.0) keeps every Workflow Maker run under
+  // `.takt/make/<timestamp>/`, and completed and failed runs are never removed.
+  { target: "takt", feature: "general", entry: "**/.takt/make/" },
   { target: "takt", feature: "general", entry: "**/.takt/config.yaml" },
   // Meta Muse Code's subagent worktrees: `--subagent-worktree-isolation` checks
   // each child agent out into a repo-relative `.muse/worktrees/<child>` git
