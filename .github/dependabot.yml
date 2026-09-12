@@ -9,9 +9,21 @@ updates:
       default-days: 1
     open-pull-requests-limit: 2
     groups:
+      # Minor and patch bumps travel together so a routine week is one PR.
       all-dependencies:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Semver-major bumps get their own PR so they are never buried inside a
+      # 100-package batch and can be reviewed, reverted, or bisected alone.
+      # (0.x packages still classify 0.23 -> 0.24 as minor and stay above.)
+      major-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
     commit-message:
       prefix: "chore"
       prefix-development: "chore"
