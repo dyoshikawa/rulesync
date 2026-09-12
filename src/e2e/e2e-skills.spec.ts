@@ -408,6 +408,7 @@ describe("E2E: skills (import)", () => {
     { target: "zed", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "factorydroid", sourcePath: join(".factory", "skills", "test-skill", "SKILL.md") },
     { target: "vibe", sourcePath: join(".vibe", "skills", "test-skill", "SKILL.md") },
+    { target: "dsh", sourcePath: join(".dsh", "skills", "test-skill", "SKILL.md") },
   ])("should import $target skills", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
