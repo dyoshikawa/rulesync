@@ -162,7 +162,6 @@ describe("GrokcliPermissions", () => {
         outputRoot: testDir,
         rulesyncPermissions: makeRulesyncPermissions({
           notebookedit: { "*": "deny" },
-          glob: { "src/**": "allow" },
         }),
         global: true,
       });
@@ -171,6 +170,35 @@ describe("GrokcliPermissions", () => {
       expect(permission.allow).toEqual([]);
       expect(permission.deny).toEqual([]);
       expect(permission.ask).toEqual([]);
+    });
+
+    it("maps the glob category onto Grok's Glob alias of the Grep filter", async () => {
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          glob: { "*": "allow", "secrets/**": "deny" },
+          grep: { "src/**": "allow" },
+        }),
+        global: true,
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      expect(permission.allow).toEqual(["Glob", "Grep(src/**)"]);
+      expect(permission.deny).toEqual(["Glob(secrets/**)"]);
+    });
+
+    it("maps the agent category onto Grok's AgentMessage tool", async () => {
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          agent: { "*": "ask", "sub-1": "deny" },
+        }),
+        global: true,
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      expect(permission.ask).toEqual(["AgentMessage"]);
+      expect(permission.deny).toEqual(["AgentMessage(sub-1)"]);
     });
 
     it("maps the websearch category onto Grok's WebSearch tool", async () => {
@@ -304,6 +332,63 @@ describe("GrokcliPermissions", () => {
       const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
       expect(json.permission.websearch["*"]).toBe("allow");
       expect(json.permission.websearch["docs.x.ai/**"]).toBe("deny");
+    });
+
+    it("parses Glob and Grep entries back into their own canonical categories", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        [
+          "[permission]",
+          'allow = ["Grep(src/**)"]',
+          'deny = ["Glob(secrets/**)", "Glob"]',
+          "",
+        ].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission.grep).toEqual({ "src/**": "allow" });
+      expect(json.permission.glob).toEqual({ "secrets/**": "deny", "*": "deny" });
+    });
+
+    it("parses AgentMessage entries, including the legacy spellings, into the agent category", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        [
+          "[permission]",
+          'allow = ["AgentMessage(sub-1)"]',
+          'ask = ["SendSubagentMessage(*)"]',
+          'deny = ["SendAgentMessage(sub-2)"]',
+          "",
+          "[[permission.rules]]",
+          'action = "deny"',
+          'tool = "agent_message"',
+          'pattern = "sub-3"',
+          "",
+        ].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission.agent).toEqual({
+        "sub-1": "allow",
+        "*": "ask",
+        "sub-2": "deny",
+        "sub-3": "deny",
+      });
+    });
+
+    it("re-emits legacy AgentMessage spellings under the canonical name", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[permission]", 'deny = ["SendAgentMessage(sub-2)"]', ""].join("\n"),
+      );
+      const imported = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const regenerated = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: imported.toRulesyncPermissions(),
+        global: true,
+      });
+      const permission = readPermission(regenerated.getFileContent());
+      expect(permission.deny).toEqual(["AgentMessage(sub-2)"]);
     });
 
     it("round-trips the websearch category through export and re-import", async () => {
