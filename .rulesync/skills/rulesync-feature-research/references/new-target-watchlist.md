@@ -56,7 +56,7 @@ candidate's bullet here when its table row is promoted or retired.
 - Agentforce Vibes: `https://developer.salesforce.com/docs/platform/einstein-for-devs/guide/devagent-rules.html`
   (403 to fetchers). `https://github.com/designthynk/agentforce` is an
   unofficial, unverified third-party write-up: it is not promotion evidence,
-  and only the official docs page satisfies the re-check condition.
+  and only the official docs page counts as evidence for the re-check condition.
 - Verdent: `https://www.verdent.ai/docs/verdent-for-vscode/configuration/settings`.
 - Baidu Comate / Zulu: `https://www.npmjs.com/package/@comate/zulu`,
   `https://docs.cloudbase.net/en/ai/cloudbase-ai-toolkit/ide-setup/baidu-comate`
