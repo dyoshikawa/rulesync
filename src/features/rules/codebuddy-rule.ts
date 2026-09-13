@@ -43,15 +43,47 @@ const CodebuddyRuleFrontmatterSchema = z.object({
 export type CodebuddyRuleFrontmatter = z.infer<typeof CodebuddyRuleFrontmatterSchema>;
 
 /**
+ * Splits a scalar `paths` value on the commas that separate patterns, leaving
+ * the commas inside a brace group alone: CodeBuddy's memory docs say "You can
+ * also combine multiple patterns with commas" and give
+ * `paths: {src,lib}/**\/*.ts, tests/**\/*.test.ts` as the example, where the
+ * first comma belongs to the brace expansion and the second separates the two
+ * globs. Only a scalar is split — the docs describe the comma form for the
+ * string shape, and a list already separates its patterns.
+ */
+function splitCodebuddyPathsScalar(paths: string): string[] {
+  const patterns: string[] = [];
+  let current = "";
+  let braceDepth = 0;
+  for (const char of paths) {
+    if (char === "{") {
+      braceDepth += 1;
+    } else if (char === "}" && braceDepth > 0) {
+      braceDepth -= 1;
+    } else if (char === "," && braceDepth === 0) {
+      patterns.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  patterns.push(current);
+  return patterns.map((pattern) => pattern.trim());
+}
+
+/**
  * Normalizes the documented `string` / `string[]` shapes of `paths` to the
- * list form the rest of the adapter works with. An empty list and an empty
- * string both mean "no paths".
+ * list form the rest of the adapter works with, splitting a comma-separated
+ * scalar into its patterns (see `splitCodebuddyPathsScalar`). An empty list
+ * and an empty string both mean "no paths".
  */
 function normalizeCodebuddyPaths(paths: string | string[] | undefined): string[] | undefined {
   if (paths === undefined) {
     return undefined;
   }
-  const list = (typeof paths === "string" ? [paths] : paths).filter((path) => path.trim() !== "");
+  const list = (typeof paths === "string" ? splitCodebuddyPathsScalar(paths) : paths).filter(
+    (path) => path.trim() !== "",
+  );
   return list.length > 0 ? list : undefined;
 }
 

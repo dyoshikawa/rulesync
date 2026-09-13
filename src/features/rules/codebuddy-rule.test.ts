@@ -279,6 +279,53 @@ paths: src/api/**/*.ts
       expect(codebuddyRule.toRulesyncRule().getFrontmatter().globs).toEqual(["src/api/**/*.ts"]);
     });
 
+    it("should split a comma-separated scalar paths value into one glob per pattern, keeping brace groups intact", async () => {
+      const rulesDir = join(testDir, ".codebuddy/rules");
+      await ensureDir(rulesDir);
+      // The "combine multiple patterns with commas" example from CodeBuddy's
+      // memory documentation, quoted so it is valid YAML: the first comma is
+      // part of the brace expansion, the second separates the two globs.
+      const testContent = `---
+alwaysApply: false
+paths: "{src,lib}/**/*.ts, tests/**/*.test.ts"
+---
+
+# Multi Pattern Rules`;
+      await writeFileContent(join(rulesDir, "multi.md"), testContent);
+
+      const codebuddyRule = await CodebuddyRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "multi.md",
+      });
+
+      const rulesyncFrontmatter = codebuddyRule.toRulesyncRule().getFrontmatter();
+      expect(rulesyncFrontmatter.globs).toEqual(["{src,lib}/**/*.ts", "tests/**/*.test.ts"]);
+      expect(rulesyncFrontmatter.codebuddy?.paths).toEqual([
+        "{src,lib}/**/*.ts",
+        "tests/**/*.test.ts",
+      ]);
+    });
+
+    it("should not split the elements of a paths list on commas", async () => {
+      const rulesDir = join(testDir, ".codebuddy/rules");
+      await ensureDir(rulesDir);
+      const testContent = `---
+alwaysApply: false
+paths:
+  - "src/**/*.{ts,tsx}"
+---
+
+# List Rules`;
+      await writeFileContent(join(rulesDir, "list.md"), testContent);
+
+      const codebuddyRule = await CodebuddyRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "list.md",
+      });
+
+      expect(codebuddyRule.toRulesyncRule().getFrontmatter().globs).toEqual(["src/**/*.{ts,tsx}"]);
+    });
+
     it("should create instance from a disabled rules file", async () => {
       const rulesDir = join(testDir, ".codebuddy/rules");
       await ensureDir(rulesDir);
@@ -414,6 +461,30 @@ enabled: false
       });
 
       expect(codebuddyRule.getFrontmatter().paths).toEqual(["custom/**/*.{ts,tsx}"]);
+    });
+
+    it("should split a comma-separated scalar codebuddy.paths the same way as the tool file", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "comma-paths.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: ["src/**/*.ts"],
+          codebuddy: { paths: "{src,lib}/**/*.ts, tests/**/*.test.ts" },
+        },
+        body: "# Comma Paths Rule",
+      });
+
+      const codebuddyRule = CodebuddyRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(codebuddyRule.getFrontmatter().paths).toEqual([
+        "{src,lib}/**/*.ts",
+        "tests/**/*.test.ts",
+      ]);
+      expect(codebuddyRule.getFrontmatter().alwaysApply).toBe(false);
     });
 
     it("should prefer codebuddy.description over the shared description", () => {
