@@ -220,9 +220,7 @@ describe("VibeHooks", () => {
         expect(parsed.hooks[0]?.command).toBe("python C:\\tools\\guard.py");
         expect(logger.warn).toHaveBeenCalledTimes(1);
         expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringMatching(
-            /^Vibe hooks: the command of hook "win-guard" contains a backslash/,
-          ),
+          expect.stringMatching(/^the command of hook "win-guard" contains a backslash/),
         );
       });
 

@@ -56,7 +56,10 @@ export type VibeSkillParams = {
  * reserved: a project or user skill whose frontmatter `name` matches one is
  * skipped at load time with only a debug log ("Skipping skill '<name>' ...
  * because builtin skill names are reserved"), so a generated skill by that
- * name is silently never offered.
+ * name is silently never offered. That is the legacy backend, still the
+ * default; the unified harness constructs the manager with
+ * `include_builtins=False` because its built-ins arrive as skills of the
+ * shipped `vibe` plugin under namespaced names, so it reserves nothing.
  * @see https://github.com/mistralai/mistral-vibe/blob/v2.25.3/vibe/core/skills/builtins/__init__.py
  * @see https://github.com/mistralai/mistral-vibe/blob/v2.25.3/vibe/core/skills/manager.py
  */

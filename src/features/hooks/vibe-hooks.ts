@@ -55,7 +55,7 @@ const SUPPORTED_VIBE_EVENTS: ReadonlySet<string> = new Set(VIBE_HOOK_EVENTS);
 
 /**
  * Vibe drops a hook whose `command` contains a backslash when it loads
- * `hooks.toml` (v2.25.3, `load_hooks_config`: "Hook '<name>' skipped:
+ * `hooks.toml` (since v2.25.1; `load_hooks_config` at v2.25.3: "Hook '<name>' skipped:
  * backslash paths are not supported in hook commands. Use forward slashes
  * instead."), because its exec-based executor tokenizes the command with
  * `shlex.split`, which eats the backslash. The hook is still written — the
@@ -75,8 +75,9 @@ function warnAboutBackslashCommand({
   if (!command.includes("\\")) {
     return;
   }
+  // No "Vibe hooks:" prefix: the hooks processor already names the target.
   logger?.warn(
-    `Vibe hooks: the command of hook ${quoteValueForWarning(name)} contains a backslash, ` +
+    `the command of hook ${quoteValueForWarning(name)} contains a backslash, ` +
       `which Vibe rejects when it loads hooks.toml — the hook is skipped with ` +
       `"backslash paths are not supported in hook commands". Use forward slashes and ` +
       `avoid backslash escapes so the hook runs.`,
