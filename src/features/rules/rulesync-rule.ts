@@ -14,7 +14,7 @@ import {
 } from "../../types/rulesync-file.js";
 import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { checkPathTraversal, readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { getGlobsStaticPrefix } from "../../utils/glob-static-prefix.js";
 import { warnOnceWithFallback } from "../../utils/logger.js";
@@ -26,6 +26,33 @@ import { warnOnceWithFallback } from "../../utils/logger.js";
  * before any consumer reads the frontmatter.
  */
 export const AUTO_SUBPROJECT_PATH = "auto";
+
+/**
+ * A subproject path becomes part of a generated file path. Validate it before
+ * target-specific conversion so an authored `../` cannot escape an output root
+ * (or be silently ignored by a target that does not use nested rules).
+ */
+function assertSafeSubprojectPath({
+  subprojectPath,
+  outputRoot,
+  rulePath,
+}: {
+  subprojectPath: string;
+  outputRoot: string;
+  rulePath: string;
+}): void {
+  try {
+    checkPathTraversal({
+      relativePath: join(subprojectPath, "AGENTS.md"),
+      intendedRootDir: outputRoot,
+    });
+  } catch (error) {
+    throw new Error(
+      `Invalid agentsmd.subprojectPath in ${rulePath}: generated rule path must stay inside the configured output root (${outputRoot}).`,
+      { cause: error },
+    );
+  }
+}
 
 export const RulesyncRuleFrontmatterSchema = z.object({
   root: z.optional(z.boolean()),
@@ -223,10 +250,12 @@ export type RulesyncRuleFromFileParams = RulesyncFileFromFileParams & DeriveSubp
 function resolveSubprojectPath({
   frontmatter,
   deriveFromGlobs,
+  outputRoot,
   rulePath,
 }: {
   frontmatter: RulesyncRuleFrontmatter;
   deriveFromGlobs: boolean;
+  outputRoot: string;
   rulePath: string;
 }): string | undefined {
   const authored = frontmatter.agentsmd?.subprojectPath;
@@ -234,6 +263,7 @@ function resolveSubprojectPath({
     return undefined;
   }
   if (typeof authored === "string" && authored !== AUTO_SUBPROJECT_PATH) {
+    assertSafeSubprojectPath({ subprojectPath: authored, outputRoot, rulePath });
     return authored;
   }
   const requested = authored === AUTO_SUBPROJECT_PATH;
@@ -258,6 +288,9 @@ function resolveSubprojectPath({
       `Could not derive agentsmd.subprojectPath for ${rulePath} from globs ${JSON.stringify(globs)}: every glob must start with the same wildcard-free directory (e.g. "packages/api/**/*"). The rule is generated without a nested AGENTS.md; set agentsmd.subprojectPath explicitly to nest it.`,
     );
   }
+  if (derived !== undefined) {
+    assertSafeSubprojectPath({ subprojectPath: derived, outputRoot, rulePath });
+  }
   return derived;
 }
 
@@ -272,14 +305,21 @@ function resolveSubprojectPath({
 function withResolvedSubprojectPath({
   frontmatter,
   deriveFromGlobs,
+  outputRoot,
   rulePath,
 }: {
   frontmatter: RulesyncRuleFrontmatter;
   deriveFromGlobs: boolean;
+  outputRoot: string;
   rulePath: string;
 }): RulesyncRuleFrontmatter {
   const authored = frontmatter.agentsmd?.subprojectPath;
-  const resolved = resolveSubprojectPath({ frontmatter, deriveFromGlobs, rulePath });
+  const resolved = resolveSubprojectPath({
+    frontmatter,
+    deriveFromGlobs,
+    outputRoot,
+    rulePath,
+  });
   if (resolved === authored || (resolved === undefined && authored !== AUTO_SUBPROJECT_PATH)) {
     return frontmatter;
   }
@@ -346,6 +386,7 @@ export class RulesyncRule extends RulesyncFile {
     this.frontmatter = withResolvedSubprojectPath({
       frontmatter: parsedFrontmatter,
       deriveFromGlobs: deriveSubprojectPathFromGlobs,
+      outputRoot: rest.outputRoot ?? process.cwd(),
       rulePath: join(rest.relativeDirPath, rest.relativeFilePath),
     });
     this.body = body;
