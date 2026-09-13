@@ -49,6 +49,8 @@ describe("initCommand", () => {
     vi.mocked(fileExists).mockResolvedValue(false);
     vi.mocked(writeFileContent).mockResolvedValue(undefined);
     vi.mocked(getHomeDirectory).mockReturnValue(join("/home", "tester"));
+    // CI runners export XDG_CONFIG_HOME, which would redirect the user config path.
+    vi.stubEnv("XDG_CONFIG_HOME", "");
 
     // Setup class mocks
     vi.mocked(RulesyncRule.getSettablePaths).mockReturnValue({
@@ -91,6 +93,7 @@ describe("initCommand", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
