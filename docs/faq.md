@@ -122,3 +122,21 @@ CLAUDE.md                 linguist-generated
 ```
 
 Adjust the list to match the targets you have configured. These entries only affect how GitHub displays the files in diffs — they don't change how Git tracks them, and they don't interfere with the tools reading the rules.
+
+## How do I keep many repositories in sync with a shared source?
+
+Rulesync stops at the repository boundary. A consumer repository declares its `sources` in `rulesync.jsonc`, pins what it resolved in `rulesync.lock`, and moves forward only when someone runs `rulesync install --update` there — the same model as an npm or Bun lockfile. Nothing in the tool schedules that run, watches the shared repository, or walks other clones, so with fifteen consumers the layer above the lockfile is yours to shape, and either of the two obvious shapes works:
+
+- **On demand.** Run `rulesync install --update && rulesync generate` in a repository when you want it to pick up the shared changes, review the diff, and commit the lockfile with the regenerated files.
+- **Scheduled.** A cron-triggered CI job that runs the same two commands and opens a pull request when the lockfile changed is an ordinary way to drive rulesync; nothing in the tool assumes the update is manual. Compare the lockfile with `resolvedAt` ignored (the `-I` flag needs Git 2.30 or newer): `--update` stamps a fresh timestamp on every source it re-resolves, so the file changes even when no `resolvedRef` did.
+
+  ```bash
+  rulesync install --update && rulesync generate
+  git diff --quiet -I '"resolvedAt"' -- rulesync.lock rulesync-npm.lock.json || echo "shared source moved: open a pull request"
+  ```
+
+Keep `rulesync doctor --strict && rulesync install --frozen && rulesync generate --check` in the consumer's CI either way; that is what guards a repository whose lockfile has fallen behind its own `rulesync.jsonc` or whose generated files have drifted, independent of how updates are triggered.
+
+There is no read-only command that reports how far a lockfile is behind its source. `generate --dry-run` covers generation, not source resolution, and `install --frozen` checks that the lockfile covers the declared sources, not that it is current. To see which repositories are behind without changing anything, compare the `resolvedRef` in each repository's `rulesync.lock` with the head of the branch its `requestedRef` names (`gh api repos/<owner>/<repo>/commits/<branch> --jq .sha` for a GitHub source; npm sources in `rulesync-npm.lock.json` record a `resolvedVersion` instead), or run the scheduled job above with the commit step removed and read its diff.
+
+Updating many repositories at once is a loop over clones that does, per repository, exactly what a single one does: skip a dirty working tree, run `rulesync install --update && rulesync generate`, run the CI guard, and commit. Rulesync does not orchestrate that loop, and the shared repository does not have to know who consumes it.
