@@ -17,6 +17,7 @@ import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
+import { ToolRule } from "../features/rules/tool-rule.js";
 import {
   activateHermesProjectPlugins,
   type HermesProjectPluginName,
@@ -329,12 +330,15 @@ async function processFeatureWithRulesyncFiles(params: {
   rulesyncFiles: RulesyncFile[];
   sweepPlan: OrphanSweepPlan;
   skipFilePaths?: Set<string>;
+  /** Sees the converted tool files before anything is written. */
+  onToolFiles?: (toolFiles: AiFile[]) => void;
 }): Promise<FeatureGenerateResult> {
-  const { config, processor, rulesyncFiles, sweepPlan, skipFilePaths } = params;
+  const { config, processor, rulesyncFiles, sweepPlan, skipFilePaths, onToolFiles } = params;
   if (rulesyncFiles.length === 0) {
     return processEmptyFeatureGeneration({ config, processor, sweepPlan, skipFilePaths });
   }
   const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+  onToolFiles?.(toolFiles);
   return processFeatureGeneration({ config, processor, toolFiles, sweepPlan, skipFilePaths });
 }
 
@@ -970,6 +974,58 @@ function computeRootFileOwnership(params: {
   return ownerByPath;
 }
 
+/**
+ * Watches for a later target overwriting a fold target's root file with
+ * different content, which silently loses every non-root rule for that tool.
+ *
+ * Several targets write the same root file (`AGENTS.md` above all), and the
+ * documented rule is that the last target in config order wins. For a target
+ * that files non-root rules in its own directory that is harmless: it keeps the
+ * root body either way. A `collisionPolicy: "fold"` target (codexcli and the
+ * others whose tool reads only the one root file) has nowhere else to put its
+ * non-root rules, so when a sibling that emits the root body alone comes later
+ * in config order — `["codexcli", "zoocode"]` — the fold is overwritten and
+ * Codex CLI is left with the root rule only, in a diff that reads as a large
+ * deletion of `AGENTS.md`. See issue #3022.
+ *
+ * The overwrite itself is not prevented (last-wins is what the docs promise);
+ * it is named, once per root file and pair of targets, together with the
+ * reordering that keeps the folded content. A later target that also folds is
+ * not reported: its root file carries every non-root body as well, so nothing
+ * is lost. Paths are absolute, so a project with several output roots is
+ * compared root by root.
+ */
+function createFoldRootOverwriteWatch({ logger }: { logger: Logger }): {
+  observe: (params: { toolTarget: ToolTarget; toolFiles: AiFile[] }) => void;
+} {
+  const foldRoots = new Map<string, { target: ToolTarget; content: string }>();
+  return {
+    observe: ({ toolTarget, toolFiles }) => {
+      const folds = RulesProcessor.getFactory(toolTarget)?.meta.collisionPolicy === "fold";
+      for (const file of toolFiles) {
+        if (!(file instanceof ToolRule) || !file.isRoot()) {
+          continue;
+        }
+        const path = file.getFilePath();
+        const content = file.getFileContent();
+        const earlier = foldRoots.get(path);
+        if (earlier && earlier.target !== toolTarget && !folds && earlier.content !== content) {
+          logger.warn(
+            `Target '${toolTarget}' overwrites ${file.getRelativePathFromCwd()}, the file target ` +
+              `'${earlier.target}' folds every non-root rule into, so '${earlier.target}' is left ` +
+              `with the root rule only. The last target in config order wins a shared file: list ` +
+              `'${earlier.target}' after '${toolTarget}' to keep the folded content (see "Target ` +
+              `Order and File Conflicts" in the configuration guide).`,
+          );
+        }
+        if (folds) {
+          foldRoots.set(path, { target: toolTarget, content });
+        }
+      }
+    },
+  };
+}
+
 async function generateRulesCore(params: {
   config: Config;
   logger: Logger;
@@ -986,6 +1042,8 @@ async function generateRulesCore(params: {
   const supportedTargets = RulesProcessor.getToolTargets({ global: config.getGlobal() });
   const toolTargets = intersection(config.getTargets(), supportedTargets);
   warnUnsupportedTargets({ config, supportedTargets, featureName: "rules", logger });
+
+  const foldRootOverwriteWatch = createFoldRootOverwriteWatch({ logger });
 
   const isCheck = config.getCheck();
   const rootFileOwner = isCheck
@@ -1039,6 +1097,7 @@ async function generateRulesCore(params: {
         rulesyncFiles,
         sweepPlan,
         skipFilePaths: skipFilePaths.size > 0 ? skipFilePaths : undefined,
+        onToolFiles: (toolFiles) => foldRootOverwriteWatch.observe({ toolTarget, toolFiles }),
       });
 
       totalCount += result.count;

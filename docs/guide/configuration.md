@@ -292,3 +292,16 @@ If you want `agentsmd`'s output instead, reverse the order:
   "features": ["rules"],
 }
 ```
+
+The order matters most when a target that folds every rule into its root file shares that file with a target that keeps non-root rules in separate files. `codexcli` folds all rules into `AGENTS.md`, while `roo` and `zoocode` write only the root rule to `AGENTS.md` and put the rest under `.roo/rules/`. With `["codexcli", "zoocode"]`, `zoocode` overwrites `AGENTS.md` with the root rule alone, so Codex CLI silently loses every non-root rule. `rulesync generate` warns when this happens; list the folding target last to keep the folded content:
+
+```jsonc
+{
+  // codexcli wins AGENTS.md, so its folded rules survive;
+  // zoocode still gets its own files under .roo/rules/
+  "targets": ["zoocode", "codexcli"],
+  "features": ["rules"],
+}
+```
+
+The object form of `targets` follows the same rule using its key order.

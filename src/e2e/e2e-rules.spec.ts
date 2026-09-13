@@ -351,6 +351,62 @@ description: "Detail rule"
     expect(imported).toContain("Pi Root Rule");
   });
 
+  it("should warn when a later target overwrites the AGENTS.md a fold target folds non-root rules into", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+---
+
+# Shared Root Rule
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "style.md"),
+      `---
+targets: ["*"]
+---
+
+# Shared Style Rule
+`,
+    );
+
+    // codexcli folds every non-root rule into AGENTS.md; zoocode writes the root
+    // body alone there and files non-root rules under .roo/rules/. Listed last,
+    // zoocode wins the shared file (documented last-wins), which silently strips
+    // the folded content Codex CLI depends on — so the run says so (#3022).
+    // `NODE_ENV=e2e` keeps the CLI from muting its logger under vitest, so the
+    // warning is observable on stderr.
+    const lossy = await runGenerate({
+      target: "codexcli,zoocode",
+      features: "rules",
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(lossy.stderr).toContain("Target 'zoocode' overwrites AGENTS.md");
+    expect(lossy.stderr).toContain("list 'codexcli' after 'zoocode'");
+    const overwritten = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(overwritten).toContain("Shared Root Rule");
+    expect(overwritten).not.toContain("Shared Style Rule");
+    expect(await readFileContent(join(testDir, ".roo", "rules", "style.md"))).toContain(
+      "Shared Style Rule",
+    );
+
+    // The suggested order keeps the fold and needs no warning: zoocode still
+    // has its own copy under .roo/rules/, so nothing is lost either way.
+    const kept = await runGenerate({
+      target: "zoocode,codexcli",
+      features: "rules",
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(kept.stderr).toBe("");
+    const folded = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(folded).toContain("Shared Root Rule");
+    expect(folded).toContain("Shared Style Rule");
+  });
+
   it("should route factorydroid.channel:design rules to DESIGN.md and round-trip", async () => {
     const testDir = getTestDir();
 
