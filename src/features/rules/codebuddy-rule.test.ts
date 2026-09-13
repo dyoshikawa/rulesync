@@ -279,6 +279,101 @@ paths: src/api/**/*.ts
       expect(codebuddyRule.toRulesyncRule().getFrontmatter().globs).toEqual(["src/api/**/*.ts"]);
     });
 
+    it("should split a comma-separated scalar paths value into one glob per pattern, keeping brace groups intact", async () => {
+      const rulesDir = join(testDir, ".codebuddy/rules");
+      await ensureDir(rulesDir);
+      // The "combine multiple patterns with commas" example from CodeBuddy's
+      // memory documentation, quoted so it is valid YAML: the first comma is
+      // part of the brace expansion, the second separates the two globs.
+      const testContent = `---
+alwaysApply: false
+paths: "{src,lib}/**/*.ts, tests/**/*.test.ts"
+---
+
+# Multi Pattern Rules`;
+      await writeFileContent(join(rulesDir, "multi.md"), testContent);
+
+      const codebuddyRule = await CodebuddyRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "multi.md",
+      });
+
+      const rulesyncFrontmatter = codebuddyRule.toRulesyncRule().getFrontmatter();
+      expect(rulesyncFrontmatter.globs).toEqual(["{src,lib}/**/*.ts", "tests/**/*.test.ts"]);
+      expect(rulesyncFrontmatter.codebuddy?.paths).toEqual([
+        "{src,lib}/**/*.ts",
+        "tests/**/*.test.ts",
+      ]);
+    });
+
+    it.each([
+      {
+        scalar: "{a,{b,c}}/**/*.ts, x/**,, y ,",
+        expected: ["{a,{b,c}}/**/*.ts", "x/**", "y"],
+      },
+      // A stray `}` stays literal; an unclosed `{` stops further splitting so
+      // nothing after it is dropped.
+      { scalar: "a}/**, b/**", expected: ["a}/**", "b/**"] },
+      { scalar: "{a,b/**, c/**", expected: ["{a,b/**, c/**"] },
+    ])(
+      "should split the scalar $scalar on the commas between patterns only",
+      async ({ scalar, expected }) => {
+        const rulesDir = join(testDir, ".codebuddy/rules");
+        await ensureDir(rulesDir);
+        await writeFileContent(
+          join(rulesDir, "edge.md"),
+          `---\nalwaysApply: false\npaths: ${JSON.stringify(scalar)}\n---\n\n# Edge`,
+        );
+
+        const codebuddyRule = await CodebuddyRule.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: "edge.md",
+        });
+
+        expect(codebuddyRule.toRulesyncRule().getFrontmatter().globs).toEqual(expected);
+      },
+    );
+
+    it("should materialize the alwaysApply default for a multi-pattern scalar without alwaysApply", async () => {
+      const rulesDir = join(testDir, ".codebuddy/rules");
+      await ensureDir(rulesDir);
+      await writeFileContent(
+        join(rulesDir, "scoped.md"),
+        '---\npaths: "src/**, tests/**"\n---\n\n# Scoped',
+      );
+
+      const scoped = await CodebuddyRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "scoped.md",
+      });
+
+      const scopedFrontmatter = scoped.toRulesyncRule().getFrontmatter();
+      expect(scopedFrontmatter.globs).toEqual(["src/**", "tests/**"]);
+      // `alwaysApply` defaults to true upstream, so the paths do not scope the
+      // rule; the default is written out so a regenerate keeps it ALWAYS.
+      expect(scopedFrontmatter.codebuddy?.alwaysApply).toBe(true);
+    });
+
+    it("should not split the elements of a paths list on commas", async () => {
+      const rulesDir = join(testDir, ".codebuddy/rules");
+      await ensureDir(rulesDir);
+      const testContent = `---
+alwaysApply: false
+paths:
+  - "src/**/*.{ts,tsx}"
+---
+
+# List Rules`;
+      await writeFileContent(join(rulesDir, "list.md"), testContent);
+
+      const codebuddyRule = await CodebuddyRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "list.md",
+      });
+
+      expect(codebuddyRule.toRulesyncRule().getFrontmatter().globs).toEqual(["src/**/*.{ts,tsx}"]);
+    });
+
     it("should create instance from a disabled rules file", async () => {
       const rulesDir = join(testDir, ".codebuddy/rules");
       await ensureDir(rulesDir);
@@ -414,6 +509,53 @@ enabled: false
       });
 
       expect(codebuddyRule.getFrontmatter().paths).toEqual(["custom/**/*.{ts,tsx}"]);
+    });
+
+    it("should split a comma-separated scalar codebuddy.paths the same way as the tool file", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "comma-paths.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: ["src/**/*.ts"],
+          codebuddy: { paths: "{src,lib}/**/*.ts, tests/**/*.test.ts" },
+        },
+        body: "# Comma Paths Rule",
+      });
+
+      const codebuddyRule = CodebuddyRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      expect(codebuddyRule.getFrontmatter().paths).toEqual([
+        "{src,lib}/**/*.ts",
+        "tests/**/*.test.ts",
+      ]);
+      expect(codebuddyRule.getFrontmatter().alwaysApply).toBe(false);
+    });
+
+    it("should treat a scalar codebuddy.paths made only of universal patterns as unscoped", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "universal-paths.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: ["src/**/*.ts"],
+          codebuddy: { paths: "**/*, *" },
+        },
+        body: "# Universal Paths Rule",
+      });
+
+      const codebuddyRule = CodebuddyRule.fromRulesyncRule({
+        rulesyncRule,
+      });
+
+      // Every pattern is universal once split, so the rule is left ALWAYS with
+      // no `paths` instead of being scoped by a single "**/*, *" glob.
+      expect(codebuddyRule.getFrontmatter().paths).toBeUndefined();
+      expect(codebuddyRule.getFrontmatter().alwaysApply).toBeUndefined();
     });
 
     it("should prefer codebuddy.description over the shared description", () => {
