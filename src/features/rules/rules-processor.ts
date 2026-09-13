@@ -68,6 +68,7 @@ import { CrushRule } from "./crush-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { DeepagentsRule } from "./deepagents-rule.js";
 import { DevinRule } from "./devin-rule.js";
+import { DshRule } from "./dsh-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
 import { GooseRule } from "./goose-rule.js";
 import { GrokcliRule } from "./grokcli-rule.js";
@@ -1013,6 +1014,24 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // `<subprojectPath>/AGENTS.md` while plain topic rules fold into the
         // root file (mirrors vibe).
         // https://docs.poolside.ai/agent-instructions
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
+    "dsh",
+    {
+      class: DshRule,
+      meta: {
+        // DeepSeek Harness loads the user-global `~/.dsh/AGENTS.md` and the
+        // project chain of `AGENTS.md` files from the `.git` root down through
+        // the session cwd, so a directory-scoped rule is emitted as a nested
+        // `<subprojectPath>/AGENTS.md` while plain topic rules fold into the
+        // root file (mirrors pool).
+        // https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/context/agent-instructions/README.md
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",

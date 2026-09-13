@@ -47,6 +47,7 @@ export const rulesProcessorToolTargetTuple = [
   "zed",
   "zoocode",
   "pool",
+  "dsh",
 ] as const;
 
 export const ignoreProcessorToolTargetTuple = [
@@ -234,6 +235,7 @@ export const skillsProcessorToolTargetTuple = [
   "zcode",
   "zed",
   "zoocode",
+  "dsh",
 ] as const;
 
 export const hooksProcessorToolTargetTuple = [

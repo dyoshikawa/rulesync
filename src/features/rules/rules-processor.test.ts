@@ -1908,6 +1908,7 @@ Content that would fail parsing`;
         "zcode",
         "zed",
         "pool",
+        "dsh",
       ]);
     });
 
@@ -1961,7 +1962,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("reasonix");
       expect(globalTargets).toContain("warp");
       expect(globalTargets).toContain("pool");
-      expect(globalTargets.length).toBe(36);
+      expect(globalTargets).toContain("dsh");
+      expect(globalTargets.length).toBe(37);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -4154,6 +4156,7 @@ targets: ["claudecode"]
         "warp",
         "zcode",
         "pool",
+        "dsh",
       ]);
     });
 

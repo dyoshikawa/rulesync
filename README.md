@@ -130,6 +130,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Zed                       |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |
 | ZCode (Z.ai)              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | Pool (Poolside)           |  ✅   |        |     |          |           |        |       |             |        |
+| DeepSeek Harness          |  ✅   |        |     |          |           |   ✅   |       |             |        |
 
 <!-- SUPPORTED_TOOLS_AI:END -->
 

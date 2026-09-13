@@ -43,14 +43,14 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
-  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli, factorydroid).
+  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli, factorydroid, dsh).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
   // `triggers` list); it has no section key of the same name, but a
   // `devin.triggers` section value overrides it.
   "disable-model-invocation": z.optional(z.boolean()),
   // Default for tools that support the flag (claudecode, copilot, copilotcli, cursor,
-  // qwencode, vibe, grokcli, factorydroid).
+  // qwencode, vibe, grokcli, factorydroid, dsh).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `false` onto a model-only
   // `triggers` list); it has no section key of the same name, but a
@@ -311,6 +311,16 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "user-invocable": z.optional(z.boolean()),
     }),
   ),
+  // DeepSeek Harness reads `whenToUse` (extra trigger-timing context),
+  // `metadata`, and both invocation flags from a skill's frontmatter.
+  dsh: z.optional(
+    z.looseObject({
+      whenToUse: z.optional(z.string()),
+      metadata: z.optional(z.looseObject({})),
+      "disable-model-invocation": z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
+    }),
+  ),
   "kimi-code": z.optional(
     z.looseObject({
       type: z.optional(z.enum(["prompt", "inline", "flow"])),
@@ -412,6 +422,12 @@ export type RulesyncSkillFrontmatterInput = {
     metadata?: Record<string, unknown>;
   };
   grokcli?: {
+    "disable-model-invocation"?: boolean;
+    "user-invocable"?: boolean;
+  };
+  dsh?: {
+    whenToUse?: string;
+    metadata?: Record<string, unknown>;
     "disable-model-invocation"?: boolean;
     "user-invocable"?: boolean;
   };
