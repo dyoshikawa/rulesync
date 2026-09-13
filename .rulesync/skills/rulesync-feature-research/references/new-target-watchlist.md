@@ -9,17 +9,17 @@ the entry to a target proposal (a GitHub issue) and remove it from this file;
 when the product is discontinued or the condition can no longer be met, retire
 the entry the same way. An entry that is neither promoted nor retired stays.
 
-| Candidate                                         | Recorded   | Re-check condition                                                                                                                                                                                                                        |
-| ------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Zoo Code CLI (`@roo-code/cli`)                    | 2026-08-08 | Whether the package ships publicly; today it is `private: true`, unpublished and undocumented                                                                                                                                             |
-| ForgeCode (`tailcallhq/forgecode`)                | 2026-09-12 | Weekly npm downloads of `@antinomyhq/forge` reach ~2k or stars reach 10k, or an official docs page pins the `.forge/commands` YAML and `forge.yaml` schema (the docs site renders client-side today)                                      |
-| OpenClaw (`openclaw/openclaw`)                    | 2026-09-12 | It starts reading repo-level `AGENTS.md` / `.openclaw/` from the cwd or adds command-type hooks; today it is a global-only assistant gateway whose project surface is just `.agents/skills` (covered)                                     |
-| Salesforce Agentforce Vibes (IDE + announced CLI) | 2026-09-12 | The official rules docs become reachable (403 to fetchers today) and the CLI ships a repo-level MCP / rules layout beyond `.a4drules/*.md`                                                                                                |
-| Verdent (VS Code extension + Verdent Deck)        | 2026-09-12 | A project-scope `.verdent/` tree or a CLI with documented config appears; today only `~/.verdent/{VERDENT.md,plan_rules.md,subagents/*.md}` plus `AGENTS.md` (covered)                                                                    |
-| Baidu Comate / Zulu CLI (`@comate/zulu`)          | 2026-09-12 | English docs list the project-level file layout; today only `.baidu-comate/mcp.json` (IDE) is documented and the package is license-gated with ~290 downloads/week                                                                        |
-| Aider (`Aider-AI/aider`)                          | 2026-09-12 | Release cadence resumes (last push 2026-05-22) and native MCP or `AGENTS.md` support lands; today the surface is `.aider.conf.yml`, `.aiderignore`, `.aider.model.settings.yml` only                                                      |
-| iFlow CLI (`iflow-ai/iflow-cli`)                  | 2026-09-12 | Commits resume (last push 2026-03-20) and `@iflow-ai/iflow-cli` downloads grow beyond ~220/week; surface is `IFLOW.md` + `~/.iflow/settings.json`                                                                                         |
-| Warp Factories (definitions-as-code)              | 2026-09-12 | Factories leave Early Access (gated since 2026-08-18) or the `factory.yaml` / `agents/<name>/agent.md` / `skills/<name>/SKILL.md` tree becomes something a developer's own project repo carries rather than a separate factory repository |
+| Candidate                                         | Recorded   | Re-check condition                                                                                                                                                                                                                                                       |
+| ------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Zoo Code CLI (`@roo-code/cli`)                    | 2026-08-08 | Whether the package ships publicly; today it is `private: true`, unpublished and undocumented                                                                                                                                                                            |
+| ForgeCode (`tailcallhq/forgecode`)                | 2026-09-12 | Weekly npm downloads of `@antinomyhq/forge` reach ~2k or stars reach 10k, or an official docs page pins the `.forge/commands` YAML and `forge.yaml` schema (the docs site renders client-side today)                                                                     |
+| OpenClaw (`openclaw/openclaw`)                    | 2026-09-12 | It starts reading repo-level `AGENTS.md` / `.openclaw/` from the cwd or adds command-type hooks; today it is a global-only assistant gateway whose project surface is just `.agents/skills` (covered)                                                                    |
+| Salesforce Agentforce Vibes (IDE + announced CLI) | 2026-09-12 | The official rules docs become reachable (403 to fetchers today) and the CLI ships a repo-level MCP / rules layout beyond `.a4drules/*.md`                                                                                                                               |
+| Verdent (VS Code extension + Verdent Deck)        | 2026-09-12 | A project-scope `.verdent/` tree or a CLI with documented config appears; today only `~/.verdent/{VERDENT.md,plan_rules.md,subagents/*.md}` plus `AGENTS.md` (covered)                                                                                                   |
+| Baidu Comate / Zulu CLI (`@comate/zulu`)          | 2026-09-12 | English docs list the project-level file layout; today only `.baidu-comate/mcp.json` (IDE) is documented and the package is license-gated with ~290 downloads/week                                                                                                       |
+| Aider (`Aider-AI/aider`)                          | 2026-09-12 | Release cadence resumes (last push 2026-05-22) and native MCP or `AGENTS.md` support lands; today the surface is `.aider.conf.yml`, `.aiderignore`, `.aider.model.settings.yml` only                                                                                     |
+| iFlow CLI (`iflow-ai/iflow-cli`)                  | 2026-09-12 | Commits resume (last push 2026-03-20) and `@iflow-ai/iflow-cli` downloads grow beyond ~220/week; surface is `IFLOW.md` + `~/.iflow/settings.json`                                                                                                                        |
+| Warp Factories (definitions-as-code)              | 2026-09-12 | Not a `warp` gap (see #2598) — Factories leave Early Access (gated since 2026-08-18) or the `factory.yaml` / `agents/<name>/agent.md` / `skills/<name>/SKILL.md` tree becomes something a developer's own project repo carries rather than a separate factory repository |
 
 ## Zoo Code CLI — `apps/cli` in the Zoo-Code repo
 
@@ -44,18 +44,24 @@ entry stays.
 
 ## Watchlist candidates recorded on 2026-09-12
 
-Sources for the rows added on 2026-09-12 by the discovery pass:
+Sources for the rows added on 2026-09-12 by the discovery pass. Remove a
+candidate's bullet here when its table row is promoted or retired.
 
 - ForgeCode: `https://github.com/tailcallhq/forgecode` (README lists
   `AGENTS.md`, `.forge/agents/*.md`, `.forge/commands/*.yaml`, `forge.yaml`,
-  `.forge/skills/<name>/SKILL.md`, `.mcp.json`), `https://forgecode.dev/docs/agent-configuration/`.
+  `.forge/skills/<name>/SKILL.md`, `.mcp.json`),
+  `https://forgecode.dev/docs/agent-configuration/`.
 - OpenClaw: `https://docs.openclaw.ai/concepts/agent-workspace`,
   `https://docs.openclaw.ai/tools/skills`, `https://docs.openclaw.ai/plugins/bundles`.
 - Agentforce Vibes: `https://developer.salesforce.com/docs/platform/einstein-for-devs/guide/devagent-rules.html`
-  (403 to fetchers), community mirror `https://github.com/designthynk/agentforce`.
+  (403 to fetchers). `https://github.com/designthynk/agentforce` is an
+  unofficial, unverified third-party write-up: it is not promotion evidence,
+  and only the official docs page counts as evidence for the re-check condition.
 - Verdent: `https://www.verdent.ai/docs/verdent-for-vscode/configuration/settings`.
 - Baidu Comate / Zulu: `https://www.npmjs.com/package/@comate/zulu`,
-  `https://docs.cloudbase.net/en/ai/cloudbase-ai-toolkit/ide-setup/baidu-comate`.
+  `https://docs.cloudbase.net/en/ai/cloudbase-ai-toolkit/ide-setup/baidu-comate`
+  (third-party Tencent CloudBase documentation, not a Baidu primary source; no
+  official English page for the `.baidu-comate/mcp.json` layout was found).
 - Aider: `https://github.com/Aider-AI/aider`.
 - iFlow CLI: `https://github.com/iflow-ai/iflow-cli`.
 - Warp Factories: `https://docs.warp.dev/factories/factory-as-code/` (recorded
