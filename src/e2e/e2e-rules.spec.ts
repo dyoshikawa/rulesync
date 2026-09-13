@@ -424,6 +424,77 @@ factorydroid:
     expect(importedDesign).toContain("Factory Droid Design Two");
   });
 
+  it("should route factorydroid.channel:threat-model rules to .factory/threat-model.md and round-trip", async () => {
+    const testDir = getTestDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["factorydroid"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Factory Droid Root Rule
+`;
+    const threatModelOneContent = `---
+targets: ["factorydroid"]
+description: "Trust boundaries"
+factorydroid:
+  channel: threat-model
+---
+
+# Factory Droid Threat Model One
+`;
+    const threatModelTwoContent = `---
+targets: ["factorydroid"]
+description: "Sensitive data flows"
+factorydroid:
+  channel: threat-model
+---
+
+# Factory Droid Threat Model Two
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "boundaries.md"),
+      threatModelOneContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "data-flows.md"),
+      threatModelTwoContent,
+    );
+
+    await runGenerate({ target: "factorydroid", features: "rules" });
+
+    // Opted-in bodies land in .factory/threat-model.md (concatenated in source
+    // order), not in AGENTS.md or .factory/rules/, and are not listed in
+    // AGENTS.md's TOON reference section since Factory's Security Review reads
+    // the threat model itself.
+    const rootContent = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(rootContent).toContain("Factory Droid Root Rule");
+    expect(rootContent).not.toContain("Factory Droid Threat Model One");
+    expect(rootContent).not.toContain("threat-model.md");
+
+    const threatModelContent = await readFileContent(join(testDir, ".factory", "threat-model.md"));
+    expect(threatModelContent).toContain("Factory Droid Threat Model One");
+    expect(threatModelContent).toContain("Factory Droid Threat Model Two");
+    expect(threatModelContent.indexOf("Factory Droid Threat Model One")).toBeLessThan(
+      threatModelContent.indexOf("Factory Droid Threat Model Two"),
+    );
+
+    await runImport({ target: "factorydroid", features: "rules" });
+
+    const importedThreatModel = await readFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "threat-model.md"),
+    );
+    expect(importedThreatModel).toContain("channel: threat-model");
+    expect(importedThreatModel).toContain("Factory Droid Threat Model One");
+    expect(importedThreatModel).toContain("Factory Droid Threat Model Two");
+  });
+
   it("should nest a rule under the directory derived from its globs when deriveSubprojectPathFromGlobs is on", async () => {
     const testDir = getTestDir();
 

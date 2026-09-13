@@ -166,13 +166,14 @@ export const RulesyncRuleFrontmatterSchema = z.object({
   ),
   factorydroid: z.optional(
     z.looseObject({
-      // Route this non-root rule's body to Factory Droid's design-guidelines
-      // channel (`DESIGN.md`) instead of folding it into the coding-guidelines
-      // `AGENTS.md` / `.factory/rules/*.md`. Factory Droid loads `DESIGN.md`
-      // as "Always-on design-system, UX, visual, and interaction guidance",
-      // separately from `AGENTS.md`'s coding guidelines. Project scope only —
-      // see docs/reference/file-formats.md.
-      channel: z.optional(z.enum(["design"])),
+      // Route this non-root rule's body to one of Factory Droid's fixed-file
+      // channels instead of folding it into the coding-guidelines `AGENTS.md`
+      // / `.factory/rules/*.md`: `design` → `DESIGN.md` ("Always-on
+      // design-system, UX, visual, and interaction guidance", loaded
+      // separately from `AGENTS.md`), `threat-model` →
+      // `.factory/threat-model.md` (the attack-surface map Factory's Security
+      // Review reads). Project scope only — see docs/reference/file-formats.md.
+      channel: z.optional(z.enum(["design", "threat-model"])),
     }),
   ),
 });

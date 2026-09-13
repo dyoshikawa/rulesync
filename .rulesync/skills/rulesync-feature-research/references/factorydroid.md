@@ -26,13 +26,15 @@ output root, so that level is out of reach by design rather than by oversight.
 | `hooks`       | `https://docs.factory.ai/harness/hooks`                                    | `.factory/hooks.json` and `~/.factory/hooks.json` (legacy `settings.json` fallback); nine events — `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `SessionStart`, `SessionEnd`, `Stop`, `SubagentStop`, `Notification`, `PreCompact`; matcher groups; command-type hooks only |
 | `permissions` | `https://docs.factory.ai/droid-cli/settings`                               | `settings.json` at either scope: `commandAllowlist` / `commandDenylist` / `commandBlocklist`, autonomy, sandbox, network and MCP policy keys                                                                                                                                    |
 | `checks`      | `https://docs.factory.ai/software-factory/code-review-ci`                  | `.factory/skills/review-guidelines/SKILL.md` — review guidance delivered as a reserved skill directory rather than its own config file                                                                                                                                          |
+| threat model  | `https://docs.factory.ai/software-factory/security-review`                 | `.factory/threat-model.md` — "if `.factory/threat-model.md` exists, Droid uses it as the attack-surface map" for Security Review; documented only as a repository file, no home-directory equivalent                                                                            |
 | org settings  | `https://docs.factory.ai/enterprise/hierarchical-settings-and-org-control` | The seven settings levels and the org-delivered `settings.json` keys, including `builtInToolAutonomyOverrides`, `mcpAutonomyUrlOverrides`, `allowManagedHooksOnly`, `strictEnabledPlugins`, `strictKnownMarketplaces`                                                           |
 | output styles | `https://docs.factory.ai/droid-cli/output-styles`                          | `.factory/output-styles/<name>.md` and `~/.factory/output-styles/<name>.md`; `.md` only, no nesting; optional `name` / `description` frontmatter; selection persisted as the `outputStyle` setting; `Default` and `Concise` reserved — see below                                |
 | `plugins`     | `https://docs.factory.ai/harness/plugins`                                  | Plugin bundles carrying `.factory-plugin/plugin.json` and `.factory-plugin/marketplace.json`, consumed through the `extraKnownMarketplaces` / `enabledPlugins` settings keys — see below                                                                                        |
 
 Output styles are **not a Rulesync dimension and have no Factory Droid target**.
 The surface is a committed, frontmatter-carrying, system-prompt-shaping
-instruction channel in the same class as `AGENTS.md` and `DESIGN.md`, and
+instruction channel in the same class as `AGENTS.md`, `DESIGN.md` and
+`.factory/threat-model.md`, and
 `FactorydroidRule.getSettablePaths` emits nothing under `.factory/output-styles/`.
 Adding it would mean a directory-shaped `factorydroid.channel` value that carries
 a style name, at both project and global scope. Tracked in #2957; the row exists
@@ -48,16 +50,16 @@ override — see `FACTORYDROID_OVERRIDE_KEYS`.
 
 Common adapter paths: `rulesync-source-map.md`.
 
-| Surface       | Anchor                                                                                                                                                                                               |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| paths         | `factorydroid-paths.ts` — the `.factory/` roots, `settings.json` / `settings.local.json`, and `FACTORYDROID_REVIEW_GUIDELINES_DIR_PATH`                                                              |
-| `rules`       | Project `AGENTS.md`, global `.factory/AGENTS.md`, the `.factory/rules` non-root path, and the `factorydroid.channel: design` route into `DESIGN.md` in `factorydroid-rule.ts`                        |
-| `mcp`         | `.factory/mcp.json`, stdio/HTTP server conversion, and project/global handling in `factorydroid-mcp.ts`                                                                                              |
-| `commands`    | Native command files under `.factory/commands` in `factorydroid-command.ts`                                                                                                                          |
-| `subagents`   | Native custom droids under `.factory/droids` in `factorydroid-subagent.ts`                                                                                                                           |
-| `skills`      | Native skills under `.factory/skills` in `factorydroid-skill.ts`                                                                                                                                     |
-| `hooks`       | `.factory/hooks.json` (legacy `settings.json` fallback), Factory hook events, and matcher conversion in `factorydroid-hooks.ts`                                                                      |
-| `permissions` | `.factory/settings.json` and the `settings.local.json` overlay in `factorydroid-permissions.ts`; the tool-specific keys that round-trip through the override live in `factorydroid-settings-keys.ts` |
-| `checks`      | `.factory/skills/review-guidelines/SKILL.md` in `factorydroid-check.ts`                                                                                                                              |
-| output styles | No target. `FactorydroidRule.getSettablePaths` returns only `root`, `nonRoot` and `design`                                                                                                           |
-| `plugins`     | No bundle target. The consumption keys `extraKnownMarketplaces` and `enabledPlugins` are carried in `FACTORYDROID_OVERRIDE_KEYS`                                                                     |
+| Surface       | Anchor                                                                                                                                                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| paths         | `factorydroid-paths.ts` — the `.factory/` roots, `settings.json` / `settings.local.json`, and `FACTORYDROID_REVIEW_GUIDELINES_DIR_PATH`                                                                                      |
+| `rules`       | Project `AGENTS.md`, global `.factory/AGENTS.md`, the `.factory/rules` non-root path, and the `factorydroid.channel: design` / `threat-model` routes into `DESIGN.md` / `.factory/threat-model.md` in `factorydroid-rule.ts` |
+| `mcp`         | `.factory/mcp.json`, stdio/HTTP server conversion, and project/global handling in `factorydroid-mcp.ts`                                                                                                                      |
+| `commands`    | Native command files under `.factory/commands` in `factorydroid-command.ts`                                                                                                                                                  |
+| `subagents`   | Native custom droids under `.factory/droids` in `factorydroid-subagent.ts`                                                                                                                                                   |
+| `skills`      | Native skills under `.factory/skills` in `factorydroid-skill.ts`                                                                                                                                                             |
+| `hooks`       | `.factory/hooks.json` (legacy `settings.json` fallback), Factory hook events, and matcher conversion in `factorydroid-hooks.ts`                                                                                              |
+| `permissions` | `.factory/settings.json` and the `settings.local.json` overlay in `factorydroid-permissions.ts`; the tool-specific keys that round-trip through the override live in `factorydroid-settings-keys.ts`                         |
+| `checks`      | `.factory/skills/review-guidelines/SKILL.md` in `factorydroid-check.ts`                                                                                                                                                      |
+| output styles | No target. `FactorydroidRule.getSettablePaths` returns only `root`, `nonRoot`, `design` and `threatModel`                                                                                                                    |
+| `plugins`     | No bundle target. The consumption keys `extraKnownMarketplaces` and `enabledPlugins` are carried in `FACTORYDROID_OVERRIDE_KEYS`                                                                                             |

@@ -4,6 +4,7 @@ import {
   FACTORYDROID_DESIGN_FILE_NAME,
   FACTORYDROID_DIR,
   FACTORYDROID_RULE_FILE_NAME,
+  FACTORYDROID_THREAT_MODEL_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
@@ -20,13 +21,27 @@ import {
   buildToolPath,
 } from "./tool-rule.js";
 
+/**
+ * Factory Droid instruction surfaces beyond `AGENTS.md` that a non-root rule
+ * can opt into via the `factorydroid.channel` frontmatter key. Each channel is
+ * a single fixed file Factory Droid loads on its own, so opted-in rules are
+ * concatenated into it and it is excluded from the root file's reference list.
+ */
+export type FactorydroidRuleChannel = "design" | "threat-model";
+
 export type FactorydroidRuleParams = AiFileParams & {
   root?: boolean;
   /**
-   * Marks an instance whose body maps to Factory Droid's `DESIGN.md`
-   * design-guidelines channel instead of the coding-guidelines `AGENTS.md`.
+   * Marks an instance whose body maps to one of Factory Droid's fixed-file
+   * channels (`DESIGN.md`, `.factory/threat-model.md`) instead of the
+   * coding-guidelines `AGENTS.md`.
    */
-  design?: boolean;
+  channel?: FactorydroidRuleChannel;
+};
+
+type FactorydroidRuleChannelPath = {
+  relativeDirPath: string;
+  relativeFilePath: string;
 };
 
 export type FactorydroidRuleSettablePaths = ToolRuleSettablePaths & {
@@ -40,10 +55,14 @@ export type FactorydroidRuleSettablePaths = ToolRuleSettablePaths & {
    * are concatenated into this single file by the RulesProcessor. Project
    * scope only — see {@link FactorydroidRule} for why.
    */
-  design: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
+  design: FactorydroidRuleChannelPath;
+  /**
+   * Factory Droid's security-review threat model. Rules opt into this path via
+   * the `factorydroid.channel: threat-model` frontmatter block and are
+   * concatenated the same way as `design`. Project scope only — see
+   * {@link FactorydroidRule} for why.
+   */
+  threatModel: FactorydroidRuleChannelPath;
 };
 
 export type FactorydroidRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
@@ -55,28 +74,37 @@ export type FactorydroidRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * (global) as coding guidelines, plus non-root rules referenced from it via
  * `.factory/rules/*.md`.
  *
- * Factory Droid also loads `DESIGN.md` (project only) as a second,
- * independent instruction surface: "Always-on design-system, UX, visual, and
- * interaction guidance", loaded separately from `AGENTS.md`'s coding
- * guidelines. Rulesync emits it from any non-root rule that opts in via a
- * `factorydroid.channel: design` frontmatter block — those rule bodies are
- * routed to `DESIGN.md` instead of `AGENTS.md`/`.factory/rules/*.md`, and
- * multiple opted-in rules concatenate in source order. Factory's docs describe
- * `DESIGN.md` at the repository root and in nested subdirectories, like
- * `AGENTS.md`, but document no personal/global home-directory equivalent, so
- * this channel is project scope only.
+ * Factory Droid also loads two further fixed files (project only) as
+ * independent instruction surfaces, which rulesync emits from any non-root
+ * rule that opts in via a `factorydroid.channel` frontmatter key. Opted-in
+ * rule bodies are routed to the channel's file instead of
+ * `AGENTS.md`/`.factory/rules/*.md`, and multiple opted-in rules concatenate
+ * in source order:
+ *
+ * - `design` → `DESIGN.md`: "Always-on design-system, UX, visual, and
+ *   interaction guidance", loaded separately from `AGENTS.md`'s coding
+ *   guidelines. Factory's docs describe `DESIGN.md` at the repository root and
+ *   in nested subdirectories, like `AGENTS.md`, but document no
+ *   personal/global home-directory equivalent.
+ * - `threat-model` → `.factory/threat-model.md`: the attack-surface map
+ *   Factory's Security Review reads — "if `.factory/threat-model.md` exists,
+ *   Droid uses it as the attack-surface map". It is documented only as a
+ *   repository file, so it has no global scope either.
+ *
+ * Both channels are therefore project scope only.
  * @see https://docs.factory.ai/cli/configuration/agents-md
+ * @see https://docs.factory.ai/software-factory/security-review
  */
 export class FactorydroidRule extends ToolRule {
-  private readonly design: boolean;
+  private readonly channel: FactorydroidRuleChannel | undefined;
 
-  constructor({ fileContent, root, design = false, ...rest }: FactorydroidRuleParams) {
+  constructor({ fileContent, root, channel, ...rest }: FactorydroidRuleParams) {
     super({
       ...rest,
       fileContent,
       root: root ?? false,
     });
-    this.design = design;
+    this.channel = channel;
   }
 
   static getSettablePaths({
@@ -106,31 +134,75 @@ export class FactorydroidRule extends ToolRule {
         relativeDirPath: ".",
         relativeFilePath: FACTORYDROID_DESIGN_FILE_NAME,
       },
+      threatModel: {
+        relativeDirPath: buildToolPath(FACTORYDROID_DIR, ".", excludeToolDir),
+        relativeFilePath: FACTORYDROID_THREAT_MODEL_FILE_NAME,
+      },
     };
+  }
+
+  /**
+   * The channel files in a fixed order, so that `getExtraFixedFiles` and the
+   * channel lookups below agree on which paths are channels. Empty in global
+   * mode, where neither file has a documented home-directory equivalent.
+   */
+  private static getChannelPaths({
+    global,
+  }: {
+    global: boolean;
+  }): ReadonlyArray<{ channel: FactorydroidRuleChannel; path: FactorydroidRuleChannelPath }> {
+    if (global) {
+      return [];
+    }
+    const paths = this.getSettablePaths({ global }) as FactorydroidRuleSettablePaths;
+    return [
+      { channel: "design", path: paths.design },
+      { channel: "threat-model", path: paths.threatModel },
+    ];
+  }
+
+  /**
+   * Which channel, if any, owns the given output path. Matching on
+   * `relativeDirPath` too (not just the basename) keeps a non-root rule that
+   * happens to be named `DESIGN.md` or `threat-model.md` under
+   * `.factory/rules/` from being routed to a channel by mistake.
+   */
+  private static findChannelByPath({
+    relativeDirPath,
+    relativeFilePath,
+    global,
+  }: {
+    /** Optional on `fromFile`; an omitted directory never matches a channel. */
+    relativeDirPath: string | undefined;
+    relativeFilePath: string;
+    global: boolean;
+  }): { channel: FactorydroidRuleChannel; path: FactorydroidRuleChannelPath } | undefined {
+    return this.getChannelPaths({ global }).find(
+      ({ path }) =>
+        relativeDirPath === path.relativeDirPath && relativeFilePath === path.relativeFilePath,
+    );
   }
 
   /**
    * Extra fixed files this tool manages beyond the root/non-root rules. The
    * RulesProcessor enumerates these for import and deletion so a stale
-   * `DESIGN.md` is cleaned up once no rule opts in anymore. Empty in global
-   * mode: `DESIGN.md` has no documented home-directory equivalent.
+   * `DESIGN.md` or `.factory/threat-model.md` is cleaned up once no rule opts
+   * in anymore. Empty in global mode: neither file has a documented
+   * home-directory equivalent.
    */
   static getExtraFixedFiles({
     global = false,
   }: { global?: boolean } = {}): ToolRuleExtraFixedFile[] {
-    if (global) {
-      return [];
-    }
-    return [(this.getSettablePaths({ global }) as FactorydroidRuleSettablePaths).design];
+    return this.getChannelPaths({ global }).map(({ path }) => path);
   }
 
   /**
-   * Factory Droid loads `DESIGN.md` itself, so listing it in the root rule's
-   * TOON reference section would double-load the content (and misrepresent it
-   * as a rule the model must remember to open).
+   * Factory Droid loads the channel files itself, so listing one in the root
+   * rule's TOON reference section would double-load the content (and
+   * misrepresent it as a rule the model must remember to open).
    */
   override isExcludedFromRootReferences(): boolean {
-    return this.design;
+    return this.channel !== undefined;
   }
 
   static async fromFile({
@@ -142,30 +214,22 @@ export class FactorydroidRule extends ToolRule {
   }: ToolRuleFromFileParams): Promise<FactorydroidRule> {
     const paths = this.getSettablePaths({ global });
 
-    // Route the design-guidelines file to its own instance; everything else
-    // resolves through the existing root/non-root handling. Matching on
-    // `relativeDirPath` too (not just the basename) keeps a non-root rule
-    // that happens to be named `DESIGN.md` under `.factory/rules/` from
-    // being routed here by mistake — mirrors the equivalent guard in
-    // `forDeletion`.
-    const design = !global ? (paths as FactorydroidRuleSettablePaths).design : undefined;
-    const isDesign =
-      design !== undefined &&
-      relativeDirPath === design.relativeDirPath &&
-      relativeFilePath === design.relativeFilePath;
-
-    if (isDesign) {
-      const relativePath = join(design.relativeDirPath, design.relativeFilePath);
+    // Route a channel file to its own instance; everything else resolves
+    // through the existing root/non-root handling.
+    const channelMatch = this.findChannelByPath({ relativeDirPath, relativeFilePath, global });
+    if (channelMatch) {
+      const { channel, path } = channelMatch;
+      const relativePath = join(path.relativeDirPath, path.relativeFilePath);
       const fileContent = await readFileContent(join(outputRoot, relativePath));
 
       return new FactorydroidRule({
         outputRoot,
-        relativeDirPath: design.relativeDirPath,
-        relativeFilePath: design.relativeFilePath,
+        relativeDirPath: path.relativeDirPath,
+        relativeFilePath: path.relativeFilePath,
         fileContent,
         validate,
         root: false,
-        design: true,
+        channel,
       });
     }
 
@@ -208,13 +272,9 @@ export class FactorydroidRule extends ToolRule {
     global = false,
   }: ToolRuleForDeletionParams): FactorydroidRule {
     const paths = this.getSettablePaths({ global });
-    const design = !global ? (paths as FactorydroidRuleSettablePaths).design : undefined;
-    const isDesign =
-      design !== undefined &&
-      relativeDirPath === design.relativeDirPath &&
-      relativeFilePath === design.relativeFilePath;
+    const channel = this.findChannelByPath({ relativeDirPath, relativeFilePath, global })?.channel;
     const isRoot =
-      !isDesign &&
+      channel === undefined &&
       relativeFilePath === paths.root.relativeFilePath &&
       relativeDirPath === paths.root.relativeDirPath;
 
@@ -225,7 +285,7 @@ export class FactorydroidRule extends ToolRule {
       fileContent: "",
       validate: false,
       root: isRoot,
-      design: isDesign,
+      channel,
     });
   }
 
@@ -238,19 +298,24 @@ export class FactorydroidRule extends ToolRule {
     const frontmatter = rulesyncRule.getFrontmatter();
     const paths = this.getSettablePaths({ global });
 
-    // Opted-in non-root rules route to the design-guidelines file instead of
+    // Opted-in non-root rules route to their channel file instead of
     // AGENTS.md / .factory/rules/*.md. Project scope only, matching
-    // `getExtraFixedFiles`; the flag is ignored elsewhere (folded normally).
-    if (!global && !frontmatter.root && frontmatter.factorydroid?.channel === "design") {
-      const { design } = paths as FactorydroidRuleSettablePaths;
+    // `getExtraFixedFiles`; the key is ignored elsewhere (folded normally).
+    const requestedChannel = frontmatter.factorydroid?.channel;
+    const channelMatch =
+      !global && !frontmatter.root && requestedChannel !== undefined
+        ? this.getChannelPaths({ global }).find(({ channel }) => channel === requestedChannel)
+        : undefined;
+    if (channelMatch) {
+      const { channel, path } = channelMatch;
       return new FactorydroidRule({
         outputRoot,
-        relativeDirPath: design.relativeDirPath,
-        relativeFilePath: design.relativeFilePath,
+        relativeDirPath: path.relativeDirPath,
+        relativeFilePath: path.relativeFilePath,
         fileContent: rulesyncRule.getBody(),
         validate,
         root: false,
-        design: true,
+        channel,
       });
     }
 
@@ -266,15 +331,18 @@ export class FactorydroidRule extends ToolRule {
   }
 
   toRulesyncRule(): RulesyncRule {
-    if (this.design) {
+    if (this.channel !== undefined) {
+      // Imported under the channel file's own basename (`DESIGN.md`,
+      // `threat-model.md`) so the two channels never collide in
+      // `.rulesync/rules/`.
       return new RulesyncRule({
         outputRoot: process.cwd(),
         relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-        relativeFilePath: FACTORYDROID_DESIGN_FILE_NAME,
+        relativeFilePath: this.getRelativeFilePath(),
         frontmatter: {
           root: false,
           targets: ["factorydroid"],
-          factorydroid: { channel: "design" },
+          factorydroid: { channel: this.channel },
         },
         body: this.getFileContent(),
       });

@@ -50,6 +50,10 @@ This is a test factorydroid rule.`;
           relativeDirPath: ".",
           relativeFilePath: "DESIGN.md",
         },
+        threatModel: {
+          relativeDirPath: ".factory",
+          relativeFilePath: "threat-model.md",
+        },
       });
     });
 
@@ -65,12 +69,16 @@ This is a test factorydroid rule.`;
   });
 
   describe("getExtraFixedFiles", () => {
-    it("should include the design-guidelines file for project scope", () => {
+    it("should include the design-guidelines and threat-model files for project scope", () => {
       const files = FactorydroidRule.getExtraFixedFiles();
       expect(files).toEqual([
         {
           relativeDirPath: ".",
           relativeFilePath: "DESIGN.md",
+        },
+        {
+          relativeDirPath: ".factory",
+          relativeFilePath: "threat-model.md",
         },
       ]);
     });
@@ -194,6 +202,91 @@ This is a test factorydroid rule.`;
         "# Design Guidelines\n\nUse the shared design tokens.",
       );
       expect(factorydroidRule.isExcludedFromRootReferences()).toBe(true);
+    });
+
+    it("should route a rule with factorydroid.channel: threat-model to .factory/threat-model.md", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "attack-surface.md",
+        frontmatter: {
+          root: false,
+          targets: ["factorydroid"],
+          description: "Test threat model rule",
+          globs: ["**/*"],
+          factorydroid: { channel: "threat-model" },
+        },
+        body: "# Threat Model\n\nThe public API is the primary attack surface.",
+        validate: true,
+      });
+
+      const factorydroidRule = FactorydroidRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        validate: true,
+      });
+
+      expect(factorydroidRule).toBeInstanceOf(FactorydroidRule);
+      expect(factorydroidRule.isRoot()).toBe(false);
+      expect(factorydroidRule.getRelativeDirPath()).toBe(".factory");
+      expect(factorydroidRule.getRelativeFilePath()).toBe("threat-model.md");
+      expect(factorydroidRule.getFileContent()).toBe(
+        "# Threat Model\n\nThe public API is the primary attack surface.",
+      );
+      expect(factorydroidRule.isExcludedFromRootReferences()).toBe(true);
+    });
+
+    it("should not route a root rule to .factory/threat-model.md even with factorydroid.channel: threat-model", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "AGENTS.md",
+        frontmatter: {
+          root: true,
+          targets: ["factorydroid"],
+          description: "Test root rule",
+          globs: ["**/*"],
+          factorydroid: { channel: "threat-model" },
+        },
+        body: "# Root Rule",
+        validate: true,
+      });
+
+      const factorydroidRule = FactorydroidRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        validate: true,
+      });
+
+      expect(factorydroidRule.isRoot()).toBe(true);
+      expect(factorydroidRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should not route to .factory/threat-model.md in global mode, since Factory documents the threat model only as a repository file", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "attack-surface.md",
+        frontmatter: {
+          root: false,
+          targets: ["factorydroid"],
+          description: "Test threat model rule",
+          globs: ["**/*"],
+          factorydroid: { channel: "threat-model" },
+        },
+        body: "# Threat Model",
+        validate: true,
+      });
+
+      const factorydroidRule = FactorydroidRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        validate: true,
+        global: true,
+      });
+
+      expect(factorydroidRule.getRelativeFilePath()).not.toBe("threat-model.md");
+      expect(factorydroidRule.isExcludedFromRootReferences()).toBe(false);
     });
 
     it("should not route a root rule to DESIGN.md even with factorydroid.channel: design", () => {
@@ -340,6 +433,50 @@ This is a test factorydroid rule.`;
       expect(rule.getFileContent()).toBe(collidingContent);
       expect(rule.isExcludedFromRootReferences()).toBe(false);
     });
+
+    it("should load the threat-model file and mark it as excluded from root references", async () => {
+      const threatModelContent = "# Threat Model\n\nThe public API is the primary attack surface.";
+      await writeFileContent(join(testDir, ".factory", "threat-model.md"), threatModelContent);
+
+      const rule = await FactorydroidRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "threat-model.md",
+        validate: true,
+      });
+
+      expect(rule).toBeInstanceOf(FactorydroidRule);
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getRelativeDirPath()).toBe(".factory");
+      expect(rule.getRelativeFilePath()).toBe("threat-model.md");
+      expect(rule.getFileContent()).toBe(threatModelContent);
+      expect(rule.isExcludedFromRootReferences()).toBe(true);
+    });
+
+    it("should load a non-root rule literally named threat-model.md as a regular non-root rule, not the threat-model channel", async () => {
+      const collidingContent = "# Just a normal rule that happens to be named threat-model.md";
+      await writeFileContent(
+        join(testDir, ".factory", "rules", "threat-model.md"),
+        collidingContent,
+      );
+      await writeFileContent(
+        join(testDir, ".factory", "threat-model.md"),
+        "# Real threat model channel content",
+      );
+
+      const rule = await FactorydroidRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: ".factory/rules",
+        relativeFilePath: "threat-model.md",
+        validate: true,
+      });
+
+      expect(rule).toBeInstanceOf(FactorydroidRule);
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getRelativeDirPath()).toBe(".factory/rules");
+      expect(rule.getFileContent()).toBe(collidingContent);
+      expect(rule.isExcludedFromRootReferences()).toBe(false);
+    });
   });
 
   describe("toRulesyncRule", () => {
@@ -375,6 +512,27 @@ This is a test factorydroid rule.`;
       expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
       expect(rulesyncRule.getFrontmatter().root).toBe(false);
       expect(rulesyncRule.getFrontmatter().factorydroid).toEqual({ channel: "design" });
+      expect(rulesyncRule.getRelativeFilePath()).toBe("DESIGN.md");
+    });
+
+    it("should round-trip a threat-model instance back to factorydroid.channel: threat-model", async () => {
+      await writeFileContent(join(testDir, ".factory", "threat-model.md"), "# Threat Model");
+
+      const rule = await FactorydroidRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "threat-model.md",
+        validate: true,
+      });
+
+      const rulesyncRule = rule.toRulesyncRule();
+
+      expect(rulesyncRule).toBeInstanceOf(RulesyncRule);
+      expect(rulesyncRule.getFrontmatter().root).toBe(false);
+      expect(rulesyncRule.getFrontmatter().factorydroid).toEqual({ channel: "threat-model" });
+      // Imported under its own basename so it never collides with DESIGN.md.
+      expect(rulesyncRule.getRelativeFilePath()).toBe("threat-model.md");
+      expect(rulesyncRule.getBody()).toBe("# Threat Model");
     });
   });
 
@@ -472,6 +630,29 @@ This is a test factorydroid rule.`;
       expect(rule).toBeInstanceOf(FactorydroidRule);
       expect(rule.isRoot()).toBe(false);
       expect(rule.isExcludedFromRootReferences()).toBe(true);
+    });
+
+    it("should mark the threat-model file as a non-root, excluded-from-references deletion target", () => {
+      const rule = FactorydroidRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "threat-model.md",
+      });
+
+      expect(rule).toBeInstanceOf(FactorydroidRule);
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.isExcludedFromRootReferences()).toBe(true);
+    });
+
+    it("should treat a non-root rule literally named threat-model.md as an ordinary deletion target", () => {
+      const rule = FactorydroidRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".factory/rules",
+        relativeFilePath: "threat-model.md",
+      });
+
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.isExcludedFromRootReferences()).toBe(false);
     });
   });
 });
