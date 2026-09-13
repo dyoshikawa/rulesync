@@ -1,4 +1,4 @@
-import { relative } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { ToolRule } from "../features/rules/tool-rule.js";
@@ -29,7 +29,10 @@ function foldsIntoRoot({ toolTarget }: { toolTarget: ToolTarget }): boolean {
  */
 function displayPath({ filePath }: { filePath: string }): string {
   const rel = relative(process.cwd(), filePath);
-  return rel === "" || rel.startsWith("..") ? filePath : toPosixPath(rel);
+  // `relative` hands back an absolute path across Windows drives, and a
+  // sibling literally named `..x` must not read as "outside".
+  const outside = rel === "" || isAbsolute(rel) || rel === ".." || rel.startsWith(`..${sep}`);
+  return outside ? filePath : toPosixPath(rel);
 }
 
 /**
@@ -52,8 +55,9 @@ function displayPath({ filePath }: { filePath: string }): string {
  * verdict is `report`'s, once every target has been seen, because only the
  * final writer decides what is on disk: with `["codexcli", "zoocode", "pi"]`
  * the fold target `pi` wins the file with every non-root body in it, so nothing
- * is lost and nothing is reported. Paths are absolute, so a project with
- * several output roots is compared root by root. In `--check` mode nothing is
+ * is lost and nothing is reported. Files are keyed by their resolved output
+ * path, so a project with several output roots is compared root by root
+ * however each root was spelled. In `--check` mode nothing is
  * written, but the sentence describes the same outcome of the same config, so
  * it is worded the same.
  */
@@ -69,7 +73,7 @@ export function createFoldRootOverwriteWatch({ logger }: { logger: Logger }): {
         if (!(file instanceof ToolRule) || !file.isRoot()) {
           continue;
         }
-        const path = file.getFilePath();
+        const path = resolve(file.getFilePath());
         const writes = writesByPath.get(path) ?? [];
         writes.push({ target: toolTarget, folds, content: file.getFileContent() });
         writesByPath.set(path, writes);

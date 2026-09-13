@@ -92,6 +92,69 @@ describe("createFoldRootOverwriteWatch", () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
+  it("should name the fold target whose content was on disk right before the overwrite", () => {
+    const logger = createMockLogger();
+    const watch = createFoldRootOverwriteWatch({ logger });
+
+    watch.observe({
+      toolTarget: "codexcli",
+      toolFiles: [rootRule({ Rule: CodexcliRule, content: FOLDED })],
+    });
+    watch.observe({
+      toolTarget: "pi",
+      toolFiles: [rootRule({ Rule: PiRule, content: FOLDED })],
+    });
+    watch.observe({
+      toolTarget: "zoocode",
+      toolFiles: [rootRule({ Rule: ZoocodeRule, content: ROOT_ONLY })],
+    });
+    watch.report();
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    const message = String(logger.warn.mock.calls[0]?.[0]);
+    expect(message).toContain("'pi' folds every non-root rule into");
+    expect(message).toContain("list 'pi' after 'zoocode'");
+  });
+
+  it("should skip a fold target that had nothing to add when naming the loser", () => {
+    const logger = createMockLogger();
+    const watch = createFoldRootOverwriteWatch({ logger });
+
+    watch.observe({
+      toolTarget: "codexcli",
+      toolFiles: [rootRule({ Rule: CodexcliRule, content: FOLDED })],
+    });
+    watch.observe({
+      toolTarget: "pi",
+      toolFiles: [rootRule({ Rule: PiRule, content: ROOT_ONLY })],
+    });
+    watch.observe({
+      toolTarget: "zoocode",
+      toolFiles: [rootRule({ Rule: ZoocodeRule, content: ROOT_ONLY })],
+    });
+    watch.report();
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(String(logger.warn.mock.calls[0]?.[0])).toContain("list 'codexcli' after 'zoocode'");
+  });
+
+  it("should treat the same output root as one file however it is spelled", () => {
+    const logger = createMockLogger();
+    const watch = createFoldRootOverwriteWatch({ logger });
+
+    watch.observe({
+      toolTarget: "codexcli",
+      toolFiles: [rootRule({ Rule: CodexcliRule, content: FOLDED, outputRoot: "out" })],
+    });
+    watch.observe({
+      toolTarget: "zoocode",
+      toolFiles: [rootRule({ Rule: ZoocodeRule, content: ROOT_ONLY, outputRoot: resolve("out") })],
+    });
+    watch.report();
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+
   it("should stay quiet when the overwrite carries the same content", () => {
     const logger = createMockLogger();
     const watch = createFoldRootOverwriteWatch({ logger });

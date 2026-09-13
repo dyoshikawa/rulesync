@@ -405,6 +405,16 @@ targets: ["*"]
     const folded = await readFileContent(join(testDir, "AGENTS.md"));
     expect(folded).toContain("Shared Root Rule");
     expect(folded).toContain("Shared Style Rule");
+
+    // A fold target after zoocode wins the file back with every non-root body
+    // in it, so the verdict has to wait until every target has been seen.
+    const reclaimed = await runGenerate({
+      target: "codexcli,zoocode,pi",
+      features: "rules",
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(reclaimed.stderr).not.toContain("overwrites AGENTS.md");
+    expect(await readFileContent(join(testDir, "AGENTS.md"))).toContain("Shared Style Rule");
   });
 
   it("should route factorydroid.channel:design rules to DESIGN.md and round-trip", async () => {
