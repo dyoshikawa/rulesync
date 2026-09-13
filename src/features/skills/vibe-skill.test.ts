@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
@@ -85,6 +86,56 @@ describe("VibeSkill", () => {
       "allowed-tools": ["read_file"],
     });
     expect(vibeSkill.getBody()).toBe("Review the diff.");
+  });
+
+  describe("reserved built-in skill names", () => {
+    // Vibe's SkillManager skips a project or user skill named like one of its
+    // built-ins (`vibe`, `skill-creator`) with only a debug log, so the
+    // generate side warns instead of letting the skill vanish silently.
+    it.each(["vibe", "skill-creator"])(
+      "should warn and still generate a skill named %s",
+      (name) => {
+        const logger = createMockLogger();
+        const rulesyncSkill = new RulesyncSkill({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+          dirName: name,
+          frontmatter: { name, description: "Collides with a built-in", targets: ["vibe"] },
+          body: "Body.",
+          validate: true,
+        });
+
+        const vibeSkill = VibeSkill.fromRulesyncSkill({
+          outputRoot: testDir,
+          rulesyncSkill,
+          logger,
+        });
+
+        expect(vibeSkill.getFrontmatter().name).toBe(name);
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringMatching(
+            new RegExp(`^Vibe skills: the skill name "${name}" is reserved for a Vibe built-in`),
+          ),
+        );
+      },
+    );
+
+    it("should not warn for any other skill name", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "vibe-check",
+        frontmatter: { name: "vibe-check", description: "Not reserved", targets: ["vibe"] },
+        body: "Body.",
+        validate: true,
+      });
+
+      VibeSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill, logger });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
   });
 
   it("should import a Vibe skill into rulesync with a vibe metadata section", () => {

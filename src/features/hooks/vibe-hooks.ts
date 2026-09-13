@@ -12,8 +12,10 @@ import {
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -52,15 +54,53 @@ const VIBE_TOOL_EVENTS: ReadonlySet<string> = new Set(["pre_tool", "post_tool"])
 const SUPPORTED_VIBE_EVENTS: ReadonlySet<string> = new Set(VIBE_HOOK_EVENTS);
 
 /**
+ * Vibe drops a hook whose `command` contains a backslash when it loads
+ * `hooks.toml` (v2.25.3, `load_hooks_config`: "Hook '<name>' skipped:
+ * backslash paths are not supported in hook commands. Use forward slashes
+ * instead."), because its exec-based executor tokenizes the command with
+ * `shlex.split`, which eats the backslash. The hook is still written — the
+ * command is the user's to fix — but it is worth a warning, since Vibe itself
+ * only reports the skip as a config issue rather than failing the run.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v2.25.3/vibe/core/hooks/config.py
+ */
+function warnAboutBackslashCommand({
+  name,
+  command,
+  logger,
+}: {
+  name: string;
+  command: string;
+  logger: Logger | undefined;
+}): void {
+  if (!command.includes("\\")) {
+    return;
+  }
+  logger?.warn(
+    `Vibe hooks: the command of hook ${quoteValueForWarning(name)} contains a backslash, ` +
+      `which Vibe rejects when it loads hooks.toml — the hook is skipped with ` +
+      `"backslash paths are not supported in hook commands". Use forward slashes and ` +
+      `avoid backslash escapes so the hook runs.`,
+  );
+}
+
+/**
  * Build the flat `[[hooks]]` array for `.vibe/hooks.toml` from a canonical
  * hooks config. Vibe uses a flat array where each entry carries its own event
  * `type`, tool-name `match` glob/regex, and `command`. Only `type: "command"`
- * canonical hooks are emitted (Vibe hooks are always shell commands).
+ * canonical hooks are emitted: a Vibe hook is a command line, which the legacy
+ * backend hands to a shell and the unified harness tokenizes with `shlex.split`
+ * and executes directly (v2.25.1: "Hook commands run without a shell to
+ * prevent injection via hooks.toml").
  */
-function canonicalToVibeHooks(
-  config: HooksConfig,
-  toolOverride: HooksConfig["hooks"] | undefined,
-): {
+function canonicalToVibeHooks({
+  config,
+  toolOverride,
+  logger,
+}: {
+  config: HooksConfig;
+  toolOverride: HooksConfig["hooks"] | undefined;
+  logger?: Logger;
+}): {
   hooks: VibeHookEntry[];
 } {
   const shared: HooksConfig["hooks"] = {};
@@ -87,6 +127,7 @@ function canonicalToVibeHooks(
         continue;
       }
       const name = typeof def.name === "string" ? def.name : `${vibeEvent}-${index}`;
+      warnAboutBackslashCommand({ name, command: def.command, logger });
       const isToolEvent = VIBE_TOOL_EVENTS.has(vibeEvent);
       const entry: VibeHookEntry = {
         name,
@@ -239,10 +280,15 @@ export class VibeHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
+    logger,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<VibeHooks> {
     const paths = VibeHooks.getSettablePaths({ global });
     const config = rulesyncHooks.getJson();
-    const vibeHooks = canonicalToVibeHooks(config, config.vibe?.hooks);
+    const vibeHooks = canonicalToVibeHooks({
+      config,
+      toolOverride: config.vibe?.hooks,
+      logger,
+    });
     const fileContent = smolToml.stringify(vibeHooks);
 
     return new VibeHooks({

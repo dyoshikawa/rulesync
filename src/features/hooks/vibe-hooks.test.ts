@@ -3,6 +3,7 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContentOrNull, writeFileContent } from "../../utils/file.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -185,6 +186,78 @@ describe("VibeHooks", () => {
 
       const configContent = await readFileContentOrNull(join(testDir, ".vibe", "config.toml"));
       expect(configContent).toBeNull();
+    });
+
+    describe("backslash in command", () => {
+      // Vibe v2.25.3 skips a hook whose command contains a backslash when it
+      // loads hooks.toml, so the generate side says so instead of leaving the
+      // user to find a hook that never fires.
+      it("should warn and still write the hook when the command contains a backslash", async () => {
+        const logger = createMockLogger();
+        const rulesyncHooks = new RulesyncHooks(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              hooks: {
+                preToolUse: [
+                  { name: "win-guard", command: "python C:\\tools\\guard.py", matcher: "bash" },
+                ],
+              },
+            }),
+          }),
+        );
+
+        const vibeHooks = await VibeHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+          validate: true,
+          logger,
+        });
+
+        const parsed = smolToml.parse(vibeHooks.getFileContent()) as {
+          hooks: Array<Record<string, unknown>>;
+        };
+        expect(parsed.hooks).toHaveLength(1);
+        expect(parsed.hooks[0]?.command).toBe("python C:\\tools\\guard.py");
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringMatching(
+            /^Vibe hooks: the command of hook "win-guard" contains a backslash/,
+          ),
+        );
+      });
+
+      it("should name the generated hook when the definition has no name", async () => {
+        const logger = createMockLogger();
+        const rulesyncHooks = new RulesyncHooks(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              hooks: { stop: [{ command: "grep -q '\\.ts$' changed.txt" }] },
+            }),
+          }),
+        );
+
+        await VibeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks, logger });
+
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('hook "post_agent-0"'));
+      });
+
+      it("should not warn when no command contains a backslash", async () => {
+        const logger = createMockLogger();
+        const rulesyncHooks = new RulesyncHooks(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              hooks: {
+                preToolUse: [{ command: "python /opt/tools/guard.py", matcher: "bash" }],
+                stop: [{ command: "echo turn-end" }],
+              },
+            }),
+          }),
+        );
+
+        await VibeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks, logger });
+
+        expect(logger.warn).not.toHaveBeenCalled();
+      });
     });
   });
 

@@ -6,6 +6,8 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import {
   RulesyncSkill,
   RulesyncSkillFrontmatter,
@@ -50,6 +52,17 @@ export type VibeSkillParams = {
 };
 
 /**
+ * Skill names Vibe's built-in skills occupy. `SkillManager` treats them as
+ * reserved: a project or user skill whose frontmatter `name` matches one is
+ * skipped at load time with only a debug log ("Skipping skill '<name>' ...
+ * because builtin skill names are reserved"), so a generated skill by that
+ * name is silently never offered.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v2.25.3/vibe/core/skills/builtins/__init__.py
+ * @see https://github.com/mistralai/mistral-vibe/blob/v2.25.3/vibe/core/skills/manager.py
+ */
+const VIBE_RESERVED_SKILL_NAMES: ReadonlySet<string> = new Set(["vibe", "skill-creator"]);
+
+/**
  * Build the Vibe frontmatter from a rulesync skill frontmatter, preferring the
  * dedicated `vibe` section over the shared root-level fields.
  */
@@ -80,6 +93,28 @@ function buildVibeFrontmatter(rulesyncFrontmatter: RulesyncSkillFrontmatter): Vi
       "allowed-tools": vibeSection["allowed-tools"],
     }),
   };
+}
+
+/**
+ * The skill is still generated under the reserved name — the name is the
+ * user's to change, and a rename here would make it diverge from the other
+ * targets — but Vibe would drop it without a visible word, so say so now.
+ */
+function warnAboutReservedSkillName({
+  name,
+  logger,
+}: {
+  name: string;
+  logger: Logger | undefined;
+}): void {
+  if (!VIBE_RESERVED_SKILL_NAMES.has(name)) {
+    return;
+  }
+  logger?.warn(
+    `Vibe skills: the skill name ${quoteValueForWarning(name)} is reserved for a Vibe built-in ` +
+      `skill, so Vibe skips a project or user skill by that name when it loads skills. ` +
+      `Rename the skill for it to be available in Vibe.`,
+  );
 }
 
 export class VibeSkill extends ToolSkill {
@@ -193,11 +228,13 @@ export class VibeSkill extends ToolSkill {
     rulesyncSkill,
     validate = true,
     global = false,
+    logger,
   }: ToolSkillFromRulesyncSkillParams): VibeSkill {
     const settablePaths = VibeSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
     const vibeFrontmatter = buildVibeFrontmatter(rulesyncFrontmatter);
+    warnAboutReservedSkillName({ name: vibeFrontmatter.name, logger });
 
     return new VibeSkill({
       outputRoot,
