@@ -303,6 +303,7 @@ rulesync.local.jsonc
 **/.deepagents/AGENTS.md
 **/.factory/rules/
 **/DESIGN.md
+**/.factory/threat-model.md
 **/.goosehints
 **/.hermes.md
 **/.grok/rules/

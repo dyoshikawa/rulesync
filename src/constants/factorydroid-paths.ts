@@ -15,6 +15,14 @@ export const FACTORYDROID_RULE_FILE_NAME = "AGENTS.md";
  * @see https://docs.factory.ai/cli/configuration/agents-md
  */
 export const FACTORYDROID_DESIGN_FILE_NAME = "DESIGN.md";
+
+/**
+ * Factory's Security Review threat model, kept inside the tool directory:
+ * "if `.factory/threat-model.md` exists, Droid uses it as the attack-surface
+ * map". Documented only as a repository file, so project scope only.
+ * @see https://docs.factory.ai/software-factory/security-review
+ */
+export const FACTORYDROID_THREAT_MODEL_FILE_NAME = "threat-model.md";
 export const FACTORYDROID_MCP_FILE_NAME = "mcp.json";
 export const FACTORYDROID_SETTINGS_FILE_NAME = "settings.json";
 export const FACTORYDROID_HOOKS_FILE_NAME = "hooks.json";
