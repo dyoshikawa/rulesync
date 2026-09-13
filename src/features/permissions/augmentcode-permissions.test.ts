@@ -8,6 +8,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { parseAugmentcodeSettingsDocument } from "../../utils/augmentcode-settings.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ConsoleLogger } from "../../utils/logger.js";
 import { AugmentcodePermissions } from "./augmentcode-permissions.js";
@@ -1284,6 +1285,70 @@ describe("AugmentcodePermissions", () => {
       const config = instance.toRulesyncPermissions().getJson();
       // Global mode ignores the project-only settings.local.json overlay.
       expect(config.permission.bash).toEqual({ "git *": "allow" });
+    });
+  });
+
+  describe("JSON with Comments settings", () => {
+    // https://docs.augmentcode.com/cli/config: settings files support JSON
+    // with Comments (comments and trailing commas).
+    it("should import toolPermissions from a JSONC settings.json", async () => {
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        `{
+  // shell rules
+  "toolPermissions": [
+    { "toolName": "launch-process", "shellInputRegex": "^git .*$", "permission": { "type": "allow" }, },
+  ],
+}`,
+      );
+
+      const instance = await AugmentcodePermissions.fromFile({
+        outputRoot: testDir,
+        validate: true,
+      });
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission.bash).toEqual({ "git *": "allow" });
+    });
+
+    it("should regenerate into a JSONC settings.json while preserving comments and other keys", async () => {
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        `{
+  // MCP servers are owned by the mcp feature.
+  "mcpServers": { "fs": { "command": "fs", }, },
+  "toolPermissions": [],
+}
+`,
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          permission: { bash: { "git *": "allow" } },
+        }),
+        validate: true,
+      });
+
+      const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        validate: true,
+      });
+
+      const content = instance.getFileContent();
+      expect(content).toContain("// MCP servers are owned by the mcp feature.");
+      const parsed = parseAugmentcodeSettingsDocument({ fileContent: content, configPath: "x" });
+      expect(parsed.mcpServers).toEqual({ fs: { command: "fs" } });
+      expect(parsed.toolPermissions).toEqual([
+        { toolName: "launch-process", shellInputRegex: "^git .*$", permission: { type: "allow" } },
+      ]);
     });
   });
 

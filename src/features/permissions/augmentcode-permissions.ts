@@ -8,7 +8,10 @@ import {
 } from "../../constants/augmentcode-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
-import { readAugmentcodeSettingsWithLocalOverlay } from "../../utils/augmentcode-settings.js";
+import {
+  parseAugmentcodeSettingsDocument,
+  readAugmentcodeSettingsWithLocalOverlay,
+} from "../../utils/augmentcode-settings.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { globToAnchoredRegexSource } from "../../utils/glob.js";
@@ -357,7 +360,10 @@ export class AugmentcodePermissions extends ToolPermissions {
 
     let settings: AugmentSettings;
     try {
-      const parsed = JSON.parse(existingContent);
+      const parsed = parseAugmentcodeSettingsDocument({
+        fileContent: existingContent,
+        configPath: join(paths.relativeDirPath, paths.relativeFilePath),
+      });
       const result = AugmentSettingsSchema.safeParse(parsed);
       if (!result.success) {
         throw new Error(formatError(result.error));
@@ -465,7 +471,10 @@ export class AugmentcodePermissions extends ToolPermissions {
   toRulesyncPermissions(): RulesyncPermissions {
     let settings: AugmentSettings;
     try {
-      const parsed = JSON.parse(this.getFileContent());
+      const parsed = parseAugmentcodeSettingsDocument({
+        fileContent: this.getFileContent(),
+        configPath: join(this.getRelativeDirPath(), this.getRelativeFilePath()),
+      });
       const result = AugmentSettingsSchema.safeParse(parsed);
       if (!result.success) {
         throw new Error(formatError(result.error));
@@ -504,12 +513,15 @@ export class AugmentcodePermissions extends ToolPermissions {
 
   validate(): ValidationResult {
     // Mirror Kilo's `safeParse`-based pattern: actually verify that the file
-    // content is JSON-parseable and conforms to the AugmentCode settings
+    // content is JSONC-parseable and conforms to the AugmentCode settings
     // schema. A no-op validate would let malformed files slip past the
     // generate/import boundary and surface as confusing errors deeper in the
     // pipeline.
     try {
-      const parsed = JSON.parse(this.fileContent || "{}");
+      const parsed = parseAugmentcodeSettingsDocument({
+        fileContent: this.fileContent || "{}",
+        configPath: join(this.getRelativeDirPath(), this.getRelativeFilePath()),
+      });
       const result = AugmentSettingsSchema.safeParse(parsed);
       if (!result.success) {
         return { success: false, error: result.error };

@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { readAugmentcodeSettingsWithLocalOverlay } from "./augmentcode-settings.js";
+import {
+  parseAugmentcodeSettingsDocument,
+  readAugmentcodeSettingsWithLocalOverlay,
+} from "./augmentcode-settings.js";
 import { ensureDir, writeFileContent } from "./file.js";
 
 describe("readAugmentcodeSettingsWithLocalOverlay", () => {
@@ -113,6 +116,37 @@ describe("readAugmentcodeSettingsWithLocalOverlay", () => {
     expect(JSON.parse(content)).toEqual({ toolPermissions: ["base"] });
   });
 
+  it("reads JSON with Comments in both tiers (comments and trailing commas)", async () => {
+    // https://docs.augmentcode.com/cli/config: "The files support JSON with
+    // Comments (JSONC), allowing comments and trailing commas".
+    const dir = join(testDir, ".augment");
+    await ensureDir(dir);
+    await writeFileContent(
+      join(dir, "settings.json"),
+      `{
+  // team-wide rules
+  "toolPermissions": ["base",],
+}`,
+    );
+    await writeFileContent(
+      join(dir, "settings.local.json"),
+      `{
+  /* personal */
+  "toolPermissions": ["local"],
+}`,
+    );
+
+    const content = await readAugmentcodeSettingsWithLocalOverlay({
+      outputRoot: testDir,
+      relativeDirPath: ".augment",
+      baseFileName: "settings.json",
+      baseFallbackContent: "{}",
+      includeLocalOverlay: true,
+    });
+
+    expect(JSON.parse(content)).toEqual({ toolPermissions: ["local", "base"] });
+  });
+
   it("throws when settings.local.json is not valid JSON", async () => {
     await writeSettings("settings.json", { toolPermissions: [] });
     await ensureDir(join(testDir, ".augment"));
@@ -160,6 +194,39 @@ describe("readAugmentcodeSettingsWithLocalOverlay", () => {
         baseFallbackContent: "{}",
         includeLocalOverlay: true,
       }),
-    ).rejects.toThrow(/expected a JSON object/);
+    ).rejects.toThrow(/expected a mapping at the root/);
+  });
+});
+
+describe("parseAugmentcodeSettingsDocument", () => {
+  it("accepts comments and trailing commas", () => {
+    const parsed = parseAugmentcodeSettingsDocument({
+      fileContent: `{
+  // MCP servers shared with the team
+  "mcpServers": { "docs": { "command": "npx", "args": ["docs-mcp",], }, },
+}`,
+      configPath: ".augment/settings.json",
+    });
+
+    expect(parsed).toEqual({ mcpServers: { docs: { command: "npx", args: ["docs-mcp"] } } });
+  });
+
+  it("parses an empty file as an empty document", () => {
+    expect(parseAugmentcodeSettingsDocument({ fileContent: "", configPath: "x" })).toEqual({});
+  });
+
+  it("fails closed on a syntax error instead of returning a partial document", () => {
+    expect(() =>
+      parseAugmentcodeSettingsDocument({
+        fileContent: '{"hooks": {"SessionStart": [}, "mcpServers": {}}',
+        configPath: ".augment/settings.json",
+      }),
+    ).toThrow(/Failed to parse AugmentCode settings at \.augment\/settings\.json/);
+  });
+
+  it("rejects a non-object root", () => {
+    expect(() =>
+      parseAugmentcodeSettingsDocument({ fileContent: "[1, 2]", configPath: "x" }),
+    ).toThrow(/expected a mapping at the root/);
   });
 });

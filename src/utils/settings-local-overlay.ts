@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+import {
+  parseSharedConfig,
+  type SharedConfigFormat,
+} from "../features/shared/shared-config-gateway.js";
 import { formatError } from "./error.js";
 import { readFileContentOrNull } from "./file.js";
 import { type Logger, warnOnceWithFallback } from "./logger.js";
@@ -43,6 +47,7 @@ export async function readSettingsWithLocalOverlay({
   baseFallbackContent,
   sensitiveKeys = [],
   quiet = false,
+  format = "json",
   merge,
   logger,
 }: {
@@ -66,6 +71,12 @@ export async function readSettingsWithLocalOverlay({
    * the caller's own read needs.
    */
   quiet?: boolean;
+  /**
+   * How the tool parses the pair on disk. `"json"` is strict; `"jsonc"` is for
+   * a tool that documents comments and trailing commas in its settings files
+   * (AugmentCode), so a file the tool accepts is not refused here.
+   */
+  format?: Extract<SharedConfigFormat, "json" | "jsonc">;
   /** Stands in for a missing base file; omit to get `null` instead. */
   baseFallbackContent?: string;
   /**
@@ -90,17 +101,21 @@ export async function readSettingsWithLocalOverlay({
   const configPath = join(relativeDirPath, localFileName);
   let localParsed: unknown;
   try {
-    localParsed = JSON.parse(localContent);
+    localParsed = parseSettingsContent({ content: localContent, format });
   } catch (error) {
+    // The JSONC path wraps a syntax error with the gateway's generic prefix and
+    // keeps the parser's error as `cause`; report that one so both formats
+    // produce the same message shape.
+    const reason = error instanceof Error && error.cause !== undefined ? error.cause : error;
     throw new Error(
-      `Failed to parse ${toolLabel} settings at ${configPath}: ${formatError(error)}`,
+      `Failed to parse ${toolLabel} settings at ${configPath}: ${formatError(reason)}`,
       {
         cause: error,
       },
     );
   }
   // `isPlainObject` (not `isRecord`) rejects class instances for
-  // prototype-pollution hardening; `JSON.parse` always yields a plain object.
+  // prototype-pollution hardening; both parsers yield a plain object.
   if (!isPlainObject(localParsed)) {
     throw new Error(
       `Failed to parse ${toolLabel} settings at ${configPath}: expected a JSON object`,
@@ -111,7 +126,7 @@ export async function readSettingsWithLocalOverlay({
   if (baseContent !== null) {
     let parsed: unknown;
     try {
-      parsed = JSON.parse(baseContent);
+      parsed = parseSettingsContent({ content: baseContent, format });
     } catch {
       // The base file is malformed. Leave it to the adapter's own (schema-aware)
       // parse to surface a descriptive error; returning the raw base content
@@ -131,6 +146,31 @@ export async function readSettingsWithLocalOverlay({
   }
 
   return JSON.stringify(merge(baseParsed, localParsed), null, 2);
+}
+
+/**
+ * Parse one tier. Strict JSON keeps the historical `JSON.parse` behavior for
+ * tools whose settings are plain JSON; JSONC goes through the shared config
+ * parser with fail-closed policies, so a comment or trailing comma is accepted
+ * but a file that only partially parses is refused rather than merged from a
+ * fragment, and a non-object root is an error rather than a silent `{}`.
+ */
+function parseSettingsContent({
+  content,
+  format,
+}: {
+  content: string;
+  format: Extract<SharedConfigFormat, "json" | "jsonc">;
+}): unknown {
+  if (format === "json") {
+    return JSON.parse(content);
+  }
+  return parseSharedConfig({
+    format,
+    fileContent: content,
+    invalidRootPolicy: "error",
+    jsoncParseErrors: "error",
+  });
 }
 
 /** Quotes a name read off disk, the way every other such name is logged. */

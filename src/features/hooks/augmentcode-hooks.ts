@@ -11,7 +11,10 @@ import {
   AUGMENTCODE_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_AUGMENTCODE_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { readAugmentcodeSettingsWithLocalOverlay } from "../../utils/augmentcode-settings.js";
+import {
+  parseAugmentcodeSettingsDocument,
+  readAugmentcodeSettingsWithLocalOverlay,
+} from "../../utils/augmentcode-settings.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -151,11 +154,10 @@ export class AugmentcodeHooks extends ToolHooks {
     // as having no preservable hooks.
     let existingHooks: Record<string, unknown> = {};
     try {
-      const parsed: unknown = JSON.parse(existingContent);
-      const candidate =
-        parsed && typeof parsed === "object" && !Array.isArray(parsed)
-          ? (parsed as Record<string, unknown>).hooks
-          : undefined;
+      const candidate = parseAugmentcodeSettingsDocument({
+        fileContent: existingContent,
+        configPath: join(paths.relativeDirPath, paths.relativeFilePath),
+      }).hooks;
       if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
         existingHooks = candidate as Record<string, unknown>;
       }
@@ -193,7 +195,10 @@ export class AugmentcodeHooks extends ToolHooks {
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     let settings: { hooks?: unknown };
     try {
-      settings = JSON.parse(this.getFileContent());
+      settings = parseAugmentcodeSettingsDocument({
+        fileContent: this.getFileContent(),
+        configPath: join(this.getRelativeDirPath(), this.getRelativeFilePath()),
+      });
     } catch (error) {
       throw new Error(
         `Failed to parse AugmentCode hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,

@@ -7,7 +7,9 @@ two writable scopes — the workspace `<repo>/.augment/` and the user
 `permissions`) — plus the plugin-consumption keys, which are not a dimension at
 all — share that single layered `settings.json` rather than having a file each,
 so generation merges into it instead of overwriting; check the per-surface rows
-before assuming a dimension owns its own file. Auggie also resolves commands,
+before assuming a dimension owns its own file. `settings.json` is JSON with
+Comments per `https://docs.augmentcode.com/cli/config` (comments and trailing
+commas), and the adapters parse it as JSONC and patch owned keys in place. Auggie also resolves commands,
 subagents and skills over the cross-tool `.agents/` and `.claude/` roots —
 `.agents/` for skills and subagents since 0.16.0, while the `.claude/`
 compatibility roots are documented unversioned on `/cli/custom-commands` and
@@ -24,7 +26,7 @@ compatibility roots are documented unversioned on `/cli/custom-commands` and
 | `ignore`      | `https://docs.augmentcode.com/cli/setup-auggie/workspace-indexing` | `.augmentignore`, `.gitignore` interaction, workspace indexing filters                                                                                                                                                                                                  |
 | `mcp`         | `https://docs.augmentcode.com/cli/integrations`                    | `mcpServers` inside `settings.json` (there is no `.augment/mcp.json`); the docs show only `~/.augment/settings.json`, plus the transient `--mcp-config` override and `auggie mcp add`. **`/cli/mcp` 404s — do not cite it.**                                            |
 | `commands`    | `https://docs.augmentcode.com/cli/custom-commands`                 | `.augment/commands/*.md` (workspace), `~/.augment/commands/*.md` (user); Markdown with optional frontmatter. Also resolved over `.claude/commands` and `.agents/commands` at both scopes                                                                                |
-| `subagents`   | `https://docs.augmentcode.com/cli/subagents`                       | `.augment/agents/*.md` (workspace) and `~/.augment/agents/*.md` (user); YAML frontmatter `name` (required), `description`, `color`, `model`, `tools`, `disabled_tools` — `disabled_tools` wins when both are set                                                        |
+| `subagents`   | `https://docs.augmentcode.com/cli/subagents`                       | `.augment/agents/*.md` (workspace) and `~/.augment/agents/*.md` (user); YAML frontmatter `name` (required), `description`, `color`, `model`, `tools`, `disabled_tools` (a YAML list or a comma-separated string) — `disabled_tools` wins when both are set              |
 | `skills`      | `https://docs.augmentcode.com/cli/skills`                          | agentskills.io `<name>/SKILL.md` bundles under `.augment/skills/`, `.claude/skills/`, `.agents/skills/` and their `~` equivalents; `name` (1–64 chars, lowercase/digits/hyphens) and `description` required; `~/.augment/skills/` has the highest precedence            |
 | `hooks`       | `https://docs.augmentcode.com/cli/hooks`                           | A `hooks` block in the layered `settings.json` (`/etc/augment/` or `%ProgramData%\Augment\`, `<workspace>/.augment/settings.local.json`, `<workspace>/.augment/settings.json`, `~/.augment/settings.json`); PascalCase events, `PreToolUse`/`PostToolUse` matcher-aware |
 | `permissions` | `https://docs.augmentcode.com/cli/permissions`                     | `toolPermissions` in `settings.json` at either scope; `allow`/`deny`/`ask-user`, first-match-wins rules                                                                                                                                                                 |

@@ -1,11 +1,54 @@
 import { join } from "node:path";
 
 import { AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME } from "../constants/augmentcode-paths.js";
+import { parseSharedConfig } from "../features/shared/shared-config-gateway.js";
+import { formatError } from "./error.js";
 import { readFileContentOrNull } from "./file.js";
 import type { Logger } from "./logger.js";
 import { isPrototypePollutionKey } from "./prototype-pollution.js";
 import { readSettingsWithLocalOverlay } from "./settings-local-overlay.js";
 import { isPlainObject } from "./type-guards.js";
+
+/**
+ * Parse an AugmentCode settings file (`settings.json` / `settings.local.json`)
+ * into a plain object.
+ *
+ * Auggie reads these files as JSON with Comments — "The files support JSON with
+ * Comments (JSONC), allowing comments and trailing commas for better
+ * documentation." (https://docs.augmentcode.com/cli/config) — so a bare
+ * `JSON.parse` rejects a hand-written file the CLI itself accepts. The parse is
+ * fail-closed: a syntax error or a non-object root throws instead of yielding a
+ * partial document, because every caller either merges its own keys back into
+ * this file or imports permissions from it, and neither may proceed on a file it
+ * could not read in full. An empty file parses as `{}`.
+ *
+ * `configPath` names the file in the error message.
+ */
+export function parseAugmentcodeSettingsDocument({
+  fileContent,
+  configPath,
+}: {
+  fileContent: string;
+  configPath: string;
+}): Record<string, unknown> {
+  try {
+    return parseSharedConfig({
+      format: "jsonc",
+      fileContent,
+      invalidRootPolicy: "error",
+      jsoncParseErrors: "error",
+    });
+  } catch (error) {
+    // The gateway wraps a syntax error with its own generic prefix and keeps the
+    // parser's error as `cause`; report that one so the message reads the same
+    // as it did with `JSON.parse`.
+    const reason = error instanceof Error && error.cause !== undefined ? error.cause : error;
+    throw new Error(
+      `Failed to parse AugmentCode settings at ${configPath}: ${formatError(reason)}`,
+      { cause: error },
+    );
+  }
+}
 
 /**
  * Top-level keys AugmentCode *replaces* (higher-precedence wins wholesale)
@@ -107,6 +150,8 @@ export async function readAugmentcodeSettingsWithLocalOverlay({
     localFileName: AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME,
     toolLabel: "AugmentCode",
     sensitiveKeys: AUGMENTCODE_GUARDRAIL_KEYS,
+    // Both tiers are JSONC upstream (see `parseAugmentcodeSettingsDocument`).
+    format: "jsonc",
     baseFallbackContent,
     // Combine per AugmentCode's documented layering (local wins for scalars,
     // mcpServers/plugins replace, other objects/lists combine local-first).
