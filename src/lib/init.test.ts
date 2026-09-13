@@ -299,7 +299,9 @@ describe("init", () => {
     it("fails loudly on a malformed user config", async () => {
       stubUserConfig(`{ "targets": [`);
 
-      await expect(init()).rejects.toThrow(`Failed to load the user config ${userConfigPath}`);
+      await expect(init()).rejects.toThrow(
+        `Failed to load the user config ${JSON.stringify(userConfigPath)}`,
+      );
       expect(writeFileContent).not.toHaveBeenCalledWith(
         RULESYNC_CONFIG_RELATIVE_FILE_PATH,
         expect.anything(),
@@ -309,7 +311,9 @@ describe("init", () => {
     it("rejects an invalid target in the user config", async () => {
       stubUserConfig(`{ "targets": ["not-a-tool"] }`);
 
-      await expect(init()).rejects.toThrow(`Failed to load the user config ${userConfigPath}`);
+      await expect(init()).rejects.toThrow(
+        `Failed to load the user config ${JSON.stringify(userConfigPath)}`,
+      );
     });
 
     it("rejects object-form targets combined with features", async () => {

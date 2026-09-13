@@ -93,9 +93,12 @@ async function loadUserConfigTemplate(): Promise<UserConfigTemplate | undefined>
     parsed = ConfigFileSchema.parse(parseJsonc(await readFileContent(path)));
     assertTargetsFeaturesExclusive({ targets: parsed.targets, features: parsed.features });
   } catch (error) {
-    throw new Error(`Failed to load the user config ${path}: ${formatError(error)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Failed to load the user config ${JSON.stringify(path)}: ${formatError(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
 
   const { targets, features } = parsed;

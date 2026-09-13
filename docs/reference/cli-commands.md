@@ -134,7 +134,7 @@ The generated `rulesync.jsonc` starts from `"targets": ["codexcli", "claudecode"
 }
 ```
 
-`init` copies only `targets` and `features` from that file; a key it omits keeps the built-in default, and the object form of `targets` is copied as-is (the top-level `features` key is then left out, since the per-target features live inside the object). Every other key is ignored: the file is a template for `init`, not a configuration layer — `generate` and the other commands read only the project's `rulesync.jsonc` and `rulesync.local.jsonc`. A user config that exists but fails to parse or names an unknown target makes `init` fail rather than silently writing the defaults. The command reports `Seeded targets and features from <path>` when the file was used (`seededFrom` in `--json` output).
+`init` copies only `targets` and `features` from that file; a key it omits keeps the built-in default, and the object form of `targets` is copied as-is (the top-level `features` key is then left out, since the per-target features live inside the object). Every other key is ignored: the file is a template for `init`, not a configuration layer — `generate` and the other commands read only the project's `rulesync.jsonc` and `rulesync.local.jsonc`. A user config that exists but fails to parse or schema validation (for example, an unknown target name in the array form of `targets`) makes `init` fail rather than silently writing the defaults. The command reports `Seeded targets and features from <path>` when the file was used (`seededFrom` in `--json` output).
 
 ## Generate Command
 
