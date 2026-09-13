@@ -15,6 +15,16 @@ const PI_TOOL_EVENTS = new Set(["tool_call", "tool_result"]);
 const PI_ASSISTANT_MESSAGE_EVENTS = new Set(["message_end"]);
 
 /**
+ * Canonical events whose Pi event also fires when nothing went wrong. Pi's
+ * `tool_result` fires for every finished tool call and exposes `event.isError`,
+ * so a `postToolUseFailure` handler is gated on that flag while a `postToolUse`
+ * handler on the same Pi event runs regardless.
+ *
+ * @see https://github.com/earendil-works/pi/blob/v0.85.1/packages/coding-agent/docs/extensions.md#tool_result
+ */
+const PI_ERROR_GATED_CANONICAL_EVENTS = new Set(["postToolUseFailure"]);
+
+/**
  * `tool_call` is Pi's tool gate. Its return contract is
  * `{ block: true, reason?: string, terminate?: boolean }`.
  *
@@ -166,7 +176,7 @@ function matcherToEmbeddedLiteral(matcher: string): string {
   return JSON.stringify(sanitized);
 }
 
-type Handler = { command: string; matcher?: string };
+type Handler = { command: string; matcher?: string; onlyOnError: boolean };
 type HandlerGroup = Record<string, Handler[]>;
 
 function collectPiHandlers({
@@ -188,6 +198,7 @@ function collectPiHandlers({
       handlers.push({
         command: def.command,
         matcher: def.matcher ? def.matcher : undefined,
+        onlyOnError: PI_ERROR_GATED_CANONICAL_EVENTS.has(canonicalEvent),
       });
     }
 
@@ -213,13 +224,20 @@ function buildCommandLines({
   blocking: BlockingMode;
 }): string[] {
   const lines: string[] = [];
-  const gated = usesToolName && Boolean(handler.matcher);
+  const conditions: string[] = [];
+  if (handler.onlyOnError) {
+    conditions.push("event.isError");
+  }
+  if (usesToolName && handler.matcher) {
+    conditions.push(
+      `new RegExp(${matcherToEmbeddedLiteral(handler.matcher)}).test(event.toolName)`,
+    );
+  }
+  const gated = conditions.length > 0;
   const indent = gated ? "      " : "    ";
   const embeddedCommand = JSON.stringify(handler.command);
-  if (gated && handler.matcher) {
-    lines.push(
-      `    if (new RegExp(${matcherToEmbeddedLiteral(handler.matcher)}).test(event.toolName)) {`,
-    );
+  if (gated) {
+    lines.push(`    if (${conditions.join(" && ")}) {`);
   }
 
   const onFailure = FAILURE_LINES_BY_MODE[blocking];
@@ -247,8 +265,9 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
     const blocking = PI_BLOCKING_MODE_BY_EVENT[piEvent] ?? "none";
     const isPromptGate = blocking === "prompt";
     const usesToolName = PI_TOOL_EVENTS.has(piEvent) && handlers.some((h) => h.matcher);
+    const usesErrorFlag = handlers.some((h) => h.onlyOnError);
     const gatesOnAssistant = PI_ASSISTANT_MESSAGE_EVENTS.has(piEvent);
-    const usesEvent = usesToolName || gatesOnAssistant || isPromptGate;
+    const usesEvent = usesToolName || usesErrorFlag || gatesOnAssistant || isPromptGate;
     // `ctx` is the second handler argument, so the prompt gate names both.
     const params = isPromptGate ? "event, ctx" : usesEvent ? "event" : "";
     lines.push(`  pi.on(${JSON.stringify(piEvent)}, async (${params}) => {`);
@@ -286,6 +305,8 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
  * gate — where a hook command that exits non-zero denies the call with
  * `{ block: true, reason }`, and on `input` — Pi's prompt-submission gate —
  * where a non-zero exit cancels the prompt with `{ action: "handled" }`.
+ * `postToolUse` and `postToolUseFailure` share Pi's `tool_result` event; the
+ * latter's commands run only when `event.isError` is set.
  *
  * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
