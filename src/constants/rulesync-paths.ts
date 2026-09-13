@@ -4,6 +4,10 @@ const { join } = posix;
 
 export const RULESYNC_CONFIG_RELATIVE_FILE_PATH = "rulesync.jsonc";
 export const RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH = "rulesync.local.jsonc";
+// User-level defaults read by `rulesync init` (never by `generate`): the
+// directory is relative to `$XDG_CONFIG_HOME`, which defaults to `~/.config`.
+export const RULESYNC_USER_CONFIG_DIR_NAME = "rulesync";
+export const RULESYNC_XDG_CONFIG_HOME_DEFAULT_DIR_NAME = ".config";
 export const RULESYNC_RELATIVE_DIR_PATH = ".rulesync";
 
 // Feature subdirectory names WITHIN a rulesync source tree. Processors use

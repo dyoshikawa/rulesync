@@ -34,6 +34,9 @@ export async function initCommand(logger: Logger): Promise<void> {
   if (result.configFile.created) {
     createdFiles.push(result.configFile.path);
     logger.success(`Created ${result.configFile.path}`);
+    if (result.configFile.seededFrom !== undefined) {
+      logger.info(`Seeded targets and features from ${result.configFile.seededFrom}`);
+    }
   } else {
     skippedFiles.push(result.configFile.path);
     logger.info(`Skipped ${result.configFile.path} (already exists)`);
@@ -43,6 +46,9 @@ export async function initCommand(logger: Logger): Promise<void> {
   if (logger.jsonMode) {
     logger.captureData("created", createdFiles);
     logger.captureData("skipped", skippedFiles);
+    if (result.configFile.seededFrom !== undefined) {
+      logger.captureData("seededFrom", result.configFile.seededFrom);
+    }
   }
 
   logger.success("rulesync initialized successfully!");

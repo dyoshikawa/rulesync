@@ -24,8 +24,14 @@ import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { RulesyncRule } from "../features/rules/rulesync-rule.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
-import { ensureDir, fileExists, writeFileContent } from "../utils/file.js";
-import { init } from "./init.js";
+import {
+  ensureDir,
+  fileExists,
+  getHomeDirectory,
+  readFileContent,
+  writeFileContent,
+} from "../utils/file.js";
+import { getUserConfigFilePath, init } from "./init.js";
 
 vi.mock("../utils/file.js");
 vi.mock("../features/hooks/rulesync-hooks.js");
@@ -34,11 +40,21 @@ vi.mock("../features/rules/rulesync-rule.js");
 vi.mock("../features/skills/rulesync-skill.js");
 vi.mock("../features/subagents/rulesync-subagent.js");
 
+const readGeneratedConfig = (): { features?: unknown; targets?: unknown } => {
+  const configWriteCall = vi
+    .mocked(writeFileContent)
+    .mock.calls.find((call) => call[0] === RULESYNC_CONFIG_RELATIVE_FILE_PATH);
+  expect(configWriteCall).toBeDefined();
+  return JSON.parse(configWriteCall?.[1] ?? "{}");
+};
+
 describe("init", () => {
   beforeEach(() => {
     vi.mocked(ensureDir).mockResolvedValue(undefined);
     vi.mocked(fileExists).mockResolvedValue(false);
     vi.mocked(writeFileContent).mockResolvedValue(undefined);
+    vi.mocked(getHomeDirectory).mockReturnValue(join("/home", "tester"));
+    vi.stubEnv("XDG_CONFIG_HOME", "");
 
     vi.mocked(RulesyncRule.getSettablePaths).mockReturnValue({
       recommended: { relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH },
@@ -81,6 +97,7 @@ describe("init", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
   });
 
   describe("return value", () => {
@@ -185,6 +202,120 @@ describe("init", () => {
         .mocked(writeFileContent)
         .mock.calls.filter((call) => call[0] === RULESYNC_CONFIG_RELATIVE_FILE_PATH);
       expect(configWriteCalls.length).toBe(0);
+    });
+  });
+
+  describe("user-level config template", () => {
+    const userConfigPath = join("/home", "tester", ".config", "rulesync", "rulesync.jsonc");
+
+    const stubUserConfig = (content: string): void => {
+      vi.mocked(fileExists).mockImplementation(async (path) => path === userConfigPath);
+      vi.mocked(readFileContent).mockResolvedValue(content);
+    };
+
+    it("resolves the file under ~/.config by default", () => {
+      expect(getUserConfigFilePath()).toBe(userConfigPath);
+    });
+
+    it("honors an absolute XDG_CONFIG_HOME", () => {
+      vi.stubEnv("XDG_CONFIG_HOME", join("/xdg", "config"));
+
+      expect(getUserConfigFilePath()).toBe(join("/xdg", "config", "rulesync", "rulesync.jsonc"));
+    });
+
+    it("ignores a relative XDG_CONFIG_HOME", () => {
+      vi.stubEnv("XDG_CONFIG_HOME", "relative/config");
+
+      expect(getUserConfigFilePath()).toBe(userConfigPath);
+    });
+
+    it("seeds targets and features from the user config", async () => {
+      stubUserConfig(`{
+        // comments and trailing commas are fine
+        "targets": ["cursor", "pi"],
+        "features": ["rules", "skills"],
+        "delete": false,
+      }`);
+
+      const result = await init();
+
+      expect(result.configFile).toEqual({
+        created: true,
+        path: RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+        seededFrom: userConfigPath,
+      });
+      const config = readGeneratedConfig();
+      expect(config.targets).toEqual(["cursor", "pi"]);
+      expect(config.features).toEqual(["rules", "skills"]);
+      // Only targets and features are inherited.
+      expect(config).toMatchObject({ delete: true });
+    });
+
+    it("keeps the default for whichever key the user config omits", async () => {
+      stubUserConfig(`{ "targets": ["cursor"] }`);
+
+      await init();
+
+      const config = readGeneratedConfig();
+      expect(config.targets).toEqual(["cursor"]);
+      expect(config.features).toEqual([
+        "rules",
+        "mcp",
+        "subagents",
+        "skills",
+        "hooks",
+        "permissions",
+      ]);
+    });
+
+    it("omits the top-level features key when targets is in object form", async () => {
+      stubUserConfig(`{ "targets": { "cursor": ["rules"], "claudecode": ["*"] } }`);
+
+      await init();
+
+      const config = readGeneratedConfig();
+      expect(config.targets).toEqual({ cursor: ["rules"], claudecode: ["*"] });
+      expect(config).not.toHaveProperty("features");
+    });
+
+    it("falls back to the built-in defaults when the user config sets neither key", async () => {
+      stubUserConfig(`{ "verbose": true }`);
+
+      const result = await init();
+
+      expect(result.configFile.seededFrom).toBeUndefined();
+      expect(readGeneratedConfig().targets).toEqual(["codexcli", "claudecode", "opencode"]);
+    });
+
+    it("does not read the user config when rulesync.jsonc already exists", async () => {
+      vi.mocked(fileExists).mockResolvedValue(true);
+
+      const result = await init();
+
+      expect(result.configFile.seededFrom).toBeUndefined();
+      expect(readFileContent).not.toHaveBeenCalled();
+    });
+
+    it("fails loudly on a malformed user config", async () => {
+      stubUserConfig(`{ "targets": [`);
+
+      await expect(init()).rejects.toThrow(`Failed to load the user config ${userConfigPath}`);
+      expect(writeFileContent).not.toHaveBeenCalledWith(
+        RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+        expect.anything(),
+      );
+    });
+
+    it("rejects an invalid target in the user config", async () => {
+      stubUserConfig(`{ "targets": ["not-a-tool"] }`);
+
+      await expect(init()).rejects.toThrow(`Failed to load the user config ${userConfigPath}`);
+    });
+
+    it("rejects object-form targets combined with features", async () => {
+      stubUserConfig(`{ "targets": { "cursor": ["rules"] }, "features": ["rules"] }`);
+
+      await expect(init()).rejects.toThrow("'features' must be omitted");
     });
   });
 

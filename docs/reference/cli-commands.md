@@ -118,6 +118,24 @@ At most 100 warnings are reported, each truncated to 1,000 characters and 8,000 
 
 Because that budget is finite, the array carries the diagnostics a run has no other way to report — not a restatement of what `data` already holds. A command that lists something under a captured key writes the list there and warns only about what the list does not say.
 
+## Init Command
+
+`rulesync init` creates the `.rulesync/` directory with sample rule, MCP, subagent, skill, hooks and permissions files, plus a `rulesync.jsonc` configuration file. Existing files are never overwritten.
+
+### User-level defaults
+
+The generated `rulesync.jsonc` starts from `"targets": ["codexcli", "claudecode", "opencode"]` and `"features": ["rules", "mcp", "subagents", "skills", "hooks", "permissions"]`. To seed every new project with your own set instead, put a `rulesync.jsonc` in the user config directory: `$XDG_CONFIG_HOME/rulesync/rulesync.jsonc`, which is `~/.config/rulesync/rulesync.jsonc` when `XDG_CONFIG_HOME` is unset (a relative `XDG_CONFIG_HOME` is ignored, as the XDG specification requires).
+
+```jsonc
+// ~/.config/rulesync/rulesync.jsonc
+{
+  "targets": ["claudecode", "cursor"],
+  "features": ["rules", "skills"],
+}
+```
+
+`init` copies only `targets` and `features` from that file; a key it omits keeps the built-in default, and the object form of `targets` is copied as-is (the top-level `features` key is then left out, since the per-target features live inside the object). Every other key is ignored: the file is a template for `init`, not a configuration layer — `generate` and the other commands read only the project's `rulesync.jsonc` and `rulesync.local.jsonc`. A user config that exists but fails to parse or names an unknown target makes `init` fail rather than silently writing the defaults. The command reports `Seeded targets and features from <path>` when the file was used (`seededFrom` in `--json` output).
+
 ## Generate Command
 
 The `generate` command reads source files from one or more rulesync source trees (default: `<cwd>/.rulesync`; configurable via `--input-roots`) and writes AI tool configuration files to the output directories.
