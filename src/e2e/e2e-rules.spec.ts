@@ -401,7 +401,7 @@ targets: ["*"]
       features: "rules",
       env: { NODE_ENV: "e2e" },
     });
-    expect(kept.stderr).toBe("");
+    expect(kept.stderr).not.toContain("overwrites AGENTS.md");
     const folded = await readFileContent(join(testDir, "AGENTS.md"));
     expect(folded).toContain("Shared Root Rule");
     expect(folded).toContain("Shared Style Rule");

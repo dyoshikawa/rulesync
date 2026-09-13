@@ -304,4 +304,6 @@ The order matters most when a target that folds every rule into its root file sh
 }
 ```
 
+In this order Roo Code and ZooCode see the non-root rules twice — folded into `AGENTS.md` and again under `.roo/rules/` — so prefer it when a complete `AGENTS.md` for Codex CLI matters more than that duplication.
+
 The object form of `targets` follows the same rule using its key order.
