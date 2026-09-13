@@ -46,6 +46,7 @@ import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 import { resetRunWarningState } from "../utils/warned-once.js";
+import { createFoldRootOverwriteWatch } from "./fold-root-overwrite-watch.js";
 import { createOrphanSweepPlan, type OrphanSweepPlan } from "./orphan-sweep.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
@@ -329,12 +330,15 @@ async function processFeatureWithRulesyncFiles(params: {
   rulesyncFiles: RulesyncFile[];
   sweepPlan: OrphanSweepPlan;
   skipFilePaths?: Set<string>;
+  /** Sees the converted tool files before anything is written. */
+  onToolFiles?: (toolFiles: AiFile[]) => void;
 }): Promise<FeatureGenerateResult> {
-  const { config, processor, rulesyncFiles, sweepPlan, skipFilePaths } = params;
+  const { config, processor, rulesyncFiles, sweepPlan, skipFilePaths, onToolFiles } = params;
   if (rulesyncFiles.length === 0) {
     return processEmptyFeatureGeneration({ config, processor, sweepPlan, skipFilePaths });
   }
   const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+  onToolFiles?.(toolFiles);
   return processFeatureGeneration({ config, processor, toolFiles, sweepPlan, skipFilePaths });
 }
 
@@ -987,6 +991,8 @@ async function generateRulesCore(params: {
   const toolTargets = intersection(config.getTargets(), supportedTargets);
   warnUnsupportedTargets({ config, supportedTargets, featureName: "rules", logger });
 
+  const foldRootOverwriteWatch = createFoldRootOverwriteWatch({ logger });
+
   const isCheck = config.getCheck();
   const rootFileOwner = isCheck
     ? computeRootFileOwnership({
@@ -1039,6 +1045,7 @@ async function generateRulesCore(params: {
         rulesyncFiles,
         sweepPlan,
         skipFilePaths: skipFilePaths.size > 0 ? skipFilePaths : undefined,
+        onToolFiles: (toolFiles) => foldRootOverwriteWatch.observe({ toolTarget, toolFiles }),
       });
 
       totalCount += result.count;
@@ -1047,6 +1054,8 @@ async function generateRulesCore(params: {
       if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
+
+  foldRootOverwriteWatch.report();
 
   return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
 }
