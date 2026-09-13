@@ -159,6 +159,19 @@ describe("AugmentcodeSubagent", () => {
       });
     });
 
+    it("should treat a blank comma-separated tool list as unset, not as an empty allowlist", () => {
+      const subagent = new AugmentcodeSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".augment", "agents"),
+        relativeFilePath: "blank.md",
+        frontmatter: { name: "blank", description: "Blank tools", tools: " , " },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(subagent.toRulesyncSubagent().getFrontmatter().augmentcode).toBeUndefined();
+    });
+
     it("should omit the augmentcode section when there are no extra fields", () => {
       const subagent = new AugmentcodeSubagent({
         outputRoot: testDir,

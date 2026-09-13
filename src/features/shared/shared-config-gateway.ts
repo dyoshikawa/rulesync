@@ -262,7 +262,11 @@ export function parseSharedConfig({
   }
   if (!isPlainObject(sanitized)) {
     if (invalidRootPolicy === "error") {
-      throw new Error(`Failed to parse shared config${at}: expected a mapping at the root`);
+      // Carries the bare reason as `cause` like the syntax-error path above, so
+      // a caller that re-prefixes the message with its own file label can
+      // report the reason alone instead of nesting two prefixes.
+      const reason = new Error("expected a mapping at the root");
+      throw new Error(`Failed to parse shared config${at}: ${reason.message}`, { cause: reason });
     }
     return {};
   }

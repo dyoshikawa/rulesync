@@ -457,6 +457,7 @@ export class AugmentcodePermissions extends ToolPermissions {
       existingContent,
       patch: { toolPermissions: [...specialEntries, ...sortedBasic] },
       filePath,
+      logger,
     });
 
     return new AugmentcodePermissions({

@@ -10,19 +10,48 @@ import { readSettingsWithLocalOverlay } from "./settings-local-overlay.js";
 import { isPlainObject } from "./type-guards.js";
 
 /**
+ * The one place that spells out how an AugmentCode settings file is parsed.
+ *
+ * Auggie reads `settings.json` / `settings.local.json` as JSON with Comments —
+ * "The files support JSON with Comments (JSONC), allowing comments and trailing
+ * commas for better documentation." (https://docs.augmentcode.com/cli/config) —
+ * so a bare `JSON.parse` rejects a hand-written file the CLI itself accepts. The
+ * parse is fail-closed: a syntax error or a non-object root throws instead of
+ * yielding a partial document, because every caller either merges its own keys
+ * back into this file or imports permissions from it, and neither may proceed
+ * on a file it could not read in full. An empty file parses as `{}`.
+ *
+ * The generate direction registers the same file as `jsonc` in
+ * `SHARED_CONFIG_OWNERSHIP`, so the in-place patch reads it the same way.
+ *
+ * Throws the bare reason (the parser's own error), without naming the file;
+ * `parseAugmentcodeSettingsDocument` adds that, and so does
+ * `readSettingsWithLocalOverlay` when this is handed over as its `parse`.
+ */
+function parseAugmentcodeSettingsContent(fileContent: string): Record<string, unknown> {
+  try {
+    return parseSharedConfig({
+      format: "jsonc",
+      fileContent,
+      invalidRootPolicy: "error",
+      jsoncParseErrors: "error",
+    });
+  } catch (error) {
+    // The gateway prefixes every failure with its own generic message and keeps
+    // the reason as `cause`; surface the reason so the caller's prefix is the
+    // only one in the message.
+    if (error instanceof Error && error.cause !== undefined) {
+      throw error.cause;
+    }
+    throw error;
+  }
+}
+
+/**
  * Parse an AugmentCode settings file (`settings.json` / `settings.local.json`)
- * into a plain object.
- *
- * Auggie reads these files as JSON with Comments — "The files support JSON with
- * Comments (JSONC), allowing comments and trailing commas for better
- * documentation." (https://docs.augmentcode.com/cli/config) — so a bare
- * `JSON.parse` rejects a hand-written file the CLI itself accepts. The parse is
- * fail-closed: a syntax error or a non-object root throws instead of yielding a
- * partial document, because every caller either merges its own keys back into
- * this file or imports permissions from it, and neither may proceed on a file it
- * could not read in full. An empty file parses as `{}`.
- *
- * `configPath` names the file in the error message.
+ * into a plain object, naming `configPath` in the error when it cannot be read.
+ * See `parseAugmentcodeSettingsContent` for the format and the fail-closed
+ * policy.
  */
 export function parseAugmentcodeSettingsDocument({
   fileContent,
@@ -32,19 +61,10 @@ export function parseAugmentcodeSettingsDocument({
   configPath: string;
 }): Record<string, unknown> {
   try {
-    return parseSharedConfig({
-      format: "jsonc",
-      fileContent,
-      invalidRootPolicy: "error",
-      jsoncParseErrors: "error",
-    });
+    return parseAugmentcodeSettingsContent(fileContent);
   } catch (error) {
-    // The gateway wraps a syntax error with its own generic prefix and keeps the
-    // parser's error as `cause`; report that one so the message reads the same
-    // as it did with `JSON.parse`.
-    const reason = error instanceof Error && error.cause !== undefined ? error.cause : error;
     throw new Error(
-      `Failed to parse AugmentCode settings at ${configPath}: ${formatError(reason)}`,
+      `Failed to parse AugmentCode settings at ${configPath}: ${formatError(error)}`,
       { cause: error },
     );
   }
@@ -150,8 +170,8 @@ export async function readAugmentcodeSettingsWithLocalOverlay({
     localFileName: AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME,
     toolLabel: "AugmentCode",
     sensitiveKeys: AUGMENTCODE_GUARDRAIL_KEYS,
-    // Both tiers are JSONC upstream (see `parseAugmentcodeSettingsDocument`).
-    format: "jsonc",
+    // Both tiers are JSONC upstream (see `parseAugmentcodeSettingsContent`).
+    parse: parseAugmentcodeSettingsContent,
     baseFallbackContent,
     // Combine per AugmentCode's documented layering (local wins for scalars,
     // mcpServers/plugins replace, other objects/lists combine local-first).

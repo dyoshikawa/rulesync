@@ -182,6 +182,7 @@ export class AugmentcodeHooks extends ToolHooks {
       existingContent,
       patch: { hooks: { ...preservedHooks, ...augmentHooks } },
       filePath,
+      logger,
     });
     return new AugmentcodeHooks({
       outputRoot,

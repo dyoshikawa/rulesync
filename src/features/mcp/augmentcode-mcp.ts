@@ -122,6 +122,7 @@ export class AugmentcodeMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<AugmentcodeMcp> {
     const paths = this.getSettablePaths({ global });
 
@@ -138,6 +139,7 @@ export class AugmentcodeMcp extends ToolMcp {
         existingContent,
         patch: { mcpServers: rulesyncMcp.getMcpServers() },
         filePath,
+        logger,
       }),
       validate,
       global,

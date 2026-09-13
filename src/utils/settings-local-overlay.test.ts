@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { parse as parseJsonc } from "jsonc-parser";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
@@ -28,11 +29,13 @@ describe("readSettingsWithLocalOverlay", () => {
     sensitiveKeys,
     quiet,
     logger,
+    parse,
   }: {
     baseFallbackContent?: string;
     sensitiveKeys?: readonly string[];
     quiet?: boolean;
     logger?: ReturnType<typeof createMockLogger>;
+    parse?: (content: string) => unknown;
   } = {}): Promise<string | null> =>
     readSettingsWithLocalOverlay({
       outputRoot: testDir,
@@ -44,6 +47,7 @@ describe("readSettingsWithLocalOverlay", () => {
       ...(sensitiveKeys !== undefined && { sensitiveKeys }),
       ...(quiet !== undefined && { quiet }),
       ...(logger !== undefined && { logger }),
+      ...(parse !== undefined && { parse }),
       merge: (base, local) => ({ ...base, ...local, merged: true }),
     });
 
@@ -92,6 +96,43 @@ describe("readSettingsWithLocalOverlay", () => {
     await write("settings.local.json", "[1, 2]");
 
     await expect(read()).rejects.toThrow(/expected a JSON object/);
+  });
+
+  it("should read both tiers with the caller's parser", async () => {
+    // A tool whose settings are JSON with Comments hands over its own parser.
+    await write("settings.json", '{ /* base */ "a": 1, }');
+    await write("settings.local.json", '{ // local\n "b": 2, }');
+
+    expect(
+      JSON.parse(
+        (await read({
+          parse: (content) => parseJsonc(content, [], { allowTrailingComma: true }),
+        }))!,
+      ),
+    ).toEqual({ a: 1, b: 2, merged: true });
+  });
+
+  it("should stay strict JSON by default (a comment is a parse error)", async () => {
+    await write("settings.json", "{}");
+    await write("settings.local.json", '{ // local\n "b": 2 }');
+
+    await expect(read()).rejects.toThrow(
+      /Failed to parse Test Tool settings at .*settings\.local\.json/,
+    );
+  });
+
+  it("should prefix the parser's own reason with the tool label only once", async () => {
+    await write("settings.local.json", "{}");
+
+    await expect(
+      read({
+        parse: () => {
+          throw new Error("bare reason");
+        },
+      }),
+    ).rejects.toThrow(
+      /^Failed to parse Test Tool settings at .*settings\.local\.json: Error: bare reason$/,
+    );
   });
 
   it("should return the raw base content when the base cannot be used", async () => {

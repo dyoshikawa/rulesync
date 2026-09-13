@@ -28,16 +28,20 @@ const AugmentcodeToolListSchema = z.union([z.array(z.string()), z.string()]);
 
 /**
  * Normalize a documented tool-list value to the list form: a string is split on
- * commas, trimmed, and emptied of blank entries; a list is returned as is.
+ * commas, trimmed, and emptied of blank entries; a list is returned as is. A
+ * string that names no tool (`""`, `", ,"`) is treated as unset rather than as
+ * an empty allowlist — the author left the value blank, not the tool set — so
+ * it yields `undefined`; an authored empty list is kept as written.
  */
-function normalizeAugmentcodeToolList(value: string[] | string): string[] {
+function normalizeAugmentcodeToolList(value: string[] | string): string[] | undefined {
   if (Array.isArray(value)) {
     return value;
   }
-  return value
+  const tools = value
     .split(",")
     .map((tool) => tool.trim())
     .filter((tool) => tool.length > 0);
+  return tools.length > 0 ? tools : undefined;
 }
 
 // AugmentCode (Auggie CLI) subagents are Markdown files with YAML frontmatter.
@@ -115,11 +119,12 @@ export class AugmentcodeSubagent extends ToolSubagent {
     const { name, description, tools, disabled_tools, ...rest } = this.frontmatter;
     // The comma-separated string form is normalized here so the round-trip
     // re-emits the list form Auggie also accepts.
+    const normalizedTools = tools === undefined ? undefined : normalizeAugmentcodeToolList(tools);
+    const normalizedDisabledTools =
+      disabled_tools === undefined ? undefined : normalizeAugmentcodeToolList(disabled_tools);
     const toolLists = {
-      ...(tools !== undefined && { tools: normalizeAugmentcodeToolList(tools) }),
-      ...(disabled_tools !== undefined && {
-        disabled_tools: normalizeAugmentcodeToolList(disabled_tools),
-      }),
+      ...(normalizedTools !== undefined && { tools: normalizedTools }),
+      ...(normalizedDisabledTools !== undefined && { disabled_tools: normalizedDisabledTools }),
     };
     const augmentcodeSection = { ...rest, ...toolLists };
 
