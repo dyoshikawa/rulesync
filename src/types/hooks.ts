@@ -370,10 +370,16 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionEnd",
   "preToolUse",
   "postToolUse",
+  // Derived from `tool_result`, which carries `isError`; the generated handler
+  // gates on it. See CANONICAL_TO_PI_EVENT_NAMES.
+  "postToolUseFailure",
   "preModelInvocation",
   "postModelInvocation",
   "beforeSubmitPrompt",
   "stop",
+  // `ui_prompt_start` (Pi v0.84.4) fires when an extension opens a blocking
+  // UI prompt — Pi's "waiting for user" signal. See CANONICAL_TO_PI_EVENT_NAMES.
+  "notification",
   "preCompact",
   "postCompact",
 ];
@@ -1361,7 +1367,7 @@ export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
  * Stop, this also fires before Pi auto-retries or auto-compacts —
  * `agent_settled` would skip queued follow-ups instead, a pure trade-off).
  * Pi events without a faithful canonical counterpart (e.g. `turn_start`,
- * `agent_settled`) are intentionally unmapped.
+ * `agent_settled`, `ui_prompt_end`) are intentionally unmapped.
  *
  * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
@@ -1370,6 +1376,12 @@ export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
   sessionEnd: "session_shutdown",
   preToolUse: "tool_call",
   postToolUse: "tool_result",
+  // `tool_result` fires for every finished tool call and exposes
+  // `event.isError`; the generated extension runs `postToolUseFailure`
+  // handlers only when it is set. `postToolUse` is left as it was (it fires for
+  // failed calls too), as it always has for Pi — changing that would silently
+  // drop hook runs from existing configs.
+  postToolUseFailure: "tool_result",
   preModelInvocation: "context",
   // `message_end` fires for user, assistant, and toolResult messages; the
   // generated extension filters to assistant messages so the hook runs once
@@ -1379,6 +1391,14 @@ export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
   postModelInvocation: "message_end",
   beforeSubmitPrompt: "input",
   stop: "agent_end",
+  // Pi has no built-in permission popup, so its only "waiting for user"
+  // signal is `ui_prompt_start`, fired when an extension (Rulesync's or a
+  // third party's) opens a blocking `ctx.ui.select/confirm/input/editor/custom`
+  // prompt. It is narrower than Claude Code's `Notification` (nothing fires
+  // for core Pi), and notification-only: handlers are best-effort and not
+  // awaited, so a hook command can neither delay nor cancel the prompt.
+  // Nested prompts coalesce into one span, so it fires once per span.
+  notification: "ui_prompt_start",
   preCompact: "session_before_compact",
   // Pi documents `session_compact` alongside `session_before_compact`, and
   // v0.79.10 gave both the same `reason` / `willRetry` metadata.

@@ -133,10 +133,11 @@ describe("PiHooks", () => {
           postModelInvocation: [{ command: "post-model.sh" }],
           preCompact: [{ command: "pre-compact.sh" }],
           postCompact: [{ command: "post-compact.sh" }],
-          // notification has no Pi extension event equivalent
           notification: [{ command: "notify.sh" }],
           // afterFileEdit has no Pi extension event equivalent
           afterFileEdit: [{ command: "format.sh" }],
+          // subagentStart has no Pi extension event equivalent
+          subagentStart: [{ command: "spawn.sh" }],
         },
       };
       const piHooks = PiHooks.fromRulesyncHooks({
@@ -171,10 +172,48 @@ describe("PiHooks", () => {
       // losing the subscription again.
       expect(content).toContain('pi.on("session_compact", async () => {');
       expect(content).toContain("post-compact.sh");
+      // `ui_prompt_start` is Pi's "waiting for user" signal (v0.84.4); it is
+      // notification-only, so the handler observes and takes no payload.
+      expect(content).toContain('pi.on("ui_prompt_start", async () => {');
+      expect(content).toContain("notify.sh");
+      expect(content).not.toContain("ui_prompt_end");
 
       // Unsupported events should not appear
-      expect(content).not.toContain("notify.sh");
       expect(content).not.toContain("format.sh");
+      expect(content).not.toContain("spawn.sh");
+    });
+
+    it("should gate postToolUseFailure handlers on event.isError within tool_result", () => {
+      const config = {
+        version: 1,
+        hooks: {
+          postToolUse: [{ type: "command", command: "post-tool.sh" }],
+          postToolUseFailure: [
+            { type: "command", command: "on-failure.sh" },
+            { type: "command", command: "on-bash-failure.sh", matcher: "Bash" },
+          ],
+        },
+      };
+      const piHooks = PiHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, config }),
+        validate: false,
+      });
+
+      const content = piHooks.getFileContent();
+      // Both canonical events share Pi's `tool_result`, so there is exactly one
+      // subscription, and it takes the event because the failure gate reads it.
+      expect(content.match(/pi\.on\("tool_result"/g)).toHaveLength(1);
+      expect(content).toContain('pi.on("tool_result", async (event) => {');
+      // `postToolUse` is not gated: Pi fires `tool_result` for failed calls
+      // too, and that is what the mapping has always meant.
+      expect(content).toContain('    await run("post-tool.sh");');
+      expect(content).toContain("    if (event.isError) {");
+      expect(content).toContain('      await run("on-failure.sh");');
+      expect(content).toContain(
+        '    if (event.isError && new RegExp("Bash").test(event.toolName)) {',
+      );
+      expect(content).toContain('      await run("on-bash-failure.sh");');
     });
 
     it("should generate tool event handlers honoring matchers against event.toolName", () => {
@@ -681,6 +720,25 @@ describe("PiHooks", () => {
       await gate(userPrompt(), uiContext({ notify }));
       const [reason] = notify.mock.calls[0] ?? [];
       expect(reason).toBe(`${"a".repeat(1999)}...`);
+    });
+
+    it("should run postToolUseFailure commands only for failed tool results", async () => {
+      const { registeredEvents, handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          // An observe-only handler propagates its command's failure, so a
+          // command that always exits non-zero shows whether it ran.
+          hooks: { postToolUseFailure: [{ type: "command", command: "exit 3" }] },
+        },
+      });
+      expect(registeredEvents).toEqual(["tool_result"]);
+      const handler = handlerFor("tool_result");
+
+      await expect(handler({ toolName: "bash", isError: false })).resolves.toBeUndefined();
+      await expect(handler({ toolName: "bash", isError: true })).rejects.toMatchObject({
+        code: 3,
+      });
     });
 
     it("should generate an input handler that continues when the command succeeds", async () => {
