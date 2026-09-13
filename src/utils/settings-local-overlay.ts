@@ -43,6 +43,7 @@ export async function readSettingsWithLocalOverlay({
   baseFallbackContent,
   sensitiveKeys = [],
   quiet = false,
+  parse = JSON.parse,
   merge,
   logger,
 }: {
@@ -66,6 +67,14 @@ export async function readSettingsWithLocalOverlay({
    * the caller's own read needs.
    */
   quiet?: boolean;
+  /**
+   * How the tool parses the pair on disk; strict `JSON.parse` unless the tool
+   * documents something else (AugmentCode's files are JSON with Comments). It
+   * receives one file's content and throws the bare reason on failure — this
+   * helper adds the tool label and path — and returns whatever it parsed; a
+   * root that is not a plain object is refused here.
+   */
+  parse?: (content: string) => unknown;
   /** Stands in for a missing base file; omit to get `null` instead. */
   baseFallbackContent?: string;
   /**
@@ -90,7 +99,7 @@ export async function readSettingsWithLocalOverlay({
   const configPath = join(relativeDirPath, localFileName);
   let localParsed: unknown;
   try {
-    localParsed = JSON.parse(localContent);
+    localParsed = parse(localContent);
   } catch (error) {
     throw new Error(
       `Failed to parse ${toolLabel} settings at ${configPath}: ${formatError(error)}`,
@@ -100,7 +109,8 @@ export async function readSettingsWithLocalOverlay({
     );
   }
   // `isPlainObject` (not `isRecord`) rejects class instances for
-  // prototype-pollution hardening; `JSON.parse` always yields a plain object.
+  // prototype-pollution hardening. A `parse` that already refuses a non-object
+  // root never reaches this branch; it stays for the strict-JSON default.
   if (!isPlainObject(localParsed)) {
     throw new Error(
       `Failed to parse ${toolLabel} settings at ${configPath}: expected a JSON object`,
@@ -111,7 +121,7 @@ export async function readSettingsWithLocalOverlay({
   if (baseContent !== null) {
     let parsed: unknown;
     try {
-      parsed = JSON.parse(baseContent);
+      parsed = parse(baseContent);
     } catch {
       // The base file is malformed. Leave it to the adapter's own (schema-aware)
       // parse to surface a descriptive error; returning the raw base content

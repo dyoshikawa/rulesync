@@ -262,7 +262,11 @@ export function parseSharedConfig({
   }
   if (!isPlainObject(sanitized)) {
     if (invalidRootPolicy === "error") {
-      throw new Error(`Failed to parse shared config${at}: expected a mapping at the root`);
+      // Carries the bare reason as `cause` like the syntax-error path above, so
+      // a caller that re-prefixes the message with its own file label can
+      // report the reason alone instead of nesting two prefixes.
+      const reason = new Error("expected a mapping at the root");
+      throw new Error(`Failed to parse shared config${at}: ${reason.message}`, { cause: reason });
     }
     return {};
   }
@@ -1496,9 +1500,15 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   // AugmentCode settings: `toolPermissions` is recomputed from the existing
   // file (special entries and fail-closed denies preserved) before being
-  // applied.
+  // applied. Auggie documents the file as JSON with Comments
+  // (https://docs.augmentcode.com/cli/config), so it is edited in place the
+  // way `.vscode/settings.json` is, with the same fail-closed policies: a
+  // file that only partially parses is refused rather than rewritten from a
+  // fragment.
   ".augment/settings.json": {
-    format: "json",
+    format: "jsonc",
+    invalidRootPolicy: "error",
+    jsoncParseErrors: "error",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },

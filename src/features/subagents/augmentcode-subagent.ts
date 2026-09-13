@@ -20,6 +20,30 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
+// Auggie accepts a tool list either as a YAML list or as one comma-separated
+// string ("Example with comma-separated format: `tools: view,
+// codebase-retrieval`" — https://docs.augmentcode.com/cli/subagents). Both are
+// accepted on import; rulesync always emits the list form.
+const AugmentcodeToolListSchema = z.union([z.array(z.string()), z.string()]);
+
+/**
+ * Normalize a documented tool-list value to the list form: a string is split on
+ * commas, trimmed, and emptied of blank entries; a list is returned as is. A
+ * string that names no tool (`""`, `", ,"`) is treated as unset rather than as
+ * an empty allowlist — the author left the value blank, not the tool set — so
+ * it yields `undefined`; an authored empty list is kept as written.
+ */
+function normalizeAugmentcodeToolList(value: string[] | string): string[] | undefined {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  const tools = value
+    .split(",")
+    .map((tool) => tool.trim())
+    .filter((tool) => tool.length > 0);
+  return tools.length > 0 ? tools : undefined;
+}
+
 // AugmentCode (Auggie CLI) subagents are Markdown files with YAML frontmatter.
 // `name` is required; `description`, `color` (ANSI color name), `model`,
 // `tools` (allowlist) and `disabled_tools` (denylist; takes precedence over
@@ -30,8 +54,8 @@ const AugmentcodeSubagentFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   color: z.optional(z.string()),
   model: z.optional(z.string()),
-  tools: z.optional(z.array(z.string())),
-  disabled_tools: z.optional(z.array(z.string())),
+  tools: z.optional(AugmentcodeToolListSchema),
+  disabled_tools: z.optional(AugmentcodeToolListSchema),
 });
 
 type AugmentcodeSubagentFrontmatter = z.infer<typeof AugmentcodeSubagentFrontmatterSchema>;
@@ -92,7 +116,17 @@ export class AugmentcodeSubagent extends ToolSubagent {
   }
 
   toRulesyncSubagent(): RulesyncSubagent {
-    const { name, description, ...rest } = this.frontmatter;
+    const { name, description, tools, disabled_tools, ...rest } = this.frontmatter;
+    // The comma-separated string form is normalized here so the round-trip
+    // re-emits the list form Auggie also accepts.
+    const normalizedTools = tools === undefined ? undefined : normalizeAugmentcodeToolList(tools);
+    const normalizedDisabledTools =
+      disabled_tools === undefined ? undefined : normalizeAugmentcodeToolList(disabled_tools);
+    const toolLists = {
+      ...(normalizedTools !== undefined && { tools: normalizedTools }),
+      ...(normalizedDisabledTools !== undefined && { disabled_tools: normalizedDisabledTools }),
+    };
+    const augmentcodeSection = { ...rest, ...toolLists };
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
@@ -100,7 +134,7 @@ export class AugmentcodeSubagent extends ToolSubagent {
       description,
       // Round-trip tool-specific fields (color/model/tools/disabled_tools and
       // any future keys) through a dedicated augmentcode section.
-      ...(Object.keys(rest).length > 0 && { augmentcode: rest }),
+      ...(Object.keys(augmentcodeSection).length > 0 && { augmentcode: augmentcodeSection }),
     };
 
     return new RulesyncSubagent({

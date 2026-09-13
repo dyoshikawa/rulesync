@@ -135,6 +135,43 @@ describe("AugmentcodeSubagent", () => {
       });
     });
 
+    it("should normalize the documented comma-separated tool list form to a list", () => {
+      // https://docs.augmentcode.com/cli/subagents shows `tools: view, codebase-retrieval`
+      // as an accepted alternative to the YAML list.
+      const subagent = new AugmentcodeSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".augment", "agents"),
+        relativeFilePath: "explorer.md",
+        frontmatter: {
+          name: "explorer",
+          description: "Read-only explorer",
+          tools: "view, codebase-retrieval",
+          disabled_tools: "launch-process,, save-file ,",
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(subagent.validate()).toEqual({ success: true, error: null });
+      expect(subagent.toRulesyncSubagent().getFrontmatter().augmentcode).toEqual({
+        tools: ["view", "codebase-retrieval"],
+        disabled_tools: ["launch-process", "save-file"],
+      });
+    });
+
+    it("should treat a blank comma-separated tool list as unset, not as an empty allowlist", () => {
+      const subagent = new AugmentcodeSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".augment", "agents"),
+        relativeFilePath: "blank.md",
+        frontmatter: { name: "blank", description: "Blank tools", tools: " , " },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(subagent.toRulesyncSubagent().getFrontmatter().augmentcode).toBeUndefined();
+    });
+
     it("should omit the augmentcode section when there are no extra fields", () => {
       const subagent = new AugmentcodeSubagent({
         outputRoot: testDir,
@@ -179,6 +216,28 @@ Review carefully.`;
         disabled_tools: ["bash"],
       });
       expect(subagent.getBody()).toBe("Review carefully.");
+    });
+
+    it("should accept the comma-separated tools form on import", async () => {
+      const fileContent = `---
+name: explorer
+description: A read-only explorer that can only search and view code
+tools: view, codebase-retrieval
+---
+
+Explore.`;
+      await writeFileContent(join(testDir, ".augment", "agents", "explorer.md"), fileContent);
+
+      const subagent = await AugmentcodeSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "explorer.md",
+        validate: true,
+      });
+
+      expect(subagent.getFrontmatter().tools).toBe("view, codebase-retrieval");
+      expect(subagent.toRulesyncSubagent().getFrontmatter().augmentcode).toEqual({
+        tools: ["view", "codebase-retrieval"],
+      });
     });
 
     it("should load a subagent from the .agents/ import root when relativeDirPath is set", async () => {

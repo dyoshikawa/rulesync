@@ -329,6 +329,47 @@ describe("AugmentcodeHooks", () => {
       ).toBe(true);
     });
 
+    it("should accept a JSONC settings.json and preserve its comments and other keys", async () => {
+      // https://docs.augmentcode.com/cli/config: settings files support JSON
+      // with Comments (comments and trailing commas).
+      await ensureDir(join(testDir, ".augment"));
+      await writeFileContent(
+        join(testDir, ".augment", "settings.json"),
+        `{
+  // MCP servers are owned by the mcp feature.
+  "mcpServers": { "fs": { "command": "fs", }, },
+  "hooks": { "SessionStart": [{ "command": "echo old" }], },
+}
+`,
+      );
+
+      const config = {
+        version: 1,
+        hooks: { preToolUse: [{ type: "command", command: "guard.sh" }] },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const augmentcodeHooks = await AugmentcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const content = augmentcodeHooks.getFileContent();
+      expect(content).toContain("// MCP servers are owned by the mcp feature.");
+      const parsed = augmentcodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preToolUse).toHaveLength(1);
+      // Non-preserved AugmentCode-only events would be kept; here the old
+      // SessionStart entry is replaced by the rulesync-owned hooks.
+      expect(parsed.hooks.sessionStart).toBeUndefined();
+    });
+
     it("should throw a descriptive error when existing settings.json contains invalid JSON", async () => {
       await ensureDir(join(testDir, ".augment"));
       await writeFileContent(join(testDir, ".augment", "settings.json"), "invalid json {");
@@ -403,6 +444,27 @@ describe("AugmentcodeHooks", () => {
       expect(augmentcodeHooks).toBeInstanceOf(AugmentcodeHooks);
       const parsed = JSON.parse(augmentcodeHooks.getFileContent());
       expect(parsed.hooks.PreToolUse).toEqual([]);
+    });
+
+    it("should load a JSONC .augment/settings.json on import", async () => {
+      await ensureDir(join(testDir, ".augment"));
+      await writeFileContent(
+        join(testDir, ".augment", "settings.json"),
+        `{
+  // guard every MCP tool call
+  "hooks": {
+    "PreToolUse": [{ "matcher": "mcp:*", "hooks": [{ "command": "guard.sh" }], }],
+  },
+}`,
+      );
+
+      const augmentcodeHooks = await AugmentcodeHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+      });
+      const json = augmentcodeHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.preToolUse).toHaveLength(1);
+      expect(json.hooks.preToolUse?.[0]?.command).toContain("guard.sh");
     });
 
     it("should initialize empty hooks when .augment/settings.json does not exist", async () => {

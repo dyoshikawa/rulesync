@@ -6,10 +6,11 @@ import {
 } from "../../constants/augmentcode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
-import { readAugmentcodeSettingsWithLocalOverlay } from "../../utils/augmentcode-settings.js";
-import { formatError } from "../../utils/error.js";
+import {
+  parseAugmentcodeSettingsDocument,
+  readAugmentcodeSettingsWithLocalOverlay,
+} from "../../utils/augmentcode-settings.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -26,24 +27,10 @@ function parseAugmentcodeSettings(
   relativeDirPath: string,
   relativeFilePath: string,
 ): Record<string, unknown> {
-  const configPath = join(relativeDirPath, relativeFilePath);
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fileContent);
-  } catch (error) {
-    throw new Error(
-      `Failed to parse AugmentCode settings at ${configPath}: ${formatError(error)}`,
-      { cause: error },
-    );
-  }
-  // `isPlainObject` (not `isRecord`) rejects class instances for
-  // prototype-pollution hardening; `JSON.parse` always yields a plain object.
-  if (!isPlainObject(parsed)) {
-    throw new Error(
-      `Failed to parse AugmentCode settings at ${configPath}: expected a JSON object`,
-    );
-  }
-  return parsed;
+  return parseAugmentcodeSettingsDocument({
+    fileContent,
+    configPath: join(relativeDirPath, relativeFilePath),
+  });
 }
 
 /**
@@ -135,6 +122,7 @@ export class AugmentcodeMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<AugmentcodeMcp> {
     const paths = this.getSettablePaths({ global });
 
@@ -151,6 +139,7 @@ export class AugmentcodeMcp extends ToolMcp {
         existingContent,
         patch: { mcpServers: rulesyncMcp.getMcpServers() },
         filePath,
+        logger,
       }),
       validate,
       global,
