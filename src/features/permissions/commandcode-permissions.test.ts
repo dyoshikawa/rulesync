@@ -1016,7 +1016,7 @@ describe("CommandcodePermissions", () => {
       );
     });
 
-    it("drops entries whose pattern is a prototype-pollution key", async () => {
+    it("drops entries whose pattern is a prototype-pollution key, warning for a deny", async () => {
       await writeSettings({
         testDir,
         settings: {
@@ -1025,11 +1025,18 @@ describe("CommandcodePermissions", () => {
           },
         },
       });
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
 
       const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
       const json = permissions.toRulesyncPermissions().getJson();
       expect(json.permission).toEqual({ bash: { "git *": "deny" } });
       expect(Object.prototype).not.toHaveProperty("git *");
+      expect(warn.mock.calls.map(([message]) => message)).toEqual([
+        expect.stringContaining(`rule 'Shell(__proto__)' in "deny" is not one rulesync can model`),
+        expect.stringContaining(
+          `rule 'Shell(constructor)' in "deny" is not one rulesync can model`,
+        ),
+      ]);
     });
 
     it("keeps the strictest action for a rule listed more than once", async () => {
@@ -1057,20 +1064,31 @@ describe("CommandcodePermissions", () => {
       });
     });
 
-    it("skips rules for tool names rulesync does not model", async () => {
+    it("skips rules for tool names rulesync does not model, warning for deny and ask", async () => {
+      // Command Code still enforces such an entry, so losing it from a deny
+      // or ask is worth a word; a skipped allow grants nothing elsewhere.
       await writeSettings({
         testDir,
         settings: {
           permissions: {
             allow: ["edit_file", "mcp"],
+            ask: ["Agent"],
             deny: ["edit_*", "read_directory(/tmp)"],
           },
         },
       });
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
 
       const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
       const json = permissions.toRulesyncPermissions().getJson();
       expect(json.permission).toEqual({});
+      expect(warn.mock.calls.map(([message]) => message)).toEqual([
+        expect.stringContaining(`rule 'Agent' in "ask" is not one rulesync can model`),
+        expect.stringContaining(`rule 'edit_*' in "deny" is not one rulesync can model`),
+        expect.stringContaining(
+          `rule 'read_directory(/tmp)' in "deny" is not one rulesync can model`,
+        ),
+      ]);
     });
 
     it("ignores non-array lists and non-object permissions", async () => {

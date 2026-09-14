@@ -459,8 +459,12 @@ function writableCommandcodeRule({
 }): string | null {
   if (action === "allow" && emitted.notInAllow) {
     logger?.warn(
-      `Command Code does not honor '${rule}' in "allow" as written (an allow rule must name ` +
-        `what it grants), so the '${emitted.category}' allow rule was not written.`,
+      emitted.category === "bash"
+        ? `Command Code reads '${rule}' in "allow" as a pattern narrower than the bare 'Shell' ` +
+            `(the command must parse into words and carry no environment assignment), so the ` +
+            `'${emitted.category}' allow rule was not written; use the '*' pattern for the whole tool.`
+        : `Command Code does not honor '${rule}' in "allow" as written (an allow rule must name ` +
+            `what it grants), so the '${emitted.category}' allow rule was not written.`,
     );
     return null;
   }
@@ -639,7 +643,14 @@ function parseCommandcodeRuleLists(
     });
     for (const rule of list) {
       const parsed = parseCommandcodeRule(rule);
-      if (parsed === null) {
+      // A `Shell(__proto__)` entry would read an inherited property below and
+      // silently lose its action, so such entries are dropped (as the other
+      // permissions adapters do).
+      const unmodeled =
+        parsed === null ||
+        isPrototypePollutionKey(parsed.category) ||
+        isPrototypePollutionKey(parsed.pattern);
+      if (unmodeled) {
         if (action !== "allow") {
           fallbackLogger.warn(
             `Command Code permission rule '${rule}' in "${action}" is not one rulesync can model, so it ` +
@@ -665,12 +676,6 @@ function parseCommandcodeRuleLists(
             `but the '${category}' rule generated from it matches the server and tool names exactly ` +
             `as written; spell the rule the way the tool is registered if they differ.`,
         );
-      }
-      // A `Shell(__proto__)` entry would read an inherited property below and
-      // silently lose its action, so such entries are dropped (as the other
-      // permissions adapters do).
-      if (isPrototypePollutionKey(category) || isPrototypePollutionKey(pattern)) {
-        continue;
       }
       const rules = (permission[category] ??= {});
       if (isStricterAction({ action, existing: rules[pattern] })) {
