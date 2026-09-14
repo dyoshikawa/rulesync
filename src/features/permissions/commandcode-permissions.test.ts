@@ -196,6 +196,30 @@ describe("CommandcodePermissions", () => {
       );
     });
 
+    it("does not write a padded bash wildcard as an allow, which Command Code reads narrower", async () => {
+      const logger = createMockLogger();
+      const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { " * ": "allow", "git *": "allow" },
+        }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent()).permissions).toEqual({
+        allow: ["Shell(git *)"],
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "reads 'Shell( * )' in \"allow\" as a pattern narrower than the bare 'Shell'",
+        ),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("use the '*' pattern for the whole tool"),
+      );
+    });
+
     it("drops a scoped mcp allow with a warning instead of allowing the whole tool", async () => {
       const logger = createMockLogger();
       const permissions = await CommandcodePermissions.fromRulesyncPermissions({
@@ -970,9 +994,16 @@ describe("CommandcodePermissions", () => {
         testDir,
         settings: {
           permissions: {
-            allow: ["Shell( )", "Read( * )", "Read( )", "Shell( * )", "Read(./src/ **)"],
-            ask: ["Shell(*  )"],
-            deny: ["Shell( rm  -rf * )", "Shell(git *)", "Shell( * )"],
+            allow: [
+              "Shell( )",
+              "Read( * )",
+              "Read( )",
+              "Shell( * )",
+              "Read(./src/ **)",
+              "Shell(:*)",
+            ],
+            ask: ["Shell(*  )", "Shell( :* )"],
+            deny: ["Shell( rm  -rf * )", "Shell(git *)", "Shell( * )", "Shell(git:*)"],
           },
         },
       });
@@ -980,15 +1011,18 @@ describe("CommandcodePermissions", () => {
 
       const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
       expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
-        bash: { "*": "deny", "rm -rf *": "deny", "git *": "deny" },
+        bash: { "*": "deny", "rm -rf *": "deny", "git *": "deny", "git:*": "deny" },
         read: { "./src/ **": "allow" },
       });
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn).toHaveBeenCalledWith(
+      // A bare `:*` has no prefix, so Command Code's shell matcher rejects
+      // every command for it; importing it would hand other targets an
+      // empty-prefix allow-all.
+      expect(warn.mock.calls.map(([message]) => message)).toEqual([
         expect.stringContaining(
           `reads 'Shell( * )' in "allow" as a pattern narrower than the bare 'Shell'`,
         ),
-      );
+        expect.stringContaining(`rule 'Shell( :* )' in "ask" is not one rulesync can model`),
+      ]);
     });
 
     it("imports the string entries of a list that also holds a non-string one", async () => {

@@ -103,6 +103,14 @@ function isStricterAction({
 }
 
 /**
+ * Why a padded `Shell( * )` cannot stand in for the bare `Shell` in `allow`:
+ * the whitespace makes it a pattern rule, and a shell pattern grants only
+ * commands that pass Command Code's pattern gate.
+ */
+const PADDED_SHELL_WILDCARD_REASON =
+  "a pattern narrower than the bare 'Shell' (the command must parse into words and carry no environment assignment)";
+
+/**
  * A Command Code rule read back into canonical terms. `notInAllow` marks the
  * rules that cannot be written to or imported from `allow`: the server-less
  * wildcards `*` and `mcp__*` and the tool-name globs (`MCP__*`,
@@ -261,8 +269,9 @@ function parseMcpCommandcodeRule({
  * A rule on one of the friendly tools, with its specifier read as Command
  * Code matches it. The shell matcher trims and collapses whitespace on both
  * the pattern and the command, so `Shell( git  * )` is `Shell(git *)` and a
- * pattern that is blank once normalized (`Shell( )`) matches nothing. A
- * padded `Shell( * )` is not the bare `Shell`: only a specifier of exactly
+ * pattern that is blank once normalized (`Shell( )`), or a bare `:*` whose
+ * prefix is empty (`Shell(:*)`), matches nothing. A padded `Shell( * )` is
+ * not the bare `Shell`: only a specifier of exactly
  * `` or `*` is dropped by the rule parser, so `( * )` stays a pattern rule —
  * in `deny`/`ask` it matches every command (the whole tool), while in `allow`
  * it is narrower than the bare `Shell` (it needs a command that parses into
@@ -284,7 +293,9 @@ function friendlyToolRule({
       return { category, pattern: CATCH_ALL_PATTERN, notInAllow: false };
     }
     const normalized = inner.trim().replace(/\s+/g, " ");
-    if (normalized === "") {
+    // The shell matcher rewrites a trailing `:*` to ` *` and then requires
+    // the prefix before it, so a bare `:*` (like a blank) matches nothing.
+    if (normalized === "" || normalized === ":*") {
       return null;
     }
     return isCatchAllSpecifier(normalized)
@@ -460,8 +471,7 @@ function writableCommandcodeRule({
   if (action === "allow" && emitted.notInAllow) {
     logger?.warn(
       emitted.category === "bash"
-        ? `Command Code reads '${rule}' in "allow" as a pattern narrower than the bare 'Shell' ` +
-            `(the command must parse into words and carry no environment assignment), so the ` +
+        ? `Command Code reads '${rule}' in "allow" as ${PADDED_SHELL_WILDCARD_REASON}, so the ` +
             `'${emitted.category}' allow rule was not written; use the '*' pattern for the whole tool.`
         : `Command Code does not honor '${rule}' in "allow" as written (an allow rule must name ` +
             `what it grants), so the '${emitted.category}' allow rule was not written.`,
@@ -593,9 +603,8 @@ function skippedAllowImportMessage({ rule, category }: { rule: string; category:
   const { tool, inner } = splitCommandcodeRule(rule);
   if (category === "bash") {
     return (
-      `Command Code reads '${rule}' in "allow" as a pattern narrower than the bare 'Shell' (the command ` +
-      `must parse into words and carry no environment assignment), which rulesync cannot import ` +
-      `without widening the grant to every command, so it was not imported.`
+      `Command Code reads '${rule}' in "allow" as ${PADDED_SHELL_WILDCARD_REASON}, which rulesync ` +
+      `cannot import without widening the grant to every command, so it was not imported.`
     );
   }
   if (tool.startsWith(MCP_CANONICAL_PREFIX) || isCatchAllSpecifier(inner)) {
@@ -654,7 +663,8 @@ function parseCommandcodeRuleLists(
         if (action !== "allow") {
           fallbackLogger.warn(
             `Command Code permission rule '${rule}' in "${action}" is not one rulesync can model, so it ` +
-              `could not be imported; it stays in the Command Code settings, where a regenerate keeps it.`,
+              `could not be imported; it stays in the Command Code settings, where a regenerate keeps ` +
+              `it unless the canonical config manages its category.`,
           );
         }
         continue;
