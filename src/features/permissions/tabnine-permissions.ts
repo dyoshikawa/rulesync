@@ -21,7 +21,11 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { type TrustAffectingEntry, warnOnTrustAffectingEntries } from "./sandbox-trust.js";
+import {
+  formatTrustAffectingEntries,
+  type TrustAffectingEntry,
+  warnOnTrustAffectingEntries,
+} from "./sandbox-trust.js";
 import {
   collectShellCommandRules,
   createShadowingRestrictionsTest,
@@ -149,6 +153,11 @@ function toShellEntry(prefix: string): string {
 
 type ParsedTabnineEntry = { toolName: string; prefix: string | undefined };
 
+/** The `bash` pattern a `run_shell_command(<prefix>)` entry stands for. */
+function toShellPattern(prefix: string | undefined): string {
+  return prefix === undefined || prefix === "" ? "*" : `${prefix} *`;
+}
+
 /**
  * Split a `tools.allowed`/`tools.exclude` entry into its tool name and the
  * optional `(<prefix>)` suffix. An entry whose parenthesis never closes, or
@@ -166,8 +175,9 @@ function parseTabnineEntry(entry: string): ParsedTabnineEntry | undefined {
 }
 
 /**
- * `record` without the value at `path`, when there is one. Containers on the
- * way are copied, never mutated, so the override the caller read stays intact.
+ * `record` without the value at `path`, when there is one, and without any
+ * container the removal emptied. Containers on the way are copied, never
+ * mutated, so the override the caller read stays intact.
  */
 function omitPath({ record, path }: { record: Record<string, unknown>; path: readonly string[] }): {
   record: Record<string, unknown>;
@@ -186,9 +196,15 @@ function omitPath({ record, path }: { record: Record<string, unknown>; path: rea
     return { record, removed: false };
   }
   const inner = omitPath({ record: child, path: rest });
-  return inner.removed
-    ? { record: { ...record, [head]: inner.record }, removed: true }
-    : { record, removed: false };
+  if (!inner.removed) {
+    return { record, removed: false };
+  }
+  // A container the removal emptied goes too, so no `"shell": {}` is left behind.
+  if (Object.keys(inner.record).length === 0) {
+    const { [head]: _emptied, ...others } = record;
+    return { record: others, removed: true };
+  }
+  return { record: { ...record, [head]: inner.record }, removed: true };
 }
 
 /**
@@ -215,8 +231,9 @@ function stripCommandExecutingPaths(tools: Record<string, unknown>): {
 /**
  * The settings of a `tabnine` override that widen what Tabnine CLI does without
  * asking, so the generate can name them. `tools.allowed` counts because an
- * override-authored entry skips the confirmation prompt without going through
- * the deny/ask comparison the canonical rules go through; `tools.sandbox` and
+ * override-authored entry skips the confirmation prompt on the strength of the
+ * override alone (its `run_shell_command(...)` entries are not here: they are
+ * compared as `bash` allows and withheld like them); `tools.sandbox` and
  * `general.defaultApprovalMode` decide whether tool calls are contained and
  * whether they are confirmed at all. Called on the override, not the file, so a
  * value the file already held is not reported as something rulesync opened.
@@ -234,7 +251,7 @@ function collectTrustAffectingOverrideEntries({
     entries.push({
       label: `tools.allowed (${allowed.map(quoteValueForWarning).join(", ")})`,
       reason:
-        "auto-approves what it names as the override spells it, outside the deny/ask comparison the canonical rules go through",
+        "auto-approves what it names as the override spells it; a non-shell entry has no canonical rule to be checked against",
     });
   }
   if (Object.hasOwn(tools, SANDBOX_KEY) && tools[SANDBOX_KEY] !== true) {
@@ -260,30 +277,35 @@ function collectTrustAffectingOverrideEntries({
 }
 
 /**
- * What a later generate will refuse or announce from the override an import
- * builds, said now, so the file the import writes into `.rulesync/` is read
- * with the same eyes as one that arrived with a clone.
+ * What a later generate would announce from the override an import builds,
+ * said now, so the file the import writes into `.rulesync/` is read with the
+ * same eyes as one that arrived with a clone. `refused` names the paths the
+ * import left in `settings.json`, the ones generate refuses to write — an
+ * override must not carry a value that only ever produces a warning.
  */
 function announceLiftedOverride({
   tools,
   general,
+  refused,
 }: {
   tools: Record<string, unknown>;
   general: Record<string, unknown> | undefined;
+  refused: readonly string[];
 }): void {
-  const { refused } = stripCommandExecutingPaths(tools);
   if (refused.length > 0) {
-    moduleLogger.warn(
-      `Tabnine CLI permissions: kept ${refused.join(", ")} in the tabnine override; Tabnine CLI ` +
-        `spawns that value as a command, so 'rulesync generate' will not write it back — set it by hand.`,
+    moduleLogger.info(
+      `Tabnine CLI permissions: left ${refused.join(", ")} in settings.json rather than lifting ` +
+        `it into the tabnine override; Tabnine CLI spawns that value as a command, and 'rulesync ` +
+        `generate' refuses to write it from the override.`,
     );
   }
   const trustAffecting = collectTrustAffectingOverrideEntries({ tools, general });
   if (trustAffecting.length > 0) {
+    const one = trustAffecting.length === 1;
     moduleLogger.warn(
       `Tabnine CLI permissions: the tabnine override now carries ${trustAffecting.length} ` +
-        `trust-affecting setting(s) that 'rulesync generate' writes back as authored: ` +
-        `${trustAffecting.map(({ label, reason }) => `'${label}' — ${reason}`).join("; ")}.`,
+        `trust-affecting setting${one ? "" : "s"} that 'rulesync generate' writes back as ` +
+        `authored: ${formatTrustAffectingEntries(trustAffecting)}.`,
     );
   }
 }
@@ -299,9 +321,16 @@ type TabnineToolLists = {
  */
 function buildToolLists({
   permission,
+  overrideShellAllowPatterns,
   logger,
 }: {
   permission: PermissionsConfig["permission"];
+  /**
+   * The `bash` patterns of the override's own `run_shell_command(...)` allow
+   * entries. They join the canonical `bash` allows so the deny/ask comparison
+   * withholds them just the same — an override is not a way around it.
+   */
+  overrideShellAllowPatterns: readonly string[];
   logger?: Logger | undefined;
 }): TabnineToolLists {
   const allowed: string[] = [];
@@ -310,7 +339,16 @@ function buildToolLists({
   // Shell commands: the `bash` category plus the restricting rules of `*`.
   // `ask` has no list of its own — Tabnine prompts for every command the
   // allowlist does not cover — so it only withholds the allows it shadows.
-  const { rules, ignoredAllToolsAllowPatterns } = collectShellCommandRules(permission);
+  const { rules: canonicalRules, ignoredAllToolsAllowPatterns } =
+    collectShellCommandRules(permission);
+  const rules = [
+    ...canonicalRules,
+    ...overrideShellAllowPatterns.map((pattern) => ({
+      pattern,
+      action: "allow" as const,
+      fromAllToolsCategory: false,
+    })),
+  ];
   const {
     allow: shellAllow,
     deny: shellDeny,
@@ -521,7 +559,38 @@ export class TabninePermissions extends ToolPermissions {
       );
     }
     const overrideGeneral = isRecord(override[GENERAL_KEY]) ? override[GENERAL_KEY] : undefined;
-    const { allowed, exclude } = buildToolLists({ permission: config.permission, logger });
+    // The override's own list entries. A `run_shell_command(...)` allow is a
+    // `bash` allow spelled the Tabnine way, so it is handed to the canonical
+    // comparison rather than written past it; the rest is appended verbatim.
+    // A list that is not a list is reported, not skipped in silence.
+    const overrideList = (key: string): string[] => {
+      const value = overrideTools[key];
+      if (value === undefined || isStringArray(value)) {
+        return value ?? [];
+      }
+      warnWithFallback(
+        logger,
+        `Tabnine CLI permissions: ignored tools.${key} of the tabnine override ` +
+          `(${quoteValueForWarning(value)}); it must be a list of tool names.`,
+      );
+      return [];
+    };
+    const overrideShellAllowPatterns: string[] = [];
+    const overrideVerbatimAllowed: string[] = [];
+    for (const entry of overrideList(ALLOWED_KEY)) {
+      const parsed = parseTabnineEntry(entry);
+      if (parsed?.toolName === SHELL_TOOL_NAME) {
+        overrideShellAllowPatterns.push(toShellPattern(parsed.prefix));
+      } else {
+        overrideVerbatimAllowed.push(entry);
+      }
+    }
+    const overrideExclude = overrideList(EXCLUDE_KEY);
+    const { allowed, exclude } = buildToolLists({
+      permission: config.permission,
+      overrideShellAllowPatterns,
+      logger,
+    });
 
     // The override may only author the `tools` and `general` groups. Any other
     // top-level key would ride into the shared file through the permissions
@@ -563,14 +632,10 @@ export class TabninePermissions extends ToolPermissions {
     // appended after the canonical ones so a round trip is lossless.
     const allowedList = uniq([
       ...allowed,
-      ...(isStringArray(overrideTools[ALLOWED_KEY]) ? overrideTools[ALLOWED_KEY] : []),
+      ...overrideVerbatimAllowed,
       ...preservedEntries(ALLOWED_KEY),
     ]);
-    const excludeList = uniq([
-      ...exclude,
-      ...(isStringArray(overrideTools[EXCLUDE_KEY]) ? overrideTools[EXCLUDE_KEY] : []),
-      ...preservedEntries(EXCLUDE_KEY),
-    ]);
+    const excludeList = uniq([...exclude, ...overrideExclude, ...preservedEntries(EXCLUDE_KEY)]);
     // Dropping an exclude entry loosens the policy, so the ones of a managed
     // tool that the canonical block did not re-derive are named rather than
     // removed silently (the allowed side only tightens and needs no notice).
@@ -616,7 +681,7 @@ export class TabninePermissions extends ToolPermissions {
     warnOnTrustAffectingEntries({
       toolLabel: "Tabnine CLI",
       entries: collectTrustAffectingOverrideEntries({
-        tools: overrideTools,
+        tools: { ...overrideTools, [ALLOWED_KEY]: overrideVerbatimAllowed },
         general: overrideGeneral,
       }),
       relativeFilePath: join(paths.relativeDirPath, paths.relativeFilePath),
@@ -688,8 +753,7 @@ export class TabninePermissions extends ToolPermissions {
         }
         const { toolName, prefix } = parsed;
         if (toolName === SHELL_TOOL_NAME) {
-          const pattern = prefix === undefined || prefix === "" ? "*" : `${prefix} *`;
-          setRule(SHELL_PERMISSION_CATEGORY, pattern, action);
+          setRule(SHELL_PERMISSION_CATEGORY, toShellPattern(prefix), action);
           continue;
         }
         if (prefix !== undefined) {
@@ -714,8 +778,12 @@ export class TabninePermissions extends ToolPermissions {
 
     // Everything else under `tools`, and the `general` group, belongs to the
     // `tabnine` override so a generate after import writes it back unchanged.
-    const overrideTools: Record<string, unknown> = Object.fromEntries(
-      Object.entries(tools).filter(([key]) => key !== ALLOWED_KEY && key !== EXCLUDE_KEY),
+    // The command-executing paths stay in `settings.json`: generate refuses to
+    // write them, so lifting them would only ever produce that warning.
+    const { tools: overrideTools, refused } = stripCommandExecutingPaths(
+      Object.fromEntries(
+        Object.entries(tools).filter(([key]) => key !== ALLOWED_KEY && key !== EXCLUDE_KEY),
+      ),
     );
     for (const [key, entries] of Object.entries(leftovers)) {
       overrideTools[key] = entries;
@@ -728,7 +796,7 @@ export class TabninePermissions extends ToolPermissions {
     if (general !== undefined) {
       override[GENERAL_KEY] = general;
     }
-    announceLiftedOverride({ tools: overrideTools, general });
+    announceLiftedOverride({ tools: overrideTools, general, refused });
 
     const imported: Record<string, unknown> = { permission };
     if (Object.keys(override).length > 0) {

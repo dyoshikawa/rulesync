@@ -241,6 +241,15 @@ export function collectRestrictionLosingSandboxEntries({
 }
 
 /**
+ * The `'<label>' — <reason>` list a trust-affecting warning ends with, shared so
+ * an adapter that phrases the rest of the sentence itself (an import that lifts
+ * the settings rather than writes them) prints the entries the same way.
+ */
+export function formatTrustAffectingEntries(entries: readonly TrustAffectingEntry[]): string {
+  return entries.map(({ label, reason }) => `'${label}' — ${reason}`).join("; ");
+}
+
+/**
  * The one warning that names every trust-affecting setting this generate wrote
  * to `relativeFilePath`. Emitted once per file: the individual reasons are what
  * matter, but the "review this as you would a hook" framing only needs saying
@@ -263,7 +272,7 @@ export function warnOnTrustAffectingEntries({
 }): void {
   if (entries.length === 0) return;
   const one = entries.length === 1;
-  const details = entries.map(({ label, reason }) => `'${label}' — ${reason}`).join("; ");
+  const details = formatTrustAffectingEntries(entries);
   logger?.warn(
     `${toolLabel} permissions: writing ${entries.length} trust-affecting ${noun}${one ? "" : "s"} to ${relativeFilePath}; review ${one ? "it" : "them"} as you would a hook, especially if this permissions file came from 'rulesync fetch'. ${details}.`,
   );

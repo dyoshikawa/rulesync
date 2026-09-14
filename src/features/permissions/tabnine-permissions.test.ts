@@ -518,6 +518,71 @@ describe("TabninePermissions", () => {
       );
     });
 
+    it("withholds an override run_shell_command allow the same way as a bash allow", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { bash: { "git push *": "deny", "pnpm publish *": "ask" } },
+          tabnine: {
+            tools: {
+              allowed: [
+                "run_shell_command(git)",
+                "run_shell_command(pnpm)",
+                "run_shell_command(docker)",
+                "custom_mcp_tool",
+              ],
+            },
+          },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({
+        allowed: ["run_shell_command(docker)", "custom_mcp_tool"],
+        exclude: ["run_shell_command(git push)"],
+      });
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages).toContainEqual(
+        expect.stringContaining(
+          `withheld 1 'bash' allow rule(s) ("git *") that overlap a 'bash' deny`,
+        ),
+      );
+      expect(messages).toContainEqual(
+        expect.stringContaining("was not given the allow rule(s) for pnpm *"),
+      );
+      // Only the verbatim entry is a trust-affecting one; the shell entries went
+      // through the canonical comparison.
+      const trust = messages.find((message) => message.includes("trust-affecting"));
+      expect(trust).toContain(`'tools.allowed ("custom_mcp_tool")'`);
+      expect(trust).not.toContain("run_shell_command");
+    });
+
+    it("drops the container a refused key emptied and reports a list that is not one", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { read: { "*": "allow" } },
+          tabnine: { tools: { shell: { pager: "less" }, exclude: "web_fetch" } },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        tools: { allowed: ["read_file"] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("refused to write tools.shell.pager from the tabnine override"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `ignored tools.exclude of the tabnine override ("web_fetch"); it must be a list of tool names`,
+        ),
+      );
+    });
+
     it("names the trust-affecting settings the tabnine override writes", async () => {
       const logger = createMockLogger();
       const permissions = await TabninePermissions.fromRulesyncPermissions({
@@ -685,12 +750,14 @@ describe("TabninePermissions", () => {
 
     it("announces the command-executing and trust-affecting keys it lifts into the override", async () => {
       const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const info = vi.spyOn(fallbackLogger, "info").mockImplementation(() => {});
       await writeSettings({
         testDir,
         settings: {
           general: { defaultApprovalMode: "auto_edit" },
           tools: {
             discoveryCommand: "./discover",
+            shell: { pager: "less" },
             sandbox: "docker",
             allowed: ["web_fetch(https://example.com)"],
           },
@@ -700,22 +767,22 @@ describe("TabninePermissions", () => {
       const permissions = await TabninePermissions.fromFile({ outputRoot: testDir });
       const json = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
 
+      // The command-executing paths are not lifted: generate would refuse them.
       expect(json.tabnine).toEqual({
         general: { defaultApprovalMode: "auto_edit" },
         tools: {
-          discoveryCommand: "./discover",
           sandbox: "docker",
           allowed: ["web_fetch(https://example.com)"],
         },
       });
-      const messages = warn.mock.calls.map(([message]) => String(message));
-      expect(messages).toContainEqual(
+      expect(info).toHaveBeenCalledWith(
         expect.stringContaining(
-          "kept tools.discoveryCommand in the tabnine override; Tabnine CLI spawns that value as a command, so 'rulesync generate' will not write it back",
+          "left tools.discoveryCommand, tools.shell.pager in settings.json rather than lifting it into the tabnine override",
         ),
       );
+      const messages = warn.mock.calls.map(([message]) => String(message));
       const trust = messages.find((message) => message.includes("trust-affecting"));
-      expect(trust).toContain("carries 3 trust-affecting setting(s)");
+      expect(trust).toContain("carries 3 trust-affecting settings");
       expect(trust).toContain(`'tools.allowed ("web_fetch(https://example.com)")'`);
       expect(trust).toContain(`'tools.sandbox = "docker"'`);
       expect(trust).toContain(`'general.defaultApprovalMode = "auto_edit"'`);
