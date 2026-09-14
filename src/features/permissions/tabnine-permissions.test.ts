@@ -117,7 +117,7 @@ describe("TabninePermissions", () => {
         outputRoot: testDir,
         rulesyncPermissions: createRulesyncPermissions({
           permission: {
-            bash: { "git * push": "allow", "*.sh": "deny", "docker *": "allow" },
+            bash: { "git * push": "allow", "npm run:*": "deny", "docker *": "allow" },
           },
         }),
         logger,
@@ -127,6 +127,34 @@ describe("TabninePermissions", () => {
       expect(json.tools).toEqual({ allowed: ["run_shell_command(docker)"] });
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("skipped 2 'bash' rule(s) whose pattern is not a command prefix"),
+      );
+    });
+
+    it("withholds a bash allow that overlaps a deny tools.exclude cannot carry", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: {
+            bash: {
+              "git *": "allow",
+              "git * --force": "deny",
+              pnpm: "allow",
+              "pnpm publish*": "deny",
+              "docker *": "allow",
+            },
+          },
+        }),
+        logger,
+      });
+
+      // `git *` would auto-approve `git push --force`, and the bare `pnpm`
+      // prefix also covers `pnpm publish`; neither deny has a prefix to enforce
+      // it, so both allows are withheld and only `docker *` is written.
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({ allowed: ["run_shell_command(docker)"] });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`withheld 2 'bash' allow rule(s) ("git *", "pnpm")`),
       );
     });
 
@@ -185,7 +213,8 @@ describe("TabninePermissions", () => {
           mcpServers: { github: { command: "gh-mcp" } },
           tools: {
             core: ["read_file"],
-            allowed: ["stale_tool"],
+            allowed: ["run_shell_command(npm)", "some_mcp_tool"],
+            exclude: ["run_shell_command(rm -rf)", "web_fetch"],
             shell: { enableInteractiveShell: true },
           },
         },
@@ -198,13 +227,17 @@ describe("TabninePermissions", () => {
         }),
       });
 
+      // The shell tool is managed by the canonical block, so its stale entries
+      // are rewritten; the hand-written entries for tools the block does not
+      // name (an MCP tool, `web_fetch`) stay in place.
       const json = JSON.parse(permissions.getFileContent());
       expect(json.general).toEqual({ defaultApprovalMode: "auto_edit" });
       expect(json.mcpServers).toEqual({ github: { command: "gh-mcp" } });
       expect(json.tools).toEqual({
         core: ["read_file"],
         shell: { enableInteractiveShell: true },
-        allowed: ["run_shell_command(git)"],
+        allowed: ["run_shell_command(git)", "some_mcp_tool"],
+        exclude: ["web_fetch"],
       });
     });
 
@@ -216,11 +249,68 @@ describe("TabninePermissions", () => {
 
       const permissions = await TabninePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
-        rulesyncPermissions: createRulesyncPermissions({ permission: {} }),
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { bash: { "git *": "ask" }, webfetch: { "*": "ask" } },
+        }),
       });
 
       const json = JSON.parse(permissions.getFileContent());
       expect(json.tools).toEqual({});
+    });
+
+    it("keeps a hand-written entry of a tool the canonical block never names", async () => {
+      await writeSettings({
+        testDir,
+        settings: { tools: { exclude: ["run_shell_command(rm -rf)", "some_mcp_tool"] } },
+      });
+
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ permission: {} }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({ exclude: ["run_shell_command(rm -rf)", "some_mcp_tool"] });
+    });
+
+    it("writes only the tools and general groups of the tabnine override", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { bash: { "git *": "allow" } },
+          tabnine: {
+            general: { defaultApprovalMode: "auto_edit" },
+            tools: { core: ["read_file"] },
+            mcpServers: { rogue: { command: "evil" } },
+            hooks: { BeforeTool: [] },
+          },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json).toEqual({
+        general: { defaultApprovalMode: "auto_edit" },
+        tools: { core: ["read_file"], allowed: ["run_shell_command(git)"] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`ignored 2 key(s) of the tabnine override ("mcpServers", "hooks")`),
+      );
+    });
+
+    it("does not read a category name off Object.prototype", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { toString: { "*": "allow" } },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({ allowed: ["toString"] });
     });
 
     it("does not create an empty tools group when there is nothing to write", async () => {

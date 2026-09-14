@@ -11,6 +11,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger, warnWithFallback } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
@@ -21,6 +22,7 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   collectShellCommandRules,
+  createShadowingRestrictionsTest,
   partitionCommandRules,
   SHELL_PERMISSION_CATEGORY,
   warnAboutUnwrittenCommandRules,
@@ -94,6 +96,31 @@ function toShellPrefix(pattern: string): string | undefined {
   return prefix;
 }
 
+/**
+ * The Tabnine tool a canonical category names. An unknown category is passed
+ * through as a tool name (that is how an MCP tool is named); the read is an
+ * own-property lookup so a category spelled `toString` does not pick up an
+ * `Object.prototype` member.
+ */
+function toTabnineToolName(category: string): string {
+  return lookupOwn({ record: CANONICAL_TO_TABNINE_TOOL_NAMES, key: category }) ?? category;
+}
+
+/**
+ * The widest glob a `bash` pattern stands for once it is written as a
+ * `run_shell_command(<prefix>)` entry: the prefix matches the start of the
+ * command line, so a bare `pnpm` also covers `pnpm install`. Used only to
+ * compare an allow against the deny rules that could not be written, where
+ * widening can only withhold more, never fail open.
+ */
+function widenToPrefixGlob(pattern: string): string {
+  const prefix = toShellPrefix(pattern);
+  if (prefix === undefined) {
+    return pattern;
+  }
+  return prefix === "" ? "*" : `${prefix}*`;
+}
+
 function toShellEntry(prefix: string): string {
   return prefix === "" ? SHELL_TOOL_NAME : `${SHELL_TOOL_NAME}(${prefix})`;
 }
@@ -162,18 +189,36 @@ function buildToolLists({
     logger,
   });
   const unmappedShellPatterns: string[] = [];
-  for (const [patterns, list] of [
-    [shellAllow, allowed],
-    [shellDeny, exclude],
-  ] as const) {
-    for (const pattern of patterns) {
-      const prefix = toShellPrefix(pattern);
-      if (prefix === undefined) {
-        unmappedShellPatterns.push(pattern);
-        continue;
-      }
-      list.push(toShellEntry(prefix));
+  const unwrittenShellDenyPatterns: string[] = [];
+  for (const pattern of shellDeny) {
+    const prefix = toShellPrefix(pattern);
+    if (prefix === undefined) {
+      unmappedShellPatterns.push(pattern);
+      unwrittenShellDenyPatterns.push(pattern);
+      continue;
     }
+    exclude.push(toShellEntry(prefix));
+  }
+  // A `bash` deny that cannot be written as a prefix has no denylist entry to
+  // enforce it, so it must withhold the allows it overlaps instead — otherwise
+  // `git *` allowed with `git * --force` denied would auto-approve the very
+  // command the author meant to stop.
+  const shadowingUnwrittenDenies = createShadowingRestrictionsTest(
+    unwrittenShellDenyPatterns.map((pattern) => ({ pattern, fromAllToolsCategory: false })),
+    { normalizePattern: widenToPrefixGlob },
+  );
+  const withheldAllowPatterns: string[] = [];
+  for (const pattern of shellAllow) {
+    const prefix = toShellPrefix(pattern);
+    if (prefix === undefined) {
+      unmappedShellPatterns.push(pattern);
+      continue;
+    }
+    if (shadowingUnwrittenDenies(pattern).length > 0) {
+      withheldAllowPatterns.push(pattern);
+      continue;
+    }
+    allowed.push(toShellEntry(prefix));
   }
   if (unmappedShellPatterns.length > 0) {
     warnWithFallback(
@@ -184,6 +229,14 @@ function buildToolLists({
         `and a bare '<prefix>' can be written.`,
     );
   }
+  if (withheldAllowPatterns.length > 0) {
+    warnWithFallback(
+      logger,
+      `Tabnine CLI permissions: withheld ${withheldAllowPatterns.length} 'bash' allow rule(s) ` +
+        `(${withheldAllowPatterns.map(quoteValueForWarning).join(", ")}) that overlap a deny rule ` +
+        `tools.exclude cannot carry; writing them would auto-approve the denied commands.`,
+    );
+  }
 
   // Every other tool is named as a whole: Tabnine has no per-path or per-URL
   // pattern for `read_file`, `web_fetch`, ..., so only the `*` pattern maps.
@@ -192,7 +245,7 @@ function buildToolLists({
     if (category === SHELL_PERMISSION_CATEGORY || category === "*") {
       continue;
     }
-    const toolName = CANONICAL_TO_TABNINE_TOOL_NAMES[category] ?? category;
+    const toolName = toTabnineToolName(category);
     for (const [pattern, action] of Object.entries(categoryRules)) {
       if (pattern !== "*") {
         unmappedPatterns.push(`${category}: ${pattern}`);
@@ -302,16 +355,50 @@ export class TabninePermissions extends ToolPermissions {
     const overrideTools = isRecord(override[TOOLS_KEY]) ? override[TOOLS_KEY] : {};
     const { allowed, exclude } = buildToolLists({ permission: config.permission, logger });
 
+    // The override may only author the `tools` and `general` groups. Any other
+    // top-level key would ride into the shared file through the permissions
+    // feature, past the adapter that owns it (`mcpServers`, `hooks`, ...).
+    const ignoredOverrideKeys = Object.keys(override).filter(
+      (key) => key !== TOOLS_KEY && key !== GENERAL_KEY,
+    );
+    if (ignoredOverrideKeys.length > 0) {
+      warnWithFallback(
+        logger,
+        `Tabnine CLI permissions: ignored ${ignoredOverrideKeys.length} key(s) of the tabnine ` +
+          `override (${ignoredOverrideKeys.map(quoteValueForWarning).join(", ")}); only 'tools' ` +
+          `and 'general' are written through the permissions feature.`,
+      );
+    }
+
+    // Entries of the existing lists that name a tool the canonical block does
+    // not manage are hand-written (an MCP tool, a prefix rulesync cannot
+    // spell) and are kept; entries for managed tools are rulesync's to rewrite.
+    const existingTools = this.existingToolsGroup(existingContent);
+    const managedToolNames = new Set(
+      Object.keys(config.permission)
+        .filter((category) => category !== "*")
+        .map((category) =>
+          category === SHELL_PERMISSION_CATEGORY ? SHELL_TOOL_NAME : toTabnineToolName(category),
+        ),
+    );
+    const preservedEntries = (key: string): string[] =>
+      (isStringArray(existingTools?.[key]) ? existingTools[key] : []).filter((entry) => {
+        const toolName = parseTabnineEntry(entry)?.toolName;
+        return toolName === undefined || !managedToolNames.has(toolName);
+      });
+
     // The override's own `tools.allowed`/`tools.exclude` carry the entries the
     // canonical block cannot spell (see `toRulesyncPermissions`); they are
     // appended after the canonical ones so a round trip is lossless.
     const allowedList = uniq([
       ...allowed,
       ...(isStringArray(overrideTools[ALLOWED_KEY]) ? overrideTools[ALLOWED_KEY] : []),
+      ...preservedEntries(ALLOWED_KEY),
     ]);
     const excludeList = uniq([
       ...exclude,
       ...(isStringArray(overrideTools[EXCLUDE_KEY]) ? overrideTools[EXCLUDE_KEY] : []),
+      ...preservedEntries(EXCLUDE_KEY),
     ]);
 
     // An empty list retracts its key, since rulesync owns the two of them. The
@@ -323,12 +410,13 @@ export class TabninePermissions extends ToolPermissions {
       [ALLOWED_KEY]: allowedList.length > 0 ? allowedList : undefined,
       [EXCLUDE_KEY]: excludeList.length > 0 ? excludeList : undefined,
     };
-    const patch: Record<string, unknown> = { ...override };
+    const patch: Record<string, unknown> = {};
+    if (isRecord(override[GENERAL_KEY])) {
+      patch[GENERAL_KEY] = override[GENERAL_KEY];
+    }
     const hasToolsToWrite = Object.values(tools).some((value) => value !== undefined);
-    if (hasToolsToWrite || this.existingHasToolsGroup(existingContent)) {
+    if (hasToolsToWrite || existingTools !== undefined) {
       patch[TOOLS_KEY] = tools;
-    } else {
-      delete patch[TOOLS_KEY];
     }
 
     return new TabninePermissions({
@@ -347,17 +435,18 @@ export class TabninePermissions extends ToolPermissions {
     });
   }
 
-  private static existingHasToolsGroup(existingContent: string): boolean {
+  /** The `tools` group of the existing file, or `undefined` when it has none. */
+  private static existingToolsGroup(existingContent: string): Record<string, unknown> | undefined {
     try {
       const existing = parseSharedConfig({
         format: "json",
         fileContent: existingContent || "{}",
         invalidRootPolicy: "error",
       });
-      return isRecord(existing[TOOLS_KEY]);
+      return isRecord(existing[TOOLS_KEY]) ? existing[TOOLS_KEY] : undefined;
     } catch {
       // The gateway reports the broken file itself when the patch is applied.
-      return false;
+      return undefined;
     }
   }
 
@@ -398,7 +487,11 @@ export class TabninePermissions extends ToolPermissions {
           (leftovers[key] ??= []).push(entry);
           continue;
         }
-        setRule(TABNINE_TO_CANONICAL_TOOL_NAMES[toolName] ?? toolName, "*", action);
+        setRule(
+          lookupOwn({ record: TABNINE_TO_CANONICAL_TOOL_NAMES, key: toolName }) ?? toolName,
+          "*",
+          action,
+        );
       }
     }
 

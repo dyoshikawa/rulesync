@@ -8,6 +8,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { omitPrototypePollutionKeys } from "../../utils/prototype-pollution.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -214,8 +215,16 @@ export class TabnineCommand extends ToolCommand {
     tomlObject.prompt = tabnineFrontmatter.prompt.endsWith("\n")
       ? tabnineFrontmatter.prompt
       : `${tabnineFrontmatter.prompt}\n`;
-    // Note: TOML output only carries description and prompt. Extra fields
-    // from the `tabnine` rulesync section are intentionally not serialized.
+    // Every other key of the `tabnine` block is an extra TOML key (an import
+    // put it there — see `toRulesyncCommand`), written back after the two
+    // documented ones so the round trip is lossless. Prototype-pollution keys
+    // are dropped rather than serialized as TOML keys.
+    const { description: _description, prompt: _prompt, ...extraFields } = tabnineFrontmatter;
+    for (const [key, value] of Object.entries(omitPrototypePollutionKeys(extraFields))) {
+      if (value !== undefined) {
+        tomlObject[key] = value;
+      }
+    }
     const tomlContent = stringifyToml(tomlObject);
 
     const paths = this.getSettablePaths({ global });

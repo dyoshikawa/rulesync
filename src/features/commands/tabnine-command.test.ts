@@ -556,6 +556,43 @@ Run !{git status} and report.
       expect(tabnineCommand.getBody()).toBe("Run !{echo {{args}}} now.\n");
     });
 
+    it("should write extra keys of the tabnine block back as TOML keys", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "extras.md",
+        frontmatter: {
+          targets: ["tabnine"],
+          description: "Extras",
+          // JSON.parse yields an own `__proto__` key (a literal would set the prototype).
+          tabnine: JSON.parse(
+            '{"model":"gpt-5","tags":["review","ci"],"__proto__":{"polluted":true}}',
+          ),
+        },
+        body: "Body",
+        fileContent: "",
+        validate: true,
+      });
+
+      const tabnineCommand = TabnineCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+        validate: true,
+      });
+
+      const frontmatter = tabnineCommand.getFrontmatter();
+      expect(frontmatter.description).toBe("Extras");
+      expect(frontmatter.prompt).toBe("Body\n");
+      expect(tabnineCommand.getFileContent()).toContain('model = "gpt-5"');
+      expect(tabnineCommand.getFileContent()).toContain('tags = [ "review", "ci" ]');
+      expect(tabnineCommand.getFileContent()).not.toContain("__proto__");
+      expect(tabnineCommand.getFileContent()).not.toContain("polluted");
+
+      // The extra keys land in the `tabnine` block again on import.
+      const roundTripped = tabnineCommand.toRulesyncCommand().getFrontmatter();
+      expect(roundTripped.tabnine).toEqual({ model: "gpt-5", tags: ["review", "ci"] });
+    });
+
     it("should respect explicit tabnine.prompt override without translation", () => {
       // When the user provides tabnine.prompt in rulesync frontmatter, it is
       // assumed to be hand-authored Tabnine syntax and emitted verbatim.
