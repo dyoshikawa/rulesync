@@ -198,22 +198,23 @@ function buildToolLists({
     logger,
   });
   const unmappedShellPatterns: string[] = [];
-  const unwrittenShellDenyPatterns: string[] = [];
   for (const pattern of shellDeny) {
     const prefix = toShellPrefix(pattern);
     if (prefix === undefined) {
       unmappedShellPatterns.push(pattern);
-      unwrittenShellDenyPatterns.push(pattern);
       continue;
     }
     exclude.push(toShellEntry(prefix));
   }
-  // A `bash` deny that cannot be written as a prefix has no denylist entry to
-  // enforce it, so it must withhold the allows it overlaps instead — otherwise
-  // `git *` allowed with `git * --force` denied would auto-approve the very
-  // command the author meant to stop.
-  const shadowingUnwrittenDenies = createShadowingRestrictionsTest(
-    unwrittenShellDenyPatterns.map((pattern) => ({ pattern, fromAllToolsCategory: false })),
+  // No `bash` deny is relied on to enforce itself: Tabnine documents the
+  // `run_shell_command(<prefix>)` form for `tools.allowed` only, so a prefixed
+  // `tools.exclude` entry is written for the case where it is honored but may
+  // exclude nothing, and a deny that is no prefix at all has no entry. Every
+  // deny therefore withholds the allows it overlaps — otherwise `git *` allowed
+  // with `git push *` denied would auto-approve the very command the author
+  // meant to stop.
+  const shadowingShellDenies = createShadowingRestrictionsTest(
+    shellDeny.map((pattern) => ({ pattern, fromAllToolsCategory: false })),
     { normalizePattern: widenToPrefixGlob },
   );
   const withheldAllowPatterns: string[] = [];
@@ -223,7 +224,7 @@ function buildToolLists({
       unmappedShellPatterns.push(pattern);
       continue;
     }
-    if (shadowingUnwrittenDenies(pattern).length > 0) {
+    if (shadowingShellDenies(pattern).length > 0) {
       withheldAllowPatterns.push(pattern);
       continue;
     }
@@ -242,8 +243,9 @@ function buildToolLists({
     warnWithFallback(
       logger,
       `Tabnine CLI permissions: withheld ${withheldAllowPatterns.length} 'bash' allow rule(s) ` +
-        `(${withheldAllowPatterns.map(quoteValueForWarning).join(", ")}) that overlap a deny rule ` +
-        `tools.exclude cannot carry; writing them would auto-approve the denied commands.`,
+        `(${withheldAllowPatterns.map(quoteValueForWarning).join(", ")}) that overlap a 'bash' deny ` +
+        `rule; tools.exclude is not documented to take a run_shell_command prefix, so writing ` +
+        `them could auto-approve the denied commands.`,
     );
   }
 
@@ -292,9 +294,11 @@ function buildToolLists({
  * Two keys are driven by the canonical block:
  * - `tools.allowed` — `allow` rules. A tool name skips the confirmation prompt;
  *   `run_shell_command(<prefix>)` narrows that to one command prefix.
- * - `tools.exclude` — `deny` rules. A tool name removes the tool from discovery;
- *   Tabnine inherits Gemini CLI's `excludeTools`, where `run_shell_command(<prefix>)`
- *   blocks that prefix.
+ * - `tools.exclude` — `deny` rules. A tool name removes the tool from discovery.
+ *   A `bash` deny is written as `run_shell_command(<prefix>)` there, the form
+ *   Gemini CLI's `excludeTools` (which Tabnine derives from) honors, but Tabnine
+ *   documents the prefix for `tools.allowed` only — so the entry is not relied
+ *   on, and every allow the deny overlaps is withheld as well.
  *
  * `ask` writes nothing: a tool that is in neither list keeps Tabnine's default
  * prompt. Every other `tools.*` key (`core`, `shell.*`, `enableWebTools`, ...)
@@ -412,6 +416,20 @@ export class TabninePermissions extends ToolPermissions {
       ...(isStringArray(overrideTools[EXCLUDE_KEY]) ? overrideTools[EXCLUDE_KEY] : []),
       ...preservedEntries(EXCLUDE_KEY),
     ]);
+    // Dropping an exclude entry loosens the policy, so the ones of a managed
+    // tool that the canonical block did not re-derive are named rather than
+    // removed silently (the allowed side only tightens and needs no notice).
+    const droppedExcludeEntries = (
+      isStringArray(existingTools?.[EXCLUDE_KEY]) ? existingTools[EXCLUDE_KEY] : []
+    ).filter((entry) => !excludeList.includes(entry));
+    if (droppedExcludeEntries.length > 0) {
+      warnWithFallback(
+        logger,
+        `Tabnine CLI permissions: removed ${droppedExcludeEntries.length} existing tools.exclude ` +
+          `entry(ies) (${droppedExcludeEntries.map(quoteValueForWarning).join(", ")}) of a tool the ` +
+          `canonical block manages; add a deny rule to .rulesync/permissions.jsonc to keep them.`,
+      );
+    }
 
     // An empty list retracts its key: rulesync owns the entries of the tools it
     // manages, and the hand-written ones were kept above. The `tools` group

@@ -158,6 +158,59 @@ describe("TabninePermissions", () => {
       );
     });
 
+    it("withholds an allow that overlaps a deny written as an exclude prefix", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: {
+            bash: { "git *": "allow", "git push *": "deny", "docker *": "allow" },
+          },
+        }),
+        logger,
+      });
+
+      // The prefixed exclude entry is written, but Tabnine documents the prefix
+      // form for `tools.allowed` only, so it is not relied on: the `git *` allow
+      // that would auto-approve `git push` if the entry is ignored is withheld.
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({
+        allowed: ["run_shell_command(docker)"],
+        exclude: ["run_shell_command(git push)"],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `withheld 1 'bash' allow rule(s) ("git *") that overlap a 'bash' deny`,
+        ),
+      );
+    });
+
+    it("names an existing exclude entry it removes for a managed tool", async () => {
+      await writeSettings({
+        testDir,
+        settings: { tools: { exclude: ["run_shell_command(rm)", "some_mcp_tool"] } },
+      });
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { bash: { "git *": "allow" } },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({
+        allowed: ["run_shell_command(git)"],
+        exclude: ["some_mcp_tool"],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `removed 1 existing tools.exclude entry(ies) ("run_shell_command(rm)")`,
+        ),
+      );
+    });
+
     it("withholds a bare-prefix allow that overlaps a bash ask", async () => {
       const logger = createMockLogger();
       const permissions = await TabninePermissions.fromRulesyncPermissions({
