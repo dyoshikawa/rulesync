@@ -67,6 +67,19 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       description: z.optional(z.string()),
     }),
   ),
+  continue: z.optional(
+    z.looseObject({
+      // Forces the rule on (`true`) or makes it depend on `globs` / `regex`
+      // alone (`false`). Unset means "always-on unless `globs` are given".
+      // @see https://docs.continue.dev/customize/deep-dives/rules
+      alwaysApply: z.optional(z.boolean()),
+      description: z.optional(z.string()),
+      // Continue accepts a single pattern or a list (takes precedence over globs).
+      globs: z.optional(z.union([z.string(), z.array(z.string())])),
+      // Content regex(es): the rule is pulled in when a context file matches.
+      regex: z.optional(z.union([z.string(), z.array(z.string())])),
+    }),
+  ),
   cursor: z.optional(
     z.looseObject({
       alwaysApply: z.optional(z.boolean()),

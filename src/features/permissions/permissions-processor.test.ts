@@ -116,6 +116,7 @@ describe("PermissionsProcessor", () => {
         "augmentcode",
         "claudecode",
         "codexcli",
+        "continue",
         "copilotcli",
         "cursor",
         "deepagents",

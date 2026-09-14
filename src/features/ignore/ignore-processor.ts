@@ -19,6 +19,7 @@ import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { BobIgnore } from "./bob-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
+import { ContinueIgnore } from "./continue-ignore.js";
 import { CrushIgnore } from "./crush-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { DevinIgnore } from "./devin-ignore.js";
@@ -71,6 +72,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["claudecode", { class: ClaudecodeIgnore }],
   ["claudecode-legacy", { class: ClaudecodeIgnore }],
   ["cline", { class: ClineIgnore }],
+  ["continue", { class: ContinueIgnore }],
   ["crush", { class: CrushIgnore }],
   ["cursor", { class: CursorIgnore }],
   ["hermesagent", { class: HermesagentIgnore }],
@@ -93,6 +95,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
 
 const ignoreProcessorToolTargets: ToolTarget[] = [...toolIgnoreFactories.keys()];
 const ignoreProcessorGlobalToolTargets: ToolTarget[] = [
+  "continue",
   "devin",
   "kiro",
   "kiro-cli",

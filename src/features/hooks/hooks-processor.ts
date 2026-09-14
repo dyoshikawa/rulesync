@@ -14,6 +14,7 @@ import {
   CODEXCLI_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
   COPILOTCLI_HOOK_EVENTS,
+  CONTINUE_HOOK_EVENTS,
   CORTEXCODE_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
@@ -55,6 +56,7 @@ import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
 import { ClineHooks } from "./cline-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
+import { ContinueHooks } from "./continue-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
 import { CortexcodeHooks } from "./cortexcode-hooks.js";
@@ -662,6 +664,40 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command"],
       supportsMatcher: true,
       matcherEvents: ["preToolUse", "postToolUse"],
+    },
+  ],
+  [
+    "continue",
+    {
+      class: ContinueHooks,
+      meta: {
+        // Continue CLI hooks live under the top-level `hooks` key of
+        // `.continue/settings.json` (project) and `~/.continue/settings.json`
+        // (global), in the Claude-Code shape with command, http, prompt and
+        // agent handlers. `matcher` is a regex over the event's subject;
+        // UserPromptSubmit, Stop, TeammateIdle, TaskCompleted, WorktreeCreate
+        // and WorktreeRemove fire unconditionally.
+        // https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/types.ts
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: CONTINUE_HOOK_EVENTS,
+      supportedHookTypes: ["command", "http", "prompt", "agent"],
+      supportsMatcher: true,
+      matcherEvents: [
+        "preToolUse",
+        "postToolUse",
+        "postToolUseFailure",
+        "permissionRequest",
+        "sessionStart",
+        "sessionEnd",
+        "notification",
+        "subagentStart",
+        "subagentStop",
+        "preCompact",
+        "configChange",
+      ],
     },
   ],
   [

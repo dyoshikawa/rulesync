@@ -59,6 +59,7 @@ const rulesRootTargets = [
   { target: "bob", outputPath: "AGENTS.md" },
   { target: "tabnine", outputPath: "TABNINE.md" },
   { target: "cortexcode", outputPath: "AGENTS.md" },
+  { target: "continue", outputPath: "AGENTS.md" },
   { target: "pool", outputPath: "AGENTS.md" },
   { target: "dsh", outputPath: "AGENTS.md" },
 ] as const;
@@ -76,6 +77,7 @@ const rulesNonRootTargets = [
   { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
   { target: "bob", outputPath: join(".bob", "rules", "overview.md") },
   { target: "tabnine", outputPath: join(".tabnine", "guidelines", "overview.md") },
+  { target: "continue", outputPath: join(".continue", "rules", "overview.md") },
   { target: "devin", outputPath: join(".devin", "rules", "overview.md") },
   { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
 ] as const;
@@ -1222,6 +1224,7 @@ describe("E2E: rules (import)", () => {
     { target: "pi", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "pool", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "cortexcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "continue", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "dsh", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "vibe", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {
@@ -1272,6 +1275,11 @@ describe("E2E: rules (import)", () => {
     {
       target: "tabnine",
       sourcePath: join(".tabnine", "guidelines", "overview.md"),
+      importedFileName: "overview.md",
+    },
+    {
+      target: "continue",
+      sourcePath: join(".continue", "rules", "overview.md"),
       importedFileName: "overview.md",
     },
     {
@@ -1365,6 +1373,7 @@ const rulesGlobalTargets = [
   { target: "zcode", outputPath: join(".zcode", "AGENTS.md") },
   { target: "bob", outputPath: join(".bob", "AGENTS.md") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "TABNINE.md") },
+  { target: "continue", outputPath: join(".continue", "rules", "AGENTS.md") },
   { target: "pool", outputPath: join(".config", "poolside", "AGENTS.md") },
   { target: "dsh", outputPath: join(".dsh", "AGENTS.md") },
 ] as const;

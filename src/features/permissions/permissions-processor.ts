@@ -20,6 +20,7 @@ import { AugmentcodePermissions } from "./augmentcode-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
+import { ContinuePermissions } from "./continue-permissions.js";
 import { CopilotPermissions } from "./copilot-permissions.js";
 import { CopilotcliPermissions } from "./copilotcli-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
@@ -160,6 +161,21 @@ export const toolPermissionsFactories = new Map<
       class: CodexcliPermissions,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "continue",
+    {
+      class: ContinuePermissions,
+      meta: {
+        // The Continue CLI reads tool policies only from the user-scoped
+        // `~/.continue/permissions.yaml`; there is no project-scoped
+        // permissions file (mirrors the Goose adapter).
+        // https://docs.continue.dev/cli/tool-permissions
+        supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,
       },

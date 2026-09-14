@@ -1086,6 +1086,64 @@ export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Objec
 );
 
 /**
+ * Hook events supported by the Continue CLI (`cn`).
+ *
+ * Continue reads a Claude-Code-compatible `hooks` key from
+ * `~/.continue/settings.json` (user) and `.continue/settings.json` (project):
+ * PascalCase event names, a regex `matcher` over the event's subject (tool
+ * name, session source, ...), and `command` / `http` / `prompt` / `agent`
+ * handlers with a `timeout` in seconds. `$CONTINUE_PROJECT_DIR` resolves to
+ * the working directory inside commands. The event list is the CLI's
+ * `HOOK_EVENT_NAMES`.
+ *
+ * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/types.ts
+ * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/hookConfig.ts
+ */
+export const CONTINUE_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "permissionRequest",
+  "beforeSubmitPrompt",
+  "sessionStart",
+  "sessionEnd",
+  "stop",
+  "notification",
+  "subagentStart",
+  "subagentStop",
+  "preCompact",
+  "configChange",
+  "teammateIdle",
+  "taskCompleted",
+  "worktreeCreate",
+  "worktreeRemove",
+];
+
+export const CANONICAL_TO_CONTINUE_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  permissionRequest: "PermissionRequest",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  stop: "Stop",
+  notification: "Notification",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+  configChange: "ConfigChange",
+  teammateIdle: "TeammateIdle",
+  taskCompleted: "TaskCompleted",
+  worktreeCreate: "WorktreeCreate",
+  worktreeRemove: "WorktreeRemove",
+};
+
+export const CONTINUE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_CONTINUE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
  * Hermes validates hook events against a fixed `VALID_HOOKS` set — 37 entries as
@@ -1259,6 +1317,7 @@ export const HooksConfigSchema = z.looseObject({
   zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   cortexcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  continue: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   tabnine: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
     z.looseObject({

@@ -354,6 +354,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     }),
   ),
   cortexcode: z.optional(z.looseObject({})),
+  continue: z.optional(z.looseObject({})),
   tabnine: z.optional(z.looseObject({})),
   takt: z.optional(
     z.looseObject({
@@ -581,6 +582,7 @@ export type RulesyncSkillFrontmatterInput = {
     "allowed-tools"?: string | string[];
   };
   cortexcode?: Record<string, unknown>;
+  continue?: Record<string, unknown>;
   tabnine?: Record<string, unknown>;
   takt?: {
     name?: string;

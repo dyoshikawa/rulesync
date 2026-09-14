@@ -42,6 +42,7 @@ import { ClaudecodePluginSkill } from "./claudecode-plugin-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { ClineSkill } from "./cline-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
+import { ContinueSkill } from "./continue-skill.js";
 import { CopilotSkill } from "./copilot-skill.js";
 import { CopilotcliSkill } from "./copilotcli-skill.js";
 import { CortexcodeSkill } from "./cortexcode-skill.js";
@@ -337,6 +338,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "codexcli",
     {
       class: CodexCliSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "continue",
+    {
+      // Continue skills are Anthropic-style Agent Skills directories
+      // (<name>/SKILL.md) under .continue/skills/ (project) and
+      // ~/.continue/skills/ (user).
+      // https://github.com/continuedev/continue/blob/main/extensions/cli/src/util/loadMarkdownSkills.ts
+      class: ContinueSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

@@ -63,6 +63,7 @@ import { ClaudecodeRule } from "./claudecode-rule.js";
 import { ClineRule } from "./cline-rule.js";
 import { CodebuddyRule } from "./codebuddy-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
+import { ContinueRule } from "./continue-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CopilotcliRule } from "./copilotcli-rule.js";
 import { CortexcodeRule } from "./cortexcode-rule.js";
@@ -538,6 +539,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
+    "continue",
+    {
+      class: ContinueRule,
+      meta: {
+        // Continue reads the workspace-root `AGENTS.md` plus `.continue/rules/*.md`
+        // files (frontmatter `globs` / `regex` / `alwaysApply`), and the same
+        // rules directory under `~/.continue/` in global scope. It has no
+        // user-level `AGENTS.md`, so the global root rule is written to
+        // `~/.continue/rules/AGENTS.md` (mirrors the roo entry below).
+        // https://docs.continue.dev/customize/deep-dives/rules
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],
