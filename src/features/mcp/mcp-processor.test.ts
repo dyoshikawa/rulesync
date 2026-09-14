@@ -1259,7 +1259,7 @@ describe("McpProcessor", () => {
       expect(globalTargets).toContain("opencode"); // sanity: parity with opencode
       expect(globalTargets).toContain("cline"); // cline MCP is global-only
       expect(globalTargets).toContain("vibe");
-      expect(globalTargets).toContain("bob"); // ~/.bob/mcp_settings.json
+      expect(globalTargets).toContain("bob"); // ~/.bob/mcp.json
     });
   });
 

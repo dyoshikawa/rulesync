@@ -190,10 +190,10 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     "bob",
     {
       // IBM Bob reads `mcpServers` from the dedicated `<project>/.bob/mcp.json`
-      // (project) and `~/.bob/mcp_settings.json` (global). Bob has
-      // `alwaysAllow` for auto-approval, not a per-server tool filter, so the
-      // enabled/disabled tool lists are not emitted.
-      // https://bob.ibm.com/docs/shell/configuration/mcp/mcp-bobshell
+      // (project) and `~/.bob/mcp.json` (global). Bob has `alwaysAllow` for
+      // auto-approval, not a per-server tool filter, so the enabled/disabled
+      // tool lists are not emitted.
+      // https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob
       class: BobMcp,
       meta: {
         supportsProject: true,

@@ -1,11 +1,20 @@
 import { join } from "node:path";
 
-import { BOB_DIR, BOB_GLOBAL_MCP_FILE_NAME, BOB_MCP_FILE_NAME } from "../../constants/bob-paths.js";
+import { BOB_DIR, BOB_MCP_FILE_NAME } from "../../constants/bob-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { isRemoteMcpServer, resolveRemoteMcpUrl } from "./mcp-transport.js";
+import type { Logger } from "../../utils/logger.js";
+import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import { isRecord } from "../../utils/type-guards.js";
+import {
+  declaresNoTransport,
+  isRemoteMcpServer,
+  resolveLocalMcpCommand,
+  resolveRemoteMcpUrl,
+  warnAndSkipMcpServer,
+} from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -18,69 +27,178 @@ import {
 
 type BobMcpServers = Record<string, Record<string, unknown>>;
 
+/** The `type` Bob IDE writes for a streamable HTTP server. */
+const BOB_STREAMABLE_HTTP_TYPE = "streamable-http";
+
 /**
- * Convert the canonical server map to Bob's shape. Bob names the transport
- * through the URL field rather than a `type` key: `command` starts a stdio
- * server, `url` reaches an SSE server and `httpURL` a streamable HTTP one. A
- * remote server that states `sse` (via `type` or `transport`) keeps `url`;
- * every other remote server — a bare `url`, `http`, `streamable-http`, or the
- * `httpUrl` alias — is written as `httpURL`, streamable HTTP being the current
- * MCP transport. The canonical `type` / `transport` keys are dropped because
- * Bob has no such key; `args`, `env`, `headers`, `cwd`, `timeout`,
- * `alwaysAllow` and `disabled` pass through unchanged, as Bob documents all of
- * them.
- * @see https://bob.ibm.com/docs/shell/configuration/mcp/mcp-bobshell
+ * The remote transport Bob IDE reads a server as, spelled the way it writes
+ * it: `streamable-http` needs an explicit `type`, while SSE (legacy) is a bare
+ * `url` with no `type`. `http` is the canonical rulesync alias for streamable
+ * HTTP and a bare `url` defaults to it, streamable HTTP being the current MCP
+ * transport. A `ws(s)://` URL or any other stated transport is something Bob
+ * cannot reach, so `undefined` tells the caller to skip the server.
+ * @see https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob
  */
-function convertToBobFormat(mcpServers: McpServers): BobMcpServers {
-  return Object.fromEntries(
-    Object.entries(mcpServers).map(([serverName, serverConfig]) => {
-      const { type, transport, url: _url, httpUrl: _httpUrl, ...rest } = serverConfig;
-      const converted: Record<string, unknown> = { ...rest };
-      if (isRemoteMcpServer(serverConfig)) {
-        const remoteUrl = resolveRemoteMcpUrl(serverConfig);
-        if (remoteUrl !== undefined) {
-          const isSse = type === "sse" || transport === "sse";
-          converted[isSse ? "url" : "httpURL"] = remoteUrl;
-        }
-      }
-      return [serverName, converted];
-    }),
-  );
+function asBobRemoteType(
+  stated: string | undefined,
+  url: string,
+): "streamable-http" | "sse" | undefined {
+  if (stated === "sse") return "sse";
+  if (stated === "http" || stated === BOB_STREAMABLE_HTTP_TYPE) return BOB_STREAMABLE_HTTP_TYPE;
+  if (stated === undefined) {
+    return /^wss?:\/\//i.test(url) ? undefined : BOB_STREAMABLE_HTTP_TYPE;
+  }
+  return undefined;
 }
 
 /**
- * Convert Bob's server map back to the canonical shape. `httpURL` becomes
- * `url` with `type: "http"`; a plain `url` is an SSE server in Bob, so it gains
- * `type: "sse"` to keep that reading on the next generate.
+ * Convert the canonical server map to the shape Bob IDE documents for
+ * `.bob/mcp.json`: a stdio server carries `command` (plus `args`), a
+ * streamable HTTP server carries `type: "streamable-http"` and `url`, and an
+ * SSE server carries a bare `url`. The canonical `transport` alias and the
+ * Claude-style `httpUrl` alias are folded into `type`/`url`; `env`, `cwd`,
+ * `headers`, `timeout`, `alwaysAllow` and `disabled` pass through unchanged,
+ * as Bob documents all of them.
+ *
+ * Bob Shell documents the same file with an `httpURL` key instead of
+ * `type` + `url` for streamable HTTP. rulesync writes the IDE spelling (the two
+ * products share the project file, and the IDE is the one whose global file
+ * rulesync targets) and accepts the Shell spelling on import.
+ *
+ * A server Bob cannot start or reach — no transport at all, a remote transport
+ * without a URL, a WebSocket URL, or a stdio entry without a command — is
+ * skipped with a warning rather than written in a broken form.
+ * @see https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob
+ * @see https://bob.ibm.com/docs/shell/configuration/mcp/mcp-bobshell
+ */
+function convertToBobFormat(mcpServers: McpServers, logger?: Logger): BobMcpServers {
+  const result: BobMcpServers = {};
+
+  for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(serverName) || !isRecord(serverConfig)) continue;
+
+    if (declaresNoTransport(serverConfig)) {
+      warnAndSkipMcpServer({ toolName: "Bob", serverName, reason: "no transport", logger });
+      continue;
+    }
+
+    const {
+      type,
+      transport,
+      url: _url,
+      httpUrl: _httpUrl,
+      command: _command,
+      args: _args,
+      ...rest
+    } = serverConfig;
+    const converted: Record<string, unknown> = {};
+
+    if (isRemoteMcpServer(serverConfig)) {
+      const url = resolveRemoteMcpUrl(serverConfig);
+      if (!url) {
+        warnAndSkipMcpServer({
+          toolName: "Bob",
+          serverName,
+          reason: "a remote transport without a url",
+          logger,
+        });
+        continue;
+      }
+      const stated = type ?? transport;
+      const remoteType = asBobRemoteType(stated, url);
+      if (remoteType === undefined) {
+        warnAndSkipMcpServer({
+          toolName: "Bob",
+          serverName,
+          reason:
+            stated === undefined
+              ? "a WebSocket url, which Bob's remote transports (streamable-http and sse) cannot reach"
+              : `the "${stated}" transport, which Bob does not offer for remote servers (only streamable-http and sse)`,
+          logger,
+        });
+        continue;
+      }
+      if (remoteType === BOB_STREAMABLE_HTTP_TYPE) {
+        converted.type = BOB_STREAMABLE_HTTP_TYPE;
+      }
+      converted.url = url;
+    } else {
+      const [command, ...args] = resolveLocalMcpCommand(serverConfig);
+      if (!command) {
+        warnAndSkipMcpServer({
+          toolName: "Bob",
+          serverName,
+          reason: "a stdio transport without a command",
+          logger,
+        });
+        continue;
+      }
+      converted.command = command;
+      if (args.length > 0) {
+        converted.args = args;
+      }
+    }
+
+    for (const [key, value] of Object.entries(rest)) {
+      if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+      converted[key] = value;
+    }
+    result[serverName] = converted;
+  }
+
+  return result;
+}
+
+/**
+ * Convert Bob's server map back to the canonical shape. The IDE spelling
+ * (`type: "streamable-http"` + `url`) is already canonical and passes through;
+ * the Bob Shell spelling `httpURL` becomes `url` with `type: "http"`; a bare
+ * `url` is an SSE server in Bob, so it gains `type: "sse"` to keep that reading
+ * on the next generate.
  */
 function convertFromBobFormat(mcpServers: unknown): McpServers {
   if (!isMcpServers(mcpServers)) {
     return {};
   }
-  return Object.fromEntries(
-    Object.entries(mcpServers).map(([serverName, serverConfig]) => {
-      const { httpURL, ...rest } = serverConfig as Record<string, unknown>;
-      const converted: Record<string, unknown> = { ...rest };
-      if (typeof httpURL === "string") {
-        converted.url = httpURL;
-        converted.type = "http";
-      } else if (typeof converted.url === "string") {
-        converted.type = "sse";
+  const result: McpServers = {};
+
+  for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(serverName) || !isRecord(serverConfig)) continue;
+
+    const converted: Record<string, unknown> = {};
+    let httpURL: string | undefined;
+    for (const [key, value] of Object.entries(serverConfig)) {
+      if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+      if (key === "httpURL") {
+        if (typeof value === "string") httpURL = value;
+        continue;
       }
-      return [serverName, converted];
-    }),
-  );
+      converted[key] = value;
+    }
+    if (httpURL !== undefined) {
+      converted.url = httpURL;
+      converted.type = "http";
+    } else if (typeof converted.url === "string" && converted.type === undefined) {
+      converted.type = "sse";
+    }
+    result[serverName] = converted;
+  }
+
+  return result;
 }
 
 /**
  * IBM Bob MCP configuration.
  *
- * Bob reads `mcpServers` from `<project>/.bob/mcp.json` (project scope) and
- * `~/.bob/mcp_settings.json` (user scope); the project entry wins when both
- * define the same server name. Both files are dedicated to MCP, so the
- * project one is deletable, while the user one is left in place because Bob
- * creates it itself.
+ * Bob IDE reads `mcpServers` from `<project>/.bob/mcp.json` (project scope)
+ * and `~/.bob/mcp.json` (user scope); the project entry wins when both define
+ * the same server name. Both files are dedicated to MCP. The project one is
+ * deletable; the user one is created and edited by Bob IDE's own MCP settings
+ * UI, so `--delete` leaves it in place rather than removing a file the user
+ * did not create through rulesync. (Bob Shell reads its user-scoped servers
+ * from `~/.bob/mcp_settings.json` instead, which rulesync does not write.)
  *
+ * @see https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob
  * @see https://bob.ibm.com/docs/shell/configuration/mcp/mcp-bobshell
  */
 export class BobMcp extends ToolMcp {
@@ -110,10 +228,10 @@ export class BobMcp extends ToolMcp {
     return !this.global;
   }
 
-  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolMcpSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
     return {
       relativeDirPath: BOB_DIR,
-      relativeFilePath: global ? BOB_GLOBAL_MCP_FILE_NAME : BOB_MCP_FILE_NAME,
+      relativeFilePath: BOB_MCP_FILE_NAME,
     };
   }
 
@@ -151,6 +269,7 @@ export class BobMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<BobMcp> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -171,7 +290,7 @@ export class BobMcp extends ToolMcp {
 
     // Use getMcpServers() (not getJson()) so rulesync-only fields are
     // stripped before writing the Bob config.
-    const mcpServers = convertToBobFormat(rulesyncMcp.getMcpServers());
+    const mcpServers = convertToBobFormat(rulesyncMcp.getMcpServers(), logger);
     const bobConfig = { ...json, mcpServers };
 
     return new BobMcp({

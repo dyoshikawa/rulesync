@@ -21,13 +21,16 @@ export const BOB_RULES_DIR_PATH = join(BOB_DIR, "rules");
 // @see https://bob.ibm.com/docs/ide/configuration/bobignore
 export const BOB_IGNORE_FILE_NAME = ".bobignore";
 
-// MCP servers: `<project>/.bob/mcp.json` (project) and
-// `~/.bob/mcp_settings.json` (user), both `{ "mcpServers": { ... } }`. A
-// stdio server carries `command`; a remote one carries `url` (SSE) or
-// `httpURL` (streamable HTTP). The project file wins on a name clash.
+// MCP servers: `<project>/.bob/mcp.json` (project) and `~/.bob/mcp.json`
+// (user), both `{ "mcpServers": { ... } }` as Bob IDE documents them. A stdio
+// server carries `command`; a remote one carries `type: "streamable-http"` +
+// `url`, or a bare `url` for legacy SSE. The project file wins on a name
+// clash. (Bob Shell reads its user-scoped servers from `~/.bob/mcp_settings.json`
+// with an `httpURL` spelling instead; rulesync accepts that spelling on import
+// but does not write that file.)
+// @see https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob
 // @see https://bob.ibm.com/docs/shell/configuration/mcp/mcp-bobshell
 export const BOB_MCP_FILE_NAME = "mcp.json";
-export const BOB_GLOBAL_MCP_FILE_NAME = "mcp_settings.json";
 
 // Slash commands: Markdown files under `<project>/.bob/commands/` and
 // `~/.bob/commands/`, with optional `description` / `argument-hint`

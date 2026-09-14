@@ -6,6 +6,7 @@ import {
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { BobMcp } from "./bob-mcp.js";
@@ -40,11 +41,11 @@ describe("BobMcp", () => {
       expect(paths.relativeFilePath).toBe("mcp.json");
     });
 
-    it("should return .bob/mcp_settings.json for global scope", () => {
+    it("should return .bob/mcp.json for global scope as well", () => {
       const paths = BobMcp.getSettablePaths({ global: true });
 
       expect(paths.relativeDirPath).toBe(".bob");
-      expect(paths.relativeFilePath).toBe("mcp_settings.json");
+      expect(paths.relativeFilePath).toBe("mcp.json");
     });
   });
 
@@ -88,7 +89,7 @@ describe("BobMcp", () => {
     it("should not be deletable in global scope", () => {
       const bobMcp = new BobMcp({
         relativeDirPath: ".bob",
-        relativeFilePath: "mcp_settings.json",
+        relativeFilePath: "mcp.json",
         fileContent: "{}",
         global: true,
       });
@@ -115,7 +116,7 @@ describe("BobMcp", () => {
       });
     });
 
-    it("should map sse servers to url and drop the type key", async () => {
+    it("should write sse servers as a bare url without a type key", async () => {
       const rulesyncMcp = buildRulesyncMcp({
         events: { type: "sse", url: "https://example.com/sse", headers: { A: "b" } },
       });
@@ -127,9 +128,9 @@ describe("BobMcp", () => {
       });
     });
 
-    it("should map http and streamable-http servers to httpURL", async () => {
+    it("should write http and streamable-http servers as type streamable-http", async () => {
       const rulesyncMcp = buildRulesyncMcp({
-        http: { type: "http", url: "https://example.com/mcp" },
+        http: { type: "http", url: "https://example.com/mcp", headers: { A: "b" } },
         streamable: { transport: "streamable-http", url: "https://example.com/stream" },
         bare: { url: "https://example.com/bare" },
         alias: { httpUrl: "https://example.com/alias" },
@@ -139,12 +140,62 @@ describe("BobMcp", () => {
 
       expect(JSON.parse(bobMcp.getFileContent())).toEqual({
         mcpServers: {
-          http: { httpURL: "https://example.com/mcp" },
-          streamable: { httpURL: "https://example.com/stream" },
-          bare: { httpURL: "https://example.com/bare" },
-          alias: { httpURL: "https://example.com/alias" },
+          http: { type: "streamable-http", url: "https://example.com/mcp", headers: { A: "b" } },
+          streamable: { type: "streamable-http", url: "https://example.com/stream" },
+          bare: { type: "streamable-http", url: "https://example.com/bare" },
+          alias: { type: "streamable-http", url: "https://example.com/alias" },
         },
       });
+    });
+
+    it("should normalize an array command into command and args", async () => {
+      const rulesyncMcp = buildRulesyncMcp({
+        git: { command: ["npx", "-y"], args: ["mcp-git"] },
+      });
+
+      const bobMcp = await BobMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      expect(JSON.parse(bobMcp.getFileContent()).mcpServers.git).toEqual({
+        command: "npx",
+        args: ["-y", "mcp-git"],
+      });
+    });
+
+    it("should warn and skip servers Bob cannot start or reach", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = buildRulesyncMcp({
+        none: { env: { A: "b" } },
+        noUrl: { type: "http" },
+        ws: { url: "wss://example.com/socket" },
+        wsTyped: { type: "ws", url: "wss://example.com/socket" },
+        noCommand: { type: "stdio" },
+        ok: { command: "git-mcp" },
+      });
+
+      const bobMcp = await BobMcp.fromRulesyncMcp({ rulesyncMcp, logger });
+
+      expect(JSON.parse(bobMcp.getFileContent())).toEqual({
+        mcpServers: { ok: { command: "git-mcp" } },
+      });
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(warnings).toHaveLength(5);
+      for (const name of ["none", "noUrl", "ws", "wsTyped", "noCommand"]) {
+        expect(warnings.some((message) => message.includes(`"${name}"`))).toBe(true);
+      }
+    });
+
+    it("should ignore prototype-pollution keys on generate", async () => {
+      const rulesyncMcp = buildRulesyncMcp(
+        JSON.parse(
+          '{"__proto__":{"command":"evil"},"git":{"command":"git-mcp","__proto__":{"x":1}}}',
+        ),
+      );
+
+      const bobMcp = await BobMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      const servers = JSON.parse(bobMcp.getFileContent()).mcpServers;
+      expect(Object.keys(servers)).toEqual(["git"]);
+      expect(Object.keys(servers.git)).toEqual(["command"]);
     });
 
     it("should pass through Bob-specific keys", async () => {
@@ -198,13 +249,13 @@ describe("BobMcp", () => {
       );
     });
 
-    it("should write .bob/mcp_settings.json in global scope", async () => {
+    it("should write a non-deletable .bob/mcp.json in global scope", async () => {
       const rulesyncMcp = buildRulesyncMcp({ git: { command: "git-mcp" } });
 
       const bobMcp = await BobMcp.fromRulesyncMcp({ rulesyncMcp, global: true });
 
       expect(bobMcp.getRelativeDirPath()).toBe(".bob");
-      expect(bobMcp.getRelativeFilePath()).toBe("mcp_settings.json");
+      expect(bobMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(bobMcp.isDeletable()).toBe(false);
     });
 
@@ -238,16 +289,16 @@ describe("BobMcp", () => {
       expect(bobMcp.getJson()).toEqual({ mcpServers: {} });
     });
 
-    it("should read ~/.bob/mcp_settings.json in global scope", async () => {
+    it("should read ~/.bob/mcp.json in global scope", async () => {
       await ensureDir(join(testDir, ".bob"));
       await writeFileContent(
-        join(testDir, ".bob", "mcp_settings.json"),
+        join(testDir, ".bob", "mcp.json"),
         JSON.stringify({ mcpServers: { git: { command: "git-mcp" } } }),
       );
 
       const bobMcp = await BobMcp.fromFile({ global: true });
 
-      expect(bobMcp.getRelativeFilePath()).toBe("mcp_settings.json");
+      expect(bobMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(bobMcp.getJson()).toEqual({ mcpServers: { git: { command: "git-mcp" } } });
     });
 
@@ -279,7 +330,38 @@ describe("BobMcp", () => {
       });
     });
 
-    it("should map httpURL to url with type http", () => {
+    it("should keep Bob IDE streamable-http and sse entries as they are", () => {
+      const bobMcp = new BobMcp({
+        relativeDirPath: ".bob",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: { type: "streamable-http", url: "https://example.com/mcp" },
+            events: { type: "sse", url: "https://example.com/sse" },
+          },
+        }),
+      });
+
+      expect(bobMcp.toRulesyncMcp().getMcpServers()).toEqual({
+        remote: { type: "streamable-http", url: "https://example.com/mcp" },
+        events: { type: "sse", url: "https://example.com/sse" },
+      });
+    });
+
+    it("should ignore prototype-pollution keys on import", () => {
+      const bobMcp = new BobMcp({
+        relativeDirPath: ".bob",
+        relativeFilePath: "mcp.json",
+        fileContent:
+          '{"mcpServers":{"__proto__":{"command":"evil"},"git":{"command":"git-mcp","constructor":{"x":1}}}}',
+      });
+
+      const servers = bobMcp.toRulesyncMcp().getMcpServers();
+      expect(Object.keys(servers)).toEqual(["git"]);
+      expect(Object.keys(servers.git ?? {})).toEqual(["command"]);
+    });
+
+    it("should map Bob Shell httpURL to url with type http", () => {
       const bobMcp = new BobMcp({
         relativeDirPath: ".bob",
         relativeFilePath: "mcp.json",
@@ -331,7 +413,7 @@ describe("BobMcp", () => {
       const restored = bobMcp.toRulesyncMcp();
 
       expect(restored.getMcpServers()).toEqual({
-        http: { url: "https://example.com/mcp", type: "http" },
+        http: { type: "streamable-http", url: "https://example.com/mcp" },
         sse: { url: "https://example.com/sse", type: "sse" },
         stdio: { command: "git-mcp" },
       });
