@@ -158,6 +158,69 @@ describe("TabninePermissions", () => {
       );
     });
 
+    it("withholds a bare-prefix allow that overlaps a bash ask", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: {
+            bash: { pnpm: "allow", "pnpm publish *": "ask", "docker *": "allow" },
+          },
+        }),
+        logger,
+      });
+
+      // A bare `pnpm` prefix auto-approves `pnpm publish` as well, so the ask
+      // can only be honored by withholding it.
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({ allowed: ["run_shell_command(docker)"] });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("was not given the allow rule(s) for pnpm"),
+      );
+    });
+
+    it("withholds a bare-prefix allow that overlaps a '*' deny or ask", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: {
+            "*": { "pnpm publish *": "deny", "git * --force": "ask" },
+            bash: { pnpm: "allow", git: "allow", "docker *": "allow" },
+          },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      // Bare `pnpm` and `git` prefixes cover `pnpm publish` and `git push
+      // --force`; neither `*` rule can be written, so both allows are withheld.
+      expect(json.tools).toEqual({ allowed: ["run_shell_command(docker)"] });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("was not given the allow rule(s) for pnpm, git"),
+      );
+    });
+
+    it("rewrites a stale shell entry once the '*' category restricts shell commands", async () => {
+      await writeSettings({
+        testDir,
+        settings: { tools: { allowed: ["run_shell_command(git)", "some_mcp_tool"] } },
+      });
+
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { "*": { "git *": "deny" } },
+        }),
+      });
+
+      // The `bash` category that wrote `run_shell_command(git)` is gone and
+      // `*` now denies `git *`: the shell tool is managed, so the stale allow
+      // goes while the MCP tool entry stays.
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({ allowed: ["some_mcp_tool"] });
+    });
+
     it("maps whole-tool '*' rules of the other categories to built-in tool names", async () => {
       const logger = createMockLogger();
       const permissions = await TabninePermissions.fromRulesyncPermissions({
@@ -400,6 +463,26 @@ describe("TabninePermissions", () => {
         save_memory: { "*": "deny" },
       });
       expect(json.tabnine).toBeUndefined();
+    });
+
+    it("keeps an entry named after an Object.prototype member out of the categories", async () => {
+      await writeSettings({
+        testDir,
+        settings: {
+          tools: { allowed: ["__proto__", "read_file"], exclude: ["constructor", "prototype"] },
+        },
+      });
+
+      const permissions = await TabninePermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
+
+      expect(json.permission).toEqual({ read: { "*": "allow" } });
+      expect(json.tabnine).toEqual({
+        tools: { exclude: ["constructor", "prototype"], allowed: ["__proto__"] },
+      });
+      expect(Object.hasOwn({}, "*")).toBe(false);
+      expect(({} as Record<string, unknown>)["*"]).toBeUndefined();
+      expect((Object as unknown as Record<string, unknown>)["*"]).toBeUndefined();
     });
 
     it("keeps a tool listed in both lists as deny", async () => {

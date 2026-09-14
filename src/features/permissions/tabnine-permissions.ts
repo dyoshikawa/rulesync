@@ -12,6 +12,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger, warnWithFallback } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
@@ -110,8 +111,9 @@ function toTabnineToolName(category: string): string {
  * The widest glob a `bash` pattern stands for once it is written as a
  * `run_shell_command(<prefix>)` entry: the prefix matches the start of the
  * command line, so a bare `pnpm` also covers `pnpm install`. Used only to
- * compare an allow against the deny rules that could not be written, where
- * widening can only withhold more, never fail open.
+ * compare allows against the restrictions (`ask` rules, `*` rules and the
+ * deny rules that could not be written), where widening can only withhold
+ * more, never fail open.
  */
 function widenToPrefixGlob(pattern: string): string {
   const prefix = toShellPrefix(pattern);
@@ -173,7 +175,14 @@ function buildToolLists({
     unwrittenDenyPatterns,
     unenforcedAllToolsAskPatterns,
     intersectionBudgetExhausted,
-  } = partitionCommandRules({ rules, writesAllToolsDeny: false });
+  } = partitionCommandRules({
+    rules,
+    writesAllToolsDeny: false,
+    // A `bash` pattern is written as a prefix that also covers every longer
+    // command line, so it is compared at that width: a bare `pnpm` allow
+    // overlaps a `pnpm publish *` ask and is withheld rather than written.
+    normalizePattern: widenToPrefixGlob,
+  });
   warnAboutUnwrittenCommandRules({
     toolLabel: "Tabnine CLI",
     surfaceLabel: "tools.allowed/tools.exclude",
@@ -375,11 +384,14 @@ export class TabninePermissions extends ToolPermissions {
     // spell) and are kept; entries for managed tools are rulesync's to rewrite.
     const existingTools = this.existingToolsGroup(existingContent);
     const managedToolNames = new Set(
-      Object.keys(config.permission)
-        .filter((category) => category !== "*")
-        .map((category) =>
-          category === SHELL_PERMISSION_CATEGORY ? SHELL_TOOL_NAME : toTabnineToolName(category),
-        ),
+      Object.keys(config.permission).map((category) =>
+        // The rules of `*` apply to shell commands, so they manage the shell
+        // tool too: a stale `run_shell_command(git)` allow must not outlive
+        // the `bash` category it came from once `*` restricts `git *`.
+        category === SHELL_PERMISSION_CATEGORY || category === "*"
+          ? SHELL_TOOL_NAME
+          : toTabnineToolName(category),
+      ),
     );
     const preservedEntries = (key: string): string[] =>
       (isStringArray(existingTools?.[key]) ? existingTools[key] : []).filter((entry) => {
@@ -457,10 +469,16 @@ export class TabninePermissions extends ToolPermissions {
     const permission: Record<string, Record<string, PermissionAction>> = {};
     const leftovers: Record<string, string[]> = {};
     const setRule = (category: string, pattern: string, action: PermissionAction): void => {
-      const rules = (permission[category] ??= {});
+      // Own-property reads and writes only: the category is a tool name taken
+      // from the file, and the caller keeps prototype-pollution keys out.
+      const rules = Object.hasOwn(permission, category)
+        ? permission[category]
+        : (permission[category] = {});
       // `exclude` is read before `allowed`, so a name in both lists stays a deny —
       // Tabnine never loads an excluded tool, whatever `allowed` says.
-      rules[pattern] ??= action;
+      if (rules !== undefined && !Object.hasOwn(rules, pattern)) {
+        rules[pattern] = action;
+      }
     };
     for (const [key, action] of [
       [EXCLUDE_KEY, "deny"],
@@ -487,11 +505,18 @@ export class TabninePermissions extends ToolPermissions {
           (leftovers[key] ??= []).push(entry);
           continue;
         }
-        setRule(
-          lookupOwn({ record: TABNINE_TO_CANONICAL_TOOL_NAMES, key: toolName }) ?? toolName,
-          "*",
-          action,
-        );
+        const category =
+          lookupOwn({ record: TABNINE_TO_CANONICAL_TOOL_NAMES, key: toolName }) ?? toolName;
+        if (isPrototypePollutionKey(category)) {
+          // A tool named `__proto__` would land on `Object.prototype` as a
+          // permission category; it stays a verbatim entry of the override.
+          moduleLogger.warn(
+            `Tabnine CLI permissions: kept tools.${key} entry ${quoteValueForWarning(entry)} in the tabnine override; its name cannot be a permission category.`,
+          );
+          (leftovers[key] ??= []).push(entry);
+          continue;
+        }
+        setRule(category, "*", action);
       }
     }
 
