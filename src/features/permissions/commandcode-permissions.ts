@@ -98,7 +98,9 @@ function buildCommandcodeRule(category: string, pattern: string): string | null 
   if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
     return catchAll ? CATCH_ALL_PATTERN : null;
   }
-  const tool = CATEGORY_TO_COMMANDCODE_TOOL[category];
+  const tool = Object.hasOwn(CATEGORY_TO_COMMANDCODE_TOOL, category)
+    ? CATEGORY_TO_COMMANDCODE_TOOL[category]
+    : undefined;
   if (tool === undefined) {
     return null;
   }
@@ -171,12 +173,15 @@ function splitCommandcodeRule(rule: string): { tool: string; inner: string } {
 
 /**
  * Parse a Command Code rule back into a canonical category + pattern. Tool
- * names fold case (an `MCP__…` rule becomes the lowercase canonical category,
- * which is how Command Code compares it anyway); `Tool`, `Tool()` and
- * `Tool(*)` all mean the whole tool, and an `mcp__<server>__<tool>(specifier)`
- * keeps its specifier as the pattern. Returns `null` for a rule rulesync
- * cannot model (an exact internal tool name such as `edit_file`, a
- * name-wildcard like `edit_*`, or a specifier on a rule that takes none).
+ * names fold case; `Tool`, `Tool()` and `Tool(*)` all mean the whole tool,
+ * and an `mcp__<server>__<tool>(specifier)` keeps its specifier as the
+ * pattern. Command Code only recognizes the MCP shape by its exact `mcp__`
+ * prefix: a differently-cased `MCP__<server>__<tool>` still matches that tool
+ * by name (so it folds to the lowercase category), but `MCP__<server>` and
+ * `MCP__*` match nothing there and are not modeled. Returns `null` for a
+ * rule rulesync cannot model (an exact internal tool name such as
+ * `edit_file`, a name-wildcard like `edit_*`, or a specifier on a rule that
+ * takes none).
  */
 function parseCommandcodeRule(rule: string): { category: string; pattern: string } | null {
   const { tool, inner } = splitCommandcodeRule(rule);
@@ -189,11 +194,18 @@ function parseCommandcodeRule(rule: string): { category: string; pattern: string
   const lowered = tool.toLowerCase();
   if (lowered.startsWith(MCP_CANONICAL_PREFIX)) {
     if (lowered === COMMANDCODE_ALL_MCP_RULE) {
-      return inner.length === 0 ? { category: "mcp", pattern: CATCH_ALL_PATTERN } : null;
+      return inner.length === 0 && tool === COMMANDCODE_ALL_MCP_RULE
+        ? { category: "mcp", pattern: CATCH_ALL_PATTERN }
+        : null;
     }
-    return { category: lowered, pattern };
+    const exactPrefix = tool.startsWith(MCP_CANONICAL_PREFIX);
+    const namesTool =
+      lowered.slice(MCP_CANONICAL_PREFIX.length).includes("__") && !lowered.endsWith("*");
+    return exactPrefix || namesTool ? { category: lowered, pattern } : null;
   }
-  const category = COMMANDCODE_TOOL_TO_CATEGORY[lowered];
+  const category = Object.hasOwn(COMMANDCODE_TOOL_TO_CATEGORY, lowered)
+    ? COMMANDCODE_TOOL_TO_CATEGORY[lowered]
+    : undefined;
   if (category === undefined) {
     return null;
   }
@@ -201,10 +213,12 @@ function parseCommandcodeRule(rule: string): { category: string; pattern: string
 }
 
 /**
- * The canonical categories this run rebuilds, keyed the way an existing entry
- * parses back (so `mcp: { github: "deny" }`, written as `mcp__github`, claims
- * the `mcp__github` entries of the previous run, and case variants fold
- * together). An existing entry whose tool folds onto one of them is
+ * The canonical categories this run rebuilds — every category the canonical
+ * config names (an empty `bash: {}` still reclaims the previous `Shell(...)`
+ * entries, as in the Claude Code adapter) plus every rule it emits, keyed the
+ * way an existing entry parses back (so `mcp: { github: "deny" }`, written as
+ * `mcp__github`, claims the `mcp__github` entries of the previous run, and
+ * case variants fold together). An existing entry whose tool folds onto one of them is
  * rulesync's to replace, whatever list it sits in — otherwise flipping a rule
  * from deny to allow would leave the old deny behind and win. Every other
  * entry — an internal tool name rulesync cannot model, or a modeled tool the
@@ -230,14 +244,6 @@ function preservedRules({
 }
 
 /**
- * Bucket the canonical rules into Command Code's `allow`/`ask`/`deny` lists.
- * Collisions resolve to the strictest action (deny > ask > allow); categories
- * Command Code cannot express are skipped with a warning when they carry a
- * `deny`; server-less wildcards and specifier-carrying MCP rules are dropped
- * from `allow` because Command Code ignores them (or, for the latter, the
- * specifier) there.
- */
-/**
  * Whether Command Code would honor `rule` in the `action` list. The rejected
  * shapes are the ones it silently ignores there — a server-less wildcard and
  * the specifier of an MCP rule in `allow` — so they are warned about and left
@@ -245,28 +251,28 @@ function preservedRules({
  */
 function isWritableCommandcodeRule({
   rule,
-  category,
-  pattern,
+  emitted,
   action,
   logger,
 }: {
   rule: string;
-  category: string;
-  pattern: string;
+  emitted: { category: string; pattern: string };
   action: PermissionAction;
   logger?: Logger;
 }): boolean {
   if (action === "allow" && isServerlessWildcardRule(rule)) {
     logger?.warn(
       `Command Code ignores '${rule}' in "allow" (an allow rule must name what it grants), ` +
-        `so the '${category}' allow rule was not written.`,
+        `so the '${emitted.category}' allow rule was not written.`,
     );
     return false;
   }
-  if (isScopedMcpAllow({ category, pattern, action })) {
+  // Judged on the rule as written, so the bare `mcp` category cannot smuggle
+  // a specifier in through a `<server>__<tool>(specifier)` pattern.
+  if (isScopedMcpAllow({ ...emitted, action })) {
     logger?.warn(
       `Command Code ignores the specifier of an MCP rule in "allow" and would allow the whole ` +
-        `'${category}' tool, so the '${pattern}' allow rule was not written.`,
+        `'${emitted.category}' tool, so the '${emitted.pattern}' allow rule was not written.`,
     );
     return false;
   }
@@ -300,6 +306,14 @@ function rankCommandcodeRule({
   }
 }
 
+/**
+ * Bucket the canonical rules into Command Code's `allow`/`ask`/`deny` lists.
+ * Collisions resolve to the strictest action (deny > ask > allow); categories
+ * Command Code cannot express are skipped with a warning when they carry a
+ * `deny`; server-less wildcards and specifier-carrying MCP rules are dropped
+ * from `allow` because Command Code ignores them (or, for the latter, the
+ * specifier) there.
+ */
 function buildCommandcodeRuleLists({
   config,
   existingPermissions,
@@ -313,6 +327,11 @@ function buildCommandcodeRuleLists({
   const ranked = new Map<string, PermissionAction>();
   const managedCategories = new Set<string>();
   for (const [category, rules] of Object.entries(permission)) {
+    const categoryRule = buildCommandcodeRule(category, CATCH_ALL_PATTERN);
+    const managedCategory = categoryRule === null ? undefined : parseCommandcodeRule(categoryRule);
+    if (managedCategory !== undefined && managedCategory !== null) {
+      managedCategories.add(managedCategory.category);
+    }
     for (const [pattern, action] of Object.entries(rules)) {
       const rule = buildCommandcodeRule(category, pattern);
       if (rule === null) {
@@ -328,11 +347,12 @@ function buildCommandcodeRuleLists({
         }
         continue;
       }
-      const emittedCategory = parseCommandcodeRule(rule)?.category;
-      if (emittedCategory !== undefined) {
-        managedCategories.add(emittedCategory);
+      const emitted = parseCommandcodeRule(rule);
+      if (emitted === null) {
+        continue;
       }
-      if (isWritableCommandcodeRule({ rule, category, pattern, action, logger })) {
+      managedCategories.add(emitted.category);
+      if (isWritableCommandcodeRule({ rule, emitted, action, logger })) {
         rankCommandcodeRule({ ranked, rule, action, logger });
       }
     }
@@ -355,7 +375,10 @@ function buildCommandcodeRuleLists({
  * once resolves to the strictest action. A server-less wildcard (`*`,
  * `mcp__*`) in `allow` is skipped, symmetric with the generate side: Command
  * Code ignores it there, so importing it would turn a dead line into a live
- * allow-all for every other target.
+ * allow-all for every other target. A scoped MCP rule in `allow` is imported
+ * as the whole tool, which is what Command Code enforces for it (the
+ * specifier is ignored there); the regenerate then rewrites it as the bare
+ * tool name instead of dropping the grant.
  */
 function parseCommandcodeRuleLists(
   permissions: Record<string, unknown>,
@@ -372,16 +395,18 @@ function parseCommandcodeRuleLists(
       const parsed = parseCommandcodeRule(rule);
       if (parsed === null) continue;
       if (action === "allow" && isServerlessWildcardCategory(parsed)) continue;
+      const { category } = parsed;
+      const pattern = isScopedMcpAllow({ ...parsed, action }) ? CATCH_ALL_PATTERN : parsed.pattern;
       // A `Shell(__proto__)` entry would read an inherited property below and
       // silently lose its action, so such entries are dropped (as the other
       // permissions adapters do).
-      if (isPrototypePollutionKey(parsed.category) || isPrototypePollutionKey(parsed.pattern)) {
+      if (isPrototypePollutionKey(category) || isPrototypePollutionKey(pattern)) {
         continue;
       }
-      const rules = (permission[parsed.category] ??= {});
-      const existing = rules[parsed.pattern];
+      const rules = (permission[category] ??= {});
+      const existing = rules[pattern];
       if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
-        rules[parsed.pattern] = action;
+        rules[pattern] = action;
       }
     }
   }
