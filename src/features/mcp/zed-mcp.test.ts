@@ -300,6 +300,8 @@ describe("ZedMcp", () => {
       ["ws", { type: "ws", url: "wss://example.com" }],
       ["url-less remote", { type: "http" }],
       ["command-less local", { type: "stdio" }],
+      // `args[0]` must not be promoted to the program.
+      ["args-only local", { type: "stdio", args: ["-y", "git-mcp"] }],
     ])("should skip a server Zed cannot start: %s", async (_label, server) => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,

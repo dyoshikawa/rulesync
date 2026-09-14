@@ -11,6 +11,7 @@ import {
   omitPrototypePollutionKeys,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import {
   declaresNoTransport,
@@ -169,13 +170,7 @@ function convertStdioServer({
   serverConfig: Record<string, unknown>;
   logger?: Logger;
 }): Record<string, unknown> | undefined {
-  // `resolveLocalMcpCommand` flattens `command` and `args` together, so an
-  // entry with `args` but no `command` must be caught before the split.
-  const hasCommand =
-    typeof serverConfig.command === "string"
-      ? serverConfig.command !== ""
-      : Array.isArray(serverConfig.command) && serverConfig.command.length > 0;
-  const [command, ...args] = hasCommand ? resolveLocalMcpCommand(serverConfig) : [];
+  const [command, ...args] = resolveLocalMcpCommand(serverConfig);
   if (!command) {
     warnAndSkipMcpServer({
       toolName: "Continue",
@@ -197,7 +192,7 @@ function convertStdioServer({
     // (packages/config-yaml/src/schemas/mcp/convertJson.ts), so writing it
     // would only suggest that the variables are loaded when they are not.
     logger?.warn(
-      `Continue ignores "envFile" for MCP servers, so the envFile of server "${serverName}" ` +
+      `Continue ignores "envFile" for MCP servers, so the envFile of server ${quoteValueForWarning(serverName)} ` +
         `was not written; put the variables in "env" instead.`,
     );
   }

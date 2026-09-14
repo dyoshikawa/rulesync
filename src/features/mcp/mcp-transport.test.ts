@@ -81,7 +81,13 @@ describe("resolveLocalMcpCommand", () => {
   it("returns an empty array when there is nothing to spawn", () => {
     expect(resolveLocalMcpCommand({})).toEqual([]);
     expect(resolveLocalMcpCommand({ command: [] })).toEqual([]);
-    expect(resolveLocalMcpCommand({ args: ["--port", "1"] })).toEqual(["--port", "1"]);
+    expect(resolveLocalMcpCommand({ command: "", args: ["x"] })).toEqual([]);
+    expect(resolveLocalMcpCommand({ command: [], args: ["x"] })).toEqual([]);
+  });
+
+  it("returns nothing when only args are given, so args[0] is never promoted to the program", () => {
+    expect(resolveLocalMcpCommand({ args: ["-y", "git-mcp"] })).toEqual([]);
+    expect(resolveLocalMcpCommand({ type: "stdio", args: ["--port", "1"] })).toEqual([]);
   });
 });
 
@@ -99,6 +105,21 @@ describe("warnAndSkipMcpServer", () => {
     ).toBeNull();
     expect(logger.warn).toHaveBeenCalledWith(
       'Kilo MCP: skipping "broken" because it declares a local transport but no command.',
+    );
+  });
+
+  it("quotes a server name so it cannot smuggle a second log line", () => {
+    const logger = { warn: vi.fn() } as unknown as Logger;
+
+    warnAndSkipMcpServer({
+      toolName: "Kilo",
+      serverName: "ok\nKilo MCP: all good",
+      reason: "nothing",
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Kilo MCP: skipping "okKilo MCP: all good" because it declares nothing.',
     );
   });
 

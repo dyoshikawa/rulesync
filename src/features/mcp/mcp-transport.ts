@@ -1,5 +1,6 @@
 import { McpServers } from "../../types/mcp.js";
 import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 
 export type McpServerConfig = McpServers[string];
 
@@ -46,15 +47,18 @@ export function resolveRemoteMcpUrl(serverConfig: McpServerConfig): string | und
   return serverConfig.url || serverConfig.httpUrl || undefined;
 }
 
-/** The `command` array a `local` server is spawned with, `args` merged in. */
+/**
+ * The `command` array a `local` server is spawned with, `args` merged in. An
+ * entry carrying `args` but no `command` comes back empty rather than with
+ * `args[0]` promoted to its program: every adapter writes element 0 back out
+ * as the executable (or the whole array as the command line), so the caller
+ * skips such an entry the same way as one with nothing to spawn at all.
+ */
 export function resolveLocalMcpCommand(serverConfig: McpServerConfig): string[] {
-  const commandArray: string[] = [];
-  if (serverConfig.command) {
-    if (Array.isArray(serverConfig.command)) {
-      commandArray.push(...serverConfig.command);
-    } else {
-      commandArray.push(serverConfig.command);
-    }
+  const { command } = serverConfig;
+  const commandArray: string[] = Array.isArray(command) ? [...command] : command ? [command] : [];
+  if (commandArray.length === 0) {
+    return [];
   }
   if (serverConfig.args) {
     commandArray.push(...serverConfig.args);
@@ -68,6 +72,10 @@ export function resolveLocalMcpCommand(serverConfig: McpServerConfig): string[] 
  * spells the transport out. Writing `{type: "local", command: []}` for it would
  * give the tool a server it cannot start and the importer a file it cannot read
  * back, so it is skipped out loud instead.
+ *
+ * The server name comes straight from the user's config, so it is quoted
+ * through `quoteValueForWarning` rather than interpolated: a crafted name could
+ * otherwise carry a line break or control characters into the log.
  */
 export function warnAndSkipMcpServer({
   toolName,
@@ -80,7 +88,9 @@ export function warnAndSkipMcpServer({
   reason: string;
   logger?: Logger;
 }): null {
-  logger?.warn(`${toolName} MCP: skipping "${serverName}" because it declares ${reason}.`);
+  logger?.warn(
+    `${toolName} MCP: skipping ${quoteValueForWarning(serverName)} because it declares ${reason}.`,
+  );
   return null;
 }
 

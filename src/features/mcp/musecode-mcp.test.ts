@@ -128,6 +128,28 @@ describe("MusecodeMcp", () => {
       });
     });
 
+    it("should warn-and-skip a stdio server that carries only args instead of promoting args[0]", async () => {
+      const logger = createMockLogger();
+      const mcp = await MusecodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          "args-only": { type: "stdio", args: ["-y", "git-mcp"] },
+          kept: { command: "keeper" },
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(mcp.getJson().mcp_servers).toEqual({
+        kept: { transport: "stdio", command: "keeper", args: [] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'skipping "args-only" because it declares a stdio transport without a command',
+        ),
+      );
+    });
+
     it("should warn-and-skip sse and ws servers instead of rewriting them to streamable_http", async () => {
       const logger = createMockLogger();
       const mcp = await MusecodeMcp.fromRulesyncMcp({
