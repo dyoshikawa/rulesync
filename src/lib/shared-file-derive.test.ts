@@ -196,6 +196,11 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        ".tabnine/agent/settings.json": [
+          "hooks",
+          "mcp",
+          "permissions",
+        ],
         ".takt/config.yaml": [
           "checks",
           "mcp",

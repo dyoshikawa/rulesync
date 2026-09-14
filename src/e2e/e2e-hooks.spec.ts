@@ -34,6 +34,52 @@ function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
   expect(serialized).toContain(".rulesync/hooks/audit.sh");
 }
 
+// Targets that emit a Claude-shaped `{ hooks: { <Event>: [...] } }` document
+// and differ only in how they spell the canonical `sessionStart` / `stop`
+// events. Every one of them writes hook commands verbatim (no
+// `$CLAUDE_PROJECT_DIR` prefix — that is Claude Code's own convention).
+// See the CANONICAL_TO_<TOOL>_EVENT_NAMES maps in src/types/hooks.ts.
+const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string }> = {
+  // Cursor uses camelCase event names.
+  cursor: { sessionStart: "sessionStart", stop: "stop" },
+  // Copilot and Copilot CLI use camelCase event names and both map the
+  // canonical `stop` event to `agentStop`.
+  copilot: { sessionStart: "sessionStart", stop: "agentStop" },
+  copilotcli: { sessionStart: "sessionStart", stop: "agentStop" },
+  // AugmentCode mirrors Claude's PascalCase event names but emits commands
+  // verbatim (AUGMENT_PROJECT_DIR is a runtime env var, not an inline prefix).
+  augmentcode: { sessionStart: "SessionStart", stop: "Stop" },
+  // IBM Bob stores Claude-style PascalCase events under the top-level `hooks`
+  // key of .bob/settings.json.
+  bob: { sessionStart: "SessionStart", stop: "Stop" },
+  // Qwen Code uses Claude-style PascalCase event names under the `hooks` key
+  // of .qwen/settings.json, but its mapping differs from Gemini CLI:
+  // `stop` → `Stop` (NOT Gemini's AfterAgent).
+  qwencode: { sessionStart: "SessionStart", stop: "Stop" },
+  // Tabnine CLI stores PascalCase events under the `hooks` key of
+  // .tabnine/agent/settings.json: `stop` → `AfterAgent`; hook timeouts are
+  // written in milliseconds.
+  tabnine: { sessionStart: "SessionStart", stop: "AfterAgent" },
+};
+
+function assertHooksKeyedEvents({
+  target,
+  parsed,
+}: {
+  target: string;
+  parsed: { hooks?: Record<string, unknown> };
+}): void {
+  const eventNames = hooksKeyedEventNames[target];
+  expect(eventNames).toBeDefined();
+  expect(parsed.hooks).toBeDefined();
+  expect(parsed.hooks?.[eventNames?.sessionStart ?? ""]).toBeDefined();
+  expect(parsed.hooks?.[eventNames?.stop ?? ""]).toBeDefined();
+  const serialized = JSON.stringify(parsed.hooks);
+  expect(serialized).toContain(".rulesync/hooks/session-start.sh");
+  expect(serialized).toContain(".rulesync/hooks/audit.sh");
+  expect(serialized).not.toContain("$CLAUDE_PROJECT_DIR");
+}
+
 // Tools whose event mapping/serialization needs a
 // bespoke assertion (vibe, devin, reasonix) live in their own standalone `it`s
 // below; `hooksProjectStandaloneTargets` lists them so the completeness check
@@ -66,6 +112,7 @@ const hooksGenerateTargets = [
   { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "bob", outputPath: join(".bob", "settings.json") },
+  { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
 ] as const;
@@ -150,11 +197,6 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.SessionStart).toBeDefined();
         expect(parsed.hooks.Stop).toBeDefined();
         expect(parsed.hooks.SessionStart[0].hooks[0].command).toContain('"$CLAUDE_PROJECT_DIR"/');
-      } else if (target === "cursor") {
-        // Cursor uses camelCase event names
-        expect(parsed.hooks).toBeDefined();
-        expect(parsed.hooks.sessionStart).toBeDefined();
-        expect(parsed.hooks.stop).toBeDefined();
       } else if (target === "kiro") {
         // The deprecated `kiro` alias keeps the embedded
         // .kiro/agents/default.json agent-hook format and event mapping:
@@ -164,32 +206,8 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.stop).toBeDefined();
         expect(parsed.hooks.agentSpawn[0].command).toBe(".rulesync/hooks/session-start.sh");
         expect(parsed.hooks.stop[0].command).toBe(".rulesync/hooks/audit.sh");
-      } else if (target === "copilot" || target === "copilotcli") {
-        // Copilot and Copilot CLI use camelCase event names and both map the
-        // canonical `stop` event to `agentStop` (see COPILOT_HOOK_EVENTS /
-        // COPILOTCLI_HOOK_EVENTS in src/types/hooks.ts).
-        expect(parsed.hooks).toBeDefined();
-        expect(parsed.hooks.sessionStart).toBeDefined();
-        expect(parsed.hooks.agentStop).toBeDefined();
-        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
-      } else if (target === "augmentcode") {
-        // AugmentCode mirrors Claude's PascalCase event names but emits commands
-        // verbatim (AUGMENT_PROJECT_DIR is a runtime env var, not an inline prefix).
-        expect(parsed.hooks).toBeDefined();
-        expect(parsed.hooks.SessionStart).toBeDefined();
-        expect(parsed.hooks.Stop).toBeDefined();
-        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-        expect(JSON.stringify(parsed.hooks)).not.toContain("$CLAUDE_PROJECT_DIR");
-      } else if (target === "bob") {
-        // IBM Bob stores Claude-style PascalCase events under the top-level
-        // `hooks` key of .bob/settings.json and emits commands verbatim.
-        expect(parsed.hooks).toBeDefined();
-        expect(parsed.hooks.SessionStart).toBeDefined();
-        expect(parsed.hooks.Stop).toBeDefined();
-        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
-        expect(JSON.stringify(parsed.hooks)).not.toContain("$CLAUDE_PROJECT_DIR");
+      } else if (target in hooksKeyedEventNames) {
+        assertHooksKeyedEvents({ target, parsed });
       } else if (
         target === "antigravity-ide" ||
         target === "antigravity-cli" ||
@@ -202,17 +220,6 @@ describe("E2E: hooks", () => {
         // audit.sh — mapped to `Stop` — survives generation.
         expect(parsed.rulesync.Stop).toBeDefined();
         expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
-      } else if (target === "qwencode") {
-        // Qwen Code uses Claude-style PascalCase event names under the `hooks`
-        // key of .qwen/settings.json, but its mapping differs from Gemini CLI:
-        // canonical `sessionStart` → `SessionStart`, `stop` → `Stop`
-        // (NOT Gemini's BeforeAgent/AfterAgent). See
-        // CANONICAL_TO_QWENCODE_EVENT_NAMES in src/types/hooks.ts.
-        expect(parsed.hooks).toBeDefined();
-        expect(parsed.hooks.SessionStart).toBeDefined();
-        expect(parsed.hooks.Stop).toBeDefined();
-        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "kiro-ide" || target === "kiro-cli") {
         // Kiro's standalone hooks format, shared by the IDE and by CLI 3.0:
         // a `{ version: "v1", hooks: [...] }` envelope with one entry per hook.
@@ -710,6 +717,20 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // Tabnine CLI stores hooks under the `hooks` key of
+      // .tabnine/agent/settings.json using PascalCase event names;
+      // SessionStart round-trips to the canonical `sessionStart` event.
+      target: "tabnine",
+      sourcePath: join(".tabnine", "agent", "settings.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: "command", command: "echo session started", timeout: 30000 }] },
+          ],
+        },
+      },
+    },
+    {
       // deepagents-cli uses the Hooks v2 document (PascalCase HookEvent keys
       // over matcher groups); SessionStart round-trips to canonical `sessionStart`.
       target: "deepagents",
@@ -774,6 +795,7 @@ const hooksGlobalTargets = [
   { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "bob", outputPath: join(".bob", "settings", "settings.json") },
+  { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
@@ -889,16 +911,8 @@ describe("E2E: hooks (global mode)", () => {
         const parsed = JSON.parse(generatedContent);
         expect(parsed.rulesync.Stop).toBeDefined();
         expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
-      } else if (target === "qwencode") {
-        // Qwen Code emits Claude-style PascalCase event names under the `hooks`
-        // key of .qwen/settings.json: canonical `sessionStart` → `SessionStart`,
-        // `stop` → `Stop`. See CANONICAL_TO_QWENCODE_EVENT_NAMES in
-        // src/types/hooks.ts.
-        const parsed = JSON.parse(generatedContent);
-        expect(parsed.hooks.SessionStart).toBeDefined();
-        expect(parsed.hooks.Stop).toBeDefined();
-        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
-        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target in hooksKeyedEventNames) {
+        assertHooksKeyedEvents({ target, parsed: JSON.parse(generatedContent) });
       } else {
         assertHookCommandsPreserved(JSON.parse(generatedContent));
       }

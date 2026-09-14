@@ -24,6 +24,7 @@ const commandsGenerateTargets = [
   { target: "opencode", outputPath: join(".opencode", "commands", "review-pr.md") },
   { target: "cline", outputPath: join(".clinerules", "workflows", "review-pr.md") },
   { target: "kilo", outputPath: join(".kilo", "commands", "review-pr.md") },
+  { target: "tabnine", outputPath: join(".tabnine", "agent", "commands", "review-pr.toml") },
   { target: "roo", outputPath: join(".roo", "commands", "review-pr.md") },
   { target: "zoocode", outputPath: join(".roo", "commands", "review-pr.md") },
   { target: "kiro", outputPath: join(".kiro", "prompts", "review-pr.md") },
@@ -52,6 +53,7 @@ const commandsGlobalTargets = [
   { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
   { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
   { target: "bob", outputPath: join(".bob", "commands", "review-pr.md") },
+  { target: "tabnine", outputPath: join(".tabnine", "agent", "commands", "review-pr.toml") },
   { target: "opencode", outputPath: join(".config", "opencode", "commands", "review-pr.md") },
   { target: "codexcli", outputPath: join(".codex", "prompts", "review-pr.md") },
   { target: "cline", outputPath: join("Documents", "Cline", "Workflows", "review-pr.md") },
@@ -180,6 +182,7 @@ Check the PR diff and provide feedback.
     { target: "cursor", orphanPath: join(".cursor", "commands", "orphan.md") },
     { target: "augmentcode", orphanPath: join(".augment", "commands", "orphan.md") },
     { target: "bob", orphanPath: join(".bob", "commands", "orphan.md") },
+    { target: "tabnine", orphanPath: join(".tabnine", "agent", "commands", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "prompts", "orphan.prompt.md") },
     { target: "opencode", orphanPath: join(".opencode", "commands", "orphan.md") },
     { target: "cline", orphanPath: join(".clinerules", "workflows", "orphan.md") },
@@ -304,6 +307,28 @@ describe("E2E: commands (import)", () => {
     await writeFileContent(join(testDir, sourcePath), commandContent);
 
     await runImport({ target, features: "commands" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+    );
+    expect(importedContent).toContain("Review the PR diff and provide feedback.");
+  });
+
+  it("should import tabnine commands (TOML)", async () => {
+    const testDir = getTestDir();
+
+    const commandToml = [
+      'description = "Review a pull request"',
+      'prompt = """',
+      "Review the PR diff and provide feedback.",
+      '"""',
+    ].join("\n");
+    await writeFileContent(
+      join(testDir, ".tabnine", "agent", "commands", "review-pr.toml"),
+      commandToml,
+    );
+
+    await runImport({ target: "tabnine", features: "commands" });
 
     const importedContent = await readFileContent(
       join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),

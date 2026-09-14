@@ -30,6 +30,7 @@ const mcpGenerateTargets = [
   { target: "aiassistant", outputPath: join(".ai", "mcp", "mcp.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "bob", outputPath: join(".bob", "mcp.json") },
+  { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "amp", outputPath: join(".amp", "settings.json") },
   { target: "claudecode", outputPath: ".mcp.json" },
   { target: "claudecode-plugin", outputPath: ".mcp.json" },
@@ -722,6 +723,7 @@ describe("E2E: mcp (import)", () => {
   it.each([
     { target: "augmentcode", sourcePath: join(".augment", "settings.json") },
     { target: "bob", sourcePath: join(".bob", "mcp.json") },
+    { target: "tabnine", sourcePath: join(".tabnine", "agent", "settings.json") },
     { target: "claudecode", sourcePath: ".mcp.json" },
     { target: "cursor", sourcePath: join(".cursor", "mcp.json") },
     // copilot MCP uses VS Code-specific format — excluded from import test
@@ -879,6 +881,7 @@ const mcpGlobalTargets = [
   { target: "aiassistant", outputPath: join(".ai", "mcp", "mcp.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "bob", outputPath: join(".bob", "mcp.json") },
+  { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "claudecode", outputPath: ".claude.json" },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },

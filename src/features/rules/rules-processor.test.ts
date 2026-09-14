@@ -1614,6 +1614,7 @@ describe("RulesProcessor", () => {
         "qwencode",
         "roo",
         "zoocode",
+        "tabnine",
         "takt",
         "warp",
         "devin",
@@ -1903,6 +1904,7 @@ Content that would fail parsing`;
         "roo",
         "rovodev",
         "zoocode",
+        "tabnine",
         "takt",
         "vibe",
         "warp",
@@ -1936,6 +1938,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("antigravity-ide");
       expect(globalTargets).toContain("augmentcode");
       expect(globalTargets).toContain("bob");
+      expect(globalTargets).toContain("tabnine");
       expect(globalTargets).toContain("claudecode");
       expect(globalTargets).toContain("claudecode-legacy");
       expect(globalTargets).toContain("cline");
@@ -1966,7 +1969,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("warp");
       expect(globalTargets).toContain("pool");
       expect(globalTargets).toContain("dsh");
-      expect(globalTargets.length).toBe(38);
+      expect(globalTargets.length).toBe(39);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

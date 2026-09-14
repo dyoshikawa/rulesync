@@ -323,6 +323,8 @@ rulesync.local.jsonc
 **/.roo/rules/
 **/.rovodev/AGENTS.md
 **/.rovodev/.rulesync/modular-rules/
+**/TABNINE.md
+**/.tabnine/guidelines/
 **/.takt/facets/policies/
 **/.devin/rules/
 **/.rules
@@ -346,6 +348,7 @@ rulesync.local.jsonc
 **/.reasonix/commands/
 **/.roo/commands/
 **/.rovodev/prompts/
+**/.tabnine/agent/commands/
 **/.takt/facets/instructions/
 **/.devin/skills/
 **/.warp/skills/
@@ -373,6 +376,7 @@ rulesync.local.jsonc
 **/.reasonix/skills/
 **/.roo/skills/
 **/.rovodev/skills/
+**/.tabnine/agent/skills/
 **/.takt/facets/knowledge/
 **/.vibe/skills/
 **/.zcode/skills/
@@ -397,6 +401,7 @@ rulesync.local.jsonc
 **/.opencode/agents/
 **/.qwen/agents/
 **/.rovodev/subagents/
+**/.tabnine/agent/agents/
 **/.takt/facets/personas/
 **/.vibe/agents/
 **/.ai/mcp/mcp.json
@@ -452,6 +457,7 @@ rulesync.local.jsonc
 **/.qwenignore
 **/.rooignore
 **/.devinignore
+**/.tabnineignore
 **/.vibeignore
 **/.warpindexingignore
 **/.agents/checks/

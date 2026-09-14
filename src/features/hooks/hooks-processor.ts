@@ -31,6 +31,7 @@ import {
   PI_HOOK_EVENTS,
   QWENCODE_HOOK_EVENTS,
   REASONIX_HOOK_EVENTS,
+  TABNINE_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
   ZCODE_HOOK_EVENTS,
   type HookEvent,
@@ -73,6 +74,7 @@ import { PiHooks } from "./pi-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
 import { ReasonixHooks } from "./reasonix-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
+import { TabnineHooks } from "./tabnine-hooks.js";
 import type {
   ToolHooksForDeletionParams,
   ToolHooksFromFileParams,
@@ -673,6 +675,26 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       supportedEvents: JUNIE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "tabnine",
+    {
+      class: TabnineHooks,
+      meta: {
+        // Tabnine CLI hooks live under the top-level `hooks` key of the shared
+        // settings file `.tabnine/agent/settings.json` (project) /
+        // `~/.tabnine/agent/settings.json` (user). Only command hooks exist;
+        // `matcher` is a regex on the two tool events and an exact string on
+        // the lifecycle events, so every event accepts one.
+        // https://docs.tabnine.com/main/getting-started/tabnine-cli/features/hooks
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: TABNINE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
     },

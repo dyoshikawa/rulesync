@@ -45,6 +45,10 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   // (Bitbucket Cloud Agentic Pipelines), so neither is gitignored.
   ".rovodev/config.yml",
   ".rovodev/mcp.json",
+  // Tabnine CLI settings: the project file and the user one share the same
+  // `.tabnine/agent/` layout and carry the user's own settings beside the
+  // `mcpServers`, `hooks` and `tools` blocks.
+  ".tabnine/agent/settings.json",
   ".vibe/config.toml",
   // ZCode config: the workspace file and the user one under `~/.zcode/cli/`.
   // Both carry the user's own ZCode settings beside the `mcp` block.

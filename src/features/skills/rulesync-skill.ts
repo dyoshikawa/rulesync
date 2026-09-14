@@ -353,6 +353,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
     }),
   ),
+  tabnine: z.optional(z.looseObject({})),
   takt: z.optional(
     z.looseObject({
       // Rename the emitted file stem (e.g. "test-skill.md" → "{name}.md").
@@ -578,6 +579,7 @@ export type RulesyncSkillFrontmatterInput = {
     "user-invocable"?: boolean;
     "allowed-tools"?: string | string[];
   };
+  tabnine?: Record<string, unknown>;
   takt?: {
     name?: string;
     extends?: string;

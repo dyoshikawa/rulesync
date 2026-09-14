@@ -40,6 +40,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "zoocode", label: "Zoo Code", group: "ai" },
   { key: "rovodev", label: "Rovodev (Atlassian)", group: "ai" },
   { key: "takt", label: "Takt", group: "ai" },
+  { key: "tabnine", label: "Tabnine CLI", group: "ai" },
   { key: "vibe", label: "Vibe Code", group: "ai" },
   { key: "qwencode", label: "Qwen Code", group: "ai" },
   { key: "musecode", label: "Meta Muse Code", group: "ai" },

@@ -1248,6 +1248,7 @@ describe("McpProcessor", () => {
       expect(targets).toContain("kilo"); // kilo supports both project and global
       expect(targets).toContain("vibe");
       expect(targets).toContain("bob");
+      expect(targets).toContain("tabnine");
     });
 
     it("should include kilo in global tool targets", () => {
@@ -1260,6 +1261,7 @@ describe("McpProcessor", () => {
       expect(globalTargets).toContain("cline"); // cline MCP is global-only
       expect(globalTargets).toContain("vibe");
       expect(globalTargets).toContain("bob"); // ~/.bob/mcp.json
+      expect(globalTargets).toContain("tabnine"); // ~/.tabnine/agent/settings.json
     });
   });
 

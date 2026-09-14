@@ -375,6 +375,29 @@ const QwencodePermissionsOverrideSchema = z.looseObject({
 export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Tabnine CLI. The canonical `permission` block
+ * drives only the `tools.allowed` / `tools.exclude` lists of
+ * `.tabnine/agent/settings.json`; the other `tools.*` keys (`core`,
+ * `enableCoaching`, `useRipgrep`, `shell.*`, `enableWebTools`, ...) and the
+ * `general.defaultApprovalMode` switch have no canonical category, so they are
+ * authored here, deep-merged into the settings file, and emitted only for
+ * Tabnine. Import lifts the entries rulesync cannot map back onto a canonical
+ * category into this block so a regenerate does not drop them. Kept
+ * `looseObject` (verbatim passthrough). Both project and global scope are
+ * supported.
+ *
+ * @example
+ * { "tools": { "core": ["read_file", "run_shell_command(git)"] },
+ *   "general": { "defaultApprovalMode": "plan" } }
+ */
+const TabninePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  tools: z.optional(z.looseObject({})),
+  general: z.optional(z.looseObject({})),
+});
+export type TabninePermissionsOverride = z.infer<typeof TabninePermissionsOverrideSchema>;
+
+/**
  * Tool-scoped override block for Reasonix. Reasonix has security axes orthogonal
  * to per-tool allow/ask/deny with no canonical category — the `[sandbox]`
  * enforcement table (`workspace_root`, `allow_write`, `forbid_read`, `bash`,
@@ -1183,6 +1206,7 @@ export const PermissionsConfigSchema = z.looseObject({
   factorydroid: z.optional(FactorydroidPermissionsOverrideSchema),
   warp: z.optional(WarpPermissionsOverrideSchema),
   junie: z.optional(JuniePermissionsOverrideSchema),
+  tabnine: z.optional(TabninePermissionsOverrideSchema),
   takt: z.optional(TaktPermissionsOverrideSchema),
   amp: z.optional(AmpPermissionsOverrideSchema),
   "antigravity-cli": z.optional(AntigravityCliPermissionsOverrideSchema),

@@ -39,6 +39,7 @@ import { ReasonixMcp } from "./reasonix-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
 import { RovodevMcp } from "./rovodev-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
+import { TabnineMcp } from "./tabnine-mcp.js";
 import { TaktMcp } from "./takt-mcp.js";
 import {
   ToolMcp,
@@ -581,6 +582,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "tabnine",
+    {
+      // Tabnine CLI reads `mcpServers` from `<project>/.tabnine/agent/settings.json`
+      // (project) and `~/.tabnine/agent/settings.json` (user). Per-server
+      // `includeTools` / `excludeTools` carry the enabled/disabled tool lists.
+      // https://docs.tabnine.com/main/getting-started/tabnine-agent/mcp-intro-and-setup/mcp-server-config
+      class: TabnineMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
       },
     },
   ],

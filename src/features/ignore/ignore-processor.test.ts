@@ -483,6 +483,7 @@ describe("IgnoreProcessor", () => {
         "roo",
         "zoocode",
         "devin",
+        "tabnine",
         "vibe",
         "warp",
         "zed",

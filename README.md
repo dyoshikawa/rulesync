@@ -111,6 +111,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Zoo Code                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |        |
 | Rovodev (Atlassian)       |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
 | Takt                      |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
+| Tabnine CLI               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Vibe Code                 |  ✅   |   ✅   | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Qwen Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Meta Muse Code            |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |

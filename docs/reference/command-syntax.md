@@ -20,6 +20,7 @@ The table below shows how each placeholder is translated for the supported tools
 | Claude Code       | pass-through           | pass-through                |
 | Codex CLI[^codex] | pass-through (literal) | pass-through (literal)      |
 | Pi                | pass-through           | pass-through (literal)[^pi] |
+| Tabnine CLI       | `{{args}}`             | `!{cmd}`                    |
 | Other tools[^1]   | pass-through (literal) | pass-through (literal)      |
 
 [^1]: Tools not listed do not have a documented translation; their command body is emitted as-is.
