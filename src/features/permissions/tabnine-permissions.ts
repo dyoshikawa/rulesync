@@ -111,9 +111,8 @@ function toTabnineToolName(category: string): string {
  * The widest glob a `bash` pattern stands for once it is written as a
  * `run_shell_command(<prefix>)` entry: the prefix matches the start of the
  * command line, so a bare `pnpm` also covers `pnpm install`. Used only to
- * compare allows against the restrictions (`ask` rules, `*` rules and the
- * deny rules that could not be written), where widening can only withhold
- * more, never fail open.
+ * compare allows against the restrictions (`bash` deny and `ask` rules, and
+ * the rules of `*`), where widening can only withhold more, never fail open.
  */
 function widenToPrefixGlob(pattern: string): string {
   const prefix = toShellPrefix(pattern);
@@ -190,8 +189,8 @@ function buildToolLists({
     shadowedAllowPatterns,
     unwrittenDenyPatterns,
     unwrittenDenyReason:
-      "tools.exclude removes a tool (or a run_shell_command prefix) outright, and a pattern " +
-      "written under '*' need not be a command at all.",
+      "tools.exclude removes a tool from discovery, and a pattern written under '*' need " +
+      "not be a command at all.",
     unenforcedAllToolsAskPatterns,
     ignoredAllToolsAllowPatterns,
     intersectionBudgetExhausted,
@@ -244,8 +243,8 @@ function buildToolLists({
       logger,
       `Tabnine CLI permissions: withheld ${withheldAllowPatterns.length} 'bash' allow rule(s) ` +
         `(${withheldAllowPatterns.map(quoteValueForWarning).join(", ")}) that overlap a 'bash' deny ` +
-        `rule; tools.exclude is not documented to take a run_shell_command prefix, so writing ` +
-        `them could auto-approve the denied commands.`,
+        `rule; writing them could auto-approve the denied commands, since tools.exclude is not ` +
+        `documented to narrow run_shell_command to a prefix.`,
     );
   }
 
@@ -419,9 +418,16 @@ export class TabninePermissions extends ToolPermissions {
     // Dropping an exclude entry loosens the policy, so the ones of a managed
     // tool that the canonical block did not re-derive are named rather than
     // removed silently (the allowed side only tightens and needs no notice).
-    const droppedExcludeEntries = (
-      isStringArray(existingTools?.[EXCLUDE_KEY]) ? existingTools[EXCLUDE_KEY] : []
-    ).filter((entry) => !excludeList.includes(entry));
+    const droppedExcludeEntries = uniq(
+      isStringArray(existingTools?.[EXCLUDE_KEY]) ? existingTools[EXCLUDE_KEY] : [],
+    ).filter((entry) => {
+      if (excludeList.includes(entry)) {
+        return false;
+      }
+      // A whole-tool exclude subsumes every prefixed entry of that tool.
+      const toolName = parseTabnineEntry(entry)?.toolName;
+      return toolName === undefined || !excludeList.includes(toolName);
+    });
     if (droppedExcludeEntries.length > 0) {
       warnWithFallback(
         logger,

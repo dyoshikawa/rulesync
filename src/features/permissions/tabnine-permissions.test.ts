@@ -185,6 +185,27 @@ describe("TabninePermissions", () => {
       );
     });
 
+    it("does not report a prefixed exclude entry the whole-tool exclude subsumes", async () => {
+      await writeSettings({
+        testDir,
+        settings: {
+          tools: { exclude: ["run_shell_command(rm -rf)", "run_shell_command(rm -rf)"] },
+        },
+      });
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { bash: { "*": "deny" } },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({ exclude: ["run_shell_command"] });
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("removed"));
+    });
+
     it("names an existing exclude entry it removes for a managed tool", async () => {
       await writeSettings({
         testDir,
