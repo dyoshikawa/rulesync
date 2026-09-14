@@ -234,7 +234,9 @@ describe("CommandcodePermissions", () => {
         rulesyncPermissions: createRulesyncPermissions({ "*": { "*": "allow" } }),
       });
       expect(JSON.parse(allow.getFileContent()).permissions).toEqual({});
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("ignores '*' in \"allow\""));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("does not honor '*' in \"allow\""),
+      );
     });
 
     it("drops mcp__* from allow with a warning", async () => {
@@ -509,7 +511,7 @@ describe("CommandcodePermissions", () => {
       expect(logger.warn).toHaveBeenCalledTimes(1);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining(
-          'permission list "deny" holds 2 entries that are not a string, which Command Code skips; they were dropped',
+          'permission list "deny" holds 2 entries that are not a string, which Command Code skips; those entries were dropped',
         ),
       );
     });
@@ -958,26 +960,35 @@ describe("CommandcodePermissions", () => {
     });
 
     it("reads specifier whitespace the way each Command Code matcher does", async () => {
-      // The shell matcher trims and collapses whitespace on the pattern (a
-      // blank one matches nothing, and a padded `*` stays a pattern rule that
-      // is narrower than the bare `Shell` in allow); the path matcher uses it
-      // as written, so a padded `*` or a blank never matches. All of those
-      // are left alone.
+      // The shell matcher trims and collapses whitespace on the pattern: a
+      // blank one matches nothing, and a padded `*` stays a pattern rule —
+      // every command in deny/ask, but narrower than the bare `Shell` in
+      // allow, where it is skipped rather than widened. The path matcher
+      // uses the specifier as written, so a padded `*` or a blank never
+      // matches and is left alone.
       await writeSettings({
         testDir,
         settings: {
           permissions: {
             allow: ["Shell( )", "Read( * )", "Read( )", "Shell( * )", "Read(./src/ **)"],
+            ask: ["Shell(*  )"],
             deny: ["Shell( rm  -rf * )", "Shell(git *)", "Shell( * )"],
           },
         },
       });
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
 
       const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
       expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
-        bash: { "rm -rf *": "deny", "git *": "deny" },
+        bash: { "*": "deny", "rm -rf *": "deny", "git *": "deny" },
         read: { "./src/ **": "allow" },
       });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `reads 'Shell( * )' in "allow" as a pattern narrower than the bare 'Shell'`,
+        ),
+      );
     });
 
     it("imports the string entries of a list that also holds a non-string one", async () => {
@@ -997,7 +1008,7 @@ describe("CommandcodePermissions", () => {
       expect(warn).toHaveBeenCalledTimes(2);
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining(
-          'permission list "allow" holds 1 entry that is not a string, which Command Code skips; they were not imported',
+          'permission list "allow" holds 1 entry that is not a string, which Command Code skips; that entry was not imported',
         ),
       );
       expect(warn).toHaveBeenCalledWith(

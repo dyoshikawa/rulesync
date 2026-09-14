@@ -110,7 +110,9 @@ function isStricterAction({
  * (`deny` and `ask`) and ignores in `allow`; and a specifier-carrying
  * `MCP__<server>__<tool>(specifier)`, which Command Code does enforce in
  * `allow` — as a glob over the call's arguments — but which rulesync cannot
- * import there without widening the grant to the whole tool.
+ * import there without widening the grant to the whole tool; likewise a
+ * padded `Shell( * )`, every command in `deny`/`ask` but a narrower grant
+ * than the bare `Shell` in `allow`.
  */
 type ParsedCommandcodeRule = { category: string; pattern: string; notInAllow: boolean };
 
@@ -256,36 +258,43 @@ function parseMcpCommandcodeRule({
 }
 
 /**
- * The specifier of a rule on one of the friendly tools, as Command Code
- * matches it. Its shell matcher trims and collapses whitespace on both the
- * pattern and the command, so `Shell( git  * )` is `Shell(git *)`; a pattern
- * that is blank once normalized (`Shell( )`) matches nothing, and a padded
- * `Shell( * )` is not the whole tool — only a specifier of exactly `` or `*`
- * is dropped by the rule parser, so `( * )` stays a pattern rule, which in
- * `allow` is narrower than the bare `Shell` (it needs a command that parses
- * into words and has no environment-assignment prefix). The path, web and tool-name
- * matchers use the specifier as written, so one that is blank or `*` only
- * once trimmed (`Read( * )`) matches nothing. All three come back as `null`:
+ * A rule on one of the friendly tools, with its specifier read as Command
+ * Code matches it. The shell matcher trims and collapses whitespace on both
+ * the pattern and the command, so `Shell( git  * )` is `Shell(git *)` and a
+ * pattern that is blank once normalized (`Shell( )`) matches nothing. A
+ * padded `Shell( * )` is not the bare `Shell`: only a specifier of exactly
+ * `` or `*` is dropped by the rule parser, so `( * )` stays a pattern rule —
+ * in `deny`/`ask` it matches every command (the whole tool), while in `allow`
+ * it is narrower than the bare `Shell` (it needs a command that parses into
+ * words and has no environment-assignment prefix), so it is the whole tool
+ * marked `notInAllow`. The path, web and tool-name matchers use the
+ * specifier as written, so one that is blank or `*` only once trimmed
+ * (`Read( * )`) matches nothing. What matches nothing comes back as `null`:
  * the rule is unmodeled and left alone.
  */
-function friendlyToolPattern({
+function friendlyToolRule({
   category,
   inner,
 }: {
   category: string;
   inner: string;
-}): string | null {
+}): ParsedCommandcodeRule | null {
   if (category === "bash") {
     if (isCatchAllSpecifier(inner)) {
-      return CATCH_ALL_PATTERN;
+      return { category, pattern: CATCH_ALL_PATTERN, notInAllow: false };
     }
     const normalized = inner.trim().replace(/\s+/g, " ");
-    return isCatchAllSpecifier(normalized) ? null : normalized;
+    if (normalized === "") {
+      return null;
+    }
+    return isCatchAllSpecifier(normalized)
+      ? { category, pattern: CATCH_ALL_PATTERN, notInAllow: true }
+      : { category, pattern: normalized, notInAllow: false };
   }
   if (isCatchAllSpecifier(inner)) {
-    return CATCH_ALL_PATTERN;
+    return { category, pattern: CATCH_ALL_PATTERN, notInAllow: false };
   }
-  return isCatchAllSpecifier(inner.trim()) ? null : inner;
+  return isCatchAllSpecifier(inner.trim()) ? null : { category, pattern: inner, notInAllow: false };
 }
 
 /**
@@ -317,8 +326,7 @@ function parseCommandcodeRule(rule: string): ParsedCommandcodeRule | null {
   if (category === undefined) {
     return null;
   }
-  const pattern = friendlyToolPattern({ category, inner });
-  return pattern === null ? null : { category, pattern, notInAllow: false };
+  return friendlyToolRule({ category, inner });
 }
 
 /**
@@ -362,7 +370,8 @@ function stringRules({
   if (skipped > 0) {
     warn(
       `Command Code permission list "${action}" holds ${skipped} ${skipped === 1 ? "entry" : "entries"} ` +
-        `that ${skipped === 1 ? "is" : "are"} not a string, which Command Code skips; ${outcome}.`,
+        `that ${skipped === 1 ? "is" : "are"} not a string, which Command Code skips; ` +
+        `${skipped === 1 ? "that entry was" : "those entries were"} ${outcome}.`,
     );
   }
   return rules;
@@ -403,7 +412,7 @@ function preservedRules({
   const list = stringRules({
     list: existingPermissions[key],
     action: key,
-    outcome: "they were dropped from the regenerated list",
+    outcome: "dropped from the regenerated list",
     warn: (message) => logger?.warn(message),
   });
   return list.filter((rule) => {
@@ -450,8 +459,8 @@ function writableCommandcodeRule({
 }): string | null {
   if (action === "allow" && emitted.notInAllow) {
     logger?.warn(
-      `Command Code ignores '${rule}' in "allow" (an allow rule must name what it grants), ` +
-        `so the '${emitted.category}' allow rule was not written.`,
+      `Command Code does not honor '${rule}' in "allow" as written (an allow rule must name ` +
+        `what it grants), so the '${emitted.category}' allow rule was not written.`,
     );
     return null;
   }
@@ -572,11 +581,19 @@ function buildCommandcodeRuleLists({
  * Why a rule marked `notInAllow` is not imported from `allow`: Command Code
  * ignores a server-less wildcard or a tool-name glob there, while it does
  * enforce a scoped `MCP__<server>__<tool>(specifier)` — as a glob over the
- * call's arguments — which rulesync cannot model in `allow` without widening
- * the grant to the whole tool.
+ * call's arguments — and a padded `Shell( * )` — as a pattern narrower than
+ * the bare `Shell` — which rulesync cannot model in `allow` without widening
+ * the grant.
  */
-function skippedAllowImportMessage(rule: string): string {
+function skippedAllowImportMessage({ rule, category }: { rule: string; category: string }): string {
   const { tool, inner } = splitCommandcodeRule(rule);
+  if (category === "bash") {
+    return (
+      `Command Code reads '${rule}' in "allow" as a pattern narrower than the bare 'Shell' (the command ` +
+      `must parse into words and carry no environment assignment), which rulesync cannot import ` +
+      `without widening the grant to every command, so it was not imported.`
+    );
+  }
   if (tool.startsWith(MCP_CANONICAL_PREFIX) || isCatchAllSpecifier(inner)) {
     return `Command Code ignores '${rule}' in "allow" (an allow rule must name what it grants), so it was not imported.`;
   }
@@ -617,17 +634,25 @@ function parseCommandcodeRuleLists(
     const list = stringRules({
       list: rawList,
       action,
-      outcome: "they were not imported",
+      outcome: "not imported",
       warn: (message) => fallbackLogger.warn(message),
     });
     for (const rule of list) {
       const parsed = parseCommandcodeRule(rule);
-      if (parsed === null) continue;
-      if (action === "allow" && parsed.notInAllow) {
-        fallbackLogger.warn(skippedAllowImportMessage(rule));
+      if (parsed === null) {
+        if (action !== "allow") {
+          fallbackLogger.warn(
+            `Command Code permission rule '${rule}' in "${action}" is not one rulesync can model, so it ` +
+              `could not be imported; it stays in the Command Code settings, where a regenerate keeps it.`,
+          );
+        }
         continue;
       }
       const { category, pattern } = parsed;
+      if (action === "allow" && parsed.notInAllow) {
+        fallbackLogger.warn(skippedAllowImportMessage({ rule, category }));
+        continue;
+      }
       if (action === "allow" && scopedMcpRuleTool(rule) !== null) {
         fallbackLogger.warn(
           `Command Code ignores the specifier of an MCP rule, so '${rule}' in "allow" was imported ` +
