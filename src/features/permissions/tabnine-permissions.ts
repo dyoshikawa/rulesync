@@ -23,6 +23,7 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   formatTrustAffectingEntries,
+  isNotTrue,
   type TrustAffectingEntry,
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
@@ -53,19 +54,22 @@ const GENERAL_KEY = "general";
 /** The Tabnine CLI built-in that runs shell commands. */
 const SHELL_TOOL_NAME = "run_shell_command";
 
+/** The two override groups the permissions feature writes. */
+type OverrideGroup = typeof TOOLS_KEY | typeof GENERAL_KEY;
+
 /**
  * The paths of the `tabnine` override that are refused with a warning rather
  * than written — the line Claude Code's sandbox paths draw. Under `tools`, the
  * values Tabnine CLI spawns as a command (`discoveryCommand` and `callCommand`
- * at startup, `shell.pager` on every shell output); under `general`, the host
- * every login and API call goes to (`tabnineHost`) and the editor executable
- * (`preferredEditor`, "any editor path"). A fetched `.rulesync/permissions.jsonc`
- * must not be able to point Tabnine CLI at an executable, or a server, of its
- * choosing.
+ * at startup, `shell.pager` on every shell output, `sandbox.command` to start
+ * the sandbox); under `general`, the host every login and API call goes to
+ * (`tabnineHost`) and the editor executable (`preferredEditor`, "any editor
+ * path"). A fetched `.rulesync/permissions.jsonc` must not be able to point
+ * Tabnine CLI at an executable, or a server, of its choosing.
  * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/settings/settings-reference
  */
-const REFUSED_OVERRIDE_PATHS: Readonly<Record<string, readonly (readonly string[])[]>> = {
-  [TOOLS_KEY]: [["discoveryCommand"], ["callCommand"], ["shell", "pager"]],
+const REFUSED_OVERRIDE_PATHS: Readonly<Record<OverrideGroup, readonly (readonly string[])[]>> = {
+  [TOOLS_KEY]: [["discoveryCommand"], ["callCommand"], ["shell", "pager"], ["sandbox", "command"]],
   [GENERAL_KEY]: [["tabnineHost"], ["preferredEditor"]],
 };
 
@@ -214,13 +218,19 @@ function omitPath({ record, path }: { record: Record<string, unknown>; path: rea
  * names of the paths that were there. Nothing else of the group is touched:
  * the rest is written verbatim (and announced where it widens trust).
  */
-function stripRefusedPaths({ group, record }: { group: string; record: Record<string, unknown> }): {
+function stripRefusedPaths({
+  group,
+  record,
+}: {
+  group: OverrideGroup;
+  record: Record<string, unknown>;
+}): {
   record: Record<string, unknown>;
   refused: string[];
 } {
   const refused: string[] = [];
   let stripped = record;
-  for (const path of REFUSED_OVERRIDE_PATHS[group] ?? []) {
+  for (const path of REFUSED_OVERRIDE_PATHS[group]) {
     const result = omitPath({ record: stripped, path });
     if (result.removed) {
       refused.push(`${group}.${path.join(".")}`);
@@ -232,9 +242,11 @@ function stripRefusedPaths({ group, record }: { group: string; record: Record<st
 
 /**
  * The `tools` and `general` groups of an override with the refused paths taken
- * out, and every refused path named. A `general` that is not a record, or that
- * the refusals emptied, is reported as absent so no `general: {}` is written
- * or lifted.
+ * out, and every refused path named. A `general` that is absent or that the
+ * refusals emptied is reported as absent so no `general: {}` is written or
+ * lifted. (The `TabninePermissionsOverrideSchema` already rejects a group that
+ * is not an object; the `isRecord` guards only keep an unvalidated file from
+ * throwing.)
  */
 function stripRefusedOverridePaths(override: Record<string, unknown>): {
   tools: Record<string, unknown>;
@@ -282,7 +294,7 @@ function collectTrustAffectingOverrideEntries({
         "auto-approves what it names as the override spells it; a non-shell entry has no canonical rule to be checked against",
     });
   }
-  if (Object.hasOwn(tools, SANDBOX_KEY) && tools[SANDBOX_KEY] !== true) {
+  if (Object.hasOwn(tools, SANDBOX_KEY) && isNotTrue(tools[SANDBOX_KEY])) {
     entries.push({
       label: `tools.sandbox = ${quoteValueForWarning(tools[SANDBOX_KEY])}`,
       reason:
@@ -321,10 +333,12 @@ function announceLiftedOverride({
   refused: readonly string[];
 }): void {
   if (refused.length > 0) {
+    const one = refused.length === 1;
     moduleLogger.info(
       `Tabnine CLI permissions: left ${refused.join(", ")} in settings.json rather than lifting ` +
-        `it into the tabnine override; Tabnine CLI runs that value as a command or sends its ` +
-        `traffic to it, and 'rulesync generate' refuses to write it from the override.`,
+        `${one ? "it" : "them"} into the tabnine override; Tabnine CLI runs ${one ? "that value" : "those values"} ` +
+        `as a command or sends its traffic there, and 'rulesync generate' refuses to write ` +
+        `${one ? "it" : "them"} from the override.`,
     );
   }
   const trustAffecting = collectTrustAffectingOverrideEntries({ tools, general });

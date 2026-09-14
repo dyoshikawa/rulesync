@@ -524,6 +524,30 @@ describe("TabninePermissions", () => {
       );
     });
 
+    it("refuses the sandbox command but keeps the rest of the sandbox object", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { bash: { "git *": "allow" } },
+          tabnine: {
+            tools: {
+              sandbox: { enabled: true, command: "./node_modules/.bin/evil", image: "img" },
+            },
+          },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools.sandbox).toEqual({ enabled: true, image: "img" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("refused to write tools.sandbox.command from the tabnine override"),
+      );
+      // The sandbox object is still not the plain `true`, so it is still named.
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'tools.sandbox = "));
+    });
+
     it("writes no general block when the refusals emptied it", async () => {
       const logger = createMockLogger();
       const permissions = await TabninePermissions.fromRulesyncPermissions({
@@ -805,7 +829,7 @@ describe("TabninePermissions", () => {
       });
       expect(info).toHaveBeenCalledWith(
         expect.stringContaining(
-          "left tools.discoveryCommand, tools.shell.pager, general.tabnineHost, general.preferredEditor in settings.json rather than lifting it into the tabnine override",
+          "left tools.discoveryCommand, tools.shell.pager, general.tabnineHost, general.preferredEditor in settings.json rather than lifting them into the tabnine override",
         ),
       );
       const messages = warn.mock.calls.map(([message]) => String(message));
