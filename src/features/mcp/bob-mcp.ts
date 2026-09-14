@@ -14,7 +14,7 @@ import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
-  resolveLocalMcpCommand,
+  splitLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
@@ -88,8 +88,10 @@ function asBobRemoteType(
  * streamable HTTP server carries `type: "streamable-http"` and `url`, and an
  * SSE server carries a bare `url`. The canonical `transport` alias and the
  * Claude-style `httpUrl` alias are folded into `type`/`url`; `env`, `cwd`,
- * `headers`, `timeout`, `alwaysAllow` and `disabled` pass through unchanged,
- * as Bob documents all of them.
+ * `headers`, `timeout`, `alwaysAllow` and `disabled` pass through, as Bob
+ * documents all of them (`env` and `headers` with their prototype-pollution
+ * keys dropped, since Bob spreads those maps into the process environment and
+ * the HTTP requests).
  *
  * Bob Shell documents the same file with an `httpURL` key instead of
  * `type` + `url` for streamable HTTP. rulesync writes the IDE spelling (the two
@@ -154,7 +156,7 @@ function convertToBobFormat(mcpServers: McpServers, logger?: Logger): BobMcpServ
       }
       converted.url = url;
     } else {
-      const [command, ...args] = resolveLocalMcpCommand(serverConfig);
+      const [command, ...args] = splitLocalMcpCommand(serverConfig);
       if (!command) {
         warnAndSkipMcpServer({
           toolName: "Bob",

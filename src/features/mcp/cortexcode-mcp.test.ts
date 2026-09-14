@@ -177,6 +177,7 @@ describe("CortexcodeMcp", () => {
         ws: { url: "wss://example.com/socket" },
         wsTyped: { type: "ws", url: "wss://example.com/socket" },
         noCommand: { type: "stdio" },
+        argsOnly: { args: ["-y", "git-mcp"] },
         ok: { command: "git-mcp" },
       });
 
@@ -186,8 +187,8 @@ describe("CortexcodeMcp", () => {
         mcpServers: { ok: { type: "stdio", command: "git-mcp" } },
       });
       const warnings = logger.warn.mock.calls.map(([message]) => String(message));
-      expect(warnings).toHaveLength(5);
-      for (const name of ["none", "noUrl", "ws", "wsTyped", "noCommand"]) {
+      expect(warnings).toHaveLength(6);
+      for (const name of ["none", "noUrl", "ws", "wsTyped", "noCommand", "argsOnly"]) {
         expect(warnings.some((message) => message.includes(`"${name}"`))).toBe(true);
       }
     });

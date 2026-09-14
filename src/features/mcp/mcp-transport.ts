@@ -1,5 +1,6 @@
 import { McpServers } from "../../types/mcp.js";
 import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 
 export type McpServerConfig = McpServers[string];
 
@@ -63,11 +64,29 @@ export function resolveLocalMcpCommand(serverConfig: McpServerConfig): string[] 
 }
 
 /**
+ * `resolveLocalMcpCommand` for adapters that write `command` and `args` back
+ * out as separate keys. The merge above would hand an entry carrying `args` but
+ * no `command` back with `args[0]` promoted to its program, so such an entry
+ * comes back empty here instead and the caller skips it the same way as one
+ * with nothing to spawn at all.
+ */
+export function splitLocalMcpCommand(serverConfig: McpServerConfig): string[] {
+  const { command } = serverConfig;
+  const hasCommand =
+    typeof command === "string" ? command !== "" : Array.isArray(command) && command.length > 0;
+  return hasCommand ? resolveLocalMcpCommand(serverConfig) : [];
+}
+
+/**
  * A server that names a transport but carries nothing to reach it — a `type`
  * with no `command`, an `http` with no `url` — has no form in a config that
  * spells the transport out. Writing `{type: "local", command: []}` for it would
  * give the tool a server it cannot start and the importer a file it cannot read
  * back, so it is skipped out loud instead.
+ *
+ * The server name comes straight from the user's config, so it is quoted
+ * through `quoteValueForWarning` rather than interpolated: a crafted name could
+ * otherwise carry a line break or control characters into the log.
  */
 export function warnAndSkipMcpServer({
   toolName,
@@ -80,7 +99,9 @@ export function warnAndSkipMcpServer({
   reason: string;
   logger?: Logger;
 }): null {
-  logger?.warn(`${toolName} MCP: skipping "${serverName}" because it declares ${reason}.`);
+  logger?.warn(
+    `${toolName} MCP: skipping ${quoteValueForWarning(serverName)} because it declares ${reason}.`,
+  );
   return null;
 }
 

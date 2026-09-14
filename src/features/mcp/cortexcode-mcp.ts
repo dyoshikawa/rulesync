@@ -17,7 +17,7 @@ import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
-  resolveLocalMcpCommand,
+  splitLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
@@ -150,7 +150,7 @@ function convertToCortexcodeFormat(mcpServers: McpServers, logger?: Logger): Cor
       converted.type = remoteType;
       converted.url = url;
     } else {
-      const [command, ...args] = resolveLocalMcpCommand(serverConfig);
+      const [command, ...args] = splitLocalMcpCommand(serverConfig);
       if (!command) {
         warnAndSkipMcpServer({
           toolName: "Cortex Code",

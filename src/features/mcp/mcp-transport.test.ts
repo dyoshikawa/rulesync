@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Logger } from "../../utils/logger.js";
 import {
   declaresNoTransport,
+  splitLocalMcpCommand,
   isRemoteMcpServer,
   orphanMcpToolFiltersToRulesync,
   resolveLocalMcpCommand,
@@ -85,6 +86,30 @@ describe("resolveLocalMcpCommand", () => {
   });
 });
 
+describe("splitLocalMcpCommand", () => {
+  it("merges a string or array command with its args", () => {
+    expect(splitLocalMcpCommand({ command: "git-mcp", args: ["--stdio"] })).toEqual([
+      "git-mcp",
+      "--stdio",
+    ]);
+    expect(splitLocalMcpCommand({ command: ["npx", "-y"], args: ["git-mcp"] })).toEqual([
+      "npx",
+      "-y",
+      "git-mcp",
+    ]);
+  });
+
+  it("returns nothing when only args are given, so args[0] is never promoted to the program", () => {
+    expect(splitLocalMcpCommand({ args: ["-y", "git-mcp"] })).toEqual([]);
+    expect(splitLocalMcpCommand({ type: "stdio" })).toEqual([]);
+  });
+
+  it("returns nothing for an empty command", () => {
+    expect(splitLocalMcpCommand({ command: "", args: ["x"] })).toEqual([]);
+    expect(splitLocalMcpCommand({ command: [], args: ["x"] })).toEqual([]);
+  });
+});
+
 describe("warnAndSkipMcpServer", () => {
   it("names the tool, the server, and the reason, and returns null", () => {
     const logger = { warn: vi.fn() } as unknown as Logger;
@@ -99,6 +124,21 @@ describe("warnAndSkipMcpServer", () => {
     ).toBeNull();
     expect(logger.warn).toHaveBeenCalledWith(
       'Kilo MCP: skipping "broken" because it declares a local transport but no command.',
+    );
+  });
+
+  it("quotes a server name so it cannot smuggle a second log line", () => {
+    const logger = { warn: vi.fn() } as unknown as Logger;
+
+    warnAndSkipMcpServer({
+      toolName: "Kilo",
+      serverName: "ok\nKilo MCP: all good",
+      reason: "nothing",
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Kilo MCP: skipping "okKilo MCP: all good" because it declares nothing.',
     );
   });
 

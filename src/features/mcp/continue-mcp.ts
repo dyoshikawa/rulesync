@@ -15,7 +15,7 @@ import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
-  resolveLocalMcpCommand,
+  splitLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
@@ -169,13 +169,7 @@ function convertStdioServer({
   serverConfig: Record<string, unknown>;
   logger?: Logger;
 }): Record<string, unknown> | undefined {
-  // `resolveLocalMcpCommand` flattens `command` and `args` together, so an
-  // entry with `args` but no `command` must be caught before the split.
-  const hasCommand =
-    typeof serverConfig.command === "string"
-      ? serverConfig.command !== ""
-      : Array.isArray(serverConfig.command) && serverConfig.command.length > 0;
-  const [command, ...args] = hasCommand ? resolveLocalMcpCommand(serverConfig) : [];
+  const [command, ...args] = splitLocalMcpCommand(serverConfig);
   if (!command) {
     warnAndSkipMcpServer({
       toolName: "Continue",

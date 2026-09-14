@@ -21,7 +21,7 @@ import {
 import {
   declaresNoTransport,
   isRemoteMcpServer,
-  resolveLocalMcpCommand,
+  splitLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
@@ -125,7 +125,7 @@ function convertToTabnineFormat(mcpServers: McpServers, logger?: Logger): Tabnin
         converted.type = remoteType;
       }
     } else {
-      const [command, ...args] = resolveLocalMcpCommand(serverConfig);
+      const [command, ...args] = splitLocalMcpCommand(serverConfig);
       if (!command) {
         warnAndSkipMcpServer({
           toolName: "Tabnine CLI",
