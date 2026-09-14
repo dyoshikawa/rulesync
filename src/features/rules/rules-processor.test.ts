@@ -1608,6 +1608,7 @@ describe("RulesProcessor", () => {
         "copilot",
         "cursor",
         "codexcli",
+        "commandcode",
         "junie",
         "kiro",
         "opencode",
@@ -1884,6 +1885,7 @@ Content that would fail parsing`;
         "cline",
         "codebuddy",
         "codexcli",
+        "commandcode",
         "continue",
         "copilot",
         "copilotcli",
@@ -1971,7 +1973,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("pool");
       expect(globalTargets).toContain("dsh");
       expect(globalTargets).toContain("continue");
-      expect(globalTargets.length).toBe(40);
+      expect(globalTargets).toContain("commandcode");
+      expect(globalTargets.length).toBe(41);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -4152,6 +4155,7 @@ targets: ["claudecode"]
     it("should expose every global-capable folded target to the regression matrix", () => {
       expect(globalFoldTargets).toEqual([
         "codexcli",
+        "commandcode",
         "crush",
         "deepagents",
         "goose",

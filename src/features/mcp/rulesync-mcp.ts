@@ -93,6 +93,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   claudecode: z.optional(toolScopedMcpSchema),
   cline: z.optional(toolScopedMcpSchema),
   codexcli: z.optional(toolScopedMcpSchema),
+  commandcode: z.optional(toolScopedMcpSchema),
   continue: z.optional(toolScopedMcpSchema),
   copilot: z.optional(toolScopedMcpSchema),
   copilotcli: z.optional(toolScopedMcpSchema),

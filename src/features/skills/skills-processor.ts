@@ -42,6 +42,7 @@ import { ClaudecodePluginSkill } from "./claudecode-plugin-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { ClineSkill } from "./cline-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
+import { CommandcodeSkill } from "./commandcode-skill.js";
 import { ContinueSkill } from "./continue-skill.js";
 import { CopilotSkill } from "./copilot-skill.js";
 import { CopilotcliSkill } from "./copilotcli-skill.js";
@@ -338,6 +339,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "codexcli",
     {
       class: CodexCliSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "commandcode",
+    {
+      // Command Code skills are Anthropic-style Agent Skills directories
+      // (<name>/SKILL.md) under .commandcode/skills/ (project) and
+      // ~/.commandcode/skills/ (user).
+      // https://commandcode.ai/docs/skills
+      class: CommandcodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

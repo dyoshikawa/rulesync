@@ -1583,6 +1583,21 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
     },
   },
+  // Command Code settings: the project file (`.commandcode/settings.json`) and
+  // the user file (`~/.commandcode/settings.json`) share one layout and carry
+  // unrelated Command Code settings (`model`, `env`, ...), so both are edited
+  // in place and an unparseable root is refused rather than replaced. Hooks
+  // own the `hooks` key outright; permissions own the `permissions` key, and
+  // the adapter itself re-spreads the user's `defaultMode` and the other
+  // sibling keys of that object into the regenerated value.
+  ".commandcode/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+    },
+  },
   // Snowflake Cortex Code hooks: `hooks` is the only rulesync-owned key. The
   // project file (`.cortex/settings.json`) carries unrelated Cortex settings,
   // and the user file (`~/.snowflake/cortex/hooks.json`) lives in the

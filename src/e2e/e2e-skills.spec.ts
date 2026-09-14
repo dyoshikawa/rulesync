@@ -40,6 +40,10 @@ const skillsGenerateTargets = [
     outputPath: join(".cortex", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "commandcode",
+    outputPath: join(".commandcode", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "continue",
     outputPath: join(".continue", "skills", "test-skill", "SKILL.md"),
   },
@@ -343,6 +347,10 @@ This is the test skill body content.
       orphanPath: join(".tabnine", "agent", "skills", "orphan-skill", "SKILL.md"),
     },
     { target: "cortexcode", orphanPath: join(".cortex", "skills", "orphan-skill", "SKILL.md") },
+    {
+      target: "commandcode",
+      orphanPath: join(".commandcode", "skills", "orphan-skill", "SKILL.md"),
+    },
     { target: "continue", orphanPath: join(".continue", "skills", "orphan-skill", "SKILL.md") },
     { target: "cursor", orphanPath: join(".cursor", "skills", "orphan-skill", "SKILL.md") },
     { target: "codexcli", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
@@ -411,6 +419,10 @@ describe("E2E: skills (import)", () => {
       sourcePath: join(".tabnine", "agent", "skills", "test-skill", "SKILL.md"),
     },
     { target: "cortexcode", sourcePath: join(".cortex", "skills", "test-skill", "SKILL.md") },
+    {
+      target: "commandcode",
+      sourcePath: join(".commandcode", "skills", "test-skill", "SKILL.md"),
+    },
     { target: "continue", sourcePath: join(".continue", "skills", "test-skill", "SKILL.md") },
     { target: "cursor", sourcePath: join(".cursor", "skills", "test-skill", "SKILL.md") },
     { target: "codexcli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
@@ -891,6 +903,10 @@ const skillsGlobalTargets = [
   {
     target: "cortexcode",
     outputPath: join(".snowflake", "cortex", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "commandcode",
+    outputPath: join(".commandcode", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "continue",

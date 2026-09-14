@@ -140,6 +140,10 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        ".commandcode/settings.json": [
+          "hooks",
+          "permissions",
+        ],
         ".config/amp/settings.json": [
           "mcp",
           "permissions",

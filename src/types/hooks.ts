@@ -1086,6 +1086,35 @@ export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Objec
 );
 
 /**
+ * Hook events supported by Command Code.
+ *
+ * Command Code reads hooks from the `hooks` key of `.commandcode/settings.json`
+ * (project) and `~/.commandcode/settings.json` (user) in the Claude-Code shape.
+ * Four events are documented: PreToolUse, PostToolUse, Stop and SessionStart.
+ * Only `command` hooks exist; `timeout` is in seconds (default 30, max 600)
+ * and `$COMMANDCODE_PROJECT_DIR` resolves to the project root.
+ *
+ * @see https://commandcode.ai/docs/hooks
+ */
+export const COMMANDCODE_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "stop",
+  "sessionStart",
+];
+
+export const CANONICAL_TO_COMMANDCODE_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  stop: "Stop",
+  sessionStart: "SessionStart",
+};
+
+export const COMMANDCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_COMMANDCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Hook events supported by the Continue CLI (`cn`).
  *
  * Continue reads a Claude-Code-compatible `hooks` key from
@@ -1317,6 +1346,7 @@ export const HooksConfigSchema = z.looseObject({
   zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   cortexcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  commandcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   continue: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   tabnine: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
