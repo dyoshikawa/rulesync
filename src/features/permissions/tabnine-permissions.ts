@@ -151,8 +151,8 @@ type TabnineToolLists = {
 };
 
 /**
- * Build the two tool lists from the canonical block. Returns the lists plus the
- * categories whose rules could not be carried, for the warning the caller emits.
+ * Build the two tool lists from the canonical block; the rules that could not
+ * be carried are reported through `logger` here.
  */
 function buildToolLists({
   permission,
@@ -413,10 +413,11 @@ export class TabninePermissions extends ToolPermissions {
       ...preservedEntries(EXCLUDE_KEY),
     ]);
 
-    // An empty list retracts its key, since rulesync owns the two of them. The
-    // `tools` group itself is only touched when there is something to write
-    // into it or it already exists, so a config without tool rules does not
-    // leave an empty `tools: {}` behind.
+    // An empty list retracts its key: rulesync owns the entries of the tools it
+    // manages, and the hand-written ones were kept above. The `tools` group
+    // itself is only touched when there is something to write into it or it
+    // already exists, so a config without tool rules does not leave an empty
+    // `tools: {}` behind.
     const tools: Record<string, unknown> = {
       ...overrideTools,
       [ALLOWED_KEY]: allowedList.length > 0 ? allowedList : undefined,
