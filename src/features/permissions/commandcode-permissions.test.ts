@@ -122,19 +122,77 @@ describe("CommandcodePermissions", () => {
       });
     });
 
-    it("keeps the pattern of a scoped mcp rule as its specifier in deny and ask", async () => {
+    it("writes a scoped mcp deny or ask as the whole tool with a warning", async () => {
+      // Command Code drops the specifier of an `mcp__` rule in every list, so
+      // the file says what it enforces: the whole tool, strictest action wins.
+      const logger = createMockLogger();
       const permissions = await CommandcodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
+        logger,
         rulesyncPermissions: createRulesyncPermissions({
           mcp__github__get_issue: { "owner:foo": "ask", "owner:bar": "deny" },
+          mcp__github__list_issues: { "owner:foo": "ask" },
+          mcp: { "playwright__click(x)": "deny" },
         }),
       });
 
       const json = JSON.parse(permissions.getFileContent());
       expect(json.permissions).toEqual({
-        ask: ["mcp__github__get_issue(owner:foo)"],
-        deny: ["mcp__github__get_issue(owner:bar)"],
+        ask: ["mcp__github__list_issues"],
+        deny: ["mcp__github__get_issue", "mcp__playwright__click"],
       });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "'mcp__github__get_issue(owner:foo)' was written as 'mcp__github__get_issue'",
+        ),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "'mcp__playwright__click(x)' was written as 'mcp__playwright__click'",
+        ),
+      );
+    });
+
+    it("warns when a reclaimed deny or ask entry has no replacement of its own strength", async () => {
+      const logger = createMockLogger();
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            allow: ["mcp__*"],
+            ask: ["Shell(rm -rf *)", "Read"],
+            deny: ["mcp__*", "Shell(git *)", "READ"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: createRulesyncPermissions({
+          mcp: { github: "deny" },
+          bash: { "git *": "allow", "rm -rf *": "deny" },
+          read: { "*": "allow" },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.permissions).toEqual({
+        allow: ["Read", "Shell(git *)"],
+        deny: ["Shell(rm -rf *)", "mcp__github"],
+      });
+      // The `ask` on `Shell(rm -rf *)` got a stricter rule back and the allow
+      // entries never warn; every other reclaimed entry was loosened.
+      const warned = logger.warn.mock.calls.map(([message]) => message);
+      expect(warned).toHaveLength(4);
+      expect(warned).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("'mcp__*' in \"deny\""),
+          expect.stringContaining("'Shell(git *)' in \"deny\""),
+          expect.stringContaining("'READ' in \"deny\""),
+          expect.stringContaining("'Read' in \"ask\""),
+        ]),
+      );
     });
 
     it("drops a scoped mcp allow with a warning instead of allowing the whole tool", async () => {
@@ -313,7 +371,12 @@ describe("CommandcodePermissions", () => {
         ask: ["read_directory(/tmp)"],
         deny: ["Write(.env*)", "edit_*"],
       });
-      expect(logger.warn).not.toHaveBeenCalled();
+      // The stale `Shell(stale *)` allow goes quietly; the reclaimed
+      // `Shell(rm -rf /)` deny is reported because nothing replaced it.
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("'Shell(rm -rf /)' in \"deny\""),
+      );
     });
 
     it("preserves entries of modeled tools the canonical config does not mention", async () => {
@@ -575,13 +638,13 @@ describe("CommandcodePermissions", () => {
       });
     });
 
-    it("imports the specifier of a scoped mcp rule as its pattern in deny and ask", async () => {
+    it("imports a scoped mcp deny or ask as the whole tool, which is what Command Code enforces", async () => {
       await writeSettings({
         testDir,
         settings: {
           permissions: {
-            ask: ["mcp__github__get_issue(owner:foo)"],
-            deny: ["mcp__github__get_issue(owner:bar)", "mcp__*(x)", "*(git *)"],
+            ask: ["mcp__github__get_issue(owner:foo)", "mcp__filesystem(x)"],
+            deny: ["mcp__github__delete_repo(owner:bar)", "mcp__*(x)", "*(git *)"],
           },
         },
       });
@@ -589,7 +652,33 @@ describe("CommandcodePermissions", () => {
       const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
       const json = permissions.toRulesyncPermissions().getJson();
       expect(json.permission).toEqual({
-        mcp__github__get_issue: { "owner:foo": "ask", "owner:bar": "deny" },
+        mcp__github__get_issue: { "*": "ask" },
+        mcp__filesystem: { "*": "ask" },
+        mcp__github__delete_repo: { "*": "deny" },
+        mcp: { "*": "deny" },
+      });
+    });
+
+    it("imports a differently-cased MCP__ rule the way Command Code reads it: as a tool name", async () => {
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            // Dead in allow (a tool-name rule with a specifier never matches an
+            // MCP call there); scoped by the specifier in deny/ask.
+            allow: ["MCP__github__delete_repo(owner:sandbox)", "MCP__*", "MCP__github__*"],
+            ask: ["MCP__github__get_issue(owner:foo)", "MCP__github__*"],
+            deny: ["MCP__*", "MCP__github(owner:foo)", "MCP__*(x)", "MCP__git*__list"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.permission).toEqual({
+        mcp__github__get_issue: { "owner:foo": "ask" },
+        "mcp__github__*": { "*": "ask" },
+        mcp: { "*": "deny" },
       });
     });
 
@@ -666,10 +755,12 @@ describe("CommandcodePermissions", () => {
         },
       });
 
-      // Command Code only reads the MCP shape from an exact `mcp__` prefix, so
-      // `MCP__github`, `MCP__github__*` and `MCP__*` are dead lines there and
-      // must not become live allows for other targets; a full tool name still
-      // matches that tool by name and folds to the canonical category.
+      // Command Code only reads the MCP shape from an exact `mcp__` prefix; a
+      // differently-cased spelling is a plain tool-name rule there. The globs
+      // `MCP__*` / `MCP__github__*` are ignored in allow (so they must not
+      // become live allows for other targets) but match by name in deny, and
+      // `MCP__github` names no tool at all; a full tool name still matches
+      // that tool by name and folds to the canonical category.
       const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
       const rulesyncPermissions = permissions.toRulesyncPermissions();
       expect(rulesyncPermissions.getJson().permission).toEqual({
@@ -682,10 +773,12 @@ describe("CommandcodePermissions", () => {
         logger,
         rulesyncPermissions,
       });
-      // The dead lines are unmodeled and therefore the user's: preserved.
+      // `MCP__github` is unmodeled and `mcp__github__*` is not a category the
+      // config names, so both stay the user's; `MCP__*` folds onto the managed
+      // `mcp` category and is replaced by the canonical `mcp__*`.
       expect(JSON.parse(regenerated.getFileContent()).permissions).toEqual({
         allow: ["MCP__github", "MCP__github__*"],
-        deny: ["MCP__*", "mcp__*", "mcp__github__delete_repo"],
+        deny: ["mcp__*", "mcp__github__delete_repo"],
       });
       expect(logger.warn).not.toHaveBeenCalled();
     });
@@ -815,7 +908,8 @@ describe("CommandcodePermissions", () => {
       const source = createRulesyncPermissions({
         bash: { "git *": "allow", "rm -rf *": "deny" },
         read: { "*": "allow" },
-        mcp__github__get_issue: { "*": "ask", "owner:foo": "deny" },
+        mcp__github__get_issue: { "*": "ask" },
+        mcp__github__delete_repo: { "*": "deny" },
         webfetch: { "https://docs.example.com/*": "allow" },
       });
       const generated = await CommandcodePermissions.fromRulesyncPermissions({
