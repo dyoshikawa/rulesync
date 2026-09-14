@@ -101,8 +101,10 @@ describe("ContinueMcp", () => {
 
   describe("fromRulesyncMcp", () => {
     it("emits stdio servers with the documented keys only", async () => {
+      const logger = createMockLogger();
       const mcp = await ContinueMcp.fromRulesyncMcp({
         outputRoot: testDir,
+        logger,
         rulesyncMcp: buildRulesyncMcp({
           fs: {
             command: "npx",
@@ -124,10 +126,13 @@ describe("ContinueMcp", () => {
             command: "npx",
             args: ["-y", "@modelcontextprotocol/server-filesystem", "."],
             env: { HOME: "/tmp" },
-            envFile: ".env",
           },
         },
       });
+      // Continue ignores `envFile`, so it is dropped with a warning instead of
+      // being written as if the variables were loaded.
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('ignores "envFile"'));
     });
 
     it("emits remote servers as http/sse and folds streamable-http into http", async () => {

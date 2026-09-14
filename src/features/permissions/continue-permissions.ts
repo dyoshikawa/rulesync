@@ -341,6 +341,16 @@ function convertRulesyncToContinuePermissions({
         );
         continue;
       }
+      // Continue matches a `*(pattern)` entry against no tool argument, so a
+      // pattern-specific all-tools rule would be written as a dead entry
+      // (`honorAllToolsOnBash` mirrors it onto bash when that category exists).
+      if (toolName === ALL_TOOLS_PERMISSION_CATEGORY && pattern !== CATCH_ALL_PATTERN) {
+        logger?.warn(
+          `Continue permissions.yaml cannot scope a pattern to every tool, so the ` +
+            `"${action}" rule for "*" (pattern ${quoteValueForWarning(pattern)}) was skipped.`,
+        );
+        continue;
+      }
       const entry = buildContinuePermissionEntry(toolName, pattern);
       const previous = actionByEntry.get(entry);
       if (previous !== undefined && previous !== action) {

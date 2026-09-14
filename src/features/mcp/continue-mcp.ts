@@ -84,11 +84,13 @@ function asContinueRemoteType(stated: string | undefined, url: string): "http" |
 /**
  * Convert the canonical server map to the shape Continue's JSON MCP schema
  * accepts: a remote server is `{ type, url, headers? }` and a stdio server is
- * `{ type: "stdio", command, args?, env?, envFile? }`. Continue validates the
- * whole file with a strict union — one server that matches neither shape
- * (an unknown transport, a non-string `env` value) makes Continue drop every
+ * `{ type: "stdio", command, args?, env? }`. Continue validates the whole
+ * file with a strict union — one server that matches neither shape (an
+ * unknown transport, a non-string `env` value) makes Continue drop every
  * server in the file — so only the documented keys are emitted and anything
- * else (`timeout`, `oauth`, rulesync-only fields) is left out.
+ * else (`timeout`, `oauth`, rulesync-only fields) is left out. `envFile` is
+ * accepted by Continue's schema but ignored with a warning at load time, so
+ * it is dropped here with a warning instead of being written as if it worked.
  *
  * A server Continue cannot start or reach — no transport at all, a remote
  * transport without a URL, a WebSocket URL, or a stdio entry without a
@@ -191,7 +193,13 @@ function convertStdioServer({
     converted.env = omitPrototypePollutionKeys(serverConfig.env);
   }
   if (typeof serverConfig.envFile === "string") {
-    converted.envFile = serverConfig.envFile;
+    // Continue parses `envFile` but never reads the file
+    // (packages/config-yaml/src/schemas/mcp/convertJson.ts), so writing it
+    // would only suggest that the variables are loaded when they are not.
+    logger?.warn(
+      `Continue ignores "envFile" for MCP servers, so the envFile of server "${serverName}" ` +
+        `was not written; put the variables in "env" instead.`,
+    );
   }
   return converted;
 }

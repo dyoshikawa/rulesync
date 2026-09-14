@@ -166,6 +166,26 @@ describe("ContinuePermissions", () => {
       expect(lists.allow).toBeUndefined();
     });
 
+    it("skips pattern-specific all-tools rules instead of writing dead * entries", async () => {
+      const logger = createMockLogger();
+      const perms = await ContinuePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "*": "allow", "rm -rf *": "deny" },
+          bash: { "git status *": "allow" },
+        }),
+        global: true,
+        logger,
+      });
+
+      const lists = listsOf(perms.getFileContent());
+      expect(lists.allow).toEqual(["*", "Bash(git status *)"]);
+      // The bash mirror from honorAllToolsOnBash keeps the deny; `*(rm -rf *)`
+      // itself would match nothing in Continue and is not written.
+      expect(lists.exclude).toEqual(["Bash(rm -rf *)"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('rule for "*"'));
+    });
+
     it("drops prototype-pollution categories and patterns instead of writing them", async () => {
       const perms = await ContinuePermissions.fromRulesyncPermissions({
         outputRoot: testDir,

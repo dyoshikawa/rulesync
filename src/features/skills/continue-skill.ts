@@ -16,8 +16,10 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-// Continue skill frontmatter: `name` and `description` are required (both
-// non-empty) as in the Agent Skills spec; Continue validates nothing else.
+// Continue skill frontmatter: `name` and `description` are required as in the
+// Agent Skills spec (Continue additionally rejects empty strings at load time,
+// like the sibling adapters this schema mirrors); Continue validates nothing
+// else.
 // @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/util/loadMarkdownSkills.ts
 const ContinueSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
