@@ -485,6 +485,35 @@ describe("CommandcodePermissions", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("keeps the string entries of a list that also holds a non-string one", async () => {
+      // Command Code skips a non-string entry on its own, so the deny beside
+      // it stays in force and must survive the regenerate.
+      const logger = createMockLogger();
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: { deny: ["Shell(rm -rf *)", null, 7], allow: ["Read"], ask: "Shell" },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: createRulesyncPermissions({ read: { "./src/**": "allow" } }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent()).permissions).toEqual({
+        allow: ["Read(./src/**)"],
+        deny: ["Shell(rm -rf *)"],
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'permission list "deny" holds 2 entries that are not a string, which Command Code skips; they were dropped',
+        ),
+      );
+    });
+
     it("reclaims the entries of a named category even when it has no rules", async () => {
       await writeSettings({
         testDir,
@@ -713,14 +742,17 @@ describe("CommandcodePermissions", () => {
         testDir,
         settings: {
           permissions: {
-            // Dead in allow (a tool-name rule with a specifier never matches an
-            // MCP call there); scoped by the specifier in deny/ask.
+            // Skipped in allow: the name globs are ignored there, and the
+            // scoped rule — which Command Code globs against the call's
+            // arguments — cannot be imported without widening it; scoped by
+            // the specifier in deny/ask.
             allow: ["MCP__github__delete_repo(owner:sandbox)", "MCP__*", "MCP__github__*"],
             ask: ["MCP__github__get_issue(owner:foo)", "MCP__github__*"],
             deny: ["MCP__*", "MCP__github(owner:foo)", "MCP__*(x)", "MCP__git*__list"],
           },
         },
       });
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
 
       const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
       const json = permissions.toRulesyncPermissions().getJson();
@@ -729,6 +761,16 @@ describe("CommandcodePermissions", () => {
         mcp__github: { "*": "ask" },
         mcp: { "*": "deny" },
       });
+      const skipped = warn.mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.includes("was not imported"));
+      expect(skipped).toEqual([
+        expect.stringContaining(
+          "globs the specifier of 'MCP__github__delete_repo(owner:sandbox)' in \"allow\" against the call's arguments",
+        ),
+        expect.stringContaining("ignores 'MCP__*' in \"allow\""),
+        expect.stringContaining("ignores 'MCP__github__*' in \"allow\""),
+      ]);
     });
 
     it("imports a scoped mcp allow as the whole tool and keeps the grant on regenerate", async () => {
@@ -825,9 +867,11 @@ describe("CommandcodePermissions", () => {
         mcp__GitHub__Delete_Repo: { "*": "deny" },
       });
       // The name rule matched case-insensitively; the exact-prefix rule
-      // written back will not, which is worth a word.
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn.mock.calls[0]?.[0]).toContain(
+      // written back will not, which is worth a word — as is the glob allow
+      // Command Code ignores.
+      expect(warn).toHaveBeenCalledTimes(2);
+      expect(warn.mock.calls[0]?.[0]).toContain(`ignores 'MCP__github__*' in "allow"`);
+      expect(warn.mock.calls[1]?.[0]).toContain(
         `matches 'MCP__GitHub__Delete_Repo' in "deny" against MCP tool names case-insensitively`,
       );
 
@@ -915,23 +959,50 @@ describe("CommandcodePermissions", () => {
 
     it("reads specifier whitespace the way each Command Code matcher does", async () => {
       // The shell matcher trims and collapses whitespace on the pattern (a
-      // blank one matches nothing); the path matcher uses it as written, so a
-      // padded `*` or a blank never matches and the rule is left alone.
+      // blank one matches nothing, and a padded `*` stays a pattern rule that
+      // is narrower than the bare `Shell` in allow); the path matcher uses it
+      // as written, so a padded `*` or a blank never matches. All of those
+      // are left alone.
       await writeSettings({
         testDir,
         settings: {
           permissions: {
             allow: ["Shell( )", "Read( * )", "Read( )", "Shell( * )", "Read(./src/ **)"],
-            deny: ["Shell( rm  -rf * )", "Shell(git *)"],
+            deny: ["Shell( rm  -rf * )", "Shell(git *)", "Shell( * )"],
           },
         },
       });
 
       const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
       expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
-        bash: { "*": "allow", "rm -rf *": "deny", "git *": "deny" },
+        bash: { "rm -rf *": "deny", "git *": "deny" },
         read: { "./src/ **": "allow" },
       });
+    });
+
+    it("imports the string entries of a list that also holds a non-string one", async () => {
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: { deny: ["Shell(rm -rf *)", null], allow: ["Read", 1], ask: { x: 1 } },
+        },
+      });
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+        bash: { "rm -rf *": "deny" },
+        read: { "*": "allow" },
+      });
+      expect(warn).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'permission list "allow" holds 1 entry that is not a string, which Command Code skips; they were not imported',
+        ),
+      );
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('permission list "deny" holds 1 entry that is not a string'),
+      );
     });
 
     it("drops entries whose pattern is a prototype-pollution key", async () => {
@@ -994,7 +1065,7 @@ describe("CommandcodePermissions", () => {
     it("ignores non-array lists and non-object permissions", async () => {
       await writeSettings({
         testDir,
-        settings: { permissions: { allow: "Shell(git *)", deny: [1, "Shell(rm *)"] } },
+        settings: { permissions: { allow: "Shell(git *)", deny: { 0: "Shell(rm *)" } } },
       });
       const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
       expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({});
