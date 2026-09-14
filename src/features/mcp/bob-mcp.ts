@@ -6,7 +6,10 @@ import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import {
+  omitPrototypePollutionKeys,
+  PROTOTYPE_POLLUTION_KEYS,
+} from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import {
   declaresNoTransport,
@@ -169,7 +172,12 @@ function convertToBobFormat(mcpServers: McpServers, logger?: Logger): BobMcpServ
 
     for (const [key, value] of Object.entries(rest)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-      converted[key] = value;
+      // `env` and `headers` are key/value maps Bob spreads into the server's
+      // process environment and HTTP requests, so their keys are sanitized too.
+      converted[key] =
+        (key === "env" || key === "headers") && isRecord(value)
+          ? omitPrototypePollutionKeys(value)
+          : value;
     }
     result[serverName] = converted;
   }

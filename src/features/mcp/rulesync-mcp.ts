@@ -89,6 +89,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   "antigravity-ide": z.optional(toolScopedMcpSchema),
   aiassistant: z.optional(toolScopedMcpSchema),
   augmentcode: z.optional(toolScopedMcpSchema),
+  bob: z.optional(toolScopedMcpSchema),
   claudecode: z.optional(toolScopedMcpSchema),
   cline: z.optional(toolScopedMcpSchema),
   codexcli: z.optional(toolScopedMcpSchema),

@@ -139,6 +139,37 @@ describe("BobHooks", () => {
       );
     });
 
+    it("should emit a canonical '*' matcher as no matcher", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { command: "all-tools.sh", matcher: "*" },
+            { command: "also-all-tools.sh" },
+            { command: "write-only.sh", matcher: "write_to_file|apply_diff" },
+          ],
+        },
+      });
+
+      const bobHooks = await BobHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(bobHooks.getFileContent());
+      // Bob compiles `matcher` as a regex over the tool name, and "*" is not a
+      // valid regex; it collapses into the matcher-less group (which Bob treats
+      // as match-all) rather than producing a second bare entry.
+      expect(parsed.hooks.PreToolUse).toHaveLength(2);
+      expect(parsed.hooks.PreToolUse[0].matcher).toBeUndefined();
+      expect(parsed.hooks.PreToolUse[0].hooks.map((h: { command: string }) => h.command)).toEqual([
+        "all-tools.sh",
+        "also-all-tools.sh",
+      ]);
+      expect(parsed.hooks.PreToolUse[1].matcher).toBe("write_to_file|apply_diff");
+    });
+
     it("should skip non-command hook types", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,

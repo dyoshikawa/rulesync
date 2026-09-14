@@ -223,6 +223,20 @@ describe("BobMcp", () => {
       expect(Object.keys(servers.git)).toEqual(["command"]);
     });
 
+    it("should sanitize prototype-pollution keys inside env and headers", async () => {
+      const rulesyncMcp = buildRulesyncMcp(
+        JSON.parse(
+          '{"git":{"command":"git-mcp","env":{"TOKEN":"x","__proto__":{"y":1}}},"api":{"url":"https://example.com/mcp","headers":{"Authorization":"Bearer t","constructor":{"z":1}}}}',
+        ),
+      );
+
+      const bobMcp = await BobMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      const servers = JSON.parse(bobMcp.getFileContent()).mcpServers;
+      expect(Object.keys(servers.git.env)).toEqual(["TOKEN"]);
+      expect(Object.keys(servers.api.headers)).toEqual(["Authorization"]);
+    });
+
     it("should pass through Bob-specific keys", async () => {
       const rulesyncMcp = buildRulesyncMcp({
         git: { command: "git-mcp", timeout: 60, alwaysAllow: ["status"], disabled: true },

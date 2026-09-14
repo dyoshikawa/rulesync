@@ -45,6 +45,9 @@ const BOB_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
 
 // `projectDirVar` is empty: Bob documents no inline project-directory
 // substitution for hook commands, so commands are emitted verbatim.
+// `wildcardMatcherMeansAll`: Bob compiles `matcher` as a regex over the tool
+// name and treats an omitted matcher as match-all, so the canonical catch-all
+// `"*"` (not a valid regex) is emitted as no matcher instead of verbatim.
 const BOB_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: BOB_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_BOB_EVENT_NAMES,
@@ -52,6 +55,7 @@ const BOB_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "",
   noMatcherEvents: BOB_NO_MATCHER_EVENTS,
   supportedHookTypes: new Set(["command"]),
+  wildcardMatcherMeansAll: true,
 };
 
 /**
