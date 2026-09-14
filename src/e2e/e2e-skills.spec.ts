@@ -80,6 +80,10 @@ const skillsGenerateTargets = [
     outputPath: join(".crush", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "pool",
+    outputPath: join(".poolside", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "kilo",
     outputPath: join(".kilo", "skills", "test-skill", "SKILL.md"),
   },
@@ -327,6 +331,7 @@ This is the test skill body content.
     { target: "deepagents", orphanPath: join(".deepagents", "skills", "orphan-skill", "SKILL.md") },
     { target: "cline", orphanPath: join(".cline", "skills", "orphan-skill", "SKILL.md") },
     { target: "crush", orphanPath: join(".crush", "skills", "orphan-skill", "SKILL.md") },
+    { target: "pool", orphanPath: join(".poolside", "skills", "orphan-skill", "SKILL.md") },
     { target: "kilo", orphanPath: join(".kilo", "skills", "orphan-skill", "SKILL.md") },
     { target: "roo", orphanPath: join(".roo", "skills", "orphan-skill", "SKILL.md") },
     { target: "rovodev", orphanPath: join(".rovodev", "skills", "orphan-skill", "SKILL.md") },
@@ -389,6 +394,7 @@ describe("E2E: skills (import)", () => {
     { target: "deepagents", sourcePath: join(".deepagents", "skills", "test-skill", "SKILL.md") },
     { target: "cline", sourcePath: join(".cline", "skills", "test-skill", "SKILL.md") },
     { target: "crush", sourcePath: join(".crush", "skills", "test-skill", "SKILL.md") },
+    { target: "pool", sourcePath: join(".poolside", "skills", "test-skill", "SKILL.md") },
     { target: "kilo", sourcePath: join(".kilo", "skills", "test-skill", "SKILL.md") },
     {
       target: "kimi-code",
@@ -909,6 +915,10 @@ const skillsGlobalTargets = [
   {
     target: "crush",
     outputPath: join(".config", "crush", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "pool",
+    outputPath: join(".config", "poolside", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "kilo",
