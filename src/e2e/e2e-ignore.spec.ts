@@ -56,6 +56,7 @@ const ignoreGenerateTargets = [
   { target: "junie", outputPath: ".aiignore", format: "plaintext" as const },
   { target: "aiassistant", outputPath: ".aiignore", format: "plaintext" as const },
   { target: "augmentcode", outputPath: ".augmentignore", format: "plaintext" as const },
+  { target: "bob", outputPath: ".bobignore", format: "plaintext" as const },
   { target: "devin", outputPath: ".devinignore", format: "plaintext" as const },
   {
     target: "zed",
@@ -191,6 +192,7 @@ credentials/
     { target: "kiro-ide", orphanPath: KIRO_IGNORE_FILE_NAME },
     { target: "junie", orphanPath: ".aiignore" },
     { target: "augmentcode", orphanPath: ".augmentignore" },
+    { target: "bob", orphanPath: ".bobignore" },
     { target: "devin", orphanPath: ".devinignore" },
     { target: "vibe", orphanPath: ".vibeignore" },
     { target: "warp", orphanPath: ".warpindexingignore" },
@@ -263,6 +265,7 @@ describe("E2E: ignore (import)", () => {
     { target: "kiro-ide", sourcePath: KIRO_IGNORE_FILE_NAME },
     { target: "junie", sourcePath: ".aiignore" },
     { target: "augmentcode", sourcePath: ".augmentignore" },
+    { target: "bob", sourcePath: ".bobignore" },
     { target: "devin", sourcePath: ".devinignore" },
     { target: "vibe", sourcePath: ".vibeignore" },
     { target: "warp", sourcePath: ".warpindexingignore" },

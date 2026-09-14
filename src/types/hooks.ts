@@ -967,6 +967,37 @@ export const ZCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fro
 );
 
 /**
+ * Hook events supported by IBM Bob's lifecycle hooks.
+ *
+ * Bob reads `hooks` from `.bob/settings.json` (project) and
+ * `~/.bob/settings/settings.json` (user) in the Claude-Code shape and fires
+ * five events: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse and
+ * Stop. Only `command` hooks exist, and `matcher` (a regex over the tool
+ * name) applies to the two tool events.
+ *
+ * @see https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
+ */
+export const BOB_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "stop",
+];
+
+export const CANONICAL_TO_BOB_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  stop: "Stop",
+};
+
+export const BOB_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_BOB_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
  * Hermes validates hook events against a fixed `VALID_HOOKS` set — 37 entries as
@@ -1138,6 +1169,7 @@ export const HooksConfigSchema = z.looseObject({
   grokcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "kimi-code": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
     z.looseObject({
       hooks: z.optional(hooksRecordSchema),

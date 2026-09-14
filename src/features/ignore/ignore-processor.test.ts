@@ -93,6 +93,7 @@ describe("IgnoreProcessor", () => {
     it("should accept all valid tool targets", () => {
       const validTargets = [
         "augmentcode",
+        "bob",
         "claudecode",
         "claudecode-legacy",
         "cline",
@@ -465,6 +466,7 @@ describe("IgnoreProcessor", () => {
         "aiassistant",
         "antigravity-cli",
         "augmentcode",
+        "bob",
         "claudecode",
         "claudecode-legacy",
         "cline",

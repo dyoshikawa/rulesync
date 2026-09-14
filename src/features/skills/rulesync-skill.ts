@@ -236,6 +236,10 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   cline: z.optional(z.looseObject({})),
   roo: z.optional(z.looseObject({})),
+  // IBM Bob reads Anthropic-style SKILL.md files and documents only
+  // `name`/`description`, so this section carries any extra keys verbatim.
+  // https://bob.ibm.com/docs/ide/features/skills
+  bob: z.optional(z.looseObject({})),
   // Amp reads the open Agent Skills standard and documents no field beyond
   // `name`/`description`, so this section only carries keys a hand-written
   // SKILL.md happens to add.
@@ -509,6 +513,7 @@ export type RulesyncSkillFrontmatterInput = {
     metadata?: Record<string, unknown>;
   };
   roo?: Record<string, unknown>;
+  bob?: Record<string, unknown>;
   cline?: Record<string, unknown>;
   amp?: Record<string, unknown>;
   devin?: {

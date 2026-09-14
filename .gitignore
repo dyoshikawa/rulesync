@@ -293,6 +293,7 @@ rulesync.local.jsonc
 **/.claude/CLAUDE.md
 **/.claude/rules/
 **/.clinerules/
+**/.bob/rules/
 **/CODEBUDDY.md
 **/.codebuddy/CODEBUDDY.md
 **/.codebuddy/rules/
@@ -328,6 +329,7 @@ rulesync.local.jsonc
 **/.agents/commands/
 **/.agents/workflows/
 **/.augment/commands/
+**/.bob/commands/
 **/.claude/commands/
 **/.clinerules/workflows/
 **/.github/prompts/
@@ -349,6 +351,7 @@ rulesync.local.jsonc
 **/.warp/skills/
 **/.zcode/commands/
 **/.augment/skills/
+**/.bob/skills/
 **/.claude/skills/
 **/.cline/skills/
 **/.github/skills/
@@ -399,6 +402,7 @@ rulesync.local.jsonc
 **/.ai/mcp/mcp.json
 **/.agents/mcp_config.json
 **/.augment/settings.json
+**/.bob/mcp.json
 **/.mcp.json
 **/.vscode/mcp.json
 **/.github/mcp.json
@@ -438,6 +442,7 @@ rulesync.local.jsonc
 **/.aiignore
 **/.geminiignore
 **/.augmentignore
+**/.bobignore
 **/.clineignore
 **/.crushignore
 **/.cursorignore

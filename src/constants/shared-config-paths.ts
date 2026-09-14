@@ -25,6 +25,10 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".amp/settings.json",
   ".amp/settings.jsonc",
   ".antigravity/settings.json",
+  // IBM Bob settings: the project file and the user one under `~/.bob/settings/`.
+  // Both carry the user's own Bob settings beside the `hooks` block.
+  ".bob/settings.json",
+  ".bob/settings/settings.json",
   ".claude/settings.json",
   ".claude/settings.local.json",
   ".codex/config.toml",

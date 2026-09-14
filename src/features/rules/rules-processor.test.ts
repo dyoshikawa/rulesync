@@ -1601,6 +1601,7 @@ describe("RulesProcessor", () => {
         "agentsmd",
         "augmentcode",
         "augmentcode-legacy",
+        "bob",
         "claudecode",
         "claudecode-legacy",
         "cline",
@@ -1879,6 +1880,7 @@ Content that would fail parsing`;
         "claudecode",
         "claudecode-legacy",
         "cline",
+        "bob",
         "codebuddy",
         "codexcli",
         "copilot",
@@ -1933,6 +1935,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("antigravity-cli");
       expect(globalTargets).toContain("antigravity-ide");
       expect(globalTargets).toContain("augmentcode");
+      expect(globalTargets).toContain("bob");
       expect(globalTargets).toContain("claudecode");
       expect(globalTargets).toContain("claudecode-legacy");
       expect(globalTargets).toContain("cline");
@@ -1963,7 +1966,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("warp");
       expect(globalTargets).toContain("pool");
       expect(globalTargets).toContain("dsh");
-      expect(globalTargets.length).toBe(37);
+      expect(globalTargets.length).toBe(38);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

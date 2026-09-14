@@ -15,6 +15,7 @@ import { AntigravityCliMcp } from "./antigravity-cli-mcp.js";
 import { AntigravityIdeMcp } from "./antigravity-ide-mcp.js";
 import { AntigravityPluginMcp } from "./antigravity-plugin-mcp.js";
 import { AugmentcodeMcp } from "./augmentcode-mcp.js";
+import { BobMcp } from "./bob-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -177,6 +178,23 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       // file for team-shared servers (project) or `~/.augment/settings.json`
       // (global). https://docs.augmentcode.com/cli/config
       class: AugmentcodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "bob",
+    {
+      // IBM Bob reads `mcpServers` from the dedicated `<project>/.bob/mcp.json`
+      // (project) and `~/.bob/mcp_settings.json` (global). Bob has
+      // `alwaysAllow` for auto-approval, not a per-server tool filter, so the
+      // enabled/disabled tool lists are not emitted.
+      // https://bob.ibm.com/docs/shell/configuration/mcp/mcp-bobshell
+      class: BobMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: true,
