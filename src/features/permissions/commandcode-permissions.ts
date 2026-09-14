@@ -39,9 +39,13 @@ const COMMANDCODE_ALL_MCP_RULE = "mcp__*";
 // documented name of the shell tool (`Bash(...)` is only a legacy alias that
 // is read but never written). The permissions docs list the first six; the
 // rule parser (`command-code` 1.54.0, `parsePermissionRule`) also resolves
-// `Grep`, `Glob`, `NotebookEdit` (the edit tools) and `Agent`
-// case-insensitively, so the canonical `grep`/`glob`/`notebookedit`/`agent`
+// `Grep` and `Glob` case-insensitively, so the canonical `grep`/`glob`
 // categories get a rule of their own instead of being widened onto `Read`.
+// Two categories the parser also resolves are deliberately absent: Command
+// Code has no notebook tool, so `NotebookEdit` is the same `edit_file` /
+// `write_file` set as `Edit` and a `notebookedit` rule would govern every
+// file edit; and its permission check answers `allow` for the `agent` tool
+// before it consults any rule, so an `Agent` deny or ask is never enforced.
 // Any other category has no rule name and is skipped.
 // https://commandcode.ai/docs/permissions
 const CATEGORY_TO_COMMANDCODE_TOOL: Record<string, string> = {
@@ -51,21 +55,20 @@ const CATEGORY_TO_COMMANDCODE_TOOL: Record<string, string> = {
   write: "Write",
   grep: "Grep",
   glob: "Glob",
-  notebookedit: "NotebookEdit",
   webfetch: "WebFetch",
   websearch: "WebSearch",
-  agent: "Agent",
 };
 
 // Lowercased tool name ⇒ canonical category. Command Code resolves these
 // names case-insensitively, and its rule parser (`command-code` 1.54.0,
 // `parsePermissionRule`) also accepts the internal names that mean exactly
 // the same tools: `Bash`, `PowerShell`, `shell_command`, `monitor_command`
-// and `kill_shell` are `Shell`; `write_file` is `Write`; `web_fetch` /
-// `web_search` are `WebFetch` / `WebSearch`; `Task` is `Agent`. They are
+// and `kill_shell` are `Shell`; `NotebookEdit` is `Edit`; `write_file` is
+// `Write`; `web_fetch` / `web_search` are `WebFetch` / `WebSearch`. They are
 // read (so a deny written with one of them is not lost) but never written.
-// Other internal names (`read_file`, `edit_file`, ...) cover a narrower tool
-// set than their friendly counterpart and stay unmodeled.
+// `Agent` / `Task` rules enforce nothing (see above) and other internal names
+// (`read_file`, `edit_file`, ...) cover a narrower tool set than their
+// friendly counterpart, so they stay unmodeled.
 const COMMANDCODE_TOOL_TO_CATEGORY: Record<string, string> = {
   ...Object.fromEntries(
     Object.entries(CATEGORY_TO_COMMANDCODE_TOOL).map(([category, tool]) => [
@@ -78,10 +81,10 @@ const COMMANDCODE_TOOL_TO_CATEGORY: Record<string, string> = {
   shell_command: "bash",
   monitor_command: "bash",
   kill_shell: "bash",
+  notebookedit: "edit",
   write_file: "write",
   web_fetch: "webfetch",
   web_search: "websearch",
-  task: "agent",
 };
 
 // Command Code's documented precedence: deny wins, then ask, then allow. Used
@@ -144,19 +147,31 @@ function buildCommandcodeRule(category: string, pattern: string): string | null 
 }
 
 /**
- * Split `Tool(specifier)` into its two halves; `Tool` alone has an empty
- * specifier. Only the outermost parentheses count, so a specifier may itself
- * contain `(`/`)`. The specifier is taken as written: Command Code does not
- * trim it, so `Shell( )` is a rule for the pattern `" "` (which matches
- * nothing), not for the whole tool.
+ * Split `Tool(specifier)` into its two halves the way Command Code's
+ * `splitRule` does (`command-code` 1.54.0): the rule is split at the first
+ * unescaped `(` and must end with `)`, the tool half is trimmed (so
+ * `Shell (rm -rf *)` is a `Shell` rule), and a `\(` / `\)` in the specifier
+ * is an escaped parenthesis. `Tool` alone has an empty specifier. A rule that
+ * opens a parenthesis without closing one is not a rule to Command Code at
+ * all, so it comes back with an empty tool half and stays unmodeled. Nothing
+ * else in the specifier is touched: Command Code does not trim it (the shell
+ * matcher normalizes whitespace on its own, see `parseCommandcodeRule`), so
+ * `Read( )` is a rule for the pattern `" "`, which matches nothing, not for
+ * the whole tool.
  */
 function splitCommandcodeRule(rule: string): { tool: string; inner: string } {
   const trimmed = rule.trim();
-  const parenIndex = trimmed.indexOf("(");
-  if (parenIndex === -1 || !trimmed.endsWith(")")) {
+  const parenIndex = trimmed.search(/(?<!\\)\(/);
+  if (parenIndex === -1) {
     return { tool: trimmed, inner: "" };
   }
-  return { tool: trimmed.slice(0, parenIndex), inner: trimmed.slice(parenIndex + 1, -1) };
+  if (!trimmed.endsWith(")")) {
+    return { tool: "", inner: "" };
+  }
+  return {
+    tool: trimmed.slice(0, parenIndex).trim(),
+    inner: trimmed.slice(parenIndex + 1, -1).replace(/\\([()])/g, "$1"),
+  };
 }
 
 /** Whether a specifier means "no specifier" to Command Code: only `` and `*` do. */
@@ -178,10 +193,15 @@ function isCatchAllSpecifier(inner: string): boolean {
  * plain tool-name rule instead, matched case-insensitively:
  * `MCP__<server>__<tool>` matches that tool by name (so it folds onto the
  * `mcp__` category, remainder as written), `MCP__<server>__<tool>(specifier)`
- * is scoped by the specifier in `deny`/`ask` but dead in `allow`, the globs
- * `MCP__*` and `MCP__<server>__*` match by name in `deny`/`ask` only, and
- * `MCP__<server>` names no tool at all. Whatever matches nothing anywhere
- * (or a glob rulesync does not model) returns `null` and is left alone.
+ * globs the specifier against the call's `command` / `file_path` / `path` /
+ * `url` / `pattern` argument (in `deny`/`ask` a `param:glob` form is tried
+ * first) — kept as a pattern in `deny`/`ask`, but not imported from `allow`,
+ * where a grant scoped that way cannot be modeled without widening it; the
+ * globs
+ * `MCP__*` (every MCP tool) and `MCP__<server>__*` (the whole server) match
+ * by name in `deny`/`ask` only, and `MCP__<server>` names no tool at all.
+ * Whatever matches nothing anywhere (or a glob rulesync does not model)
+ * returns `null` and is left alone.
  */
 function parseMcpCommandcodeRule({
   tool,
@@ -202,6 +222,11 @@ function parseMcpCommandcodeRule({
     if (server === CATCH_ALL_PATTERN) {
       return everyServer;
     }
+    // Only a server of exactly `*` is a wildcard; a registered server name
+    // never contains `*`, so `mcp__git*` compares literally and matches nothing.
+    if (server.includes(CATCH_ALL_PATTERN)) {
+      return null;
+    }
     const wholeServer = rest === "" || rest === CATCH_ALL_PATTERN;
     const category = wholeServer
       ? `${MCP_CANONICAL_PREFIX}${server}`
@@ -217,9 +242,45 @@ function parseMcpCommandcodeRule({
     return everyServer;
   }
   if (rest === CATCH_ALL_PATTERN && !server.includes(CATCH_ALL_PATTERN)) {
-    return { category, pattern: CATCH_ALL_PATTERN, aggressiveOnly: true };
+    // `MCP__<server>__*` matches every tool of that server by name, which is
+    // the whole server — the same thing the exact-prefix `mcp__<server>` says.
+    return {
+      category: `${MCP_CANONICAL_PREFIX}${server}`,
+      pattern: CATCH_ALL_PATTERN,
+      aggressiveOnly: true,
+    };
   }
   return namesTool ? { category, pattern: CATCH_ALL_PATTERN, aggressiveOnly: false } : null;
+}
+
+/**
+ * The specifier of a rule on one of the friendly tools, as Command Code
+ * matches it. Its shell matcher trims and collapses whitespace on both the
+ * pattern and the command, so `Shell( git  * )` is `Shell(git *)` and
+ * `Shell( * )` is the whole tool, while a pattern that is blank once
+ * normalized (`Shell( )`) matches nothing; the path, web and tool-name
+ * matchers use the specifier as written, so one that is blank or `*` only
+ * once trimmed (`Read( * )`) matches nothing either. Both come back as
+ * `null`: the rule is unmodeled.
+ */
+function friendlyToolPattern({
+  category,
+  inner,
+}: {
+  category: string;
+  inner: string;
+}): string | null {
+  if (category === "bash") {
+    const normalized = inner.trim().replace(/\s+/g, " ");
+    if (normalized === "" && inner !== "") {
+      return null;
+    }
+    return isCatchAllSpecifier(normalized) ? CATCH_ALL_PATTERN : normalized;
+  }
+  if (isCatchAllSpecifier(inner)) {
+    return CATCH_ALL_PATTERN;
+  }
+  return isCatchAllSpecifier(inner.trim()) ? null : inner;
 }
 
 /**
@@ -227,11 +288,11 @@ function parseMcpCommandcodeRule({
  * `Tool`, `Tool()` and `Tool(*)` all mean the whole tool; MCP-shaped rules
  * go through `parseMcpCommandcodeRule`. Returns `null` for a rule rulesync
  * cannot model (an exact internal tool name such as `edit_file`, a
- * name-wildcard like `edit_*`, or a specifier on a rule that takes none).
+ * name-wildcard like `edit_*`, a specifier on a rule that takes none, or a
+ * rule Command Code enforces nothing for, such as `Agent`).
  */
 function parseCommandcodeRule(rule: string): ParsedCommandcodeRule | null {
   const { tool, inner } = splitCommandcodeRule(rule);
-  const pattern = isCatchAllSpecifier(inner) ? CATCH_ALL_PATTERN : inner;
   if (tool === CATCH_ALL_PATTERN) {
     return isCatchAllSpecifier(inner)
       ? {
@@ -251,7 +312,18 @@ function parseCommandcodeRule(rule: string): ParsedCommandcodeRule | null {
   if (category === undefined) {
     return null;
   }
-  return { category, pattern, aggressiveOnly: false };
+  const pattern = friendlyToolPattern({ category, inner });
+  return pattern === null ? null : { category, pattern, aggressiveOnly: false };
+}
+
+/**
+ * Whether an imported rule is a differently-cased `MCP__<server>__<tool>`
+ * name that folded onto an exact-prefix `mcp__` category (which Command Code
+ * matches case-sensitively, unlike the name rule it came from).
+ */
+function isFoldedMcpToolNameRule({ rule, category }: { rule: string; category: string }): boolean {
+  const { tool } = splitCommandcodeRule(rule);
+  return category.startsWith(MCP_CANONICAL_PREFIX) && !tool.startsWith(MCP_CANONICAL_PREFIX);
 }
 
 /** The `Tool` half of `Tool(specifier)`, when the rule is an exact-prefix MCP rule with a specifier. */
@@ -298,7 +370,11 @@ function preservedRules({
     if (parsed === null || !managedCategories.has(parsed.category)) {
       return true;
     }
-    const replacement = written.get(`${parsed.category}(${parsed.pattern})`);
+    // The same rule, or the category-wide rule (which covers every pattern of
+    // the tool), taking its place at the same strength is not a loosening.
+    const replacement =
+      written.get(`${parsed.category}(${parsed.pattern})`) ??
+      written.get(`${parsed.category}(${CATCH_ALL_PATTERN})`);
     if (key !== "allow" && isStricterAction({ action: key, existing: replacement })) {
       logger?.warn(
         `Command Code permission rule '${rule}' in "${key}" belongs to the '${parsed.category}' ` +
@@ -483,6 +559,13 @@ function parseCommandcodeRuleLists(
         fallbackLogger.warn(
           `Command Code ignores the specifier of an MCP rule, so '${rule}' in "allow" was imported ` +
             `as the whole '${category}' tool, which is what Command Code grants for it.`,
+        );
+      }
+      if (isFoldedMcpToolNameRule({ rule, category })) {
+        fallbackLogger.warn(
+          `Command Code matches '${rule}' in "${action}" against MCP tool names case-insensitively, ` +
+            `but the '${category}' rule generated from it matches the server and tool names exactly ` +
+            `as written; spell the rule the way the tool is registered if they differ.`,
         );
       }
       // A `Shell(__proto__)` entry would read an inherited property below and
