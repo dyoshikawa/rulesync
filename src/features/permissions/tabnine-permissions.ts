@@ -54,18 +54,20 @@ const GENERAL_KEY = "general";
 const SHELL_TOOL_NAME = "run_shell_command";
 
 /**
- * Paths under `tabnine.tools` whose value Tabnine CLI spawns as a command
- * (`discoveryCommand` and `callCommand` at startup, `shell.pager` on every
- * shell output). A fetched `.rulesync/permissions.jsonc` must not be able to
- * point Tabnine CLI at an executable of its choosing, so these are refused with
- * a warning rather than written — the line Claude Code's sandbox paths draw.
+ * The paths of the `tabnine` override that are refused with a warning rather
+ * than written — the line Claude Code's sandbox paths draw. Under `tools`, the
+ * values Tabnine CLI spawns as a command (`discoveryCommand` and `callCommand`
+ * at startup, `shell.pager` on every shell output); under `general`, the host
+ * every login and API call goes to (`tabnineHost`) and the editor executable
+ * (`preferredEditor`, "any editor path"). A fetched `.rulesync/permissions.jsonc`
+ * must not be able to point Tabnine CLI at an executable, or a server, of its
+ * choosing.
  * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/settings/settings-reference
  */
-const COMMAND_EXECUTING_TOOLS_PATHS: readonly (readonly string[])[] = [
-  ["discoveryCommand"],
-  ["callCommand"],
-  ["shell", "pager"],
-];
+const REFUSED_OVERRIDE_PATHS: Readonly<Record<string, readonly (readonly string[])[]>> = {
+  [TOOLS_KEY]: [["discoveryCommand"], ["callCommand"], ["shell", "pager"]],
+  [GENERAL_KEY]: [["tabnineHost"], ["preferredEditor"]],
+};
 
 /** `tools.sandbox`: `true` keeps tool calls contained; anything else disables or picks the sandbox. */
 const SANDBOX_KEY = "sandbox";
@@ -208,24 +210,50 @@ function omitPath({ record, path }: { record: Record<string, unknown>; path: rea
 }
 
 /**
- * The `tabnine.tools` group with every command-executing path removed, and the
- * dotted names of the paths that were there. Nothing else of the group is
- * touched: the rest is written verbatim (and announced where it widens trust).
+ * The `tabnine.<group>` record with every refused path removed, and the dotted
+ * names of the paths that were there. Nothing else of the group is touched:
+ * the rest is written verbatim (and announced where it widens trust).
  */
-function stripCommandExecutingPaths(tools: Record<string, unknown>): {
-  tools: Record<string, unknown>;
+function stripRefusedPaths({ group, record }: { group: string; record: Record<string, unknown> }): {
+  record: Record<string, unknown>;
   refused: string[];
 } {
   const refused: string[] = [];
-  let stripped = tools;
-  for (const path of COMMAND_EXECUTING_TOOLS_PATHS) {
+  let stripped = record;
+  for (const path of REFUSED_OVERRIDE_PATHS[group] ?? []) {
     const result = omitPath({ record: stripped, path });
     if (result.removed) {
-      refused.push(`tools.${path.join(".")}`);
+      refused.push(`${group}.${path.join(".")}`);
       stripped = result.record;
     }
   }
-  return { tools: stripped, refused };
+  return { record: stripped, refused };
+}
+
+/**
+ * The `tools` and `general` groups of an override with the refused paths taken
+ * out, and every refused path named. A `general` that is not a record, or that
+ * the refusals emptied, is reported as absent so no `general: {}` is written
+ * or lifted.
+ */
+function stripRefusedOverridePaths(override: Record<string, unknown>): {
+  tools: Record<string, unknown>;
+  general: Record<string, unknown> | undefined;
+  refused: string[];
+} {
+  const tools = stripRefusedPaths({
+    group: TOOLS_KEY,
+    record: isRecord(override[TOOLS_KEY]) ? override[TOOLS_KEY] : {},
+  });
+  const general = isRecord(override[GENERAL_KEY])
+    ? stripRefusedPaths({ group: GENERAL_KEY, record: override[GENERAL_KEY] })
+    : undefined;
+  return {
+    tools: tools.record,
+    general:
+      general !== undefined && Object.keys(general.record).length > 0 ? general.record : undefined,
+    refused: [...tools.refused, ...(general?.refused ?? [])],
+  };
 }
 
 /**
@@ -295,8 +323,8 @@ function announceLiftedOverride({
   if (refused.length > 0) {
     moduleLogger.info(
       `Tabnine CLI permissions: left ${refused.join(", ")} in settings.json rather than lifting ` +
-        `it into the tabnine override; Tabnine CLI spawns that value as a command, and 'rulesync ` +
-        `generate' refuses to write it from the override.`,
+        `it into the tabnine override; Tabnine CLI runs that value as a command or sends its ` +
+        `traffic to it, and 'rulesync generate' refuses to write it from the override.`,
     );
   }
   const trustAffecting = collectTrustAffectingOverrideEntries({ tools, general });
@@ -546,19 +574,21 @@ export class TabninePermissions extends ToolPermissions {
 
     const config = rulesyncPermissions.getJson();
     const override = isRecord(config.tabnine) ? config.tabnine : {};
-    const { tools: overrideTools, refused: refusedToolsPaths } = stripCommandExecutingPaths(
-      isRecord(override[TOOLS_KEY]) ? override[TOOLS_KEY] : {},
-    );
-    if (refusedToolsPaths.length > 0) {
+    const {
+      tools: overrideTools,
+      general: overrideGeneral,
+      refused: refusedPaths,
+    } = stripRefusedOverridePaths(override);
+    if (refusedPaths.length > 0) {
       warnWithFallback(
         logger,
-        `Tabnine CLI permissions: refused to write ${refusedToolsPaths.join(", ")} from the tabnine ` +
-          `override; Tabnine CLI spawns that value as a command, and a permissions file (one ` +
-          `that came from 'rulesync fetch' included) must not be able to point it at an ` +
-          `executable of its choosing. Set it by hand in ${join(paths.relativeDirPath, paths.relativeFilePath)} if you need it.`,
+        `Tabnine CLI permissions: refused to write ${refusedPaths.join(", ")} from the tabnine ` +
+          `override; Tabnine CLI runs that value as a command or sends its traffic to it, and a ` +
+          `permissions file (one that came from 'rulesync fetch' included) must not be able to ` +
+          `point it at an executable or a server of its choosing. Set it by hand in ` +
+          `${join(paths.relativeDirPath, paths.relativeFilePath)} if you need it.`,
       );
     }
-    const overrideGeneral = isRecord(override[GENERAL_KEY]) ? override[GENERAL_KEY] : undefined;
     // The override's own list entries. A `run_shell_command(...)` allow is a
     // `bash` allow spelled the Tabnine way, so it is handed to the canonical
     // comparison rather than written past it; the rest is appended verbatim.
@@ -778,13 +808,18 @@ export class TabninePermissions extends ToolPermissions {
 
     // Everything else under `tools`, and the `general` group, belongs to the
     // `tabnine` override so a generate after import writes it back unchanged.
-    // The command-executing paths stay in `settings.json`: generate refuses to
-    // write them, so lifting them would only ever produce that warning.
-    const { tools: overrideTools, refused } = stripCommandExecutingPaths(
-      Object.fromEntries(
+    // The refused paths stay in `settings.json`: generate refuses to write
+    // them, so lifting them would only ever produce that warning.
+    const {
+      tools: overrideTools,
+      general,
+      refused,
+    } = stripRefusedOverridePaths({
+      [TOOLS_KEY]: Object.fromEntries(
         Object.entries(tools).filter(([key]) => key !== ALLOWED_KEY && key !== EXCLUDE_KEY),
       ),
-    );
+      [GENERAL_KEY]: settings[GENERAL_KEY],
+    });
     for (const [key, entries] of Object.entries(leftovers)) {
       overrideTools[key] = entries;
     }
@@ -792,7 +827,6 @@ export class TabninePermissions extends ToolPermissions {
     if (Object.keys(overrideTools).length > 0) {
       override[TOOLS_KEY] = overrideTools;
     }
-    const general = isRecord(settings[GENERAL_KEY]) ? settings[GENERAL_KEY] : undefined;
     if (general !== undefined) {
       override[GENERAL_KEY] = general;
     }
