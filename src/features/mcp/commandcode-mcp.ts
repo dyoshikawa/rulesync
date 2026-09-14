@@ -90,7 +90,9 @@ function asCommandcodeRemoteTransport(
 
 /**
  * Convert the canonical server map to the shape Command Code's config schema
- * documents: a remote server is `{ transport, url, headers?, env?, oauth? }`
+ * documents (used for the global `~/.commandcode/mcp.json` only — the project
+ * `.mcp.json` is shared with Claude Code and written pass-through, see the
+ * class doc): a remote server is `{ transport, url, headers?, env?, oauth? }`
  * and a stdio server is `{ transport: "stdio", command, args?, env? }`, each
  * with an optional `enabled` flag. The documented spelling is `transport`
  * (`type` is only accepted as an alias on read), so that is what is written,
@@ -247,6 +249,14 @@ function convertFromCommandcodeFormat(mcpServers: unknown): McpServers {
  * by `--delete` (it lives outside the project), while the project file is
  * rulesync's own and is.
  *
+ * The project `.mcp.json` is the very file the `claudecode` target writes, so
+ * at project scope the servers are written in the same pass-through shape
+ * `ClaudecodeMcp` uses: whichever of the two targets generates last leaves
+ * byte-identical content, and Command Code reads that shape natively (`type`
+ * is an alias of `transport`, a bare `url` infers `http`, and unknown keys
+ * are ignored). Only the global file — Command Code's own — gets the
+ * `transport` / `enabled: false` rewrite of `convertToCommandcodeFormat`.
+ *
  * @see https://commandcode.ai/docs/mcp
  */
 export class CommandcodeMcp extends ToolMcp {
@@ -318,8 +328,13 @@ export class CommandcodeMcp extends ToolMcp {
     });
 
     // Use getMcpServers() (not getJson()) so rulesync-only fields are
-    // stripped before writing the Command Code config.
-    const mcpServers = convertToCommandcodeFormat(rulesyncMcp.getMcpServers(), logger);
+    // stripped before writing the Command Code config. The project file is
+    // shared with the `claudecode` target and must come out identical from
+    // both, so only the global file is rewritten into Command Code's own
+    // documented spelling (see the class doc).
+    const mcpServers = global
+      ? convertToCommandcodeFormat(rulesyncMcp.getMcpServers(), logger)
+      : rulesyncMcp.getMcpServers();
     const commandcodeConfig = { ...json, mcpServers };
 
     return new CommandcodeMcp({

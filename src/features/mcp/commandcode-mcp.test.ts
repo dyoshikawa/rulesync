@@ -9,6 +9,7 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { CommandcodeMcp } from "./commandcode-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -117,21 +118,60 @@ describe("CommandcodeMcp", () => {
   });
 
   describe("fromRulesyncMcp", () => {
-    it("should write stdio servers with an explicit transport to .mcp.json", async () => {
-      const rulesyncMcp = buildRulesyncMcp({
-        git: { command: "npx", args: ["-y", "mcp-git"], env: { TOKEN: "x" } },
-      });
+    // Servers spanning every shape the project file may carry; `.mcp.json` is
+    // shared with the `claudecode` target, so these must come out untouched.
+    const sharedProjectServers = {
+      git: { command: "npx", args: ["-y", "mcp-git"], env: { TOKEN: "x" } },
+      http: { type: "http", url: "https://example.com/mcp", headers: { A: "b" } },
+      streamable: { transport: "streamable-http", url: "https://example.com/s" },
+      bare: { url: "https://example.com/bare", disabled: true },
+      events: { type: "sse", url: "https://example.com/sse", timeout: 30000 },
+      scoped: { command: "git-mcp", targets: ["commandcode"] },
+    };
+
+    it("should write servers pass-through to .mcp.json in project mode", async () => {
+      const rulesyncMcp = buildRulesyncMcp(sharedProjectServers);
 
       const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp });
 
       expect(mcp.getOutputRoot()).toBe(testDir);
       expect(mcp.getRelativeDirPath()).toBe(".");
       expect(mcp.getRelativeFilePath()).toBe(".mcp.json");
+      // No `transport` / `enabled` rewrite: Command Code reads `type`, a bare
+      // `url` and `disabled` from the shared file as they are. Only the
+      // rulesync-only `targets` field is stripped.
       expect(JSON.parse(mcp.getFileContent())).toEqual({
-        mcpServers: {
-          git: { transport: "stdio", command: "npx", args: ["-y", "mcp-git"], env: { TOKEN: "x" } },
-        },
+        mcpServers: { ...sharedProjectServers, scoped: { command: "git-mcp" } },
       });
+    });
+
+    it("should write the same .mcp.json bytes as the claudecode target in project mode", async () => {
+      await writeFileContent(
+        join(testDir, ".mcp.json"),
+        JSON.stringify({ someOtherKey: true, mcpServers: { stale: { command: "old" } } }),
+      );
+      const rulesyncMcp = buildRulesyncMcp(sharedProjectServers);
+
+      const commandcode = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp });
+      const claudecode = await ClaudecodeMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      expect(commandcode.getRelativeDirPath()).toBe(claudecode.getRelativeDirPath());
+      expect(commandcode.getRelativeFilePath()).toBe(claudecode.getRelativeFilePath());
+      expect(commandcode.getFileContent()).toBe(claudecode.getFileContent());
+    });
+
+    it("should ignore prototype-pollution keys on generate in project mode", async () => {
+      const rulesyncMcp = buildRulesyncMcp(
+        JSON.parse(
+          '{"__proto__":{"command":"evil"},"git":{"command":"git-mcp","__proto__":{"x":1}}}',
+        ),
+      );
+
+      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      const servers = JSON.parse(mcp.getFileContent()).mcpServers;
+      expect(Object.keys(servers)).toEqual(["git"]);
+      expect(Object.keys(servers.git)).toEqual(["command"]);
     });
 
     it("should write to ~/.commandcode/mcp.json in global mode", async () => {
@@ -148,7 +188,7 @@ describe("CommandcodeMcp", () => {
       });
     });
 
-    it("should write http, streamable-http and bare-url servers as transport http", async () => {
+    it("should write http, streamable-http and bare-url servers as transport http in global mode", async () => {
       const rulesyncMcp = buildRulesyncMcp({
         http: { type: "http", url: "https://example.com/mcp", headers: { A: "b" } },
         streamable: { transport: "streamable-http", url: "https://example.com/s" },
@@ -156,7 +196,7 @@ describe("CommandcodeMcp", () => {
         aliased: { httpUrl: "https://example.com/alias" },
       });
 
-      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp });
+      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp, global: true });
 
       expect(JSON.parse(mcp.getFileContent())).toEqual({
         mcpServers: {
@@ -168,29 +208,29 @@ describe("CommandcodeMcp", () => {
       });
     });
 
-    it("should keep sse servers as transport sse and drop timeout", async () => {
+    it("should keep sse servers as transport sse and drop timeout in global mode", async () => {
       const rulesyncMcp = buildRulesyncMcp({
         events: { type: "sse", url: "https://example.com/sse", timeout: 30000 },
       });
 
-      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp });
+      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp, global: true });
 
       expect(JSON.parse(mcp.getFileContent())).toEqual({
         mcpServers: { events: { transport: "sse", url: "https://example.com/sse" } },
       });
     });
 
-    it("should normalize an array command into command and args", async () => {
+    it("should normalize an array command into command and args in global mode", async () => {
       const rulesyncMcp = buildRulesyncMcp({ git: { command: ["uvx", "mcp-server-git"] } });
 
-      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp });
+      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp, global: true });
 
       expect(JSON.parse(mcp.getFileContent())).toEqual({
         mcpServers: { git: { transport: "stdio", command: "uvx", args: ["mcp-server-git"] } },
       });
     });
 
-    it("should carry oauth and env for remote servers and map disabled to enabled: false", async () => {
+    it("should carry oauth and env for remote servers and map disabled to enabled: false in global mode", async () => {
       const rulesyncMcp = buildRulesyncMcp({
         api: {
           type: "http",
@@ -201,7 +241,7 @@ describe("CommandcodeMcp", () => {
         },
       });
 
-      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp });
+      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp, global: true });
 
       expect(JSON.parse(mcp.getFileContent()).mcpServers.api).toEqual({
         transport: "http",
@@ -212,10 +252,10 @@ describe("CommandcodeMcp", () => {
       });
     });
 
-    it("should not write enabled for a server that is not disabled", async () => {
+    it("should not write enabled for a server that is not disabled in global mode", async () => {
       const rulesyncMcp = buildRulesyncMcp({ git: { command: "git-mcp", disabled: false } });
 
-      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp });
+      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp, global: true });
 
       expect(JSON.parse(mcp.getFileContent()).mcpServers.git).toEqual({
         transport: "stdio",
@@ -223,7 +263,7 @@ describe("CommandcodeMcp", () => {
       });
     });
 
-    it("should warn and skip servers Command Code cannot start or reach", async () => {
+    it("should warn and skip servers Command Code cannot start or reach in global mode", async () => {
       const logger = createMockLogger();
       const rulesyncMcp = buildRulesyncMcp({
         none: { env: { A: "b" } },
@@ -235,7 +275,7 @@ describe("CommandcodeMcp", () => {
         ok: { command: "git-mcp" },
       });
 
-      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp, logger });
+      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp, global: true, logger });
 
       expect(JSON.parse(mcp.getFileContent())).toEqual({
         mcpServers: { ok: { transport: "stdio", command: "git-mcp" } },
@@ -247,28 +287,28 @@ describe("CommandcodeMcp", () => {
       }
     });
 
-    it("should ignore prototype-pollution keys on generate", async () => {
+    it("should ignore prototype-pollution keys on generate in global mode", async () => {
       const rulesyncMcp = buildRulesyncMcp(
         JSON.parse(
           '{"__proto__":{"command":"evil"},"git":{"command":"git-mcp","__proto__":{"x":1}}}',
         ),
       );
 
-      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp });
+      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp, global: true });
 
       const servers = JSON.parse(mcp.getFileContent()).mcpServers;
       expect(Object.keys(servers)).toEqual(["git"]);
       expect(Object.keys(servers.git)).toEqual(["transport", "command"]);
     });
 
-    it("should sanitize prototype-pollution keys inside env, headers and oauth", async () => {
+    it("should sanitize prototype-pollution keys inside env, headers and oauth in global mode", async () => {
       const rulesyncMcp = buildRulesyncMcp(
         JSON.parse(
           '{"git":{"command":"git-mcp","env":{"TOKEN":"x","__proto__":{"y":1}}},"api":{"url":"https://example.com/mcp","headers":{"Authorization":"Bearer t","constructor":{"z":1}},"oauth":{"clientId":"c","prototype":{"w":1}}}}',
         ),
       );
 
-      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp });
+      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp, global: true });
 
       const servers = JSON.parse(mcp.getFileContent()).mcpServers;
       expect(Object.keys(servers.git.env)).toEqual(["TOKEN"]);
@@ -276,12 +316,12 @@ describe("CommandcodeMcp", () => {
       expect(Object.keys(servers.api.oauth)).toEqual(["clientId"]);
     });
 
-    it("should strip rulesync-only fields such as targets", async () => {
+    it("should strip rulesync-only fields such as targets in global mode", async () => {
       const rulesyncMcp = buildRulesyncMcp({
         git: { command: "git-mcp", targets: ["commandcode"] },
       });
 
-      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp });
+      const mcp = await CommandcodeMcp.fromRulesyncMcp({ rulesyncMcp, global: true });
 
       expect(JSON.parse(mcp.getFileContent()).mcpServers.git).toEqual({
         transport: "stdio",
@@ -300,7 +340,7 @@ describe("CommandcodeMcp", () => {
 
       expect(JSON.parse(mcp.getFileContent())).toEqual({
         someOtherKey: true,
-        mcpServers: { git: { transport: "stdio", command: "git-mcp" } },
+        mcpServers: { git: { command: "git-mcp" } },
       });
     });
 
@@ -438,7 +478,7 @@ describe("CommandcodeMcp", () => {
       });
     });
 
-    it("should round-trip stdio, http and sse servers", async () => {
+    it("should round-trip stdio, http and sse servers in project mode", async () => {
       const servers = {
         git: { command: "git-mcp", args: ["--repo", "."] },
         api: { transport: "http", url: "https://api.example.com/mcp", headers: { A: "b" } },
@@ -446,6 +486,22 @@ describe("CommandcodeMcp", () => {
       };
       const generated = await CommandcodeMcp.fromRulesyncMcp({
         rulesyncMcp: buildRulesyncMcp(servers),
+      });
+
+      const imported = JSON.parse(generated.toRulesyncMcp().getFileContent()).mcpServers;
+
+      expect(imported).toEqual(servers);
+    });
+
+    it("should round-trip stdio, http and sse servers in global mode", async () => {
+      const servers = {
+        git: { command: "git-mcp", args: ["--repo", "."] },
+        api: { transport: "http", url: "https://api.example.com/mcp", headers: { A: "b" } },
+        events: { transport: "sse", url: "https://realtime.example.com/events" },
+      };
+      const generated = await CommandcodeMcp.fromRulesyncMcp({
+        rulesyncMcp: buildRulesyncMcp(servers),
+        global: true,
       });
 
       const imported = JSON.parse(generated.toRulesyncMcp().getFileContent()).mcpServers;

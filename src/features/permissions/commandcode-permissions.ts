@@ -11,6 +11,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -36,18 +37,24 @@ const COMMANDCODE_ALL_MCP_RULE = "mcp__*";
 
 // Canonical category ⇒ Command Code friendly tool name. `Shell` is the
 // documented name of the shell tool (`Bash(...)` is only a legacy alias that
-// is read but never written). `Read` covers the file, directory, glob and grep
-// tools upstream, but a canonical `grep`/`glob` rule would then gate every
-// read, so those categories — and `notebookedit`/`agent`, which have no rule
-// name at all — are skipped instead of widened.
+// is read but never written). The permissions docs list the first six; the
+// rule parser (`command-code` 1.54.0, `parsePermissionRule`) also resolves
+// `Grep`, `Glob`, `NotebookEdit` (the edit tools) and `Agent`
+// case-insensitively, so the canonical `grep`/`glob`/`notebookedit`/`agent`
+// categories get a rule of their own instead of being widened onto `Read`.
+// Any other category has no rule name and is skipped.
 // https://commandcode.ai/docs/permissions
 const CATEGORY_TO_COMMANDCODE_TOOL: Record<string, string> = {
   bash: "Shell",
   read: "Read",
   edit: "Edit",
   write: "Write",
+  grep: "Grep",
+  glob: "Glob",
+  notebookedit: "NotebookEdit",
   webfetch: "WebFetch",
   websearch: "WebSearch",
+  agent: "Agent",
 };
 
 // Lowercased tool name ⇒ canonical category. Command Code matches tool names
@@ -68,20 +75,22 @@ const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 
 
 /**
  * Build a Command Code rule (`Shell(git *)`, `Read`, `mcp__github__get_issue`,
- * `mcp__*`, `*`) from a canonical category + pattern. Returns `null` for
- * categories Command Code cannot express so the caller can skip them.
+ * `mcp__github__get_issue(owner:foo)`, `mcp__*`, `*`) from a canonical
+ * category + pattern. Returns `null` for categories Command Code cannot
+ * express so the caller can skip them.
  *
  * MCP tools are keyed by their canonical `mcp__server__tool` name, so a scoped
- * `mcp__<remainder>` category is written verbatim and the bare `mcp` category
- * becomes `mcp__*` (or `mcp__<pattern>` when the pattern names a server or
- * tool). The all-tools `*` category is only written for its catch-all
- * pattern; narrower `*` patterns are shell restrictions and reach the `Shell`
- * entries through `honorAllToolsOnBash`.
+ * `mcp__<remainder>` category is written verbatim — with its pattern as the
+ * `(specifier)`, never widened to the whole tool — and the bare `mcp`
+ * category becomes `mcp__*` (or `mcp__<pattern>` when the pattern names a
+ * server or tool). The all-tools `*` category is only written for its
+ * catch-all pattern; narrower `*` patterns are shell restrictions and reach
+ * the `Shell` entries through `honorAllToolsOnBash`.
  */
 function buildCommandcodeRule(category: string, pattern: string): string | null {
   const catchAll = pattern === CATCH_ALL_PATTERN || pattern === "";
   if (category.startsWith(MCP_CANONICAL_PREFIX)) {
-    return category;
+    return catchAll ? category : `${category}(${pattern})`;
   }
   if (category === "mcp") {
     return catchAll ? COMMANDCODE_ALL_MCP_RULE : `${MCP_CANONICAL_PREFIX}${pattern}`;
@@ -106,47 +115,71 @@ function isServerlessWildcardRule(rule: string): boolean {
 }
 
 /**
+ * Split `Tool(specifier)` into its two halves; `Tool` alone has an empty
+ * specifier. Only the outermost parentheses count, so a specifier may itself
+ * contain `(`/`)`.
+ */
+function splitCommandcodeRule(rule: string): { tool: string; inner: string } {
+  const trimmed = rule.trim();
+  const parenIndex = trimmed.indexOf("(");
+  if (parenIndex === -1 || !trimmed.endsWith(")")) {
+    return { tool: trimmed, inner: "" };
+  }
+  return { tool: trimmed.slice(0, parenIndex), inner: trimmed.slice(parenIndex + 1, -1).trim() };
+}
+
+/**
  * Parse a Command Code rule back into a canonical category + pattern. Tool
- * names fold case; `Tool`, `Tool()` and `Tool(*)` all mean the whole tool.
- * Returns `null` for a tool name rulesync cannot model (an exact internal
- * tool name such as `edit_file`, or a name-wildcard like `edit_*`).
+ * names fold case; `Tool`, `Tool()` and `Tool(*)` all mean the whole tool,
+ * and an `mcp__<server>__<tool>(specifier)` keeps its specifier as the
+ * pattern. Returns `null` for a rule rulesync cannot model (an exact internal
+ * tool name such as `edit_file`, a name-wildcard like `edit_*`, or a
+ * specifier on a rule that takes none).
  */
 function parseCommandcodeRule(rule: string): { category: string; pattern: string } | null {
-  const trimmed = rule.trim();
-  if (trimmed === CATCH_ALL_PATTERN) {
-    return { category: ALL_TOOLS_PERMISSION_CATEGORY, pattern: CATCH_ALL_PATTERN };
+  const { tool, inner } = splitCommandcodeRule(rule);
+  const pattern = inner.length > 0 ? inner : CATCH_ALL_PATTERN;
+  if (tool === CATCH_ALL_PATTERN) {
+    return inner.length === 0
+      ? { category: ALL_TOOLS_PERMISSION_CATEGORY, pattern: CATCH_ALL_PATTERN }
+      : null;
   }
-  if (trimmed.toLowerCase().startsWith(MCP_CANONICAL_PREFIX)) {
-    return trimmed === COMMANDCODE_ALL_MCP_RULE
-      ? { category: "mcp", pattern: CATCH_ALL_PATTERN }
-      : { category: trimmed, pattern: CATCH_ALL_PATTERN };
-  }
-
-  const parenIndex = trimmed.indexOf("(");
-  let tool: string;
-  let inner: string;
-  if (parenIndex === -1 || !trimmed.endsWith(")")) {
-    tool = trimmed;
-    inner = "";
-  } else {
-    tool = trimmed.slice(0, parenIndex);
-    inner = trimmed.slice(parenIndex + 1, -1).trim();
+  if (tool.toLowerCase().startsWith(MCP_CANONICAL_PREFIX)) {
+    if (tool === COMMANDCODE_ALL_MCP_RULE) {
+      return inner.length === 0 ? { category: "mcp", pattern: CATCH_ALL_PATTERN } : null;
+    }
+    return { category: tool, pattern };
   }
   const category = COMMANDCODE_TOOL_TO_CATEGORY[tool.toLowerCase()];
   if (category === undefined) {
     return null;
   }
-  return { category, pattern: inner.length > 0 ? inner : CATCH_ALL_PATTERN };
+  return { category, pattern };
 }
 
 /**
- * Entries of an existing list whose tool name rulesync cannot model. They are
- * kept verbatim so regenerating the lists never drops a rule the user wrote
- * for an internal tool name.
+ * The canonical categories this run rebuilds. An existing entry whose tool
+ * folds onto one of them is rulesync's to replace; every other entry — an
+ * internal tool name rulesync cannot model, or a modeled tool the canonical
+ * config does not mention — is the user's (Command Code writes interactive
+ * approvals into the same lists) and is preserved verbatim, so regenerating
+ * never silently drops a `deny` the user wrote. Mirrors
+ * `managedClaudeToolNames` in the Claude Code adapter.
  */
-function unmanagedRules(existingPermissions: Record<string, unknown>, key: string): string[] {
+function preservedRules({
+  existingPermissions,
+  key,
+  managedCategories,
+}: {
+  existingPermissions: Record<string, unknown>;
+  key: string;
+  managedCategories: Set<string>;
+}): string[] {
   const list = isStringArray(existingPermissions[key]) ? existingPermissions[key] : [];
-  return list.filter((rule) => parseCommandcodeRule(rule) === null);
+  return list.filter((rule) => {
+    const parsed = parseCommandcodeRule(rule);
+    return parsed === null || !managedCategories.has(parsed.category);
+  });
 }
 
 /**
@@ -165,8 +198,9 @@ function buildCommandcodeRuleLists({
   existingPermissions: Record<string, unknown>;
   logger?: Logger;
 }): { allow: string[]; ask: string[]; deny: string[] } {
+  const permission = honorAllToolsOnBash(config.permission);
   const ranked = new Map<string, PermissionAction>();
-  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+  for (const [category, rules] of Object.entries(permission)) {
     for (const [pattern, action] of Object.entries(rules)) {
       const rule = buildCommandcodeRule(category, pattern);
       if (rule === null) {
@@ -198,9 +232,10 @@ function buildCommandcodeRuleLists({
     }
   }
 
-  const allow = unmanagedRules(existingPermissions, "allow");
-  const ask = unmanagedRules(existingPermissions, "ask");
-  const deny = unmanagedRules(existingPermissions, "deny");
+  const managedCategories = new Set(Object.keys(permission));
+  const allow = preservedRules({ existingPermissions, key: "allow", managedCategories });
+  const ask = preservedRules({ existingPermissions, key: "ask", managedCategories });
+  const deny = preservedRules({ existingPermissions, key: "deny", managedCategories });
   for (const [rule, action] of ranked) {
     if (action === "allow") allow.push(rule);
     else if (action === "ask") ask.push(rule);
@@ -212,7 +247,10 @@ function buildCommandcodeRuleLists({
 /**
  * Parse Command Code's `permissions` lists back into a canonical permission
  * map with `deny > ask > allow` precedence, so a tool described more than
- * once resolves to the strictest action.
+ * once resolves to the strictest action. A server-less wildcard (`*`,
+ * `mcp__*`) in `allow` is skipped, symmetric with the generate side: Command
+ * Code ignores it there, so importing it would turn a dead line into a live
+ * allow-all for every other target.
  */
 function parseCommandcodeRuleLists(
   permissions: Record<string, unknown>,
@@ -226,8 +264,15 @@ function parseCommandcodeRuleLists(
   for (const [action, list] of lists) {
     if (!isStringArray(list)) continue;
     for (const rule of list) {
+      if (action === "allow" && isServerlessWildcardRule(rule.trim())) continue;
       const parsed = parseCommandcodeRule(rule);
       if (parsed === null) continue;
+      // A `Shell(__proto__)` entry would read an inherited property below and
+      // silently lose its action, so such entries are dropped (as the other
+      // permissions adapters do).
+      if (isPrototypePollutionKey(parsed.category) || isPrototypePollutionKey(parsed.pattern)) {
+        continue;
+      }
       const rules = (permission[parsed.category] ??= {});
       const existing = rules[parsed.pattern];
       if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
@@ -253,9 +298,11 @@ function parseCommandcodeRuleLists(
  * the friendly names (`Shell`, `Read`, `Edit`, `Write`, `WebFetch`,
  * `WebSearch`), `mcp__<server>__<tool>` names pass through, and the all-tools
  * `*` category becomes the bare `*` rule Command Code accepts in `deny`/`ask`.
+ * Only the entries of the categories the canonical config names are rebuilt;
+ * every other existing entry is preserved verbatim.
  * Import: the lists are parsed back case-insensitively (the legacy `Bash`
  * alias folds onto `bash`); rules for internal tool names rulesync does not
- * model are preserved on generate and skipped on import.
+ * model are skipped.
  *
  * @see https://commandcode.ai/docs/permissions
  * @see https://commandcode.ai/docs/settings

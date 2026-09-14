@@ -21,7 +21,9 @@ import {
  * basename; subdirectories only group the files. The file's full trimmed
  * body is the prompt that runs — YAML frontmatter is not stripped, only
  * skipped when the slash menu picks a summary line — so rulesync writes the
- * bare body and reads a hand-written file back without any frontmatter.
+ * bare body. On import a hand-written file's frontmatter block is dropped
+ * (Command Code would send it as prompt text; a rulesync command carries its
+ * own frontmatter) and only the body is kept.
  *
  * @see https://commandcode.ai/docs/custom-slash-commands
  */

@@ -122,6 +122,21 @@ describe("CommandcodePermissions", () => {
       });
     });
 
+    it("keeps the pattern of a scoped mcp rule as its specifier instead of widening", async () => {
+      const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          mcp__github__get_issue: { "owner:foo": "allow", "owner:bar": "deny" },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.permissions).toEqual({
+        allow: ["mcp__github__get_issue(owner:foo)"],
+        deny: ["mcp__github__get_issue(owner:bar)"],
+      });
+    });
+
     it("writes the bare * rule for the all-tools category in deny and ask only", async () => {
       const logger = createMockLogger();
       const deny = await CommandcodePermissions.fromRulesyncPermissions({
@@ -177,25 +192,43 @@ describe("CommandcodePermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'rm -rf *'"));
     });
 
-    it("skips categories Command Code cannot express and warns on deny", async () => {
+    it("writes grep, glob, notebookedit and agent as their own rule names", async () => {
       const logger = createMockLogger();
       const permissions = await CommandcodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         logger,
         rulesyncPermissions: createRulesyncPermissions({
           grep: { "*": "allow" },
-          glob: { "*": "deny" },
+          glob: { "src/**": "deny" },
           notebookedit: { "*": "deny" },
-          agent: { "*": "allow" },
+          agent: { "*": "ask" },
+          bash: { "git *": "allow" },
+        }),
+      });
+      expect(JSON.parse(permissions.getFileContent()).permissions).toEqual({
+        allow: ["Grep", "Shell(git *)"],
+        ask: ["Agent"],
+        deny: ["Glob(src/**)", "NotebookEdit"],
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("skips categories Command Code cannot express and warns on deny", async () => {
+      const logger = createMockLogger();
+      const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: createRulesyncPermissions({
+          custom_tool: { "*": "allow" },
+          other_tool: { "*": "deny" },
           bash: { "git *": "allow" },
         }),
       });
       expect(JSON.parse(permissions.getFileContent()).permissions).toEqual({
         allow: ["Shell(git *)"],
       });
-      expect(logger.warn).toHaveBeenCalledTimes(2);
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'glob'"));
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'notebookedit'"));
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'other_tool'"));
     });
 
     it("resolves colliding rules to the strictest action", async () => {
@@ -254,11 +287,38 @@ describe("CommandcodePermissions", () => {
         defaultMode: "acceptEdits",
         additionalDirectories: ["../shared"],
         disableBypass: true,
-        allow: ["Shell(git *)", "edit_file"],
+        allow: ["Shell(git *)", "edit_file", "mcp__github__*"],
         ask: ["read_directory(/tmp)"],
         deny: ["Write(.env*)", "edit_*"],
       });
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("preserves entries of modeled tools the canonical config does not mention", async () => {
+      // Command Code writes interactive approvals into the same lists, so a
+      // user-written `deny` for a tool rulesync is not managing must survive.
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            allow: ["Read", "Shell(stale *)", "mcp__github__get_issue(owner:foo)"],
+            deny: ["Read(./.env)", "Bash(rm -rf /)", "*"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "git *": "allow" },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.permissions).toEqual({
+        allow: ["Read", "Shell(git *)", "mcp__github__get_issue(owner:foo)"],
+        deny: ["*", "Read(./.env)"],
+      });
     });
 
     it("removes a stale list when the regenerated one is empty", async () => {
@@ -404,6 +464,59 @@ describe("CommandcodePermissions", () => {
       });
     });
 
+    it("imports the specifier of a scoped mcp rule as its pattern", async () => {
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            allow: ["mcp__github__get_issue(owner:foo)"],
+            deny: ["mcp__github__get_issue(owner:bar)", "mcp__*(x)", "*(git *)"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.permission).toEqual({
+        mcp__github__get_issue: { "owner:foo": "allow", "owner:bar": "deny" },
+      });
+    });
+
+    it("skips server-less wildcards in allow, symmetric with generate", async () => {
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            allow: ["*", "mcp__*", "Read"],
+            ask: ["mcp__*"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.permission).toEqual({
+        read: { "*": "allow" },
+        mcp: { "*": "ask" },
+      });
+    });
+
+    it("drops entries whose pattern is a prototype-pollution key", async () => {
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            deny: ["Shell(__proto__)", "Shell(constructor)", "Shell(git *)"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.permission).toEqual({ bash: { "git *": "deny" } });
+      expect(Object.prototype).not.toHaveProperty("git *");
+    });
+
     it("keeps the strictest action for a rule listed more than once", async () => {
       await writeSettings({
         testDir,
@@ -484,7 +597,7 @@ describe("CommandcodePermissions", () => {
       const source = createRulesyncPermissions({
         bash: { "git *": "allow", "rm -rf *": "deny" },
         read: { "*": "allow" },
-        mcp__github__get_issue: { "*": "ask" },
+        mcp__github__get_issue: { "*": "ask", "owner:foo": "allow" },
         webfetch: { "https://docs.example.com/*": "allow" },
       });
       const generated = await CommandcodePermissions.fromRulesyncPermissions({

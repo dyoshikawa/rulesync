@@ -932,6 +932,7 @@ export class McpProcessor extends FeatureProcessor {
         // deprecated per-server `targets` filter for this target.
         const targetedRulesyncMcp = mcp.forTarget({
           toolTarget: this.toolTarget,
+          global: this.global,
           logger: this.logger,
         });
         // Strip MCP server fields unsupported by the target tool
