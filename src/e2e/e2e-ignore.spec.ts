@@ -58,6 +58,7 @@ const ignoreGenerateTargets = [
   { target: "augmentcode", outputPath: ".augmentignore", format: "plaintext" as const },
   { target: "bob", outputPath: ".bobignore", format: "plaintext" as const },
   { target: "tabnine", outputPath: ".tabnineignore", format: "plaintext" as const },
+  { target: "continue", outputPath: ".continueignore", format: "plaintext" as const },
   { target: "devin", outputPath: ".devinignore", format: "plaintext" as const },
   {
     target: "zed",
@@ -195,6 +196,7 @@ credentials/
     { target: "augmentcode", orphanPath: ".augmentignore" },
     { target: "bob", orphanPath: ".bobignore" },
     { target: "tabnine", orphanPath: ".tabnineignore" },
+    { target: "continue", orphanPath: ".continueignore" },
     { target: "devin", orphanPath: ".devinignore" },
     { target: "vibe", orphanPath: ".vibeignore" },
     { target: "warp", orphanPath: ".warpindexingignore" },
@@ -269,6 +271,7 @@ describe("E2E: ignore (import)", () => {
     { target: "augmentcode", sourcePath: ".augmentignore" },
     { target: "bob", sourcePath: ".bobignore" },
     { target: "tabnine", sourcePath: ".tabnineignore" },
+    { target: "continue", sourcePath: ".continueignore" },
     { target: "devin", sourcePath: ".devinignore" },
     { target: "vibe", sourcePath: ".vibeignore" },
     { target: "warp", sourcePath: ".warpindexingignore" },
@@ -312,6 +315,7 @@ credentials/
 describe("E2E: ignore (global mode)", () => {
   const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
   const globalTargets = [
+    { target: "continue", outputPath: join(".continue", ".continueignore") },
     {
       target: "devin",
       outputPath: join(DEVIN_GLOBAL_IGNORE_DIR_PATH, DEVIN_GLOBAL_IGNORE_FILE_NAME),

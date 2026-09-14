@@ -297,6 +297,7 @@ rulesync.local.jsonc
 **/CODEBUDDY.md
 **/.codebuddy/CODEBUDDY.md
 **/.codebuddy/rules/
+**/.continue/rules/
 **/.github/copilot-instructions.md
 **/.github/instructions/
 **/CRUSH.md
@@ -334,6 +335,7 @@ rulesync.local.jsonc
 **/.bob/commands/
 **/.claude/commands/
 **/.clinerules/workflows/
+**/.continue/prompts/
 **/.github/prompts/
 **/.cursor/commands/
 **/.factory/commands/
@@ -357,6 +359,7 @@ rulesync.local.jsonc
 **/.bob/skills/
 **/.claude/skills/
 **/.cline/skills/
+**/.continue/skills/
 **/.github/skills/
 **/.cortex/skills/
 **/.crush/skills/
@@ -411,6 +414,7 @@ rulesync.local.jsonc
 **/.augment/settings.json
 **/.bob/mcp.json
 **/.mcp.json
+**/.continue/mcpServers/mcp.json
 **/.vscode/mcp.json
 **/.github/mcp.json
 **/.cursor/mcp.json
@@ -451,6 +455,7 @@ rulesync.local.jsonc
 **/.augmentignore
 **/.bobignore
 **/.clineignore
+**/.continueignore
 **/.crushignore
 **/.cursorignore
 **/.hermes/plugins/rulesync-ignore/patterns.gitignore

@@ -19,6 +19,7 @@ import { BobMcp } from "./bob-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
+import { ContinueMcp } from "./continue-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
 import { CortexcodeMcp } from "./cortexcode-mcp.js";
@@ -266,6 +267,18 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: true,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "continue",
+    {
+      class: ContinueMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],

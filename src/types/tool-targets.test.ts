@@ -30,6 +30,7 @@ describe("tool targets", () => {
         "cline",
         "codebuddy",
         "codexcli",
+        "continue",
         "copilot",
         "copilotcli",
         "cortexcode",

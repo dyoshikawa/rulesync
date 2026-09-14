@@ -30,6 +30,7 @@ const mcpGenerateTargets = [
   { target: "aiassistant", outputPath: join(".ai", "mcp", "mcp.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "bob", outputPath: join(".bob", "mcp.json") },
+  { target: "continue", outputPath: join(".continue", "mcpServers", "mcp.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "amp", outputPath: join(".amp", "settings.json") },
   { target: "claudecode", outputPath: ".mcp.json" },
@@ -400,6 +401,7 @@ describe("E2E: mcp", () => {
     // amp, codexcli, grokcli, opencode, kilo use merged config files
     // (isDeletable=false) — excluded
     { target: "claudecode", orphanPath: ".mcp.json" },
+    { target: "continue", orphanPath: join(".continue", "mcpServers", "mcp.json") },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
     { target: "copilot", orphanPath: join(".vscode", "mcp.json") },
     { target: "copilotcli", orphanPath: join(".github", "mcp.json") },
@@ -723,6 +725,7 @@ describe("E2E: mcp (import)", () => {
   it.each([
     { target: "augmentcode", sourcePath: join(".augment", "settings.json") },
     { target: "bob", sourcePath: join(".bob", "mcp.json") },
+    { target: "continue", sourcePath: join(".continue", "mcpServers", "mcp.json") },
     { target: "tabnine", sourcePath: join(".tabnine", "agent", "settings.json") },
     { target: "claudecode", sourcePath: ".mcp.json" },
     { target: "cursor", sourcePath: join(".cursor", "mcp.json") },
@@ -881,6 +884,7 @@ const mcpGlobalTargets = [
   { target: "aiassistant", outputPath: join(".ai", "mcp", "mcp.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "bob", outputPath: join(".bob", "mcp.json") },
+  { target: "continue", outputPath: join(".continue", "mcpServers", "mcp.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "claudecode", outputPath: ".claude.json" },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },

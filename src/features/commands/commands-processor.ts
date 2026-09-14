@@ -43,6 +43,7 @@ import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClaudecodePluginCommand } from "./claudecode-plugin-command.js";
 import { ClineCommand } from "./cline-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
+import { ContinueCommand } from "./continue-command.js";
 import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
@@ -310,6 +311,19 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
       meta: {
         extension: "md",
         supportsProject: false,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "continue",
+    {
+      class: ContinueCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,

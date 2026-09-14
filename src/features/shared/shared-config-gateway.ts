@@ -1571,6 +1571,18 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
     },
   },
+  // Continue CLI settings: `hooks` is the only rulesync-owned key of
+  // `.continue/settings.json` (project) and `~/.continue/settings.json`
+  // (user). Both files carry the user's other Continue settings, so they are
+  // edited in place and an unparseable root is refused rather than replaced
+  // with generated output.
+  ".continue/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    },
+  },
   // Snowflake Cortex Code hooks: `hooks` is the only rulesync-owned key. The
   // project file (`.cortex/settings.json`) carries unrelated Cortex settings,
   // and the user file (`~/.snowflake/cortex/hooks.json`) lives in the

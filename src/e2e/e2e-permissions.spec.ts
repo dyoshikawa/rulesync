@@ -73,6 +73,7 @@ const permissionsGlobalTargets = [
   "augmentcode",
   "qwencode",
   "tabnine",
+  "continue",
   "antigravity-cli",
   "warp",
   "deepagents",
@@ -1908,6 +1909,60 @@ describe("E2E: permissions (global mode)", () => {
         { decision: "allow", pattern: "Read", scope: "user" },
       ],
     });
+  });
+
+  it("should generate and import continue permissions in ~/.continue/permissions.yaml (global-only)", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow", "git push *": "ask", "rm -rf *": "deny" },
+            read: { ".env": "deny" },
+            webfetch: { "*": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "continue",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Continue CLI policies are `Tool(pattern)` strings in three lists; the
+    // canonical `deny` action is Continue's `exclude`.
+    const generated = toTable(
+      load(await readFileContent(join(homeDir, ".continue", "permissions.yaml"))),
+    );
+    expect(generated.allow).toEqual(["Bash(git status *)", "Fetch"]);
+    expect(generated.ask).toEqual(["Bash(git push *)"]);
+    expect(generated.exclude).toEqual(["Bash(rm -rf *)", "Read(.env)"]);
+
+    await runImport({
+      target: "continue",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.permission.bash).toEqual({
+      "git status *": "allow",
+      "git push *": "ask",
+      "rm -rf *": "deny",
+    });
+    expect(imported.permission.read).toEqual({ ".env": "deny" });
+    expect(imported.permission.webfetch).toEqual({ "*": "allow" });
   });
 
   it("should generate and import the Kimi Code global tool switch", async () => {

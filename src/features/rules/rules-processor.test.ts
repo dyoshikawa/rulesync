@@ -1884,6 +1884,7 @@ Content that would fail parsing`;
         "cline",
         "codebuddy",
         "codexcli",
+        "continue",
         "copilot",
         "copilotcli",
         "crush",
@@ -1969,7 +1970,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("warp");
       expect(globalTargets).toContain("pool");
       expect(globalTargets).toContain("dsh");
-      expect(globalTargets.length).toBe(39);
+      expect(globalTargets).toContain("continue");
+      expect(globalTargets.length).toBe(40);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

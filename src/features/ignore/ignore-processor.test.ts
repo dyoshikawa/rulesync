@@ -470,6 +470,7 @@ describe("IgnoreProcessor", () => {
         "claudecode",
         "claudecode-legacy",
         "cline",
+        "continue",
         "crush",
         "cursor",
         "hermesagent",
@@ -494,6 +495,7 @@ describe("IgnoreProcessor", () => {
 
     it("should return only global-capable targets in global mode", () => {
       expect(IgnoreProcessor.getToolTargets({ global: true })).toEqual([
+        "continue",
         "devin",
         "kiro",
         "kiro-cli",
