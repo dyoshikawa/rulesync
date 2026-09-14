@@ -1571,6 +1571,24 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
     },
   },
+  // Tabnine CLI settings: the project file (`.tabnine/agent/settings.json`)
+  // and the user file (`~/.tabnine/agent/settings.json`) share one layout and
+  // carry unrelated Tabnine settings (`general`, `context`, `ui`, ...), so they
+  // are edited in place and an unparseable root is refused rather than
+  // replaced. `mcpServers` and `hooks` are owned outright. Permissions author
+  // `tools.allowed`/`tools.exclude` next to the user's other `tools.*` keys
+  // (and the `general` group through the `tabnine` override), so that patch
+  // deep-merges; the two lists are rebuilt in full by the writer and retracted
+  // with an explicit `undefined`, so nothing needs a wholesale replace.
+  ".tabnine/agent/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "deep-merge" },
+    },
+  },
   // Kiro agent config: `allowedTools`/`toolsSettings` are recomputed from the
   // existing file (existing tools and settings folded in) before being applied.
   ".kiro/agents/default.json": {

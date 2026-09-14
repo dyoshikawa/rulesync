@@ -40,6 +40,7 @@ import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RooPermissions } from "./roo-permissions.js";
 import { RovodevPermissions } from "./rovodev-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { TabninePermissions } from "./tabnine-permissions.js";
 import { TaktPermissions } from "./takt-permissions.js";
 import type {
   ToolPermissionsForDeletionParams,
@@ -440,6 +441,21 @@ export const toolPermissionsFactories = new Map<
         // project `.rovodev/config.yml` documented by the Bitbucket Cloud
         // Agentic Pipelines guide (referenced via `config.path`, or
         // the `--config-file` CLI flag).
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "tabnine",
+    {
+      class: TabninePermissions,
+      meta: {
+        // Tabnine CLI reads `tools.allowed` / `tools.exclude` from the shared
+        // settings file `.tabnine/agent/settings.json` (project) /
+        // `~/.tabnine/agent/settings.json` (user).
+        // https://docs.tabnine.com/main/getting-started/tabnine-cli/features/settings/settings-reference
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

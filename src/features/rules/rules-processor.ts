@@ -90,6 +90,7 @@ import { ReplitRule } from "./replit-rule.js";
 import { RooRule } from "./roo-rule.js";
 import { RovodevRule } from "./rovodev-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
+import { TabnineRule } from "./tabnine-rule.js";
 import { TaktRule } from "./takt-rule.js";
 import {
   ToolRule,
@@ -908,6 +909,24 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         ruleDiscoveryMode: "auto",
         localRootMode: "separate-local-file",
         localRootFileName: "AGENTS.local.md",
+      },
+    },
+  ],
+  [
+    "tabnine",
+    {
+      class: TabnineRule,
+      meta: {
+        // Tabnine CLI loads a root `TABNINE.md` (project) and, for the user
+        // scope, `~/.tabnine/agent/TABNINE.md`. Non-root rules become
+        // guideline files under `.tabnine/guidelines/` (read by the Tabnine
+        // IDE agent, not auto-loaded by the CLI), so the root file lists them
+        // in a TOON reference table.
+        // https://docs.tabnine.com/main/getting-started/tabnine-cli/features/settings
+        // https://docs.tabnine.com/main/getting-started/tabnine-agent/guidelines
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "toon",
       },
     },
   ],

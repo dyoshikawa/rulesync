@@ -50,6 +50,7 @@ const permissionsGenerateTargets = [
   "cline",
   "factorydroid",
   "qwencode",
+  "tabnine",
   "vibe",
   "reasonix",
   "grokcli",
@@ -71,6 +72,7 @@ const permissionsGlobalTargets = [
   "kilo",
   "augmentcode",
   "qwencode",
+  "tabnine",
   "antigravity-cli",
   "warp",
   "deepagents",
@@ -949,6 +951,37 @@ web_search_request = true
     expect(content.permissions.deny).toContain("Read(.env)");
   });
 
+  it("should generate tabnine permissions into .tabnine/agent/settings.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm -rf *": "deny" },
+            read: { "*": "allow" },
+            webfetch: { "*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "tabnine", features: "permissions" });
+
+    // Tabnine CLI only has tool-level allow/exclude lists; shell rules become
+    // `run_shell_command(<prefix>)` entries and other categories map to tool names.
+    const content = JSON.parse(
+      await readFileContent(join(testDir, ".tabnine", "agent", "settings.json")),
+    );
+    expect(content.tools.allowed).toContain("run_shell_command(git)");
+    expect(content.tools.allowed).toContain("read_file");
+    expect(content.tools.exclude).toContain("run_shell_command(rm -rf)");
+    expect(content.tools.exclude).toContain("web_fetch");
+  });
+
   it("should generate vibe permissions into .vibe/config.toml and preserve MCP config", async () => {
     const testDir = getTestDir();
 
@@ -1511,6 +1544,34 @@ enabled = true
     expect(content.permission.bash["git push *"]).toBe("ask");
     expect(content.permission.bash["rm -rf *"]).toBe("deny");
     expect(content.permission.read["src/**"]).toBe("allow");
+  });
+
+  it("should import tabnine permissions into .rulesync/permissions.jsonc", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".tabnine", "agent", "settings.json"),
+      JSON.stringify(
+        {
+          tools: {
+            allowed: ["run_shell_command(git)", "read_file"],
+            exclude: ["run_shell_command(rm -rf)", "web_fetch"],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "tabnine", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.bash["rm -rf *"]).toBe("deny");
+    expect(content.permission.read["*"]).toBe("allow");
+    expect(content.permission.webfetch["*"]).toBe("deny");
   });
 
   it("should import kiro permissions into .rulesync/permissions.jsonc", async () => {
@@ -2386,6 +2447,38 @@ describe("E2E: permissions (global mode)", () => {
     const generated = JSON.parse(await readFileContent(join(homeDir, ".qwen", "settings.json")));
     expect(generated.permissions.allow).toContain("Bash(git status *)");
     expect(generated.permissions.deny).toContain("Read(.env)");
+  });
+
+  it("should generate tabnine permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status *": "allow" },
+            webfetch: { "*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "tabnine",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".tabnine", "agent", "settings.json")),
+    );
+    expect(generated.tools.allowed).toContain("run_shell_command(git status)");
+    expect(generated.tools.exclude).toContain("web_fetch");
   });
 
   it("should generate antigravity-cli permissions in home directory with --global", async () => {

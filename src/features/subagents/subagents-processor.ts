@@ -56,6 +56,7 @@ import { RooSubagent } from "./roo-subagent.js";
 import { RovodevSubagent } from "./rovodev-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import { SimulatedSubagent } from "./simulated-subagent.js";
+import { TabnineSubagent } from "./tabnine-subagent.js";
 import { TaktSubagent } from "./takt-subagent.js";
 import {
   ToolSubagent,
@@ -570,6 +571,22 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "rovodev",
     {
       class: RovodevSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "tabnine",
+    {
+      // Tabnine CLI subagents are native Markdown + YAML frontmatter under
+      // `.tabnine/agent/agents/` (project) and `~/.tabnine/agent/agents/`
+      // (user); Tabnine loads them once `experimental.enableAgents` is on.
+      // https://docs.tabnine.com/main/getting-started/tabnine-cli/features/subagents
+      class: TabnineSubagent,
       meta: {
         supportsProject: true,
         supportsSimulated: false,

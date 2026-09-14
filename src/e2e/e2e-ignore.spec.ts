@@ -57,6 +57,7 @@ const ignoreGenerateTargets = [
   { target: "aiassistant", outputPath: ".aiignore", format: "plaintext" as const },
   { target: "augmentcode", outputPath: ".augmentignore", format: "plaintext" as const },
   { target: "bob", outputPath: ".bobignore", format: "plaintext" as const },
+  { target: "tabnine", outputPath: ".tabnineignore", format: "plaintext" as const },
   { target: "devin", outputPath: ".devinignore", format: "plaintext" as const },
   {
     target: "zed",
@@ -193,6 +194,7 @@ credentials/
     { target: "junie", orphanPath: ".aiignore" },
     { target: "augmentcode", orphanPath: ".augmentignore" },
     { target: "bob", orphanPath: ".bobignore" },
+    { target: "tabnine", orphanPath: ".tabnineignore" },
     { target: "devin", orphanPath: ".devinignore" },
     { target: "vibe", orphanPath: ".vibeignore" },
     { target: "warp", orphanPath: ".warpindexingignore" },
@@ -266,6 +268,7 @@ describe("E2E: ignore (import)", () => {
     { target: "junie", sourcePath: ".aiignore" },
     { target: "augmentcode", sourcePath: ".augmentignore" },
     { target: "bob", sourcePath: ".bobignore" },
+    { target: "tabnine", sourcePath: ".tabnineignore" },
     { target: "devin", sourcePath: ".devinignore" },
     { target: "vibe", sourcePath: ".vibeignore" },
     { target: "warp", sourcePath: ".warpindexingignore" },

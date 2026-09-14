@@ -69,6 +69,7 @@ import { ReasonixCommand } from "./reasonix-command.js";
 import { RooCommand } from "./roo-command.js";
 import { RovodevCommand } from "./rovodev-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
+import { TabnineCommand } from "./tabnine-command.js";
 import { TaktCommand } from "./takt-command.js";
 import {
   ToolCommand,
@@ -578,6 +579,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "tabnine",
+    {
+      class: TabnineCommand,
+      meta: {
+        // Tabnine CLI reads TOML slash commands from `<project>/.tabnine/agent/commands/`
+        // and `~/.tabnine/agent/commands/`; a nested path becomes a namespaced
+        // command (`ns/name.toml` -> `/ns:name`).
+        // https://docs.tabnine.com/main/getting-started/tabnine-cli/features/commands
+        extension: "toml",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
       },
     },
   ],

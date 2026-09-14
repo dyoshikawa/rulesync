@@ -70,6 +70,7 @@ import { RovodevSkill } from "./rovodev-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill } from "./simulated-skill.js";
 import { getLocalSkillDirNames, isAddressableSkillName } from "./skills-utils.js";
+import { TabnineSkill } from "./tabnine-skill.js";
 import { TaktSkill } from "./takt-skill.js";
 import {
   ToolSkill,
@@ -543,6 +544,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "rovodev",
     {
       class: RovodevSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "tabnine",
+    {
+      // Tabnine CLI skills are Anthropic-style Agent Skills directories
+      // (<name>/SKILL.md) under .tabnine/agent/skills/ (project) and
+      // ~/.tabnine/agent/skills/ (user).
+      // https://docs.tabnine.com/main/getting-started/tabnine-cli/features/agent-skills
+      class: TabnineSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

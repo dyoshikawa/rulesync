@@ -998,6 +998,50 @@ export const BOB_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromE
 );
 
 /**
+ * Hook events supported by Tabnine CLI.
+ *
+ * Tabnine CLI reads `hooks` from `.tabnine/agent/settings.json` (project) and
+ * `~/.tabnine/agent/settings.json` (user) and fires eleven events with
+ * PascalCase names. Only `command` hooks exist; `matcher` is a regex over the
+ * tool name for the two tool events and an exact string for the lifecycle
+ * events, and `timeout` is expressed in milliseconds.
+ *
+ * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/hooks
+ * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/hooks/configuration
+ */
+export const TABNINE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "beforeSubmitPrompt",
+  "stop",
+  "preModelInvocation",
+  "postModelInvocation",
+  "beforeToolSelection",
+  "preToolUse",
+  "postToolUse",
+  "preCompact",
+  "notification",
+];
+
+export const CANONICAL_TO_TABNINE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  beforeSubmitPrompt: "BeforeAgent",
+  stop: "AfterAgent",
+  preModelInvocation: "BeforeModel",
+  postModelInvocation: "AfterModel",
+  beforeToolSelection: "BeforeToolSelection",
+  preToolUse: "BeforeTool",
+  postToolUse: "AfterTool",
+  preCompact: "PreCompress",
+  notification: "Notification",
+};
+
+export const TABNINE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_TABNINE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
  * Hermes validates hook events against a fixed `VALID_HOOKS` set — 37 entries as
@@ -1170,6 +1214,7 @@ export const HooksConfigSchema = z.looseObject({
   "kimi-code": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  tabnine: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
     z.looseObject({
       hooks: z.optional(hooksRecordSchema),

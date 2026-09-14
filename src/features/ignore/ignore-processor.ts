@@ -30,6 +30,7 @@ import { QwencodeIgnore } from "./qwencode-ignore.js";
 import { ReasonixIgnore } from "./reasonix-ignore.js";
 import { RooIgnore } from "./roo-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
+import { TabnineIgnore } from "./tabnine-ignore.js";
 import {
   ToolIgnore,
   ToolIgnoreForDeletionParams,
@@ -84,6 +85,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   // Zoo Code keeps Roo's `.rooignore`; the class is shared (mirrors kiro-ide).
   ["zoocode", { class: RooIgnore }],
   ["devin", { class: DevinIgnore }],
+  ["tabnine", { class: TabnineIgnore }],
   ["vibe", { class: VibeIgnore }],
   ["warp", { class: WarpIgnore }],
   ["zed", { class: ZedIgnore }],
