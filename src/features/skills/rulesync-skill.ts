@@ -222,6 +222,14 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "disable-model-invocation": z.optional(z.boolean()),
     }),
   ),
+  pool: z.optional(
+    z.looseObject({
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+      metadata: z.optional(z.looseObject({})),
+    }),
+  ),
   replit: z.optional(
     z.looseObject({
       // Replit conforms to the Agent Skills spec: `allowed-tools` is a
@@ -495,6 +503,12 @@ export type RulesyncSkillFrontmatterInput = {
   pi?: {
     "allowed-tools"?: string | string[];
     "disable-model-invocation"?: boolean;
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  };
+  pool?: {
+    "allowed-tools"?: string | string[];
     license?: string;
     compatibility?: string | Record<string, unknown>;
     metadata?: Record<string, unknown>;

@@ -17,3 +17,15 @@ import { join } from "node:path";
 
 /** Global config directory for Pool, relative to the home directory. */
 export const POOL_GLOBAL_DIR = join(".config", "poolside");
+
+/**
+ * Pool discovers Agent Skills (`<name>/SKILL.md`) from `.poolside/skills/`
+ * (project) and `~/.config/poolside/skills/` (global, honouring
+ * `XDG_CONFIG_HOME` upstream). It also reads the shared `.agents/skills/` tree
+ * at both scopes; rulesync writes only the Pool-specific paths.
+ *
+ * @see https://docs.poolside.ai/skills
+ */
+export const POOL_SKILLS_PROJECT_DIR = join(".poolside", "skills");
+export const POOL_SKILLS_GLOBAL_DIR = join(POOL_GLOBAL_DIR, "skills");
+export const POOL_SHARED_SKILLS_DIR_PATH = join(".agents", "skills");
