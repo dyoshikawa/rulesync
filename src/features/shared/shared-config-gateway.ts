@@ -1553,6 +1553,24 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   ".zcode/config.json": ZCODE_WORKSPACE_CONFIG_DECLARATION,
   ".zcode/cli/config.json": ZCODE_USER_CONFIG_DECLARATION,
+  // IBM Bob settings: `hooks` is the only rulesync-owned key. The project file
+  // (`.bob/settings.json`) and the user file (`~/.bob/settings/settings.json`)
+  // both carry unrelated Bob settings, so they are edited in place and an
+  // unparseable root is refused rather than replaced with generated output.
+  ".bob/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    },
+  },
+  ".bob/settings/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    },
+  },
   // Kiro agent config: `allowedTools`/`toolsSettings` are recomputed from the
   // existing file (existing tools and settings folded in) before being applied.
   ".kiro/agents/default.json": {

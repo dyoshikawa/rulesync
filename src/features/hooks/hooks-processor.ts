@@ -9,6 +9,7 @@ import {
   AMP_HOOK_EVENTS,
   ANTIGRAVITY_HOOK_EVENTS,
   AUGMENTCODE_HOOK_EVENTS,
+  BOB_HOOK_EVENTS,
   CLAUDE_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
@@ -47,6 +48,7 @@ import { AmpHooks } from "./amp-hooks.js";
 import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
 import { AntigravityPluginHooks } from "./antigravity-plugin-hooks.js";
 import { AugmentcodeHooks } from "./augmentcode-hooks.js";
+import { BobHooks } from "./bob-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
 import { ClineHooks } from "./cline-hooks.js";
@@ -636,6 +638,26 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: AUGMENTCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+    },
+  ],
+  [
+    "bob",
+    {
+      class: BobHooks,
+      meta: {
+        // IBM Bob hooks live under the top-level `hooks` key of the shared
+        // settings file `.bob/settings.json` (project) /
+        // `~/.bob/settings/settings.json` (global). Only command hooks are
+        // supported, and a matcher applies only to the tool events.
+        // https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: BOB_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+      matcherEvents: ["preToolUse", "postToolUse"],
     },
   ],
   [

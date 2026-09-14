@@ -112,6 +112,10 @@ describe("registry derivation", () => {
       // ZCode user config: emitted in GLOBAL scope only (project scope writes
       // `.zcode/config.json` instead), so project derivation never yields it.
       "**/.zcode/cli/config.json",
+      // IBM Bob user settings: emitted in GLOBAL scope only (project scope
+      // writes `.bob/settings.json` instead), so project derivation never
+      // yields it.
+      "**/.bob/settings/settings.json",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(

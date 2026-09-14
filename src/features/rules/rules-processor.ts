@@ -56,6 +56,7 @@ import { AntigravityIdeRule } from "./antigravity-ide-rule.js";
 import { AntigravityPluginRule } from "./antigravity-plugin-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
+import { BobRule } from "./bob-rule.js";
 import { ClaudecodeLanguageSettings } from "./claudecode-language-settings.js";
 import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
@@ -446,6 +447,22 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "toon",
+      },
+    },
+  ],
+  [
+    "bob",
+    {
+      class: BobRule,
+      meta: {
+        // IBM Bob reads a root `AGENTS.md` (project) / `~/.bob/AGENTS.md`
+        // (global) plus non-root `.bob/rules/*.md` files that are loaded
+        // automatically (recursively, in alphabetical order) as plain
+        // Markdown without frontmatter, so no reference section is needed.
+        // https://bob.ibm.com/docs/ide/configuration/rules
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],

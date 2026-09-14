@@ -16,6 +16,7 @@ import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js
 import { AiassistantIgnore } from "./aiassistant-ignore.js";
 import { AntigravityCliIgnore } from "./antigravity-cli-ignore.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
+import { BobIgnore } from "./bob-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
 import { CrushIgnore } from "./crush-ignore.js";
@@ -65,6 +66,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["aiassistant", { class: AiassistantIgnore }],
   ["antigravity-cli", { class: AntigravityCliIgnore }],
   ["augmentcode", { class: AugmentcodeIgnore }],
+  ["bob", { class: BobIgnore }],
   ["claudecode", { class: ClaudecodeIgnore }],
   ["claudecode-legacy", { class: ClaudecodeIgnore }],
   ["cline", { class: ClineIgnore }],

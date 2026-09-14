@@ -56,6 +56,7 @@ const rulesRootTargets = [
   { target: "reasonix", outputPath: "REASONIX.md" },
   { target: "musecode", outputPath: "AGENTS.md" },
   { target: "zcode", outputPath: "AGENTS.md" },
+  { target: "bob", outputPath: "AGENTS.md" },
   { target: "pool", outputPath: "AGENTS.md" },
   { target: "dsh", outputPath: "AGENTS.md" },
 ] as const;
@@ -71,6 +72,7 @@ const rulesNonRootTargets = [
   { target: "antigravity-ide", outputPath: join(".agents", "rules", "overview.md") },
   { target: "antigravity-plugin", outputPath: join("rules", "overview.md") },
   { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
+  { target: "bob", outputPath: join(".bob", "rules", "overview.md") },
   { target: "devin", outputPath: join(".devin", "rules", "overview.md") },
   { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
 ] as const;
@@ -1259,6 +1261,11 @@ describe("E2E: rules (import)", () => {
       importedFileName: "overview.md",
     },
     {
+      target: "bob",
+      sourcePath: join(".bob", "rules", "overview.md"),
+      importedFileName: "overview.md",
+    },
+    {
       target: "devin",
       sourcePath: join(".devin", "rules", "overview.md"),
       importedFileName: "overview.md",
@@ -1347,6 +1354,7 @@ const rulesGlobalTargets = [
   { target: "kiro-ide", outputPath: join(".kiro", "steering", "product.md") },
   { target: "reasonix", outputPath: join(".reasonix", "REASONIX.md") },
   { target: "zcode", outputPath: join(".zcode", "AGENTS.md") },
+  { target: "bob", outputPath: join(".bob", "AGENTS.md") },
   { target: "pool", outputPath: join(".config", "poolside", "AGENTS.md") },
   { target: "dsh", outputPath: join(".dsh", "AGENTS.md") },
 ] as const;

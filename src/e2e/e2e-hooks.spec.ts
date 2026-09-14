@@ -65,6 +65,7 @@ const hooksGenerateTargets = [
   { target: "antigravity-plugin", outputPath: "hooks.json" },
   { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
+  { target: "bob", outputPath: join(".bob", "settings.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
 ] as const;
@@ -179,6 +180,15 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.SessionStart).toBeDefined();
         expect(parsed.hooks.Stop).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks)).not.toContain("$CLAUDE_PROJECT_DIR");
+      } else if (target === "bob") {
+        // IBM Bob stores Claude-style PascalCase events under the top-level
+        // `hooks` key of .bob/settings.json and emits commands verbatim.
+        expect(parsed.hooks).toBeDefined();
+        expect(parsed.hooks.SessionStart).toBeDefined();
+        expect(parsed.hooks.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
         expect(JSON.stringify(parsed.hooks)).not.toContain("$CLAUDE_PROJECT_DIR");
       } else if (
         target === "antigravity-ide" ||
@@ -688,6 +698,18 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // IBM Bob stores hooks under the top-level `hooks` key of .bob/settings.json
+      // using Claude-style PascalCase event names; SessionStart round-trips to
+      // the canonical `sessionStart` event.
+      target: "bob",
+      sourcePath: join(".bob", "settings.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [{ hooks: [{ type: "command", command: "echo session started" }] }],
+        },
+      },
+    },
+    {
       // deepagents-cli uses the Hooks v2 document (PascalCase HookEvent keys
       // over matcher groups); SessionStart round-trips to canonical `sessionStart`.
       target: "deepagents",
@@ -751,6 +773,7 @@ const hooksGlobalTargets = [
   { target: "antigravity-ide", outputPath: join(".gemini", "config", "hooks.json") },
   { target: "antigravity-cli", outputPath: join(".gemini", "config", "hooks.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
+  { target: "bob", outputPath: join(".bob", "settings", "settings.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },

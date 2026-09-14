@@ -89,6 +89,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Tool                      | rules | ignore | mcp | commands | subagents | skills | hooks | permissions | checks |
 | ------------------------- | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: | :----: |
 | Amp                       |  ✅   |        | ✅  |          |           |   ✅   |  ✅   |     ✅      |   ✅   |
+| IBM Bob                   |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |  ✅   |             |        |
 | Claude Code               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Claude Code plugin        |       |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | CodeBuddy Code            |  ✅   |        |     |          |           |        |       |             |        |

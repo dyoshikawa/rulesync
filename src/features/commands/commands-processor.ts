@@ -38,6 +38,7 @@ import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCliCommand } from "./antigravity-cli-command.js";
 import { AntigravityIdeCommand } from "./antigravity-ide-command.js";
 import { AugmentcodeCommand } from "./augmentcode-command.js";
+import { BobCommand } from "./bob-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClaudecodePluginCommand } from "./claudecode-plugin-command.js";
 import { ClineCommand } from "./cline-command.js";
@@ -228,6 +229,24 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         // The secondary root is `.agents/commands/`, which rulesync writes for
         // `agentsmd` with namespaces flattened.
         matchAdditionalImportsByBasename: true,
+      },
+    },
+  ],
+  [
+    "bob",
+    {
+      class: BobCommand,
+      meta: {
+        // IBM Bob reads Markdown slash commands from `<project>/.bob/commands/`
+        // and `~/.bob/commands/`. Bob is Roo-derived and its docs recommend
+        // grouping related commands in subdirectories, so nested paths are
+        // kept like Roo's.
+        // https://bob.ibm.com/docs/ide/features/slash-commands
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
       },
     },
   ],
