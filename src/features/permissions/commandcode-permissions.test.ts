@@ -122,19 +122,41 @@ describe("CommandcodePermissions", () => {
       });
     });
 
-    it("keeps the pattern of a scoped mcp rule as its specifier instead of widening", async () => {
+    it("keeps the pattern of a scoped mcp rule as its specifier in deny and ask", async () => {
       const permissions = await CommandcodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: createRulesyncPermissions({
-          mcp__github__get_issue: { "owner:foo": "allow", "owner:bar": "deny" },
+          mcp__github__get_issue: { "owner:foo": "ask", "owner:bar": "deny" },
         }),
       });
 
       const json = JSON.parse(permissions.getFileContent());
       expect(json.permissions).toEqual({
-        allow: ["mcp__github__get_issue(owner:foo)"],
+        ask: ["mcp__github__get_issue(owner:foo)"],
         deny: ["mcp__github__get_issue(owner:bar)"],
       });
+    });
+
+    it("drops a scoped mcp allow with a warning instead of allowing the whole tool", async () => {
+      const logger = createMockLogger();
+      const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: createRulesyncPermissions({
+          mcp__github__get_issue: { "owner:foo": "allow", "*": "ask" },
+          mcp__github__list_issues: { "*": "allow" },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.permissions).toEqual({
+        allow: ["mcp__github__list_issues"],
+        ask: ["mcp__github__get_issue"],
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("'mcp__github__get_issue' tool"),
+      );
     });
 
     it("writes the bare * rule for the all-tools category in deny and ask only", async () => {
@@ -321,6 +343,49 @@ describe("CommandcodePermissions", () => {
       });
     });
 
+    it("reclaims mcp__<server> entries written from the bare mcp category on regenerate", async () => {
+      // Run 1 wrote `mcp: { github: "deny" }` as `mcp__github`; flipping it to
+      // allow must remove the stale deny (which would otherwise win), and a
+      // case variant of an emitted rule is rulesync's to replace too.
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            allow: ["mcp__Github__Get_Issue", "mcp__filesystem"],
+            deny: ["mcp__github", "MCP__*"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          mcp: { github: "allow", "*": "ask" },
+          mcp__github__get_issue: { "*": "deny" },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.permissions).toEqual({
+        allow: ["mcp__filesystem", "mcp__github"],
+        ask: ["mcp__*"],
+        deny: ["mcp__github__get_issue"],
+      });
+    });
+
+    it("does not warn for a narrower all-tools deny that landed on Shell", async () => {
+      const logger = createMockLogger();
+      await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: createRulesyncPermissions({
+          "*": { "rm -rf *": "deny" },
+          bash: { "git *": "allow" },
+        }),
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("removes a stale list when the regenerated one is empty", async () => {
       await writeSettings({
         testDir,
@@ -501,6 +566,54 @@ describe("CommandcodePermissions", () => {
       });
     });
 
+    it("skips *() and mcp__*() in allow, which Command Code reads as bare wildcards", async () => {
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            allow: ["*()", "mcp__*()", "Shell()"],
+            deny: ["mcp__*()"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.permission).toEqual({
+        bash: { "*": "allow" },
+        mcp: { "*": "deny" },
+      });
+    });
+
+    it("lowercases MCP__ rule names so they round-trip through generate", async () => {
+      const logger = createMockLogger();
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            deny: ["MCP__*", "MCP__GitHub__Delete_Repo"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      const rulesyncPermissions = permissions.toRulesyncPermissions();
+      expect(rulesyncPermissions.getJson().permission).toEqual({
+        mcp: { "*": "deny" },
+        mcp__github__delete_repo: { "*": "deny" },
+      });
+
+      const regenerated = await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions,
+      });
+      expect(JSON.parse(regenerated.getFileContent()).permissions).toEqual({
+        deny: ["mcp__*", "mcp__github__delete_repo"],
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("drops entries whose pattern is a prototype-pollution key", async () => {
       await writeSettings({
         testDir,
@@ -593,11 +706,28 @@ describe("CommandcodePermissions", () => {
       );
     });
 
+    it("imports a server rule written from the bare mcp category as its own category", async () => {
+      // `mcp: { github: "allow" }` generates `mcp__github`, which has no way
+      // back to the bare category: it imports as the `mcp__github` category.
+      const source = createRulesyncPermissions({ mcp: { github: "allow", "*": "ask" } });
+      const generated = await CommandcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: source,
+      });
+      await writeSettings({ testDir, settings: JSON.parse(generated.getFileContent()) });
+
+      const imported = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      expect(imported.toRulesyncPermissions().getJson().permission).toEqual({
+        mcp: { "*": "ask" },
+        mcp__github: { "*": "allow" },
+      });
+    });
+
     it("round-trips generated rules", async () => {
       const source = createRulesyncPermissions({
         bash: { "git *": "allow", "rm -rf *": "deny" },
         read: { "*": "allow" },
-        mcp__github__get_issue: { "*": "ask", "owner:foo": "allow" },
+        mcp__github__get_issue: { "*": "ask", "owner:foo": "deny" },
         webfetch: { "https://docs.example.com/*": "allow" },
       });
       const generated = await CommandcodePermissions.fromRulesyncPermissions({

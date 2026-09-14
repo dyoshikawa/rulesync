@@ -33,9 +33,14 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-// Command Code documents `matcher` as a regex over the tool name (`shell`,
-// `read`, `write`, `edit`) for the two tool events; Stop and SessionStart
-// fire on every occurrence and carry none.
+// Command Code documents `matcher` as a regex over the tool name for the two
+// tool events; Stop and SessionStart fire on every occurrence and carry none.
+// The names it actually tests (case-insensitively; `*` matches every tool)
+// are its display names — `SHELL`, `READ`, `EDIT`, `WRITE`, `SEARCH` (grep),
+// `GLOB`, `LIST`, `WEB_FETCH`, `WEB_SEARCH`, ... — so a Claude-Code-style
+// `Bash` matcher never fires. The matcher is passed through verbatim like the
+// sibling adapters do; author Command-Code-specific matchers under the
+// `commandcode.hooks` override key.
 // https://commandcode.ai/docs/hooks
 const COMMANDCODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["stop", "sessionStart"]);
 
