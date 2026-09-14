@@ -159,6 +159,7 @@ export class ContinueRule extends ToolRule {
 
   private static generateFileContent(body: string, frontmatter: ContinueRuleFrontmatter): string {
     if (
+      frontmatter.name === undefined &&
       frontmatter.description === undefined &&
       frontmatter.globs === undefined &&
       frontmatter.regex === undefined &&
@@ -167,6 +168,7 @@ export class ContinueRule extends ToolRule {
       return body;
     }
     return stringifyFrontmatter(body, {
+      name: frontmatter.name,
       description: frontmatter.description,
       globs: frontmatter.globs,
       regex: frontmatter.regex,
@@ -182,12 +184,16 @@ export class ContinueRule extends ToolRule {
     relativeDirPath: overrideDirPath,
   }: ToolRuleFromFileParams): Promise<ContinueRule> {
     const paths = this.getSettablePaths({ global });
-    // In global scope the root rule shares the rules directory with the
-    // non-root files, so the basename is what tells them apart on import.
-    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+    // The processor passes the directory it found the file in. In global
+    // scope the root rule shares the rules directory with the non-root files,
+    // so the basename tells them apart; in project scope the directory does,
+    // so that `.continue/rules/AGENTS.md` stays an ordinary rule.
+    const rootDirPath = overrideDirPath ?? paths.root.relativeDirPath;
+    const isRoot =
+      relativeFilePath === paths.root.relativeFilePath &&
+      rootDirPath === paths.root.relativeDirPath;
 
     if (isRoot) {
-      const rootDirPath = overrideDirPath ?? paths.root.relativeDirPath;
       const fileContent = await readFileContent(
         join(outputRoot, rootDirPath, paths.root.relativeFilePath),
       );
@@ -249,15 +255,21 @@ export class ContinueRule extends ToolRule {
   /**
    * Resolves the `globs` to emit. A universal glob is dropped because a rule
    * without `globs` is already always-on in Continue (see `UNIVERSAL_GLOBS`),
-   * and it is also dropped alongside `alwaysApply: true`, which ignores it.
+   * and every glob is dropped alongside `alwaysApply: true`, which forces the
+   * rule on regardless of them.
    */
   private static resolveContinueGlobs({
     continueGlobs,
     parentGlobs,
+    alwaysApply,
   }: {
     continueGlobs: string[] | undefined;
     parentGlobs: string[] | undefined;
+    alwaysApply: boolean | undefined;
   }): string[] | undefined {
+    if (alwaysApply === true) {
+      return undefined;
+    }
     const targetGlobs = continueGlobs ?? parentGlobs;
     if (!targetGlobs || targetGlobs.length === 0) {
       return undefined;
@@ -293,12 +305,15 @@ export class ContinueRule extends ToolRule {
 
     const continueFrontmatter = rulesyncFrontmatter.continue;
     // continue.globs takes precedence over the canonical globs, and the
-    // tool-specific description over the shared one.
+    // tool-specific description over the shared one. `name` (Continue's
+    // display name) only exists in the `continue` block.
     const continueRuleFrontmatter: ContinueRuleFrontmatter = {
+      name: continueFrontmatter?.name,
       description: continueFrontmatter?.description ?? rulesyncFrontmatter.description,
       globs: ContinueRule.resolveContinueGlobs({
         continueGlobs: normalizePatternList(continueFrontmatter?.globs),
         parentGlobs: rulesyncFrontmatter.globs,
+        alwaysApply: continueFrontmatter?.alwaysApply,
       }),
       regex: normalizePatternList(continueFrontmatter?.regex),
       alwaysApply: continueFrontmatter?.alwaysApply,
@@ -346,14 +361,18 @@ export class ContinueRule extends ToolRule {
     const isAlways = this.frontmatter.alwaysApply !== false;
     const globs = sourceGlobs.length === 0 && isAlways ? ["**/*"] : sourceGlobs;
 
+    const { name, alwaysApply } = this.frontmatter;
+    const hasContinueSection =
+      name !== undefined || alwaysApply !== undefined || regex !== undefined;
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
       targets,
       root: false,
       description: this.frontmatter.description,
       globs,
-      ...((this.frontmatter.alwaysApply !== undefined || regex !== undefined) && {
+      ...(hasContinueSection && {
         continue: {
-          alwaysApply: this.frontmatter.alwaysApply,
+          ...(name !== undefined && { name }),
+          alwaysApply,
           regex,
         },
       }),

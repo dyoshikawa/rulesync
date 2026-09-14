@@ -11,13 +11,13 @@ export const CONTINUE_DIR = ".continue";
 
 // Rules. The workspace root `AGENTS.md` is Continue's always-applied
 // instruction file; additional Markdown rules with frontmatter live under
-// `<project>/.continue/rules/` and `~/.continue/rules/`. Continue has no
-// user-scoped root file, so the global root rule is written as an `AGENTS.md`
+// `<project>/.continue/rules/` and `~/.continue/rules/` (the rule adapter
+// builds that directory itself because it also needs the tool-dir-less form).
+// Continue has no user-scoped root file, so the global root rule is written as an `AGENTS.md`
 // inside the global rules directory and told apart from the other rules by its
 // basename (the same convention the Roo Code target uses).
 // @see https://docs.continue.dev/customize/deep-dives/rules
 export const CONTINUE_ROOT_RULE_FILE_NAME = "AGENTS.md";
-export const CONTINUE_RULES_DIR_PATH = join(CONTINUE_DIR, "rules");
 
 // Prompts (slash commands): Markdown files with an `invokable: true`
 // frontmatter under `<project>/.continue/prompts/` and `~/.continue/prompts/`.

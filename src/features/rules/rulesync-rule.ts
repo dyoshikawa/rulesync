@@ -76,6 +76,8 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       description: z.optional(z.string()),
       // Continue accepts a single pattern or a list (takes precedence over globs).
       globs: z.optional(z.union([z.string(), z.array(z.string())])),
+      // Display name shown by Continue; defaults to the file name upstream.
+      name: z.optional(z.string()),
       // Content regex(es): the rule is pulled in when a context file matches.
       regex: z.optional(z.union([z.string(), z.array(z.string())])),
     }),

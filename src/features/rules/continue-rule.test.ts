@@ -208,6 +208,28 @@ describe("ContinueRule", () => {
       expect(frontmatter).toEqual({ alwaysApply: true });
     });
 
+    it("drops every glob next to alwaysApply: true, which forces the rule on", () => {
+      const rule = ContinueRule.fromRulesyncRule({
+        rulesyncRule: buildRulesyncRule({
+          frontmatter: { globs: ["src/**/*.ts"], continue: { alwaysApply: true } },
+        }),
+      });
+
+      const { frontmatter } = parseFrontmatter(rule.getFileContent());
+      expect(frontmatter).toEqual({ alwaysApply: true });
+    });
+
+    it("writes the Continue display name from the continue block", () => {
+      const rule = ContinueRule.fromRulesyncRule({
+        rulesyncRule: buildRulesyncRule({
+          frontmatter: { globs: ["src/**"], continue: { name: "Source rules" } },
+        }),
+      });
+
+      const { frontmatter } = parseFrontmatter(rule.getFileContent());
+      expect(frontmatter).toEqual({ name: "Source rules", globs: ["src/**"] });
+    });
+
     it("ignores empty continue globs and regex", () => {
       const rule = ContinueRule.fromRulesyncRule({
         rulesyncRule: buildRulesyncRule({
@@ -273,6 +295,27 @@ describe("ContinueRule", () => {
       expect(rule.getBody()).toBe("# React");
     });
 
+    it("imports .continue/rules/AGENTS.md as an ordinary rule in project mode", async () => {
+      const rulesDir = join(testDir, ".continue", "rules");
+      await ensureDir(rulesDir);
+      await writeFileContent(
+        join(rulesDir, "AGENTS.md"),
+        '---\nglobs: "agents/**"\n---\n# Agents\n',
+      );
+
+      const rule = await ContinueRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".continue", "rules"),
+        relativeFilePath: "AGENTS.md",
+      });
+
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.getFrontmatter()).toEqual({ globs: "agents/**" });
+      expect(rule.getBody()).toBe("# Agents");
+      // It must not shadow the real root rule on import.
+      expect(rule.toRulesyncRule().getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
     it("rejects a rule whose frontmatter is invalid", async () => {
       const rulesDir = join(testDir, ".continue", "rules");
       await ensureDir(rulesDir);
@@ -336,6 +379,19 @@ describe("ContinueRule", () => {
       const frontmatter = rule.toRulesyncRule().getFrontmatter();
       expect(frontmatter.globs).toEqual(["src/**"]);
       expect(frontmatter.continue).toEqual({ alwaysApply: false, regex: ["foo", "bar"] });
+    });
+
+    it("lifts the Continue display name into the continue block", () => {
+      const rule = new ContinueRule({
+        relativeDirPath: join(".continue", "rules"),
+        relativeFilePath: "topic.md",
+        frontmatter: { name: "Topic rules", globs: "src/**" },
+        body: "# Topic",
+      });
+
+      const frontmatter = rule.toRulesyncRule().getFrontmatter();
+      expect(frontmatter.globs).toEqual(["src/**"]);
+      expect(frontmatter.continue).toEqual({ name: "Topic rules" });
     });
 
     it("does not invent a universal glob for alwaysApply: false without globs", () => {

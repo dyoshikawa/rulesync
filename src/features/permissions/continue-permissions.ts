@@ -8,6 +8,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
@@ -72,12 +73,18 @@ type ContinuePermissionLists = Record<ContinuePermissionListKey, string[]>;
 // https://github.com/continuedev/continue/blob/main/extensions/cli/src/permissions/permissionsYamlLoader.ts
 const CONTINUE_PATTERN_RE = /^([^(]+)(?:\(([^)]*)\))?$/;
 
+// Own-property lookups only: a `constructor` category would otherwise resolve
+// to the `Object` function through the prototype chain.
 function toContinueToolName(canonical: string): string {
-  return CANONICAL_TO_CONTINUE_TOOL_NAMES[canonical] ?? canonical;
+  return Object.hasOwn(CANONICAL_TO_CONTINUE_TOOL_NAMES, canonical)
+    ? (CANONICAL_TO_CONTINUE_TOOL_NAMES[canonical] ?? canonical)
+    : canonical;
 }
 
 function toCanonicalToolName(continueName: string): string {
-  return CONTINUE_TO_CANONICAL_TOOL_NAMES[continueName] ?? continueName;
+  return Object.hasOwn(CONTINUE_TO_CANONICAL_TOOL_NAMES, continueName)
+    ? (CONTINUE_TO_CANONICAL_TOOL_NAMES[continueName] ?? continueName)
+    : continueName;
 }
 
 /**
@@ -318,12 +325,14 @@ function convertRulesyncToContinuePermissions({
   const actionByEntry = new Map<string, PermissionAction>();
 
   for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+    if (isPrototypePollutionKey(category)) continue;
     const toolName =
       category === ALL_TOOLS_PERMISSION_CATEGORY
         ? ALL_TOOLS_PERMISSION_CATEGORY
         : toContinueToolName(category);
 
     for (const [pattern, action] of Object.entries(rules)) {
+      if (isPrototypePollutionKey(pattern)) continue;
       if (pattern.includes("(") || pattern.includes(")")) {
         logger?.warn(
           `Continue permissions.yaml cannot hold a parenthesis inside a pattern, so the ` +
@@ -363,6 +372,15 @@ function convertContinuePermissionsToRulesync(lists: ContinuePermissionLists): P
     for (const entry of lists[key]) {
       const parsedEntry = parseContinuePermissionEntry(entry);
       if (parsedEntry === undefined) {
+        continue;
+      }
+      // A `__proto__(x)` or `constructor` entry would write through to
+      // Object.prototype below, so such entries are dropped (as the other
+      // permissions adapters do).
+      if (
+        isPrototypePollutionKey(parsedEntry.toolName) ||
+        isPrototypePollutionKey(parsedEntry.pattern)
+      ) {
         continue;
       }
       const category = toCanonicalToolName(parsedEntry.toolName);

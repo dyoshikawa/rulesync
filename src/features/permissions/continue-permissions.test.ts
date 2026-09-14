@@ -166,6 +166,25 @@ describe("ContinuePermissions", () => {
       expect(lists.allow).toBeUndefined();
     });
 
+    it("drops prototype-pollution categories and patterns instead of writing them", async () => {
+      const perms = await ContinuePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        // JSON.parse yields own `__proto__` keys (an object literal would
+        // set the prototype instead).
+        rulesyncPermissions: rulesyncPermissions(
+          JSON.parse(
+            '{"constructor":{"*":"allow"},"bash":{"__proto__":"deny","git status *":"allow"}}',
+          ),
+        ),
+        global: true,
+      });
+
+      const lists = listsOf(perms.getFileContent());
+      expect(lists.allow).toEqual(["Bash(git status *)"]);
+      expect(lists.exclude).toBeUndefined();
+      expect(perms.getFileContent()).not.toContain("native code");
+    });
+
     it("passes unknown categories through verbatim as tool names", async () => {
       const perms = await ContinuePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -332,6 +351,25 @@ describe("ContinuePermissions", () => {
 
       const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
       expect(json.permission).toEqual({ read: { "*": "allow" } });
+    });
+
+    it("ignores prototype-pollution entries without touching Object.prototype", () => {
+      const perms = new ContinuePermissions({
+        relativeDirPath: ".continue",
+        relativeFilePath: "permissions.yaml",
+        fileContent: dump({
+          allow: ["__proto__(polluted)", "constructor", "Read"],
+          exclude: ["Bash(constructor)"],
+        }),
+        validate: false,
+        global: true,
+      });
+
+      const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(json.permission).toEqual({ read: { "*": "allow" } });
+      const probe: Record<string, unknown> = {};
+      expect(probe.polluted).toBeUndefined();
+      expect(Object.hasOwn(Object, "*")).toBe(false);
     });
 
     it("returns an empty config for empty content", () => {
