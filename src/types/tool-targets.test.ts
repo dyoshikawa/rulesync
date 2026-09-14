@@ -32,6 +32,7 @@ describe("tool targets", () => {
         "codexcli",
         "copilot",
         "copilotcli",
+        "cortexcode",
         "crush",
         "cursor",
         "deepagents",

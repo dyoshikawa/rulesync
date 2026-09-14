@@ -36,6 +36,7 @@ import { ClineSubagent } from "./cline-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CopilotcliSubagent } from "./copilotcli-subagent.js";
+import { CortexcodeSubagent } from "./cortexcode-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { DeepagentsSubagent } from "./deepagents-subagent.js";
 import { DevinSubagent } from "./devin-subagent.js";
@@ -311,6 +312,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "*.agent.md",
+      },
+    },
+  ],
+  [
+    "cortexcode",
+    {
+      // Snowflake Cortex Code subagents are native Markdown + YAML frontmatter
+      // under `.cortex/agents/` (project) and `~/.snowflake/cortex/agents/` (user).
+      // https://docs.snowflake.com/en/user-guide/cortex-code/extensibility
+      class: CortexcodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
       },
     },
   ],

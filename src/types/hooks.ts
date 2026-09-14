@@ -1042,6 +1042,50 @@ export const TABNINE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.f
 );
 
 /**
+ * Hook events supported by Snowflake Cortex Code.
+ *
+ * Cortex Code reads `hooks` from `.cortex/settings.json` (project) and
+ * `~/.snowflake/cortex/hooks.json` (user) in the Claude-Code-shaped layout:
+ * PascalCase event names, a regex `matcher` over the tool name, and `command`
+ * or `prompt` hooks with a `timeout` in seconds and an optional `enabled`
+ * flag. `$CORTEX_PROJECT_DIR` resolves to the project root inside commands.
+ *
+ * @see https://docs.snowflake.com/en/user-guide/cortex-code/extensibility
+ * @see https://docs.snowflake.com/en/user-guide/cortex-code/settings
+ */
+export const CORTEXCODE_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "permissionRequest",
+  "beforeSubmitPrompt",
+  "sessionStart",
+  "sessionEnd",
+  "preCompact",
+  "stop",
+  "subagentStop",
+  "notification",
+  "setup",
+];
+
+export const CANONICAL_TO_CORTEXCODE_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  permissionRequest: "PermissionRequest",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  preCompact: "PreCompact",
+  stop: "Stop",
+  subagentStop: "SubagentStop",
+  notification: "Notification",
+  setup: "Setup",
+};
+
+export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_CORTEXCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
  * Hermes validates hook events against a fixed `VALID_HOOKS` set — 37 entries as
@@ -1214,6 +1258,7 @@ export const HooksConfigSchema = z.looseObject({
   "kimi-code": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  cortexcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   tabnine: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
     z.looseObject({

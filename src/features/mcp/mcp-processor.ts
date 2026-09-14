@@ -21,6 +21,7 @@ import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
+import { CortexcodeMcp } from "./cortexcode-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
 import { DevinMcp } from "./devin-mcp.js";
@@ -290,6 +291,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         // Emitted as the documented per-server `tools` allowlist. There is no
         // `disabledTools` counterpart upstream.
         supportsEnabledTools: true,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "cortexcode",
+    {
+      // Cortex Code reads MCP servers only from the single GLOBAL file
+      // `~/.snowflake/cortex/mcp.json`; no project-scoped MCP location is
+      // documented.
+      // https://docs.snowflake.com/en/user-guide/cortex-code/extensibility#mcp-configuration
+      class: CortexcodeMcp,
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
         supportsDisabledTools: false,
       },
     },

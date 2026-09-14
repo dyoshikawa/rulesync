@@ -111,6 +111,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   reasonix: z.optional(toolScopedMcpSchema),
   roo: z.optional(toolScopedMcpSchema),
   rovodev: z.optional(toolScopedMcpSchema),
+  cortexcode: z.optional(toolScopedMcpSchema),
   tabnine: z.optional(toolScopedMcpSchema),
   takt: z.optional(toolScopedMcpSchema),
   vibe: z.optional(toolScopedMcpSchema),

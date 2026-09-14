@@ -44,6 +44,7 @@ import { ClineSkill } from "./cline-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
 import { CopilotSkill } from "./copilot-skill.js";
 import { CopilotcliSkill } from "./copilotcli-skill.js";
+import { CortexcodeSkill } from "./cortexcode-skill.js";
 import { CrushSkill } from "./crush-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
 import { DeepagentsSkill } from "./deepagents-skill.js";
@@ -354,6 +355,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // Copilot CLI reads project skills from `.github/skills/` and personal
       // skills from `~/.copilot/skills/`, so it supports both project and global.
       class: CopilotcliSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "cortexcode",
+    {
+      // Snowflake Cortex Code skills are Anthropic-style Agent Skills
+      // directories (<name>/SKILL.md) under .cortex/skills/ (project) and
+      // ~/.snowflake/cortex/skills/ (user).
+      // https://docs.snowflake.com/en/user-guide/cortex-code/extensibility
+      class: CortexcodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

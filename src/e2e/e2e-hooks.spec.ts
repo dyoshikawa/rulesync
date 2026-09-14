@@ -60,6 +60,11 @@ const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string 
   // .tabnine/agent/settings.json: `stop` → `AfterAgent`; hook timeouts are
   // written in milliseconds.
   tabnine: { sessionStart: "SessionStart", stop: "AfterAgent" },
+  // Snowflake Cortex Code stores Claude-style PascalCase events under the
+  // `hooks` key of .cortex/settings.json (project) and
+  // ~/.snowflake/cortex/hooks.json (global); commands are anchored with
+  // $CORTEX_PROJECT_DIR only when they start with `./`.
+  cortexcode: { sessionStart: "SessionStart", stop: "Stop" },
 };
 
 function assertHooksKeyedEvents({
@@ -113,6 +118,7 @@ const hooksGenerateTargets = [
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "bob", outputPath: join(".bob", "settings.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
+  { target: "cortexcode", outputPath: join(".cortex", "settings.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
 ] as const;
@@ -731,6 +737,20 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // Snowflake Cortex Code stores hooks under the `hooks` key of
+      // .cortex/settings.json using PascalCase event names; SessionStart
+      // round-trips to the canonical `sessionStart` event.
+      target: "cortexcode",
+      sourcePath: join(".cortex", "settings.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: "command", command: "echo session started", timeout: 30 }] },
+          ],
+        },
+      },
+    },
+    {
       // deepagents-cli uses the Hooks v2 document (PascalCase HookEvent keys
       // over matcher groups); SessionStart round-trips to canonical `sessionStart`.
       target: "deepagents",
@@ -796,6 +816,7 @@ const hooksGlobalTargets = [
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "bob", outputPath: join(".bob", "settings", "settings.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
+  { target: "cortexcode", outputPath: join(".snowflake", "cortex", "hooks.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },

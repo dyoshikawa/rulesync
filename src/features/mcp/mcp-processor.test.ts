@@ -1240,6 +1240,7 @@ describe("McpProcessor", () => {
       // cline MCP is global-only (no project-scoped MCP), so it is NOT a
       // project-mode target.
       expect(targets).not.toContain("cline");
+      expect(targets).not.toContain("cortexcode"); // cortexcode MCP is global-only too
       expect(targets).toContain("copilot");
       expect(targets).toContain("copilotcli");
       expect(targets).toContain("cursor");
@@ -1259,6 +1260,7 @@ describe("McpProcessor", () => {
       expect(globalTargets).toContain("kilo");
       expect(globalTargets).toContain("opencode"); // sanity: parity with opencode
       expect(globalTargets).toContain("cline"); // cline MCP is global-only
+      expect(globalTargets).toContain("cortexcode"); // ~/.snowflake/cortex/mcp.json
       expect(globalTargets).toContain("vibe");
       expect(globalTargets).toContain("bob"); // ~/.bob/mcp.json
       expect(globalTargets).toContain("tabnine"); // ~/.tabnine/agent/settings.json
