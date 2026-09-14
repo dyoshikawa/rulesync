@@ -21,6 +21,7 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { type TrustAffectingEntry, warnOnTrustAffectingEntries } from "./sandbox-trust.js";
 import {
   collectShellCommandRules,
   createShadowingRestrictionsTest,
@@ -47,6 +48,26 @@ const GENERAL_KEY = "general";
 
 /** The Tabnine CLI built-in that runs shell commands. */
 const SHELL_TOOL_NAME = "run_shell_command";
+
+/**
+ * Paths under `tabnine.tools` whose value Tabnine CLI spawns as a command
+ * (`discoveryCommand` and `callCommand` at startup, `shell.pager` on every
+ * shell output). A fetched `.rulesync/permissions.jsonc` must not be able to
+ * point Tabnine CLI at an executable of its choosing, so these are refused with
+ * a warning rather than written — the line Claude Code's sandbox paths draw.
+ * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/settings/settings-reference
+ */
+const COMMAND_EXECUTING_TOOLS_PATHS: readonly (readonly string[])[] = [
+  ["discoveryCommand"],
+  ["callCommand"],
+  ["shell", "pager"],
+];
+
+/** `tools.sandbox`: `true` keeps tool calls contained; anything else disables or picks the sandbox. */
+const SANDBOX_KEY = "sandbox";
+/** `general.defaultApprovalMode`: the modes that still ask before a tool call runs. */
+const DEFAULT_APPROVAL_MODE_KEY = "defaultApprovalMode";
+const PROMPTING_APPROVAL_MODES: ReadonlySet<unknown> = new Set(["default", "plan"]);
 
 /**
  * Canonical categories with a one-to-one Tabnine CLI built-in tool. `bash` is
@@ -142,6 +163,129 @@ function parseTabnineEntry(entry: string): ParsedTabnineEntry | undefined {
     return undefined;
   }
   return { toolName: entry.slice(0, open), prefix: entry.slice(open + 1, -1) };
+}
+
+/**
+ * `record` without the value at `path`, when there is one. Containers on the
+ * way are copied, never mutated, so the override the caller read stays intact.
+ */
+function omitPath({ record, path }: { record: Record<string, unknown>; path: readonly string[] }): {
+  record: Record<string, unknown>;
+  removed: boolean;
+} {
+  const [head, ...rest] = path;
+  if (head === undefined || !Object.hasOwn(record, head)) {
+    return { record, removed: false };
+  }
+  if (rest.length === 0) {
+    const { [head]: _removed, ...others } = record;
+    return { record: others, removed: true };
+  }
+  const child = record[head];
+  if (!isRecord(child)) {
+    return { record, removed: false };
+  }
+  const inner = omitPath({ record: child, path: rest });
+  return inner.removed
+    ? { record: { ...record, [head]: inner.record }, removed: true }
+    : { record, removed: false };
+}
+
+/**
+ * The `tabnine.tools` group with every command-executing path removed, and the
+ * dotted names of the paths that were there. Nothing else of the group is
+ * touched: the rest is written verbatim (and announced where it widens trust).
+ */
+function stripCommandExecutingPaths(tools: Record<string, unknown>): {
+  tools: Record<string, unknown>;
+  refused: string[];
+} {
+  const refused: string[] = [];
+  let stripped = tools;
+  for (const path of COMMAND_EXECUTING_TOOLS_PATHS) {
+    const result = omitPath({ record: stripped, path });
+    if (result.removed) {
+      refused.push(`tools.${path.join(".")}`);
+      stripped = result.record;
+    }
+  }
+  return { tools: stripped, refused };
+}
+
+/**
+ * The settings of a `tabnine` override that widen what Tabnine CLI does without
+ * asking, so the generate can name them. `tools.allowed` counts because an
+ * override-authored entry skips the confirmation prompt without going through
+ * the deny/ask comparison the canonical rules go through; `tools.sandbox` and
+ * `general.defaultApprovalMode` decide whether tool calls are contained and
+ * whether they are confirmed at all. Called on the override, not the file, so a
+ * value the file already held is not reported as something rulesync opened.
+ */
+function collectTrustAffectingOverrideEntries({
+  tools,
+  general,
+}: {
+  tools: Record<string, unknown>;
+  general: Record<string, unknown> | undefined;
+}): TrustAffectingEntry[] {
+  const entries: TrustAffectingEntry[] = [];
+  const allowed = isStringArray(tools[ALLOWED_KEY]) ? tools[ALLOWED_KEY] : [];
+  if (allowed.length > 0) {
+    entries.push({
+      label: `tools.allowed (${allowed.map(quoteValueForWarning).join(", ")})`,
+      reason:
+        "auto-approves what it names as the override spells it, outside the deny/ask comparison the canonical rules go through",
+    });
+  }
+  if (Object.hasOwn(tools, SANDBOX_KEY) && tools[SANDBOX_KEY] !== true) {
+    entries.push({
+      label: `tools.sandbox = ${quoteValueForWarning(tools[SANDBOX_KEY])}`,
+      reason:
+        "is not the plain `true` that keeps tool calls contained, so it either disables the sandbox or picks the command, image, paths and network that contain them",
+    });
+  }
+  const approvalMode = general?.[DEFAULT_APPROVAL_MODE_KEY];
+  if (
+    general !== undefined &&
+    Object.hasOwn(general, DEFAULT_APPROVAL_MODE_KEY) &&
+    !PROMPTING_APPROVAL_MODES.has(approvalMode)
+  ) {
+    entries.push({
+      label: `general.defaultApprovalMode = ${quoteValueForWarning(approvalMode)}`,
+      reason:
+        "auto-approves tool calls instead of asking; only `default` and `plan` keep the prompt",
+    });
+  }
+  return entries;
+}
+
+/**
+ * What a later generate will refuse or announce from the override an import
+ * builds, said now, so the file the import writes into `.rulesync/` is read
+ * with the same eyes as one that arrived with a clone.
+ */
+function announceLiftedOverride({
+  tools,
+  general,
+}: {
+  tools: Record<string, unknown>;
+  general: Record<string, unknown> | undefined;
+}): void {
+  const { refused } = stripCommandExecutingPaths(tools);
+  if (refused.length > 0) {
+    moduleLogger.warn(
+      `Tabnine CLI permissions: kept ${refused.join(", ")} in the tabnine override; Tabnine CLI ` +
+        `spawns that value as a command, so 'rulesync generate' will not write it back — set it by hand.`,
+    );
+  }
+  const trustAffecting = collectTrustAffectingOverrideEntries({ tools, general });
+  if (trustAffecting.length > 0) {
+    moduleLogger.warn(
+      `Tabnine CLI permissions: the tabnine override now carries ${trustAffecting.length} ` +
+        `trust-affecting setting(s) that 'rulesync generate' writes back as authored: ` +
+        `${trustAffecting.map(({ label, reason }) => `'${label}' — ${reason}`).join("; ")}.`,
+    );
+  }
 }
 
 type TabnineToolLists = {
@@ -364,7 +508,19 @@ export class TabninePermissions extends ToolPermissions {
 
     const config = rulesyncPermissions.getJson();
     const override = isRecord(config.tabnine) ? config.tabnine : {};
-    const overrideTools = isRecord(override[TOOLS_KEY]) ? override[TOOLS_KEY] : {};
+    const { tools: overrideTools, refused: refusedToolsPaths } = stripCommandExecutingPaths(
+      isRecord(override[TOOLS_KEY]) ? override[TOOLS_KEY] : {},
+    );
+    if (refusedToolsPaths.length > 0) {
+      warnWithFallback(
+        logger,
+        `Tabnine CLI permissions: refused to write ${refusedToolsPaths.join(", ")} from the tabnine ` +
+          `override; Tabnine CLI spawns that value as a command, and a permissions file (one ` +
+          `that came from 'rulesync fetch' included) must not be able to point it at an ` +
+          `executable of its choosing. Set it by hand in ${join(paths.relativeDirPath, paths.relativeFilePath)} if you need it.`,
+      );
+    }
+    const overrideGeneral = isRecord(override[GENERAL_KEY]) ? override[GENERAL_KEY] : undefined;
     const { allowed, exclude } = buildToolLists({ permission: config.permission, logger });
 
     // The override may only author the `tools` and `general` groups. Any other
@@ -448,13 +604,24 @@ export class TabninePermissions extends ToolPermissions {
       [EXCLUDE_KEY]: excludeList.length > 0 ? excludeList : undefined,
     };
     const patch: Record<string, unknown> = {};
-    if (isRecord(override[GENERAL_KEY])) {
-      patch[GENERAL_KEY] = override[GENERAL_KEY];
+    if (overrideGeneral !== undefined) {
+      patch[GENERAL_KEY] = overrideGeneral;
     }
     const hasToolsToWrite = Object.values(tools).some((value) => value !== undefined);
     if (hasToolsToWrite || existingTools !== undefined) {
       patch[TOOLS_KEY] = tools;
     }
+    // The rest of the override is written as authored, but not silently: the
+    // settings that widen what Tabnine CLI does unattended are named once.
+    warnOnTrustAffectingEntries({
+      toolLabel: "Tabnine CLI",
+      entries: collectTrustAffectingOverrideEntries({
+        tools: overrideTools,
+        general: overrideGeneral,
+      }),
+      relativeFilePath: join(paths.relativeDirPath, paths.relativeFilePath),
+      logger,
+    });
 
     return new TabninePermissions({
       outputRoot,
@@ -557,9 +724,11 @@ export class TabninePermissions extends ToolPermissions {
     if (Object.keys(overrideTools).length > 0) {
       override[TOOLS_KEY] = overrideTools;
     }
-    if (isRecord(settings[GENERAL_KEY])) {
-      override[GENERAL_KEY] = settings[GENERAL_KEY];
+    const general = isRecord(settings[GENERAL_KEY]) ? settings[GENERAL_KEY] : undefined;
+    if (general !== undefined) {
+      override[GENERAL_KEY] = general;
     }
+    announceLiftedOverride({ tools: overrideTools, general });
 
     const imported: Record<string, unknown> = { permission };
     if (Object.keys(override).length > 0) {
