@@ -6,6 +6,7 @@ import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { WarningCollectingLogger, withFallbackLoggerTarget } from "../../utils/logger.js";
+import { AgentsMdRule } from "./agentsmd-rule.js";
 import {
   AUTO_SUBPROJECT_PATH,
   RulesyncRule,
@@ -59,6 +60,40 @@ describe("RulesyncRule", () => {
       expect(rule.getFrontmatter()).toEqual(frontmatter);
       expect(rule.getBody()).toBe("This is a test rule body");
     });
+
+    it("should preserve a valid nested subproject path", () => {
+      const rule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: "rules",
+        relativeFilePath: "nested.md",
+        frontmatter: { agentsmd: { subprojectPath: "packages/api" } },
+        body: "Nested rule",
+      });
+
+      expect(rule.getFrontmatter().agentsmd?.subprojectPath).toBe("packages/api");
+
+      const generatedRule = AgentsMdRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: rule,
+      });
+      expect(generatedRule.getFilePath()).toBe(join(testDir, "packages/api", "AGENTS.md"));
+    });
+
+    it.each(["../outside", "packages/../../outside", "/tmp/outside"])(
+      "should reject a subproject path that escapes the output root: %s",
+      (subprojectPath) => {
+        expect(
+          () =>
+            new RulesyncRule({
+              outputRoot: testDir,
+              relativeDirPath: "rules",
+              relativeFilePath: "unsafe.md",
+              frontmatter: { agentsmd: { subprojectPath } },
+              body: "Unsafe rule",
+            }),
+        ).toThrow("generated rule path must stay inside the configured output root");
+      },
+    );
 
     it("should validate frontmatter by default", () => {
       const invalidFrontmatter = {

@@ -121,6 +121,8 @@ Example:
 }
 ```
 
+Output roots and generated rule paths are resolved before writing. A generated path must remain inside its selected output root; paths such as `../outside` are rejected with a configuration error.
+
 ## Per-Target Features
 
 The `targets` option accepts both an array and an object format. Use the
