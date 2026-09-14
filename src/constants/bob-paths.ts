@@ -12,8 +12,10 @@ export const BOB_DIR = ".bob";
 // with the workspace overriding the user scope. Rule files are plain Markdown
 // with no frontmatter. The mode-specific `.bob/rules-{mode}/` directories and
 // the legacy `.bobrules-{mode}` files are not emitted: rulesync has no notion
-// of Bob's modes.
+// of Bob's modes. The user-scoped `~/.bob/AGENTS.md` is documented on the
+// Bob Shell configuration page rather than the IDE rules page.
 // @see https://bob.ibm.com/docs/ide/configuration/rules
+// @see https://bob.ibm.com/docs/shell/configuration/configuring
 export const BOB_RULE_FILE_NAME = "AGENTS.md";
 export const BOB_RULES_DIR_PATH = join(BOB_DIR, "rules");
 

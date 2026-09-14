@@ -64,6 +64,18 @@ describe("BobMcp", () => {
       expect(bobMcp.getFileContent()).toBe(content);
     });
 
+    it("should throw when the JSON root is not an object", () => {
+      for (const fileContent of ["null", "[]", '"text"']) {
+        expect(() => {
+          return new BobMcp({
+            relativeDirPath: ".bob",
+            relativeFilePath: "mcp.json",
+            fileContent,
+          });
+        }).toThrow(/expected a JSON object at the root/);
+      }
+    });
+
     it("should throw on invalid JSON", () => {
       expect(() => {
         return new BobMcp({
@@ -145,6 +157,19 @@ describe("BobMcp", () => {
           bare: { type: "streamable-http", url: "https://example.com/bare" },
           alias: { type: "streamable-http", url: "https://example.com/alias" },
         },
+      });
+    });
+
+    it("should drop an explicit stdio type key, which Bob does not use", async () => {
+      const rulesyncMcp = buildRulesyncMcp({
+        git: { type: "stdio", command: "git-mcp", args: ["x"] },
+      });
+
+      const bobMcp = await BobMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      expect(JSON.parse(bobMcp.getFileContent()).mcpServers.git).toEqual({
+        command: "git-mcp",
+        args: ["x"],
       });
     });
 

@@ -238,13 +238,15 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
       class: BobCommand,
       meta: {
         // IBM Bob reads Markdown slash commands from `<project>/.bob/commands/`
-        // and `~/.bob/commands/`; nested directories are not documented.
+        // and `~/.bob/commands/`. Bob is Roo-derived and its docs recommend
+        // grouping related commands in subdirectories, so nested paths are
+        // kept like Roo's.
         // https://bob.ibm.com/docs/ide/features/slash-commands
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,
         isSimulated: false,
-        supportsSubdirectory: false,
+        supportsSubdirectory: true,
       },
     },
   ],

@@ -36,6 +36,7 @@ export type BobRuleSettablePaths = ToolRuleSettablePaths & {
  * Bob's modes, and a rule that should apply everywhere belongs in `.bob/rules/`.
  *
  * @see https://bob.ibm.com/docs/ide/configuration/rules
+ * @see https://bob.ibm.com/docs/shell/configuration/configuring (user-scoped `~/.bob/AGENTS.md`)
  */
 export class BobRule extends ToolRule {
   static getSettablePaths({

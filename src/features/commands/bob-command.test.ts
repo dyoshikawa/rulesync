@@ -208,6 +208,21 @@ describe("BobCommand", () => {
       expect(command.getBody()).toBe("Deploy to $ARGUMENTS.");
     });
 
+    it("should keep a nested path, which Bob groups into a subdirectory", async () => {
+      await writeFileContent(
+        join(testDir, commandsDir, "release", "tag.md"),
+        `---\ndescription: Tag a release\n---\n\nTag it.\n`,
+      );
+
+      const command = await BobCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "release/tag.md",
+      });
+
+      expect(command.getRelativeFilePath()).toBe("release/tag.md");
+      expect(command.getBody()).toBe("Tag it.");
+    });
+
     it("should throw for frontmatter that does not match the schema", async () => {
       await writeFileContent(
         join(testDir, commandsDir, "broken.md"),

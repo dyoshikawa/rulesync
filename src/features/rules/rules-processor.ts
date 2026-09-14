@@ -451,6 +451,22 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "bob",
+    {
+      class: BobRule,
+      meta: {
+        // IBM Bob reads a root `AGENTS.md` (project) / `~/.bob/AGENTS.md`
+        // (global) plus non-root `.bob/rules/*.md` files that are loaded
+        // automatically (recursively, in alphabetical order) as plain
+        // Markdown without frontmatter, so no reference section is needed.
+        // https://bob.ibm.com/docs/ide/configuration/rules
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
     "claudecode",
     {
       class: ClaudecodeRule,
@@ -484,22 +500,6 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // Project scope writes `.clinerules/*.md`; global scope writes the
         // cross-tool `~/.agents/AGENTS.md` root (Cline CLI v3.0.15+) plus
         // non-root modular rules under `~/Documents/Cline/Rules/`.
-        extension: "md",
-        supportsGlobal: true,
-        ruleDiscoveryMode: "auto",
-      },
-    },
-  ],
-  [
-    "bob",
-    {
-      class: BobRule,
-      meta: {
-        // IBM Bob reads a root `AGENTS.md` (project) / `~/.bob/AGENTS.md`
-        // (global) plus non-root `.bob/rules/*.md` files that are loaded
-        // automatically (recursively, in alphabetical order) as plain
-        // Markdown without frontmatter, so no reference section is needed.
-        // https://bob.ibm.com/docs/ide/configuration/rules
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",

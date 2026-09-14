@@ -7,7 +7,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
@@ -26,6 +26,34 @@ import {
 } from "./tool-mcp.js";
 
 type BobMcpServers = Record<string, Record<string, unknown>>;
+
+/**
+ * Parse a Bob MCP file, failing closed on malformed JSON or a non-object root
+ * (`null`, an array, a scalar) rather than spreading whatever came back into
+ * the regenerated file.
+ */
+function parseBobMcpConfig({
+  fileContent,
+  relativePath,
+}: {
+  fileContent: string;
+  relativePath: string;
+}): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fileContent);
+  } catch (error) {
+    throw new Error(`Failed to parse Bob MCP config at ${relativePath}: ${formatError(error)}`, {
+      cause: error,
+    });
+  }
+  if (!isPlainObject(parsed)) {
+    throw new Error(
+      `Failed to parse Bob MCP config at ${relativePath}: expected a JSON object at the root`,
+    );
+  }
+  return parsed;
+}
 
 /** The `type` Bob IDE writes for a streamable HTTP server. */
 const BOB_STREAMABLE_HTTP_TYPE = "streamable-http";
@@ -206,18 +234,13 @@ export class BobMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    if (this.fileContent !== undefined) {
-      try {
-        this.json = JSON.parse(this.fileContent);
-      } catch (error) {
-        throw new Error(
-          `Failed to parse Bob MCP config at ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(error)}`,
-          { cause: error },
-        );
-      }
-    } else {
-      this.json = {};
-    }
+    this.json =
+      this.fileContent === undefined
+        ? {}
+        : parseBobMcpConfig({
+            fileContent: this.fileContent,
+            relativePath: join(this.relativeDirPath, this.relativeFilePath),
+          });
   }
 
   getJson(): Record<string, unknown> {
@@ -243,15 +266,10 @@ export class BobMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(fileContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Bob MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const json = parseBobMcpConfig({
+      fileContent,
+      relativePath: join(paths.relativeDirPath, paths.relativeFilePath),
+    });
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new BobMcp({
@@ -278,15 +296,10 @@ export class BobMcp extends ToolMcp {
     // is regenerated.
     const fileContent =
       (await readFileContentOrNull(filePath)) ?? JSON.stringify({ mcpServers: {} }, null, 2);
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(fileContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Bob MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const json = parseBobMcpConfig({
+      fileContent,
+      relativePath: join(paths.relativeDirPath, paths.relativeFilePath),
+    });
 
     // Use getMcpServers() (not getJson()) so rulesync-only fields are
     // stripped before writing the Bob config.

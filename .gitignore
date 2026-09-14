@@ -289,11 +289,11 @@ rulesync.local.jsonc
 **/.aiassistant/rules/
 **/.agents/rules/
 **/.augment/rules/
+**/.bob/rules/
 **/CLAUDE.md
 **/.claude/CLAUDE.md
 **/.claude/rules/
 **/.clinerules/
-**/.bob/rules/
 **/CODEBUDDY.md
 **/.codebuddy/CODEBUDDY.md
 **/.codebuddy/rules/
