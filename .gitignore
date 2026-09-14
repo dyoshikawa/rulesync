@@ -358,6 +358,7 @@ rulesync.local.jsonc
 **/.claude/skills/
 **/.cline/skills/
 **/.github/skills/
+**/.cortex/skills/
 **/.crush/skills/
 **/.cursor/skills/
 **/.deepagents/skills/
@@ -387,6 +388,7 @@ rulesync.local.jsonc
 **/.cline/agents/
 **/.codex/agents/
 **/.github/agents/
+**/.cortex/agents/
 **/.cursor/agents/
 **/.deepagents/agents/
 **/.devin/agents/

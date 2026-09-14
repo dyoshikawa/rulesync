@@ -58,6 +58,7 @@ const rulesRootTargets = [
   { target: "zcode", outputPath: "AGENTS.md" },
   { target: "bob", outputPath: "AGENTS.md" },
   { target: "tabnine", outputPath: "TABNINE.md" },
+  { target: "cortexcode", outputPath: "AGENTS.md" },
   { target: "pool", outputPath: "AGENTS.md" },
   { target: "dsh", outputPath: "AGENTS.md" },
 ] as const;
@@ -1220,6 +1221,7 @@ describe("E2E: rules (import)", () => {
     { target: "replit", sourcePath: "replit.md", importedFileName: "overview.md" },
     { target: "pi", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "pool", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "cortexcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "dsh", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "vibe", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {

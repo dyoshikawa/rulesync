@@ -116,6 +116,10 @@ describe("registry derivation", () => {
       // writes `.bob/settings.json` instead), so project derivation never
       // yields it.
       "**/.bob/settings/settings.json",
+      // Snowflake Cortex Code user hooks: emitted in GLOBAL scope only (project
+      // scope writes `.cortex/settings.json` instead), so project derivation
+      // never yields it.
+      "**/.snowflake/cortex/hooks.json",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(

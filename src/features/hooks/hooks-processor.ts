@@ -14,6 +14,7 @@ import {
   CODEXCLI_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
   COPILOTCLI_HOOK_EVENTS,
+  CORTEXCODE_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
   DEVIN_HOOK_EVENTS,
@@ -56,6 +57,7 @@ import { ClineHooks } from "./cline-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
+import { CortexcodeHooks } from "./cortexcode-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { DevinHooks } from "./devin-hooks.js";
@@ -660,6 +662,37 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command"],
       supportsMatcher: true,
       matcherEvents: ["preToolUse", "postToolUse"],
+    },
+  ],
+  [
+    "cortexcode",
+    {
+      class: CortexcodeHooks,
+      meta: {
+        // Snowflake Cortex Code hooks live under the top-level `hooks` key of
+        // `.cortex/settings.json` (project) and of the dedicated
+        // `~/.snowflake/cortex/hooks.json` (global), in the Claude-Code shape
+        // with command and prompt hooks. `matcher` is a regex over the tool
+        // name; UserPromptSubmit and Stop fire unconditionally.
+        // https://docs.snowflake.com/en/user-guide/cortex-code/extensibility
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: CORTEXCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
+      matcherEvents: [
+        "preToolUse",
+        "postToolUse",
+        "permissionRequest",
+        "sessionStart",
+        "sessionEnd",
+        "preCompact",
+        "subagentStop",
+        "notification",
+        "setup",
+      ],
     },
   ],
   [

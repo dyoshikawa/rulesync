@@ -32,6 +32,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Rovodev (Atlassian)       | rovodev            | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    |   ✅   |
 | Takt                      | takt               | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    | ✅ 🌏  |
 | Tabnine CLI               | tabnine            | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Snowflake Cortex Code     | cortexcode         |  ✅   |        |    🌏    |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
 | Vibe Code                 | vibe               | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Qwen Code                 | qwencode           | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Meta Muse Code            | musecode           |  ✅   |        |    🌏    |          |           | ✅ 🌏  |       |             |        |

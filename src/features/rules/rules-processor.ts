@@ -65,6 +65,7 @@ import { CodebuddyRule } from "./codebuddy-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CopilotcliRule } from "./copilotcli-rule.js";
+import { CortexcodeRule } from "./cortexcode-rule.js";
 import { CrushRule } from "./crush-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { DeepagentsRule } from "./deepagents-rule.js";
@@ -559,6 +560,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
+    "cortexcode",
+    {
+      class: CortexcodeRule,
+      meta: {
+        // Cortex Code CLI documents only the project-root AGENTS.md; it has
+        // no modular rules directory and no user-scoped rule file, so topic
+        // rules fold into the root file (mirrors codexcli) and the target is
+        // project-only.
+        // https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],

@@ -38,6 +38,11 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   // is the user's own preference file the CLI writes into.
   ".copilot/settings.json",
   ".github/copilot/settings.json",
+  // Snowflake Cortex Code: the project settings file carries the user's own
+  // Cortex settings beside the `hooks` block; the user hooks file lives in the
+  // CLI-owned `~/.snowflake/cortex/` tree.
+  ".cortex/settings.json",
+  ".snowflake/cortex/hooks.json",
   ".devin/config.json",
   ".factory/settings.json",
   ".grok/config.toml",
