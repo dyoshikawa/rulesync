@@ -2951,6 +2951,8 @@ describe("KiloMcp toggle entries", () => {
         mcpServers: {
           headless: { type: "stdio", enabledTools: ["a"] },
           noUrl: { type: "http" },
+          // `args[0]` must not become element 0 of Kilo's `command` array.
+          argsOnly: { type: "stdio", args: ["-y", "git-mcp"] },
           fine: { command: "npx" },
         },
       }),
@@ -2969,6 +2971,7 @@ describe("KiloMcp toggle entries", () => {
     expect(written.tools).toEqual({ headless_a: true });
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "headless"'));
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "noUrl"'));
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "argsOnly"'));
   });
   it("keeps the comments of an existing kilo.jsonc when regenerating", async () => {
     const commented = [

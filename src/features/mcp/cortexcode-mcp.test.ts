@@ -177,7 +177,7 @@ describe("CortexcodeMcp", () => {
         ws: { url: "wss://example.com/socket" },
         wsTyped: { type: "ws", url: "wss://example.com/socket" },
         noCommand: { type: "stdio" },
-        argsOnly: { args: ["-y", "git-mcp"] },
+        argsOnly: { type: "stdio", args: ["-y", "git-mcp"] },
         ok: { command: "git-mcp" },
       });
 
@@ -191,6 +191,13 @@ describe("CortexcodeMcp", () => {
       for (const name of ["none", "noUrl", "ws", "wsTyped", "noCommand", "argsOnly"]) {
         expect(warnings.some((message) => message.includes(`"${name}"`))).toBe(true);
       }
+      // `argsOnly` names a transport, so it must be refused for lacking a
+      // command rather than folded into the "no transport" path.
+      expect(warnings).toContainEqual(
+        expect.stringContaining(
+          'skipping "argsOnly" because it declares a stdio transport without a command',
+        ),
+      );
     });
 
     it("should ignore prototype-pollution keys on generate", async () => {

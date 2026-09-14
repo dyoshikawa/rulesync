@@ -691,6 +691,25 @@ describe("CopilotcliMcp", () => {
       );
     });
 
+    it("should skip a local server that carries only args instead of promoting args[0]", async () => {
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { "args-only": { type: "local", args: ["-y", "git-mcp"] } },
+        }),
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        rulesyncMcp,
+        logger: mockLogger,
+      });
+
+      expect(copilotCliMcp.getJson().mcpServers).toEqual({});
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "args-only"'));
+    });
+
     it("should preserve existing non-stdio type when converting", async () => {
       const inputMcpServers = {
         "typed-server": {

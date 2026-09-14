@@ -14,7 +14,7 @@ import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
-  splitLocalMcpCommand,
+  resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
@@ -156,7 +156,7 @@ function convertToBobFormat(mcpServers: McpServers, logger?: Logger): BobMcpServ
       }
       converted.url = url;
     } else {
-      const [command, ...args] = splitLocalMcpCommand(serverConfig);
+      const [command, ...args] = resolveLocalMcpCommand(serverConfig);
       if (!command) {
         warnAndSkipMcpServer({
           toolName: "Bob",

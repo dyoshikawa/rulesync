@@ -47,34 +47,23 @@ export function resolveRemoteMcpUrl(serverConfig: McpServerConfig): string | und
   return serverConfig.url || serverConfig.httpUrl || undefined;
 }
 
-/** The `command` array a `local` server is spawned with, `args` merged in. */
+/**
+ * The `command` array a `local` server is spawned with, `args` merged in. An
+ * entry carrying `args` but no `command` comes back empty rather than with
+ * `args[0]` promoted to its program: every adapter writes element 0 back out
+ * as the executable (or the whole array as the command line), so the caller
+ * skips such an entry the same way as one with nothing to spawn at all.
+ */
 export function resolveLocalMcpCommand(serverConfig: McpServerConfig): string[] {
-  const commandArray: string[] = [];
-  if (serverConfig.command) {
-    if (Array.isArray(serverConfig.command)) {
-      commandArray.push(...serverConfig.command);
-    } else {
-      commandArray.push(serverConfig.command);
-    }
+  const { command } = serverConfig;
+  const commandArray: string[] = Array.isArray(command) ? [...command] : command ? [command] : [];
+  if (commandArray.length === 0) {
+    return [];
   }
   if (serverConfig.args) {
     commandArray.push(...serverConfig.args);
   }
   return commandArray;
-}
-
-/**
- * `resolveLocalMcpCommand` for adapters that write `command` and `args` back
- * out as separate keys. The merge above would hand an entry carrying `args` but
- * no `command` back with `args[0]` promoted to its program, so such an entry
- * comes back empty here instead and the caller skips it the same way as one
- * with nothing to spawn at all.
- */
-export function splitLocalMcpCommand(serverConfig: McpServerConfig): string[] {
-  const { command } = serverConfig;
-  const hasCommand =
-    typeof command === "string" ? command !== "" : Array.isArray(command) && command.length > 0;
-  return hasCommand ? resolveLocalMcpCommand(serverConfig) : [];
 }
 
 /**

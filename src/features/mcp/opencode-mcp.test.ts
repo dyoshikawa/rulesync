@@ -2718,6 +2718,8 @@ describe("OpencodeMcp", () => {
             toggled: { disabled: true, enabledTools: ["read"] },
             headless: { type: "stdio" },
             noUrl: { type: "http" },
+            // `args[0]` must not become element 0 of OpenCode's `command` array.
+            argsOnly: { type: "stdio", args: ["-y", "server"] },
             fine: { command: "npx", args: ["-y", "server"] },
           },
         }),
@@ -2738,7 +2740,7 @@ describe("OpencodeMcp", () => {
       // The filters of a skipped server stay: the map reaches servers `mcp`
       // does not list, so they are not this entry's to take away.
       expect(json.tools).toEqual({ toggled_read: true });
-      for (const name of ["headless", "noUrl"]) {
+      for (const name of ["headless", "noUrl", "argsOnly"]) {
         expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining(`skipping "${name}"`));
       }
     });

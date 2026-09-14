@@ -127,6 +127,7 @@ describe("ZcodeMcp", () => {
           "no-transport": { disabledTools: ["x"] },
           "remote-no-url": { type: "http" },
           "stdio-no-command": { command: "" },
+          "stdio-args-only": { type: "stdio", args: ["-y", "git-mcp"] },
           kept: { command: "keeper" },
         }),
         logger,
@@ -139,6 +140,7 @@ describe("ZcodeMcp", () => {
         "no-transport",
         "remote-no-url",
         "stdio-no-command",
+        "stdio-args-only",
       ]) {
         expect(
           logger.warn.mock.calls.some(

@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { Logger } from "../../utils/logger.js";
 import {
   declaresNoTransport,
-  splitLocalMcpCommand,
   isRemoteMcpServer,
   orphanMcpToolFiltersToRulesync,
   resolveLocalMcpCommand,
@@ -82,31 +81,13 @@ describe("resolveLocalMcpCommand", () => {
   it("returns an empty array when there is nothing to spawn", () => {
     expect(resolveLocalMcpCommand({})).toEqual([]);
     expect(resolveLocalMcpCommand({ command: [] })).toEqual([]);
-    expect(resolveLocalMcpCommand({ args: ["--port", "1"] })).toEqual(["--port", "1"]);
-  });
-});
-
-describe("splitLocalMcpCommand", () => {
-  it("merges a string or array command with its args", () => {
-    expect(splitLocalMcpCommand({ command: "git-mcp", args: ["--stdio"] })).toEqual([
-      "git-mcp",
-      "--stdio",
-    ]);
-    expect(splitLocalMcpCommand({ command: ["npx", "-y"], args: ["git-mcp"] })).toEqual([
-      "npx",
-      "-y",
-      "git-mcp",
-    ]);
+    expect(resolveLocalMcpCommand({ command: "", args: ["x"] })).toEqual([]);
+    expect(resolveLocalMcpCommand({ command: [], args: ["x"] })).toEqual([]);
   });
 
   it("returns nothing when only args are given, so args[0] is never promoted to the program", () => {
-    expect(splitLocalMcpCommand({ args: ["-y", "git-mcp"] })).toEqual([]);
-    expect(splitLocalMcpCommand({ type: "stdio" })).toEqual([]);
-  });
-
-  it("returns nothing for an empty command", () => {
-    expect(splitLocalMcpCommand({ command: "", args: ["x"] })).toEqual([]);
-    expect(splitLocalMcpCommand({ command: [], args: ["x"] })).toEqual([]);
+    expect(resolveLocalMcpCommand({ args: ["-y", "git-mcp"] })).toEqual([]);
+    expect(resolveLocalMcpCommand({ type: "stdio", args: ["--port", "1"] })).toEqual([]);
   });
 });
 
