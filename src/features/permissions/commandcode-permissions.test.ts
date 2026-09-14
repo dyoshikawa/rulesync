@@ -408,14 +408,17 @@ describe("CommandcodePermissions", () => {
 
     it("reclaims mcp__<server> entries written from the bare mcp category on regenerate", async () => {
       // Run 1 wrote `mcp: { github: "deny" }` as `mcp__github`; flipping it to
-      // allow must remove the stale deny (which would otherwise win), and a
-      // case variant of an emitted rule is rulesync's to replace too.
+      // allow must remove the stale deny (which would otherwise win). Command
+      // Code matches MCP names case-sensitively, so `mcp__Github__Get_Issue`
+      // is a different tool from `mcp__github__get_issue` and stays the
+      // user's, while `mcp__github__*` and `mcp__github__` are the whole
+      // server and belong to the `mcp__github` category.
       await writeSettings({
         testDir,
         settings: {
           permissions: {
-            allow: ["mcp__Github__Get_Issue", "mcp__filesystem"],
-            deny: ["mcp__github", "mcp__*()"],
+            allow: ["mcp__Github__Get_Issue", "mcp__filesystem", "mcp__github__"],
+            deny: ["mcp__github", "mcp__*()", "mcp__github__*"],
           },
         },
       });
@@ -430,7 +433,7 @@ describe("CommandcodePermissions", () => {
 
       const json = JSON.parse(permissions.getFileContent());
       expect(json.permissions).toEqual({
-        allow: ["mcp__filesystem", "mcp__github"],
+        allow: ["mcp__Github__Get_Issue", "mcp__filesystem", "mcp__github"],
         ask: ["mcp__*"],
         deny: ["mcp__github__get_issue"],
       });
@@ -760,12 +763,14 @@ describe("CommandcodePermissions", () => {
       // `MCP__*` / `MCP__github__*` are ignored in allow (so they must not
       // become live allows for other targets) but match by name in deny, and
       // `MCP__github` names no tool at all; a full tool name still matches
-      // that tool by name and folds to the canonical category.
+      // that tool by name and folds to the canonical category, keeping the
+      // server and tool spelling because the `mcp__` rule written back is
+      // matched case-sensitively.
       const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
       const rulesyncPermissions = permissions.toRulesyncPermissions();
       expect(rulesyncPermissions.getJson().permission).toEqual({
         mcp: { "*": "deny" },
-        mcp__github__delete_repo: { "*": "deny" },
+        mcp__GitHub__Delete_Repo: { "*": "deny" },
       });
 
       const regenerated = await CommandcodePermissions.fromRulesyncPermissions({
@@ -778,9 +783,76 @@ describe("CommandcodePermissions", () => {
       // `mcp` category and is replaced by the canonical `mcp__*`.
       expect(JSON.parse(regenerated.getFileContent()).permissions).toEqual({
         allow: ["MCP__github", "MCP__github__*"],
-        deny: ["mcp__*", "mcp__github__delete_repo"],
+        deny: ["mcp__*", "mcp__GitHub__Delete_Repo"],
       });
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("reads the rules Command Code treats as every MCP tool or a whole server", async () => {
+      // A `*` server matches every MCP tool in deny/ask (the tool half is
+      // ignored), and `mcp__<server>__*` / `mcp__<server>__` are the whole
+      // server, exactly like `mcp__<server>`. Neither grants anything in allow.
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            allow: ["mcp__*__list_issues", "mcp__filesystem__*", "mcp__*__*"],
+            ask: ["mcp__*__list_issues", "mcp__github__"],
+            deny: ["mcp__*__*", "mcp__playwright__*"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+        mcp: { "*": "deny" },
+        mcp__filesystem: { "*": "allow" },
+        mcp__github: { "*": "ask" },
+        mcp__playwright: { "*": "deny" },
+      });
+    });
+
+    it("reads the internal tool names Command Code accepts as aliases", async () => {
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            allow: ["PowerShell(Get-ChildItem *)", "write_file(./src/**)", "Task"],
+            deny: ["shell_command(rm -rf *)", "monitor_command", "kill_shell", "web_fetch(*)"],
+            ask: ["web_search", "edit_file", "read_file(./.env)"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+        agent: { "*": "allow" },
+        bash: { "Get-ChildItem *": "allow", "rm -rf *": "deny", "*": "deny" },
+        webfetch: { "*": "deny" },
+        websearch: { "*": "ask" },
+        write: { "./src/**": "allow" },
+      });
+    });
+
+    it("leaves a whitespace-only specifier alone because Command Code matches nothing with it", async () => {
+      // Command Code does not trim the specifier, so `Shell( )` is a rule for
+      // the pattern " " rather than for the whole tool; the canonical config
+      // then drops that blank pattern like every other importer does.
+      await writeSettings({
+        testDir,
+        settings: {
+          permissions: {
+            allow: ["Shell( )", "Read( * )"],
+            deny: ["Shell( rm -rf * )", "Shell(git *)"],
+          },
+        },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+        bash: { " rm -rf * ": "deny", "git *": "deny" },
+        read: { " * ": "allow" },
+      });
     });
 
     it("drops entries whose pattern is a prototype-pollution key", async () => {

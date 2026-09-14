@@ -57,8 +57,15 @@ const CATEGORY_TO_COMMANDCODE_TOOL: Record<string, string> = {
   agent: "Agent",
 };
 
-// Lowercased tool name ⇒ canonical category. Command Code matches tool names
-// case-insensitively, and the legacy `Bash` alias folds onto `bash`.
+// Lowercased tool name ⇒ canonical category. Command Code resolves these
+// names case-insensitively, and its rule parser (`command-code` 1.54.0,
+// `parsePermissionRule`) also accepts the internal names that mean exactly
+// the same tools: `Bash`, `PowerShell`, `shell_command`, `monitor_command`
+// and `kill_shell` are `Shell`; `write_file` is `Write`; `web_fetch` /
+// `web_search` are `WebFetch` / `WebSearch`; `Task` is `Agent`. They are
+// read (so a deny written with one of them is not lost) but never written.
+// Other internal names (`read_file`, `edit_file`, ...) cover a narrower tool
+// set than their friendly counterpart and stay unmodeled.
 const COMMANDCODE_TOOL_TO_CATEGORY: Record<string, string> = {
   ...Object.fromEntries(
     Object.entries(CATEGORY_TO_COMMANDCODE_TOOL).map(([category, tool]) => [
@@ -67,6 +74,14 @@ const COMMANDCODE_TOOL_TO_CATEGORY: Record<string, string> = {
     ]),
   ),
   bash: "bash",
+  powershell: "bash",
+  shell_command: "bash",
+  monitor_command: "bash",
+  kill_shell: "bash",
+  write_file: "write",
+  web_fetch: "webfetch",
+  web_search: "websearch",
+  task: "agent",
 };
 
 // Command Code's documented precedence: deny wins, then ask, then allow. Used
@@ -131,7 +146,9 @@ function buildCommandcodeRule(category: string, pattern: string): string | null 
 /**
  * Split `Tool(specifier)` into its two halves; `Tool` alone has an empty
  * specifier. Only the outermost parentheses count, so a specifier may itself
- * contain `(`/`)`.
+ * contain `(`/`)`. The specifier is taken as written: Command Code does not
+ * trim it, so `Shell( )` is a rule for the pattern `" "` (which matches
+ * nothing), not for the whole tool.
  */
 function splitCommandcodeRule(rule: string): { tool: string; inner: string } {
   const trimmed = rule.trim();
@@ -139,22 +156,32 @@ function splitCommandcodeRule(rule: string): { tool: string; inner: string } {
   if (parenIndex === -1 || !trimmed.endsWith(")")) {
     return { tool: trimmed, inner: "" };
   }
-  return { tool: trimmed.slice(0, parenIndex), inner: trimmed.slice(parenIndex + 1, -1).trim() };
+  return { tool: trimmed.slice(0, parenIndex), inner: trimmed.slice(parenIndex + 1, -1) };
+}
+
+/** Whether a specifier means "no specifier" to Command Code: only `` and `*` do. */
+function isCatchAllSpecifier(inner: string): boolean {
+  return inner === "" || inner === CATCH_ALL_PATTERN;
 }
 
 /**
  * Read an MCP-shaped rule the way Command Code does (`command-code` 1.54.0,
  * `parsePermissionRule` / `parseMcpToken`). The MCP shape is only recognized
  * by its exact `mcp__` prefix, and such a rule never carries a specifier:
- * `mcp__<server>__<tool>(owner:foo)` denies, asks or allows the whole tool,
- * and `mcp__*` (specifier or not) is every server, honored in `deny`/`ask`
- * only. A differently-cased `MCP__...` spelling is read as a plain tool-name
- * rule instead: `MCP__<server>__<tool>` matches that tool by name (so it
- * folds onto the lowercase category), `MCP__<server>__<tool>(specifier)` is
- * scoped by the specifier in `deny`/`ask` but dead in `allow`, the globs
+ * `mcp__<server>__<tool>(owner:foo)` denies, asks or allows the whole tool.
+ * Its names are matched case-sensitively against the registered server and
+ * tool (Command Code never lowercases them), so the remainder keeps its case
+ * as the canonical category. `mcp__<server>`, `mcp__<server>__` and
+ * `mcp__<server>__*` are the whole server (category `mcp__<server>`), and a
+ * `*` server (`mcp__*`, `mcp__*__<tool>`) is every MCP tool, honored in
+ * `deny`/`ask` only. A differently-cased `MCP__...` spelling is read as a
+ * plain tool-name rule instead, matched case-insensitively:
+ * `MCP__<server>__<tool>` matches that tool by name (so it folds onto the
+ * `mcp__` category, remainder as written), `MCP__<server>__<tool>(specifier)`
+ * is scoped by the specifier in `deny`/`ask` but dead in `allow`, the globs
  * `MCP__*` and `MCP__<server>__*` match by name in `deny`/`ask` only, and
  * `MCP__<server>` names no tool at all. Whatever matches nothing anywhere
- * returns `null` and is left alone.
+ * (or a glob rulesync does not model) returns `null` and is left alone.
  */
 function parseMcpCommandcodeRule({
   tool,
@@ -163,30 +190,36 @@ function parseMcpCommandcodeRule({
   tool: string;
   inner: string;
 }): ParsedCommandcodeRule | null {
-  const lowered = tool.toLowerCase();
-  const remainder = lowered.slice(MCP_CANONICAL_PREFIX.length);
-  if (remainder.length === 0) {
+  const remainder = tool.slice(MCP_CANONICAL_PREFIX.length);
+  const separator = remainder.indexOf("__");
+  const server = separator === -1 ? remainder : remainder.slice(0, separator);
+  const rest = separator === -1 ? "" : remainder.slice(separator + 2);
+  if (server.length === 0) {
     return null;
   }
+  const everyServer = { category: "mcp", pattern: CATCH_ALL_PATTERN, aggressiveOnly: true };
   if (tool.startsWith(MCP_CANONICAL_PREFIX)) {
-    return remainder === CATCH_ALL_PATTERN
-      ? { category: "mcp", pattern: CATCH_ALL_PATTERN, aggressiveOnly: true }
-      : { category: lowered, pattern: CATCH_ALL_PATTERN, aggressiveOnly: false };
+    if (server === CATCH_ALL_PATTERN) {
+      return everyServer;
+    }
+    const wholeServer = rest === "" || rest === CATCH_ALL_PATTERN;
+    const category = wholeServer
+      ? `${MCP_CANONICAL_PREFIX}${server}`
+      : `${MCP_CANONICAL_PREFIX}${remainder}`;
+    return { category, pattern: CATCH_ALL_PATTERN, aggressiveOnly: false };
   }
-  const namesTool = remainder.includes("__") && !remainder.includes(CATCH_ALL_PATTERN);
-  if (inner.length > 0 && inner !== CATCH_ALL_PATTERN) {
-    return namesTool ? { category: lowered, pattern: inner, aggressiveOnly: true } : null;
+  const category = `${MCP_CANONICAL_PREFIX}${remainder}`;
+  const namesTool = separator !== -1 && rest.length > 0 && !remainder.includes(CATCH_ALL_PATTERN);
+  if (!isCatchAllSpecifier(inner)) {
+    return namesTool ? { category, pattern: inner, aggressiveOnly: true } : null;
   }
   if (remainder === CATCH_ALL_PATTERN) {
-    return { category: "mcp", pattern: CATCH_ALL_PATTERN, aggressiveOnly: true };
+    return everyServer;
   }
-  const serverGlob = /^[^*]+__\*$/.test(remainder);
-  if (serverGlob) {
-    return { category: lowered, pattern: CATCH_ALL_PATTERN, aggressiveOnly: true };
+  if (rest === CATCH_ALL_PATTERN && !server.includes(CATCH_ALL_PATTERN)) {
+    return { category, pattern: CATCH_ALL_PATTERN, aggressiveOnly: true };
   }
-  return namesTool
-    ? { category: lowered, pattern: CATCH_ALL_PATTERN, aggressiveOnly: false }
-    : null;
+  return namesTool ? { category, pattern: CATCH_ALL_PATTERN, aggressiveOnly: false } : null;
 }
 
 /**
@@ -198,9 +231,9 @@ function parseMcpCommandcodeRule({
  */
 function parseCommandcodeRule(rule: string): ParsedCommandcodeRule | null {
   const { tool, inner } = splitCommandcodeRule(rule);
-  const pattern = inner.length > 0 ? inner : CATCH_ALL_PATTERN;
+  const pattern = isCatchAllSpecifier(inner) ? CATCH_ALL_PATTERN : inner;
   if (tool === CATCH_ALL_PATTERN) {
-    return inner.length === 0
+    return isCatchAllSpecifier(inner)
       ? {
           category: ALL_TOOLS_PERMISSION_CATEGORY,
           pattern: CATCH_ALL_PATTERN,
@@ -224,8 +257,7 @@ function parseCommandcodeRule(rule: string): ParsedCommandcodeRule | null {
 /** The `Tool` half of `Tool(specifier)`, when the rule is an exact-prefix MCP rule with a specifier. */
 function scopedMcpRuleTool(rule: string): string | null {
   const { tool, inner } = splitCommandcodeRule(rule);
-  const scoped = inner.length > 0 && inner !== CATCH_ALL_PATTERN;
-  return scoped && tool.startsWith(MCP_CANONICAL_PREFIX) ? tool : null;
+  return !isCatchAllSpecifier(inner) && tool.startsWith(MCP_CANONICAL_PREFIX) ? tool : null;
 }
 
 /**
@@ -233,8 +265,9 @@ function scopedMcpRuleTool(rule: string): string | null {
  * config names (an empty `bash: {}` still reclaims the previous `Shell(...)`
  * entries, as in the Claude Code adapter) plus every rule it emits, keyed the
  * way an existing entry parses back (so `mcp: { github: "deny" }`, written as
- * `mcp__github`, claims the `mcp__github` entries of the previous run, and
- * case variants fold together). An existing entry whose tool folds onto one of them is
+ * `mcp__github`, claims the `mcp__github` entries of the previous run; case
+ * variants of the friendly tool names fold together, while MCP names are
+ * matched exactly, as Command Code does). An existing entry whose tool folds onto one of them is
  * rulesync's to replace, whatever list it sits in — otherwise flipping a rule
  * from deny to allow would leave the old deny behind and win. Every other
  * entry — an internal tool name rulesync cannot model, or a modeled tool the
@@ -484,9 +517,11 @@ function parseCommandcodeRuleLists(
  * `*` category becomes the bare `*` rule Command Code accepts in `deny`/`ask`.
  * Only the entries of the categories the canonical config names are rebuilt;
  * every other existing entry is preserved verbatim.
- * Import: the lists are parsed back case-insensitively (the legacy `Bash`
- * alias folds onto `bash`) as what Command Code enforces for each entry;
- * rules for internal tool names rulesync does not model are skipped.
+ * Import: the lists are parsed back as what Command Code enforces for each
+ * entry — friendly tool names case-insensitively (with the internal aliases
+ * such as `Bash`, `PowerShell` and `write_file` folding onto their
+ * category), MCP names exactly; rules for internal tool names rulesync does
+ * not model are skipped.
  *
  * @see https://commandcode.ai/docs/permissions
  * @see https://commandcode.ai/docs/settings
