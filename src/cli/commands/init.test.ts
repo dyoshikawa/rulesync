@@ -21,7 +21,13 @@ import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
 import { RulesyncSkill } from "../../features/skills/rulesync-skill.js";
 import { RulesyncSubagent } from "../../features/subagents/rulesync-subagent.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
-import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
+import {
+  ensureDir,
+  fileExists,
+  getHomeDirectory,
+  readFileContent,
+  writeFileContent,
+} from "../../utils/file.js";
 import { initCommand } from "./init.js";
 
 // Mock dependencies
@@ -42,6 +48,9 @@ describe("initCommand", () => {
     vi.mocked(ensureDir).mockResolvedValue(undefined);
     vi.mocked(fileExists).mockResolvedValue(false);
     vi.mocked(writeFileContent).mockResolvedValue(undefined);
+    vi.mocked(getHomeDirectory).mockReturnValue(join("/home", "tester"));
+    // CI runners export XDG_CONFIG_HOME, which would redirect the user config path.
+    vi.stubEnv("XDG_CONFIG_HOME", "");
 
     // Setup class mocks
     vi.mocked(RulesyncRule.getSettablePaths).mockReturnValue({
@@ -84,6 +93,7 @@ describe("initCommand", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
@@ -124,6 +134,24 @@ describe("initCommand", () => {
       const expectedFilePath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME);
       expect(fileExists).toHaveBeenCalledWith(expectedFilePath);
       expect(writeFileContent).toHaveBeenCalledWith(expectedFilePath, expect.any(String));
+    });
+
+    it("should report the user config that seeded targets and features", async () => {
+      const userConfigPath = join("/home", "tester", ".config", "rulesync", "rulesync.jsonc");
+      vi.mocked(fileExists).mockImplementation(async (path) => path === userConfigPath);
+      vi.mocked(readFileContent).mockResolvedValue(`{ "targets": ["cursor"] }`);
+
+      await initCommand(mockLogger);
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        `Seeded targets and features from ${userConfigPath}`,
+      );
+    });
+
+    it("should not mention a user config when none was used", async () => {
+      await initCommand(mockLogger);
+
+      expect(mockLogger.info).not.toHaveBeenCalledWith(expect.stringContaining("Seeded"));
     });
   });
 

@@ -264,6 +264,10 @@ Example usage:
 }
 ```
 
+## User-Level Defaults for `rulesync init`
+
+`rulesync init` seeds the `targets` and `features` of a new `rulesync.jsonc` from `$XDG_CONFIG_HOME/rulesync/rulesync.jsonc` (`~/.config/rulesync/rulesync.jsonc` by default) when that file exists. It is a template for `init` only — it does not take part in the priority list above, and `generate` never reads it. See [Init Command](../reference/cli-commands.md#init-command).
+
 ## Target Order and File Conflicts
 
 When multiple targets write to the same output file, **the last target in the array wins**. This is the "last-wins" behavior.
