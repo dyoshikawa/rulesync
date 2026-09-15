@@ -294,6 +294,39 @@ Body content`;
       expect(tabnineSubagent.getFileContent()).toContain("future_key: value");
     });
 
+    it("should fill in the placeholder when the tabnine section blanks the description", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "blanked.md",
+        frontmatter: {
+          targets: ["tabnine"],
+          name: "blanked",
+          description: "Shared description",
+          tabnine: { description: "" },
+        },
+        body: "Body",
+        validate: true,
+      });
+      const logger = createMockLogger();
+
+      const tabnineSubagent = TabnineSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: agentsDir,
+        rulesyncSubagent,
+        validate: true,
+        logger,
+      }) as TabnineSubagent;
+
+      expect(tabnineSubagent.getFrontmatter()).toEqual({
+        name: "blanked",
+        description: "blanked subagent",
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("blanked.md has no description, which Tabnine requires"),
+      );
+    });
+
     it("should fill in the placeholder for an empty description too", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         outputRoot: testDir,

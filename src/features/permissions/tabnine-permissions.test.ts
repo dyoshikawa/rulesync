@@ -697,6 +697,31 @@ describe("TabninePermissions", () => {
       );
     });
 
+    it("does not claim a glob-spelled override prefix was written when it was withheld or skipped", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { bash: { "git push *": "deny" } },
+          tabnine: {
+            tools: { allowed: ["run_shell_command(git *)", "run_shell_command(git * *)"] },
+          },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({ exclude: ["run_shell_command(git push)"] });
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages).toContainEqual(
+        expect.stringContaining(
+          `withheld 1 'bash' allow rule(s) ("git *") that overlap a 'bash' deny`,
+        ),
+      );
+      expect(messages).toContainEqual(expect.stringContaining(`git * *`));
+      expect(messages).not.toContainEqual(expect.stringContaining("so it is written as"));
+    });
+
     it("withholds a verbatim override allow whose tool the canonical block denies", async () => {
       const logger = createMockLogger();
       const permissions = await TabninePermissions.fromRulesyncPermissions({

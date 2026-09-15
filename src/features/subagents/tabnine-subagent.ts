@@ -123,7 +123,12 @@ export class TabnineSubagent extends ToolSubagent {
     // canonical subagent that omits one gets a minimal fallback (the way the
     // Cline adapter does) rather than a file the tool would not load or an
     // error that aborts every other target's generation.
-    let description = rulesyncFrontmatter.description;
+    const merged = {
+      name: rulesyncFrontmatter.name,
+      description: rulesyncFrontmatter.description,
+      ...tabnineSection,
+    };
+    let description = typeof merged.description === "string" ? merged.description : "";
     if (!description) {
       description = rulesyncFrontmatter.name ? `${rulesyncFrontmatter.name} subagent` : "subagent";
       logger?.warn(
@@ -131,11 +136,7 @@ export class TabnineSubagent extends ToolSubagent {
           `which Tabnine requires; wrote ${JSON.stringify(description)} as a placeholder.`,
       );
     }
-    const tabnineSubagentFrontmatter: TabnineSubagentFrontmatter = {
-      name: rulesyncFrontmatter.name,
-      description,
-      ...tabnineSection,
-    };
+    const tabnineSubagentFrontmatter: TabnineSubagentFrontmatter = { ...merged, description };
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, tabnineSubagentFrontmatter, {

@@ -553,6 +553,38 @@ function buildToolLists({
  * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/settings/settings-reference
  */
 /**
+ * Names the glob-spelled `run_shell_command(...)` override entries that were
+ * written as the prefix their glob denotes. Said only for the entries that
+ * made it into the list: one that a deny or ask overlaps is announced as
+ * withheld by the comparison instead, and one whose glob names no prefix at
+ * all is skipped by it.
+ */
+function warnAboutGlobSpelledOverrideEntries({
+  entries,
+  allowed,
+  logger,
+}: {
+  entries: readonly { entry: string; pattern: string }[];
+  allowed: readonly string[];
+  logger: Logger | undefined;
+}): void {
+  for (const { entry, pattern } of entries) {
+    const prefix = toShellPrefix(pattern);
+    const written = prefix === undefined ? undefined : toShellEntry(prefix);
+    if (written === undefined || !allowed.includes(written)) {
+      continue;
+    }
+    warnWithFallback(
+      logger,
+      `Tabnine CLI permissions: read tools.allowed entry ${quoteValueForWarning(entry)} of ` +
+        `the tabnine override as the 'bash' allow rule ${quoteValueForWarning(pattern)}; ` +
+        `Tabnine matches a prefix literally, so it is written as ` +
+        `${quoteValueForWarning(written)}, which auto-approves every command it covers.`,
+    );
+  }
+}
+
+/**
  * A verbatim override allow naming a tool the canonical block denies is
  * withheld the way a shadowed `bash` allow is: Tabnine never loads an excluded
  * tool whatever `allowed` says, so the entry would only ever contradict the
@@ -720,19 +752,13 @@ export class TabninePermissions extends ToolPermissions {
     };
     const overrideShellAllowPatterns: string[] = [];
     const overrideVerbatimAllowed: string[] = [];
+    const globSpelledOverrideEntries: { entry: string; pattern: string }[] = [];
     for (const entry of overrideList(ALLOWED_KEY)) {
       const parsed = parseTabnineEntry(entry);
       if (parsed?.toolName === SHELL_TOOL_NAME) {
         const pattern = toShellPattern(parsed.prefix);
         if (isGlobSpelledPrefix(parsed.prefix)) {
-          warnWithFallback(
-            logger,
-            `Tabnine CLI permissions: read tools.allowed entry ${quoteValueForWarning(entry)} of ` +
-              `the tabnine override as the 'bash' allow rule ${quoteValueForWarning(pattern)}; ` +
-              `Tabnine matches a prefix literally, so it is written as ` +
-              `${quoteValueForWarning(toShellEntry(toShellPrefix(pattern) ?? ""))}, which auto-approves ` +
-              `every command it covers.`,
-          );
+          globSpelledOverrideEntries.push({ entry, pattern });
         }
         overrideShellAllowPatterns.push(pattern);
       } else {
@@ -745,6 +771,7 @@ export class TabninePermissions extends ToolPermissions {
       overrideShellAllowPatterns,
       logger,
     });
+    warnAboutGlobSpelledOverrideEntries({ entries: globSpelledOverrideEntries, allowed, logger });
     const writableOverrideAllowed = withholdDeniedOverrideAllowed({
       overrideVerbatimAllowed,
       exclude,
