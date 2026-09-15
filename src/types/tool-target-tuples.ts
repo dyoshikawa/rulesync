@@ -243,6 +243,7 @@ export const skillsProcessorToolTargetTuple = [
   "musecode",
   "opencode",
   "pi",
+  "pool",
   "qwencode",
   "reasonix",
   "replit",

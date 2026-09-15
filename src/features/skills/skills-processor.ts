@@ -64,6 +64,7 @@ import { KiroSkill } from "./kiro-skill.js";
 import { MusecodeSkill } from "./musecode-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { PiSkill } from "./pi-skill.js";
+import { PoolSkill } from "./pool-skill.js";
 import { QwencodeSkill } from "./qwencode-skill.js";
 import { ReasonixSkill } from "./reasonix-skill.js";
 import { ReplitSkill } from "./replit-skill.js";
@@ -515,6 +516,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "pi",
     {
       class: PiSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "pool",
+    {
+      // Pool discovers Agent Skills (`<name>/SKILL.md`) from `.poolside/skills/`
+      // (project) and `~/.config/poolside/skills/` (global). It also scans the
+      // shared `.agents/skills/` roots, which belong to the agentsskills target.
+      // https://docs.poolside.ai/skills
+      class: PoolSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
