@@ -179,9 +179,13 @@
     "copilotignore",
     "copilotcli",
     "crushignore",
+    "crushrc",
     "cursorignore",
     "cursorindexingignore",
     "cursorrrules",
+    "multiedit",
+    "sessionless",
+    "sourcegraph",
     "cursorrules",
     "dbaeumer",
     "dcode",
@@ -489,6 +493,8 @@
     "worktrees",
     "Worktree",
     "zedignore",
-    "minisearch"
+    "minisearch",
+    "jsons",
+    "qjebbs"
   ]
 }

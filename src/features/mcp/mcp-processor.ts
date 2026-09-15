@@ -23,6 +23,7 @@ import { ContinueMcp } from "./continue-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
 import { CortexcodeMcp } from "./cortexcode-mcp.js";
+import { CrushMcp } from "./crush-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
 import { DevinMcp } from "./devin-mcp.js";
@@ -321,6 +322,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "crush",
+    {
+      // Crush reads the `mcp` key of `<project>/crush.json` (or `.crush.json`)
+      // and `~/.config/crush/crush.json`; each server carries its own
+      // `enabled_tools` / `disabled_tools` filters.
+      // https://github.com/charmbracelet/crush/blob/main/docs/config/README.md
+      class: CrushMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
       },
     },
   ],

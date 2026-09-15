@@ -33,3 +33,27 @@ export const CRUSH_IGNORE_FILE_NAME = ".crushignore";
 // @see https://github.com/charmbracelet/crush/blob/main/internal/config/load.go
 export const CRUSH_SKILLS_PROJECT_DIR = join(".crush", "skills");
 export const CRUSH_SKILLS_GLOBAL_DIR = join(CRUSH_GLOBAL_DIR, "skills");
+
+// Crush's JSON config. Project scope reads `.crush.json` and `crush.json` at
+// the working directory (walking up to the git root); the global file is
+// `~/.config/crush/crush.json`. Every discovered file is merged key by key
+// with the more specific one winning, and a `.crush.json` beats a `crush.json`
+// in the same directory. The JSON format is documented as deprecated in favor
+// of the Bash-based `crushrc`, but it stays supported, is still the schema
+// published at https://charm.land/crush.json, and every `crushrc` builtin
+// compiles into the same JSON sections — so it is the surface rulesync
+// writes. A `crushrc` next to it overrides the JSON key by key.
+// @see https://github.com/charmbracelet/crush/blob/main/docs/config/README.md
+// @see https://github.com/charmbracelet/crush/blob/main/internal/config/load.go
+export const CRUSH_CONFIG_FILE_NAME = "crush.json";
+export const CRUSH_HIDDEN_CONFIG_FILE_NAME = ".crush.json";
+
+// Top-level keys of the config that rulesync owns, plus the nested list keys
+// the permissions feature rebuilds.
+// @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
+export const CRUSH_MCP_KEY = "mcp";
+export const CRUSH_PERMISSIONS_KEY = "permissions";
+export const CRUSH_ALLOWED_TOOLS_KEY = "allowed_tools";
+export const CRUSH_OPTIONS_KEY = "options";
+export const CRUSH_DISABLED_TOOLS_KEY = "disabled_tools";
+export const CRUSH_HOOKS_KEY = "hooks";
