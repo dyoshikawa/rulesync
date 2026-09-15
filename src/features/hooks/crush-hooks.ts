@@ -15,9 +15,11 @@ import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
+  crushConfigImportContent,
   getCrushConfigSettablePaths,
   parseCrushConfig,
   resolveCrushConfigFile,
+  warnCrushTwinLeftovers,
 } from "../crush-config.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -182,8 +184,9 @@ function crushHooksToCanonical(hooksBlock: unknown): HooksConfig["hooks"] {
  * Crush hooks.
  *
  * Crush reads hooks from the `hooks` key of its JSON config —
- * `<project>/crush.json` (or `.crush.json`, which wins when both exist) at
- * project scope and `~/.config/crush/crush.json` at user scope — as
+ * `<project>/crush.json` (or an existing `.crush.json`; Crush merges the pair,
+ * lists concatenated) at project scope and `~/.config/crush/crush.json` at
+ * user scope — as
  * `hooks.<Event>: [{name?, matcher?, command, timeout?}]`. Only `PreToolUse`
  * fires today. The `hooks` key is owned outright; every other top-level key
  * of the file is preserved and the file is never deleted.
@@ -227,7 +230,7 @@ export class CrushHooks extends ToolHooks {
       outputRoot,
       relativeDirPath: location.relativeDirPath,
       relativeFilePath: location.relativeFilePath,
-      fileContent: location.fileContent ?? "{}",
+      fileContent: crushConfigImportContent(location),
       validate,
       global,
     });
@@ -245,6 +248,7 @@ export class CrushHooks extends ToolHooks {
   }): Promise<CrushHooks> {
     const location = await resolveCrushConfigFile({ outputRoot, global });
     const existingContent = location.fileContent ?? "";
+    warnCrushTwinLeftovers({ location, ownedPaths: [[CRUSH_HOOKS_KEY]], logger });
 
     const config = rulesyncHooks.getJson();
     const hooks = canonicalToCrushHooks({

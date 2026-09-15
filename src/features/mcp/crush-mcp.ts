@@ -7,9 +7,11 @@ import { type Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
+  crushConfigImportContent,
   getCrushConfigSettablePaths,
   parseCrushConfig,
   resolveCrushConfigFile,
+  warnCrushTwinLeftovers,
 } from "../crush-config.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import {
@@ -257,8 +259,9 @@ function convertFromCrushFormat(crushServers: Record<string, unknown>): McpServe
  * Crush MCP servers.
  *
  * Crush reads MCP servers from the `mcp` key of its JSON config:
- * `<project>/crush.json` (or `.crush.json`, which wins when both exist) at
- * project scope and `~/.config/crush/crush.json` at user scope. The
+ * `<project>/crush.json` (or an existing `.crush.json`; Crush merges the pair,
+ * objects recursively) at project scope and `~/.config/crush/crush.json` at
+ * user scope. The
  * `crushrc` Bash config that Crush now recommends compiles its `mcp add`
  * builtin into the same `mcp.<name>` entries and overrides the JSON key by
  * key, so a `crushrc` next to the generated file takes precedence. Every
@@ -303,7 +306,7 @@ export class CrushMcp extends ToolMcp {
       outputRoot,
       relativeDirPath: location.relativeDirPath,
       relativeFilePath: location.relativeFilePath,
-      fileContent: location.fileContent ?? "{}",
+      fileContent: crushConfigImportContent(location),
       validate,
       global,
     });
@@ -318,6 +321,7 @@ export class CrushMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): Promise<CrushMcp> {
     const location = await resolveCrushConfigFile({ outputRoot, global });
     const existingContent = location.fileContent ?? "";
+    warnCrushTwinLeftovers({ location, ownedPaths: [[CRUSH_MCP_KEY]], logger });
 
     const converted = convertToCrushFormat(rulesyncMcp.getMcpServers(), logger);
 

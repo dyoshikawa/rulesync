@@ -180,6 +180,28 @@ describe("CrushMcp", () => {
       });
     });
 
+    it("should warn when the crush.json twin still carries mcp entries", async () => {
+      await writeFileContent(
+        projectConfigPath(),
+        JSON.stringify({ mcp: { stale: { type: "stdio", command: "stale" } } }),
+      );
+      await writeFileContent(hiddenConfigPath(), JSON.stringify({ options: { debug: true } }));
+      const logger = createMockLogger();
+
+      const mcp = await CrushMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({ fs: { command: "fs" } }),
+        logger,
+      });
+
+      // Only .crush.json is written; the stale server in crush.json is reported
+      // because Crush keeps reading it.
+      expect(mcp.getRelativeFilePath()).toBe(".crush.json");
+      expect(serversOf(mcp)).toEqual({ fs: { type: "stdio", command: "fs" } });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"mcp"'));
+    });
+
     it("should target ~/.config/crush/crush.json in global mode", async () => {
       const mcp = await CrushMcp.fromRulesyncMcp({
         outputRoot: testDir,
@@ -214,13 +236,24 @@ describe("CrushMcp", () => {
       expect(serversOf(mcp)).toEqual({ fs: { type: "stdio", command: "fs" } });
     });
 
-    it("should prefer .crush.json when both twins exist", async () => {
-      await writeFileContent(projectConfigPath(), JSON.stringify({ mcp: { a: { command: "a" } } }));
-      await writeFileContent(hiddenConfigPath(), JSON.stringify({ mcp: { b: { command: "b" } } }));
+    it("should merge both twins the way Crush does, .crush.json on top", async () => {
+      await writeFileContent(
+        projectConfigPath(),
+        JSON.stringify({ mcp: { a: { command: "a" }, shared: { command: "old", timeout: 5 } } }),
+      );
+      await writeFileContent(
+        hiddenConfigPath(),
+        JSON.stringify({ mcp: { b: { command: "b" }, shared: { command: "new" } } }),
+      );
 
       const mcp = await CrushMcp.fromFile({ outputRoot: testDir });
       expect(mcp.getRelativeFilePath()).toBe(".crush.json");
-      expect(serversOf(mcp)).toEqual({ b: { command: "b" } });
+      // Crush reads every server of both files, so an import does too.
+      expect(serversOf(mcp)).toEqual({
+        a: { command: "a" },
+        b: { command: "b" },
+        shared: { command: "new", timeout: 5 },
+      });
     });
 
     it("should default to an empty document when the file is missing", async () => {

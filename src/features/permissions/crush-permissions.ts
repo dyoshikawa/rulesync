@@ -13,9 +13,11 @@ import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
+  crushConfigImportContent,
   getCrushConfigSettablePaths,
   parseCrushConfig,
   resolveCrushConfigFile,
+  warnCrushTwinLeftovers,
 } from "../crush-config.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -145,7 +147,8 @@ function uniq(values: string[]): string[] {
  * config does not manage are preserved verbatim, the managed tools' entries
  * are rebuilt, every other key of `permissions` / `options` and of the file is
  * kept, and the file is never deleted. Project scope writes `crush.json`, or
- * an existing `.crush.json` (which wins over `crush.json` in Crush's merge).
+ * an existing `.crush.json`; Crush merges the pair (lists concatenated), so an
+ * entry left in the other file stays in effect and is reported.
  *
  * @see https://github.com/charmbracelet/crush/blob/main/docs/config/README.md
  * @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
@@ -198,7 +201,7 @@ export class CrushPermissions extends ToolPermissions {
       outputRoot,
       relativeDirPath: location.relativeDirPath,
       relativeFilePath: location.relativeFilePath,
-      fileContent: location.fileContent ?? "",
+      fileContent: crushConfigImportContent(location),
       validate,
       global,
     });
@@ -212,6 +215,14 @@ export class CrushPermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<CrushPermissions> {
     const location = await resolveCrushConfigFile({ outputRoot, global });
     const existingContent = location.fileContent ?? "";
+    warnCrushTwinLeftovers({
+      location,
+      ownedPaths: [
+        [CRUSH_PERMISSIONS_KEY, CRUSH_ALLOWED_TOOLS_KEY],
+        [CRUSH_OPTIONS_KEY, CRUSH_DISABLED_TOOLS_KEY],
+      ],
+      logger,
+    });
     const existing = parseCrushConfig(existingContent, location.filePath);
     const existingPermissions = isRecord(existing[CRUSH_PERMISSIONS_KEY])
       ? existing[CRUSH_PERMISSIONS_KEY]

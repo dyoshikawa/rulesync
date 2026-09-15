@@ -493,6 +493,8 @@
     "worktrees",
     "Worktree",
     "zedignore",
-    "minisearch"
+    "minisearch",
+    "jsons",
+    "qjebbs"
   ]
 }
