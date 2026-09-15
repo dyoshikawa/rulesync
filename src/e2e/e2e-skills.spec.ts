@@ -203,6 +203,10 @@ const skillsGenerateTargets = [
     target: "dsh",
     outputPath: join(".dsh", "skills", "test-skill", "SKILL.md"),
   },
+  {
+    target: "pool",
+    outputPath: join(".poolside", "skills", "test-skill", "SKILL.md"),
+  },
 ] as const;
 
 describe("E2E: skills", () => {
@@ -439,6 +443,7 @@ describe("E2E: skills (import)", () => {
     { target: "factorydroid", sourcePath: join(".factory", "skills", "test-skill", "SKILL.md") },
     { target: "vibe", sourcePath: join(".vibe", "skills", "test-skill", "SKILL.md") },
     { target: "dsh", sourcePath: join(".dsh", "skills", "test-skill", "SKILL.md") },
+    { target: "pool", sourcePath: join(".poolside", "skills", "test-skill", "SKILL.md") },
   ])("should import $target skills", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -1044,6 +1049,11 @@ const skillsGlobalTargets = [
     // DeepSeek Harness reads global skills from ~/.dsh/skills/ ($DSH_HOME default).
     target: "dsh",
     outputPath: join(".dsh", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    // Pool reads global skills from ~/.config/poolside/skills/ (XDG default).
+    target: "pool",
+    outputPath: join(".config", "poolside", "skills", "test-skill", "SKILL.md"),
   },
 ] as const;
 

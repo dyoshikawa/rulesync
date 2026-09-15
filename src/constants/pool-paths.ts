@@ -11,9 +11,25 @@ import { join } from "node:path";
  * directory, deeper files taking precedence. It skips ignored directories
  * (`.git/`, `node_modules/`, cache directories, repository ignore rules).
  *
+ * Skills follow the Agent Skills format (`<name>/SKILL.md` bundles). Pool
+ * scans `.poolside/skills/` (project) and `~/.config/poolside/skills/`
+ * (global) plus the shared `.agents/skills/` / `~/.agents/skills/` roots and
+ * the skill directories of other Agent Skills tools; rulesync writes only the
+ * Pool-specific roots and leaves the shared ones to their own targets.
+ *
  * @see https://docs.poolside.ai/agent-instructions
+ * @see https://docs.poolside.ai/skills
  * @see https://github.com/poolsideai/pool
  */
 
+/** Project-scoped `.poolside/` directory at the project root. */
+export const POOL_DIR = ".poolside";
+
 /** Global config directory for Pool, relative to the home directory. */
 export const POOL_GLOBAL_DIR = join(".config", "poolside");
+
+/** Project skills root, relative to the project root. */
+export const POOL_SKILLS_DIR_PATH = join(POOL_DIR, "skills");
+
+/** Global skills root, relative to the home directory. */
+export const POOL_GLOBAL_SKILLS_DIR_PATH = join(POOL_GLOBAL_DIR, "skills");
