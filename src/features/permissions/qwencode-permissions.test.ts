@@ -997,7 +997,12 @@ describe("QwencodePermissions", () => {
           fileContent: JSON.stringify({
             permission: {},
             qwencode: {
-              tools: { disabled: [], listDirectory: { enabled: true }, eager: ["read_file"] },
+              tools: {
+                disabled: [],
+                listDirectory: { enabled: true },
+                todoWrite: { enabled: true },
+                eager: ["read_file"],
+              },
             },
           }),
         }),
@@ -1010,6 +1015,9 @@ describe("QwencodePermissions", () => {
       const listDirectory = messages.find((message) => message.includes("tools.listDirectory"));
       expect(listDirectory).toContain("whether the built-in `list_directory` tool is registered");
       expect(listDirectory).not.toContain("how far approvals are skipped");
+      const todoWrite = messages.find((message) => message.includes("tools.todoWrite"));
+      expect(todoWrite).toContain("whether the built-in `todo_write` tool is registered");
+      expect(todoWrite).not.toContain("how far approvals are skipped");
       // `eager` sits in the same rule but demotes rather than deregisters, so its
       // project note has to say that instead of borrowing the `disabled` wording.
       const eager = messages.find((message) => message.includes("tools.eager"));

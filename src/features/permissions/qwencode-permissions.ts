@@ -182,9 +182,12 @@ const QWEN_OVERRIDE_SECURITY_KEYS = [
  * - `workspace-stripped` — named in `WORKSPACE_RESTRICTED_SETTINGS`
  *   (`packages/cli/src/config/settingsUtils.ts`) and removed from workspace
  *   settings before the merge, so a project-scoped value is dead configuration.
- *   That list also names `agents.crossSessionMessaging`,
- *   `agents.crossSessionInbound` and `goals.modelProposed`, which sit in settings
- *   groups the `qwencode` override does not author at all.
+ *   That list also names `goals.modelProposed` and
+ *   `outboundCorrelation.allowDynamicHeaderValues`, which sit in settings
+ *   groups the `qwencode` override does not author at all. (Its former
+ *   `agents.crossSessionMessaging` and `agents.crossSessionInbound` entries
+ *   moved to `WORKSPACE_TIGHTEN_ONLY_SETTINGS`, where a workspace value may
+ *   only tighten the user's.)
  * - `workspace-non-overriding` — named in `WORKSPACE_NON_OVERRIDING_SETTINGS`.
  *   A workspace value survives only while no user, system, or system-defaults
  *   scope sets the key: a repository may narrow where its own hooks send data,
@@ -320,7 +323,7 @@ const QWEN_SCOPE_RULES: Record<
 
 // Which keys each rule covers, transcribed from Qwen Code's own
 // `WORKSPACE_RESTRICTED_SETTINGS` and `WORKSPACE_NON_OVERRIDING_SETTINGS` in
-// `packages/cli/src/config/settingsUtils.ts`, verified against v0.23.0. Upstream
+// `packages/cli/src/config/settingsUtils.ts`, verified against v0.23.4. Upstream
 // may add entries; an addition rulesync has not picked up means it writes a key
 // Qwen Code now ignores, so re-check these lists when supporting a new version.
 const QWEN_SCOPED_TOOLS_KEYS = {
