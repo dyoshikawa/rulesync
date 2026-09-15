@@ -1440,6 +1440,53 @@ describe("AugmentcodePermissions", () => {
       expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
     });
 
+    it("should broaden a non-roundtrippable terminal deny regex to the catch-all pattern", () => {
+      const warnSpy = vi.spyOn(ConsoleLogger.prototype, "warn").mockImplementation(() => {});
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            { toolName: "terminal", shellInputRegex: "rm|del", permission: { type: "deny" } },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission.bash).toEqual({ "*": "deny" });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      warnSpy.mockRestore();
+    });
+
+    it("should not duplicate a passed-through current-name row across regenerates", async () => {
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          toolPermissions: [{ toolName: "terminal", permission: { type: "deny" } }],
+        }),
+      );
+
+      // An unknown canonical category is passed through verbatim as the toolName, so the
+      // generated row carries the current spelling; it must still dedupe against the
+      // existing row instead of accumulating one copy per regenerate.
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { terminal: { "*": "deny" } } }),
+      });
+
+      const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).toolPermissions).toEqual([
+        { toolName: "terminal", permission: { type: "deny" } },
+      ]);
+    });
+
     it("should fold a current alias and its legacy name into one category, most restrictive wins", () => {
       const instance = new AugmentcodePermissions({
         relativeDirPath: ".augment",

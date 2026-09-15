@@ -448,8 +448,13 @@ export class AugmentcodePermissions extends ToolPermissions {
     //   the same row.
     // - Existing managed-tool `allow` / `ask-user` entries: replaced (rulesync owns the
     //   permissive surface for managed namespaces).
+    // Keyed by the legacy spelling on both sides so a passed-through current name (a canonical
+    // `terminal` category is emitted verbatim) still dedupes against its existing row.
     const generatedKeys = new Set(
-      generated.map((e) => `${e.toolName}|${e.shellInputRegex ?? ""}|${e.permission.type}`),
+      generated.map(
+        (e) =>
+          `${toLegacyAugmentToolName(e.toolName)}|${e.shellInputRegex ?? ""}|${e.permission.type}`,
+      ),
     );
 
     const preservedBasicEntries = basicExistingEntries.filter((entry) => {
@@ -840,6 +845,7 @@ function convertAugmentToRulesyncPermissions({
       continue;
     }
 
+    const legacyToolName = toLegacyAugmentToolName(entry.toolName);
     const canonical = toCanonicalToolName(entry.toolName);
     if (forbiddenMapKeys.has(canonical)) {
       logger?.warn(
@@ -856,7 +862,7 @@ function convertAugmentToRulesyncPermissions({
     // imported as the catch-all `*` pattern. This is the inverse of the fail-closed export side
     // and is documented in `docs/reference/file-formats.md`.
     let pattern: string;
-    if (toLegacyAugmentToolName(entry.toolName) === "launch-process" && entry.shellInputRegex) {
+    if (legacyToolName === "launch-process" && entry.shellInputRegex) {
       const regex = entry.shellInputRegex;
       if (isShellRegexRoundtrippable(regex)) {
         // Faithful import: glob round-trips back to an equivalent regex.
