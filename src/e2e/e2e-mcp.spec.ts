@@ -27,6 +27,7 @@ import {
 
 // Native MCP tools that emit "test-server" (takt writes a transport allowlist instead).
 const mcpGenerateTargets = [
+  { target: "pool", outputPath: join(".poolside", "settings.yaml") },
   { target: "aiassistant", outputPath: join(".ai", "mcp", "mcp.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "bob", outputPath: join(".bob", "mcp.json") },
@@ -881,6 +882,7 @@ describe("E2E: mcp (import)", () => {
 
 // Native global-scope MCP tools that emit "test-server" (takt writes a transport allowlist instead).
 const mcpGlobalTargets = [
+  { target: "pool", outputPath: join(".config", "poolside", "settings.yaml") },
   { target: "aiassistant", outputPath: join(".ai", "mcp", "mcp.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
   { target: "bob", outputPath: join(".bob", "mcp.json") },

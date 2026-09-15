@@ -83,6 +83,7 @@ export const ignoreProcessorToolTargetTuple = [
 ] as const;
 
 export const mcpProcessorToolTargetTuple = [
+  "pool",
   "aiassistant",
   "amp",
   "antigravity-cli",

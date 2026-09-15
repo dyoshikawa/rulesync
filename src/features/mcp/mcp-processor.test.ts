@@ -1235,6 +1235,7 @@ describe("McpProcessor", () => {
   describe("getToolTargets", () => {
     it("should return supported tool targets", () => {
       const targets = McpProcessor.getToolTargets();
+      expect(targets).toContain("pool");
       expect(targets).toContain("claudecode");
       expect(targets).toContain("claudecode-legacy");
       // cline MCP is global-only (no project-scoped MCP), so it is NOT a
@@ -1257,6 +1258,7 @@ describe("McpProcessor", () => {
       // ~/.config/kilo/kilo.json(c), so it must be present in the
       // global-mode supported targets list.
       const globalTargets = McpProcessor.getToolTargets({ global: true });
+      expect(globalTargets).toContain("pool");
       expect(globalTargets).toContain("kilo");
       expect(globalTargets).toContain("opencode"); // sanity: parity with opencode
       expect(globalTargets).toContain("cline"); // cline MCP is global-only

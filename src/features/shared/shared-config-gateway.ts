@@ -1297,6 +1297,16 @@ const CLAUDE_SETTINGS_FILE_SHAPE = {
 } as const satisfies Omit<SharedConfigFileDeclaration, "features">;
 
 export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDeclaration>> = {
+  ".poolside/settings.yaml": {
+    format: "yaml",
+    invalidRootPolicy: "error",
+    features: { mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] } },
+  },
+  ".config/poolside/settings.yaml": {
+    format: "yaml",
+    invalidRootPolicy: "error",
+    features: { mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] } },
+  },
   [CLAUDE_SETTINGS_SHARED_FILE_KEY]: {
     ...CLAUDE_SETTINGS_FILE_SHAPE,
     features: {
