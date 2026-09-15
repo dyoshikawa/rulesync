@@ -21,6 +21,7 @@ import {
   DEVIN_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
   CLINE_HOOK_EVENTS,
+  CRUSH_HOOK_EVENTS,
   GOOSE_HOOK_EVENTS,
   GROKCLI_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
@@ -60,6 +61,7 @@ import { ContinueHooks } from "./continue-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
 import { CortexcodeHooks } from "./cortexcode-hooks.js";
+import { CrushHooks } from "./crush-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { DevinHooks } from "./devin-hooks.js";
@@ -849,6 +851,21 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command", "http"],
       // Tool-name events honor `matcher`; the adapter drops it (with a warning)
       // on the matcher-less lifecycle events.
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "crush",
+    {
+      // Crush hooks live under the `hooks` key of `<project>/crush.json` (or
+      // `.crush.json`) and `~/.config/crush/crush.json`, as a flat
+      // `PreToolUse: [{name, matcher, command, timeout}]` list. `matcher` is
+      // a regex on the tool name; only `PreToolUse` fires today.
+      // https://github.com/charmbracelet/crush/blob/main/docs/hooks/README.md
+      class: CrushHooks,
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: CRUSH_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
   ],

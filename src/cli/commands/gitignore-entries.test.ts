@@ -103,6 +103,9 @@ describe("registry derivation", () => {
       // Preferred over `opencode.json` when neither file exists yet, so it is
       // chosen at write time rather than declared by getSettablePaths.
       "**/opencode.jsonc",
+      // Runtime twin of `crush.json`: written instead of it when the project
+      // already keeps a `.crush.json`, so getSettablePaths never declares it.
+      "**/.crush.json",
       // Copilot CLI user settings: emitted in GLOBAL scope only (project scope
       // writes `.github/copilot/settings.json` instead), so project derivation
       // never yields it. It stays listed as a shared user-managed config so a

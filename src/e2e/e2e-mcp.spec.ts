@@ -41,6 +41,7 @@ const mcpGenerateTargets = [
   { target: "grokcli", outputPath: join(".grok", "config.toml") },
   { target: "copilot", outputPath: join(".vscode", "mcp.json") },
   { target: "copilotcli", outputPath: join(".github", "mcp.json") },
+  { target: "crush", outputPath: "crush.json" },
   { target: "opencode", outputPath: "opencode.jsonc" },
   { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
   { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
@@ -758,6 +759,21 @@ describe("E2E: mcp (import)", () => {
     { target: "antigravity-ide", sourcePath: join(".agents", "mcp_config.json") },
     { target: "antigravity-cli", sourcePath: join(".agents", "mcp_config.json") },
     { target: "warp", sourcePath: join(".warp", ".mcp.json") },
+    // Crush keys its servers by the top-level `mcp` object (with a required
+    // `type`) instead of `mcpServers`.
+    {
+      target: "crush",
+      sourcePath: "crush.json",
+      sourceContent: JSON.stringify(
+        {
+          mcp: {
+            "test-server": { type: "stdio", command: "echo", args: ["hello"] },
+          },
+        },
+        null,
+        2,
+      ),
+    },
     // Legacy pre-v3000.3 location: import must fall back to config.json's
     // mcpServers key when no mcp_config.json exists.
     { target: "devin", sourcePath: join(".devin", "config.json") },
@@ -907,6 +923,7 @@ const mcpGlobalTargets = [
   { target: "kimi-code", outputPath: join(".kimi-code", "mcp.json") },
   { target: "junie", outputPath: join(".junie", "mcp", "mcp.json") },
   { target: "amp", outputPath: join(".config", "amp", "settings.json") },
+  { target: "crush", outputPath: join(".config", "crush", "crush.json") },
   {
     target: "antigravity-ide",
     outputPath: join(".gemini", "config", "mcp_config.json"),

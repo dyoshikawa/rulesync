@@ -97,6 +97,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   copilot: z.optional(toolScopedMcpSchema),
   copilotcli: z.optional(toolScopedMcpSchema),
   cortexcode: z.optional(toolScopedMcpSchema),
+  crush: z.optional(toolScopedMcpSchema),
   cursor: z.optional(toolScopedMcpSchema),
   deepagents: z.optional(toolScopedMcpSchema),
   devin: z.optional(toolScopedMcpSchema),

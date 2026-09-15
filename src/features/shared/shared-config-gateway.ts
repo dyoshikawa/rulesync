@@ -1277,6 +1277,21 @@ const ZCODE_USER_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
 };
 
 /**
+ * Crush's JSON config, shared by the project (`crush.json` / `.crush.json`)
+ * and global (`~/.config/crush/crush.json`) spellings so a policy edit lands
+ * on both. See the `SHARED_CONFIG_OWNERSHIP` entries for the key rationale.
+ */
+const CRUSH_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "json",
+  invalidRootPolicy: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
+    hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    permissions: { kind: "deep-merge" },
+  },
+};
+
+/**
  * What the two Claude Code settings files have in common: both are plain JSON,
  * and both validate against the one published schema, which the gateway
  * points every file it writes at. `.claude/settings.local.json` is the same
@@ -1553,6 +1568,17 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   ".zcode/config.json": ZCODE_WORKSPACE_CONFIG_DECLARATION,
   ".zcode/cli/config.json": ZCODE_USER_CONFIG_DECLARATION,
+  // Crush's JSON config: `<project>/crush.json` (or its `.crush.json` twin,
+  // which the writers resolve to this same declaration) and
+  // `~/.config/crush/crush.json`. Both carry the user's providers, models and
+  // options beside the rulesync-owned sections, so they are edited in place
+  // and an unparseable root is refused rather than replaced. `mcp` and `hooks`
+  // are owned outright. Permissions author `permissions.allowed_tools` and
+  // `options.disabled_tools` next to the user's other `permissions.*` /
+  // `options.*` keys, so that patch deep-merges; both lists are rebuilt in
+  // full by the writer and retracted with an explicit `undefined`.
+  "crush.json": CRUSH_CONFIG_DECLARATION,
+  ".config/crush/crush.json": CRUSH_CONFIG_DECLARATION,
   // IBM Bob settings: `hooks` is the only rulesync-owned key. The project file
   // (`.bob/settings.json`) and the user file (`~/.bob/settings/settings.json`)
   // both carry unrelated Bob settings, so they are edited in place and an

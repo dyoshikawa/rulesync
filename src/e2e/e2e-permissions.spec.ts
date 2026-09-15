@@ -41,6 +41,7 @@ const permissionsGenerateTargets = [
   "cursor",
   "copilot",
   "copilotcli",
+  "crush",
   "kiro",
   "kiro-cli",
   "kiro-ide",
@@ -68,6 +69,7 @@ const permissionsGlobalTargets = [
   "opencode",
   "codexcli",
   "copilotcli",
+  "crush",
   "cursor",
   "kilo",
   "augmentcode",
@@ -952,6 +954,39 @@ web_search_request = true
     expect(content.permissions.deny).toContain("Read(.env)");
   });
 
+  it("should generate crush permissions into crush.json tool lists", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "allow" },
+            read: { "*": "allow" },
+            webfetch: { "*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    // Unrelated top-level keys of the shared config file must survive.
+    await writeFileContent(
+      join(testDir, "crush.json"),
+      JSON.stringify({ options: { debug: true } }, null, 2),
+    );
+
+    await runGenerate({ target: "crush", features: "permissions" });
+
+    // Crush has tool-wide lists only: catch-all allows become
+    // `permissions.allowed_tools`, catch-all denies `options.disabled_tools`.
+    const content = JSON.parse(await readFileContent(join(testDir, "crush.json")));
+    expect(content.permissions.allowed_tools).toEqual(["bash", "view"]);
+    expect(content.options.disabled_tools).toEqual(["fetch"]);
+    expect(content.options.debug).toBe(true);
+  });
+
   it("should generate tabnine permissions into .tabnine/agent/settings.json", async () => {
     const testDir = getTestDir();
 
@@ -1545,6 +1580,33 @@ enabled = true
     expect(content.permission.bash["git push *"]).toBe("ask");
     expect(content.permission.bash["rm -rf *"]).toBe("deny");
     expect(content.permission.read["src/**"]).toBe("allow");
+  });
+
+  it("should import crush permissions into .rulesync/permissions.jsonc", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, "crush.json"),
+      JSON.stringify(
+        {
+          permissions: { allowed_tools: ["bash", "view", "edit:write"] },
+          options: { disabled_tools: ["fetch"] },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "crush", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash["*"]).toBe("allow");
+    expect(content.permission.read["*"]).toBe("allow");
+    expect(content.permission.webfetch["*"]).toBe("deny");
+    // `tool:action` entries are narrower than a tool-wide rule and are not imported.
+    expect(content.permission.edit).toBeUndefined();
   });
 
   it("should import tabnine permissions into .rulesync/permissions.jsonc", async () => {
@@ -2502,6 +2564,38 @@ describe("E2E: permissions (global mode)", () => {
     const generated = JSON.parse(await readFileContent(join(homeDir, ".qwen", "settings.json")));
     expect(generated.permissions.allow).toContain("Bash(git status *)");
     expect(generated.permissions.deny).toContain("Read(.env)");
+  });
+
+  it("should generate crush permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            read: { "*": "allow" },
+            webfetch: { "*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "crush",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".config", "crush", "crush.json")),
+    );
+    expect(generated.permissions.allowed_tools).toEqual(["view"]);
+    expect(generated.options.disabled_tools).toEqual(["fetch"]);
   });
 
   it("should generate tabnine permissions in home directory with --global", async () => {

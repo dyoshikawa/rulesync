@@ -66,6 +66,12 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   "reasonix.toml",
   ".vscode/settings.json",
   ".zed/settings.json",
+  // Crush config: `crush.json` and its `.crush.json` twin (preferred when it
+  // already exists, since Crush lets it win the merge). Both carry the user's
+  // providers/models beside the `mcp`, `hooks`, `permissions` and `options`
+  // blocks.
+  "crush.json",
+  ".crush.json",
   "kilo.json",
   "kilo.jsonc",
   "opencode.json",
