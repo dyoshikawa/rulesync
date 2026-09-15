@@ -7,11 +7,7 @@ import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-pa
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { RulesyncCommand } from "./rulesync-command.js";
-import {
-  TabnineCommand,
-  TabnineCommandFrontmatter,
-  TabnineCommandFrontmatterSchema,
-} from "./tabnine-command.js";
+import { TabnineCommand, TabnineCommandFrontmatterSchema } from "./tabnine-command.js";
 
 describe("TabnineCommand", () => {
   let testDir: string;
@@ -118,7 +114,7 @@ prompt = "Unclosed string`;
         validate: true,
       });
 
-      const frontmatter = command.getFrontmatter() as TabnineCommandFrontmatter;
+      const frontmatter = command.getFrontmatter();
       expect(frontmatter.description).toBe("Test command description");
       expect(frontmatter.prompt).toBe(
         "This is a test prompt for the command.\nIt can be multiline.\n",
@@ -134,7 +130,7 @@ prompt = "Unclosed string`;
         validate: true,
       });
 
-      const frontmatter = command.getFrontmatter() as TabnineCommandFrontmatter;
+      const frontmatter = command.getFrontmatter();
       expect(frontmatter.description).toBeUndefined();
       expect(frontmatter.prompt).toBe("This is a test prompt without description.\n");
     });
@@ -201,7 +197,7 @@ prompt = "Unclosed string`;
 
       expect(rulesyncCommand).toBeInstanceOf(RulesyncCommand);
       expect(rulesyncCommand.getFrontmatter()).toEqual({
-        targets: ["tabnine"],
+        targets: ["*"],
         description: "Test command description",
       });
       expect(rulesyncCommand.getBody()).toBe(
@@ -253,7 +249,7 @@ Run !{git status} and report.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "round-trip.md",
-        frontmatter: { targets: ["tabnine"], description: "Round trip" },
+        frontmatter: { targets: ["*"], description: "Round trip" },
         body: originalBody,
         fileContent: "",
         validate: true,
@@ -278,7 +274,7 @@ Run !{git status} and report.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "nested-round-trip.md",
-        frontmatter: { targets: ["tabnine"], description: "Nested" },
+        frontmatter: { targets: ["*"], description: "Nested" },
         body: originalBody,
         fileContent: "",
         validate: true,
@@ -310,7 +306,7 @@ Run !{git status} and report.
       const rulesyncCommand = command.toRulesyncCommand();
 
       expect(rulesyncCommand.getFrontmatter()).toEqual({
-        targets: ["tabnine"],
+        targets: ["*"],
         description: undefined,
       });
     });
@@ -323,7 +319,7 @@ Run !{git status} and report.
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test-command.md",
         frontmatter: {
-          targets: ["tabnine"],
+          targets: ["*"],
           description: "Test description from rulesync",
         },
         body: "Test prompt content",
@@ -353,7 +349,7 @@ Run !{git status} and report.
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "complex-command.md",
         frontmatter: {
-          targets: ["tabnine"],
+          targets: ["*"],
           description: "Complex command",
         },
         body: "Complex prompt",
@@ -375,7 +371,7 @@ Run !{git status} and report.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "args.md",
-        frontmatter: { targets: ["tabnine"], description: "Args" },
+        frontmatter: { targets: ["*"], description: "Args" },
         body: "Focus on $ARGUMENTS.",
         fileContent: "",
         validate: true,
@@ -396,7 +392,7 @@ Run !{git status} and report.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "args-multi.md",
-        frontmatter: { targets: ["tabnine"], description: "Args multi" },
+        frontmatter: { targets: ["*"], description: "Args multi" },
         body: "First: $ARGUMENTS. Second: $ARGUMENTS.",
         fileContent: "",
         validate: true,
@@ -416,7 +412,7 @@ Run !{git status} and report.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "shell.md",
-        frontmatter: { targets: ["tabnine"], description: "Shell" },
+        frontmatter: { targets: ["*"], description: "Shell" },
         body: "Run !`git status` and report.",
         fileContent: "",
         validate: true,
@@ -436,7 +432,7 @@ Run !{git status} and report.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "combined.md",
-        frontmatter: { targets: ["tabnine"], description: "Combined" },
+        frontmatter: { targets: ["*"], description: "Combined" },
         body: "Diff: !`git diff`\nFocus on $ARGUMENTS.",
         fileContent: "",
         validate: true,
@@ -459,7 +455,7 @@ Run !{git status} and report.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "idempotent.md",
-        frontmatter: { targets: ["tabnine"], description: "Idempotent" },
+        frontmatter: { targets: ["*"], description: "Idempotent" },
         body: nativeBody,
         fileContent: "",
         validate: true,
@@ -479,7 +475,7 @@ Run !{git status} and report.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "word-boundary-underscore.md",
-        frontmatter: { targets: ["tabnine"], description: "Word boundary" },
+        frontmatter: { targets: ["*"], description: "Word boundary" },
         body: "Use $ARGUMENTS_FOO here.",
         fileContent: "",
         validate: true,
@@ -499,7 +495,7 @@ Run !{git status} and report.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "word-boundary-letter.md",
-        frontmatter: { targets: ["tabnine"], description: "Word boundary" },
+        frontmatter: { targets: ["*"], description: "Word boundary" },
         body: "Token $ARGUMENTSx remains.",
         fileContent: "",
         validate: true,
@@ -519,7 +515,7 @@ Run !{git status} and report.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "word-boundary-hyphen.md",
-        frontmatter: { targets: ["tabnine"], description: "Word boundary" },
+        frontmatter: { targets: ["*"], description: "Word boundary" },
         body: "Token $ARGUMENTS-foo here.",
         fileContent: "",
         validate: true,
@@ -541,7 +537,7 @@ Run !{git status} and report.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "nested.md",
-        frontmatter: { targets: ["tabnine"], description: "Nested" },
+        frontmatter: { targets: ["*"], description: "Nested" },
         body: "Run !`echo $ARGUMENTS` now.",
         fileContent: "",
         validate: true,
@@ -562,7 +558,7 @@ Run !{git status} and report.
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "extras.md",
         frontmatter: {
-          targets: ["tabnine"],
+          targets: ["*"],
           description: "Extras",
           // JSON.parse yields an own `__proto__` key (a literal would set the prototype).
           tabnine: JSON.parse(
@@ -601,7 +597,7 @@ Run !{git status} and report.
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "override.md",
         frontmatter: {
-          targets: ["tabnine"],
+          targets: ["*"],
           description: "Override",
           tabnine: {
             prompt: "Hand-written {{args}} body",
@@ -732,7 +728,7 @@ Token {{args}}-foo and prefix{{args}} here.
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "quotes-desc.md",
         frontmatter: {
-          targets: ["tabnine"],
+          targets: ["*"],
           description: 'Title with "quoted" word',
         },
         body: "body",
@@ -759,7 +755,7 @@ Token {{args}}-foo and prefix{{args}} here.
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "backslash-desc.md",
         frontmatter: {
-          targets: ["tabnine"],
+          targets: ["*"],
           description: "Path C:\\foo\\bar",
         },
         body: "body",
@@ -785,7 +781,7 @@ Token {{args}}-foo and prefix{{args}} here.
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "newline-desc.md",
         frontmatter: {
-          targets: ["tabnine"],
+          targets: ["*"],
           description: "Line 1\nLine 2",
         },
         body: "body",
@@ -812,7 +808,7 @@ Token {{args}}-foo and prefix{{args}} here.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "triple-quote.md",
-        frontmatter: { targets: ["tabnine"], description: "Triple" },
+        frontmatter: { targets: ["*"], description: "Triple" },
         body: 'Body with """ inside it.',
         fileContent: "",
         validate: true,
@@ -838,7 +834,7 @@ Token {{args}}-foo and prefix{{args}} here.
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "backtick-shell.md",
         frontmatter: {
-          targets: ["tabnine"],
+          targets: ["*"],
           description: "Backtick shell",
           tabnine: { prompt: "Run !{echo `hello`}." },
         },
@@ -873,7 +869,7 @@ Token {{args}}-foo and prefix{{args}} here.
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "edge.md",
-        frontmatter: { targets: ["tabnine"], description: "edge" },
+        frontmatter: { targets: ["*"], description: "edge" },
         body,
         fileContent: "",
         validate: true,
@@ -1210,7 +1206,7 @@ ${longPrompt}
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
-        frontmatter: { targets: ["tabnine"], description: "Test" },
+        frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
         fileContent: "",
       });

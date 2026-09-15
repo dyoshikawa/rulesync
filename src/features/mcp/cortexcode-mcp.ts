@@ -10,7 +10,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import {
-  omitPrototypePollutionKeys,
+  omitPrototypePollutionKeysDeep,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord } from "../../utils/type-guards.js";
@@ -169,13 +169,10 @@ function convertToCortexcodeFormat(mcpServers: McpServers, logger?: Logger): Cor
 
     for (const [key, value] of Object.entries(rest)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-      // `env` and `headers` are key/value maps Cortex Code spreads into the
-      // server's process environment and HTTP requests, so their keys are
-      // sanitized too.
-      converted[key] =
-        (key === "env" || key === "headers") && isRecord(value)
-          ? omitPrototypePollutionKeys(value)
-          : value;
+      // Every passthrough value is sanitized recursively: `env` and `headers`
+      // are key/value maps Cortex Code spreads into the server's process environment
+      // and HTTP requests, and an undocumented key may nest an object too.
+      converted[key] = omitPrototypePollutionKeysDeep(value);
     }
     result[serverName] = converted;
   }
@@ -186,7 +183,8 @@ function convertToCortexcodeFormat(mcpServers: McpServers, logger?: Logger): Cor
 /**
  * Convert Cortex Code's server map back to the canonical shape. The
  * documented spelling (`type` + `command`/`url`) is already canonical, so
- * entries pass through with only prototype-pollution keys dropped.
+ * entries pass through with only prototype-pollution keys dropped — at every
+ * nesting level, mirroring the generate side.
  */
 function convertFromCortexcodeFormat(mcpServers: unknown): McpServers {
   if (!isMcpServers(mcpServers)) {
@@ -196,7 +194,7 @@ function convertFromCortexcodeFormat(mcpServers: unknown): McpServers {
 
   for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(serverName) || !isRecord(serverConfig)) continue;
-    result[serverName] = omitPrototypePollutionKeys(serverConfig);
+    result[serverName] = omitPrototypePollutionKeysDeep(serverConfig) as Record<string, unknown>;
   }
 
   return result;
@@ -252,18 +250,15 @@ export class CortexcodeMcp extends ToolMcp {
     }
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    // The constructor parses (and fails closed on) the file; an absent
+    // `mcpServers` key is tolerated by `toRulesyncMcp` the same as an empty map.
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
-    const json = parseCortexcodeMcpConfig({
-      fileContent,
-      relativePath: join(paths.relativeDirPath, paths.relativeFilePath),
-    });
-    const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new CortexcodeMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: JSON.stringify(newJson, null, 2),
+      fileContent,
       validate,
       global,
     });

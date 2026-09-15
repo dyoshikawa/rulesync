@@ -241,6 +241,26 @@ Body content`;
       expect(tabnineSubagent.getFrontmatter().description).toBe("Tabnine-only description");
     });
 
+    it("should refuse a subagent without a description, which Tabnine requires", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "no-description.md",
+        frontmatter: { targets: ["tabnine"], name: "no-description" },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(() =>
+        TabnineSubagent.fromRulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: agentsDir,
+          rulesyncSubagent,
+          validate: true,
+        }),
+      ).toThrow(/Invalid tabnine subagent frontmatter in no-description\.md/);
+    });
+
     it("should pass through unknown tabnine-section keys", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         outputRoot: testDir,

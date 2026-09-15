@@ -1,34 +1,12 @@
-import { join } from "node:path";
-
 import { CONTINUE_DIR, CONTINUE_SETTINGS_FILE_NAME } from "../../constants/continue-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_CONTINUE_EVENT_NAMES,
   CONTINUE_HOOK_EVENTS,
   CONTINUE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
-import {
-  applySharedConfigPatch,
-  parseSharedConfig,
-  sharedConfigFileKey,
-} from "../shared/shared-config-gateway.js";
-import type { RulesyncHooks } from "./rulesync-hooks.js";
+import { SettingsJsonHooks, type SettingsJsonHooksSpec } from "./settings-json-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
-import {
-  buildImportedHooksConfig,
-  canonicalToToolHooks,
-  toolHooksToCanonical,
-} from "./tool-hooks-converter.js";
-import {
-  ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
-  type ToolHooksFromRulesyncHooksParams,
-  type ToolHooksSettablePaths,
-} from "./tool-hooks.js";
+import type { ToolHooksSettablePaths } from "./tool-hooks.js";
 
 // The CLI's `NO_MATCHER_EVENTS`: these fire on every occurrence and ignore
 // `matcher`. Every other event compiles `matcher` as a regex over its subject
@@ -67,19 +45,11 @@ const CONTINUE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   ],
 };
 
-/**
- * Single spelling of the settings/hooks codec/policy: fail closed on an
- * unparseable root rather than replacing the user's Continue settings with
- * generated output.
- */
-function parseContinueSettings(fileContent: string, filePath?: string): Record<string, unknown> {
-  return parseSharedConfig({
-    format: "json",
-    fileContent,
-    filePath,
-    invalidRootPolicy: "error",
-  });
-}
+const CONTINUE_SPEC: SettingsJsonHooksSpec = {
+  displayName: "Continue",
+  overrideKey: "continue",
+  converterConfig: CONTINUE_CONVERTER_CONFIG,
+};
 
 /**
  * Continue CLI hooks.
@@ -97,124 +67,14 @@ function parseContinueSettings(fileContent: string, filePath?: string): Record<s
  * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/hookConfig.ts
  * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/types.ts
  */
-export class ContinueHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
+export class ContinueHooks extends SettingsJsonHooks {
+  static override getSpec(): SettingsJsonHooksSpec {
+    return CONTINUE_SPEC;
   }
 
-  override isDeletable(): boolean {
-    // settings.json carries user-managed settings beyond hooks in both scopes,
-    // so it is never removed wholesale; clearing hooks happens via an in-place
-    // merge.
-    return false;
-  }
-
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
+  static override getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     // The processor supplies the home directory as outputRoot in global mode;
     // the file layout is the same in both scopes.
     return { relativeDirPath: CONTINUE_DIR, relativeFilePath: CONTINUE_SETTINGS_FILE_NAME };
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<ContinueHooks> {
-    const paths = ContinueHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new ContinueHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
-  }
-
-  static async fromRulesyncHooks({
-    outputRoot = process.cwd(),
-    rulesyncHooks,
-    validate = true,
-    global = false,
-    logger,
-  }: ToolHooksFromRulesyncHooksParams & {
-    global?: boolean;
-    logger?: Logger;
-  }): Promise<ContinueHooks> {
-    const paths = ContinueHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
-
-    const config = rulesyncHooks.getJson();
-    const hooks = canonicalToToolHooks({
-      config,
-      toolOverrideHooks: config.continue?.hooks,
-      converterConfig: CONTINUE_CONVERTER_CONFIG,
-      logger,
-    });
-    const fileContent = applySharedConfigPatch({
-      fileKey: sharedConfigFileKey(paths),
-      feature: "hooks",
-      existingContent,
-      patch: { hooks },
-      filePath,
-      logger,
-    });
-    return new ContinueHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
-  }
-
-  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    const configPath = join(this.getRelativeDirPath(), this.getRelativeFilePath());
-    let settings: Record<string, unknown>;
-    try {
-      settings = parseContinueSettings(this.getFileContent(), configPath);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Continue hooks content in ${configPath}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
-    const hooks = toolHooksToCanonical({
-      logger,
-      hooks: settings.hooks,
-      converterConfig: CONTINUE_CONVERTER_CONFIG,
-    });
-    return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "continue" }),
-        null,
-        2,
-      ),
-    });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): ContinueHooks {
-    return new ContinueHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
-    });
   }
 }

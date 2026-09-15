@@ -233,6 +233,34 @@ describe("TabninePermissions", () => {
       );
     });
 
+    it("names an existing allowed entry it removes for a managed tool", async () => {
+      await writeSettings({
+        testDir,
+        settings: { tools: { allowed: ["run_shell_command(rm)", "some_mcp_tool"] } },
+      });
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { bash: { "git *": "allow" } },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({
+        allowed: ["run_shell_command(git)", "some_mcp_tool"],
+      });
+      // Losing an allow only brings back the confirmation prompt, so it is
+      // said at info level rather than warned about.
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `removed 1 existing tools.allowed entry(ies) ("run_shell_command(rm)")`,
+        ),
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("removed"));
+    });
+
     it("withholds a bare-prefix allow that overlaps a bash ask", async () => {
       const logger = createMockLogger();
       const permissions = await TabninePermissions.fromRulesyncPermissions({
@@ -522,6 +550,10 @@ describe("TabninePermissions", () => {
           "refused to write tools.discoveryCommand, tools.callCommand, tools.shell.pager, general.tabnineHost, general.preferredEditor from the tabnine override",
         ),
       );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("runs those values as a command or sends its traffic there"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Set them by hand in"));
     });
 
     it("refuses the sandbox command but keeps the rest of the sandbox object", async () => {
@@ -544,6 +576,10 @@ describe("TabninePermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("refused to write tools.sandbox.command from the tabnine override"),
       );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("runs that value as a command or sends its traffic there"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Set it by hand in"));
       // The sandbox object is still not the plain `true`, so it is still named.
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("'tools.sandbox = "));
     });
@@ -605,6 +641,60 @@ describe("TabninePermissions", () => {
       const trust = messages.find((message) => message.includes("trust-affecting"));
       expect(trust).toContain(`'tools.allowed ("custom_mcp_tool")'`);
       expect(trust).not.toContain("run_shell_command");
+    });
+
+    it("reads an override prefix spelled like a glob as that glob, not as a doubled one", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { bash: { "git push *": "deny", "rm -rf *": "deny" } },
+          tabnine: {
+            tools: { allowed: ["run_shell_command(git *)", "run_shell_command(*)"] },
+          },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({
+        exclude: ["run_shell_command(git push)", "run_shell_command(rm -rf)"],
+      });
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages).toContainEqual(
+        expect.stringContaining(
+          `withheld 2 'bash' allow rule(s) ("git *", "*") that overlap a 'bash' deny`,
+        ),
+      );
+      expect(messages.join("\n")).not.toContain("* *");
+    });
+
+    it("withholds a verbatim override allow whose tool the canonical block denies", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { webfetch: { "*": "deny" }, bash: { "git *": "allow" } },
+          tabnine: { tools: { allowed: ["web_fetch", "custom_mcp_tool"] } },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({
+        allowed: ["run_shell_command(git)", "custom_mcp_tool"],
+        exclude: ["web_fetch"],
+      });
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages).toContainEqual(
+        expect.stringContaining(
+          `withheld 1 tools.allowed entry(ies) of the tabnine override ("web_fetch") that name a tool the canonical block denies`,
+        ),
+      );
+      // The withheld entry never reached the file, so it is not a trust change either.
+      const trust = messages.find((message) => message.includes("trust-affecting"));
+      expect(trust).toContain(`'tools.allowed ("custom_mcp_tool")'`);
+      expect(trust).not.toContain("web_fetch");
     });
 
     it("drops the container a refused key emptied and reports a list that is not one", async () => {

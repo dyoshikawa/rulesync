@@ -1,38 +1,16 @@
-import { join } from "node:path";
-
 import {
   BOB_DIR,
   BOB_GLOBAL_SETTINGS_DIR_PATH,
   BOB_SETTINGS_FILE_NAME,
 } from "../../constants/bob-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   BOB_HOOK_EVENTS,
   BOB_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_BOB_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
-import {
-  applySharedConfigPatch,
-  parseSharedConfig,
-  sharedConfigFileKey,
-} from "../shared/shared-config-gateway.js";
-import type { RulesyncHooks } from "./rulesync-hooks.js";
+import { SettingsJsonHooks, type SettingsJsonHooksSpec } from "./settings-json-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
-import {
-  buildImportedHooksConfig,
-  canonicalToToolHooks,
-  toolHooksToCanonical,
-} from "./tool-hooks-converter.js";
-import {
-  ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
-  type ToolHooksFromRulesyncHooksParams,
-  type ToolHooksSettablePaths,
-} from "./tool-hooks.js";
+import type { ToolHooksSettablePaths } from "./tool-hooks.js";
 
 // Bob honours `matcher` (a regex over the tool name) only on the two tool
 // events; SessionStart / UserPromptSubmit / Stop carry none.
@@ -58,19 +36,11 @@ const BOB_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   wildcardMatcherMeansAll: true,
 };
 
-/**
- * Single spelling of the settings.json codec/policy: fail closed on an
- * unparseable root rather than replacing the user's Bob settings with
- * generated output.
- */
-function parseBobSettings(fileContent: string, filePath?: string): Record<string, unknown> {
-  return parseSharedConfig({
-    format: "json",
-    fileContent,
-    filePath,
-    invalidRootPolicy: "error",
-  });
-}
+const BOB_SPEC: SettingsJsonHooksSpec = {
+  displayName: "Bob",
+  overrideKey: "bob",
+  converterConfig: BOB_CONVERTER_CONFIG,
+};
 
 /**
  * IBM Bob lifecycle hooks.
@@ -85,119 +55,19 @@ function parseBobSettings(fileContent: string, filePath?: string): Record<string
  *
  * @see https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
  */
-export class BobHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
+export class BobHooks extends SettingsJsonHooks {
+  static override getSpec(): SettingsJsonHooksSpec {
+    return BOB_SPEC;
   }
 
-  override isDeletable(): boolean {
-    // settings.json carries user-managed settings beyond hooks, so it must
-    // never be removed wholesale; clearing hooks happens via an in-place merge.
-    return false;
-  }
-
-  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolHooksSettablePaths {
+  static override getSettablePaths({
+    global = false,
+  }: { global?: boolean } = {}): ToolHooksSettablePaths {
     // The user file sits one directory deeper than the project file; the
     // processor supplies the home directory as outputRoot in global mode.
     return {
       relativeDirPath: global ? BOB_GLOBAL_SETTINGS_DIR_PATH : BOB_DIR,
       relativeFilePath: BOB_SETTINGS_FILE_NAME,
     };
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<BobHooks> {
-    const paths = BobHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new BobHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
-  }
-
-  static async fromRulesyncHooks({
-    outputRoot = process.cwd(),
-    rulesyncHooks,
-    validate = true,
-    global = false,
-    logger,
-  }: ToolHooksFromRulesyncHooksParams & {
-    global?: boolean;
-    logger?: Logger;
-  }): Promise<BobHooks> {
-    const paths = BobHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
-
-    const config = rulesyncHooks.getJson();
-    const hooks = canonicalToToolHooks({
-      config,
-      toolOverrideHooks: config.bob?.hooks,
-      converterConfig: BOB_CONVERTER_CONFIG,
-      logger,
-    });
-    const fileContent = applySharedConfigPatch({
-      fileKey: sharedConfigFileKey(paths),
-      feature: "hooks",
-      existingContent,
-      patch: { hooks },
-      filePath,
-      logger,
-    });
-    return new BobHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
-  }
-
-  toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    const configPath = join(this.getRelativeDirPath(), this.getRelativeFilePath());
-    let settings: Record<string, unknown>;
-    try {
-      settings = parseBobSettings(this.getFileContent(), configPath);
-    } catch (error) {
-      throw new Error(`Failed to parse Bob hooks content in ${configPath}: ${formatError(error)}`, {
-        cause: error,
-      });
-    }
-    const hooks = toolHooksToCanonical({
-      logger,
-      hooks: settings.hooks,
-      converterConfig: BOB_CONVERTER_CONFIG,
-    });
-    return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify(buildImportedHooksConfig({ hooks, overrideKey: "bob" }), null, 2),
-    });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): BobHooks {
-    return new BobHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
-    });
   }
 }

@@ -9,7 +9,7 @@ import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import {
-  omitPrototypePollutionKeys,
+  omitPrototypePollutionKeysDeep,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -143,13 +143,10 @@ function convertToTabnineFormat(mcpServers: McpServers, logger?: Logger): Tabnin
 
     for (const [key, value] of Object.entries(rest)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-      // `env` and `headers` are key/value maps Tabnine spreads into the
-      // server's process environment and HTTP requests, so their keys are
-      // sanitized too.
-      converted[key] =
-        (key === "env" || key === "headers") && isRecord(value)
-          ? omitPrototypePollutionKeys(value)
-          : value;
+      // Every passthrough value is sanitized recursively: `env` and `headers`
+      // are key/value maps Tabnine spreads into the server's process environment
+      // and HTTP requests, and an undocumented key may nest an object too.
+      converted[key] = omitPrototypePollutionKeysDeep(value);
     }
     if (enabledTools !== undefined) {
       converted.includeTools = enabledTools;
@@ -166,7 +163,9 @@ function convertToTabnineFormat(mcpServers: McpServers, logger?: Logger): Tabnin
 /**
  * Convert Tabnine's server map back to the canonical shape: `includeTools` /
  * `excludeTools` become `enabledTools` / `disabledTools`; `type` (`stdio`,
- * `sse`, `http`) and every other documented field are already canonical.
+ * `sse`, `http`) and every other documented field are already canonical and
+ * pass through with their prototype-pollution keys dropped at every nesting
+ * level, mirroring the generate side.
  */
 function convertFromTabnineFormat(mcpServers: unknown): McpServers {
   if (!isMcpServers(mcpServers)) {
@@ -185,7 +184,7 @@ function convertFromTabnineFormat(mcpServers: unknown): McpServers {
       } else if (key === "excludeTools") {
         converted.disabledTools = value;
       } else {
-        converted[key] = value;
+        converted[key] = omitPrototypePollutionKeysDeep(value);
       }
     }
     result[serverName] = converted;

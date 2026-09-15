@@ -23,7 +23,7 @@ import {
 // @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/subagents
 const TabnineSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
-  description: z.optional(z.string()),
+  description: z.string(),
   /** "local" (default) runs inside the CLI; "remote" delegates to a Tabnine cloud agent. */
   kind: z.optional(z.string()),
   /** Built-in tool names the subagent may use; omitted = every tool. */
@@ -118,11 +118,21 @@ export class TabnineSubagent extends ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const tabnineSection = rulesyncFrontmatter.tabnine ?? {};
 
-    const tabnineSubagentFrontmatter: TabnineSubagentFrontmatter = {
+    // Tabnine refuses a subagent without a `description`, so a rulesync
+    // subagent that states none is reported here rather than written as a
+    // file the tool would not load.
+    const rawFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...tabnineSection,
     };
+    const result = TabnineSubagentFrontmatterSchema.safeParse(rawFrontmatter);
+    if (!result.success) {
+      throw new Error(
+        `Invalid tabnine subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
+      );
+    }
+    const tabnineSubagentFrontmatter: TabnineSubagentFrontmatter = result.data;
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, tabnineSubagentFrontmatter, {

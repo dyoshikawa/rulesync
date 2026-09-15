@@ -159,9 +159,17 @@ function toShellEntry(prefix: string): string {
 
 type ParsedTabnineEntry = { toolName: string; prefix: string | undefined };
 
-/** The `bash` pattern a `run_shell_command(<prefix>)` entry stands for. */
+/**
+ * The `bash` pattern a `run_shell_command(<prefix>)` entry stands for. A
+ * prefix Tabnine matches literally, so one an author spelled glob-like
+ * (`git *`, `*`) is read as the glob it looks like rather than doubled into
+ * `git * *`, which no comparison or warning could make sense of.
+ */
 function toShellPattern(prefix: string | undefined): string {
-  return prefix === undefined || prefix === "" ? "*" : `${prefix} *`;
+  if (prefix === undefined || prefix === "" || prefix === "*") {
+    return "*";
+  }
+  return prefix.endsWith(" *") ? prefix : `${prefix} *`;
 }
 
 /**
@@ -533,6 +541,84 @@ function buildToolLists({
  * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/built-in-tools
  * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/settings/settings-reference
  */
+/**
+ * A verbatim override allow naming a tool the canonical block denies is
+ * withheld the way a shadowed `bash` allow is: Tabnine never loads an excluded
+ * tool whatever `allowed` says, so the entry would only ever contradict the
+ * deny it sits beside — and an override is not a way around a canonical rule.
+ * Returns the entries that may be written.
+ */
+function withholdDeniedOverrideAllowed({
+  overrideVerbatimAllowed,
+  exclude,
+  logger,
+}: {
+  overrideVerbatimAllowed: readonly string[];
+  exclude: readonly string[];
+  logger: Logger | undefined;
+}): string[] {
+  const denied = overrideVerbatimAllowed.filter((entry) => {
+    const toolName = parseTabnineEntry(entry)?.toolName;
+    return toolName !== undefined && exclude.includes(toolName);
+  });
+  if (denied.length > 0) {
+    warnWithFallback(
+      logger,
+      `Tabnine CLI permissions: withheld ${denied.length} tools.allowed entry(ies) of the ` +
+        `tabnine override (${denied.map(quoteValueForWarning).join(", ")}) that name a tool the ` +
+        `canonical block denies; Tabnine never loads an excluded tool, so remove the deny rule ` +
+        `from .rulesync/permissions.jsonc to allow it.`,
+    );
+  }
+  return overrideVerbatimAllowed.filter((entry) => !denied.includes(entry));
+}
+
+/**
+ * The entries of a managed tool that the canonical block did not re-derive are
+ * named rather than removed silently. Dropping an exclude loosens the policy,
+ * so it is a warning; dropping an allow only brings back Tabnine's confirmation
+ * prompt, so it is said at info level for the author who wonders where a
+ * hand-written entry went.
+ */
+function reportDroppedManagedEntries({
+  existingTools,
+  allowedList,
+  excludeList,
+  logger,
+}: {
+  existingTools: Record<string, unknown> | undefined;
+  allowedList: readonly string[];
+  excludeList: readonly string[];
+  logger: Logger | undefined;
+}): void {
+  const dropped = (key: string, list: readonly string[]): string[] =>
+    uniq(isStringArray(existingTools?.[key]) ? existingTools[key] : []).filter((entry) => {
+      if (list.includes(entry)) {
+        return false;
+      }
+      // A whole-tool entry subsumes every prefixed entry of that tool.
+      const toolName = parseTabnineEntry(entry)?.toolName;
+      return toolName === undefined || !list.includes(toolName);
+    });
+  const droppedExclude = dropped(EXCLUDE_KEY, excludeList);
+  if (droppedExclude.length > 0) {
+    warnWithFallback(
+      logger,
+      `Tabnine CLI permissions: removed ${droppedExclude.length} existing tools.exclude ` +
+        `entry(ies) (${droppedExclude.map(quoteValueForWarning).join(", ")}) of a tool the ` +
+        `canonical block manages; add a deny rule to .rulesync/permissions.jsonc to keep them.`,
+    );
+  }
+  const droppedAllowed = dropped(ALLOWED_KEY, allowedList);
+  if (droppedAllowed.length > 0) {
+    (logger ?? moduleLogger).info(
+      `Tabnine CLI permissions: removed ${droppedAllowed.length} existing tools.allowed ` +
+        `entry(ies) (${droppedAllowed.map(quoteValueForWarning).join(", ")}) of a tool the ` +
+        `canonical block manages; add an allow rule to .rulesync/permissions.jsonc to keep them.`,
+    );
+  }
+}
+
 export class TabninePermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
     super({
@@ -594,13 +680,15 @@ export class TabninePermissions extends ToolPermissions {
       refused: refusedPaths,
     } = stripRefusedOverridePaths(override);
     if (refusedPaths.length > 0) {
+      const one = refusedPaths.length === 1;
       warnWithFallback(
         logger,
         `Tabnine CLI permissions: refused to write ${refusedPaths.join(", ")} from the tabnine ` +
-          `override; Tabnine CLI runs that value as a command or sends its traffic to it, and a ` +
-          `permissions file (one that came from 'rulesync fetch' included) must not be able to ` +
-          `point it at an executable or a server of its choosing. Set it by hand in ` +
-          `${join(paths.relativeDirPath, paths.relativeFilePath)} if you need it.`,
+          `override; Tabnine CLI runs ${one ? "that value" : "those values"} as a command or ` +
+          `sends its traffic there, and a permissions file (one that came from 'rulesync fetch' ` +
+          `included) must not be able to point it at an executable or a server of its choosing. ` +
+          `Set ${one ? "it" : "them"} by hand in ` +
+          `${join(paths.relativeDirPath, paths.relativeFilePath)} if you need ${one ? "it" : "them"}.`,
       );
     }
     // The override's own list entries. A `run_shell_command(...)` allow is a
@@ -633,6 +721,11 @@ export class TabninePermissions extends ToolPermissions {
     const { allowed, exclude } = buildToolLists({
       permission: config.permission,
       overrideShellAllowPatterns,
+      logger,
+    });
+    const writableOverrideAllowed = withholdDeniedOverrideAllowed({
+      overrideVerbatimAllowed,
+      exclude,
       logger,
     });
 
@@ -676,31 +769,11 @@ export class TabninePermissions extends ToolPermissions {
     // appended after the canonical ones so a round trip is lossless.
     const allowedList = uniq([
       ...allowed,
-      ...overrideVerbatimAllowed,
+      ...writableOverrideAllowed,
       ...preservedEntries(ALLOWED_KEY),
     ]);
     const excludeList = uniq([...exclude, ...overrideExclude, ...preservedEntries(EXCLUDE_KEY)]);
-    // Dropping an exclude entry loosens the policy, so the ones of a managed
-    // tool that the canonical block did not re-derive are named rather than
-    // removed silently (the allowed side only tightens and needs no notice).
-    const droppedExcludeEntries = uniq(
-      isStringArray(existingTools?.[EXCLUDE_KEY]) ? existingTools[EXCLUDE_KEY] : [],
-    ).filter((entry) => {
-      if (excludeList.includes(entry)) {
-        return false;
-      }
-      // A whole-tool exclude subsumes every prefixed entry of that tool.
-      const toolName = parseTabnineEntry(entry)?.toolName;
-      return toolName === undefined || !excludeList.includes(toolName);
-    });
-    if (droppedExcludeEntries.length > 0) {
-      warnWithFallback(
-        logger,
-        `Tabnine CLI permissions: removed ${droppedExcludeEntries.length} existing tools.exclude ` +
-          `entry(ies) (${droppedExcludeEntries.map(quoteValueForWarning).join(", ")}) of a tool the ` +
-          `canonical block manages; add a deny rule to .rulesync/permissions.jsonc to keep them.`,
-      );
-    }
+    reportDroppedManagedEntries({ existingTools, allowedList, excludeList, logger });
 
     // An empty list retracts its key: rulesync owns the entries of the tools it
     // manages, and the hand-written ones were kept above. The `tools` group
@@ -725,7 +798,7 @@ export class TabninePermissions extends ToolPermissions {
     warnOnTrustAffectingEntries({
       toolLabel: "Tabnine CLI",
       entries: collectTrustAffectingOverrideEntries({
-        tools: { ...overrideTools, [ALLOWED_KEY]: overrideVerbatimAllowed },
+        tools: { ...overrideTools, [ALLOWED_KEY]: writableOverrideAllowed },
         general: overrideGeneral,
       }),
       relativeFilePath: join(paths.relativeDirPath, paths.relativeFilePath),
