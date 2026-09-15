@@ -11,6 +11,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
@@ -41,10 +42,13 @@ import {
  * `Write(glob)`, `Exec(prefix)`, and `Fetch(pattern)` — plus MCP tool patterns
  * (`mcp__server__tool`). The canonical `edit` and `write` categories both map
  * onto Devin's single `Write` scope; on import `Write` maps back to `write`, so
- * `edit` rules round-trip as `write` (a lossy but documented collapse). Unknown
+ * `edit` rules round-trip as `write` (a lossy but documented collapse). The
+ * canonical `websearch` category maps onto the bare `web_search` tool name,
+ * accepted in the permission lists since CLI v3000.10.21 (2026-09-10). Unknown
  * names (e.g. `mcp__github__list_issues`) pass through verbatim.
  *
  * @see https://docs.devin.ai/cli/reference/permissions
+ * @see https://docs.devin.ai/cli/changelog/stable — v3000.10.21, `web_search`
  */
 const CANONICAL_TO_DEVIN_SCOPE: Record<string, string> = {
   read: "Read",
@@ -52,6 +56,7 @@ const CANONICAL_TO_DEVIN_SCOPE: Record<string, string> = {
   edit: "Write",
   bash: "Exec",
   webfetch: "Fetch",
+  websearch: "web_search",
 };
 
 /**
@@ -62,6 +67,20 @@ const DEVIN_SCOPE_TO_CANONICAL: Record<string, string> = {
   Write: "write",
   Exec: "bash",
   Fetch: "webfetch",
+  web_search: "websearch",
+};
+
+/**
+ * Devin scopes that exist only as a bare tool name: there is no
+ * `web_search(pattern)` matcher, so a pattern-specific rule under the canonical
+ * category cannot be expressed and is collapsed to one action instead.
+ */
+const DEVIN_BARE_ONLY_SCOPES: ReadonlySet<string> = new Set(["web_search"]);
+
+const PERMISSION_ACTION_PRIORITY: Record<PermissionAction, number> = {
+  allow: 0,
+  ask: 1,
+  deny: 2,
 };
 
 function toDevinScope(canonical: string): string {
@@ -288,7 +307,7 @@ export class DevinPermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const { allow, ask, deny } = convertRulesyncToDevinPermissions(config);
+    const { allow, ask, deny } = convertRulesyncToDevinPermissions({ config, logger });
 
     // rulesync owns the scopes present in the permissions config; preserve any
     // existing entries for scopes it does not manage.
@@ -464,9 +483,51 @@ export class DevinPermissions extends ToolPermissions {
 }
 
 /**
+ * Collapse the pattern rules of a bare-only scope to the single action Devin
+ * can hold for it, using deny > ask > allow precedence. A map without a
+ * catch-all grants nothing to unmatched inputs, so an implicit `ask` joins the
+ * candidates and a narrow allowlist can never widen into a blanket allow.
+ * Returns `undefined` for an empty map, which has nothing to express.
+ */
+function collapseBareOnlyScopeRules({
+  category,
+  scope,
+  rules,
+  logger,
+}: {
+  category: string;
+  scope: string;
+  rules: Record<string, PermissionAction>;
+  logger?: Logger;
+}): PermissionAction | undefined {
+  const actions = Object.values(rules);
+  if (actions.length === 0) {
+    return undefined;
+  }
+  const candidates: PermissionAction[] = Object.hasOwn(rules, "*") ? actions : [...actions, "ask"];
+  const action = candidates.reduce((current, candidate) =>
+    PERMISSION_ACTION_PRIORITY[candidate] > PERMISSION_ACTION_PRIORITY[current]
+      ? candidate
+      : current,
+  );
+  if (Object.keys(rules).some((pattern) => pattern !== "*")) {
+    logger?.warn(
+      `Devin accepts "${scope}" only as a bare tool name, with no pattern matcher. Collapsed the "${category}" pattern rules to "${action}" using deny > ask > allow precedence.`,
+    );
+  }
+  return action;
+}
+
+/**
  * Convert rulesync permissions config to Devin allow/ask/deny arrays.
  */
-function convertRulesyncToDevinPermissions(config: PermissionsConfig): {
+function convertRulesyncToDevinPermissions({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger?: Logger;
+}): {
   allow: string[];
   ask: string[];
   deny: string[];
@@ -475,21 +536,31 @@ function convertRulesyncToDevinPermissions(config: PermissionsConfig): {
   const ask: string[] = [];
   const deny: string[] = [];
 
+  const push = (entry: string, action: PermissionAction): void => {
+    switch (action) {
+      case "allow":
+        allow.push(entry);
+        break;
+      case "ask":
+        ask.push(entry);
+        break;
+      case "deny":
+        deny.push(entry);
+        break;
+    }
+  };
+
   for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     const scope = toDevinScope(category);
-    for (const [pattern, action] of Object.entries(rules)) {
-      const entry = buildDevinPermissionEntry(scope, pattern);
-      switch (action) {
-        case "allow":
-          allow.push(entry);
-          break;
-        case "ask":
-          ask.push(entry);
-          break;
-        case "deny":
-          deny.push(entry);
-          break;
+    if (DEVIN_BARE_ONLY_SCOPES.has(scope)) {
+      const action = collapseBareOnlyScopeRules({ category, scope, rules, logger });
+      if (action !== undefined) {
+        push(scope, action);
       }
+      continue;
+    }
+    for (const [pattern, action] of Object.entries(rules)) {
+      push(buildDevinPermissionEntry(scope, pattern), action);
     }
   }
 

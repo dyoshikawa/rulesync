@@ -90,6 +90,86 @@ describe("DevinPermissions", () => {
       expect(parsed.permissions.ask).toContain("Exec");
     });
 
+    it("should map websearch to the bare web_search tool name", async () => {
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { websearch: { "*": "deny" } },
+        }),
+        logger,
+      });
+
+      const parsed = JSON.parse(perms.getFileContent());
+      expect(parsed.permissions).toEqual({ deny: ["web_search"] });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should collapse pattern-specific websearch rules to one action with a warning", async () => {
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { websearch: { "*": "allow", "site:example.com": "ask" } },
+        }),
+        logger,
+      });
+
+      const parsed = JSON.parse(perms.getFileContent());
+      // No `web_search(pattern)` matcher exists, so the most restrictive action wins.
+      expect(parsed.permissions).toEqual({ ask: ["web_search"] });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Collapsed the "websearch" pattern rules to "ask"'),
+      );
+    });
+
+    it("should not widen a websearch allowlist without a catch-all into a blanket allow", async () => {
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { websearch: { "site:example.com": "allow" } },
+        }),
+        logger,
+      });
+
+      const parsed = JSON.parse(perms.getFileContent());
+      expect(parsed.permissions).toEqual({ ask: ["web_search"] });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+    });
+
+    it("should emit nothing for an empty websearch map", async () => {
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ permission: { websearch: {} } }),
+        logger,
+      });
+
+      const parsed = JSON.parse(perms.getFileContent());
+      expect(parsed.permissions).toEqual({});
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should retract a stale web_search entry when websearch is managed", async () => {
+      await ensureDir(join(testDir, ".devin"));
+      await writeFileContent(
+        join(testDir, ".devin", "config.json"),
+        JSON.stringify({ permissions: { allow: ["web_search", "Read(src/**)"] } }),
+      );
+
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { websearch: { "*": "deny" } },
+        }),
+      });
+
+      const parsed = JSON.parse(perms.getFileContent());
+      expect(parsed.permissions).toEqual({ allow: ["Read(src/**)"], deny: ["web_search"] });
+    });
+
     it("should merge into the shared config.json, preserving mcpServers and hooks", async () => {
       const dir = join(testDir, ".devin");
       await ensureDir(dir);
@@ -650,6 +730,22 @@ describe("DevinPermissions", () => {
       expect(parsed.permission.bash.rm).toBe("deny");
       expect(parsed.permission.write["*.lock"]).toBe("deny");
       expect(parsed.permission.webfetch["domain:npmjs.org"]).toBe("ask");
+    });
+
+    it("should map the bare web_search tool name back to websearch", () => {
+      const perms = new DevinPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["web_search"], deny: ["web_search"] },
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(parsed.permission.websearch).toEqual({ "*": "deny" });
+      expect(parsed.permission.web_search).toBeUndefined();
     });
 
     it("should route the sandbox block into the devin override", () => {
