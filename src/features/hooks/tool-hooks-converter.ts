@@ -933,11 +933,22 @@ function isSafeStringRecord(value: unknown): value is Record<string, string> {
   if (!isPlainObject(value) || !isStringRecord(value)) {
     return false;
   }
-  return Object.entries(value).every(
-    ([key, entry]) =>
-      key !== "" &&
-      !key.includes("=") &&
-      !CONTROL_CHARS.some((char) => key.includes(char) || entry.includes(char)),
+  return Object.entries(value).every(([key, entry]) => isSafeEnvEntry({ key, value: entry }));
+}
+
+/**
+ * Whether one `env` entry survives the rule {@link isSafeStringRecord} applies
+ * to the whole map. Exported for the adapters that hand a tool an environment
+ * block outside the shared converter (Tabnine, whose hook shape it does not
+ * express) so they drop the same entries this one does.
+ */
+export function isSafeEnvEntry(entry: { key: string; value: unknown }): boolean {
+  const { key, value } = entry;
+  return (
+    typeof value === "string" &&
+    key !== "" &&
+    !key.includes("=") &&
+    !CONTROL_CHARS.some((char) => key.includes(char) || value.includes(char))
   );
 }
 

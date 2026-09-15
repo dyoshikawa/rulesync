@@ -7,7 +7,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import {
-  omitPrototypePollutionKeys,
+  omitPrototypePollutionKeysDeep,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord } from "../../utils/type-guards.js";
@@ -89,9 +89,9 @@ function asBobRemoteType(
  * SSE server carries a bare `url`. The canonical `transport` alias and the
  * Claude-style `httpUrl` alias are folded into `type`/`url`; `env`, `cwd`,
  * `headers`, `timeout`, `alwaysAllow` and `disabled` pass through, as Bob
- * documents all of them (`env` and `headers` with their prototype-pollution
- * keys dropped, since Bob spreads those maps into the process environment and
- * the HTTP requests).
+ * documents all of them, with prototype-pollution keys dropped at every
+ * nesting level (Bob spreads `env` and `headers` into the process environment
+ * and the HTTP requests).
  *
  * Bob Shell documents the same file with an `httpURL` key instead of
  * `type` + `url` for streamable HTTP. rulesync writes the IDE spelling (the two
@@ -174,12 +174,10 @@ function convertToBobFormat(mcpServers: McpServers, logger?: Logger): BobMcpServ
 
     for (const [key, value] of Object.entries(rest)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-      // `env` and `headers` are key/value maps Bob spreads into the server's
-      // process environment and HTTP requests, so their keys are sanitized too.
-      converted[key] =
-        (key === "env" || key === "headers") && isRecord(value)
-          ? omitPrototypePollutionKeys(value)
-          : value;
+      // Every passthrough value is sanitized recursively: `env` and `headers`
+      // are key/value maps Bob spreads into the server's process environment
+      // and HTTP requests, and an undocumented key may nest an object too.
+      converted[key] = omitPrototypePollutionKeysDeep(value);
     }
     result[serverName] = converted;
   }
@@ -192,7 +190,9 @@ function convertToBobFormat(mcpServers: McpServers, logger?: Logger): BobMcpServ
  * (`type: "streamable-http"` + `url`) is already canonical and passes through;
  * the Bob Shell spelling `httpURL` becomes `url` with `type: "http"`; a bare
  * `url` is an SSE server in Bob, so it gains `type: "sse"` to keep that reading
- * on the next generate.
+ * on the next generate. Every other field passes through with its
+ * prototype-pollution keys dropped at every nesting level, mirroring the
+ * generate side's handling of `env` / `headers`.
  */
 function convertFromBobFormat(mcpServers: unknown): McpServers {
   if (!isMcpServers(mcpServers)) {
@@ -211,7 +211,7 @@ function convertFromBobFormat(mcpServers: unknown): McpServers {
         if (typeof value === "string") httpURL = value;
         continue;
       }
-      converted[key] = value;
+      converted[key] = omitPrototypePollutionKeysDeep(value);
     }
     if (httpURL !== undefined) {
       converted.url = httpURL;

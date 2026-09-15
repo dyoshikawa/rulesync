@@ -10,7 +10,6 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_TABNINE_EVENT_NAMES,
-  CONTROL_CHARS,
   TABNINE_HOOK_EVENTS,
   TABNINE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
@@ -25,7 +24,7 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
-import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
+import { buildImportedHooksConfig, isSafeEnvEntry } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -37,11 +36,13 @@ import {
 type HookDefinition = HooksConfig["hooks"][string][number];
 
 /**
- * Environment block safe to hand Tabnine for a hook. A tool rebuilds each
- * entry into `KEY=VALUE` for the spawned process, so a key holding `=`, a
- * control character or nothing at all names a different variable than it
- * appears to; such entries are dropped in both directions (with a warning on
- * export, where the value came from an authored `.rulesync/hooks.*`).
+ * Environment block safe to hand Tabnine for a hook. The shared converter
+ * refuses a whole `env` map holding one bad entry; Tabnine's shape is authored
+ * outside it, so the same per-entry rule (`isSafeEnvEntry`: a key holding `=`,
+ * a control character or nothing at all names a different variable than it
+ * appears to) is applied entry by entry and the bad ones are dropped in both
+ * directions, with a warning on export, where the value came from an authored
+ * `.rulesync/hooks.*`.
  */
 function sanitizeEnv({
   env,
@@ -55,11 +56,7 @@ function sanitizeEnv({
   }
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(env)) {
-    const unsafeKey =
-      key === "" || key.includes("=") || CONTROL_CHARS.some((char) => key.includes(char));
-    const unsafeValue =
-      typeof value !== "string" || CONTROL_CHARS.some((char) => value.includes(char));
-    if (unsafeKey || unsafeValue) {
+    if (!isSafeEnvEntry({ key, value })) {
       warn?.(
         `Tabnine CLI hook env entry ${JSON.stringify(key)} is not a safe KEY=VALUE pair; skipping it.`,
       );
@@ -191,8 +188,14 @@ function tabnineMatcherEntryToCanonical(
   entry: z.infer<typeof TabnineMatcherEntrySchema>,
 ): HookDefinition[] {
   const sequential = entry.sequential === true;
+  // Tabnine compiles the matcher as a regex, so `.*` means what an absent
+  // matcher means; both fold to the canonical match-all (no matcher), which
+  // generate writes back as no matcher rather than as `*`.
   const matcher =
-    entry.matcher !== undefined && entry.matcher !== null && entry.matcher !== ""
+    entry.matcher !== undefined &&
+    entry.matcher !== null &&
+    entry.matcher !== "" &&
+    entry.matcher !== ".*"
       ? entry.matcher
       : undefined;
   const defs: HookDefinition[] = [];

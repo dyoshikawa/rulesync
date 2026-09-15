@@ -186,6 +186,26 @@ describe("ContinuePermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('rule for "*"'));
     });
 
+    it("writes a run of * as the catch-all instead of skipping it", async () => {
+      const logger = createMockLogger();
+      const perms = await ContinuePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "**": "deny" },
+          read: { "***": "allow" },
+        }),
+        global: true,
+        logger,
+      });
+
+      const lists = listsOf(perms.getFileContent());
+      // Continue matches `Tool(**)` against every argument, the same as the
+      // bare entry, so the all-tools rule is honored rather than dropped.
+      expect(lists.exclude).toEqual(["*"]);
+      expect(lists.allow).toEqual(["Read"]);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("drops prototype-pollution categories and patterns instead of writing them", async () => {
       const perms = await ContinuePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
