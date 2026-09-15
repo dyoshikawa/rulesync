@@ -165,9 +165,11 @@ describe("CrushPermissions", () => {
         }),
       });
 
+      // `tool:action` entries are narrower than anything rulesync derives, so
+      // they survive even for a managed tool; the bare `bash` is retracted.
       expect(permissions.getJson()).toEqual({
         providers: { anthropic: {} },
-        permissions: { allowed_tools: ["ls", "view"] },
+        permissions: { allowed_tools: ["ls", "edit:write", "view:read", "view"] },
         options: { debug: true, disabled_tools: ["sourcegraph", "edit"] },
       });
     });

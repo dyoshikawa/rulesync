@@ -96,15 +96,6 @@ function isMcpToolName(crushName: string): boolean {
   return crushName.startsWith(MCP_CRUSH_PREFIX) && crushName.length > MCP_CRUSH_PREFIX.length;
 }
 
-/**
- * `allowed_tools` entries are either a bare tool name or `tool:action`; both
- * are owned by the tool they name.
- */
-function allowedEntryToolName(entry: string): string {
-  const separator = entry.indexOf(":");
-  return separator === -1 ? entry : entry.slice(0, separator);
-}
-
 type CrushToolLists = {
   allowed: string[];
   disabled: string[];
@@ -144,7 +135,8 @@ function uniq(values: string[]): string[] {
  * or disable-all list.
  *
  * `crush.json` is Crush's main config: entries naming a tool the canonical
- * config does not manage are preserved verbatim, the managed tools' entries
+ * config does not manage, and every `tool:action` entry (a form rulesync
+ * never derives), are preserved verbatim; the managed tools' bare entries
  * are rebuilt, every other key of `permissions` / `options` and of the file is
  * kept, and the file is never deleted. Project scope writes `crush.json`, or
  * an existing `.crush.json`; Crush merges the pair (lists concatenated), so an
@@ -235,13 +227,14 @@ export class CrushPermissions extends ToolPermissions {
     const generated = convertRulesyncToCrushLists({ config, logger });
     const managedToolNames = managedCrushToolNames(config);
 
-    // Keep the entries that name an unmanaged tool (hand-written, or a
-    // `tool:action` pair of a tool rulesync does not know), rebuild the rest.
+    // Keep the entries rulesync could not have derived — a `tool:action`
+    // pair (narrower than any canonical catch-all) or a bare name of an
+    // unmanaged tool — and rebuild the managed tools' bare entries.
     const preservedAllowed = (
       isStringArray(existingPermissions?.[CRUSH_ALLOWED_TOOLS_KEY])
         ? existingPermissions[CRUSH_ALLOWED_TOOLS_KEY]
         : []
-    ).filter((entry) => !managedToolNames.has(allowedEntryToolName(entry)));
+    ).filter((entry) => entry.includes(":") || !managedToolNames.has(entry));
     const preservedDisabled = (
       isStringArray(existingOptions?.[CRUSH_DISABLED_TOOLS_KEY])
         ? existingOptions[CRUSH_DISABLED_TOOLS_KEY]

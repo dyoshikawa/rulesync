@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { fileContentIsEmptyPayload } from "../../utils/content-equivalence.js";
 import { writeFileContent } from "../../utils/file.js";
 import { CrushHooks } from "./crush-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -81,8 +82,25 @@ describe("CrushHooks", () => {
           ],
         },
       });
-      // The prompt hook and the postToolUse event are both reported.
-      expect(logger.warn).toHaveBeenCalledTimes(2);
+      // The prompt hook and the postToolUse event are reported by the
+      // HooksProcessor, not a second time here.
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should warn about and skip a command hook without a command", async () => {
+      const logger = createMockLogger();
+      const hooks = await CrushHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: { preToolUse: [{ type: "command", name: "broken" }, { command: "./ok.sh" }] },
+        }),
+        logger,
+      });
+
+      expect(hooks.getJson()).toEqual({ hooks: { PreToolUse: [{ command: "./ok.sh" }] } });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"broken"'));
     });
 
     it("should round a fractional timeout up to whole seconds", async () => {
@@ -99,6 +117,23 @@ describe("CrushHooks", () => {
       });
     });
 
+    it("should not create the config file for an empty payload at either scope", async () => {
+      for (const global of [false, true]) {
+        const hooks = await CrushHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks: buildRulesyncHooks({ version: 1, hooks: {} }),
+          global,
+        });
+        expect(
+          fileContentIsEmptyPayload({
+            filePath: hooks.getFilePath(),
+            content: hooks.getFileContent(),
+          }),
+        ).toBe(true);
+        expect(hooks.shouldSkipCreationWhenPayloadEmpty()).toBe(true);
+      }
+    });
+
     it("should apply the crush override per event", async () => {
       const hooks = await CrushHooks.fromRulesyncHooks({
         outputRoot: testDir,
@@ -112,6 +147,40 @@ describe("CrushHooks", () => {
       expect(hooks.getJson()).toEqual({
         hooks: { PreToolUse: [{ command: "./crush-only.sh" }] },
       });
+    });
+
+    it("should emit an event under the crush override verbatim so an import round-trips", async () => {
+      await writeFileContent(
+        join(testDir, "crush.json"),
+        JSON.stringify({
+          hooks: {
+            PreToolUse: [{ command: "./pre.sh" }],
+            PostToolUse: [{ command: "./post.sh", matcher: "bash" }],
+          },
+        }),
+      );
+      const imported = (await CrushHooks.fromFile({ outputRoot: testDir })).toRulesyncHooks();
+      expect(imported.getJson()).toEqual({
+        version: 1,
+        hooks: { preToolUse: [{ type: "command", command: "./pre.sh" }] },
+        crush: {
+          hooks: { PostToolUse: [{ type: "command", command: "./post.sh", matcher: "bash" }] },
+        },
+      });
+
+      const logger = createMockLogger();
+      const regenerated = await CrushHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks(imported.getJson()),
+        logger,
+      });
+      expect(regenerated.getJson()).toEqual({
+        hooks: {
+          PreToolUse: [{ command: "./pre.sh" }],
+          PostToolUse: [{ command: "./post.sh", matcher: "bash" }],
+        },
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should preserve unrelated keys and replace the hooks block wholesale", async () => {

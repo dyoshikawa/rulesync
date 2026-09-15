@@ -103,6 +103,20 @@ export const McpServerSchema = z.looseObject({
   // not writing about.
   // https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/
   rovodevEnableInstructions: z.optional(z.boolean()),
+  // Crush-specific: the OAuth 2.1 flow Crush runs for an HTTP server
+  // (`oauth`, `oauth_client_id`, `oauth_client_secret`, `oauth_callback_port`)
+  // and its `sessionless` marker for a server that issues no
+  // `Mcp-Session-Id`. Written under Crush's own names by `crush-mcp.ts` and
+  // stripped by `RulesyncMcp.getMcpServers()`, like `envVars`: the client
+  // secret in particular must not be copied into every other tool's config.
+  // Namespaced because the canonical `oauth` key already carries Claude
+  // Code's `{ clientId }` object, which Codex CLI reads.
+  // https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
+  crushOauth: z.optional(z.boolean()),
+  crushOauthClientId: z.optional(z.string()),
+  crushOauthClientSecret: z.optional(z.string()),
+  crushOauthCallbackPort: z.optional(z.number()),
+  crushSessionless: z.optional(z.boolean()),
   headers: z.optional(z.record(z.string(), z.string())),
   /**
    * The canonical per-server tool allowlist.

@@ -32,18 +32,76 @@ import {
 } from "./tool-mcp.js";
 
 /**
- * Crush-only MCP fields that have no canonical counterpart and pass through
- * verbatim in both directions. `oauth*` drive Crush's OAuth 2.1 flow for HTTP
- * servers; `sessionless` marks a server that issues no `Mcp-Session-Id`.
+ * Crush-only MCP fields with no canonical counterpart, authored under a
+ * `crush`-prefixed key in `.rulesync/mcp.jsonc` and written under Crush's own
+ * name: `oauth*` drive Crush's OAuth 2.1 flow for HTTP servers and
+ * `sessionless` marks a server that issues no `Mcp-Session-Id`.
+ * `RulesyncMcp.getMcpServers()` strips both spellings so the client secret
+ * never reaches another tool's config; `fromRulesyncMcp` re-merges them from
+ * the raw source JSON, honouring the raw Crush spelling as a fallback for an
+ * entry copied straight out of a `crush.json` (the `experimental_environment`
+ * precedent). The canonical `oauth` key is Claude Code's `{ clientId }`
+ * object, so a raw `oauth` is only honoured when it is Crush's boolean.
  * @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
  */
-const CRUSH_PASSTHROUGH_KEYS = [
-  "sessionless",
-  "oauth",
-  "oauth_client_id",
-  "oauth_client_secret",
-  "oauth_callback_port",
-] as const;
+const CRUSH_ONLY_KEYS: readonly {
+  canonical: string;
+  crush: string;
+  accepts: (value: unknown) => boolean;
+}[] = [
+  { canonical: "crushOauth", crush: "oauth", accepts: (v) => typeof v === "boolean" },
+  {
+    canonical: "crushOauthClientId",
+    crush: "oauth_client_id",
+    accepts: (v) => typeof v === "string",
+  },
+  {
+    canonical: "crushOauthClientSecret",
+    crush: "oauth_client_secret",
+    accepts: (v) => typeof v === "string",
+  },
+  {
+    canonical: "crushOauthCallbackPort",
+    crush: "oauth_callback_port",
+    accepts: (v) => typeof v === "number",
+  },
+  { canonical: "crushSessionless", crush: "sessionless", accepts: (v) => typeof v === "boolean" },
+];
+
+/**
+ * The Crush-only keys of one raw canonical server entry, keyed by their
+ * canonical name, so `convertToCrushFormat` sees them after the shared map
+ * stripped them.
+ */
+function readCrushOnlyKeys(rawServer: unknown): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  if (!isRecord(rawServer)) return result;
+  for (const { canonical, crush, accepts } of CRUSH_ONLY_KEYS) {
+    const value = accepts(rawServer[canonical])
+      ? rawServer[canonical]
+      : accepts(rawServer[crush])
+        ? rawServer[crush]
+        : undefined;
+    if (value !== undefined) {
+      result[canonical] = value;
+    }
+  }
+  return result;
+}
+
+function copyCrushOnlyKeys({
+  from,
+  to,
+}: {
+  from: Record<string, unknown>;
+  to: Record<string, unknown>;
+}): void {
+  for (const { canonical, crush, accepts } of CRUSH_ONLY_KEYS) {
+    if (accepts(from[canonical])) {
+      to[crush] = from[canonical];
+    }
+  }
+}
 
 /**
  * The remote transports Crush's `MCPType` enum accepts, spelled the way it
@@ -58,20 +116,6 @@ function asCrushRemoteType(stated: string | undefined, url: string): "http" | "s
     return /^wss?:\/\//i.test(url) ? undefined : "http";
   }
   return undefined;
-}
-
-function copyPassthroughKeys({
-  from,
-  to,
-}: {
-  from: Record<string, unknown>;
-  to: Record<string, unknown>;
-}): void {
-  for (const key of CRUSH_PASSTHROUGH_KEYS) {
-    if (Object.hasOwn(from, key) && from[key] !== undefined) {
-      to[key] = from[key];
-    }
-  }
 }
 
 /**
@@ -198,7 +242,7 @@ function convertToCrushFormat(mcpServers: McpServers, logger?: Logger): Record<s
     if (typeof config.timeout === "number") {
       converted.timeout = config.timeout;
     }
-    copyPassthroughKeys({ from: config, to: converted });
+    copyCrushOnlyKeys({ from: config, to: converted });
 
     result[name] = converted;
   }
@@ -211,9 +255,11 @@ function convertToCrushFormat(mcpServers: McpServers, logger?: Logger): Record<s
  * servers. `stdio` is Crush's default `type`, so it is dropped (a canonical
  * server with a `command` is stdio already); `http` and `sse` are kept as the
  * canonical transport names; `disabled_tools`/`enabled_tools` become the
- * canonical `disabledTools`/`enabledTools`. The Crush-only OAuth and
- * `sessionless` fields pass through, and any other key is kept verbatim so an
- * import preserves what a hand-authored entry declared.
+ * canonical `disabledTools`/`enabledTools`; the Crush-only OAuth and
+ * `sessionless` fields are lifted into their `crush*` authoring keys (a value
+ * of the wrong type is dropped, as Crush itself would refuse it), and any
+ * other key is kept verbatim so an import preserves what a hand-authored
+ * entry declared.
  */
 function convertFromCrushFormat(crushServers: Record<string, unknown>): McpServers {
   const result: McpServers = {};
@@ -244,8 +290,14 @@ function convertFromCrushFormat(crushServers: Record<string, unknown>): McpServe
           // Crush persists the negotiated token here at runtime
           // (`jsonschema:"-"`); it is per-machine state, not configuration.
           break;
-        default:
-          converted[key] = value;
+        default: {
+          const crushOnly = CRUSH_ONLY_KEYS.find((entry) => entry.crush === key);
+          if (crushOnly === undefined) {
+            converted[key] = value;
+          } else if (crushOnly.accepts(value)) {
+            converted[crushOnly.canonical] = value;
+          }
+        }
       }
     }
 
@@ -323,7 +375,15 @@ export class CrushMcp extends ToolMcp {
     const existingContent = location.fileContent ?? "";
     warnCrushTwinLeftovers({ location, ownedPaths: [[CRUSH_MCP_KEY]], logger });
 
-    const converted = convertToCrushFormat(rulesyncMcp.getMcpServers(), logger);
+    // The `crush*` keys are stripped by `getMcpServers()` so they cannot leak
+    // into other tools' configs; read them back off the unfiltered source JSON.
+    const mcpServers = Object.fromEntries(
+      Object.entries(rulesyncMcp.getMcpServers()).map(([serverName, serverConfig]) => [
+        serverName,
+        { ...serverConfig, ...readCrushOnlyKeys(rulesyncMcp.getRawMcpServer(serverName)) },
+      ]),
+    );
+    const converted = convertToCrushFormat(mcpServers, logger);
 
     return new CrushMcp({
       outputRoot,

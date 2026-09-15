@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_MCP_SCHEMA_URL } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { fileContentIsEmptyPayload } from "../../utils/content-equivalence.js";
 import { writeFileContent } from "../../utils/file.js";
 import { CrushMcp } from "./crush-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -105,9 +106,13 @@ describe("CrushMcp", () => {
             disabledTools: ["rm"],
             enabledTools: ["ls"],
             timeout: 20,
-            sessionless: true,
-            oauth: true,
-            oauth_client_id: "id",
+            crushSessionless: true,
+            crushOauth: true,
+            crushOauthClientId: "id",
+            crushOauthClientSecret: "client-secret-value",
+            crushOauthCallbackPort: 8765,
+            // Claude Code's OAuth object is not Crush's boolean and is ignored.
+            oauth: { clientId: "claude" },
           },
         }),
       });
@@ -123,7 +128,24 @@ describe("CrushMcp", () => {
           sessionless: true,
           oauth: true,
           oauth_client_id: "id",
+          oauth_client_secret: "client-secret-value",
+          oauth_callback_port: 8765,
         },
+      });
+    });
+
+    it("should honour the raw Crush spelling of the Crush-only keys as a fallback", async () => {
+      const mcp = await CrushMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          gh: { url: "https://example.com/mcp", oauth: true, sessionless: true },
+          typed: { url: "https://example.com/mcp", crushOauth: false, oauth: true },
+        }),
+      });
+
+      expect(serversOf(mcp)).toEqual({
+        gh: { type: "http", url: "https://example.com/mcp", oauth: true, sessionless: true },
+        typed: { type: "http", url: "https://example.com/mcp", oauth: false },
       });
     });
 
@@ -213,6 +235,20 @@ describe("CrushMcp", () => {
       expect(mcp.getRelativeFilePath()).toBe("crush.json");
     });
 
+    it("should not create the config file for an empty payload at either scope", async () => {
+      for (const global of [false, true]) {
+        const mcp = await CrushMcp.fromRulesyncMcp({
+          outputRoot: testDir,
+          rulesyncMcp: buildRulesyncMcp({}),
+          global,
+        });
+        expect(
+          fileContentIsEmptyPayload({ filePath: mcp.getFilePath(), content: mcp.getFileContent() }),
+        ).toBe(true);
+        expect(mcp.shouldSkipCreationWhenPayloadEmpty()).toBe(true);
+      }
+    });
+
     it("should fail closed on an unparseable existing config", async () => {
       await writeFileContent(projectConfigPath(), "{ not json");
 
@@ -278,6 +314,9 @@ describe("CrushMcp", () => {
               enabled_tools: ["a"],
               oauth_token: "secret",
               sessionless: true,
+              oauth: true,
+              oauth_client_secret: "client-secret-value",
+              oauth_callback_port: "not-a-port",
             },
           },
         }),
@@ -291,7 +330,9 @@ describe("CrushMcp", () => {
             type: "http",
             url: "https://example.com/mcp",
             enabledTools: ["a"],
-            sessionless: true,
+            crushSessionless: true,
+            crushOauth: true,
+            crushOauthClientSecret: "client-secret-value",
           },
         },
       });

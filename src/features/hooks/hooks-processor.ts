@@ -867,6 +867,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: CRUSH_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+      // Event names under the `crush.hooks` override (e.g. ones an import
+      // filed there) are emitted verbatim by the adapter.
+      passthroughOverrideEvents: true,
     },
   ],
   [

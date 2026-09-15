@@ -1403,6 +1403,43 @@ describe("RulesyncMcp", () => {
       expect((rulesyncMcp.getJson().mcpServers.pal as any).musecodeMode).toBe("optional");
     });
 
+    it("should strip the crush-only OAuth and sessionless keys from getMcpServers output", () => {
+      // The crush generator re-merges them from getJson(); the client secret
+      // in particular must not be copied into every other tool's config. Both
+      // the `crush*` authoring keys and the raw Crush spellings are stripped.
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            gh: {
+              url: "https://example.com/mcp",
+              crushOauth: true,
+              crushOauthClientId: "id",
+              crushOauthClientSecret: "client-secret-value",
+              crushOauthCallbackPort: 8765,
+              crushSessionless: true,
+            },
+            raw: {
+              url: "https://example.com/mcp",
+              oauth_client_id: "id",
+              oauth_client_secret: "client-secret-value",
+              oauth_callback_port: 8765,
+              sessionless: true,
+            },
+          },
+        }),
+      });
+
+      const servers = rulesyncMcp.getMcpServers();
+
+      expect(servers.gh).toEqual({ url: "https://example.com/mcp" });
+      expect(servers.raw).toEqual({ url: "https://example.com/mcp" });
+      expect((rulesyncMcp.getJson().mcpServers.gh as any).crushOauthClientSecret).toBe(
+        "client-secret-value",
+      );
+    });
+
     it("should strip the rovodev-only enable_instructions from getMcpServers output", () => {
       // Stronger reason than envVars/musecodeMode: this key decides whether a
       // third-party server's own text is pasted into the agent's system prompt,

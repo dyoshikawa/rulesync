@@ -50,8 +50,10 @@ const SUPPORTED_CRUSH_EVENTS: ReadonlySet<string> = new Set(CRUSH_HOOK_EVENTS);
  * Crush keys a flat array of `{name, matcher, command, timeout}` entries by
  * event name; `matcher` is a regex tested against the (lower-case) Crush tool
  * name and `timeout` is in seconds. Only `type: "command"` canonical hooks are
- * emitted, since a Crush hook is a shell command; a canonical event Crush does
- * not fire yet is reported and skipped.
+ * emitted, since a Crush hook is a shell command. A shared canonical event
+ * Crush does not fire is skipped (the HooksProcessor reports it), while an
+ * event under the `crush.hooks` override — such as one an import filed there
+ * — is written verbatim so it round-trips.
  */
 function canonicalToCrushHooks({
   config,
@@ -62,20 +64,17 @@ function canonicalToCrushHooks({
   toolOverride: HooksConfig["hooks"] | undefined;
   logger?: Logger;
 }): Record<string, CrushHookEntry[]> {
-  const effective: HooksConfig["hooks"] = { ...config.hooks, ...toolOverride };
+  const sharedHooks: HooksConfig["hooks"] = {};
+  for (const [event, defs] of Object.entries(config.hooks)) {
+    if (SUPPORTED_CRUSH_EVENTS.has(event)) {
+      sharedHooks[event] = defs;
+    }
+  }
+  const effective: HooksConfig["hooks"] = { ...sharedHooks, ...toolOverride };
 
   const hooks: Record<string, CrushHookEntry[]> = {};
   for (const [event, defs] of Object.entries(effective)) {
     if (isPrototypePollutionKey(event)) {
-      continue;
-    }
-    if (!SUPPORTED_CRUSH_EVENTS.has(event)) {
-      if (defs.length > 0) {
-        logger?.warn(
-          `Crush fires only ${[...SUPPORTED_CRUSH_EVENTS].map((e) => `"${e}"`).join(", ")} hooks, ` +
-            `so the "${event}" hooks were skipped.`,
-        );
-      }
       continue;
     }
     const crushEvent = lookupOwn({ record: CANONICAL_TO_CRUSH_EVENT_NAMES, key: event }) ?? event;
@@ -104,12 +103,14 @@ function canonicalDefToCrushEntry({
   event: string;
   logger?: Logger;
 }): CrushHookEntry | null {
-  const hookType = def.type ?? "command";
-  if (hookType !== "command" || typeof def.command !== "string") {
+  if ((def.type ?? "command") !== "command") {
+    // The HooksProcessor already warns about unsupported hook types per target.
+    return null;
+  }
+  if (typeof def.command !== "string" || def.command === "") {
     logger?.warn(
-      `Crush hooks are shell commands only, so the "${hookType}" hook ` +
-        `${quoteValueForWarning(def.name ?? def.command ?? def.prompt ?? "")} under ` +
-        `"${event}" was skipped.`,
+      `Crush hook ${quoteValueForWarning(def.name ?? "")} under "${event}" has no ` +
+        `"command", which Crush would discard, so it was skipped.`,
     );
     return null;
   }
@@ -200,7 +201,7 @@ export class CrushHooks extends ToolHooks {
   constructor(params: AiFileParams) {
     super(params);
     this.json = parseCrushConfig(
-      this.fileContent ?? "{}",
+      this.fileContent ?? "",
       join(this.relativeDirPath, this.relativeFilePath),
     );
   }
