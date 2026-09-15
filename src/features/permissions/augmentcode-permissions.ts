@@ -16,6 +16,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { globToAnchoredRegexSource } from "../../utils/glob.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
@@ -112,7 +113,7 @@ const CURRENT_TO_LEGACY_AUGMENT_TOOL_NAMES: Record<string, string> = {
 };
 
 function toAugmentToolName(canonical: string): string {
-  return CANONICAL_TO_AUGMENT_TOOL_NAMES[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_AUGMENT_TOOL_NAMES, key: canonical }) ?? canonical;
 }
 
 /**
@@ -120,12 +121,16 @@ function toAugmentToolName(canonical: string): string {
  * current alias and the legacy name are treated as the same managed tool.
  */
 function toLegacyAugmentToolName(augmentName: string): string {
-  return CURRENT_TO_LEGACY_AUGMENT_TOOL_NAMES[augmentName] ?? augmentName;
+  // Own-property lookups only: `toolName` comes from a user-editable settings.json, so an
+  // inherited name such as `constructor` must fall through instead of yielding a function.
+  return (
+    lookupOwn({ record: CURRENT_TO_LEGACY_AUGMENT_TOOL_NAMES, key: augmentName }) ?? augmentName
+  );
 }
 
 function toCanonicalToolName(augmentName: string): string {
   const legacyName = toLegacyAugmentToolName(augmentName);
-  return AUGMENT_TO_CANONICAL_TOOL_NAMES[legacyName] ?? legacyName;
+  return lookupOwn({ record: AUGMENT_TO_CANONICAL_TOOL_NAMES, key: legacyName }) ?? legacyName;
 }
 
 function actionToAugmentType(action: PermissionAction): AugmentBasicPermissionType {
@@ -899,12 +904,16 @@ function convertAugmentToRulesyncPermissions({
       );
       continue;
     }
-    if (!permission[canonical]) {
-      permission[canonical] = {};
+    // Own-property bucket: a truthiness check on `permission[canonical]` would find the
+    // inherited function for a name such as `toString` and write the rule onto it.
+    let bucket = lookupOwn({ record: permission, key: canonical });
+    if (bucket === undefined) {
+      bucket = {};
+      permission[canonical] = bucket;
     }
-    const existing = permission[canonical][pattern];
+    const existing = lookupOwn({ record: bucket, key: pattern });
     if (existing === undefined || actionPriority[action] > actionPriority[existing]) {
-      permission[canonical][pattern] = action;
+      bucket[pattern] = action;
     }
   }
 

@@ -1419,6 +1419,27 @@ describe("AugmentcodePermissions", () => {
       });
     });
 
+    it("should not resolve inherited property names through the alias tables", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            // Bracket reads on the alias maps must not yield Object.prototype members: the
+            // reserved names stay strings so the `forbiddenMapKeys` guard below still fires,
+            // and an inherited-but-harmless name passes through verbatim.
+            { toolName: "constructor", permission: { type: "allow" } },
+            { toolName: "__proto__", permission: { type: "allow" } },
+            { toolName: "toString", permission: { type: "allow" } },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission).toEqual({ toString: { "*": "allow" } });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+    });
+
     it("should fold a current alias and its legacy name into one category, most restrictive wins", () => {
       const instance = new AugmentcodePermissions({
         relativeDirPath: ".augment",
