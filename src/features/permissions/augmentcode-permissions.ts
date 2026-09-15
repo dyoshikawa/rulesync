@@ -448,13 +448,12 @@ export class AugmentcodePermissions extends ToolPermissions {
     //   the same row.
     // - Existing managed-tool `allow` / `ask-user` entries: replaced (rulesync owns the
     //   permissive surface for managed namespaces).
-    // Keyed by the legacy spelling on both sides so a passed-through current name (a canonical
-    // `terminal` category is emitted verbatim) still dedupes against its existing row.
+    // Keyed by the spelling actually emitted: an existing row is a duplicate when a generated
+    // row re-emits it under its own spelling or under the legacy spelling rulesync manages. A
+    // passed-through current name (a canonical `terminal` category is emitted verbatim) must
+    // not retire an existing legacy-named deny, which is the spelling the shipped CLI honours.
     const generatedKeys = new Set(
-      generated.map(
-        (e) =>
-          `${toLegacyAugmentToolName(e.toolName)}|${e.shellInputRegex ?? ""}|${e.permission.type}`,
-      ),
+      generated.map((e) => `${e.toolName}|${e.shellInputRegex ?? ""}|${e.permission.type}`),
     );
 
     const preservedBasicEntries = basicExistingEntries.filter((entry) => {
@@ -471,8 +470,11 @@ export class AugmentcodePermissions extends ToolPermissions {
       // duplicated by a generated entry (which would be re-emitted with the same shape under
       // the legacy name).
       if (entry.permission.type === "deny") {
-        const key = `${legacyToolName}|${entry.shellInputRegex ?? ""}|${entry.permission.type}`;
-        return !generatedKeys.has(key);
+        const suffix = `|${entry.shellInputRegex ?? ""}|${entry.permission.type}`;
+        return (
+          !generatedKeys.has(`${entry.toolName}${suffix}`) &&
+          !generatedKeys.has(`${legacyToolName}${suffix}`)
+        );
       }
 
       // Otherwise the rulesync-managed namespace replaces existing entries.

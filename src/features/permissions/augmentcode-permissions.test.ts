@@ -1487,6 +1487,43 @@ describe("AugmentcodePermissions", () => {
       ]);
     });
 
+    it("should keep an existing legacy-named deny when the generated row uses a passed-through current name", async () => {
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          toolPermissions: [
+            { toolName: "launch-process", permission: { type: "deny" } },
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^rm .*$",
+              permission: { type: "deny" },
+            },
+          ],
+        }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { terminal: { "*": "deny" } } }),
+      });
+
+      const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      // The generated `terminal` row is not the legacy spelling, so it must not retire the
+      // user's `launch-process` catch-all deny (fail-closed): both rows survive.
+      expect(JSON.parse(instance.getFileContent()).toolPermissions).toEqual([
+        { toolName: "launch-process", shellInputRegex: "^rm .*$", permission: { type: "deny" } },
+        { toolName: "terminal", permission: { type: "deny" } },
+        { toolName: "launch-process", permission: { type: "deny" } },
+      ]);
+    });
+
     it("should fold a current alias and its legacy name into one category, most restrictive wins", () => {
       const instance = new AugmentcodePermissions({
         relativeDirPath: ".augment",
