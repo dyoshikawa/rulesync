@@ -1,5 +1,7 @@
 import { posix } from "node:path";
 
+import type { Feature } from "../types/features.js";
+
 const { join } = posix;
 
 export const RULESYNC_CONFIG_RELATIVE_FILE_PATH = "rulesync.jsonc";
@@ -83,6 +85,19 @@ export const RULESYNC_PERMISSIONS_FILE_NAME = "permissions.jsonc";
 export const RULESYNC_MCP_LEGACY_FILE_NAME = "mcp.json";
 export const RULESYNC_HOOKS_LEGACY_FILE_NAME = "hooks.json";
 export const RULESYNC_PERMISSIONS_LEGACY_FILE_NAME = "permissions.json";
+
+// Top-level entries of a rulesync source tree, per feature.
+export const FEATURE_SOURCE_TREE_ENTRIES: Record<Feature, readonly string[]> = {
+  rules: [RULES_FEATURE_SUBDIR],
+  commands: [COMMANDS_FEATURE_SUBDIR],
+  subagents: [SUBAGENTS_FEATURE_SUBDIR],
+  skills: [SKILLS_FEATURE_SUBDIR],
+  checks: [CHECKS_FEATURE_SUBDIR],
+  ignore: [RULESYNC_AIIGNORE_FILE_NAME],
+  mcp: [RULESYNC_MCP_FILE_NAME, RULESYNC_MCP_LEGACY_FILE_NAME],
+  hooks: [RULESYNC_HOOKS_FILE_NAME, RULESYNC_HOOKS_LEGACY_FILE_NAME],
+  permissions: [RULESYNC_PERMISSIONS_FILE_NAME, RULESYNC_PERMISSIONS_LEGACY_FILE_NAME],
+};
 
 // JSON Schema URLs (published as GitHub release assets)
 export const RULESYNC_CONFIG_SCHEMA_URL =

@@ -1,7 +1,12 @@
-import { existsSync, type FSWatcher, watch as fsWatch, statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
-import { RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import { type FSWatcher, watch } from "chokidar";
+
+import {
+  FEATURE_SOURCE_TREE_ENTRIES,
+  RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
+} from "../constants/rulesync-paths.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
 
 /**
@@ -117,16 +122,21 @@ export type WatchTarget = {
   directory: string;
   recursive: boolean;
   /**
-   * When set, only events whose path relative to `directory` satisfies the
-   * predicate are forwarded. Used to watch a directory that also holds
-   * unrelated files (e.g. the project root, which holds `rulesync.jsonc` next
-   * to generated output).
+   * When set, only paths relative to `directory` that satisfy the predicate
+   * are watched; a rejected directory prunes its whole subtree. Used to watch
+   * a directory that also holds unrelated files (e.g. the project root, which
+   * holds `rulesync.jsonc` next to generated output).
    */
   include?: (relativePath: string) => boolean;
 };
 
 export type WatchHandle = {
   close: () => void;
+  /**
+   * Resolves once every target that exists is being watched. Changes made
+   * before then may go unreported.
+   */
+  ready: Promise<void>;
 };
 
 /**
@@ -160,7 +170,7 @@ function statIdentity(path: string): string | undefined {
 }
 
 /**
- * Watches one directory, re-attaching the underlying `fs.watch` if the
+ * Watches one directory, re-attaching the underlying watcher if the
  * directory is deleted and later recreated.
  *
  * Without this, a `git checkout` to a branch without `.rulesync/` (or any
@@ -187,6 +197,7 @@ function watchTargetWithRearm({
   let watchedIdentity: string | undefined;
   let rearmTimer: ReturnType<typeof setInterval> | undefined;
   let closed = false;
+  const { promise: ready, resolve: markReady } = Promise.withResolvers<void>();
 
   const attach = (): void => {
     // Stat before watching so a delete+recreate between the two calls leaves
@@ -195,34 +206,28 @@ function watchTargetWithRearm({
     // order would record the new identity for a watcher bound to the dead
     // one, silencing the watch permanently.
     const identity = statIdentity(target.directory);
-    const created = fsWatch(
-      target.directory,
-      { recursive: target.recursive, persistent: true },
-      (_eventType, filename) => {
-        // `fs.watch` reports a null filename on some platforms; treat those as
-        // a change to the watched directory itself.
-        if (filename === null || filename === undefined) {
-          onChange({ path: target.directory });
-          verifyStillWatching();
-          return;
-        }
-        const relativePath = filename.toString();
-        if (target.include && !target.include(relativePath)) {
-          // Still check liveness: the final event a deleted directory emits
-          // names the directory itself, which every `include` predicate here
-          // rejects. Returning early would leave the dead watcher attached
-          // and re-arming would never start.
-          verifyStillWatching();
-          return;
-        }
-        onChange({ path: join(target.directory, relativePath) });
-        verifyStillWatching();
-      },
-    );
+    const { include } = target;
+    const created = watch(target.directory, {
+      ignoreInitial: true,
+      depth: target.recursive ? undefined : 0,
+      // chokidar also asks about the watched directory itself, which every
+      // `include` predicate here rejects.
+      ignored:
+        include &&
+        ((path: string) => {
+          const relativePath = relative(target.directory, path);
+          return relativePath !== "" && !include(relativePath);
+        }),
+    });
+    created.on("all", (_event, path) => {
+      onChange({ path });
+      verifyStillWatching();
+    });
     created.on("error", (error) => {
       onError({ error, directory: target.directory });
       verifyStillWatching();
     });
+    created.once("ready", markReady);
     watcher = created;
     watchedIdentity = identity;
   };
@@ -271,7 +276,7 @@ function watchTargetWithRearm({
         return;
       }
     }
-    watcher.close();
+    void watcher.close();
     watcher = undefined;
     // Report the disappearance the same way an OS delete event would have —
     // liveness may have detected it purely by polling, with no event ever
@@ -285,17 +290,19 @@ function watchTargetWithRearm({
     try {
       attach();
     } catch (error) {
-      // If the directory disappeared between the existence check and
-      // `fs.watch`, treat it like any other temporarily absent overlay.
+      // If the directory disappeared between the existence check and the
+      // watcher's start, treat it like any other temporarily absent overlay.
       // Permission and platform errors for a still-existing directory remain
       // real attachment failures and must propagate.
       if (existsSync(target.directory)) {
         throw error;
       }
 
+      markReady();
       scheduleRearm();
     }
   } else {
+    markReady();
     scheduleRearm();
   }
 
@@ -319,9 +326,10 @@ function watchTargetWithRearm({
         clearInterval(rearmTimer);
         rearmTimer = undefined;
       }
-      watcher?.close();
+      void watcher?.close();
       watcher = undefined;
     },
+    ready,
   };
 }
 
@@ -359,8 +367,15 @@ export function watchTargets({
     throw error;
   }
 
-  return { close: closeAll };
+  return {
+    close: closeAll,
+    ready: Promise.all(handles.map((handle) => handle.ready)).then(() => undefined),
+  };
 }
+
+const SOURCE_TREE_ENTRY_NAMES: ReadonlySet<string> = new Set(
+  Object.values(FEATURE_SOURCE_TREE_ENTRIES).flat(),
+);
 
 /**
  * Builds the set of directories watch mode observes: each input root's
@@ -373,6 +388,9 @@ export function watchTargets({
  * watched; generated output lives outside every source tree, so a
  * regeneration cannot re-trigger the watcher. Duplicate roots (after
  * resolution) are deduped so the same directory is never watched twice.
+ * Within a root, only the top-level entries `generate` reads are watched,
+ * so churn in unrelated siblings (e.g. `.git/` when the root is the project
+ * directory) does not trigger a regeneration.
  */
 export function buildWatchTargets({
   inputRoots,
@@ -390,7 +408,12 @@ export function buildWatchTargets({
     if (seen.has(root)) continue;
 
     seen.add(root);
-    rulesyncTargets.push({ directory: root, recursive: true });
+    rulesyncTargets.push({
+      directory: root,
+      recursive: true,
+      include: (relativePath) =>
+        SOURCE_TREE_ENTRY_NAMES.has(relativePath.split(sep)[0] ?? relativePath),
+    });
   }
 
   return [
