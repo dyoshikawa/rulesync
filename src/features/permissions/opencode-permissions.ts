@@ -23,6 +23,7 @@ import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { collapseRulesToSingleAction, hasPatternSpecificRules } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -52,12 +53,6 @@ const OPENCODE_ACTION_ONLY_PERMISSION_KEYS = new Set([
   "doom_loop",
 ]);
 
-const PERMISSION_ACTION_PRIORITY: Record<PermissionAction, number> = {
-  allow: 0,
-  ask: 1,
-  deny: 2,
-};
-
 function toOpencodePermission({
   category,
   value,
@@ -79,17 +74,12 @@ function toOpencodePermission({
     return "deny";
   }
 
-  // A map without a catch-all grants no explicit action for unmatched inputs.
-  // Include an implicit `ask` fallback so a narrow allowlist can never expand
-  // into blanket `allow` when collapsed to OpenCode's scalar-only shape.
-  const candidates: PermissionAction[] = Object.hasOwn(value, "*") ? actions : [...actions, "ask"];
-  const action = candidates.reduce((current, candidate) =>
-    PERMISSION_ACTION_PRIORITY[candidate] > PERMISSION_ACTION_PRIORITY[current]
-      ? candidate
-      : current,
-  );
+  // The map is non-empty here, so the collapse always yields an action; the
+  // implicit `ask` for a map without a catch-all keeps a narrow allowlist from
+  // expanding into blanket `allow` under OpenCode's scalar-only shape.
+  const action = collapseRulesToSingleAction({ rules: value }) ?? "ask";
 
-  if (Object.keys(value).some((pattern) => pattern !== "*")) {
+  if (hasPatternSpecificRules(value)) {
     logger?.warn(
       `OpenCode's "${category}" permission accepts only a single action. Collapsed its pattern rules to "${action}" using deny > ask > allow precedence.`,
     );

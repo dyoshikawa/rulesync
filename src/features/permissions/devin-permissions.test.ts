@@ -105,24 +105,29 @@ describe("DevinPermissions", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
-    it("should collapse pattern-specific websearch rules to one action with a warning", async () => {
-      const logger = createMockLogger();
-      const perms = await DevinPermissions.fromRulesyncPermissions({
-        outputRoot: testDir,
-        rulesyncPermissions: makeRulesyncPermissions({
-          permission: { websearch: { "*": "allow", "site:example.com": "ask" } },
-        }),
-        logger,
-      });
+    it.each([
+      ["allow + ask", { "*": "allow", "site:example.com": "ask" }, "ask"],
+      ["allow + deny", { "*": "allow", "site:example.com": "deny" }, "deny"],
+      ["ask + deny", { "*": "ask", "site:example.com": "deny" }, "deny"],
+    ] as const)(
+      "should collapse pattern-specific websearch rules (%s) to the strictest action with a warning",
+      async (_label, websearch, expected) => {
+        const logger = createMockLogger();
+        const perms = await DevinPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: makeRulesyncPermissions({ permission: { websearch } }),
+          logger,
+        });
 
-      const parsed = JSON.parse(perms.getFileContent());
-      // No `web_search(pattern)` matcher exists, so the most restrictive action wins.
-      expect(parsed.permissions).toEqual({ ask: ["web_search"] });
-      expect(logger.warn).toHaveBeenCalledTimes(1);
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Collapsed the "websearch" pattern rules to "ask"'),
-      );
-    });
+        const parsed = JSON.parse(perms.getFileContent());
+        // No `web_search(pattern)` matcher exists, so the most restrictive action wins.
+        expect(parsed.permissions).toEqual({ [expected]: ["web_search"] });
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`Collapsed the "websearch" pattern rules to "${expected}"`),
+        );
+      },
+    );
 
     it("should not widen a websearch allowlist without a catch-all into a blanket allow", async () => {
       const logger = createMockLogger();
@@ -137,6 +142,9 @@ describe("DevinPermissions", () => {
       const parsed = JSON.parse(perms.getFileContent());
       expect(parsed.permissions).toEqual({ ask: ["web_search"] });
       expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Collapsed the "websearch" pattern rules to "ask"'),
+      );
     });
 
     it("should emit nothing for an empty websearch map", async () => {

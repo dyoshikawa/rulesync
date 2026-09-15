@@ -26,6 +26,7 @@ import {
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { collapseRulesToSingleAction, hasPatternSpecificRules } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -76,12 +77,6 @@ const DEVIN_SCOPE_TO_CANONICAL: Record<string, string> = {
  * category cannot be expressed and is collapsed to one action instead.
  */
 const DEVIN_BARE_ONLY_SCOPES: ReadonlySet<string> = new Set(["web_search"]);
-
-const PERMISSION_ACTION_PRIORITY: Record<PermissionAction, number> = {
-  allow: 0,
-  ask: 1,
-  deny: 2,
-};
 
 function toDevinScope(canonical: string): string {
   return CANONICAL_TO_DEVIN_SCOPE[canonical] ?? canonical;
@@ -487,7 +482,8 @@ export class DevinPermissions extends ToolPermissions {
  * can hold for it, using deny > ask > allow precedence. A map without a
  * catch-all grants nothing to unmatched inputs, so an implicit `ask` joins the
  * candidates and a narrow allowlist can never widen into a blanket allow.
- * Returns `undefined` for an empty map, which has nothing to express.
+ * Returns `undefined` for an empty map: like any other empty category it
+ * emits nothing, which leaves Devin's own auto-approve default in place.
  */
 function collapseBareOnlyScopeRules({
   category,
@@ -500,17 +496,11 @@ function collapseBareOnlyScopeRules({
   rules: Record<string, PermissionAction>;
   logger?: Logger;
 }): PermissionAction | undefined {
-  const actions = Object.values(rules);
-  if (actions.length === 0) {
+  const action = collapseRulesToSingleAction({ rules });
+  if (action === undefined) {
     return undefined;
   }
-  const candidates: PermissionAction[] = Object.hasOwn(rules, "*") ? actions : [...actions, "ask"];
-  const action = candidates.reduce((current, candidate) =>
-    PERMISSION_ACTION_PRIORITY[candidate] > PERMISSION_ACTION_PRIORITY[current]
-      ? candidate
-      : current,
-  );
-  if (Object.keys(rules).some((pattern) => pattern !== "*")) {
+  if (hasPatternSpecificRules(rules)) {
     logger?.warn(
       `Devin accepts "${scope}" only as a bare tool name, with no pattern matcher. Collapsed the "${category}" pattern rules to "${action}" using deny > ask > allow precedence.`,
     );
