@@ -290,6 +290,29 @@ describe("CrushHooks", () => {
       });
     });
 
+    it("should fold the case- and underscore-insensitive spellings Crush accepts", () => {
+      const hooks = new CrushHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "crush.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            pre_tool_use: [{ command: "./a.sh" }],
+            Pre_Tool_Use: [{ command: "./b.sh" }],
+          },
+        }),
+      });
+
+      const json = hooks.toRulesyncHooks().getJson();
+      expect(json.hooks).toEqual({
+        preToolUse: [
+          { type: "command", command: "./a.sh" },
+          { type: "command", command: "./b.sh" },
+        ],
+      });
+      expect(json.crush).toBeUndefined();
+    });
+
     it("should yield no hooks when the config has no hooks block", () => {
       const hooks = new CrushHooks({
         outputRoot: testDir,

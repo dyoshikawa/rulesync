@@ -9,6 +9,7 @@ import {
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
@@ -456,18 +457,24 @@ function convertRulesyncToCrushLists({
 function convertCrushListsToRulesync({ allowed, disabled }: CrushToolLists): PermissionsConfig {
   const permission: PermissionsConfig["permission"] = {};
 
+  // Buckets are looked up as own properties only: a `toString` entry must
+  // create its own record rather than write into the inherited function.
+  const bucketFor = (category: string): Record<string, PermissionAction> => {
+    const own = lookupOwn({ record: permission, key: category });
+    if (own !== undefined) return own;
+    const created: Record<string, PermissionAction> = {};
+    permission[category] = created;
+    return created;
+  };
+
   for (const entry of disabled) {
     if (entry === "" || isPrototypePollutionKey(entry)) continue;
-    const category = toCanonicalToolName(entry);
-    permission[category] ??= {};
-    permission[category][CATCH_ALL_PATTERN] = "deny";
+    bucketFor(toCanonicalToolName(entry))[CATCH_ALL_PATTERN] = "deny";
   }
   for (const entry of allowed) {
     if (entry === "" || entry.includes(":") || isPrototypePollutionKey(entry)) continue;
-    const category = toCanonicalToolName(entry);
     // A disabled tool never runs, so its deny wins over a stale allow.
-    permission[category] ??= {};
-    permission[category][CATCH_ALL_PATTERN] ??= "allow";
+    bucketFor(toCanonicalToolName(entry))[CATCH_ALL_PATTERN] ??= "allow";
   }
 
   return { permission };

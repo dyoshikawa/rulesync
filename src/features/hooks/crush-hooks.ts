@@ -46,6 +46,23 @@ type CrushHookEntry = {
 const SUPPORTED_CRUSH_EVENTS: ReadonlySet<string> = new Set(CRUSH_HOOK_EVENTS);
 
 /**
+ * Crush matches an event key case-insensitively and ignores underscores
+ * (`PreToolUse`, `pre_tool_use` and `PRE_TOOL_USE` all work), so an import
+ * looks the canonical name up by that normalized spelling.
+ * @see https://github.com/charmbracelet/crush/blob/main/internal/config/load.go
+ */
+const NORMALIZED_CRUSH_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CRUSH_TO_CANONICAL_EVENT_NAMES).map(([crushEvent, canonical]) => [
+    normalizeCrushEventName(crushEvent),
+    canonical,
+  ]),
+);
+
+function normalizeCrushEventName(event: string): string {
+  return event.replaceAll("_", "").toLowerCase();
+}
+
+/**
  * Build the `hooks` block of `crush.json` from a canonical hooks config.
  * Crush keys a flat array of `{name, matcher, command, timeout}` entries by
  * event name; `matcher` is a regex tested against the (lower-case) Crush tool
@@ -168,7 +185,10 @@ function crushHooksToCanonical(hooksBlock: unknown): HooksConfig["hooks"] {
       continue;
     }
     const canonicalEvent =
-      lookupOwn({ record: CRUSH_TO_CANONICAL_EVENT_NAMES, key: crushEvent }) ?? crushEvent;
+      lookupOwn({
+        record: NORMALIZED_CRUSH_TO_CANONICAL_EVENT_NAMES,
+        key: normalizeCrushEventName(crushEvent),
+      }) ?? crushEvent;
     const defs = rawEntries
       .map((raw) => crushEntryToCanonicalDef(raw))
       .filter((def): def is HookDefinition => def !== null);

@@ -138,15 +138,40 @@ describe("CrushMcp", () => {
       const mcp = await CrushMcp.fromRulesyncMcp({
         outputRoot: testDir,
         rulesyncMcp: buildRulesyncMcp({
-          gh: { url: "https://example.com/mcp", oauth: true, sessionless: true },
+          gh: {
+            url: "https://example.com/mcp",
+            // A raw `oauth` is the one spelling other tools would also see,
+            // so only `crushOauth` switches the flow on.
+            oauth: true,
+            oauth_client_id: "id",
+            oauth_callback_port: 8765,
+            sessionless: true,
+          },
           typed: { url: "https://example.com/mcp", crushOauth: false, oauth: true },
         }),
       });
 
       expect(serversOf(mcp)).toEqual({
-        gh: { type: "http", url: "https://example.com/mcp", oauth: true, sessionless: true },
+        gh: {
+          type: "http",
+          url: "https://example.com/mcp",
+          oauth_client_id: "id",
+          oauth_callback_port: 8765,
+          sessionless: true,
+        },
         typed: { type: "http", url: "https://example.com/mcp", oauth: false },
       });
+    });
+
+    it("should round a fractional timeout up and drop a fractional callback port", async () => {
+      const mcp = await CrushMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          fs: { command: "fs", timeout: 2.5, oauth_callback_port: 80.5 },
+        }),
+      });
+
+      expect(serversOf(mcp)).toEqual({ fs: { type: "stdio", command: "fs", timeout: 3 } });
     });
 
     it("should warn-and-skip servers Crush cannot run", async () => {

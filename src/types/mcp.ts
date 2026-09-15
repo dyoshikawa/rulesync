@@ -115,7 +115,7 @@ export const McpServerSchema = z.looseObject({
   crushOauth: z.optional(z.boolean()),
   crushOauthClientId: z.optional(z.string()),
   crushOauthClientSecret: z.optional(z.string()),
-  crushOauthCallbackPort: z.optional(z.number()),
+  crushOauthCallbackPort: z.optional(z.int()),
   crushSessionless: z.optional(z.boolean()),
   headers: z.optional(z.record(z.string(), z.string())),
   /**

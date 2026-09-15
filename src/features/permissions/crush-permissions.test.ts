@@ -256,8 +256,8 @@ describe("CrushPermissions", () => {
         relativeDirPath: ".",
         relativeFilePath: "crush.json",
         fileContent: `{
-          "permissions": { "allowed_tools": ["bash", "view", "edit:write", "mcp_github_create_issue", "sourcegraph", "__proto__"] },
-          "options": { "disabled_tools": ["fetch", "sourcegraph"] }
+          "permissions": { "allowed_tools": ["bash", "view", "edit:write", "mcp_github_create_issue", "sourcegraph", "__proto__", "toString"] },
+          "options": { "disabled_tools": ["fetch", "sourcegraph", "valueOf"] }
         }`,
       });
 
@@ -269,7 +269,13 @@ describe("CrushPermissions", () => {
         webfetch: { "*": "deny" },
         // A disabled tool never runs, so the deny wins over the stale allow.
         sourcegraph: { "*": "deny" },
+        // An inherited-property name gets its own bucket instead of writing
+        // into Object.prototype's function.
+        toString: { "*": "allow" },
+        valueOf: { "*": "deny" },
       });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.valueOf, "*")).toBe(false);
     });
 
     it("should yield no rules when the config has neither list", () => {

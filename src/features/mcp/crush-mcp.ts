@@ -40,32 +40,54 @@ import {
  * never reaches another tool's config; `fromRulesyncMcp` re-merges them from
  * the raw source JSON, honouring the raw Crush spelling as a fallback for an
  * entry copied straight out of a `crush.json` (the `experimental_environment`
- * precedent). The canonical `oauth` key is Claude Code's `{ clientId }`
- * object, so a raw `oauth` is only honoured when it is Crush's boolean.
+ * precedent) — except `oauth`, whose canonical key is Claude Code's
+ * `{ clientId }` object and which only `crushOauth` can set.
  * @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
  */
 const CRUSH_ONLY_KEYS: readonly {
   canonical: string;
   crush: string;
   accepts: (value: unknown) => boolean;
+  /**
+   * Whether a shared `mcpServers` entry spelled the Crush way is honoured.
+   * Off for `oauth`: `RulesyncMcp.getMcpServers()` cannot strip that name
+   * for other tools (the canonical `oauth` object is theirs), so a raw
+   * `oauth: true` would reach them and is never read here either.
+   */
+  rawFallback: boolean;
 }[] = [
-  { canonical: "crushOauth", crush: "oauth", accepts: (v) => typeof v === "boolean" },
+  {
+    canonical: "crushOauth",
+    crush: "oauth",
+    accepts: (v) => typeof v === "boolean",
+    rawFallback: false,
+  },
   {
     canonical: "crushOauthClientId",
     crush: "oauth_client_id",
     accepts: (v) => typeof v === "string",
+    rawFallback: true,
   },
   {
     canonical: "crushOauthClientSecret",
     crush: "oauth_client_secret",
     accepts: (v) => typeof v === "string",
+    rawFallback: true,
   },
   {
+    // Crush decodes the port into a Go `int`, so a fraction would make the
+    // whole config file fail to load.
     canonical: "crushOauthCallbackPort",
     crush: "oauth_callback_port",
-    accepts: (v) => typeof v === "number",
+    accepts: (v) => Number.isInteger(v),
+    rawFallback: true,
   },
-  { canonical: "crushSessionless", crush: "sessionless", accepts: (v) => typeof v === "boolean" },
+  {
+    canonical: "crushSessionless",
+    crush: "sessionless",
+    accepts: (v) => typeof v === "boolean",
+    rawFallback: true,
+  },
 ];
 
 /**
@@ -76,10 +98,10 @@ const CRUSH_ONLY_KEYS: readonly {
 function readCrushOnlyKeys(rawServer: unknown): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   if (!isRecord(rawServer)) return result;
-  for (const { canonical, crush, accepts } of CRUSH_ONLY_KEYS) {
+  for (const { canonical, crush, accepts, rawFallback } of CRUSH_ONLY_KEYS) {
     const value = accepts(rawServer[canonical])
       ? rawServer[canonical]
-      : accepts(rawServer[crush])
+      : rawFallback && accepts(rawServer[crush])
         ? rawServer[crush]
         : undefined;
     if (value !== undefined) {
@@ -240,7 +262,10 @@ function convertToCrushFormat(mcpServers: McpServers, logger?: Logger): Record<s
       converted.enabled_tools = config.enabledTools;
     }
     if (typeof config.timeout === "number") {
-      converted.timeout = config.timeout;
+      // Crush decodes `timeout` into a Go `int` of seconds, and a fraction
+      // would fail the whole config load; round up so the server never gets
+      // less time than authored.
+      converted.timeout = Math.ceil(config.timeout);
     }
     copyCrushOnlyKeys({ from: config, to: converted });
 
