@@ -146,6 +146,11 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   // `{ enabled: boolean }` toggle for the built-in `list_directory` tool, off by
   // default because `glob` covers the same ground. Added in Qwen Code v0.22.0.
   "listDirectory",
+  // `{ enabled: boolean }` toggle for the built-in `todo_write` tool and its
+  // system-prompt guidance, off by default; `experimental.todoStopGuard` needs
+  // it on. Added in Qwen Code v0.23.1.
+  // https://github.com/QwenLM/qwen-code/pull/10645
+  "todoWrite",
   // Enables the Workflow tool and the `/workflows` command. Added in Qwen Code
   // v0.23.0 and honored in user/system settings only — see
   // `QWEN_SCOPED_TOOLS_KEYS`. `QWEN_CODE_ENABLE_WORKFLOWS` and
@@ -372,6 +377,13 @@ const QWEN_SCOPED_TOOLS_KEYS = {
       `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it decides whether the built-in \`list_directory\` tool is registered in this repository.`,
     globalNote:
       "Qwen Code honors this key wherever it is written, so in the global scope this decides whether the built-in `list_directory` tool is registered for every project on this machine.",
+  },
+  todoWrite: {
+    rule: "global-machine-wide",
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it decides whether the built-in \`todo_write\` tool is registered in this repository.`,
+    globalNote:
+      "Qwen Code honors this key wherever it is written, so in the global scope this decides whether the built-in `todo_write` tool is registered for every project on this machine.",
   },
 } as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_TOOLS_KEYS)[number]>;
 const QWEN_SCOPED_SECURITY_KEYS = {
