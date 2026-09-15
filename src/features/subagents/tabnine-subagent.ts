@@ -128,15 +128,17 @@ export class TabnineSubagent extends ToolSubagent {
       description: rulesyncFrontmatter.description,
       ...tabnineSection,
     };
-    let description = typeof merged.description === "string" ? merged.description : "";
-    if (!description) {
+    // Only a missing or empty description is filled in; a value of the wrong
+    // type is left for the constructor's schema check to report as invalid.
+    let description = merged.description;
+    if (description === undefined || description === "") {
       description = rulesyncFrontmatter.name ? `${rulesyncFrontmatter.name} subagent` : "subagent";
       logger?.warn(
         `Tabnine CLI subagent ${rulesyncSubagent.getRelativeFilePath()} has no description, ` +
           `which Tabnine requires; wrote ${JSON.stringify(description)} as a placeholder.`,
       );
     }
-    const tabnineSubagentFrontmatter: TabnineSubagentFrontmatter = { ...merged, description };
+    const tabnineSubagentFrontmatter = { ...merged, description } as TabnineSubagentFrontmatter;
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, tabnineSubagentFrontmatter, {

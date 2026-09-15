@@ -327,6 +327,26 @@ Body content`;
       );
     });
 
+    it("should still reject a description of the wrong type", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "typed.md",
+        frontmatter: { targets: ["tabnine"], name: "typed", tabnine: { description: 42 } },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(() =>
+        TabnineSubagent.fromRulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: agentsDir,
+          rulesyncSubagent,
+          validate: true,
+        }),
+      ).toThrow(/Invalid frontmatter/);
+    });
+
     it("should fill in the placeholder for an empty description too", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         outputRoot: testDir,

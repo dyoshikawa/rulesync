@@ -526,33 +526,6 @@ function buildToolLists({
 }
 
 /**
- * Permissions generator for the Tabnine CLI.
- *
- * Tabnine CLI keeps its tool policy in `.tabnine/agent/settings.json` (project)
- * and `~/.tabnine/agent/settings.json` (user), a shared file that also carries
- * `mcpServers`, `hooks`, `general.*`, `context.*` and more, so writes go through
- * the shared-config gateway as a deep merge and the file is never deleted.
- *
- * Two keys are driven by the canonical block:
- * - `tools.allowed` — `allow` rules. A tool name skips the confirmation prompt;
- *   `run_shell_command(<prefix>)` narrows that to one command prefix.
- * - `tools.exclude` — `deny` rules. A tool name removes the tool from discovery.
- *   A `bash` deny is written as `run_shell_command(<prefix>)` there, the form
- *   Gemini CLI's `excludeTools` (which Tabnine derives from) honors, but Tabnine
- *   documents the prefix for `tools.allowed` only — so the entry is not relied
- *   on, and every allow the deny overlaps is withheld as well.
- *
- * `ask` writes nothing: a tool that is in neither list keeps Tabnine's default
- * prompt. Every other `tools.*` key (`core`, `shell.*`, `enableWebTools`, ...)
- * and the `general.*` group are authored through the `tabnine` override, which
- * is deep-merged beneath the two canonical lists; entries in the lists that
- * cannot be mapped back (a prefix on a non-shell tool, an MCP tool name) round
- * trip through the override too.
- *
- * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/built-in-tools
- * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/settings/settings-reference
- */
-/**
  * Names the glob-spelled `run_shell_command(...)` override entries that were
  * written as the prefix their glob denotes. Said only for the entries that
  * made it into the list: one that a deny or ask overlaps is announced as
@@ -662,6 +635,33 @@ function reportDroppedManagedEntries({
   }
 }
 
+/**
+ * Permissions generator for the Tabnine CLI.
+ *
+ * Tabnine CLI keeps its tool policy in `.tabnine/agent/settings.json` (project)
+ * and `~/.tabnine/agent/settings.json` (user), a shared file that also carries
+ * `mcpServers`, `hooks`, `general.*`, `context.*` and more, so writes go through
+ * the shared-config gateway as a deep merge and the file is never deleted.
+ *
+ * Two keys are driven by the canonical block:
+ * - `tools.allowed` — `allow` rules. A tool name skips the confirmation prompt;
+ *   `run_shell_command(<prefix>)` narrows that to one command prefix.
+ * - `tools.exclude` — `deny` rules. A tool name removes the tool from discovery.
+ *   A `bash` deny is written as `run_shell_command(<prefix>)` there, the form
+ *   Gemini CLI's `excludeTools` (which Tabnine derives from) honors, but Tabnine
+ *   documents the prefix for `tools.allowed` only — so the entry is not relied
+ *   on, and every allow the deny overlaps is withheld as well.
+ *
+ * `ask` writes nothing: a tool that is in neither list keeps Tabnine's default
+ * prompt. Every other `tools.*` key (`core`, `shell.*`, `enableWebTools`, ...)
+ * and the `general.*` group are authored through the `tabnine` override, which
+ * is deep-merged beneath the two canonical lists; entries in the lists that
+ * cannot be mapped back (a prefix on a non-shell tool, an MCP tool name) round
+ * trip through the override too.
+ *
+ * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/built-in-tools
+ * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/settings/settings-reference
+ */
 export class TabninePermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
     super({
