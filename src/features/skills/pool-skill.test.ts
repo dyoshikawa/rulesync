@@ -153,6 +153,51 @@ describe("PoolSkill", () => {
       );
     });
 
+    it("points the mismatch warning at the global skill path in global mode", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "my-skill",
+        frontmatter: { name: "other-name", description: "Does a thing" },
+        body: "Skill body",
+        validate: true,
+      });
+
+      PoolSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill,
+        validate: true,
+        global: true,
+        logger,
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(".config/poolside/skills/my-skill/SKILL.md"),
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining(".poolside/skills/my-skill/SKILL.md"),
+      );
+    });
+
+    it("strips control characters from the directory name in the warning", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "my-skill\u001b[2K\r-fake-line",
+        frontmatter: { name: "other-name", description: "Does a thing" },
+        body: "Skill body",
+        validate: true,
+      });
+
+      PoolSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill, validate: true, logger });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const message = logger.warn.mock.calls[0]?.[0];
+      expect(message).not.toContain("\u001b");
+      expect(message).toContain('does not match its directory name "my-skill[2K-fake-line"');
+    });
+
     it("does not warn when the skill name matches its directory name", () => {
       const logger = createMockLogger();
       const rulesyncSkill = new RulesyncSkill({

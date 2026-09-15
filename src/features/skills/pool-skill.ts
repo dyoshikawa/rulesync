@@ -52,7 +52,11 @@ export type PoolSkillParams = {
  * other Agent Skills tools; those belong to their own targets, so this class
  * writes only the two Pool-specific roots and a skill is written exactly once.
  * Pool requires the directory name to equal the frontmatter `name`, otherwise
- * it skips the skill.
+ * it skips the skill. Unlike adapters that reject such a skill outright, this
+ * one warns and still writes it: the directory name is the canonical identity
+ * shared with every other target, and Pool merely skips the skill rather than
+ * failing, so a hard error here would block the other targets for a
+ * Pool-only concern. Import is lenient for the same reason.
  * @see https://docs.poolside.ai/skills
  */
 export class PoolSkill extends ToolSkill {
@@ -166,7 +170,7 @@ export class PoolSkill extends ToolSkill {
       const skillPath = join(outputRoot, settablePaths.relativeDirPath, dirName, SKILL_FILE_NAME);
       warnWithFallback(
         logger,
-        `${stripControlCharacters(toPosixPath(skillPath))}: \`name\` "${stripControlCharacters(poolFrontmatter.name)}" does not match its directory name "${dirName}"; Pool only loads a skill whose directory name equals its \`name\``,
+        `${stripControlCharacters(toPosixPath(skillPath))}: \`name\` "${stripControlCharacters(poolFrontmatter.name)}" does not match its directory name "${stripControlCharacters(dirName)}"; Pool only loads a skill whose directory name equals its \`name\``,
       );
     }
 
