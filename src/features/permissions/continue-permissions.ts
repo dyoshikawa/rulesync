@@ -28,6 +28,16 @@ const CONTINUE_GLOBAL_ONLY_MESSAGE =
 // The catch-all rulesync pattern; an entry with no argument pattern.
 const CATCH_ALL_PATTERN = "*";
 
+/**
+ * A run of `*` (`**`, `***`) is the catch-all spelled another way: Continue
+ * would match `Tool(**)` against every argument just as the bare tool name
+ * does, so it is written — and, under the all-tools category, honored — as
+ * the bare entry instead of being skipped as a pattern-specific rule.
+ */
+function normalizeCatchAllPattern(pattern: string): string {
+  return /^\*+$/.test(pattern) ? CATCH_ALL_PATTERN : pattern;
+}
+
 // rulesync canonical categories -> the Continue CLI built-in tool names whose
 // primary argument the pattern is matched against (`command` for Bash,
 // `file_path` for Read/Edit/Write, `url` for Fetch). Any other category passes
@@ -331,8 +341,9 @@ function convertRulesyncToContinuePermissions({
         ? ALL_TOOLS_PERMISSION_CATEGORY
         : toContinueToolName(category);
 
-    for (const [pattern, action] of Object.entries(rules)) {
-      if (isPrototypePollutionKey(pattern)) continue;
+    for (const [rawPattern, action] of Object.entries(rules)) {
+      if (isPrototypePollutionKey(rawPattern)) continue;
+      const pattern = normalizeCatchAllPattern(rawPattern);
       if (pattern.includes("(") || pattern.includes(")")) {
         logger?.warn(
           `Continue permissions.yaml cannot hold a parenthesis inside a pattern, so the ` +

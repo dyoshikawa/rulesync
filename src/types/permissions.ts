@@ -386,6 +386,14 @@ export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOver
  * `looseObject` (verbatim passthrough). Both project and global scope are
  * supported.
  *
+ * Only `tools` and `general` are written; any other key is ignored with a
+ * warning. Within them, the paths Tabnine CLI runs as a command or sends its
+ * traffic to — `tools.discoveryCommand`, `tools.callCommand`,
+ * `tools.shell.pager`, `tools.sandbox.command`, `general.tabnineHost` and
+ * `general.preferredEditor` — are refused with a warning rather than written,
+ * so a fetched permissions file cannot point the CLI at an executable or a
+ * server of its choosing; set those by hand in `settings.json`.
+ *
  * @example
  * { "tools": { "core": ["read_file", "run_shell_command(git)"] },
  *   "general": { "defaultApprovalMode": "plan" } }

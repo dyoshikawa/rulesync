@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
@@ -241,6 +242,32 @@ Body content`;
       expect(tabnineSubagent.getFrontmatter().description).toBe("Tabnine-only description");
     });
 
+    it("should fill in a placeholder description, which Tabnine requires, and say so", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "no-description.md",
+        frontmatter: { targets: ["tabnine"], name: "no-description" },
+        body: "Body",
+        validate: true,
+      });
+      const logger = createMockLogger();
+
+      const tabnineSubagent = TabnineSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: agentsDir,
+        rulesyncSubagent,
+        validate: true,
+        logger,
+      }) as TabnineSubagent;
+
+      expect(tabnineSubagent.getFrontmatter().description).toBe("no-description subagent");
+      expect(tabnineSubagent.getFileContent()).toContain("description: no-description subagent");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("no-description.md has no description, which Tabnine requires"),
+      );
+    });
+
     it("should pass through unknown tabnine-section keys", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         outputRoot: testDir,
@@ -267,7 +294,60 @@ Body content`;
       expect(tabnineSubagent.getFileContent()).toContain("future_key: value");
     });
 
-    it("should handle empty name and description", () => {
+    it("should fill in the placeholder when the tabnine section blanks the description", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "blanked.md",
+        frontmatter: {
+          targets: ["tabnine"],
+          name: "blanked",
+          description: "Shared description",
+          tabnine: { description: "" },
+        },
+        body: "Body",
+        validate: true,
+      });
+      const logger = createMockLogger();
+
+      const tabnineSubagent = TabnineSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: agentsDir,
+        rulesyncSubagent,
+        validate: true,
+        logger,
+      }) as TabnineSubagent;
+
+      expect(tabnineSubagent.getFrontmatter()).toEqual({
+        name: "blanked",
+        description: "blanked subagent",
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("blanked.md has no description, which Tabnine requires"),
+      );
+    });
+
+    it("should still reject a description of the wrong type", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "typed.md",
+        frontmatter: { targets: ["tabnine"], name: "typed", tabnine: { description: 42 } },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(() =>
+        TabnineSubagent.fromRulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: agentsDir,
+          rulesyncSubagent,
+          validate: true,
+        }),
+      ).toThrow(/Invalid frontmatter/);
+    });
+
+    it("should fill in the placeholder for an empty description too", () => {
       const rulesyncSubagent = new RulesyncSubagent({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -284,7 +364,7 @@ Body content`;
         validate: true,
       }) as TabnineSubagent;
 
-      expect(tabnineSubagent.getFrontmatter()).toEqual({ name: "", description: "" });
+      expect(tabnineSubagent.getFrontmatter()).toEqual({ name: "", description: "subagent" });
     });
   });
 

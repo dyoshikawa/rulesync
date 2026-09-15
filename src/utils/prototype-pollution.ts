@@ -36,3 +36,29 @@ export function omitPrototypePollutionKeys(
   }
   return sanitized;
 }
+
+/**
+ * Like {@link omitPrototypePollutionKeys}, but recursive: every plain object
+ * reachable through the value (directly, or through an array) is copied with
+ * its prototype-pollution keys dropped. Scalars and arrays of scalars come back
+ * as they are.
+ *
+ * Use when passing an unknown, user-supplied value through unchanged — an MCP
+ * server field a tool documents that rulesync does not model — so a
+ * `__proto__` key nested anywhere inside it cannot ride into the generated
+ * config, where the consuming tool may merge the object without the same care.
+ */
+export function omitPrototypePollutionKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => omitPrototypePollutionKeysDeep(entry));
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    sanitized[key] = omitPrototypePollutionKeysDeep(entry);
+  }
+  return sanitized;
+}

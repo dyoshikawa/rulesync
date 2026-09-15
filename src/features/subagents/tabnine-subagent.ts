@@ -23,7 +23,7 @@ import {
 // @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/subagents
 const TabnineSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
-  description: z.optional(z.string()),
+  description: z.string(),
   /** "local" (default) runs inside the CLI; "remote" delegates to a Tabnine cloud agent. */
   kind: z.optional(z.string()),
   /** Built-in tool names the subagent may use; omitted = every tool. */
@@ -114,15 +114,31 @@ export class TabnineSubagent extends ToolSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const tabnineSection = rulesyncFrontmatter.tabnine ?? {};
 
-    const tabnineSubagentFrontmatter: TabnineSubagentFrontmatter = {
+    // Tabnine refuses to load an agent without a non-empty description, so a
+    // canonical subagent that omits one gets a minimal fallback (the way the
+    // Cline adapter does) rather than a file the tool would not load or an
+    // error that aborts every other target's generation.
+    const merged = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...tabnineSection,
     };
+    // Only a missing or empty description is filled in; a value of the wrong
+    // type is left for the constructor's schema check to report as invalid.
+    let description = merged.description;
+    if (description === undefined || description === "") {
+      description = rulesyncFrontmatter.name ? `${rulesyncFrontmatter.name} subagent` : "subagent";
+      logger?.warn(
+        `Tabnine CLI subagent ${rulesyncSubagent.getRelativeFilePath()} has no description, ` +
+          `which Tabnine requires; wrote ${JSON.stringify(description)} as a placeholder.`,
+      );
+    }
+    const tabnineSubagentFrontmatter = { ...merged, description } as TabnineSubagentFrontmatter;
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, tabnineSubagentFrontmatter, {

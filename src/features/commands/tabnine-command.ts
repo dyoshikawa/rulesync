@@ -122,18 +122,15 @@ export class TabnineCommand extends ToolCommand {
     return this.body;
   }
 
-  getFrontmatter(): Record<string, unknown> {
-    return {
-      description: this.frontmatter.description,
-      prompt: this.frontmatter.prompt,
-    };
+  getFrontmatter(): TabnineCommandFrontmatter {
+    return this.frontmatter;
   }
 
   toRulesyncCommand(): RulesyncCommand {
     const { description, prompt: _prompt, ...restFields } = this.frontmatter;
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
-      targets: ["tabnine"],
+      targets: ["*"],
       description: description,
       // Preserve extra fields in tabnine section (excluding prompt which is the body)
       ...(Object.keys(restFields).length > 0 && { tabnine: restFields }),

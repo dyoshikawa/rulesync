@@ -364,6 +364,23 @@ describe("TabnineHooks", () => {
       expect(json.tabnine).toBeUndefined();
     });
 
+    it("should fold a `.*` matcher to the canonical match-all (no matcher)", () => {
+      const tabnineHooks = new TabnineHooks({
+        outputRoot: testDir,
+        relativeDirPath: settingsDir,
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            BeforeTool: [{ matcher: ".*", hooks: [{ type: "command", command: "pre.sh" }] }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = tabnineHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.preToolUse).toEqual([{ type: "command", command: "pre.sh" }]);
+    });
+
     it("should skip hooks without a command type, as Tabnine does", () => {
       const tabnineHooks = new TabnineHooks({
         outputRoot: testDir,
