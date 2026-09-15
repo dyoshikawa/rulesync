@@ -6,7 +6,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { POOL_GLOBAL_SKILLS_DIR_PATH, POOL_SKILLS_DIR_PATH } from "../../constants/pool-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { stripControlCharacters } from "../../utils/control-characters.js";
+import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { toPosixPath } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
@@ -170,7 +170,7 @@ export class PoolSkill extends ToolSkill {
       const skillPath = join(outputRoot, settablePaths.relativeDirPath, dirName, SKILL_FILE_NAME);
       warnWithFallback(
         logger,
-        `${stripControlCharacters(toPosixPath(skillPath))}: \`name\` "${stripControlCharacters(poolFrontmatter.name)}" does not match its directory name "${stripControlCharacters(dirName)}"; Pool only loads a skill whose directory name equals its \`name\``,
+        `${stripControlCharacters(toPosixPath(skillPath))}: \`name\` ${quoteForLog(poolFrontmatter.name)} does not match its directory name ${quoteForLog(dirName)}; Pool only loads a skill whose directory name equals its \`name\``,
       );
     }
 
