@@ -424,6 +424,7 @@ describe("E2E: permissions", () => {
             write: { "*.lock": "deny" },
             bash: { git: "allow", "rm *": "deny", "*": "ask" },
             webfetch: { "https://api.github.com/*": "allow" },
+            websearch: { "*": "deny" },
           },
         },
         null,
@@ -440,6 +441,8 @@ describe("E2E: permissions", () => {
     expect(content.permissions.allow).toContain("Fetch(https://api.github.com/*)");
     expect(content.permissions.deny).toContain("Write(*.lock)");
     expect(content.permissions.deny).toContain("Exec(rm *)");
+    // `websearch` maps to Devin's bare `web_search` tool name, which has no matcher.
+    expect(content.permissions.deny).toContain("web_search");
     expect(content.permissions.ask).toContain("Exec");
   });
 

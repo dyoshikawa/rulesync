@@ -66,18 +66,15 @@ function toOpencodePermission({
     return value;
   }
 
-  const actions = Object.values(value);
-  if (actions.length === 0) {
+  // The implicit `ask` for a map without a catch-all keeps a narrow allowlist
+  // from expanding into blanket `allow` under OpenCode's scalar-only shape.
+  const action = collapseRulesToSingleAction({ rules: value });
+  if (action === undefined) {
     logger?.warn(
       `OpenCode's "${category}" permission accepts only a single action. Collapsed its empty pattern map to "deny" to avoid falling back to OpenCode's default allow behavior.`,
     );
     return "deny";
   }
-
-  // The map is non-empty here, so the collapse always yields an action; the
-  // implicit `ask` for a map without a catch-all keeps a narrow allowlist from
-  // expanding into blanket `allow` under OpenCode's scalar-only shape.
-  const action = collapseRulesToSingleAction({ rules: value }) ?? "ask";
 
   if (hasPatternSpecificRules(value)) {
     logger?.warn(
