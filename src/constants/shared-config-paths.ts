@@ -22,6 +22,8 @@ import { toPosixPath } from "../utils/file.js";
  * derivation adds it.
  */
 export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
+  ".poolside/settings.yaml",
+  ".config/poolside/settings.yaml",
   ".amp/settings.json",
   ".amp/settings.jsonc",
   ".antigravity/settings.json",
