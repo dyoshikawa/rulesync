@@ -1385,6 +1385,211 @@ describe("AugmentcodePermissions", () => {
     });
   });
 
+  describe("current AugmentCode tool-name aliases (terminal / read / edit / write)", () => {
+    // Auggie's docs renamed `launch-process` / `view` / `str-replace-editor` / `save-file` to
+    // `terminal` / `read` / `edit` / `write` and alias the legacy names to them. Rulesync keeps
+    // emitting the legacy names (the shipped CLI matches exact names), but an existing file
+    // authored with the current names must be read as the same managed tools.
+
+    it("should import current tool names, recovering shellInputRegex on terminal", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            {
+              toolName: "terminal",
+              shellInputRegex: "^git merge .*$",
+              permission: { type: "deny" },
+            },
+            { toolName: "terminal", permission: { type: "ask-user" } },
+            { toolName: "read", permission: { type: "allow" } },
+            { toolName: "edit", permission: { type: "ask-user" } },
+            { toolName: "write", permission: { type: "deny" } },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission).toEqual({
+        bash: { "git merge *": "deny", "*": "ask" },
+        read: { "*": "allow" },
+        edit: { "*": "ask" },
+        write: { "*": "deny" },
+      });
+    });
+
+    it("should not resolve inherited property names through the alias tables", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            // Bracket reads on the alias maps must not yield Object.prototype members: the
+            // reserved names stay strings so the `forbiddenMapKeys` guard below still fires,
+            // and an inherited-but-harmless name passes through verbatim.
+            { toolName: "constructor", permission: { type: "allow" } },
+            { toolName: "__proto__", permission: { type: "allow" } },
+            { toolName: "toString", permission: { type: "allow" } },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission).toEqual({ toString: { "*": "allow" } });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+    });
+
+    it("should broaden a non-roundtrippable terminal deny regex to the catch-all pattern", () => {
+      const warnSpy = vi.spyOn(ConsoleLogger.prototype, "warn").mockImplementation(() => {});
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            { toolName: "terminal", shellInputRegex: "rm|del", permission: { type: "deny" } },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission.bash).toEqual({ "*": "deny" });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      warnSpy.mockRestore();
+    });
+
+    it("should not duplicate a passed-through current-name row across regenerates", async () => {
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          toolPermissions: [{ toolName: "terminal", permission: { type: "deny" } }],
+        }),
+      );
+
+      // An unknown canonical category is passed through verbatim as the toolName, so the
+      // generated row carries the current spelling; it must still dedupe against the
+      // existing row instead of accumulating one copy per regenerate.
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { terminal: { "*": "deny" } } }),
+      });
+
+      const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).toolPermissions).toEqual([
+        { toolName: "terminal", permission: { type: "deny" } },
+      ]);
+    });
+
+    it("should keep an existing legacy-named deny when the generated row uses a passed-through current name", async () => {
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          toolPermissions: [
+            { toolName: "launch-process", permission: { type: "deny" } },
+            {
+              toolName: "launch-process",
+              shellInputRegex: "^rm .*$",
+              permission: { type: "deny" },
+            },
+          ],
+        }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission: { terminal: { "*": "deny" } } }),
+      });
+
+      const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      // The generated `terminal` row is not the legacy spelling, so it must not retire the
+      // user's `launch-process` catch-all deny (fail-closed): both rows survive.
+      expect(JSON.parse(instance.getFileContent()).toolPermissions).toEqual([
+        { toolName: "launch-process", shellInputRegex: "^rm .*$", permission: { type: "deny" } },
+        { toolName: "terminal", permission: { type: "deny" } },
+        { toolName: "launch-process", permission: { type: "deny" } },
+      ]);
+    });
+
+    it("should fold a current alias and its legacy name into one category, most restrictive wins", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            { toolName: "view", permission: { type: "allow" } },
+            { toolName: "read", permission: { type: "deny" } },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission).toEqual({ read: { "*": "deny" } });
+    });
+
+    it("should treat current-name rows as managed on regenerate: replace allows, keep denies, drop exact duplicates", async () => {
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          toolPermissions: [
+            // Stale permissive rows under current names: rulesync owns this surface.
+            { toolName: "terminal", permission: { type: "allow" } },
+            { toolName: "read", permission: { type: "allow" } },
+            // A user-added deny under a current name survives (fail-closed) ...
+            { toolName: "write", permission: { type: "deny" } },
+            // ... unless it is re-emitted under the legacy name with the same shape.
+            { toolName: "terminal", shellInputRegex: "^rm .*$", permission: { type: "deny" } },
+            // Genuinely unmanaged tools are still kept verbatim.
+            { toolName: "github-api", permission: { type: "allow" } },
+          ],
+        }),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "*": "ask", "rm *": "deny" }, read: { "*": "allow" } },
+        }),
+      });
+
+      const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const entries = JSON.parse(instance.getFileContent()).toolPermissions as Array<{
+        toolName: string;
+        shellInputRegex?: string;
+        permission: { type: string };
+      }>;
+      expect(entries).toEqual([
+        { toolName: "launch-process", shellInputRegex: "^rm .*$", permission: { type: "deny" } },
+        { toolName: "write", permission: { type: "deny" } },
+        { toolName: "launch-process", permission: { type: "ask-user" } },
+        { toolName: "view", permission: { type: "allow" } },
+        { toolName: "github-api", permission: { type: "allow" } },
+      ]);
+      // The current-name rows are gone: no stale `terminal` / `read` allow shadows the output.
+      expect(entries.some((e) => e.toolName === "terminal" || e.toolName === "read")).toBe(false);
+    });
+  });
+
   describe("validate()", () => {
     it("should succeed for well-formed AugmentCode settings JSON", () => {
       const instance = new AugmentcodePermissions({
