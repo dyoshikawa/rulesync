@@ -114,25 +114,28 @@ export class TabnineSubagent extends ToolSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const tabnineSection = rulesyncFrontmatter.tabnine ?? {};
 
-    // Tabnine refuses a subagent without a `description`, so a rulesync
-    // subagent that states none is reported here rather than written as a
-    // file the tool would not load.
-    const rawFrontmatter = {
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-      ...tabnineSection,
-    };
-    const result = TabnineSubagentFrontmatterSchema.safeParse(rawFrontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid tabnine subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
+    // Tabnine refuses to load an agent without a non-empty description, so a
+    // canonical subagent that omits one gets a minimal fallback (the way the
+    // Cline adapter does) rather than a file the tool would not load or an
+    // error that aborts every other target's generation.
+    let description = rulesyncFrontmatter.description;
+    if (!description) {
+      description = rulesyncFrontmatter.name ? `${rulesyncFrontmatter.name} subagent` : "subagent";
+      logger?.warn(
+        `Tabnine CLI subagent ${rulesyncSubagent.getRelativeFilePath()} has no description, ` +
+          `which Tabnine requires; wrote ${JSON.stringify(description)} as a placeholder.`,
       );
     }
-    const tabnineSubagentFrontmatter: TabnineSubagentFrontmatter = result.data;
+    const tabnineSubagentFrontmatter: TabnineSubagentFrontmatter = {
+      name: rulesyncFrontmatter.name,
+      description,
+      ...tabnineSection,
+    };
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, tabnineSubagentFrontmatter, {

@@ -106,6 +106,16 @@ export abstract class SettingsJsonHooks extends ToolHooks {
     return sharedConfigFileKey(paths);
   }
 
+  /**
+   * `new this(params)` for the concrete adapter the static method was called
+   * on; the cast is what an abstract class needs to be constructed through
+   * `this`, and lives in one place.
+   */
+  private static instantiate(params: ToolHooksParams): SettingsJsonHooks {
+    const ctor = this as unknown as new (p: ToolHooksParams) => SettingsJsonHooks;
+    return new ctor(params);
+  }
+
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
@@ -114,7 +124,7 @@ export abstract class SettingsJsonHooks extends ToolHooks {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new (this as unknown as new (params: ToolHooksParams) => SettingsJsonHooks)({
+    return this.instantiate({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -152,7 +162,7 @@ export abstract class SettingsJsonHooks extends ToolHooks {
     const config = rulesyncHooks.getJson();
     const generatedHooks = canonicalToToolHooks({
       config,
-      toolOverrideHooks: overrideHooksOf(config, this.getSpec().overrideKey),
+      toolOverrideHooks: overrideHooksOf({ config, overrideKey: this.getSpec().overrideKey }),
       converterConfig: this.getConverterConfig(),
       logger,
     });
@@ -180,7 +190,7 @@ export abstract class SettingsJsonHooks extends ToolHooks {
       filePath,
       logger,
     });
-    return new (this as unknown as new (params: ToolHooksParams) => SettingsJsonHooks)({
+    return this.instantiate({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -204,8 +214,11 @@ export abstract class SettingsJsonHooks extends ToolHooks {
         invalidRootPolicy: "error",
       });
     } catch (error) {
+      // `parseSharedConfig` carries the bare reason as `cause` so the file is
+      // named once, by this prefix, rather than by both.
+      const reason = error instanceof Error && error.cause instanceof Error ? error.cause : error;
       throw new Error(
-        `Failed to parse ${spec.displayName} hooks content in ${configPath}: ${formatError(error)}`,
+        `Failed to parse ${spec.displayName} hooks content in ${configPath}: ${formatError(reason)}`,
         { cause: error },
       );
     }
@@ -232,7 +245,7 @@ export abstract class SettingsJsonHooks extends ToolHooks {
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): SettingsJsonHooks {
-    return new (this as unknown as new (params: ToolHooksParams) => SettingsJsonHooks)({
+    return this.instantiate({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
@@ -247,10 +260,13 @@ export abstract class SettingsJsonHooks extends ToolHooks {
  * or `undefined` when the block states none. The schema keeps every override
  * block loose, so the lookup goes through the record form.
  */
-function overrideHooksOf(
-  config: HooksConfig,
-  overrideKey: string,
-): HooksConfig["hooks"] | undefined {
+function overrideHooksOf({
+  config,
+  overrideKey,
+}: {
+  config: HooksConfig;
+  overrideKey: string;
+}): HooksConfig["hooks"] | undefined {
   const override = lookupOwn({ record: config as Record<string, unknown>, key: overrideKey });
   if (!isPlainObject(override)) {
     return undefined;

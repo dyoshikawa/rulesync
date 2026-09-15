@@ -930,6 +930,42 @@ describe("ClaudecodeHooks", () => {
       );
     });
 
+    it("should refuse a root that is not a mapping and name the file once", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: "[]",
+        validate: false,
+      });
+
+      expect(() => claudecodeHooks.toRulesyncHooks()).toThrow(
+        "Failed to parse Claude hooks content in .claude/settings.json: Error: expected a mapping at the root",
+      );
+    });
+
+    it("should import an empty file as no hooks and drop a root-level __proto__", () => {
+      const empty = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: "",
+        validate: false,
+      });
+      expect(empty.toRulesyncHooks().getJson().hooks).toEqual({});
+
+      const polluted = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: '{"__proto__":{"polluted":true},"hooks":{}}',
+        validate: false,
+      });
+      const json = polluted.toRulesyncHooks().getJson();
+      expect(json.hooks).toEqual({});
+      expect(Object.hasOwn(json, "__proto__")).toBe(false);
+    });
+
     it("should import DirectoryAdded and the per-handler fields, undoing the exec-form prefix", () => {
       const claudecodeHooks = new ClaudecodeHooks({
         outputRoot: testDir,

@@ -173,6 +173,17 @@ function toShellPattern(prefix: string | undefined): string {
 }
 
 /**
+ * Whether {@link toShellPattern} read the prefix as a glob: such an entry
+ * would never fire on Tabnine as spelled (the prefix is matched literally, so
+ * `run_shell_command(git *)` only matches a command line starting with the
+ * two characters `git *`), and rulesync writes it back as the prefix the glob
+ * denotes — a wider entry that the author is told about.
+ */
+function isGlobSpelledPrefix(prefix: string | undefined): boolean {
+  return prefix !== undefined && (prefix === "*" || prefix.endsWith(" *"));
+}
+
+/**
  * Split a `tools.allowed`/`tools.exclude` entry into its tool name and the
  * optional `(<prefix>)` suffix. An entry whose parenthesis never closes, or
  * that carries text after the closing one, is malformed and yields `undefined`.
@@ -299,7 +310,7 @@ function collectTrustAffectingOverrideEntries({
     entries.push({
       label: `tools.allowed (${allowed.map(quoteValueForWarning).join(", ")})`,
       reason:
-        "auto-approves what it names as the override spells it; a non-shell entry has no canonical rule to be checked against",
+        "auto-approves what it names as the override spells it; a non-shell entry is only checked against a whole-tool deny of its tool",
     });
   }
   if (Object.hasOwn(tools, SANDBOX_KEY) && isNotTrue(tools[SANDBOX_KEY])) {
@@ -712,7 +723,18 @@ export class TabninePermissions extends ToolPermissions {
     for (const entry of overrideList(ALLOWED_KEY)) {
       const parsed = parseTabnineEntry(entry);
       if (parsed?.toolName === SHELL_TOOL_NAME) {
-        overrideShellAllowPatterns.push(toShellPattern(parsed.prefix));
+        const pattern = toShellPattern(parsed.prefix);
+        if (isGlobSpelledPrefix(parsed.prefix)) {
+          warnWithFallback(
+            logger,
+            `Tabnine CLI permissions: read tools.allowed entry ${quoteValueForWarning(entry)} of ` +
+              `the tabnine override as the 'bash' allow rule ${quoteValueForWarning(pattern)}; ` +
+              `Tabnine matches a prefix literally, so it is written as ` +
+              `${quoteValueForWarning(toShellEntry(toShellPrefix(pattern) ?? ""))}, which auto-approves ` +
+              `every command it covers.`,
+          );
+        }
+        overrideShellAllowPatterns.push(pattern);
       } else {
         overrideVerbatimAllowed.push(entry);
       }

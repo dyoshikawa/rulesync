@@ -669,6 +669,34 @@ describe("TabninePermissions", () => {
       expect(messages.join("\n")).not.toContain("* *");
     });
 
+    it("writes a glob-spelled override prefix as the prefix it denotes and says so", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { read: { "*": "allow" } },
+          tabnine: { tools: { allowed: ["run_shell_command(git *)", "run_shell_command(*)"] } },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools).toEqual({
+        allowed: ["run_shell_command(git)", "run_shell_command", "read_file"],
+      });
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages).toContainEqual(
+        expect.stringContaining(
+          `read tools.allowed entry "run_shell_command(git *)" of the tabnine override as the 'bash' allow rule "git *"; Tabnine matches a prefix literally, so it is written as "run_shell_command(git)"`,
+        ),
+      );
+      expect(messages).toContainEqual(
+        expect.stringContaining(
+          `read tools.allowed entry "run_shell_command(*)" of the tabnine override as the 'bash' allow rule "*"; Tabnine matches a prefix literally, so it is written as "run_shell_command"`,
+        ),
+      );
+    });
+
     it("withholds a verbatim override allow whose tool the canonical block denies", async () => {
       const logger = createMockLogger();
       const permissions = await TabninePermissions.fromRulesyncPermissions({
@@ -928,6 +956,35 @@ describe("TabninePermissions", () => {
       expect(trust).toContain(`'tools.allowed ("web_fetch(https://example.com)")'`);
       expect(trust).toContain(`'tools.sandbox = "docker"'`);
       expect(trust).toContain(`'general.defaultApprovalMode = "auto_edit"'`);
+    });
+
+    it("leaves sandbox.command in settings.json and lifts the rest of the sandbox object", async () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const info = vi.spyOn(fallbackLogger, "info").mockImplementation(() => {});
+      await writeSettings({
+        testDir,
+        settings: {
+          tools: {
+            sandbox: { enabled: true, command: "./node_modules/.bin/evil", image: "img" },
+            allowed: ["run_shell_command(git *)"],
+          },
+        },
+      });
+
+      const permissions = await TabninePermissions.fromFile({ outputRoot: testDir });
+      const json = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
+
+      expect(json.tabnine).toEqual({ tools: { sandbox: { enabled: true, image: "img" } } });
+      // A glob-spelled prefix reads back as the glob it looks like.
+      expect(json.permission).toEqual({ bash: { "git *": "allow" } });
+      expect(info).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "left tools.sandbox.command in settings.json rather than lifting it into the tabnine override",
+        ),
+      );
+      const messages = warn.mock.calls.map(([message]) => String(message));
+      const trust = messages.find((message) => message.includes("trust-affecting"));
+      expect(trust).toContain(`'tools.sandbox = `);
     });
 
     it("lifts no general block when only refused keys were in it", async () => {

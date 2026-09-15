@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isPrototypePollutionKey,
   omitPrototypePollutionKeys,
+  omitPrototypePollutionKeysDeep,
   PROTOTYPE_POLLUTION_KEYS,
 } from "./prototype-pollution.js";
 
@@ -53,5 +54,30 @@ describe("omitPrototypePollutionKeys", () => {
 
   it("returns an empty object for an empty record", () => {
     expect(omitPrototypePollutionKeys({})).toEqual({});
+  });
+});
+
+describe("omitPrototypePollutionKeysDeep", () => {
+  it("drops prototype-pollution keys at every depth, through arrays too", () => {
+    const input = JSON.parse(
+      '{"__proto__":{"x":1},"keep":{"constructor":{"y":2},"nested":{"prototype":3,"ok":true}},' +
+        '"list":[{"__proto__":{"z":4},"a":1},"s",[{"constructor":1}]]}',
+    ) as unknown;
+
+    expect(omitPrototypePollutionKeysDeep(input)).toEqual({
+      keep: { nested: { ok: true } },
+      list: [{ a: 1 }, "s", [{}]],
+    });
+  });
+
+  it("returns scalars and null as they are and copies a clean object", () => {
+    expect(omitPrototypePollutionKeysDeep("s")).toBe("s");
+    expect(omitPrototypePollutionKeysDeep(3)).toBe(3);
+    expect(omitPrototypePollutionKeysDeep(null)).toBeNull();
+    expect(omitPrototypePollutionKeysDeep(undefined)).toBeUndefined();
+    const input = { a: [1, { b: "c" }] };
+    const result = omitPrototypePollutionKeysDeep(input);
+    expect(result).toEqual(input);
+    expect(result).not.toBe(input);
   });
 });
