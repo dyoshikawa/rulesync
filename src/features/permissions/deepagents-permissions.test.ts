@@ -1010,16 +1010,143 @@ describe("DeepagentsPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("is not a table"));
     });
 
-    it("merges both override blocks into the same file", async () => {
+    it("writes the project MCP deny list into `[mcp]` (issue #3076)", async () => {
+      const logger = createMockLogger();
+
       const content = await generate({
         config: {
           permission: {},
-          deepagents: { startup: { mode: "manual" }, extensions: { trust: "never" } },
+          deepagents: { mcp: { disabled_project_servers: ["filesystem", "shell"] } },
+        },
+        logger,
+      });
+
+      expect(tableOf(content, "mcp")).toEqual({
+        disabled_project_servers: ["filesystem", "shell"],
+      });
+      // A deny list only restricts, so there is no relaxation to report.
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("keeps the approval store the user built beside the deny list", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        join(testDir, ".deepagents", "config.toml"),
+        '[mcp]\ndisabled_servers = ["old"]\n\n[mcp.enabled_project_server_approvals]\nfilesystem = { fingerprint = "abc" }\n',
+      );
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { mcp: { disabled_project_servers: ["shell"] } } },
+        logger,
+      });
+
+      expect(tableOf(content, "mcp")).toEqual({
+        disabled_servers: ["old"],
+        enabled_project_server_approvals: { filesystem: { fingerprint: "abc" } },
+        disabled_project_servers: ["shell"],
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("never writes the approval store from a permissions file", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: {
+          permission: {},
+          deepagents: {
+            mcp: {
+              disabled_project_servers: ["shell"],
+              enabled_project_server_approvals: { filesystem: { fingerprint: "abc" } },
+            },
+          },
+        },
+        logger,
+      });
+
+      // A repository must not pre-approve its own project MCP servers.
+      expect(tableOf(content, "mcp")).toEqual({ disabled_project_servers: ["shell"] });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("warns when the mcp override re-enables a server the machine had rejected", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        join(testDir, ".deepagents", "config.toml"),
+        '[mcp]\ndisabled_project_servers = ["filesystem", "shell"]\n',
+      );
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { mcp: { disabled_project_servers: ["shell"] } } },
+        logger,
+      });
+
+      expect(tableOf(content, "mcp")).toEqual({ disabled_project_servers: ["shell"] });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('removed "filesystem" from [mcp].disabled_project_servers'),
+      );
+    });
+
+    it("reads a comma-separated deny list the way dcode does before comparing", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        join(testDir, ".deepagents", "config.toml"),
+        '[mcp]\ndisabled_project_servers = "filesystem, shell"\n',
+      );
+
+      await generate({
+        config: {
+          permission: {},
+          deepagents: { mcp: { disabled_project_servers: ["shell", "filesystem"] } },
+        },
+        logger,
+      });
+
+      // Same names in another order and another spelling: nothing re-enabled.
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("names an mcp key it cannot judge", async () => {
+      const logger = createMockLogger();
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { mcp: { disabled_servers: ["viewer"] } } },
+        logger,
+      });
+
+      expect(tableOf(content, "mcp")).toEqual({ disabled_servers: ["viewer"] });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("disabled_servers"));
+    });
+
+    it("leaves an `mcp` that is not a table untouched", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(join(testDir, ".deepagents", "config.toml"), 'mcp = "none"\n');
+
+      const content = await generate({
+        config: { permission: {}, deepagents: { mcp: { disabled_project_servers: ["shell"] } } },
+        logger,
+      });
+
+      expect(smolToml.parse(content).mcp).toBe("none");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("is not a table"));
+    });
+
+    it("merges every override block into the same file", async () => {
+      const content = await generate({
+        config: {
+          permission: {},
+          deepagents: {
+            startup: { mode: "manual" },
+            extensions: { trust: "never" },
+            mcp: { disabled_project_servers: ["shell"] },
+          },
         },
       });
 
       expect(tableOf(content, "startup")).toEqual({ mode: "manual" });
       expect(tableOf(content, "extensions")).toEqual({ trust: "never" });
+      expect(tableOf(content, "mcp")).toEqual({ disabled_project_servers: ["shell"] });
     });
 
     it("leaves a `shell` that parsed as a datetime untouched", async () => {
@@ -1301,12 +1428,62 @@ describe("DeepagentsPermissions", () => {
       expect(config).toEqual({ permission: {} });
     });
 
-    it("lifts both override blocks from the same file", () => {
-      const config = importFrom('[startup]\nmode = "manual"\n\n[extensions]\ntrust = "never"\n');
+    it("lifts the project MCP deny list back into the override (issue #3076)", () => {
+      const config = importFrom('[mcp]\ndisabled_project_servers = ["filesystem", "shell"]\n');
 
       expect(config).toEqual({
         permission: {},
-        deepagents: { startup: { mode: "manual" }, extensions: { trust: "never" } },
+        deepagents: { mcp: { disabled_project_servers: ["filesystem", "shell"] } },
+      });
+    });
+
+    it("reads a comma-separated deny list the way `_toml_str_list` reads it", () => {
+      const config = importFrom('[mcp]\ndisabled_project_servers = " filesystem, shell,, "\n');
+
+      expect(config).toEqual({
+        permission: {},
+        deepagents: { mcp: { disabled_project_servers: ["filesystem", "shell"] } },
+      });
+    });
+
+    it("drops a non-string deny-list element while keeping the names around it", () => {
+      const config = importFrom('[mcp]\ndisabled_project_servers = ["filesystem", 3, "shell"]\n');
+
+      expect(config).toEqual({
+        permission: {},
+        deepagents: { mcp: { disabled_project_servers: ["filesystem", "shell"] } },
+      });
+    });
+
+    it("leaves behind a deny list dcode cannot read as names", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const config = importFrom("[mcp]\ndisabled_project_servers = 3\n");
+
+      expect(config).toEqual({ permission: {} });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("disabled_project_servers = 3"));
+    });
+
+    it("does not lift the machine-local approval store", () => {
+      const config = importFrom(
+        '[mcp.enabled_project_server_approvals]\nfilesystem = { fingerprint = "abc" }\n',
+      );
+
+      expect(config).toEqual({ permission: {} });
+    });
+
+    it("lifts every override block from the same file", () => {
+      const config = importFrom(
+        '[startup]\nmode = "manual"\n\n[extensions]\ntrust = "never"\n\n[mcp]\ndisabled_project_servers = ["shell"]\n',
+      );
+
+      expect(config).toEqual({
+        permission: {},
+        deepagents: {
+          startup: { mode: "manual" },
+          extensions: { trust: "never" },
+          mcp: { disabled_project_servers: ["shell"] },
+        },
       });
     });
 
