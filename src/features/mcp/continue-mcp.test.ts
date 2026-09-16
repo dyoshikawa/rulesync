@@ -130,9 +130,46 @@ describe("ContinueMcp", () => {
         },
       });
       // Continue ignores `envFile`, so it is dropped with a warning instead of
-      // being written as if the variables were loaded.
-      expect(logger.warn).toHaveBeenCalledTimes(1);
+      // being written as if the variables were loaded; `timeout` has no place
+      // in Continue's JSON schema and is dropped with a warning too.
+      expect(logger.warn).toHaveBeenCalledTimes(2);
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('ignores "envFile"'));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('no "timeout" field, so the timeout of server "fs"'),
+      );
+    });
+
+    it("warns for cwd, timeout and oauth, which Continue's JSON schema cannot carry", async () => {
+      const logger = createMockLogger();
+      const mcp = await ContinueMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        logger,
+        rulesyncMcp: buildRulesyncMcp({
+          local: { command: "local-mcp", cwd: "./tools" },
+          remote: {
+            url: "https://example.com/mcp",
+            timeout: 10,
+            oauth: { clientId: "id" },
+          },
+          plain: { command: "plain-mcp" },
+        }),
+      });
+
+      expect(JSON.parse(mcp.getFileContent()).mcpServers).toEqual({
+        local: { type: "stdio", command: "local-mcp" },
+        remote: { type: "http", url: "https://example.com/mcp" },
+        plain: { type: "stdio", command: "plain-mcp" },
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(3);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('no "cwd" field, so the cwd of server "local"'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('no "timeout" field, so the timeout of server "remote"'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('no "oauth" field, so the oauth of server "remote"'),
+      );
     });
 
     it("emits remote servers as http/sse and folds streamable-http into http", async () => {
