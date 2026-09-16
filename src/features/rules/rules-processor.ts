@@ -854,6 +854,25 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "pool",
+    {
+      class: PoolRule,
+      meta: {
+        // Pool (Poolside's coding agent) reads personal, project, and nested
+        // per-directory `AGENTS.md` files — the project root plus every
+        // `AGENTS.md` from the repository root down through the working
+        // directory — so a directory-scoped rule is emitted as a nested
+        // `<subprojectPath>/AGENTS.md` while plain topic rules fold into the
+        // root file (mirrors vibe).
+        // https://docs.poolside.ai/agent-instructions
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
     "qwencode",
     {
       class: QwencodeRule,
@@ -1088,25 +1107,6 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
-      },
-    },
-  ],
-  [
-    "pool",
-    {
-      class: PoolRule,
-      meta: {
-        // Pool (Poolside's coding agent) reads personal, project, and nested
-        // per-directory `AGENTS.md` files — the project root plus every
-        // `AGENTS.md` from the repository root down through the working
-        // directory — so a directory-scoped rule is emitted as a nested
-        // `<subprojectPath>/AGENTS.md` while plain topic rules fold into the
-        // root file (mirrors vibe).
-        // https://docs.poolside.ai/agent-instructions
-        extension: "md",
-        supportsGlobal: true,
-        ruleDiscoveryMode: "auto",
-        collisionPolicy: "fold",
       },
     },
   ],

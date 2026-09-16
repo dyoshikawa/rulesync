@@ -1902,6 +1902,7 @@ Content that would fail parsing`;
         "kiro-ide",
         "opencode",
         "pi",
+        "pool",
         "qwencode",
         "reasonix",
         "roo",
@@ -1914,7 +1915,6 @@ Content that would fail parsing`;
         "devin",
         "zcode",
         "zed",
-        "pool",
         "dsh",
       ]);
     });
@@ -4163,11 +4163,11 @@ targets: ["claudecode"]
         "junie",
         "kimi-code",
         "pi",
+        "pool",
         "reasonix",
         "vibe",
         "warp",
         "zcode",
-        "pool",
         "dsh",
       ]);
     });
