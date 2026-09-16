@@ -353,7 +353,15 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
     }),
   ),
-  commandcode: z.optional(z.looseObject({})),
+  commandcode: z.optional(
+    z.looseObject({
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+      metadata: z.optional(z.looseObject({})),
+      "disable-model-invocation": z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
+    }),
+  ),
   cortexcode: z.optional(z.looseObject({})),
   continue: z.optional(z.looseObject({})),
   tabnine: z.optional(z.looseObject({})),

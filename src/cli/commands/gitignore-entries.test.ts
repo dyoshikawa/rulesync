@@ -204,6 +204,9 @@ describe("registry derivation", () => {
       // upstream as machine-local, never written by rulesync (issue #2765).
       "factorydroid::general::**/.factory/settings.local.json",
       "augmentcode::general::**/.augment/settings.local.json",
+      // Command Code's personal settings overlay, documented as gitignored
+      // and never written by rulesync (issue #3075).
+      "commandcode::general::**/.commandcode/settings.local.json",
       "junie::rules::**/.junie/memories/",
       // Legacy outputs of earlier versions (issue #2404): the retired
       // .gooseignore and the inert sub-recipe subagents directory.

@@ -8,6 +8,8 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -37,6 +39,53 @@ const CommandcodeSubagentFrontmatterSchema = z.looseObject({
 });
 
 type CommandcodeSubagentFrontmatter = z.infer<typeof CommandcodeSubagentFrontmatterSchema>;
+
+/**
+ * Names Command Code's built-in agents own. The loader runs the frontmatter
+ * `name` (or the file stem when it has none) through `sanitizeAgentName`,
+ * which rewrites every character outside `[a-zA-Z0-9_-]` to `_`, lowercases
+ * it, and skips the file outright when the result is one of these
+ * (`isReservedAgentName`) — with no message. Verified in the `command-code`
+ * 1.54.2 bundle.
+ * @see https://commandcode.ai/docs/agents
+ */
+const COMMANDCODE_RESERVED_AGENT_NAMES: ReadonlySet<string> = new Set([
+  "explore",
+  "plan",
+  "review",
+  "general",
+]);
+
+/** The name Command Code compares against its reserved list. */
+function toCommandcodeAgentName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+}
+
+/**
+ * The subagent is still generated under the reserved name — the name is the
+ * user's to change, and a rename here would make it diverge from the other
+ * targets — but Command Code would drop it without a visible word, so say so
+ * now (the same courtesy `VibeSkill` extends to its reserved skill names).
+ */
+function warnAboutReservedAgentName({
+  name,
+  relativeFilePath,
+  logger,
+}: {
+  name: string;
+  relativeFilePath: string;
+  logger: Logger | undefined;
+}): void {
+  if (!COMMANDCODE_RESERVED_AGENT_NAMES.has(toCommandcodeAgentName(name))) {
+    return;
+  }
+  logger?.warn(
+    `Command Code subagent ${relativeFilePath}: the name ${quoteValueForWarning(name)} is ` +
+      `reserved for a Command Code built-in agent, so Command Code ignores a custom agent ` +
+      `by that name when it loads agents. Rename the subagent for it to be available in ` +
+      `Command Code.`,
+  );
+}
 
 type CommandcodeSubagentParams = {
   frontmatter: CommandcodeSubagentFrontmatter;
@@ -116,6 +165,7 @@ export class CommandcodeSubagent extends ToolSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const commandcodeSection = rulesyncFrontmatter.commandcode ?? {};
@@ -125,6 +175,11 @@ export class CommandcodeSubagent extends ToolSubagent {
       description: rulesyncFrontmatter.description,
       ...commandcodeSection,
     };
+    warnAboutReservedAgentName({
+      name: commandcodeSubagentFrontmatter.name,
+      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
+      logger,
+    });
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, commandcodeSubagentFrontmatter, {
