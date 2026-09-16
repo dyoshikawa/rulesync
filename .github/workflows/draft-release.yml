@@ -54,16 +54,37 @@ jobs:
         with:
           input-text: ${{ inputs.model }}
 
+      - name: Resolve opencode version
+        id: opencode-version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(gh api repos/anomalyco/opencode/releases/latest --jq .tag_name || true)
+          echo "version=${VERSION:-latest}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache opencode
+        id: opencode-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.opencode/bin
+          key: opencode-${{ runner.os }}-${{ runner.arch }}-${{ steps.opencode-version.outputs.version }}
+
+      - name: Install opencode
+        if: steps.opencode-cache.outputs.cache-hit != 'true'
+        run: curl -fsSL https://opencode.ai/install | bash
+
+      - name: Add opencode to PATH
+        run: echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+
       - name: Run OpenCode to draft release
-        uses: anomalyco/opencode/github@63f7ceecbed2d7d9a627518d935dd963b9d4ac9f # v2.0.0
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INPUT_NEW_VERSION: ${{ inputs.new_version }}
-        with:
-          model: ${{ steps.select-model.outputs.model }}
-          use_github_token: "true"
-          share: false
-          prompt: |
+          MODEL: ${{ steps.select-model.outputs.model }}
+          USE_GITHUB_TOKEN: "true"
+          SHARE: "false"
+          PROMPT: |
             Run the `draft-release` skill. Use the value of the `$INPUT_NEW_VERSION` environment variable as the skill's argument (it may be empty, in which case the skill will determine the new version automatically).
+        run: opencode github run
