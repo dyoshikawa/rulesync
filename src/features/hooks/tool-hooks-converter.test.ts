@@ -689,3 +689,48 @@ describe("toolHooksToCanonical with an event named after an Object.prototype mem
     expect(canonical["toString"]).toEqual([{ type: "command", command: "./crafted.sh" }]);
   });
 });
+
+describe("timeoutUnit (tool timeouts in milliseconds)", () => {
+  const MS_CONFIG: ToolHooksConverterConfig = { ...BASE_CONFIG, timeoutUnit: "milliseconds" };
+
+  it("multiplies the canonical seconds by 1000 on generate", () => {
+    const { hook } = emitHook({
+      definition: { type: "command", command: "./guard.sh", timeout: 30 },
+      converterConfig: MS_CONFIG,
+    });
+
+    expect(hook).toEqual({ type: "command", command: "./guard.sh", timeout: 30000 });
+  });
+
+  it("rounds a fractional second to whole milliseconds", () => {
+    const { hook } = emitHook({
+      definition: { type: "command", command: "./guard.sh", timeout: 1.5005 },
+      converterConfig: MS_CONFIG,
+    });
+
+    expect(hook?.timeout).toBe(1501);
+  });
+
+  it("divides the tool milliseconds by 1000 on import", () => {
+    const { definition } = importHook({
+      hook: { type: "command", command: "./guard.sh", timeout: 5000 },
+      converterConfig: MS_CONFIG,
+    });
+
+    expect(definition).toEqual({ type: "command", command: "./guard.sh", timeout: 5 });
+  });
+
+  it("forwards the timeout verbatim when the unit is not set", () => {
+    const { hook } = emitHook({
+      definition: { type: "command", command: "./guard.sh", timeout: 30 },
+      converterConfig: BASE_CONFIG,
+    });
+    const { definition } = importHook({
+      hook: { type: "command", command: "./guard.sh", timeout: 30 },
+      converterConfig: BASE_CONFIG,
+    });
+
+    expect(hook?.timeout).toBe(30);
+    expect(definition?.timeout).toBe(30);
+  });
+});

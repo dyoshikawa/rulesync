@@ -58,6 +58,10 @@ const AUGMENTCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "",
   noMatcherEvents: AUGMENTCODE_NO_MATCHER_EVENTS,
   supportedHookTypes: new Set(["command"]),
+  // Auggie documents `timeout` as "Timeout in milliseconds (default: 60000ms)"
+  // (https://docs.augmentcode.com/cli/hooks) and passes the raw value to its
+  // timer, so the canonical seconds are converted both ways.
+  timeoutUnit: "milliseconds",
   // `metadata` is documented at https://docs.augmentcode.com/cli/hooks; `args`
   // appears only in the shipped CLI's validator (`@augmentcode/auggie` 0.33.0,
   // `augment.mjs`), which accepts it on a command hook. Both were previously

@@ -824,4 +824,31 @@ describe("AugmentcodeHooks upstream additions", () => {
 
     expect(events.Stop).toEqual([{ hooks: [{ type: "command", command: "./x.sh" }] }]);
   });
+
+  it("writes the canonical seconds timeout as Auggie's milliseconds (issue #2959)", async () => {
+    // https://docs.augmentcode.com/cli/hooks: "Timeout in milliseconds
+    // (default: 60000ms)". A verbatim 30 would give the hook a 30 ms deadline.
+    const events = await generate({
+      version: 1,
+      hooks: { preToolUse: [{ type: "command", command: "./x.sh", matcher: "Bash", timeout: 30 }] },
+    });
+
+    expect(events.PreToolUse).toEqual([
+      { matcher: "Bash", hooks: [{ type: "command", command: "./x.sh", timeout: 30000 }] },
+    ]);
+  });
+
+  it("reads Auggie's milliseconds timeout back as canonical seconds (issue #2959)", () => {
+    const hooks = new AugmentcodeHooks({
+      outputRoot: testDir,
+      relativeDirPath: ".augment",
+      relativeFilePath: "settings.json",
+      fileContent: JSON.stringify({
+        hooks: { Stop: [{ hooks: [{ type: "command", command: "./x.sh", timeout: 5000 }] }] },
+      }),
+    });
+
+    const imported = JSON.parse(hooks.toRulesyncHooks().getFileContent());
+    expect(imported.hooks.stop).toEqual([{ type: "command", command: "./x.sh", timeout: 5 }]);
+  });
 });

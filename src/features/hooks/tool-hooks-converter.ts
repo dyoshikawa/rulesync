@@ -177,7 +177,40 @@ export type ToolHooksConverterConfig = {
    * rewrite `"*"` to `".*"` in their own generators instead.
    */
   wildcardMatcherMeansAll?: boolean;
+  /**
+   * The unit of the tool's per-hook `timeout` field. The canonical `timeout` is
+   * seconds (docs/reference/file-formats.md), so `"milliseconds"` multiplies by
+   * 1000 on generate and divides on import; the default forwards the value
+   * verbatim.
+   */
+  timeoutUnit?: "seconds" | "milliseconds";
 };
+
+/**
+ * Convert a canonical `timeout` (seconds) into the tool's unit.
+ */
+function emitTimeout({
+  timeout,
+  converterConfig,
+}: {
+  timeout: number;
+  converterConfig: ToolHooksConverterConfig;
+}): number {
+  return converterConfig.timeoutUnit === "milliseconds" ? Math.round(timeout * 1000) : timeout;
+}
+
+/**
+ * Convert a tool `timeout` back into the canonical unit (seconds).
+ */
+function importTimeout({
+  timeout,
+  converterConfig,
+}: {
+  timeout: number;
+  converterConfig: ToolHooksConverterConfig;
+}): number {
+  return converterConfig.timeoutUnit === "milliseconds" ? timeout / 1000 : timeout;
+}
 
 /**
  * Filter the shared canonical hooks to the supported events and merge tool overrides on top.
@@ -799,7 +832,10 @@ function buildToolHooks({
       ...emitAllPassthroughFields({ def, hookType, eventName, converterConfig, warn }),
       type: hookType,
       ...(command !== undefined && command !== null && { command }),
-      ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
+      ...(def.timeout !== undefined &&
+        def.timeout !== null && {
+          timeout: emitTimeout({ timeout: def.timeout, converterConfig }),
+        }),
       ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
       // Type-specific payload fields (https://code.claude.com/docs/en/hooks).
       // Gated per type so e.g. an `url` authored on a command hook never
@@ -1191,7 +1227,10 @@ function toolHookToCanonical({
     canonical: "command",
     warn,
   });
-  const timeout = typeof h.timeout === "number" ? h.timeout : undefined;
+  const timeout =
+    typeof h.timeout === "number"
+      ? importTimeout({ timeout: h.timeout, converterConfig })
+      : undefined;
   const prompt = importCanonicalString({ value: h.prompt, canonical: "prompt", warn });
   const name = importCanonicalString({ value: h.name, canonical: "name", warn });
   const description = importCanonicalString({
