@@ -1175,6 +1175,8 @@ Servers under the shared `mcpServers` key are emitted to every targeted tool. To
 
 > **JetBrains AI Assistant note:** Rulesync writes the native `{ "mcpServers": { ... } }` configuration to `.ai/mcp/mcp.json` in project mode and `~/.ai/mcp/mcp.json` in global mode. Both scopes support STDIO and remote server entries using the shape documented in [JetBrains AI Assistant's MCP guide](https://www.jetbrains.com/help/ai-assistant/mcp.html).
 
+> **Antigravity note:** The Antigravity IDE and CLI share `.agents/mcp_config.json` (project) and `~/.gemini/config/mcp_config.json` (global). Antigravity CLI 1.1.24+ accepts `//` and `/* */` comments and trailing commas in `mcp_config.json` (see the [Antigravity CLI changelog](https://github.com/google-antigravity/antigravity-cli/blob/main/CHANGELOG.md)), so Rulesync reads the existing file as JSONC; the rewrite is plain JSON, so comments are dropped but the run no longer fails. HTTP/SSE servers use `serverUrl` in place of the canonical `url`, translated in both directions.
+
 #### JSON Schema Support
 
 Rulesync provides a JSON Schema for editor validation and autocompletion. Add the `$schema` property to your `.rulesync/mcp.jsonc`:

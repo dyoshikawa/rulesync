@@ -191,6 +191,105 @@ describe("AntigravityCliMcp", () => {
     });
   });
 
+  describe("JSONC input", () => {
+    const jsoncContent = `{
+  // Servers used by Antigravity CLI
+  "mcpServers": {
+    "test-server": {
+      "command": "node",
+      "args": ["server.js"], /* block comment after a trailing comma */
+    },
+  },
+  "customSetting": true,
+}
+`;
+
+    it("should parse comments and trailing commas in the constructor", () => {
+      const antigravityCliMcp = new AntigravityCliMcp({
+        relativeDirPath: ".agents",
+        relativeFilePath: "mcp_config.json",
+        fileContent: jsoncContent,
+      });
+
+      expect(antigravityCliMcp.getJson()).toEqual({
+        mcpServers: { "test-server": { command: "node", args: ["server.js"] } },
+        customSetting: true,
+      });
+    });
+
+    it("should read an existing JSONC file in fromFile", async () => {
+      await ensureDir(join(testDir, ".agents"));
+      await writeFileContent(join(testDir, ".agents/mcp_config.json"), jsoncContent);
+
+      const antigravityCliMcp = await AntigravityCliMcp.fromFile({ outputRoot: testDir });
+
+      expect(antigravityCliMcp.getJson()).toEqual({
+        mcpServers: { "test-server": { command: "node", args: ["server.js"] } },
+        customSetting: true,
+      });
+    });
+
+    it("should preserve non-mcpServers keys of an existing JSONC file in fromRulesyncMcp", async () => {
+      await ensureDir(join(testDir, ".agents"));
+      await writeFileContent(join(testDir, ".agents/mcp_config.json"), jsoncContent);
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { "new-server": { command: "node", args: ["new.js"] } },
+        }),
+      });
+
+      const antigravityCliMcp = await AntigravityCliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      expect(antigravityCliMcp.getJson()).toEqual({
+        mcpServers: { "new-server": { command: "node", args: ["new.js"] } },
+        customSetting: true,
+      });
+      // The rewrite is plain JSON: comments are dropped, but the run no longer fails.
+      expect(() => JSON.parse(antigravityCliMcp.getFileContent())).not.toThrow();
+    });
+
+    it("should drop prototype-pollution keys", () => {
+      const antigravityCliMcp = new AntigravityCliMcp({
+        relativeDirPath: ".agents",
+        relativeFilePath: "mcp_config.json",
+        fileContent: '{ "mcpServers": {}, "__proto__": { "polluted": true } }',
+      });
+
+      const json = antigravityCliMcp.getJson();
+      expect(json).toEqual({ mcpServers: {} });
+      expect(Object.getPrototypeOf(json)).toBe(Object.prototype);
+    });
+
+    it("should throw when the top level is not an object", () => {
+      for (const fileContent of ["null", "[]", '"text"']) {
+        expect(
+          () =>
+            new AntigravityCliMcp({
+              relativeDirPath: ".agents",
+              relativeFilePath: "mcp_config.json",
+              fileContent,
+            }),
+        ).toThrow("must contain a top-level JSON object");
+      }
+    });
+
+    it("should throw on malformed content", () => {
+      expect(
+        () =>
+          new AntigravityCliMcp({
+            relativeDirPath: ".agents",
+            relativeFilePath: "mcp_config.json",
+            fileContent: '{ "mcpServers": ',
+          }),
+      ).toThrow(SyntaxError);
+    });
+  });
+
   describe("toRulesyncMcp", () => {
     it("should round-trip with mcpServers present in the resulting content", () => {
       const jsonData = {

@@ -191,6 +191,28 @@ describe("AntigravityIdeMcp", () => {
     });
   });
 
+  describe("JSONC input", () => {
+    it("should parse comments and trailing commas", async () => {
+      await ensureDir(join(testDir, ".agents"));
+      await writeFileContent(
+        join(testDir, ".agents/mcp_config.json"),
+        `{
+  // Servers used by the Antigravity IDE
+  "mcpServers": {
+    "test-server": { "command": "node", "args": ["server.js"], },
+  },
+}
+`,
+      );
+
+      const antigravityIdeMcp = await AntigravityIdeMcp.fromFile({ outputRoot: testDir });
+
+      expect(antigravityIdeMcp.getJson()).toEqual({
+        mcpServers: { "test-server": { command: "node", args: ["server.js"] } },
+      });
+    });
+  });
+
   describe("toRulesyncMcp", () => {
     it("should round-trip with mcpServers present in the resulting content", () => {
       const jsonData = {

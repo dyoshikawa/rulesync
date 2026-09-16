@@ -7,6 +7,7 @@ import {
 } from "../../constants/antigravity-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { parseJsonc } from "../../utils/jsonc.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -52,6 +53,22 @@ function toCanonicalMcpServers(servers: unknown): Record<string, unknown> {
 }
 
 /**
+ * Parse `mcp_config.json` as JSONC and require a top-level object, so a file
+ * whose root is `null`, an array or a primitive fails with a clear message
+ * instead of a `TypeError` on `mcpServers` access or an array being spread
+ * into the rewritten config.
+ */
+function parseAntigravityMcpConfig(fileContent: string): Record<string, unknown> {
+  const parsed = parseJsonc(fileContent);
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(
+      `Antigravity ${ANTIGRAVITY_MCP_FILE_NAME} must contain a top-level JSON object`,
+    );
+  }
+  return { ...parsed };
+}
+
+/**
  * Shared MCP generator for Google Antigravity (Antigravity 2.0), used by both
  * the IDE and the CLI.
  *
@@ -64,13 +81,18 @@ function toCanonicalMcpServers(servers: unknown): Record<string, unknown> {
  * The IDE and CLI share the project path (`.agents/mcp_config.json`) and differ
  * only in their global config subdirectory, which each concrete subclass
  * supplies via {@link AntigravityMcp.getGlobalSubdir}.
+ *
+ * Antigravity CLI 1.1.24+ accepts line and block comments and trailing
+ * commas in `mcp_config.json`, so the file is read as JSONC. Writes stay plain
+ * JSON (comments are dropped on rewrite), matching the other JSONC-reading
+ * adapters.
  */
 export class AntigravityMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = JSON.parse(this.fileContent || "{}");
+    this.json = parseAntigravityMcpConfig(this.fileContent || "{}");
   }
 
   getJson(): Record<string, unknown> {
@@ -105,7 +127,7 @@ export class AntigravityMcp extends ToolMcp {
       (await readFileContentOrNull(
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       )) ?? '{"mcpServers":{}}';
-    const json = JSON.parse(fileContent);
+    const json = parseAntigravityMcpConfig(fileContent);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new this({
@@ -130,7 +152,7 @@ export class AntigravityMcp extends ToolMcp {
       (await readFileContentOrNull(
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       )) ?? JSON.stringify({ mcpServers: {} }, null, 2);
-    const json = JSON.parse(fileContent);
+    const json = parseAntigravityMcpConfig(fileContent);
     const newJson = { ...json, mcpServers: toAntigravityMcpServers(rulesyncMcp.getMcpServers()) };
 
     return new this({
