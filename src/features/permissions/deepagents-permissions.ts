@@ -753,12 +753,19 @@ function liftOverrideTable({
   keys,
   normalize,
   selfPath,
+  describeRejection = `deepagents-cli falls back to its own default for a '[${tableKey}]' value it cannot read`,
 }: {
   table: Record<string, unknown>;
   tableKey: string;
   keys: readonly string[];
   normalize: (params: { key: string; value: unknown }) => { value: unknown } | null;
   selfPath: string;
+  /**
+   * What dcode does with a value `normalize` rejects, for the warning. The
+   * default is the fall-back-to-default reading most options get; a table
+   * dcode fails closed on says so instead.
+   */
+  describeRejection?: string;
 }): Record<string, unknown> {
   const override: Record<string, unknown> = {};
   const rejected: string[] = [];
@@ -776,9 +783,8 @@ function liftOverrideTable({
   if (rejected.length > 0) {
     warnWithFallback(
       undefined,
-      `deepagents-cli falls back to its own default for a '[${tableKey}]' value it ` +
-        `cannot read, so ${rejected.join(", ")} in ${selfPath} ${rejected.length === 1 ? "was" : "were"} ` +
-        `not imported.`,
+      `${describeRejection}, so ${rejected.join(", ")} in ${selfPath} ` +
+        `${rejected.length === 1 ? "was" : "were"} not imported.`,
     );
   }
 
@@ -894,6 +900,12 @@ function liftMcpOverride({
       return names ? { value: names } : null;
     },
     selfPath,
+    // Unlike the other tables, a deny list dcode cannot read is not replaced
+    // by a default: `load_mcp_server_trust_lists` records a read error and
+    // every caller fails closed on it.
+    describeRejection:
+      `deepagents-cli treats a '[${MCP_TABLE_KEY}]' value it cannot read as a broken trust ` +
+      `policy and rejects every project MCP server until it is fixed`,
   });
 }
 
@@ -1129,6 +1141,15 @@ function warnAboutMcpRelaxations({
   filePath: string;
   logger?: Logger;
 }): void {
+  if (override[MCP_APPROVALS_KEY] !== undefined) {
+    warnWithFallback(
+      logger,
+      `The deepagents mcp override's '${MCP_APPROVALS_KEY}' was not written to ${filePath}: ` +
+        `dcode builds that approval store itself from the project MCP servers you accept at ` +
+        `launch, so a permissions file cannot pre-approve them.`,
+    );
+  }
+
   const written = override[MCP_DISABLED_PROJECT_SERVERS_KEY];
   if (written === undefined || written === null) return;
   const kept = new Set(readMcpServerNames(written) ?? []);

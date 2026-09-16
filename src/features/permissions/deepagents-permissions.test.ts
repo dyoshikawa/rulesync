@@ -1064,9 +1064,13 @@ describe("DeepagentsPermissions", () => {
         logger,
       });
 
-      // A repository must not pre-approve its own project MCP servers.
+      // A repository must not pre-approve its own project MCP servers — and
+      // unlike a harmless unknown key, the attempt is named.
       expect(tableOf(content, "mcp")).toEqual({ disabled_project_servers: ["shell"] });
-      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("'enabled_project_server_approvals' was not written"),
+      );
     });
 
     it("warns when the mcp override re-enables a server the machine had rejected", async () => {
@@ -1461,7 +1465,16 @@ describe("DeepagentsPermissions", () => {
       const config = importFrom("[mcp]\ndisabled_project_servers = 3\n");
 
       expect(config).toEqual({ permission: {} });
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("disabled_project_servers = 3"));
+      // dcode fails closed on this rather than falling back to a default, and
+      // the warning must not claim otherwise.
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /rejects every project MCP server until it is fixed, so disabled_project_servers = 3 in .* was not imported/,
+        ),
+      );
+      expect(warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("falls back to its own default"),
+      );
     });
 
     it("does not lift the machine-local approval store", () => {
