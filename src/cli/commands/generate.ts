@@ -343,6 +343,7 @@ async function generateWatchCommand(logger: Logger, options: GenerateOptions): P
       logger.error(`Watch error on ${directory}: ${formatError(error)}`);
     },
   });
+  await handle.ready;
 
   logger.info(
     `\nWatching for changes in:\n${targets.map((target) => `    ${target.directory}`).join("\n")}`,
