@@ -1027,6 +1027,116 @@ describe("ClaudecodePermissions", () => {
       );
     });
 
+    it("writes `enableArtifact` at project scope, since every file can turn the tool off", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { enableArtifact: false },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).enableArtifact).toBe(false);
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("'enableArtifact'"));
+    });
+
+    it("drops every documented user/managed-only key at project scope", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const userScopeOnly = {
+        autoContinueAtUsageLimit: true,
+        bashEditDiffEnabled: true,
+        desktopSessionCleanupPeriodDays: 30,
+        feedbackDrafts: { enabled: false },
+        modelPicker: [{ model: "opus", label: "Opus" }],
+      };
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { ...userScopeOnly, editorMode: "vim" },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.editorMode).toBe("vim");
+      for (const key of Object.keys(userScopeOnly)) {
+        expect(content[key]).toBeUndefined();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(`'${key}' is not honored in the project-scoped`),
+        );
+      }
+
+      const globalInstance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        global: true,
+      });
+      const globalContent = JSON.parse(globalInstance.getFileContent());
+      for (const [key, value] of Object.entries(userScopeOnly)) {
+        expect(globalContent[key]).toEqual(value);
+      }
+    });
+
+    it("drops every documented managed-only or ~/.claude.json key in global mode", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const unhonored = {
+        copyOnSelect: "~/.claude.json",
+        disableDesktopLocalSessions: "managed settings",
+        gatewayInternalNetworks: "managed settings",
+        managedMcpServers: "managed settings",
+        managedSourcesBehavior: "managed settings",
+        modelPricing: "managed settings",
+      };
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: {
+            copyOnSelect: false,
+            disableDesktopLocalSessions: true,
+            gatewayInternalNetworks: ["203.0.113.0/24"],
+            managedMcpServers: { search: { type: "http", url: "https://example.com/mcp" } },
+            managedSourcesBehavior: "merge",
+            modelPricing: { opus: { input: 1 } },
+          },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        global: true,
+        logger: mockLogger,
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      for (const [key, source] of Object.entries(unhonored)) {
+        expect(content[key]).toBeUndefined();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(`'${key}' is only honored in ${source}`),
+        );
+      }
+    });
+
     it("writes a user-scope key in global mode", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
