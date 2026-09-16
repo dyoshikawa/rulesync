@@ -196,7 +196,11 @@ function emitTimeout({
   timeout: number;
   converterConfig: ToolHooksConverterConfig;
 }): number {
-  return converterConfig.timeoutUnit === "milliseconds" ? Math.round(timeout * 1000) : timeout;
+  // A non-finite value is forwarded as-is (JSON writes it as null) rather
+  // than rounded into another non-finite value, matching the Tabnine converter.
+  return converterConfig.timeoutUnit === "milliseconds" && Number.isFinite(timeout)
+    ? Math.round(timeout * 1000)
+    : timeout;
 }
 
 /**
@@ -209,7 +213,9 @@ function importTimeout({
   timeout: number;
   converterConfig: ToolHooksConverterConfig;
 }): number {
-  return converterConfig.timeoutUnit === "milliseconds" ? timeout / 1000 : timeout;
+  return converterConfig.timeoutUnit === "milliseconds" && Number.isFinite(timeout)
+    ? timeout / 1000
+    : timeout;
 }
 
 /**

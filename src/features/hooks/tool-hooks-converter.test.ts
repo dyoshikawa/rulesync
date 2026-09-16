@@ -720,6 +720,22 @@ describe("timeoutUnit (tool timeouts in milliseconds)", () => {
     expect(definition).toEqual({ type: "command", command: "./guard.sh", timeout: 5 });
   });
 
+  it("round-trips whole seconds and settles a fractional second at millisecond precision", () => {
+    const roundTrip = (timeout: number) => {
+      const { hook } = emitHook({
+        definition: { type: "command", command: "./guard.sh", timeout },
+        converterConfig: MS_CONFIG,
+      });
+      const { definition } = importHook({ hook: hook ?? {}, converterConfig: MS_CONFIG });
+      return definition?.timeout;
+    };
+
+    expect(roundTrip(30)).toBe(30);
+    // The generated file holds whole milliseconds, so sub-millisecond
+    // precision is lost once and then stable.
+    expect(roundTrip(1.5005)).toBe(1.501);
+  });
+
   it("forwards the timeout verbatim when the unit is not set", () => {
     const { hook } = emitHook({
       definition: { type: "command", command: "./guard.sh", timeout: 30 },
