@@ -260,6 +260,53 @@ describe("BobMcp", () => {
       });
     });
 
+    it("should flatten the canonical oauth object onto Bob's oauth keys (issue #3074)", async () => {
+      const rulesyncMcp = buildRulesyncMcp({
+        remote: {
+          type: "http",
+          url: "https://example.com/mcp",
+          oauth: { clientId: "abc", clientSecret: "shh", scope: "read write", callbackPort: 3000 },
+        },
+      });
+
+      const bobMcp = await BobMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      expect(JSON.parse(bobMcp.getFileContent()).mcpServers.remote).toEqual({
+        type: "streamable-http",
+        url: "https://example.com/mcp",
+        oauth: true,
+        clientId: "abc",
+        clientSecret: "shh",
+        scope: "read write",
+      });
+    });
+
+    it("should keep a flat Bob-style oauth key over the nested one and pass a boolean oauth through", async () => {
+      const rulesyncMcp = buildRulesyncMcp({
+        flat: {
+          url: "https://example.com/mcp",
+          clientId: "bob-authored",
+          oauth: { clientId: "nested", scope: 42 },
+        },
+        off: { url: "https://example.com/other", oauth: false },
+      });
+
+      const bobMcp = await BobMcp.fromRulesyncMcp({ rulesyncMcp });
+
+      const servers = JSON.parse(bobMcp.getFileContent()).mcpServers;
+      expect(servers.flat).toEqual({
+        type: "streamable-http",
+        url: "https://example.com/mcp",
+        oauth: true,
+        clientId: "bob-authored",
+      });
+      expect(servers.off).toEqual({
+        type: "streamable-http",
+        url: "https://example.com/other",
+        oauth: false,
+      });
+    });
+
     it("should strip rulesync-only fields such as targets", async () => {
       const rulesyncMcp = buildRulesyncMcp({
         git: { command: "git-mcp", targets: ["bob"] },
@@ -463,6 +510,70 @@ describe("BobMcp", () => {
         http: { type: "streamable-http", url: "https://example.com/mcp" },
         sse: { url: "https://example.com/sse", type: "sse" },
         stdio: { command: "git-mcp" },
+      });
+    });
+
+    it("should gather Bob's flat oauth keys into the canonical oauth object (issue #3074)", () => {
+      const bobMcp = new BobMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".bob",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            explicit: {
+              type: "streamable-http",
+              url: "https://example.com/mcp",
+              oauth: true,
+              clientId: "abc",
+              clientSecret: "shh",
+              scope: "read",
+            },
+            detected: { type: "streamable-http", url: "https://example.com/d", clientId: "abc" },
+            bare: { type: "streamable-http", url: "https://example.com/b", oauth: true },
+            off: {
+              type: "streamable-http",
+              url: "https://example.com/o",
+              oauth: false,
+              clientId: "x",
+            },
+          },
+        }),
+      });
+
+      expect(bobMcp.toRulesyncMcp().getMcpServers()).toEqual({
+        explicit: {
+          type: "streamable-http",
+          url: "https://example.com/mcp",
+          oauth: { clientId: "abc", clientSecret: "shh", scope: "read" },
+        },
+        detected: {
+          type: "streamable-http",
+          url: "https://example.com/d",
+          oauth: { clientId: "abc" },
+        },
+        bare: { type: "streamable-http", url: "https://example.com/b", oauth: {} },
+        off: { type: "streamable-http", url: "https://example.com/o", oauth: false, clientId: "x" },
+      });
+    });
+
+    it("should round-trip an oauth server", async () => {
+      const original = buildRulesyncMcp({
+        remote: {
+          type: "http",
+          url: "https://example.com/mcp",
+          oauth: { clientId: "abc", scope: "read" },
+        },
+      });
+
+      const bobMcp = await BobMcp.fromRulesyncMcp({ rulesyncMcp: original });
+      const restored = bobMcp.toRulesyncMcp();
+
+      expect(restored.getMcpServers()).toEqual({
+        remote: {
+          type: "streamable-http",
+          url: "https://example.com/mcp",
+          oauth: { clientId: "abc", scope: "read" },
+        },
       });
     });
   });
