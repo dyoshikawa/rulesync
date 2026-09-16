@@ -4,6 +4,7 @@ import { omit } from "es-toolkit/object";
 import { z } from "zod/mini";
 
 import {
+  RULESYNC_MCP_DEPRECATED_DOTFILE_NAME,
   RULESYNC_MCP_FILE_NAME,
   RULESYNC_MCP_LEGACY_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
@@ -331,7 +332,7 @@ export class RulesyncMcp extends RulesyncFile {
         },
         {
           relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-          relativeFilePath: ".mcp.json",
+          relativeFilePath: RULESYNC_MCP_DEPRECATED_DOTFILE_NAME,
         },
       ],
     };
@@ -430,7 +431,7 @@ export class RulesyncMcp extends RulesyncFile {
 
       const { filePath, candidate } = found;
 
-      if (filePath.endsWith(".mcp.json")) {
+      if (filePath.endsWith(RULESYNC_MCP_DEPRECATED_DOTFILE_NAME)) {
         const recommendedPath = join(parent, treeName, paths.recommended.relativeFilePath);
 
         logger?.warn(
@@ -553,7 +554,7 @@ export class RulesyncMcp extends RulesyncFile {
         continue;
       }
 
-      if (candidate.relativeFilePath === ".mcp.json") {
+      if (candidate.relativeFilePath === RULESYNC_MCP_DEPRECATED_DOTFILE_NAME) {
         const recommendedPath = join(
           outputRoot,
           candidateDirPath,

@@ -27,7 +27,7 @@ vi.mock("../../lib/watch.js", async () => {
   const actual = await vi.importActual<typeof import("../../lib/watch.js")>("../../lib/watch.js");
   return {
     ...actual,
-    watchTargets: vi.fn().mockReturnValue({ close: vi.fn() }),
+    watchTargets: vi.fn().mockReturnValue({ close: vi.fn(), ready: Promise.resolve() }),
   };
 });
 vi.mock("es-toolkit", () => ({
@@ -1446,7 +1446,7 @@ describe("generateCommand", () => {
       // is up — reaching that point at all is what this test is asserting.
       vi.mocked(watchTargets).mockImplementation(() => {
         setTimeout(() => process.emit("SIGINT"), 0);
-        return { close: vi.fn() } as any;
+        return { close: vi.fn(), ready: Promise.resolve() } as any;
       });
 
       await expect(generateCommand(mockLogger, { watch: true })).resolves.toBeUndefined();

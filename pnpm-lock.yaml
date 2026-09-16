@@ -32,6 +32,9 @@ importers:
       '@valibot/to-json-schema':
         specifier: 1.7.1
         version: 1.7.1(valibot@1.4.2(typescript@7.0.2))
+      chokidar:
+        specifier: 5.0.0
+        version: 5.0.0
       commander:
         specifier: 15.0.0
         version: 15.0.0

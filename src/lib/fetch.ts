@@ -5,15 +5,9 @@ import { Semaphore } from "es-toolkit/promise";
 
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
+  FEATURE_SOURCE_TREE_ENTRIES,
   FETCH_CONCURRENCY_LIMIT,
   MAX_FILE_SIZE,
-  RULESYNC_AIIGNORE_FILE_NAME,
-  RULESYNC_HOOKS_FILE_NAME,
-  RULESYNC_HOOKS_LEGACY_FILE_NAME,
-  RULESYNC_MCP_FILE_NAME,
-  RULESYNC_MCP_LEGACY_FILE_NAME,
-  RULESYNC_PERMISSIONS_FILE_NAME,
-  RULESYNC_PERMISSIONS_LEGACY_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { ChecksProcessor } from "../features/checks/checks-processor.js";
@@ -65,21 +59,6 @@ import { GitHubClient, GitHubClientError } from "./github-client.js";
 import { listDirectoryRecursive, MAX_RECURSION_DEPTH, withSemaphore } from "./github-utils.js";
 import { isInteractiveTerminal, promptSkillSelection } from "./skill-prompt.js";
 import { parseSource } from "./source-parser.js";
-
-/**
- * Feature to path mapping for filtering (rulesync format)
- */
-const FEATURE_PATHS: Record<Feature, string[]> = {
-  rules: ["rules"],
-  commands: ["commands"],
-  subagents: ["subagents"],
-  skills: ["skills"],
-  checks: ["checks"],
-  ignore: [RULESYNC_AIIGNORE_FILE_NAME],
-  mcp: [RULESYNC_MCP_FILE_NAME, RULESYNC_MCP_LEGACY_FILE_NAME],
-  hooks: [RULESYNC_HOOKS_FILE_NAME, RULESYNC_HOOKS_LEGACY_FILE_NAME],
-  permissions: [RULESYNC_PERMISSIONS_FILE_NAME, RULESYNC_PERMISSIONS_LEGACY_FILE_NAME],
-};
 
 /**
  * Check if target is a tool target (not rulesync)
@@ -1827,7 +1806,7 @@ async function collectFeatureFiles(params: {
   }
 
   const tasks = enabledFeatures.flatMap((feature) =>
-    FEATURE_PATHS[feature].map((featurePath) => ({ feature, featurePath })),
+    FEATURE_SOURCE_TREE_ENTRIES[feature].map((featurePath) => ({ feature, featurePath })),
   );
 
   const results = await Promise.all(
