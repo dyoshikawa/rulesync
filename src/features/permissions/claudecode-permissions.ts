@@ -567,9 +567,9 @@ const CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS: ReadonlySet<string> = new Set([
  *
  * Derived from the per-key **Scope** column of the settings reference: every
  * top-level key documented as `User or managed` or `User, local, or managed`.
- * `enableArtifact` is deliberately absent: since v2.1.242 its scope is
- * `Any file` — every file can turn the Artifact tool off — so a project file
- * does honor it. `processWrapper` is also `User or managed`, but it is refused
+ * `enableArtifact` is deliberately absent: it is documented as `Any file` —
+ * every file can turn the Artifact tool off, and none can turn it back on — so
+ * a project file does honor it. `processWrapper` is also `User or managed`, but it is refused
  * in both scopes by `CLAUDECODE_COMMAND_EXECUTING_KEYS`, which runs first.
  *
  * `autoContinueAtUsageLimit` is dropped at project scope for a stronger reason

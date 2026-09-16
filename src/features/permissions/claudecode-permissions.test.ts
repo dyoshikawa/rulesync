@@ -1049,15 +1049,15 @@ describe("ClaudecodePermissions", () => {
       expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("'enableArtifact'"));
     });
 
-    it("drops every documented user/managed-only key at project scope", async () => {
+    it("drops the user/managed-only keys from the 2026-09 reference refresh at project scope", async () => {
       const mockLogger = createMockLogger();
       const warnSpy = vi.spyOn(mockLogger, "warn");
       const userScopeOnly = {
         autoContinueAtUsageLimit: true,
         bashEditDiffEnabled: true,
         desktopSessionCleanupPeriodDays: 30,
-        feedbackDrafts: { enabled: false },
-        modelPicker: [{ model: "opus", label: "Opus" }],
+        feedbackDrafts: "off",
+        modelPicker: { options: [{ model: "opus", label: "Opus" }] },
       };
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -1083,18 +1083,24 @@ describe("ClaudecodePermissions", () => {
         );
       }
 
+      const globalLogger = createMockLogger();
+      const globalWarnSpy = vi.spyOn(globalLogger, "warn");
       const globalInstance = await ClaudecodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions,
         global: true,
+        logger: globalLogger,
       });
       const globalContent = JSON.parse(globalInstance.getFileContent());
       for (const [key, value] of Object.entries(userScopeOnly)) {
         expect(globalContent[key]).toEqual(value);
       }
+      expect(globalWarnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("is not honored in the project-scoped"),
+      );
     });
 
-    it("drops every documented managed-only or ~/.claude.json key in global mode", async () => {
+    it("drops the managed-only and ~/.claude.json keys from the 2026-09 reference refresh in global mode", async () => {
       const mockLogger = createMockLogger();
       const warnSpy = vi.spyOn(mockLogger, "warn");
       const unhonored = {
@@ -1116,7 +1122,7 @@ describe("ClaudecodePermissions", () => {
             gatewayInternalNetworks: ["203.0.113.0/24"],
             managedMcpServers: { search: { type: "http", url: "https://example.com/mcp" } },
             managedSourcesBehavior: "merge",
-            modelPricing: { opus: { input: 1 } },
+            modelPricing: { multiplier: 0.5 },
           },
         }),
       });
