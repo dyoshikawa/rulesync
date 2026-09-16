@@ -707,6 +707,15 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
 export const VIBE_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUse", "stop"];
 
 /**
+ * Hook events supported by Crush.
+ *
+ * Crush's `hooks` config block currently fires a single event, `PreToolUse`
+ * (Claude Code-compatible payload; `matcher` is a regex on the tool name).
+ * @see https://github.com/charmbracelet/crush/blob/main/docs/hooks/README.md
+ */
+export const CRUSH_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse"];
+
+/**
  * Hook events supported by JetBrains Junie CLI.
  *
  * Junie CLI exposes seven lifecycle events under the `"hooks"` key of
@@ -1344,6 +1353,7 @@ export const HooksConfigSchema = z.looseObject({
   grokcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "kimi-code": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  crush: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   cortexcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   commandcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -1950,6 +1960,19 @@ export const VIBE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = {
   after_tool: "postToolUse",
   post_agent_turn: "stop",
 };
+
+/**
+ * Canonical -> Crush event names. Crush spells its events the Claude Code
+ * way (`PreToolUse`).
+ * @see https://github.com/charmbracelet/crush/blob/main/docs/hooks/README.md
+ */
+export const CANONICAL_TO_CRUSH_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "PreToolUse",
+};
+
+export const CRUSH_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_CRUSH_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
 
 /**
  * Map canonical camelCase event names to Qwen Code PascalCase.

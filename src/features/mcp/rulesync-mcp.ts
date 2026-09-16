@@ -99,6 +99,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   copilot: z.optional(toolScopedMcpSchema),
   copilotcli: z.optional(toolScopedMcpSchema),
   cortexcode: z.optional(toolScopedMcpSchema),
+  crush: z.optional(toolScopedMcpSchema),
   cursor: z.optional(toolScopedMcpSchema),
   deepagents: z.optional(toolScopedMcpSchema),
   devin: z.optional(toolScopedMcpSchema),
@@ -627,6 +628,10 @@ export class RulesyncMcp extends RulesyncFile {
           // others: it decides whether a third-party server's own instructions
           // are pasted into the agent's system prompt, so carrying it to a tool
           // the author never named would widen what steers the model.
+          // The `crush*` OAuth and sessionless keys — and the raw Crush
+          // spellings someone copying a `crush.json` entry writes — are
+          // re-merged by the crush generator the same way; the client secret
+          // among them is the reason they must not reach any other tool.
           // `enabled` is stripped because OpenCode, Kilo, Grok CLI
           // and Goose have a NATIVE `enabled` field with different semantics a
           // leaked value would silently collide with.
@@ -642,6 +647,15 @@ export class RulesyncMcp extends RulesyncFile {
               "musecodeMode",
               "rovodevEnableInstructions",
               "enable_instructions",
+              "crushOauth",
+              "crushOauthClientId",
+              "crushOauthClientSecret",
+              "crushOauthCallbackPort",
+              "crushSessionless",
+              "oauth_client_id",
+              "oauth_client_secret",
+              "oauth_callback_port",
+              "sessionless",
               "enabled",
             ]),
           ];

@@ -286,6 +286,38 @@ describe("QwencodePermissions", () => {
       expect(config.qwencode.tools).toEqual({ listDirectory: { enabled: true } });
     });
 
+    it("authors and imports tools.todoWrite through the qwencode override (issue #2668)", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { todoWrite: { enabled: true } } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ todoWrite: { enabled: true } });
+
+      // The import direction used to drop the key, which lost it on an
+      // import -> generate round trip.
+      const imported = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          tools: { todoWrite: { enabled: true }, listDirectory: { enabled: true } },
+        }),
+      });
+      const config = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+      expect(config.qwencode.tools).toEqual({
+        todoWrite: { enabled: true },
+        listDirectory: { enabled: true },
+      });
+    });
+
     it("authors and imports tools.eager through the qwencode override (issue #2668)", async () => {
       const instance = await QwencodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -965,7 +997,12 @@ describe("QwencodePermissions", () => {
           fileContent: JSON.stringify({
             permission: {},
             qwencode: {
-              tools: { disabled: [], listDirectory: { enabled: true }, eager: ["read_file"] },
+              tools: {
+                disabled: [],
+                listDirectory: { enabled: true },
+                todoWrite: { enabled: true },
+                eager: ["read_file"],
+              },
             },
           }),
         }),
@@ -978,6 +1015,9 @@ describe("QwencodePermissions", () => {
       const listDirectory = messages.find((message) => message.includes("tools.listDirectory"));
       expect(listDirectory).toContain("whether the built-in `list_directory` tool is registered");
       expect(listDirectory).not.toContain("how far approvals are skipped");
+      const todoWrite = messages.find((message) => message.includes("tools.todoWrite"));
+      expect(todoWrite).toContain("whether the built-in `todo_write` tool is registered");
+      expect(todoWrite).not.toContain("how far approvals are skipped");
       // `eager` sits in the same rule but demotes rather than deregisters, so its
       // project note has to say that instead of borrowing the `disabled` wording.
       const eager = messages.find((message) => message.includes("tools.eager"));
@@ -1278,6 +1318,29 @@ describe("QwencodePermissions", () => {
         .map(([message]) => String(message))
         .find((message) => message.includes("tools.listDirectory"));
       expect(announced).toContain("whether the built-in `list_directory` tool is registered");
+      expect(announced).not.toContain("not a key rulesync models");
+    });
+
+    it("describes todoWrite as itself rather than as an unmodeled key", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { todoWrite: { enabled: true } } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.todoWrite"));
+      expect(announced).toContain("whether the built-in `todo_write` tool is registered");
       expect(announced).not.toContain("not a key rulesync models");
     });
 

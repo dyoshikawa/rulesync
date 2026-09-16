@@ -134,7 +134,7 @@ const hooksGenerateTargets = [
 ] as const;
 
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
-const hooksProjectStandaloneTargets = ["vibe", "devin", "reasonix"] as const;
+const hooksProjectStandaloneTargets = ["vibe", "devin", "reasonix", "crush"] as const;
 
 describe("E2E: hooks", () => {
   const { getTestDir } = useTestDirectory();
@@ -444,6 +444,60 @@ describe("E2E: hooks", () => {
     const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("preToolUse");
     expect(importedContent).toContain("echo audit");
+  });
+
+  it("should generate crush hooks into the hooks.PreToolUse list of crush.json", async () => {
+    const testDir = getTestDir();
+
+    // Crush only fires PreToolUse, so the generic matrix fixture (sessionStart/
+    // stop) would produce nothing; seed the one event it supports instead.
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        hooks: {
+          preToolUse: [{ command: ".rulesync/hooks/audit.sh", matcher: "bash", timeout: 5 }],
+          stop: [{ command: ".rulesync/hooks/on-stop.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+    // Unrelated top-level keys of the shared config file must survive.
+    await writeFileContent(
+      join(testDir, "crush.json"),
+      JSON.stringify({ options: { debug: true } }, null, 2),
+    );
+
+    await runGenerate({ target: "crush", features: "hooks" });
+
+    const parsed = JSON.parse(await readFileContent(join(testDir, "crush.json")));
+    expect(parsed.hooks).toEqual({
+      PreToolUse: [{ matcher: "bash", command: ".rulesync/hooks/audit.sh", timeout: 5 }],
+    });
+    expect(parsed.options).toEqual({ debug: true });
+  });
+
+  it("should import crush hooks from crush.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, "crush.json"),
+      JSON.stringify(
+        { hooks: { PreToolUse: [{ matcher: "bash|edit", command: "echo audit" }] } },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "crush", features: "hooks" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.hooks.preToolUse).toEqual([
+      { type: "command", matcher: "bash|edit", command: "echo audit" },
+    ]);
   });
 
   it("should generate devin hooks", async () => {
@@ -869,6 +923,7 @@ const hooksGlobalTargets = [
 // enumeration matches the processor's declared set — not that a matching `it`
 // exists for each name; keep it in sync with the actual `it`s by hand.
 const hooksGlobalStandaloneTargets = [
+  "crush",
   "devin",
   "vibe",
   "hermesagent",
@@ -979,6 +1034,38 @@ describe("E2E: hooks (global mode)", () => {
       }
     },
   );
+
+  it("should generate crush hooks in the user config", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        root: true,
+        hooks: {
+          preToolUse: [{ command: ".rulesync/hooks/audit.sh", matcher: "bash" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({
+      target: "crush",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = JSON.parse(
+      await readFileContent(join(homeDir, ".config", "crush", "crush.json")),
+    );
+    expect(parsed.hooks.PreToolUse).toEqual([
+      { matcher: "bash", command: ".rulesync/hooks/audit.sh" },
+    ]);
+  });
 
   it("should generate devin hooks in home directory", async () => {
     const projectDir = getProjectDir();

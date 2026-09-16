@@ -17,7 +17,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Command Code              | commandcode        | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | GitHub Copilot            | copilot            | ✅ 🌏 |        |    ✅    |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
 | GitHub Copilot CLI        | copilotcli         | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Crush                     | crush              | ✅ 🌏 |   ✅   |          |          |           | ✅ 🌏  |       |             |        |
+| Crush                     | crush              | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |          |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Goose                     | goose              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   |   ✅   | ✅ 🌏 |     🌏      |        |
 | Hermes Agent              | hermesagent        |  ✅   |   ✅   |  🌏 🔧   |    🌏    |   ✅ 🌏   |   🌏   |  🌏   |     🌏      |   ✅   |
 | Grok CLI                  | grokcli            | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
@@ -54,7 +54,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Pi Coding Agent           | pi                 | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Zed                       | zed                | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |          |           | ✅ 🌏  |       |    ✅ 🌏    |        |
 | ZCode (Z.ai)              | zcode              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |    🌏     | ✅ 🌏  |  🌏   |             |        |
-| Pool (Poolside)           | pool               | ✅ 🌏 |        |          |          |           |        |       |             |        |
+| Pool (Poolside)           | pool               | ✅ 🌏 |        |          |          |           | ✅ 🌏  |       |             |        |
 | DeepSeek Harness          | dsh                | ✅ 🌏 |        |          |          |           | ✅ 🌏  |       |             |        |
 
 <!-- SUPPORTED_TOOLS_DOCS:END -->

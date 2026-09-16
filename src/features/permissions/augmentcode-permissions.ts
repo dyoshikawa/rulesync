@@ -16,6 +16,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { globToAnchoredRegexSource } from "../../utils/glob.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
@@ -96,12 +97,40 @@ const AUGMENT_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntri
   Object.entries(CANONICAL_TO_AUGMENT_TOOL_NAMES).map(([k, v]) => [v, k]),
 );
 
+// Current AugmentCode tool names and the legacy names they alias. Auggie's permissions docs
+// (https://docs.augmentcode.com/cli/permissions) renamed `launch-process` / `view` /
+// `str-replace-editor` / `save-file` to `terminal` / `read` / `edit` / `write` and state that
+// the legacy names are aliased to their current equivalents, so a hand-authored settings.json
+// may use either spelling for the same tool. Rulesync keeps EMITTING the legacy names because
+// the shipped CLI (0.36.0 at the time of writing) matches `toolName` exactly and only knows the
+// legacy spellings; this map is only consulted when reading an existing file, so that a row
+// written under a current name is imported, deduplicated and retracted like its legacy twin.
+const CURRENT_TO_LEGACY_AUGMENT_TOOL_NAMES: Record<string, string> = {
+  terminal: "launch-process",
+  read: "view",
+  edit: "str-replace-editor",
+  write: "save-file",
+};
+
 function toAugmentToolName(canonical: string): string {
-  return CANONICAL_TO_AUGMENT_TOOL_NAMES[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_AUGMENT_TOOL_NAMES, key: canonical }) ?? canonical;
+}
+
+/**
+ * Resolve an existing entry's `toolName` to the legacy spelling rulesync emits, so that the
+ * current alias and the legacy name are treated as the same managed tool.
+ */
+function toLegacyAugmentToolName(augmentName: string): string {
+  // Own-property lookups only: `toolName` comes from a user-editable settings.json, so an
+  // inherited name such as `constructor` must fall through instead of yielding a function.
+  return (
+    lookupOwn({ record: CURRENT_TO_LEGACY_AUGMENT_TOOL_NAMES, key: augmentName }) ?? augmentName
+  );
 }
 
 function toCanonicalToolName(augmentName: string): string {
-  return AUGMENT_TO_CANONICAL_TOOL_NAMES[augmentName] ?? augmentName;
+  const legacyName = toLegacyAugmentToolName(augmentName);
+  return lookupOwn({ record: AUGMENT_TO_CANONICAL_TOOL_NAMES, key: legacyName }) ?? legacyName;
 }
 
 function actionToAugmentType(action: PermissionAction): AugmentBasicPermissionType {
@@ -413,11 +442,16 @@ export class AugmentcodePermissions extends ToolPermissions {
     // - Entries with unmanaged toolNames: kept verbatim (Rulesync does not own that namespace).
     // - Entries with managed toolNames AND `permission.type === "deny"`: preserved so user-added
     //   denies cannot be silently dropped by regeneration. This applies to ALL managed tools
-    //   (launch-process / view / str-replace-editor / save-file / web-fetch / web-search), not
-    //   just shell commands. Duplicates that exactly match a generated entry are dropped to avoid
-    //   double-emitting the same row.
+    //   (launch-process / view / str-replace-editor / save-file / web-fetch / web-search, or the
+    //   current aliases terminal / read / edit / write), not just shell commands. Duplicates that
+    //   match a generated entry once the alias is resolved are dropped to avoid double-emitting
+    //   the same row.
     // - Existing managed-tool `allow` / `ask-user` entries: replaced (rulesync owns the
     //   permissive surface for managed namespaces).
+    // Keyed by the spelling actually emitted: an existing row is a duplicate when a generated
+    // row re-emits it under its own spelling or under the legacy spelling rulesync manages. A
+    // passed-through current name (a canonical `terminal` category is emitted verbatim) must
+    // not retire an existing legacy-named deny, which is the spelling the shipped CLI honours.
     const generatedKeys = new Set(
       generated.map((e) => `${e.toolName}|${e.shellInputRegex ?? ""}|${e.permission.type}`),
     );
@@ -427,14 +461,20 @@ export class AugmentcodePermissions extends ToolPermissions {
       // name, but AugmentCode only matches exact tool names. Remove that known-inert legacy row.
       if (entry.toolName === "*") return false;
 
-      // Keep all entries whose toolName is unmanaged.
-      if (!MANAGED_AUGMENT_TOOL_NAMES.has(entry.toolName)) return true;
+      // Keep all entries whose toolName is unmanaged. A current alias (`terminal`, `read`, ...)
+      // names the same tool as the legacy name rulesync emits, so it is managed too.
+      const legacyToolName = toLegacyAugmentToolName(entry.toolName);
+      if (!MANAGED_AUGMENT_TOOL_NAMES.has(legacyToolName)) return true;
 
       // For ANY managed tool: keep existing `deny` entries (fail-closed) unless they are
-      // duplicated by a generated entry (which would be re-emitted with the same shape).
+      // duplicated by a generated entry (which would be re-emitted with the same shape under
+      // the legacy name).
       if (entry.permission.type === "deny") {
-        const key = `${entry.toolName}|${entry.shellInputRegex ?? ""}|${entry.permission.type}`;
-        return !generatedKeys.has(key);
+        const suffix = `|${entry.shellInputRegex ?? ""}|${entry.permission.type}`;
+        return (
+          !generatedKeys.has(`${entry.toolName}${suffix}`) &&
+          !generatedKeys.has(`${legacyToolName}${suffix}`)
+        );
       }
 
       // Otherwise the rulesync-managed namespace replaces existing entries.
@@ -807,6 +847,7 @@ function convertAugmentToRulesyncPermissions({
       continue;
     }
 
+    const legacyToolName = toLegacyAugmentToolName(entry.toolName);
     const canonical = toCanonicalToolName(entry.toolName);
     if (forbiddenMapKeys.has(canonical)) {
       logger?.warn(
@@ -817,13 +858,13 @@ function convertAugmentToRulesyncPermissions({
     }
     const action = augmentTypeToAction(type);
 
-    // Only launch-process supports per-input pattern recovery via shellInputRegex.
-    // For other categories (view, str-replace-editor, save-file, web-fetch, web-search) the
-    // AugmentCode schema does not carry per-pattern information, so they are imported as the
-    // catch-all `*` pattern. This is the inverse of the fail-closed export side and is documented
-    // in `docs/reference/file-formats.md`.
+    // Only launch-process (or its current alias `terminal`) supports per-input pattern recovery
+    // via shellInputRegex. For other categories (view, str-replace-editor, save-file, web-fetch,
+    // web-search) the AugmentCode schema does not carry per-pattern information, so they are
+    // imported as the catch-all `*` pattern. This is the inverse of the fail-closed export side
+    // and is documented in `docs/reference/file-formats.md`.
     let pattern: string;
-    if (entry.toolName === "launch-process" && entry.shellInputRegex) {
+    if (legacyToolName === "launch-process" && entry.shellInputRegex) {
       const regex = entry.shellInputRegex;
       if (isShellRegexRoundtrippable(regex)) {
         // Faithful import: glob round-trips back to an equivalent regex.
@@ -871,12 +912,16 @@ function convertAugmentToRulesyncPermissions({
       );
       continue;
     }
-    if (!permission[canonical]) {
-      permission[canonical] = {};
+    // Own-property bucket: a truthiness check on `permission[canonical]` would find the
+    // inherited function for a name such as `toString` and write the rule onto it.
+    let bucket = lookupOwn({ record: permission, key: canonical });
+    if (bucket === undefined) {
+      bucket = {};
+      permission[canonical] = bucket;
     }
-    const existing = permission[canonical][pattern];
+    const existing = lookupOwn({ record: bucket, key: pattern });
     if (existing === undefined || actionPriority[action] > actionPriority[existing]) {
-      permission[canonical][pattern] = action;
+      bucket[pattern] = action;
     }
   }
 

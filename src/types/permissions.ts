@@ -330,7 +330,7 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * autonomy/sandbox controls with no canonical permission category — under
  * `tools` (`approvalMode` = plan/default/auto-edit/auto/yolo, `autoAccept`,
  * `sandbox`, `sandboxImage`, `disabled`, `visible`, `eager`, `listDirectory`,
- * `workflowsEnabled`) and `security` (`folderTrust`, `allowedHttpHookUrls`,
+ * `todoWrite`, `workflowsEnabled`) and `security` (`folderTrust`, `allowedHttpHookUrls`,
  * `allowPrivateNetworkHooks`, `allowedInsecureVoiceBaseUrls`). Qwen Code strips
  * `tools.workflowsEnabled`, `security.allowPrivateNetworkHooks` and
  * `security.allowedInsecureVoiceBaseUrls` out of workspace settings, so generate
@@ -343,7 +343,7 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * changes what the file said is reported in either scope, naming what that key
  * decides there — the autonomy and containment
  * controls (`approvalMode`, `autoAccept`, `sandbox`, `sandboxImage`), the
- * registry controls (`disabled`, `visible`, `listDirectory`, and `eager`, which
+ * registry controls (`disabled`, `visible`, `listDirectory`, `todoWrite`, and `eager`, which
  * demotes an omitted tool to deferred rather than removing it, replacing rather
  * than merging with the list a higher scope set), the Auto Mode
  * classifier config, and, because these groups are loose objects, any key
@@ -1231,6 +1231,7 @@ export const PermissionsConfigSchema = z.looseObject({
   copilot: z.optional(CanonicalPermissionsOverrideSchema),
   commandcode: z.optional(CanonicalPermissionsOverrideSchema),
   copilotcli: z.optional(CanonicalPermissionsOverrideSchema),
+  crush: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),
   "kimi-code": z.optional(KimiCodePermissionsOverrideSchema),

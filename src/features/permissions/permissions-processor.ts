@@ -24,6 +24,7 @@ import { CommandcodePermissions } from "./commandcode-permissions.js";
 import { ContinuePermissions } from "./continue-permissions.js";
 import { CopilotPermissions } from "./copilot-permissions.js";
 import { CopilotcliPermissions } from "./copilotcli-permissions.js";
+import { CrushPermissions } from "./crush-permissions.js";
 import { CursorPermissions } from "./cursor-permissions.js";
 import { DeepagentsPermissions } from "./deepagents-permissions.js";
 import { DevinPermissions } from "./devin-permissions.js";
@@ -218,6 +219,23 @@ export const toolPermissionsFactories = new Map<
         // `deniedUrls` / `allowedUrls` lists: `.github/copilot/settings.json`
         // (repository, deny only — upstream accepts no `allowedUrls` there) and
         // `~/.copilot/settings.json` (user, both lists).
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "crush",
+    {
+      class: CrushPermissions,
+      meta: {
+        // Crush's `permissions.allowed_tools` (no prompt) and
+        // `options.disabled_tools` (hidden built-ins) live in
+        // `<project>/crush.json` (or `.crush.json`) and
+        // `~/.config/crush/crush.json`; both lists are tool-wide, so only
+        // catch-all rules are written.
+        // https://github.com/charmbracelet/crush/blob/main/docs/config/README.md
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

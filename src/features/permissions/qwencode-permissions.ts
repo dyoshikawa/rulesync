@@ -146,6 +146,11 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   // `{ enabled: boolean }` toggle for the built-in `list_directory` tool, off by
   // default because `glob` covers the same ground. Added in Qwen Code v0.22.0.
   "listDirectory",
+  // `{ enabled: boolean }` toggle for the built-in `todo_write` tool and its
+  // system-prompt guidance, off by default; `experimental.todoStopGuard` needs
+  // it on. Added in Qwen Code v0.23.1.
+  // https://github.com/QwenLM/qwen-code/pull/10645
+  "todoWrite",
   // Enables the Workflow tool and the `/workflows` command. Added in Qwen Code
   // v0.23.0 and honored in user/system settings only — see
   // `QWEN_SCOPED_TOOLS_KEYS`. `QWEN_CODE_ENABLE_WORKFLOWS` and
@@ -177,9 +182,12 @@ const QWEN_OVERRIDE_SECURITY_KEYS = [
  * - `workspace-stripped` — named in `WORKSPACE_RESTRICTED_SETTINGS`
  *   (`packages/cli/src/config/settingsUtils.ts`) and removed from workspace
  *   settings before the merge, so a project-scoped value is dead configuration.
- *   That list also names `agents.crossSessionMessaging`,
- *   `agents.crossSessionInbound` and `goals.modelProposed`, which sit in settings
- *   groups the `qwencode` override does not author at all.
+ *   That list also names `goals.modelProposed` and
+ *   `outboundCorrelation.allowDynamicHeaderValues`, which sit in settings
+ *   groups the `qwencode` override does not author at all. (Its former
+ *   `agents.crossSessionMessaging` and `agents.crossSessionInbound` entries
+ *   moved to `WORKSPACE_TIGHTEN_ONLY_SETTINGS`, where a workspace value may
+ *   only tighten the user's.)
  * - `workspace-non-overriding` — named in `WORKSPACE_NON_OVERRIDING_SETTINGS`.
  *   A workspace value survives only while no user, system, or system-defaults
  *   scope sets the key: a repository may narrow where its own hooks send data,
@@ -315,7 +323,7 @@ const QWEN_SCOPE_RULES: Record<
 
 // Which keys each rule covers, transcribed from Qwen Code's own
 // `WORKSPACE_RESTRICTED_SETTINGS` and `WORKSPACE_NON_OVERRIDING_SETTINGS` in
-// `packages/cli/src/config/settingsUtils.ts`, verified against v0.23.0. Upstream
+// `packages/cli/src/config/settingsUtils.ts`, verified against v0.23.4. Upstream
 // may add entries; an addition rulesync has not picked up means it writes a key
 // Qwen Code now ignores, so re-check these lists when supporting a new version.
 const QWEN_SCOPED_TOOLS_KEYS = {
@@ -372,6 +380,13 @@ const QWEN_SCOPED_TOOLS_KEYS = {
       `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it decides whether the built-in \`list_directory\` tool is registered in this repository.`,
     globalNote:
       "Qwen Code honors this key wherever it is written, so in the global scope this decides whether the built-in `list_directory` tool is registered for every project on this machine.",
+  },
+  todoWrite: {
+    rule: "global-machine-wide",
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it decides whether the built-in \`todo_write\` tool is registered in this repository.`,
+    globalNote:
+      "Qwen Code honors this key wherever it is written, so in the global scope this decides whether the built-in `todo_write` tool is registered for every project on this machine.",
   },
 } as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_TOOLS_KEYS)[number]>;
 const QWEN_SCOPED_SECURITY_KEYS = {
