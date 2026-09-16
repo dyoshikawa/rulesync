@@ -365,6 +365,9 @@ const CANONICALLY_INVALID_IMPORTS = [
     canonical: "source",
     invalid: { ref: "main" },
     valid: { source: "github:org/hooks-repo/scripts/validate.sh" },
+    // The warning names the offending key, since zod's own message for a
+    // missing key is the generic "Invalid input".
+    at: "source",
   },
   {
     kind: "a control character inside an object field",
@@ -376,12 +379,13 @@ const CANONICALLY_INVALID_IMPORTS = [
     canonical: "source",
     invalid: { source: "github:org/hooks-repo/scripts/validate.sh\nref: evil" },
     valid: { source: "github:org/hooks-repo/scripts/validate.sh", ref: "v1.2.0" },
+    at: "source",
   },
 ] as const;
 
 describe.each(CANONICALLY_INVALID_IMPORTS)(
   "toolHooksToCanonical with $kind",
-  ({ converterConfig, tool, canonical, invalid, valid }) => {
+  ({ converterConfig, tool, canonical, invalid, valid, ...entry }) => {
     it("skips the value and warns instead of importing it", () => {
       const { definition, logger } = importHook({
         hook: { type: "command", command: "./run.sh", [tool]: invalid },
@@ -391,8 +395,10 @@ describe.each(CANONICALLY_INVALID_IMPORTS)(
       expect(definition).not.toHaveProperty(canonical);
       // Only the sentence Rulesync writes is asserted; the tail comes from
       // zod's own message for the violated rule, which is locale-dependent.
+      // A scalar has no key to name, so its sentence ends right at the colon.
+      const at = "at" in entry ? ` at "${entry.at}"` : "";
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`it does not satisfy the canonical "${canonical}" field:`),
+        expect.stringContaining(`it does not satisfy the canonical "${canonical}" field${at}:`),
       );
     });
 

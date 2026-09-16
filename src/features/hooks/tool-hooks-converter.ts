@@ -514,7 +514,9 @@ const isImportableObject: PassthroughValidator = ({ value, canonical }) =>
  * Say which rule the value broke, so the warning names the actual constraint
  * rather than asserting a canonical rejection that may not be the reason. A
  * closed enum lists its members; a rule carrying its own message (the
- * control-character check behind `safeString`) reuses it.
+ * control-character check behind `safeString`) reuses it. An object field
+ * names the offending key, since zod's generic "Invalid input" would not tell
+ * the reader which key is missing or malformed.
  */
 function describeScalarConstraint({
   canonical,
@@ -534,7 +536,8 @@ function describeScalarConstraint({
   if (issue === undefined) {
     return `it is not a value the canonical "${canonical}" field accepts.`;
   }
-  return `it does not satisfy the canonical "${canonical}" field: ${issue.message}.`;
+  const at = issue.path.length > 0 ? ` at "${issue.path.join(".")}"` : "";
+  return `it does not satisfy the canonical "${canonical}" field${at}: ${issue.message}.`;
 }
 
 const describeInvalidScalar = ({
@@ -555,9 +558,9 @@ const describeInvalidArray = ({ tool }: { tool: string }): string =>
   `newline, carriage return or NUL characters.`;
 
 /**
- * An object is quoted by its keys rather than its value: the payload can be
- * arbitrarily large, and the missing or malformed key is what the reader
- * needs to fix.
+ * An object is quoted by its offending key rather than its value: the payload
+ * can be arbitrarily large, and the missing or malformed key is what the
+ * reader needs to fix.
  */
 const describeInvalidObject = ({
   tool,
