@@ -197,7 +197,7 @@ describe("AntigravityCliMcp", () => {
   "mcpServers": {
     "test-server": {
       "command": "node",
-      "args": ["server.js"], /* trailing comma below */
+      "args": ["server.js"], /* block comment after a trailing comma */
     },
   },
   "customSetting": true,
@@ -263,6 +263,19 @@ describe("AntigravityCliMcp", () => {
       const json = antigravityCliMcp.getJson();
       expect(json).toEqual({ mcpServers: {} });
       expect(Object.getPrototypeOf(json)).toBe(Object.prototype);
+    });
+
+    it("should throw when the top level is not an object", () => {
+      for (const fileContent of ["null", "[]", '"text"']) {
+        expect(
+          () =>
+            new AntigravityCliMcp({
+              relativeDirPath: ".agents",
+              relativeFilePath: "mcp_config.json",
+              fileContent,
+            }),
+        ).toThrow("must contain a top-level JSON object");
+      }
     });
 
     it("should throw on malformed content", () => {

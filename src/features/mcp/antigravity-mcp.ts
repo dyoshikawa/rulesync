@@ -53,6 +53,22 @@ function toCanonicalMcpServers(servers: unknown): Record<string, unknown> {
 }
 
 /**
+ * Parse `mcp_config.json` as JSONC and require a top-level object, so a file
+ * whose root is `null`, an array or a primitive fails with a clear message
+ * instead of a `TypeError` on `mcpServers` access or an array being spread
+ * into the rewritten config.
+ */
+function parseAntigravityMcpConfig(fileContent: string): Record<string, unknown> {
+  const parsed = parseJsonc(fileContent);
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(
+      `Antigravity ${ANTIGRAVITY_MCP_FILE_NAME} must contain a top-level JSON object`,
+    );
+  }
+  return { ...parsed };
+}
+
+/**
  * Shared MCP generator for Google Antigravity (Antigravity 2.0), used by both
  * the IDE and the CLI.
  *
@@ -76,7 +92,7 @@ export class AntigravityMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = parseJsonc(this.fileContent || "{}") as Record<string, unknown>;
+    this.json = parseAntigravityMcpConfig(this.fileContent || "{}");
   }
 
   getJson(): Record<string, unknown> {
@@ -111,7 +127,7 @@ export class AntigravityMcp extends ToolMcp {
       (await readFileContentOrNull(
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       )) ?? '{"mcpServers":{}}';
-    const json = parseJsonc(fileContent) as Record<string, unknown>;
+    const json = parseAntigravityMcpConfig(fileContent);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new this({
@@ -136,7 +152,7 @@ export class AntigravityMcp extends ToolMcp {
       (await readFileContentOrNull(
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       )) ?? JSON.stringify({ mcpServers: {} }, null, 2);
-    const json = parseJsonc(fileContent) as Record<string, unknown>;
+    const json = parseAntigravityMcpConfig(fileContent);
     const newJson = { ...json, mcpServers: toAntigravityMcpServers(rulesyncMcp.getMcpServers()) };
 
     return new this({
