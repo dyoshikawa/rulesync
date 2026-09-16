@@ -858,8 +858,15 @@ enabled: false
 
       const rulesyncRule = codebuddyRule.toRulesyncRule();
 
+      // The scoped paths survive as globs so the regenerated rule keeps them,
+      // while the explicit `alwaysApply: true` keeps it ALWAYS for CodeBuddy.
+      expect(rulesyncRule.getFrontmatter().globs).toEqual(["src/api/**/*.ts"]);
       expect(rulesyncRule.getFrontmatter().codebuddy?.alwaysApply).toBe(true);
       expect(rulesyncRule.getFrontmatter().codebuddy?.paths).toEqual(["src/api/**/*.ts"]);
+
+      const regenerated = CodebuddyRule.fromRulesyncRule({ rulesyncRule });
+      expect(regenerated.getFrontmatter().alwaysApply).toBe(true);
+      expect(regenerated.getFrontmatter().paths).toEqual(["src/api/**/*.ts"]);
     });
 
     it("should preserve a disabled rule across the round trip", () => {
