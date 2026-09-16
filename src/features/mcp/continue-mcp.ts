@@ -89,7 +89,10 @@ function asContinueRemoteType(stated: string | undefined, url: string): "http" |
  * file with a strict union — one server that matches neither shape (an
  * unknown transport, a non-string `env` value) makes Continue drop every
  * server in the file — so only the documented keys are emitted and anything
- * else (`timeout`, `oauth`, rulesync-only fields) is left out. `envFile` is
+ * else is left out. The canonical keys a user would expect to take effect
+ * (`cwd`, `timeout`, `oauth`) are dropped with a warning, since the JSON
+ * schema has no place for them (the YAML block form does, but Rulesync writes
+ * the JSON file); rulesync-only fields are dropped silently. `envFile` is
  * accepted by Continue's schema but ignored with a warning at load time, so
  * it is dropped here with a warning instead of being written as if it worked.
  *
@@ -119,6 +122,31 @@ function convertToContinueFormat(mcpServers: McpServers, logger?: Logger): Conti
   }
 
   return result;
+}
+
+/**
+ * Warn for each canonical key Continue's JSON MCP schema cannot carry, so a
+ * dropped `cwd`, `timeout` or `oauth` does not go unnoticed in a config that
+ * otherwise looks complete.
+ */
+function warnUnsupportedContinueKeys({
+  serverName,
+  serverConfig,
+  keys,
+  logger,
+}: {
+  serverName: string;
+  serverConfig: Record<string, unknown>;
+  keys: readonly string[];
+  logger?: Logger;
+}): void {
+  for (const key of keys) {
+    if (serverConfig[key] === undefined) continue;
+    logger?.warn(
+      `Continue's MCP config has no "${key}" field, so the ${key} of server ` +
+        `${quoteValueForWarning(serverName)} was not written.`,
+    );
+  }
 }
 
 function convertRemoteServer({
@@ -158,6 +186,7 @@ function convertRemoteServer({
   if (isRecord(serverConfig.headers)) {
     converted.headers = omitPrototypePollutionKeys(serverConfig.headers);
   }
+  warnUnsupportedContinueKeys({ serverName, serverConfig, keys: ["timeout", "oauth"], logger });
   return converted;
 }
 
@@ -196,6 +225,7 @@ function convertStdioServer({
         `was not written; put the variables in "env" instead.`,
     );
   }
+  warnUnsupportedContinueKeys({ serverName, serverConfig, keys: ["cwd", "timeout"], logger });
   return converted;
 }
 
