@@ -19,6 +19,7 @@ import { BobMcp } from "./bob-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
+import { CommandcodeMcp } from "./commandcode-mcp.js";
 import { ContinueMcp } from "./continue-mcp.js";
 import { CopilotMcp } from "./copilot-mcp.js";
 import { CopilotcliMcp } from "./copilotcli-mcp.js";
@@ -268,6 +269,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: true,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "commandcode",
+    {
+      // Command Code reads the project `.mcp.json` at the repository root and
+      // the user `~/.commandcode/mcp.json`; it has no per-server tool
+      // allow/deny lists.
+      // https://commandcode.ai/docs/mcp
+      class: CommandcodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],
@@ -932,6 +949,7 @@ export class McpProcessor extends FeatureProcessor {
         // deprecated per-server `targets` filter for this target.
         const targetedRulesyncMcp = mcp.forTarget({
           toolTarget: this.toolTarget,
+          global: this.global,
           logger: this.logger,
         });
         // Strip MCP server fields unsupported by the target tool

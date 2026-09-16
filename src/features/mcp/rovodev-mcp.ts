@@ -967,7 +967,7 @@ export class RovodevMcp extends ToolMcp {
     rulesyncMcp: RulesyncMcp;
     logger?: Logger;
   }): Promise<ToolFile[]> {
-    const targeted = rulesyncMcp.forTarget({ toolTarget: "rovodev", logger });
+    const targeted = rulesyncMcp.forTarget({ toolTarget: "rovodev", global, logger });
     const servers = targeted.getMcpServers();
     // Only servers whose entry is actually emitted to `mcp.json` count as
     // managed here: one with an unsupported transport (`ws`) is skipped by

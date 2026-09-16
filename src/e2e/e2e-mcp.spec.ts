@@ -38,6 +38,7 @@ const mcpGenerateTargets = [
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },
+  { target: "commandcode", outputPath: ".mcp.json" },
   { target: "grokcli", outputPath: join(".grok", "config.toml") },
   { target: "copilot", outputPath: join(".vscode", "mcp.json") },
   { target: "copilotcli", outputPath: join(".github", "mcp.json") },
@@ -402,6 +403,7 @@ describe("E2E: mcp", () => {
     // amp, codexcli, grokcli, opencode, kilo use merged config files
     // (isDeletable=false) — excluded
     { target: "claudecode", orphanPath: ".mcp.json" },
+    { target: "commandcode", orphanPath: ".mcp.json" },
     { target: "continue", orphanPath: join(".continue", "mcpServers", "mcp.json") },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
     { target: "copilot", orphanPath: join(".vscode", "mcp.json") },
@@ -729,6 +731,7 @@ describe("E2E: mcp (import)", () => {
     { target: "continue", sourcePath: join(".continue", "mcpServers", "mcp.json") },
     { target: "tabnine", sourcePath: join(".tabnine", "agent", "settings.json") },
     { target: "claudecode", sourcePath: ".mcp.json" },
+    { target: "commandcode", sourcePath: ".mcp.json" },
     { target: "cursor", sourcePath: join(".cursor", "mcp.json") },
     // copilot MCP uses VS Code-specific format — excluded from import test
     { target: "copilotcli", sourcePath: join(".github", "mcp.json") },
@@ -918,6 +921,7 @@ const mcpGlobalTargets = [
     outputPath: join(".cline", "data", "settings", "cline_mcp_settings.json"),
   },
   { target: "cortexcode", outputPath: join(".snowflake", "cortex", "mcp.json") },
+  { target: "commandcode", outputPath: join(".commandcode", "mcp.json") },
   { target: "musecode", outputPath: join(".config", "muse", "settings.json") },
   { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
   { target: "kimi-code", outputPath: join(".kimi-code", "mcp.json") },

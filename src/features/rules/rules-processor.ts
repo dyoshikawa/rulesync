@@ -63,6 +63,7 @@ import { ClaudecodeRule } from "./claudecode-rule.js";
 import { ClineRule } from "./cline-rule.js";
 import { CodebuddyRule } from "./codebuddy-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
+import { CommandcodeRule } from "./commandcode-rule.js";
 import { ContinueRule } from "./continue-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
 import { CopilotcliRule } from "./copilotcli-rule.js";
@@ -535,6 +536,22 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: CodexcliRule,
       meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
+    "commandcode",
+    {
+      class: CommandcodeRule,
+      meta: {
+        // Command Code reads the project-root AGENTS.md and the user
+        // ~/.commandcode/AGENTS.md; nested AGENTS.md files are only pulled in
+        // lazily, so topic rules fold into the root file (mirrors codexcli).
+        // https://commandcode.ai/docs/memory
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",

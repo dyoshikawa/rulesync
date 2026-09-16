@@ -28,6 +28,7 @@ const rulesRootTargets = [
   { target: "aiassistant", outputPath: join(".aiassistant", "rules", "overview.md") },
   { target: "amp", outputPath: "AGENTS.md" },
   { target: "codexcli", outputPath: "AGENTS.md" },
+  { target: "commandcode", outputPath: "AGENTS.md" },
   { target: "grokcli", outputPath: "AGENTS.md" },
   { target: "hermesagent", outputPath: ".hermes.md" },
   { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
@@ -1183,6 +1184,7 @@ describe("E2E: rules (import)", () => {
     },
     { target: "amp", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "codexcli", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "commandcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     {
       target: "copilot",
       sourcePath: join(".github", "copilot-instructions.md"),
@@ -1341,6 +1343,7 @@ const rulesGlobalTargets = [
   { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
   { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
+  { target: "commandcode", outputPath: join(".commandcode", "AGENTS.md") },
   { target: "grokcli", outputPath: join(".grok", "AGENTS.md") },
   { target: "amp", outputPath: join(".config", "amp", "AGENTS.md") },
   { target: "cline", outputPath: join(".agents", "AGENTS.md") },
@@ -1540,6 +1543,7 @@ globs: ["src/**/*"]
 
   it.each([
     { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
+    { target: "commandcode", outputPath: join(".commandcode", "AGENTS.md") },
     { target: "junie", outputPath: join(".junie", "AGENTS.md") },
     { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
   ] as const)(

@@ -12,6 +12,7 @@ import {
   BOB_HOOK_EVENTS,
   CLAUDE_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
+  COMMANDCODE_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
   COPILOTCLI_HOOK_EVENTS,
   CONTINUE_HOOK_EVENTS,
@@ -57,6 +58,7 @@ import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
 import { ClineHooks } from "./cline-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
+import { CommandcodeHooks } from "./commandcode-hooks.js";
 import { ContinueHooks } from "./continue-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
@@ -360,6 +362,27 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: CODEXCLI_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+    },
+  ],
+  [
+    "commandcode",
+    {
+      class: CommandcodeHooks,
+      meta: {
+        // Command Code hooks live under the top-level `hooks` key of
+        // `.commandcode/settings.json` (project) and
+        // `~/.commandcode/settings.json` (user), in the Claude-Code shape with
+        // command hooks only. `matcher` is a regex over the tool name for
+        // PreToolUse/PostToolUse; Stop and SessionStart fire unconditionally.
+        // https://commandcode.ai/docs/hooks
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: COMMANDCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+      matcherEvents: ["preToolUse", "postToolUse"],
     },
   ],
   [

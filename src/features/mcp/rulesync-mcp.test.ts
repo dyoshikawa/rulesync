@@ -1118,6 +1118,65 @@ describe("RulesyncMcp", () => {
 
       expect(Object.keys(effective.getMcpServers())).toEqual(["shared", "extra"]);
     });
+
+    it("should apply both claudecode and commandcode blocks at project scope (shared .mcp.json)", () => {
+      const instance = makeInstance({
+        mcpServers: {
+          shared: { command: "node" },
+          forClaude: { command: "a", targets: ["claudecode"] },
+          forCommand: { command: "b", targets: ["commandcode"] },
+          forOther: { command: "c", targets: ["cursor"] },
+        },
+        claudecode: {
+          mcpServers: { claudeExtra: { command: "uvx" }, both: { command: "claude" } },
+        },
+        commandcode: { mcpServers: { both: { command: "command" } } },
+      });
+
+      // All three targets write the project `.mcp.json`, so they must resolve
+      // to one deterministic server set: claudecode block first, commandcode
+      // block second (commandcode wins per server on conflict).
+      for (const toolTarget of ["claudecode", "claudecode-legacy", "commandcode"] as const) {
+        const servers = instance.forTarget({ toolTarget, global: false }).getMcpServers();
+        expect(Object.keys(servers).toSorted()).toEqual([
+          "both",
+          "claudeExtra",
+          "forClaude",
+          "forCommand",
+          "shared",
+        ]);
+        expect(servers.both).toEqual({ command: "command" });
+      }
+    });
+
+    it("should keep claudecode and commandcode independent at global scope (separate files)", () => {
+      const instance = makeInstance({
+        mcpServers: {
+          shared: { command: "node" },
+          forClaude: { command: "a", targets: ["claudecode"] },
+          forCommand: { command: "b", targets: ["commandcode"] },
+        },
+        claudecode: {
+          mcpServers: { claudeExtra: { command: "uvx" }, both: { command: "claude" } },
+        },
+        commandcode: { mcpServers: { both: { command: "command" } } },
+      });
+
+      const claude = instance.forTarget({ toolTarget: "claudecode", global: true }).getMcpServers();
+      expect(Object.keys(claude).toSorted()).toEqual([
+        "both",
+        "claudeExtra",
+        "forClaude",
+        "shared",
+      ]);
+      expect(claude.both).toEqual({ command: "claude" });
+
+      const command = instance
+        .forTarget({ toolTarget: "commandcode", global: true })
+        .getMcpServers();
+      expect(Object.keys(command).toSorted()).toEqual(["both", "forCommand", "shared"]);
+      expect(command.both).toEqual({ command: "command" });
+    });
   });
 
   describe("stripMcpServerFields", () => {

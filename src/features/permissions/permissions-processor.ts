@@ -20,6 +20,7 @@ import { AugmentcodePermissions } from "./augmentcode-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
+import { CommandcodePermissions } from "./commandcode-permissions.js";
 import { ContinuePermissions } from "./continue-permissions.js";
 import { CopilotPermissions } from "./copilot-permissions.js";
 import { CopilotcliPermissions } from "./copilotcli-permissions.js";
@@ -160,6 +161,17 @@ export const toolPermissionsFactories = new Map<
     "codexcli",
     {
       class: CodexcliPermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "commandcode",
+    {
+      class: CommandcodePermissions,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

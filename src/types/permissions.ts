@@ -1229,6 +1229,7 @@ export const PermissionsConfigSchema = z.looseObject({
   "antigravity-ide": z.optional(CanonicalPermissionsOverrideSchema),
   continue: z.optional(CanonicalPermissionsOverrideSchema),
   copilot: z.optional(CanonicalPermissionsOverrideSchema),
+  commandcode: z.optional(CanonicalPermissionsOverrideSchema),
   copilotcli: z.optional(CanonicalPermissionsOverrideSchema),
   crush: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),

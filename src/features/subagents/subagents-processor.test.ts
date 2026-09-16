@@ -1316,6 +1316,7 @@ Second global content`;
         "claudecode-legacy",
         "cline",
         "codexcli",
+        "commandcode",
         "copilot",
         "copilotcli",
         "cortexcode",
@@ -1379,6 +1380,7 @@ Second global content`;
           "claudecode-legacy",
           "cline",
           "codexcli",
+          "commandcode",
           "copilot",
           "copilotcli",
           "cortexcode",
@@ -1422,6 +1424,7 @@ Second global content`;
         "copilot",
         "cursor",
         "codexcli",
+        "commandcode",
         "kilo",
         "opencode",
       ];
@@ -1538,6 +1541,7 @@ Test agent content`;
         "copilot",
         "cursor",
         "codexcli",
+        "commandcode",
         "roo",
         "zoocode",
       ];

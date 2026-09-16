@@ -14,6 +14,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Claude Code plugin        | claudecode-plugin  |       |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | CodeBuddy Code            | codebuddy          | ✅ 🌏 |        |          |          |           |        |       |             |        |
 | Codex CLI                 | codexcli           | ✅ 🌏 |        | ✅ 🌏 🔧 |    🌏    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Command Code              | commandcode        | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | GitHub Copilot            | copilot            | ✅ 🌏 |        |    ✅    |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
 | GitHub Copilot CLI        | copilotcli         | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Crush                     | crush              | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |          |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |

@@ -23,6 +23,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "claudecode-plugin", label: "Claude Code plugin", group: "ai" },
   { key: "codebuddy", label: "CodeBuddy Code", group: "ai" },
   { key: "codexcli", label: "Codex CLI", group: "ai" },
+  { key: "commandcode", label: "Command Code", group: "ai" },
   { key: "copilot", label: "GitHub Copilot", group: "ai" },
   { key: "copilotcli", label: "GitHub Copilot CLI", group: "ai" },
   { key: "crush", label: "Crush", group: "ai" },

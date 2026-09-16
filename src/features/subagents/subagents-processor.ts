@@ -34,6 +34,7 @@ import { ClaudecodePluginSubagent } from "./claudecode-plugin-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { ClineSubagent } from "./cline-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
+import { CommandcodeSubagent } from "./commandcode-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CopilotcliSubagent } from "./copilotcli-subagent.js";
 import { CortexcodeSubagent } from "./cortexcode-subagent.js";
@@ -282,6 +283,18 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "*.toml",
+      },
+    },
+  ],
+  [
+    "commandcode",
+    {
+      class: CommandcodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
       },
     },
   ],

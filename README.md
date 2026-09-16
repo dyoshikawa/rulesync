@@ -94,6 +94,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Claude Code plugin        |       |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | CodeBuddy Code            |  ✅   |        |     |          |           |        |       |             |        |
 | Codex CLI                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Command Code              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitHub Copilot            |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitHub Copilot CLI        |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Crush                     |  ✅   |   ✅   | ✅  |          |           |   ✅   |  ✅   |     ✅      |        |

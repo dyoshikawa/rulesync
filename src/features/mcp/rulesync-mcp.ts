@@ -83,7 +83,8 @@ export const RulesyncMcpFileSchema = z.looseObject({
   // deprecated `claudecode-legacy` target reads the `claudecode` block, and
   // the Kiro IDE/CLI targets read the `kiro` block (all three write the same
   // `.kiro/settings/mcp.json`, so per-variant blocks would make that shared
-  // file depend on generation order).
+  // file depend on generation order). In project mode `claudecode` and
+  // `commandcode` share the root `.mcp.json`, so both apply both blocks there.
   amp: z.optional(toolScopedMcpSchema),
   "antigravity-cli": z.optional(toolScopedMcpSchema),
   "antigravity-ide": z.optional(toolScopedMcpSchema),
@@ -93,6 +94,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   claudecode: z.optional(toolScopedMcpSchema),
   cline: z.optional(toolScopedMcpSchema),
   codexcli: z.optional(toolScopedMcpSchema),
+  commandcode: z.optional(toolScopedMcpSchema),
   continue: z.optional(toolScopedMcpSchema),
   copilot: z.optional(toolScopedMcpSchema),
   copilotcli: z.optional(toolScopedMcpSchema),
@@ -700,12 +702,21 @@ export class RulesyncMcp extends RulesyncFile {
    * Targets that share one output file resolve identically so the shared
    * file's content never depends on which of them generates last — see
    * `resolveMcpTarget` for the alias groups (kiro trio, claudecode/-legacy,
-   * and the Antigravity pair).
+   * the Antigravity pair, and the project-scope Claude Code / Command Code
+   * pair, which is why the scope is part of the resolution).
    *
    * Returns the same instance when neither mechanism is used.
    */
-  forTarget({ toolTarget, logger }: { toolTarget: ToolTarget; logger?: Logger }): RulesyncMcp {
-    const { blockKeys, acceptedTargetNames } = resolveMcpTarget({ toolTarget });
+  forTarget({
+    toolTarget,
+    global = false,
+    logger,
+  }: {
+    toolTarget: ToolTarget;
+    global?: boolean;
+    logger?: Logger;
+  }): RulesyncMcp {
+    const { blockKeys, acceptedTargetNames } = resolveMcpTarget({ toolTarget, global });
     const json: Record<string, unknown> = this.json;
     const sharedServers = this.json.mcpServers ?? {};
 
@@ -843,9 +854,28 @@ type McpTargetResolution = {
  *   `config`) — so both targets always apply both blocks in a fixed order
  *   (`antigravity-ide` first, `antigravity-cli` second — the CLI block wins
  *   per server on conflict).
+ * - `claudecode` (and its legacy alias) and `commandcode` share the root
+ *   `.mcp.json` in PROJECT mode only (their global files differ:
+ *   `~/.claude.json` vs `~/.commandcode/mcp.json`), so in project mode the
+ *   three apply the `claudecode` and `commandcode` blocks in that fixed order
+ *   (the `commandcode` block wins per server on conflict); in global mode
+ *   each reads its own block.
  */
-function resolveMcpTarget({ toolTarget }: { toolTarget: ToolTarget }): McpTargetResolution {
-  if (toolTarget === "claudecode" || toolTarget === "claudecode-legacy") {
+function resolveMcpTarget({
+  toolTarget,
+  global,
+}: {
+  toolTarget: ToolTarget;
+  global: boolean;
+}): McpTargetResolution {
+  const isClaudecode = toolTarget === "claudecode" || toolTarget === "claudecode-legacy";
+  if (!global && (isClaudecode || toolTarget === "commandcode")) {
+    return {
+      blockKeys: ["claudecode", "commandcode"],
+      acceptedTargetNames: new Set(["claudecode", "claudecode-legacy", "commandcode"]),
+    };
+  }
+  if (isClaudecode) {
     return {
       blockKeys: ["claudecode"],
       acceptedTargetNames: new Set(["claudecode", "claudecode-legacy"]),
