@@ -50,7 +50,7 @@ describe("BobHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
-    it("should emit the five supported events in Bob's PascalCase shape and drop the rest", async () => {
+    it("should emit the seven supported events in Bob's PascalCase shape and drop the rest", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
         hooks: {
@@ -60,6 +60,8 @@ describe("BobHooks", () => {
             { type: "command", command: ".rulesync/hooks/pre-tool.sh", matcher: "Bash" },
           ],
           postToolUse: [{ type: "command", command: ".rulesync/hooks/post-tool.sh" }],
+          preCompact: [{ type: "command", command: ".rulesync/hooks/pre-compact.sh" }],
+          postCompact: [{ type: "command", command: ".rulesync/hooks/post-compact.sh" }],
           stop: [{ type: "command", command: ".rulesync/hooks/audit.sh" }],
           // Bob has no session-end or permission events.
           sessionEnd: [{ type: "command", command: ".rulesync/hooks/session-end.sh" }],
@@ -77,12 +79,16 @@ describe("BobHooks", () => {
       expect(bobHooks.getRelativeFilePath()).toBe("settings.json");
       const parsed = JSON.parse(bobHooks.getFileContent());
       expect(Object.keys(parsed.hooks).toSorted()).toEqual([
+        "PostCompact",
         "PostToolUse",
+        "PreCompact",
         "PreToolUse",
         "SessionStart",
         "Stop",
         "UserPromptSubmit",
       ]);
+      expect(parsed.hooks.PreCompact[0].hooks[0].command).toBe(".rulesync/hooks/pre-compact.sh");
+      expect(parsed.hooks.PostCompact[0].hooks[0].command).toBe(".rulesync/hooks/post-compact.sh");
       expect(parsed.hooks.SessionStart[0].hooks[0]).toMatchObject({
         type: "command",
         command: ".rulesync/hooks/session-start.sh",
@@ -170,13 +176,14 @@ describe("BobHooks", () => {
       expect(parsed.hooks.PreToolUse[1].matcher).toBe("write_to_file|apply_diff");
     });
 
-    it("should skip non-command hook types", async () => {
+    it("should skip hook types other than command and http", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
         hooks: {
           preToolUse: [
             { type: "command", command: "pre.sh" },
             { type: "prompt", prompt: "Check this" },
+            { type: "agent", prompt: "Verify this" },
           ],
         },
       });
@@ -191,6 +198,40 @@ describe("BobHooks", () => {
       const hooks = parsed.hooks.PreToolUse.flatMap((group: { hooks: unknown[] }) => group.hooks);
       expect(hooks).toHaveLength(1);
       expect(hooks[0]).toMatchObject({ type: "command", command: "pre.sh" });
+    });
+
+    it("should emit a canonical http hook as Bob's https handler (issue #3074)", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          preCompact: [
+            { type: "http", url: "https://api.example.com/webhooks/bob-events", timeout: 10 },
+          ],
+          postToolUse: [
+            { type: "http", url: "https://api.example.com/tool", matcher: "write_to_file" },
+          ],
+        },
+      });
+
+      const bobHooks = await BobHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(bobHooks.getFileContent());
+      expect(parsed.hooks.PreCompact[0].matcher).toBeUndefined();
+      expect(parsed.hooks.PreCompact[0].hooks[0]).toEqual({
+        type: "https",
+        url: "https://api.example.com/webhooks/bob-events",
+        timeout: 10,
+      });
+      expect(parsed.hooks.PostToolUse[0].matcher).toBe("write_to_file");
+      expect(parsed.hooks.PostToolUse[0].hooks[0]).toEqual({
+        type: "https",
+        url: "https://api.example.com/tool",
+      });
+      expect(bobHooks.getFileContent()).not.toContain('"type": "http"');
     });
 
     it("should merge into an existing settings.json and keep unrelated keys", async () => {
@@ -320,6 +361,8 @@ describe("BobHooks", () => {
             ],
             UserPromptSubmit: [{ hooks: [{ type: "command", command: "prompt.sh" }] }],
             PostToolUse: [{ hooks: [{ type: "command", command: "post.sh" }] }],
+            PreCompact: [{ hooks: [{ type: "command", command: "pre-compact.sh" }] }],
+            PostCompact: [{ hooks: [{ type: "command", command: "post-compact.sh" }] }],
             Stop: [{ hooks: [{ type: "command", command: "stop.sh" }] }],
           },
         }),
@@ -336,9 +379,47 @@ describe("BobHooks", () => {
       });
       expect(json.hooks.beforeSubmitPrompt?.[0]?.command).toBe("prompt.sh");
       expect(json.hooks.postToolUse?.[0]?.command).toBe("post.sh");
+      expect(json.hooks.preCompact?.[0]?.command).toBe("pre-compact.sh");
+      expect(json.hooks.postCompact?.[0]?.command).toBe("post-compact.sh");
       expect(json.hooks.stop?.[0]?.command).toBe("stop.sh");
       // Sibling settings keys must not leak into the canonical model.
       expect((json as Record<string, unknown>).autoApproval).toBeUndefined();
+      // The compaction events are canonical now, not Bob-only leftovers.
+      expect((json as Record<string, unknown>).bob).toBeUndefined();
+    });
+
+    it("should import Bob's https handler as a canonical http hook (issue #3074)", () => {
+      const bobHooks = new BobHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".bob",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PostCompact: [
+              {
+                hooks: [{ type: "https", url: "https://api.example.com/webhooks/bob", timeout: 5 }],
+              },
+            ],
+            PreToolUse: [
+              {
+                matcher: "execute_command",
+                hooks: [{ type: "https", url: "https://api.example.com/tool" }],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = bobHooks.toRulesyncHooks().getJson();
+
+      expect(json.hooks.postCompact).toEqual([
+        { type: "http", url: "https://api.example.com/webhooks/bob", timeout: 5 },
+      ]);
+      expect(json.hooks.preToolUse).toEqual([
+        { type: "http", url: "https://api.example.com/tool", matcher: "execute_command" },
+      ]);
+      expect(bobHooks.toRulesyncHooks().getFileContent()).not.toContain('"https"');
     });
 
     it("should move unknown event keys into the bob override block", () => {
@@ -390,6 +471,7 @@ describe("BobHooks", () => {
         version: 1,
         hooks: {
           preToolUse: [{ type: "command", command: "pre.sh", matcher: "Write|Edit", timeout: 5 }],
+          preCompact: [{ type: "http", url: "https://api.example.com/compact", timeout: 3 }],
           stop: [{ type: "command", command: "stop.sh" }],
         },
       });
@@ -405,6 +487,11 @@ describe("BobHooks", () => {
         command: "pre.sh",
         matcher: "Write|Edit",
         timeout: 5,
+      });
+      expect(json.hooks.preCompact?.[0]).toEqual({
+        type: "http",
+        url: "https://api.example.com/compact",
+        timeout: 3,
       });
       expect(json.hooks.stop?.[0]?.command).toBe("stop.sh");
     });

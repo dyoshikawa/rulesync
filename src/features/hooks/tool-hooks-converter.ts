@@ -40,6 +40,15 @@ export type ToolHooksConverterConfig = {
   toolToCanonicalEventNames: Record<string, string>;
   projectDirVar: string;
   supportedHookTypes?: ReadonlySet<HookType>;
+  /**
+   * Tool-side spellings of the canonical hook `type` values, for a tool that
+   * names a handler type differently (e.g. Bob's `https` for the canonical
+   * `http`). A type without an entry is emitted under its canonical name. On
+   * import the mapping is applied in reverse, and the tool spelling of one
+   * canonical type shadows a same-named canonical type: Bob has no `http`
+   * handler, so an `http` in its file is not one either.
+   */
+  hookTypeNames?: Readonly<Partial<Record<HookType, string>>>;
   passthroughFields?: ReadonlyArray<"name" | "description">;
   /**
    * Per-hook boolean fields to carry through the round-trip, each mapping a
@@ -836,7 +845,7 @@ function buildToolHooks({
       // fields below always win: a misconfigured `tool` name (e.g. mapping onto
       // "type"/"command") can never silently shadow them.
       ...emitAllPassthroughFields({ def, hookType, eventName, converterConfig, warn }),
-      type: hookType,
+      type: converterConfig.hookTypeNames?.[hookType] ?? hookType,
       ...(command !== undefined && command !== null && { command }),
       ...(def.timeout !== undefined &&
         def.timeout !== null && {
@@ -989,6 +998,32 @@ const IMPORTED_HOOK_TYPES = new Set<HookType>(["command", "prompt", "http", "mcp
 
 function isImportedHookType(value: unknown): value is HookType {
   return typeof value === "string" && IMPORTED_HOOK_TYPES.has(value as HookType);
+}
+
+/**
+ * The canonical hook type a tool-side `type` value denotes: the tool's own
+ * spelling from {@link ToolHooksConverterConfig.hookTypeNames} when it has
+ * one, otherwise the value itself when it is a canonical type, and `command`
+ * for anything else (the same coercion as before the renames existed).
+ */
+function resolveImportedHookType({
+  value,
+  converterConfig,
+}: {
+  value: unknown;
+  converterConfig: ToolHooksConverterConfig;
+}): HookType {
+  const names = converterConfig.hookTypeNames;
+  if (names !== undefined && typeof value === "string") {
+    for (const [canonical, tool] of Object.entries(names)) {
+      if (tool === value) return canonical as HookType;
+    }
+    // A tool spelling shadows the canonical name it replaces: when the tool
+    // calls the canonical `http` handler `https`, a bare `http` in its file
+    // is not a handler the tool has.
+    if (Object.hasOwn(names, value)) return "command";
+  }
+  return isImportedHookType(value) ? value : "command";
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
@@ -1224,7 +1259,7 @@ function toolHookToCanonical({
   converterConfig: ToolHooksConverterConfig;
   warn?: (message: string) => void;
 }): HooksConfig["hooks"][string][number] {
-  const hookType = isImportedHookType(h.type) ? h.type : "command";
+  const hookType = resolveImportedHookType({ value: h.type, converterConfig });
   // A value that defines this hook type has already been checked by
   // `describeHookSkipReason`; this catches the same field left on a type it
   // does not define, where losing it alone changes nothing.
@@ -1390,7 +1425,7 @@ function toolMatcherEntryToCanonical({
   }
   const definitions: HooksConfig["hooks"][string] = [];
   for (const h of hookDefs) {
-    const hookType = isImportedHookType(h.type) ? h.type : "command";
+    const hookType = resolveImportedHookType({ value: h.type, converterConfig });
     const skipReason = describeHookSkipReason({ h, rawEntry, hookType, converterConfig });
     if (skipReason !== undefined) {
       warn?.(skipReason);

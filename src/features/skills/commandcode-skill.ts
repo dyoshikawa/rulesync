@@ -9,6 +9,13 @@ import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
+  resolveCompatibility,
+  resolveDisableModelInvocation,
+  resolveLicense,
+  resolveMetadata,
+  resolveUserInvocable,
+} from "./skills-utils.js";
+import {
   ToolSkill,
   ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
@@ -17,14 +24,20 @@ import {
 } from "./tool-skill.js";
 
 // Command Code skill frontmatter: `name` and `description` as in the Agent
-// Skills spec. The documented optional keys (`license`, `compatibility`,
-// `metadata`, `allowed-tools`, `disallowed-tools`, `argument-hint`,
-// `when_to_use`, `disable-model-invocation`, `user-invocable`, `arguments`,
-// `model`, `effort`) and any newer key pass through untouched.
+// Skills spec. The Agent Skills packaging trio and the two invocation gates
+// are typed because they also have root-level rulesync defaults; the other
+// documented optional keys (`allowed-tools`, `disallowed-tools`,
+// `argument-hint`, `when_to_use`, `arguments`, `model`, `effort`) and any
+// newer key pass through untouched.
 // @see https://commandcode.ai/docs/skills
 const CommandcodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+  metadata: z.optional(z.looseObject({})),
+  "disable-model-invocation": z.optional(z.boolean()),
+  "user-invocable": z.optional(z.boolean()),
 });
 
 export type CommandcodeSkillFrontmatter = z.infer<typeof CommandcodeSkillFrontmatterSchema>;
@@ -171,10 +184,41 @@ export class CommandcodeSkill extends ToolSkill {
       description: _sectionDescription,
       ...commandcodeSection
     } = rulesyncFrontmatter.commandcode ?? {};
+    // The Agent Skills packaging fields and the two invocation gates fall
+    // back to the root-level rulesync value when the section omits them
+    // (mirrors `CrushSkill`). Every resolver prefers a defined section value,
+    // so re-applying the resolved values over the spread never discards one.
+    const license = resolveLicense({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: commandcodeSection,
+    });
+    const compatibility = resolveCompatibility({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: commandcodeSection,
+    });
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: commandcodeSection,
+    });
+    const disableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: commandcodeSection,
+    });
+    const userInvocable = resolveUserInvocable({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: commandcodeSection,
+    });
     const commandcodeFrontmatter: CommandcodeSkillFrontmatter = {
       ...commandcodeSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
+      ...(disableModelInvocation !== undefined && {
+        "disable-model-invocation": disableModelInvocation,
+      }),
+      ...(userInvocable !== undefined && { "user-invocable": userInvocable }),
     };
 
     return new CommandcodeSkill({

@@ -678,15 +678,16 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       meta: {
         // IBM Bob hooks live under the top-level `hooks` key of the shared
         // settings file `.bob/settings.json` (project) /
-        // `~/.bob/settings/settings.json` (global). Only command hooks are
-        // supported, and a matcher applies only to the tool events.
+        // `~/.bob/settings/settings.json` (global). Command hooks and http
+        // hooks (written as Bob's `https` handler) are supported, and a
+        // matcher applies only to the tool events.
         // https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
       },
       supportedEvents: BOB_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      supportedHookTypes: ["command", "http"],
       supportsMatcher: true,
       matcherEvents: ["preToolUse", "postToolUse"],
     },
