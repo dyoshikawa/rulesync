@@ -110,6 +110,18 @@ const COMMAND_ONLY_KINDS = [
     canonical: "env",
     value: { API_URL: "https://example.com" },
   },
+  {
+    kind: "object",
+    converterConfig: {
+      ...BASE_CONFIG,
+      objectPassthroughFields: [
+        { canonical: "source", tool: "source", commandOnly: true },
+      ] as const,
+    },
+    tool: "source",
+    canonical: "source",
+    value: { source: "github:org/hooks-repo/scripts/validate.sh", ref: "main" },
+  },
 ] as const;
 
 describe("toolHooksToCanonical", () => {
@@ -343,6 +355,28 @@ const CANONICALLY_INVALID_IMPORTS = [
     invalid: -1,
     valid: 0,
   },
+  {
+    kind: "an object missing a required key",
+    converterConfig: {
+      ...BASE_CONFIG,
+      objectPassthroughFields: [{ canonical: "source", tool: "source" }] as const,
+    },
+    tool: "source",
+    canonical: "source",
+    invalid: { ref: "main" },
+    valid: { source: "github:org/hooks-repo/scripts/validate.sh" },
+  },
+  {
+    kind: "a control character inside an object field",
+    converterConfig: {
+      ...BASE_CONFIG,
+      objectPassthroughFields: [{ canonical: "source", tool: "source" }] as const,
+    },
+    tool: "source",
+    canonical: "source",
+    invalid: { source: "github:org/hooks-repo/scripts/validate.sh\nref: evil" },
+    valid: { source: "github:org/hooks-repo/scripts/validate.sh", ref: "v1.2.0" },
+  },
 ] as const;
 
 describe.each(CANONICALLY_INVALID_IMPORTS)(
@@ -375,6 +409,21 @@ describe.each(CANONICALLY_INVALID_IMPORTS)(
 );
 
 describe("toolHooksToCanonical with a value rejected by the kind rather than the schema", () => {
+  it("skips a non-object in an object field and says so", () => {
+    const { definition, logger } = importHook({
+      hook: { type: "command", command: "bash", source: "github:org/hooks-repo/run.sh" },
+      converterConfig: {
+        ...BASE_CONFIG,
+        objectPassthroughFields: [{ canonical: "source", tool: "source" }],
+      },
+    });
+
+    expect(definition).not.toHaveProperty("source");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`Dropping "source" while importing a hook: it must be an object.`),
+    );
+  });
+
   it("skips an empty string and says which rule rejected it", () => {
     const { definition, logger } = importHook({
       hook: { type: "command", command: "./run.sh", statusMessage: "" },
