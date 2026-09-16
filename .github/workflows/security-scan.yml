@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   security-scan:
@@ -17,6 +18,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Start cicd-sensor
+        continue-on-error: true
+        uses: ./.github/actions/cicd-sensor
+        with:
+          bot-id: ${{ vars.SHISHO_BOT_ID }}
 
       - name: Setup mise
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
