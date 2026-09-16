@@ -334,7 +334,7 @@ paths: "{src,lib}/**/*.ts, tests/**/*.test.ts"
       },
     );
 
-    it("should materialize the alwaysApply default for a multi-pattern scalar without alwaysApply", async () => {
+    it("should import a multi-pattern scalar without alwaysApply as a path-triggered rule", async () => {
       const rulesDir = join(testDir, ".codebuddy/rules");
       await ensureDir(rulesDir);
       await writeFileContent(
@@ -349,9 +349,9 @@ paths: "{src,lib}/**/*.ts, tests/**/*.test.ts"
 
       const scopedFrontmatter = scoped.toRulesyncRule().getFrontmatter();
       expect(scopedFrontmatter.globs).toEqual(["src/**", "tests/**"]);
-      // `alwaysApply` defaults to true upstream, so the paths do not scope the
-      // rule; the default is written out so a regenerate keeps it ALWAYS.
-      expect(scopedFrontmatter.codebuddy?.alwaysApply).toBe(true);
+      // The shipped loader reads `paths` without `alwaysApply` as MANUAL, so
+      // the key is left as written rather than materialized as `true`.
+      expect(scopedFrontmatter.codebuddy?.alwaysApply).toBeUndefined();
     });
 
     it("should not split the elements of a paths list on commas", async () => {
@@ -822,22 +822,51 @@ enabled: false
       expect(rulesyncRule.getFrontmatter().globs).toEqual(["**/*"]);
     });
 
-    it("should materialize the alwaysApply default on a rule that also has paths", () => {
+    it("should keep a paths-only rule path triggered across the round trip (issue #2953)", () => {
+      const codebuddyRule = new CodebuddyRule({
+        outputRoot: testDir,
+        relativeDirPath: ".codebuddy/rules",
+        relativeFilePath: "scoped-with-paths.md",
+        frontmatter: { paths: "src/api/**/*.ts" },
+        body: "# Scoped Rule With Paths",
+        root: false,
+      });
+
+      const rulesyncRule = codebuddyRule.toRulesyncRule();
+
+      // The shipped loader (`@tencent-ai/codebuddy-code` 2.151.0) resolves
+      // `paths` without `alwaysApply` as MANUAL, so materializing `true` here
+      // would widen the rule to always-on on the next generate.
+      expect(rulesyncRule.getFrontmatter().globs).toEqual(["src/api/**/*.ts"]);
+      expect(rulesyncRule.getFrontmatter().codebuddy?.alwaysApply).toBeUndefined();
+      expect(rulesyncRule.getFrontmatter().codebuddy?.paths).toEqual(["src/api/**/*.ts"]);
+
+      const regenerated = CodebuddyRule.fromRulesyncRule({ rulesyncRule });
+      expect(regenerated.getFrontmatter().alwaysApply).toBe(false);
+      expect(regenerated.getFrontmatter().paths).toEqual(["src/api/**/*.ts"]);
+    });
+
+    it("should keep an explicit alwaysApply: true with paths as always-on", () => {
       const codebuddyRule = new CodebuddyRule({
         outputRoot: testDir,
         relativeDirPath: ".codebuddy/rules",
         relativeFilePath: "always-with-paths.md",
-        frontmatter: { paths: "src/api/**/*.ts" },
+        frontmatter: { alwaysApply: true, paths: "src/api/**/*.ts" },
         body: "# Always Rule With Paths",
         root: false,
       });
 
       const rulesyncRule = codebuddyRule.toRulesyncRule();
 
-      // Upstream reads this as ALWAYS and ignores the paths. Recording the
-      // default keeps the next generate from downgrading it to MANUAL.
+      // The scoped paths survive as globs so the regenerated rule keeps them,
+      // while the explicit `alwaysApply: true` keeps it ALWAYS for CodeBuddy.
+      expect(rulesyncRule.getFrontmatter().globs).toEqual(["src/api/**/*.ts"]);
       expect(rulesyncRule.getFrontmatter().codebuddy?.alwaysApply).toBe(true);
       expect(rulesyncRule.getFrontmatter().codebuddy?.paths).toEqual(["src/api/**/*.ts"]);
+
+      const regenerated = CodebuddyRule.fromRulesyncRule({ rulesyncRule });
+      expect(regenerated.getFrontmatter().alwaysApply).toBe(true);
+      expect(regenerated.getFrontmatter().paths).toEqual(["src/api/**/*.ts"]);
     });
 
     it("should preserve a disabled rule across the round trip", () => {
