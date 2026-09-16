@@ -689,3 +689,50 @@ describe("toolHooksToCanonical with an event named after an Object.prototype mem
     expect(canonical["toString"]).toEqual([{ type: "command", command: "./crafted.sh" }]);
   });
 });
+
+describe("hookTypeNames (a tool spelling of a canonical hook type, #3074)", () => {
+  const RENAMING_CONFIG: ToolHooksConverterConfig = {
+    ...BASE_CONFIG,
+    supportedHookTypes: new Set(["command", "http"]),
+    hookTypeNames: { http: "https" },
+  };
+
+  it("emits the canonical http type under the tool spelling", () => {
+    const { hook } = emitHook({
+      definition: { type: "http", url: "https://example.com/hook", timeout: 3 },
+      converterConfig: RENAMING_CONFIG,
+    });
+
+    expect(hook).toEqual({ type: "https", url: "https://example.com/hook", timeout: 3 });
+  });
+
+  it("leaves a type without a tool spelling under its canonical name", () => {
+    const { hook } = emitHook({
+      definition: { type: "command", command: "./run.sh" },
+      converterConfig: RENAMING_CONFIG,
+    });
+
+    expect(hook).toEqual({ type: "command", command: "./run.sh" });
+  });
+
+  it("imports the tool spelling back as the canonical type with its payload", () => {
+    const { definition } = importHook({
+      hook: { type: "https", url: "https://example.com/hook", timeout: 3 },
+      converterConfig: RENAMING_CONFIG,
+    });
+
+    expect(definition).toEqual({ type: "http", url: "https://example.com/hook", timeout: 3 });
+  });
+
+  it("does not read the shadowed canonical spelling as that type on import", () => {
+    // The tool calls its webhook handler `https`, so a bare `http` in its
+    // file is not a handler it has: it gets the unknown-type treatment
+    // (coerced to `command`) instead of being read as a webhook.
+    const { definition } = importHook({
+      hook: { type: "http", url: "https://example.com/hook", command: "./run.sh" },
+      converterConfig: RENAMING_CONFIG,
+    });
+
+    expect(definition).toEqual({ type: "command", command: "./run.sh" });
+  });
+});

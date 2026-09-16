@@ -62,6 +62,58 @@ function parseBobMcpConfig({
 const BOB_STREAMABLE_HTTP_TYPE = "streamable-http";
 
 /**
+ * The OAuth keys Bob reads flat on a server entry, next to `oauth` (a
+ * boolean: `true` forces the flow on, `false` off, absent lets Bob detect it).
+ * The canonical shape is Claude Code's nested `oauth: { clientId, ... }`
+ * object, so the two are translated in both directions.
+ * @see https://bob.ibm.com/docs/ide/configuration/mcp/mcp-oauth
+ */
+const BOB_FLAT_OAUTH_KEYS = ["clientId", "clientSecret", "scope"] as const;
+
+/**
+ * Flatten the canonical `oauth` object onto a Bob server entry: `oauth: true`
+ * plus the string-valued keys Bob documents. A flat key the server already
+ * carries (authored in Bob's own spelling) is kept over the nested one. Other
+ * nested keys (`callbackPort`, `redirectUri`) have no Bob counterpart and are
+ * dropped rather than nested under a key Bob reads as a boolean.
+ */
+function flattenOauthForBob({
+  oauth,
+  converted,
+}: {
+  oauth: Record<string, unknown>;
+  converted: Record<string, unknown>;
+}): void {
+  converted.oauth = true;
+  for (const key of BOB_FLAT_OAUTH_KEYS) {
+    const value = oauth[key];
+    if (typeof value === "string" && converted[key] === undefined) {
+      converted[key] = value;
+    }
+  }
+}
+
+/**
+ * Reverse of {@link flattenOauthForBob}: gather Bob's flat OAuth keys into the
+ * canonical `oauth` object. `oauth: true` always folds (even with no keys, so
+ * the explicit enable survives the round-trip as an empty object); with no
+ * `oauth` key at all the fold happens only when a flat key is present, since
+ * that is what makes the entry an OAuth one for Bob; `oauth: false` and
+ * anything else leave the entry as it is.
+ */
+function nestOauthFromBob(converted: Record<string, unknown>): void {
+  const flat = BOB_FLAT_OAUTH_KEYS.filter((key) => typeof converted[key] === "string");
+  const enabled = converted.oauth === true || (converted.oauth === undefined && flat.length > 0);
+  if (!enabled) return;
+  const oauth: Record<string, unknown> = {};
+  for (const key of flat) {
+    oauth[key] = converted[key];
+    delete converted[key];
+  }
+  converted.oauth = oauth;
+}
+
+/**
  * The remote transport Bob IDE reads a server as, spelled the way it writes
  * it: `streamable-http` needs an explicit `type`, while SSE (legacy) is a bare
  * `url` with no `type`. `http` is the canonical rulesync alias for streamable
@@ -91,7 +143,9 @@ function asBobRemoteType(
  * `headers`, `timeout`, `alwaysAllow` and `disabled` pass through, as Bob
  * documents all of them, with prototype-pollution keys dropped at every
  * nesting level (Bob spreads `env` and `headers` into the process environment
- * and the HTTP requests).
+ * and the HTTP requests). The canonical `oauth` object is flattened onto the
+ * entry as `oauth: true` plus `clientId` / `clientSecret` / `scope`, the keys
+ * Bob reads; a boolean `oauth` passes through as Bob's own on/off switch.
  *
  * Bob Shell documents the same file with an `httpURL` key instead of
  * `type` + `url` for streamable HTTP. rulesync writes the IDE spelling (the two
@@ -172,12 +226,18 @@ function convertToBobFormat(mcpServers: McpServers, logger?: Logger): BobMcpServ
       }
     }
 
-    for (const [key, value] of Object.entries(rest)) {
+    const { oauth, ...passthrough } = rest;
+    for (const [key, value] of Object.entries(passthrough)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
       // Every passthrough value is sanitized recursively: `env` and `headers`
       // are key/value maps Bob spreads into the server's process environment
       // and HTTP requests, and an undocumented key may nest an object too.
       converted[key] = omitPrototypePollutionKeysDeep(value);
+    }
+    if (isRecord(oauth)) {
+      flattenOauthForBob({ oauth, converted });
+    } else if (oauth !== undefined) {
+      converted.oauth = oauth;
     }
     result[serverName] = converted;
   }
@@ -190,9 +250,10 @@ function convertToBobFormat(mcpServers: McpServers, logger?: Logger): BobMcpServ
  * (`type: "streamable-http"` + `url`) is already canonical and passes through;
  * the Bob Shell spelling `httpURL` becomes `url` with `type: "http"`; a bare
  * `url` is an SSE server in Bob, so it gains `type: "sse"` to keep that reading
- * on the next generate. Every other field passes through with its
- * prototype-pollution keys dropped at every nesting level, mirroring the
- * generate side's handling of `env` / `headers`.
+ * on the next generate. Bob's flat OAuth keys are gathered back into the
+ * canonical `oauth` object (see {@link nestOauthFromBob}). Every other field
+ * passes through with its prototype-pollution keys dropped at every nesting
+ * level, mirroring the generate side's handling of `env` / `headers`.
  */
 function convertFromBobFormat(mcpServers: unknown): McpServers {
   if (!isMcpServers(mcpServers)) {
@@ -219,6 +280,7 @@ function convertFromBobFormat(mcpServers: unknown): McpServers {
     } else if (typeof converted.url === "string" && converted.type === undefined) {
       converted.type = "sse";
     }
+    nestOauthFromBob(converted);
     result[serverName] = converted;
   }
 
