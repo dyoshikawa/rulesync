@@ -5,7 +5,11 @@ import * as smolToml from "smol-toml";
 
 import { DEEPAGENTS_CONFIG_FILE_NAME, DEEPAGENTS_DIR } from "../../constants/deepagents-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import type {
+  DeepagentsPermissionsOverride,
+  PermissionAction,
+  PermissionsConfig,
+} from "../../types/permissions.js";
 import {
   getDeepagentsRelativeDirPath,
   getDeepagentsRulesyncOutputRoot,
@@ -102,6 +106,29 @@ const DEEPAGENTS_EXTENSION_TRUST_POLICIES = ["ask", "always", "never"] as const;
  */
 const DEEPAGENTS_EXTENSIONS_ENABLED_DEFAULT = true;
 
+/**
+ * `[mcp]` holds dcode's per-server trust for the MCP servers a project's
+ * `.mcp.json` / `.deepagents/.mcp.json` declares. `load_mcp_server_trust_lists`
+ * reads it from the user-level `config.toml` only — never from a project file —
+ * so the global adapter is the one place rulesync can author it.
+ */
+const MCP_TABLE_KEY = "mcp";
+/**
+ * Keys lifted back into the override on import. `disabled_project_servers` is
+ * the deny list: a name on it is always rejected, over any approval or trust.
+ */
+const DEEPAGENTS_MCP_KEYS = ["disabled_project_servers"] as const;
+const MCP_DISABLED_PROJECT_SERVERS_KEY = "disabled_project_servers";
+
+/**
+ * dcode's own store of the project servers the user approved at the prompt,
+ * each bound to a repository or worktree and a definition fingerprint. It is
+ * machine-local state and a way to pre-approve a project's servers, so a
+ * repository's `.rulesync/permissions.jsonc` must not reach it: generate drops
+ * the key here, and import never lifts it (`DEEPAGENTS_MCP_KEYS`).
+ */
+const MCP_APPROVALS_KEY = "enabled_project_server_approvals";
+
 // Sentinels `parse_shell_allow_list_items` recognizes instead of a command
 // name: `all` allows everything (and must be the sole entry), `recommended`
 // expands to a curated list dcode owns.
@@ -192,7 +219,9 @@ const TRAILING_ARGUMENT_WILDCARD_PATTERN = /:\*$/;
  * lifted back into the override on import. The same override carries
  * `[extensions].enabled` and `[extensions].trust` (`ask` / `always` / `never`),
  * which decide whether the Python in a checked-out project's
- * `.deepagents/extensions/` is imported into the agent process.
+ * `.deepagents/extensions/` is imported into the agent process, and
+ * `[mcp].disabled_project_servers`, the names of project MCP servers dcode
+ * always rejects.
  *
  * On **import** the allowlist comes back as `bash` `allow` rules named by the
  * executable — skipping any entry dcode could not match in the first place, so
@@ -343,15 +372,7 @@ export class DeepagentsPermissions extends ToolPermissions {
       }
     }
 
-    const startupOverride = config.deepagents?.startup;
-    if (isPlainObject(startupOverride) && Object.keys(startupOverride).length > 0) {
-      mergeStartupOverride({ settings, startupOverride, filePath, logger });
-    }
-
-    const extensionsOverride = config.deepagents?.extensions;
-    if (isPlainObject(extensionsOverride) && Object.keys(extensionsOverride).length > 0) {
-      mergeExtensionsOverride({ settings, extensionsOverride, filePath, logger });
-    }
+    mergeDeepagentsOverrides({ settings, override: config.deepagents, filePath, logger });
 
     return new DeepagentsPermissions({
       outputRoot,
@@ -397,6 +418,9 @@ export class DeepagentsPermissions extends ToolPermissions {
       : {};
     const extensionsOverride = liftExtensionsOverride({ extensions, selfPath });
 
+    const mcp = isPlainObject(settings[MCP_TABLE_KEY]) ? settings[MCP_TABLE_KEY] : {};
+    const mcpOverride = liftMcpOverride({ mcp, selfPath });
+
     const result: Record<string, unknown> = { ...config };
     const deepagents: Record<string, unknown> = {};
     if (Object.keys(startupOverride).length > 0) {
@@ -404,6 +428,9 @@ export class DeepagentsPermissions extends ToolPermissions {
     }
     if (Object.keys(extensionsOverride).length > 0) {
       deepagents.extensions = extensionsOverride;
+    }
+    if (Object.keys(mcpOverride).length > 0) {
+      deepagents.mcp = mcpOverride;
     }
     if (Object.keys(deepagents).length > 0) {
       result.deepagents = deepagents;
@@ -726,12 +753,19 @@ function liftOverrideTable({
   keys,
   normalize,
   selfPath,
+  describeRejection = `deepagents-cli falls back to its own default for a '[${tableKey}]' value it cannot read`,
 }: {
   table: Record<string, unknown>;
   tableKey: string;
   keys: readonly string[];
   normalize: (params: { key: string; value: unknown }) => { value: unknown } | null;
   selfPath: string;
+  /**
+   * What dcode does with a value `normalize` rejects, for the warning. The
+   * default is the fall-back-to-default reading most options get; a table
+   * dcode fails closed on says so instead.
+   */
+  describeRejection?: string;
 }): Record<string, unknown> {
   const override: Record<string, unknown> = {};
   const rejected: string[] = [];
@@ -749,9 +783,8 @@ function liftOverrideTable({
   if (rejected.length > 0) {
     warnWithFallback(
       undefined,
-      `deepagents-cli falls back to its own default for a '[${tableKey}]' value it ` +
-        `cannot read, so ${rejected.join(", ")} in ${selfPath} ${rejected.length === 1 ? "was" : "were"} ` +
-        `not imported.`,
+      `${describeRejection}, so ${rejected.join(", ")} in ${selfPath} ` +
+        `${rejected.length === 1 ? "was" : "were"} not imported.`,
     );
   }
 
@@ -821,6 +854,58 @@ function liftExtensionsOverride({
       return typeof value === "boolean" ? { value } : null;
     },
     selfPath,
+  });
+}
+
+/**
+ * Read a `[mcp]` name list the way `_toml_str_list` reads it: a bare string
+ * is split on commas, names are trimmed and empty ones dropped, and a
+ * non-string element of a list is dropped while the names around it survive.
+ * Anything else (a number, a table, a bool) is a value dcode cannot read as
+ * names at all, so `null` says to leave it behind.
+ */
+function readMcpServerNames(value: unknown): string[] | null {
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+  }
+  if (!Array.isArray(value)) return null;
+  return value
+    .filter((name): name is string => typeof name === "string")
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+}
+
+/**
+ * Lift the `[mcp]` keys rulesync models back into the `deepagents` override.
+ * The deny list comes back as the array dcode resolves it to, so the
+ * comma-separated string form it also accepts does not survive as one bogus
+ * name in a permissions file the canonical schema types as `string[]`.
+ */
+function liftMcpOverride({
+  mcp,
+  selfPath,
+}: {
+  mcp: Record<string, unknown>;
+  selfPath: string;
+}): Record<string, unknown> {
+  return liftOverrideTable({
+    table: mcp,
+    tableKey: MCP_TABLE_KEY,
+    keys: DEEPAGENTS_MCP_KEYS,
+    normalize: ({ value }) => {
+      const names = readMcpServerNames(value);
+      return names ? { value: names } : null;
+    },
+    selfPath,
+    // Unlike the other tables, a deny list dcode cannot read is not replaced
+    // by a default: `load_mcp_server_trust_lists` records a read error and
+    // every caller fails closed on it.
+    describeRejection:
+      `deepagents-cli treats a '[${MCP_TABLE_KEY}]' value it cannot read as a broken trust ` +
+      `policy and rejects every project MCP server until it is fixed`,
   });
 }
 
@@ -920,6 +1005,41 @@ function warnAboutUncheckedKeys({
   );
 }
 
+/** An override block with something in it to write. */
+function isSet(block: unknown): block is Record<string, unknown> {
+  return isPlainObject(block) && Object.keys(block).length > 0;
+}
+
+/**
+ * Merge each block of the `deepagents` override into its `config.toml` table.
+ * A block that is absent, not a table, or empty has nothing to write and is
+ * skipped without touching the table it would have gone into.
+ */
+function mergeDeepagentsOverrides({
+  settings,
+  override,
+  filePath,
+  logger,
+}: {
+  settings: Record<string, unknown>;
+  override: DeepagentsPermissionsOverride | undefined;
+  filePath: string;
+  logger?: Logger;
+}): void {
+  const startupOverride = override?.startup;
+  if (isSet(startupOverride)) {
+    mergeStartupOverride({ settings, startupOverride, filePath, logger });
+  }
+  const extensionsOverride = override?.extensions;
+  if (isSet(extensionsOverride)) {
+    mergeExtensionsOverride({ settings, extensionsOverride, filePath, logger });
+  }
+  const mcpOverride = override?.mcp;
+  if (isSet(mcpOverride)) {
+    mergeMcpOverride({ settings, mcpOverride, filePath, logger });
+  }
+}
+
 /**
  * Merge the `deepagents.startup` override into `[startup]`.
  */
@@ -972,6 +1092,80 @@ function mergeExtensionsOverride({
     filePath,
     logger,
   });
+}
+
+/**
+ * Merge the `deepagents.mcp` override into `[mcp]`. The approval store is
+ * dropped (see `MCP_APPROVALS_KEY`); the deprecated flat
+ * `enabled_project_servers` is not modeled but passes through like any other
+ * unknown key, named by the unchecked-key warning — dcode ignores it anyway.
+ */
+function mergeMcpOverride({
+  settings,
+  mcpOverride,
+  filePath,
+  logger,
+}: {
+  settings: Record<string, unknown>;
+  mcpOverride: Record<string, unknown>;
+  filePath: string;
+  logger?: Logger;
+}): void {
+  mergeOverrideTable({
+    settings,
+    tableKey: MCP_TABLE_KEY,
+    override: mcpOverride,
+    knownKeys: DEEPAGENTS_MCP_KEYS,
+    isDroppedKey: (key) => key === MCP_APPROVALS_KEY,
+    warnAboutRelaxations: warnAboutMcpRelaxations,
+    filePath,
+    logger,
+  });
+}
+
+/**
+ * Warn when the `deepagents` mcp override re-enables project MCP servers the
+ * machine's global config had rejected. The deny list is written as a whole,
+ * so a shorter list from a repository's `.rulesync/permissions.jsonc` would
+ * otherwise silently lift a rejection the user had put in place — the very
+ * fail-open dcode's own env merge refuses to allow.
+ */
+function warnAboutMcpRelaxations({
+  override,
+  previous,
+  filePath,
+  logger,
+}: {
+  override: Record<string, unknown>;
+  previous: Record<string, unknown>;
+  filePath: string;
+  logger?: Logger;
+}): void {
+  if (override[MCP_APPROVALS_KEY] !== undefined) {
+    warnWithFallback(
+      logger,
+      `The deepagents mcp override's '${MCP_APPROVALS_KEY}' was not written to ${filePath}: ` +
+        `dcode builds that approval store itself from the project MCP servers you accept at ` +
+        `launch, so a permissions file cannot pre-approve them.`,
+    );
+  }
+
+  const written = override[MCP_DISABLED_PROJECT_SERVERS_KEY];
+  if (written === undefined || written === null) return;
+  const kept = new Set(readMcpServerNames(written) ?? []);
+  const reEnabled = (readMcpServerNames(previous[MCP_DISABLED_PROJECT_SERVERS_KEY]) ?? []).filter(
+    (name) => !kept.has(name),
+  );
+  if (reEnabled.length === 0) return;
+
+  warnWithFallback(
+    logger,
+    `The deepagents mcp override removed ${reEnabled.map((name) => JSON.stringify(name)).join(", ")} ` +
+      `from [${MCP_TABLE_KEY}].${MCP_DISABLED_PROJECT_SERVERS_KEY} in ${filePath}, which is ` +
+      `your global deepagents-cli config: dcode no longer rejects ` +
+      `${reEnabled.length === 1 ? "that project MCP server" : "those project MCP servers"} ` +
+      `outright, for every project on this machine, not just this one.`,
+  );
 }
 
 /**

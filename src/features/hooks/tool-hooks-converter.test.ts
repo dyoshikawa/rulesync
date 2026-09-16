@@ -689,3 +689,111 @@ describe("toolHooksToCanonical with an event named after an Object.prototype mem
     expect(canonical["toString"]).toEqual([{ type: "command", command: "./crafted.sh" }]);
   });
 });
+
+describe("timeoutUnit (tool timeouts in milliseconds)", () => {
+  const MS_CONFIG: ToolHooksConverterConfig = { ...BASE_CONFIG, timeoutUnit: "milliseconds" };
+
+  it("multiplies the canonical seconds by 1000 on generate", () => {
+    const { hook } = emitHook({
+      definition: { type: "command", command: "./guard.sh", timeout: 30 },
+      converterConfig: MS_CONFIG,
+    });
+
+    expect(hook).toEqual({ type: "command", command: "./guard.sh", timeout: 30000 });
+  });
+
+  it("rounds a fractional second to whole milliseconds", () => {
+    const { hook } = emitHook({
+      definition: { type: "command", command: "./guard.sh", timeout: 1.5005 },
+      converterConfig: MS_CONFIG,
+    });
+
+    expect(hook?.timeout).toBe(1501);
+  });
+
+  it("divides the tool milliseconds by 1000 on import", () => {
+    const { definition } = importHook({
+      hook: { type: "command", command: "./guard.sh", timeout: 5000 },
+      converterConfig: MS_CONFIG,
+    });
+
+    expect(definition).toEqual({ type: "command", command: "./guard.sh", timeout: 5 });
+  });
+
+  it("round-trips whole seconds and settles a fractional second at millisecond precision", () => {
+    const roundTrip = (timeout: number) => {
+      const { hook } = emitHook({
+        definition: { type: "command", command: "./guard.sh", timeout },
+        converterConfig: MS_CONFIG,
+      });
+      const { definition } = importHook({ hook: hook ?? {}, converterConfig: MS_CONFIG });
+      return definition?.timeout;
+    };
+
+    expect(roundTrip(30)).toBe(30);
+    // The generated file holds whole milliseconds, so sub-millisecond
+    // precision is lost once and then stable.
+    expect(roundTrip(1.5005)).toBe(1.501);
+  });
+
+  it("forwards the timeout verbatim when the unit is not set", () => {
+    const { hook } = emitHook({
+      definition: { type: "command", command: "./guard.sh", timeout: 30 },
+      converterConfig: BASE_CONFIG,
+    });
+    const { definition } = importHook({
+      hook: { type: "command", command: "./guard.sh", timeout: 30 },
+      converterConfig: BASE_CONFIG,
+    });
+
+    expect(hook?.timeout).toBe(30);
+    expect(definition?.timeout).toBe(30);
+  });
+});
+
+describe("hookTypeNames (a tool spelling of a canonical hook type, #3074)", () => {
+  const RENAMING_CONFIG: ToolHooksConverterConfig = {
+    ...BASE_CONFIG,
+    supportedHookTypes: new Set(["command", "http"]),
+    hookTypeNames: { http: "https" },
+  };
+
+  it("emits the canonical http type under the tool spelling", () => {
+    const { hook } = emitHook({
+      definition: { type: "http", url: "https://example.com/hook", timeout: 3 },
+      converterConfig: RENAMING_CONFIG,
+    });
+
+    expect(hook).toEqual({ type: "https", url: "https://example.com/hook", timeout: 3 });
+  });
+
+  it("leaves a type without a tool spelling under its canonical name", () => {
+    const { hook } = emitHook({
+      definition: { type: "command", command: "./run.sh" },
+      converterConfig: RENAMING_CONFIG,
+    });
+
+    expect(hook).toEqual({ type: "command", command: "./run.sh" });
+  });
+
+  it("imports the tool spelling back as the canonical type with its payload", () => {
+    const { definition } = importHook({
+      hook: { type: "https", url: "https://example.com/hook", timeout: 3 },
+      converterConfig: RENAMING_CONFIG,
+    });
+
+    expect(definition).toEqual({ type: "http", url: "https://example.com/hook", timeout: 3 });
+  });
+
+  it("does not read the shadowed canonical spelling as that type on import", () => {
+    // The tool calls its webhook handler `https`, so a bare `http` in its
+    // file is not a handler it has: it gets the unknown-type treatment
+    // (coerced to `command`) instead of being read as a webhook.
+    const { definition } = importHook({
+      hook: { type: "http", url: "https://example.com/hook", command: "./run.sh" },
+      converterConfig: RENAMING_CONFIG,
+    });
+
+    expect(definition).toEqual({ type: "command", command: "./run.sh" });
+  });
+});

@@ -23,6 +23,11 @@ export const COMMANDCODE_RULE_FILE_NAME = "AGENTS.md";
 // @see https://commandcode.ai/docs/hooks
 // @see https://commandcode.ai/docs/permissions
 export const COMMANDCODE_SETTINGS_FILE_NAME = "settings.json";
+// The personal, gitignored settings layer beside it: `--local` approvals and
+// per-developer overrides land in `.commandcode/settings.local.json`. rulesync
+// never writes it, but a repository is likely to have one.
+// @see https://commandcode.ai/docs/permissions
+export const COMMANDCODE_SETTINGS_LOCAL_FILE_NAME = "settings.local.json";
 
 // MCP servers. The project file is `.mcp.json` at the repository root (the
 // same file Claude Code reads); the user file is `~/.commandcode/mcp.json`.

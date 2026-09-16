@@ -38,6 +38,7 @@ export const rulesProcessorToolTargetTuple = [
   "musecode",
   "opencode",
   "pi",
+  "pool",
   "qwencode",
   "reasonix",
   "replit",
@@ -51,7 +52,6 @@ export const rulesProcessorToolTargetTuple = [
   "zcode",
   "zed",
   "zoocode",
-  "pool",
   "dsh",
 ] as const;
 
