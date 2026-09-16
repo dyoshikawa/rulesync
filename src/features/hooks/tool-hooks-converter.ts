@@ -114,6 +114,20 @@ export type ToolHooksConverterConfig = {
     readonly commandOnly?: boolean;
   }>;
   /**
+   * Per-hook object fields to carry through the round-trip, each mapping a
+   * canonical {@link HookDefinitionSchema} object field to its tool-side field
+   * name. Only plain objects are emitted; import additionally checks the value
+   * against the canonical field's own schema, so a hand-written object missing
+   * a required key (Cortex Code's `source.source`) cannot land in a
+   * `.rulesync/hooks.*` that fails validation on the next run.
+   */
+  objectPassthroughFields?: ReadonlyArray<{
+    readonly canonical: "source";
+    readonly tool: string;
+    /** Emit only on `command` hooks, for a field the tool documents there only. */
+    readonly commandOnly?: boolean;
+  }>;
+  /**
    * Fields that live on the *matcher group* rather than on a hook. They are
    * stored per definition canonically (the canonical model is a flat list), so
    * export reads the first definition of the group that carries one and import
@@ -293,7 +307,7 @@ function applyCommandPrefix({
 }
 
 /**
- * The shape every per-hook passthrough registration shares. The five kinds
+ * The shape every per-hook passthrough registration shares. The six kinds
  * differ only in which canonical field names they accept and in the predicate
  * that decides whether a value is expressible, so both directions are
  * implemented once and parameterized by that predicate.
@@ -447,6 +461,7 @@ const isEmittableString: PassthroughValidator = ({ value }) => isNonEmptyString(
 const isEmittableArray: PassthroughValidator = ({ value }) => isStringArray(value);
 const isEmittableRecord: PassthroughValidator = ({ value }) => isSafeStringRecord(value);
 const isImportableArray: PassthroughValidator = ({ value }) => isSafeStringArray(value);
+const isEmittableObject: PassthroughValidator = ({ value }) => isPlainObject(value);
 
 /**
  * The canonical schema of one hook field, looked up by name. Read off the
@@ -492,11 +507,16 @@ const isImportableString: PassthroughValidator = ({ value, canonical }) =>
 const isImportableNumber: PassthroughValidator = ({ value, canonical }) =>
   Number.isFinite(value) && satisfiesCanonicalField({ value, canonical });
 
+const isImportableObject: PassthroughValidator = ({ value, canonical }) =>
+  isPlainObject(value) && satisfiesCanonicalField({ value, canonical });
+
 /**
  * Say which rule the value broke, so the warning names the actual constraint
  * rather than asserting a canonical rejection that may not be the reason. A
  * closed enum lists its members; a rule carrying its own message (the
- * control-character check behind `safeString`) reuses it.
+ * control-character check behind `safeString`) reuses it. An object field
+ * names the offending key, since zod's generic "Invalid input" would not tell
+ * the reader which key is missing or malformed.
  */
 function describeScalarConstraint({
   canonical,
@@ -516,7 +536,11 @@ function describeScalarConstraint({
   if (issue === undefined) {
     return `it is not a value the canonical "${canonical}" field accepts.`;
   }
-  return `it does not satisfy the canonical "${canonical}" field: ${issue.message}.`;
+  // A record's path element is the user-written key itself (a header name),
+  // so it is quoted like every other value this message carries.
+  const at =
+    issue.path.length > 0 ? ` at ${quoteValueForWarning(issue.path.map(String).join("."))}` : "";
+  return `it does not satisfy the canonical "${canonical}" field${at}: ${issue.message}.`;
 }
 
 const describeInvalidScalar = ({
@@ -535,6 +559,26 @@ const describeInvalidScalar = ({
 const describeInvalidArray = ({ tool }: { tool: string }): string =>
   `Dropping "${tool}" while importing a hook: it must be a list of strings without ` +
   `newline, carriage return or NUL characters.`;
+
+/**
+ * An object is quoted by its offending key rather than its value: the payload
+ * can be arbitrarily large, and the missing or malformed key is what the
+ * reader needs to fix.
+ */
+const describeInvalidObject = ({
+  tool,
+  canonical,
+  value,
+}: {
+  tool: string;
+  canonical: string;
+  value: unknown;
+}): string =>
+  isPlainObject(value)
+    ? `Dropping "${tool}" while importing a hook: ` +
+      `${describeScalarConstraint({ canonical, value })} Importing it would fail validation ` +
+      `on the next run.`
+    : `Dropping "${tool}" while importing a hook: it must be an object.`;
 
 const describeInvalidRecord = ({ tool }: { tool: string }): string =>
   `Dropping "${tool}" while importing a hook: it must be a map of strings whose keys ` +
@@ -717,6 +761,14 @@ function emitAllPassthroughFields({
       eventName,
       fields: converterConfig.recordPassthroughFields ?? [],
       isValid: isEmittableRecord,
+      warn,
+    }),
+    ...emitPassthroughFields<Record<string, unknown>>({
+      def,
+      hookType,
+      eventName,
+      fields: converterConfig.objectPassthroughFields ?? [],
+      isValid: isEmittableObject,
       warn,
     }),
   };
@@ -1101,6 +1153,16 @@ function importAllPassthroughFields({
       fields: converterConfig.recordPassthroughFields ?? [],
       isValid: isEmittableRecord,
       describeInvalid: describeInvalidRecord,
+      warn,
+    }),
+    ...importPassthroughFields<Record<string, unknown>>({
+      h,
+      hookType,
+      fields: converterConfig.objectPassthroughFields ?? [],
+      // Stricter than the emit side: the canonical field declares the keys the
+      // object must carry, and a hand-written tool config need not.
+      isValid: isImportableObject,
+      describeInvalid: describeInvalidObject,
       warn,
     }),
   };

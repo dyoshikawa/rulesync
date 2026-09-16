@@ -120,6 +120,19 @@ export const HookDefinitionSchema = z.looseObject({
   // per definition here, like `sequential`, since the canonical model is a flat
   // list. https://docs.augmentcode.com/cli/hooks
   metadata: z.optional(z.looseObject({})),
+  // Snowflake Cortex Code command hooks: a "remote hook" fetches the script
+  // from a Git repository instead of the local tree — `source.source` is the
+  // `github:<org>/<repo>/<path>` locator and `source.ref` the branch or commit.
+  // `command` then names the interpreter (e.g. `bash`) the fetched file runs
+  // under, so dropping this object would leave a bare interpreter with nothing
+  // to execute. Only Cortex Code documents the field.
+  // https://docs.snowflake.com/en/user-guide/cortex-code/extensibility#remote-hooks
+  source: z.optional(
+    z.looseObject({
+      source: safeString,
+      ref: z.optional(safeString),
+    }),
+  ),
   // Claude Code tool events (PreToolUse/PostToolUse/PostToolUseFailure/
   // PermissionRequest/PermissionDenied): `if` filters a hook by tool arguments,
   // holding a single permission rule with the same syntax as settings.json

@@ -110,6 +110,18 @@ const COMMAND_ONLY_KINDS = [
     canonical: "env",
     value: { API_URL: "https://example.com" },
   },
+  {
+    kind: "object",
+    converterConfig: {
+      ...BASE_CONFIG,
+      objectPassthroughFields: [
+        { canonical: "source", tool: "source", commandOnly: true },
+      ] as const,
+    },
+    tool: "source",
+    canonical: "source",
+    value: { source: "github:org/hooks-repo/scripts/validate.sh", ref: "main" },
+  },
 ] as const;
 
 describe("toolHooksToCanonical", () => {
@@ -343,11 +355,37 @@ const CANONICALLY_INVALID_IMPORTS = [
     invalid: -1,
     valid: 0,
   },
+  {
+    kind: "an object missing a required key",
+    converterConfig: {
+      ...BASE_CONFIG,
+      objectPassthroughFields: [{ canonical: "source", tool: "source" }] as const,
+    },
+    tool: "source",
+    canonical: "source",
+    invalid: { ref: "main" },
+    valid: { source: "github:org/hooks-repo/scripts/validate.sh" },
+    // The warning names the offending key, since zod's own message for a
+    // missing key is the generic "Invalid input".
+    at: "source",
+  },
+  {
+    kind: "a control character inside an object field",
+    converterConfig: {
+      ...BASE_CONFIG,
+      objectPassthroughFields: [{ canonical: "source", tool: "source" }] as const,
+    },
+    tool: "source",
+    canonical: "source",
+    invalid: { source: "github:org/hooks-repo/scripts/validate.sh\nref: evil" },
+    valid: { source: "github:org/hooks-repo/scripts/validate.sh", ref: "v1.2.0" },
+    at: "source",
+  },
 ] as const;
 
 describe.each(CANONICALLY_INVALID_IMPORTS)(
   "toolHooksToCanonical with $kind",
-  ({ converterConfig, tool, canonical, invalid, valid }) => {
+  ({ converterConfig, tool, canonical, invalid, valid, ...entry }) => {
     it("skips the value and warns instead of importing it", () => {
       const { definition, logger } = importHook({
         hook: { type: "command", command: "./run.sh", [tool]: invalid },
@@ -357,8 +395,10 @@ describe.each(CANONICALLY_INVALID_IMPORTS)(
       expect(definition).not.toHaveProperty(canonical);
       // Only the sentence Rulesync writes is asserted; the tail comes from
       // zod's own message for the violated rule, which is locale-dependent.
+      // A scalar has no key to name, so its sentence ends right at the colon.
+      const at = "at" in entry ? ` at "${entry.at}"` : "";
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(`it does not satisfy the canonical "${canonical}" field:`),
+        expect.stringContaining(`it does not satisfy the canonical "${canonical}" field${at}:`),
       );
     });
 
@@ -375,6 +415,38 @@ describe.each(CANONICALLY_INVALID_IMPORTS)(
 );
 
 describe("toolHooksToCanonical with a value rejected by the kind rather than the schema", () => {
+  it("skips a non-object in an object field and says so", () => {
+    const { definition, logger } = importHook({
+      hook: { type: "command", command: "bash", source: "github:org/hooks-repo/run.sh" },
+      converterConfig: {
+        ...BASE_CONFIG,
+        objectPassthroughFields: [{ canonical: "source", tool: "source" }],
+      },
+    });
+
+    expect(definition).not.toHaveProperty("source");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`Dropping "source" while importing a hook: it must be an object.`),
+    );
+  });
+
+  it("quotes the header name it points at, since that key is user-written", () => {
+    const { definition, logger } = importHook({
+      hook: {
+        type: "http",
+        url: "https://hooks.example.com/pre",
+        headers: { "X-\u001b[2K\nEvil": "bad\nvalue" },
+      },
+      converterConfig: { ...BASE_CONFIG, supportedHookTypes: new Set(["http"]) },
+    });
+
+    expect(definition).not.toHaveProperty("headers");
+    const [message] = logger.warn.mock.calls[0] ?? [];
+    expect(message).toContain('field at "X-[2KEvil":');
+    // eslint-disable-next-line no-control-regex
+    expect(message).not.toMatch(/[\u0000-\u0009\u000b-\u001f]/);
+  });
+
   it("skips an empty string and says which rule rejected it", () => {
     const { definition, logger } = importHook({
       hook: { type: "command", command: "./run.sh", statusMessage: "" },

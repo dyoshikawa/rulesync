@@ -22,7 +22,10 @@ const CORTEXCODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["beforeSubmit
 // `$CORTEX_PROJECT_DIR` is the documented project-root variable for hook
 // commands, so dot-relative scripts are anchored to it the way Claude Code
 // anchors them to `$CLAUDE_PROJECT_DIR`. `timeout` is in seconds (canonical
-// unit) and the documented per-hook `enabled` flag round-trips as-is.
+// unit) and the documented per-hook `enabled` flag round-trips as-is. The
+// Remote Hooks `source` object (`{ source: "github:org/repo/path", ref }`)
+// is documented on command hooks only, where `command` names the interpreter
+// the fetched script runs under.
 const CORTEXCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: CORTEXCODE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_CORTEXCODE_EVENT_NAMES,
@@ -32,6 +35,7 @@ const CORTEXCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   noMatcherEvents: CORTEXCODE_NO_MATCHER_EVENTS,
   supportedHookTypes: new Set(["command", "prompt"]),
   booleanPassthroughFields: [{ canonical: "enabled", tool: "enabled" }],
+  objectPassthroughFields: [{ canonical: "source", tool: "source", commandOnly: true }],
 };
 
 const CORTEXCODE_SPEC: SettingsJsonHooksSpec = {
@@ -47,8 +51,9 @@ const CORTEXCODE_SPEC: SettingsJsonHooksSpec = {
  * (project scope) and of the dedicated `~/.snowflake/cortex/hooks.json` (user
  * scope), both in the Claude-Code shape: `{ "<Event>": [{ "matcher"?:
  * "<regex>", "hooks": [{ "type": "command" | "prompt", ..., "timeout"?:
- * <seconds>, "enabled"?: <boolean> }] }] }`. The project file also holds
- * settings rulesync does not own, so generation merges the `hooks` key into
+ * <seconds>, "enabled"?: <boolean>, "source"?: { "source", "ref"? } }] }] }`.
+ * The project file also holds settings rulesync does not own, so generation
+ * merges the `hooks` key into
  * either file (see `SHARED_CONFIG_OWNERSHIP`) instead of overwriting it, and
  * neither file is removed wholesale (hooks.json sits in the CLI-owned
  * `~/.snowflake/cortex/` tree).
