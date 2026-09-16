@@ -536,7 +536,10 @@ function describeScalarConstraint({
   if (issue === undefined) {
     return `it is not a value the canonical "${canonical}" field accepts.`;
   }
-  const at = issue.path.length > 0 ? ` at "${issue.path.join(".")}"` : "";
+  // A record's path element is the user-written key itself (a header name),
+  // so it is quoted like every other value this message carries.
+  const at =
+    issue.path.length > 0 ? ` at ${quoteValueForWarning(issue.path.map(String).join("."))}` : "";
   return `it does not satisfy the canonical "${canonical}" field${at}: ${issue.message}.`;
 }
 

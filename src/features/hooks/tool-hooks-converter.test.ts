@@ -430,6 +430,23 @@ describe("toolHooksToCanonical with a value rejected by the kind rather than the
     );
   });
 
+  it("quotes the header name it points at, since that key is user-written", () => {
+    const { definition, logger } = importHook({
+      hook: {
+        type: "http",
+        url: "https://hooks.example.com/pre",
+        headers: { "X-\u001b[2K\nEvil": "bad\nvalue" },
+      },
+      converterConfig: { ...BASE_CONFIG, supportedHookTypes: new Set(["http"]) },
+    });
+
+    expect(definition).not.toHaveProperty("headers");
+    const [message] = logger.warn.mock.calls[0] ?? [];
+    expect(message).toContain('field at "X-[2KEvil":');
+    // eslint-disable-next-line no-control-regex
+    expect(message).not.toMatch(/[\u0000-\u0009\u000b-\u001f]/);
+  });
+
   it("skips an empty string and says which rule rejected it", () => {
     const { definition, logger } = importHook({
       hook: { type: "command", command: "./run.sh", statusMessage: "" },
