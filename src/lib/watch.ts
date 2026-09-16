@@ -134,7 +134,9 @@ export type WatchHandle = {
   close: () => void;
   /**
    * Resolves once every target that exists is being watched. Changes made
-   * before then may go unreported.
+   * before then may go unreported. Never left pending: a target that
+   * disappears during its initial scan, or a handle closed before the scan
+   * completes, resolves it as well.
    */
   ready: Promise<void>;
 };
@@ -199,7 +201,7 @@ function watchTargetWithRearm({
   let closed = false;
   const { promise: ready, resolve: markReady } = Promise.withResolvers<void>();
 
-  const attach = (): void => {
+  const attach = ({ onReady }: { onReady: () => void }): void => {
     // Stat before watching so a delete+recreate between the two calls leaves
     // `watchedIdentity` on the old directory: the next liveness check then
     // sees a mismatch and self-heals with one extra re-attach. The opposite
@@ -227,9 +229,19 @@ function watchTargetWithRearm({
       onError({ error, directory: target.directory });
       verifyStillWatching();
     });
-    created.once("ready", markReady);
+    created.once("ready", onReady);
     watcher = created;
     watchedIdentity = identity;
+  };
+
+  // chokidar's `close()` drops every listener, including a pending `ready`
+  // one. Any watcher torn down before its initial scan completed would
+  // otherwise leave `ready` hanging forever, so resolve it here: the target
+  // being gone (or the handle closed) is as settled as the watch will get.
+  const detach = (): void => {
+    void watcher?.close();
+    watcher = undefined;
+    markReady();
   };
 
   const scheduleRearm = (): void => {
@@ -243,15 +255,16 @@ function watchTargetWithRearm({
       clearInterval(rearmTimer);
       rearmTimer = undefined;
       try {
-        attach();
+        // The directory came back with unknown contents, so regenerate —
+        // once the new watcher has finished its initial scan, so the run
+        // does not race chokidar's own directory walk and every file the
+        // run reads is already covered by the watch.
+        attach({ onReady: () => onChange({ path: target.directory }) });
       } catch (error) {
         // Lost another race with a delete; keep polling.
         onError({ error, directory: target.directory });
         scheduleRearm();
-        return;
       }
-      // The directory came back with unknown contents, so regenerate.
-      onChange({ path: target.directory });
     }, rearmIntervalMs);
   };
 
@@ -276,8 +289,7 @@ function watchTargetWithRearm({
         return;
       }
     }
-    void watcher.close();
-    watcher = undefined;
+    detach();
     // Report the disappearance the same way an OS delete event would have —
     // liveness may have detected it purely by polling, with no event ever
     // delivered. The scheduler debounces, so an extra notification after an
@@ -288,12 +300,14 @@ function watchTargetWithRearm({
 
   if (existsSync(target.directory)) {
     try {
-      attach();
+      attach({ onReady: markReady });
     } catch (error) {
       // If the directory disappeared between the existence check and the
       // watcher's start, treat it like any other temporarily absent overlay.
-      // Permission and platform errors for a still-existing directory remain
-      // real attachment failures and must propagate.
+      // chokidar reports permission and platform errors for a still-existing
+      // directory through its asynchronous `error` event (forwarded to
+      // `onError` above), so a synchronous throw here is unexpected and
+      // propagates as a real attachment failure.
       if (existsSync(target.directory)) {
         throw error;
       }
@@ -326,8 +340,7 @@ function watchTargetWithRearm({
         clearInterval(rearmTimer);
         rearmTimer = undefined;
       }
-      void watcher?.close();
-      watcher = undefined;
+      detach();
     },
     ready,
   };

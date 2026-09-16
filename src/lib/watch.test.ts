@@ -22,7 +22,9 @@ import {
   RULES_FEATURE_SUBDIR,
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_DEPRECATED_DOTFILE_NAME,
   RULESYNC_MCP_FILE_NAME,
+  RULESYNC_MCP_LEGACY_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -284,6 +286,9 @@ describe("buildWatchTargets", () => {
     const include = targets[0]?.include;
     expect(include?.(join(RULES_FEATURE_SUBDIR, "a.md"))).toBe(true);
     expect(include?.(RULESYNC_MCP_FILE_NAME)).toBe(true);
+    // Deprecated spellings are still read by `generate`, so they stay watched.
+    expect(include?.(RULESYNC_MCP_LEGACY_FILE_NAME)).toBe(true);
+    expect(include?.(RULESYNC_MCP_DEPRECATED_DOTFILE_NAME)).toBe(true);
     // Entries `generate` never reads must not trigger a regeneration, even
     // when the source tree is the project directory itself.
     expect(include?.(join(".git", "index"))).toBe(false);
@@ -668,6 +673,86 @@ describe("watchTargets", () => {
       } finally {
         chokidarWatchMock.mockImplementation(actual.watch);
         handle.close();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("resolves ready when the target disappears before the initial scan completes", async () => {
+    const actual = await vi.importActual<typeof import("chokidar")>("chokidar");
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const watchedDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await mkdir(watchedDir, { recursive: true });
+
+      // A watcher whose initial scan never finishes: chokidar's `close()`
+      // discards its pending `ready` listener, so once the liveness sweep
+      // detaches it, nothing but the handle itself can settle `ready`.
+      chokidarWatchMock.mockImplementation(
+        () =>
+          ({
+            close: () => {},
+            on: () => {},
+            once: () => {},
+          }) as unknown as ReturnType<typeof actual.watch>,
+      );
+
+      const handle = watchTargets({
+        targets: [{ directory: watchedDir, recursive: true }],
+        onChange: () => {},
+        onError: () => {},
+        rearmIntervalMs: 25,
+      });
+
+      try {
+        await rm(watchedDir, { recursive: true, force: true });
+        await expect(
+          Promise.race([
+            handle.ready.then(() => "ready"),
+            new Promise((resolve) => setTimeout(() => resolve("stalled"), 5000)),
+          ]),
+        ).resolves.toBe("ready");
+      } finally {
+        chokidarWatchMock.mockImplementation(actual.watch);
+        handle.close();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("resolves ready when the handle is closed before the initial scan completes", async () => {
+    const actual = await vi.importActual<typeof import("chokidar")>("chokidar");
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const watchedDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await mkdir(watchedDir, { recursive: true });
+
+      chokidarWatchMock.mockImplementation(
+        () =>
+          ({
+            close: () => {},
+            on: () => {},
+            once: () => {},
+          }) as unknown as ReturnType<typeof actual.watch>,
+      );
+
+      try {
+        const handle = watchTargets({
+          targets: [{ directory: watchedDir, recursive: true }],
+          onChange: () => {},
+          onError: () => {},
+        });
+        handle.close();
+        await expect(
+          Promise.race([
+            handle.ready.then(() => "ready"),
+            new Promise((resolve) => setTimeout(() => resolve("stalled"), 5000)),
+          ]),
+        ).resolves.toBe("ready");
+      } finally {
+        chokidarWatchMock.mockImplementation(actual.watch);
       }
     } finally {
       await cleanup();
