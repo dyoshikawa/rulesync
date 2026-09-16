@@ -85,6 +85,8 @@ export const RULESYNC_PERMISSIONS_FILE_NAME = "permissions.jsonc";
 export const RULESYNC_MCP_LEGACY_FILE_NAME = "mcp.json";
 export const RULESYNC_HOOKS_LEGACY_FILE_NAME = "hooks.json";
 export const RULESYNC_PERMISSIONS_LEGACY_FILE_NAME = "permissions.json";
+// Deprecated dotfile spelling of the MCP config, still read for compatibility.
+export const RULESYNC_MCP_DEPRECATED_DOTFILE_NAME = ".mcp.json";
 
 // Top-level entries of a rulesync source tree, per feature.
 export const FEATURE_SOURCE_TREE_ENTRIES: Record<Feature, readonly string[]> = {
@@ -94,7 +96,11 @@ export const FEATURE_SOURCE_TREE_ENTRIES: Record<Feature, readonly string[]> = {
   skills: [SKILLS_FEATURE_SUBDIR],
   checks: [CHECKS_FEATURE_SUBDIR],
   ignore: [RULESYNC_AIIGNORE_FILE_NAME],
-  mcp: [RULESYNC_MCP_FILE_NAME, RULESYNC_MCP_LEGACY_FILE_NAME],
+  mcp: [
+    RULESYNC_MCP_FILE_NAME,
+    RULESYNC_MCP_LEGACY_FILE_NAME,
+    RULESYNC_MCP_DEPRECATED_DOTFILE_NAME,
+  ],
   hooks: [RULESYNC_HOOKS_FILE_NAME, RULESYNC_HOOKS_LEGACY_FILE_NAME],
   permissions: [RULESYNC_PERMISSIONS_FILE_NAME, RULESYNC_PERMISSIONS_LEGACY_FILE_NAME],
 };
