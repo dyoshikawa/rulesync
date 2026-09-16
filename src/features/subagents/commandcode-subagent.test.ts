@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { CommandcodeSubagent } from "./commandcode-subagent.js";
@@ -172,6 +173,59 @@ Body content`;
       });
       expect(commandcodeSubagent.getRelativeFilePath()).toBe("test-agent.md");
       expect(commandcodeSubagent.getRelativeDirPath()).toBe(agentsDir);
+    });
+
+    it.each(["review", "Explore", "plan", "general"])(
+      "warns that %j is a reserved Command Code agent name (issue #3075)",
+      (name) => {
+        const logger = createMockLogger();
+        const rulesyncSubagent = new RulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+          relativeFilePath: "reviewer.md",
+          frontmatter: { targets: ["commandcode"], name, description: "Reviews code" },
+          body: "Review.",
+          validate: true,
+        });
+
+        const commandcodeSubagent = CommandcodeSubagent.fromRulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: agentsDir,
+          rulesyncSubagent,
+          validate: true,
+          logger,
+        }) as CommandcodeSubagent;
+
+        // Still generated under the name — it is the user's to change — but
+        // Command Code's loader drops it silently, so the warning says so.
+        expect(commandcodeSubagent.getFrontmatter().name).toBe(name);
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`reviewer.md: the name "${name}" is reserved`),
+        );
+      },
+    );
+
+    it("says nothing about a name Command Code does not reserve", () => {
+      const logger = createMockLogger();
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "code-reviewer.md",
+        frontmatter: { targets: ["commandcode"], name: "code-reviewer", description: "Reviews" },
+        body: "Review.",
+        validate: true,
+      });
+
+      CommandcodeSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: agentsDir,
+        rulesyncSubagent,
+        validate: true,
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should emit YAML frontmatter including commandcode-section fields", () => {

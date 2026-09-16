@@ -250,6 +250,68 @@ Follow PDF extraction steps.`;
       expect(frontmatter.description).toBe("Deploy the app");
     });
 
+    it("falls back to the root-level packaging fields and invocation gates (issue #3075)", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "deploy",
+        frontmatter: {
+          name: "deploy",
+          description: "Deploy the app",
+          targets: ["commandcode"],
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { author: "me" },
+          "disable-model-invocation": true,
+          "user-invocable": false,
+        },
+        body: "Deploy.",
+        validate: false,
+      });
+
+      const skill = CommandcodeSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "deploy",
+        description: "Deploy the app",
+        license: "MIT",
+        compatibility: "Requires git",
+        metadata: { author: "me" },
+        "disable-model-invocation": true,
+        "user-invocable": false,
+      });
+    });
+
+    it("lets the commandcode section override a root-level default", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "deploy",
+        frontmatter: {
+          name: "deploy",
+          description: "Deploy the app",
+          targets: ["commandcode"],
+          license: "MIT",
+          "user-invocable": false,
+          commandcode: { license: "Apache-2.0", "user-invocable": true, effort: "high" },
+        },
+        body: "Deploy.",
+        validate: false,
+      });
+
+      const skill = CommandcodeSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+
+      // A defined section value (including a boolean flip) wins over the root
+      // default, and section-only keys still pass through.
+      expect(skill.getFrontmatter()).toEqual({
+        name: "deploy",
+        description: "Deploy the app",
+        license: "Apache-2.0",
+        "user-invocable": true,
+        effort: "high",
+      });
+    });
+
     it("should lift extra frontmatter keys back into the commandcode section on import", () => {
       const skill = new CommandcodeSkill({
         outputRoot: testDir,
