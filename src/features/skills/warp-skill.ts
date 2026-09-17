@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { WARP_SKILLS_DIR_PATH } from "../../constants/warp-paths.js";
@@ -83,8 +84,19 @@ export class WarpSkill extends ToolSkill {
   static getSettablePaths({
     global: _global = false,
   }: { global?: boolean } = {}): ToolSkillSettablePaths {
+    // Warp reads project skills from `.warp/skills/` and user skills from
+    // `~/.warp/skills/`; both share the relative path, with only the output
+    // base differing. It also discovers the cross-tool Agent Skills root at
+    // `<projectRoot>/.agents/skills/` and `~/.agents/skills/`, which Warp
+    // documents as the recommended location. That root is import-only:
+    // rulesync never writes there for this target, so a skill another tool put
+    // in the shared tree must not become an orphan deletion candidate — least
+    // of all under the user's home directory. When the same skill name exists
+    // in both roots, the Warp-specific root wins.
+    // @see https://docs.warp.dev/agents/capabilities/skills/
     return {
       relativeDirPath: WARP_SKILLS_DIR_PATH,
+      importOnlySkillRoots: [AGENTSMD_SKILLS_DIR_PATH],
     };
   }
 
@@ -170,12 +182,14 @@ export class WarpSkill extends ToolSkill {
   }
 
   /**
-   * Commands are emitted into this same skills tree as `<slug>/SKILL.md`
-   * (see `WarpCommand`), so a directory matching a current rulesync command
-   * slug is owned by the commands feature: it must not be imported as a
-   * skill nor deleted as an orphan skill.
+   * Commands are emitted into the `.warp/skills/` tree as `<slug>/SKILL.md`
+   * (see `WarpCommand`), so a directory there matching a current rulesync
+   * command slug is owned by the commands feature: it must not be imported as
+   * a skill nor deleted as an orphan skill. The import-only `.agents/skills/`
+   * root never receives commands, so a same-named skill in it stays a skill.
    */
   static async isDirOwned({
+    relativeDirPath,
     dirName,
     inputRoots,
   }: {
@@ -184,6 +198,9 @@ export class WarpSkill extends ToolSkill {
     dirName: string;
     inputRoots: readonly string[];
   }): Promise<boolean> {
+    if (relativeDirPath !== WARP_SKILLS_DIR_PATH) {
+      return true;
+    }
     return !(await rulesyncCommandSlugExists({ inputRoots, dirName }));
   }
 
