@@ -76,9 +76,12 @@ const OpencodeMcpRemoteServerSchema = z.looseObject({
 // allow-list to avoid leaking other tools' keys (e.g. `kiroAutoApprove`,
 // `alwaysAllow`, `trust`) into `opencode.json`.
 // `protocol` (`legacy` | `auto` | `2026-07-28`) and `codemode` are OpenCode V2
-// per-server keys (https://opencode.ai/v2/docs/mcp-servers/); V1's published
-// schema does not list them, so they are only ever written when the canonical
-// server already carries them.
+// per-server keys (https://opencode.ai/v2/docs/mcp-servers/). This adapter
+// reads and writes the V1 file shape (a flat `mcp` map), so the two keys reach
+// it only when a canonical server carries them — hand-authored in
+// `.rulesync/mcp.jsonc`, or imported from a flat-`mcp` `opencode.json` entry
+// that has them — and they are never emitted otherwise. V1's published schema
+// does not list them.
 // https://opencode.ai/docs/mcp-servers
 const OPENCODE_PASSTHROUGH_SERVER_FIELDS = ["timeout", "oauth", "protocol", "codemode"] as const;
 

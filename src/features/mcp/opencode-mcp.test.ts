@@ -2843,6 +2843,23 @@ describe("OpencodeMcp", () => {
       ).toThrow();
     });
 
+    it("does not read a transport entry carrying codemode as a toggle", () => {
+      // `codemode` is a passthrough key, not part of either transport schema's
+      // `.def.shape`, so it has to be listed as a transport key explicitly or
+      // `{"enabled": true, "codemode": false}` would be read as a toggle.
+      expect(
+        () =>
+          new OpencodeMcp({
+            outputRoot: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: "opencode.json",
+            fileContent: JSON.stringify({
+              mcp: { broken: { enabled: true, codemode: false } },
+            }),
+          }),
+      ).toThrow();
+    });
+
     it("imports a bare toggle without aborting the servers beside it", async () => {
       const opencodeMcp = new OpencodeMcp({
         outputRoot: testDir,
