@@ -337,6 +337,7 @@ describe("HermesagentMcp", () => {
                 scopes: ["read", "write"],
                 __proto__: "polluted",
                 ignored: "value",
+                cimd: "not-a-boolean",
               },
             },
           },
@@ -363,7 +364,62 @@ describe("HermesagentMcp", () => {
         redirect_port: 8080,
         client_id: "client-id",
         client_secret: "client-secret",
-        scopes: ["read", "write"],
+        // Hermes reads `scope`, never `scopes`: the list is folded into the
+        // space-separated string the authorization server expects.
+        scope: "read write",
+      });
+    });
+
+    it("passes through the oauth keys Hermes reads, protocol, lazy and the lifecycle mapping (issue #2414)", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: {
+              url: "https://mcp.example.com/mcp",
+              auth: "oauth",
+              protocol: "stateless",
+              lazy: true,
+              lifecycle: { idle_timeout_seconds: 120, __proto__: { polluted: true } },
+              oauth: {
+                client_name: "My Client",
+                client_metadata_url: "https://example.com/my-cimd.json",
+                cimd: false,
+                token_endpoint_auth_method: "client_secret_post",
+                application_type: "web",
+                user_agent: "My-MCP-Client/1.0",
+                flow: "device",
+                timeout: 120,
+                // An explicit `scope` wins over a `scopes` list.
+                scope: "files:read",
+                scopes: ["ignored"],
+              },
+            },
+          },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const server = getMcpServers(mcp.getFileContent()).remote;
+
+      expect(server?.protocol).toBe("stateless");
+      expect(server?.lazy).toBe(true);
+      expect(server?.lifecycle).toEqual({ idle_timeout_seconds: 120 });
+      expect(server?.oauth).toEqual({
+        client_name: "My Client",
+        client_metadata_url: "https://example.com/my-cimd.json",
+        cimd: false,
+        token_endpoint_auth_method: "client_secret_post",
+        application_type: "web",
+        user_agent: "My-MCP-Client/1.0",
+        flow: "device",
+        timeout: 120,
+        scope: "files:read",
       });
     });
 
@@ -639,7 +695,7 @@ describe("HermesagentMcp", () => {
           "      redirect_port: 8080",
           "      client_id: client-id",
           "      client_secret: client-secret",
-          "      scopes: [read, write]",
+          "      scope: read write",
           "    tools:",
           "      include: [search]",
           "      prompts: true",
@@ -682,7 +738,7 @@ describe("HermesagentMcp", () => {
           redirect_port: 8080,
           client_id: "client-id",
           client_secret: "client-secret",
-          scopes: ["read", "write"],
+          scope: "read write",
         },
       });
 
@@ -729,10 +785,77 @@ describe("HermesagentMcp", () => {
           redirect_port: 8080,
           client_id: "client-id",
           client_secret: "client-secret",
-          scopes: ["read", "write"],
+          scope: "read write",
         },
         tools: { include: ["search"], prompts: true, resources: false },
       });
+    });
+
+    it("folds a legacy scopes list into scope and round-trips protocol, lazy, lifecycle and the oauth keys (issue #2414)", async () => {
+      const dir = join(testDir, HERMES_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, HERMES_FILE),
+        [
+          "mcp_servers:",
+          "  protected_api:",
+          "    url: https://mcp.example.com/mcp",
+          "    auth: oauth",
+          "    protocol: legacy",
+          "    lazy: true",
+          "    lifecycle:",
+          "      idle_timeout_seconds: 120",
+          "      max_lifetime_seconds: 3600",
+          "    oauth:",
+          "      client_metadata_url: https://example.com/my-cimd.json",
+          "      cimd: false",
+          "      user_agent: My-MCP-Client/1.0",
+          "      flow: device",
+          "      timeout: 120",
+          "      scopes: [read, write]",
+          "",
+        ].join("\n"),
+      );
+
+      const imported = await HermesagentMcp.fromFile({ outputRoot: testDir, global: true });
+      const canonical = imported.toRulesyncMcp();
+      const hermesOverride = JSON.parse(canonical.getFileContent()).hermesagent.mcpServers
+        .protected_api;
+      const expectedOauth = {
+        client_metadata_url: "https://example.com/my-cimd.json",
+        cimd: false,
+        user_agent: "My-MCP-Client/1.0",
+        flow: "device",
+        timeout: 120,
+        // Written by earlier Rulesync versions and never read by Hermes: the
+        // list becomes the `scope` string Hermes does read.
+        scope: "read write",
+      };
+
+      expect(hermesOverride.protocol).toBe("legacy");
+      expect(hermesOverride.lazy).toBe(true);
+      expect(hermesOverride.lifecycle).toEqual({
+        idle_timeout_seconds: 120,
+        max_lifetime_seconds: 3600,
+      });
+      expect(hermesOverride.oauth).toEqual(expectedOauth);
+
+      const regenerated = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent: canonical.getFileContent(),
+        }).forTarget({ toolTarget: "hermesagent" }),
+        global: true,
+      });
+      const server = getMcpServers(regenerated.getFileContent()).protected_api;
+
+      expect(server?.protocol).toBe("legacy");
+      expect(server?.lazy).toBe(true);
+      expect(server?.lifecycle).toEqual({ idle_timeout_seconds: 120, max_lifetime_seconds: 3600 });
+      expect(server?.oauth).toEqual(expectedOauth);
+      expect(server?.oauth).not.toHaveProperty("scopes");
     });
 
     it("round-trips trust and identity_header (issue #2414)", async () => {
