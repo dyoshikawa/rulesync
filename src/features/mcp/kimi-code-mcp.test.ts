@@ -161,6 +161,42 @@ describe("KimiCodeMcp global config defaults", () => {
     });
   });
 
+  describe("per-server fields", () => {
+    it("should pass deferred through on generate and import", async () => {
+      const generated = await KimiCodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: rulesyncMcp({
+          mcpServers: {
+            github: { type: "http", url: "https://mcp.example.com/mcp", deferred: true },
+          },
+        }),
+      });
+
+      expect(JSON.parse(generated.getFileContent()).mcpServers.github).toEqual({
+        transport: "http",
+        url: "https://mcp.example.com/mcp",
+        deferred: true,
+      });
+
+      await writeFileContent(
+        join(testDir, ".kimi-code", "mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            github: { transport: "http", url: "https://mcp.example.com/mcp", deferred: true },
+          },
+        }),
+      );
+
+      const imported = (await KimiCodeMcp.fromFile({ outputRoot: testDir })).toRulesyncMcp();
+
+      expect(JSON.parse(imported.getFileContent()).mcpServers.github).toEqual({
+        type: "http",
+        url: "https://mcp.example.com/mcp",
+        deferred: true,
+      });
+    });
+  });
+
   describe("fromFile", () => {
     it("should read the defaults back for the round trip", async () => {
       await writeFileContent(
