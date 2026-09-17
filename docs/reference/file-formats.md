@@ -1028,6 +1028,7 @@ qwencode: # for Qwen Code-specific parameters (optional; project .qwen/skills/, 
 grokcli: # for Grok CLI-specific parameters (optional)
   user-invocable: false # (optional) hide from the skill tool, keep model access
   disable-model-invocation: true # (optional) block auto-invocation, keep the slash command
+  paths: ["src/api/**", "*.sql"] # (optional) gitignore globs; the skill stays hidden until a tool touches a matching file (a comma-separated string is also accepted)
 dsh: # for DeepSeek Harness-specific parameters (optional; project .dsh/skills/, global ~/.dsh/skills/)
   whenToUse: "When the user asks to review a PR" # (optional) extra trigger-timing context
   metadata: # (optional) free-form metadata; overrides the root value outright

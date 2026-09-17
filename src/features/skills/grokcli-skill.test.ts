@@ -247,3 +247,43 @@ describe("GrokcliSkill invocation flags", () => {
     expect(imported["disable-model-invocation"]).toBeUndefined();
   });
 });
+
+describe("GrokcliSkill paths", () => {
+  // Grok's `parse_skill_paths` accepts a YAML list or a comma-separated string
+  // and keeps the skill out of the listing until a tool touches a matching file.
+  // https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-tools/src/implementations/skills/discovery.rs
+  it("emits the grokcli section's paths as authored, list or string", () => {
+    expect(
+      buildGrokcliSkill({ grokcli: { paths: ["src/api/**", "*.sql"] } }).getFrontmatter().paths,
+    ).toEqual(["src/api/**", "*.sql"]);
+    expect(
+      buildGrokcliSkill({ grokcli: { paths: "src/api/**, *.sql" } }).getFrontmatter().paths,
+    ).toBe("src/api/**, *.sql");
+  });
+
+  it("does not read paths from another tool's section or emit it when unset", () => {
+    // `paths` has no root-level shared default: Claude Code, Cursor and Qwen
+    // Code each carry their own, so a value authored for one of them must not
+    // gate the Grok skill.
+    expect(
+      buildGrokcliSkill({ claudecode: { paths: ["src/**"] } }).getFrontmatter().paths,
+    ).toBeUndefined();
+    expect(buildGrokcliSkill({}).getFrontmatter().paths).toBeUndefined();
+  });
+
+  it("reads paths back into the grokcli section on import", () => {
+    const skill = new GrokcliSkill({
+      dirName: "sample",
+      frontmatter: {
+        name: "sample",
+        description: "Sample",
+        paths: ["src/api/**"],
+      },
+      body: "Body.",
+    });
+
+    const imported = skill.toRulesyncSkill().getFrontmatter();
+    expect(imported.grokcli).toEqual({ paths: ["src/api/**"] });
+    expect(imported.paths).toBeUndefined();
+  });
+});
