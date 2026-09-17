@@ -251,5 +251,22 @@ Shared skill body.`;
         }),
       ).resolves.toBe(true);
     });
+
+    it("should keep a same-named skill in the import-only .agents/skills root (no command lands there)", async () => {
+      await ensureDir(join(testDir, ".rulesync", "commands"));
+      await writeFileContent(
+        join(testDir, ".rulesync", "commands", "deploy.md"),
+        "---\ndescription: Deploy\n---\nDeploy.",
+      );
+
+      await expect(
+        WarpSkill.isDirOwned({
+          outputRoot: testDir,
+          relativeDirPath: join(".agents", "skills"),
+          dirName: "deploy",
+          inputRoots: [join(testDir, RULESYNC_RELATIVE_DIR_PATH)],
+        }),
+      ).resolves.toBe(true);
+    });
   });
 });

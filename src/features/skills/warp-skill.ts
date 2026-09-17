@@ -182,12 +182,14 @@ export class WarpSkill extends ToolSkill {
   }
 
   /**
-   * Commands are emitted into this same skills tree as `<slug>/SKILL.md`
-   * (see `WarpCommand`), so a directory matching a current rulesync command
-   * slug is owned by the commands feature: it must not be imported as a
-   * skill nor deleted as an orphan skill.
+   * Commands are emitted into the `.warp/skills/` tree as `<slug>/SKILL.md`
+   * (see `WarpCommand`), so a directory there matching a current rulesync
+   * command slug is owned by the commands feature: it must not be imported as
+   * a skill nor deleted as an orphan skill. The import-only `.agents/skills/`
+   * root never receives commands, so a same-named skill in it stays a skill.
    */
   static async isDirOwned({
+    relativeDirPath,
     dirName,
     inputRoots,
   }: {
@@ -196,6 +198,9 @@ export class WarpSkill extends ToolSkill {
     dirName: string;
     inputRoots: readonly string[];
   }): Promise<boolean> {
+    if (relativeDirPath !== WARP_SKILLS_DIR_PATH) {
+      return true;
+    }
     return !(await rulesyncCommandSlugExists({ inputRoots, dirName }));
   }
 
