@@ -1,0 +1,25 @@
+name: Start cicd-sensor
+description: Trace the rest of the job with cicd-sensor and send the trace to Takumi Runner
+inputs:
+  bot-id:
+    description: Shisho Cloud bot ID with the "Takumi Runner Trace Sender" role. Skips tracing when empty.
+runs:
+  using: composite
+  steps:
+    - name: Sign in to Shisho Cloud
+      id: auth
+      if: inputs.bot-id != ''
+      uses: flatt-security/shisho-cloud-action@9b68d33503ebf75d7c285d489b288f96ef3df758 # v1.1.0
+      with:
+        bot-id: ${{ inputs.bot-id }}
+        export-token: true
+        expires-in-minutes: 360
+
+    - name: Start cicd-sensor
+      if: inputs.bot-id != ''
+      uses: cicd-sensor/cicd-sensor-action@6511eb44c91d71b2b93d71193b1bf2cb18352f66 # v0.0.38
+      with:
+        manager-url: https://manager.cicdsensor.cloud.shisho.dev
+        manager-token: ${{ steps.auth.outputs.token }}
+        enable-html-report: false
+        enable-attestation-artifact: false
