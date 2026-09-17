@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { AiassistantRule } from "./aiassistant-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
@@ -75,6 +76,12 @@ describe("AiassistantRule", () => {
       );
     });
 
+    it("emits `always` when any glob is universal, even beside specific ones", () => {
+      expect(
+        build({ root: false, targets: ["*"], globs: ["**/*", "*.kt"] }).getFileContent(),
+      ).toMatch(/^---\napply: always\n---\n\n/);
+    });
+
     it("emits `always` for the root rule, universal globs, and bare rules", () => {
       expect(
         build({
@@ -120,6 +127,61 @@ describe("AiassistantRule", () => {
           aiassistant: { apply: "sometimes" },
         }).getFileContent(),
       ).toMatch(/^---\napply: sometimes\n---\n\n/);
+    });
+
+    it("flattens a folded explicit apply before matching it", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      expect(
+        build({
+          root: false,
+          targets: ["*"],
+          globs: ["*.kt"],
+          aiassistant: { apply: "by file\npatterns" },
+        }).getFileContent(),
+      ).toMatch(/^---\napply: by file patterns\npatterns: \*\.kt\n---\n\n/);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("warns about a block the plugin cannot act on", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const warnings = (frontmatter: Parameters<typeof build>[0]) => {
+        warnSpy.mockClear();
+        build(frontmatter);
+        return warnSpy.mock.calls.map(([message]) => String(message));
+      };
+
+      expect(
+        warnings({
+          root: false,
+          targets: ["*"],
+          globs: ["*.kt"],
+          aiassistant: { apply: "sometimes" },
+        }),
+      ).toEqual([
+        expect.stringContaining(
+          'coding-style.md: aiassistant.apply "sometimes" is not one of always, manually, by model decision, by file patterns, off',
+        ),
+      ]);
+      expect(
+        warnings({
+          root: false,
+          targets: ["*"],
+          globs: [],
+          aiassistant: { apply: "by file patterns" },
+        }),
+      ).toEqual([expect.stringContaining("but the rule has no globs")]);
+      expect(
+        warnings({ root: false, targets: ["*"], aiassistant: { apply: "by model decision" } }),
+      ).toEqual([expect.stringContaining("but the rule has no description")]);
+      expect(warnings({ root: false, targets: ["*"], globs: ["a,b/**"] })).toEqual([
+        expect.stringContaining('the glob "a,b/**" contains a comma'),
+      ]);
+      expect(
+        warnings({ root: false, targets: ["*"], description: "Use --- as a divider", globs: [] }),
+      ).toEqual([expect.stringContaining('a metadata value contains "---"')]);
+      expect(
+        warnings({ root: false, targets: ["*"], description: "Style", globs: ["*.kt"] }),
+      ).toEqual([]);
     });
 
     it("expands brace alternations, which the plugin would split on the comma", () => {
@@ -312,6 +374,9 @@ describe("AiassistantRule", () => {
         globs: [],
         aiassistant: { apply: "by file patterns" },
       });
+      expect(
+        build("---\napply: by file patterns\npatterns: **/*, *.kt\n---\nBody").getFrontmatter(),
+      ).toMatchObject({ globs: ["**/*", "*.kt"], aiassistant: { apply: "by file patterns" } });
       expect(build("---\napply: by model decision\n---\nBody").getFrontmatter()).toMatchObject({
         globs: [],
         aiassistant: { apply: "by model decision" },
@@ -327,6 +392,7 @@ describe("AiassistantRule", () => {
         "---\napply: off\n---\n\nBody",
         "---\napply: sometimes\n---\n\nBody",
         "---\napply: by file patterns\npatterns: **/*\n---\n\nBody",
+        "---\napply: by file patterns\npatterns: **/*, *.kt\n---\n\nBody",
         "---\napply: by file patterns\n---\n\nBody",
         "---\napply: by model decision\n---\n\nBody",
       ]) {

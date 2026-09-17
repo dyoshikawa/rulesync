@@ -30,18 +30,13 @@ export const splitBraceAwareList = (value: string): string[] => {
 };
 
 /**
- * Expands the comma alternations of a glob (`a.{ts,tsx}` → `a.ts`, `a.tsx`)
- * into one pattern per combination, innermost group first, so the result can
- * be handed to a consumer that splits its pattern list on bare commas. A glob
- * without a brace alternation is returned as is; a brace group without a
- * comma (e.g. `{a}`) is left untouched.
- *
- * @example
- * expandBraceAlternations("src/**\/*.{ts,tsx}")
- * // => ["src/**\/*.ts", "src/**\/*.tsx"]
+ * Upper bound on the patterns one glob may expand to; past it the glob is
+ * returned verbatim, since `{a,b}` repeated k times yields 2^k branches.
  */
+const MAX_BRACE_EXPANSIONS = 256;
+
 const expandInnermostGroup = (glob: string): string[] => {
-  const match = /\{([^{}]*,[^{}]*)\}/.exec(glob);
+  const match = /\{([^{},]*(?:,[^{},]*)+)\}/.exec(glob);
   if (match === null) {
     return [glob];
   }
@@ -52,6 +47,25 @@ const expandInnermostGroup = (glob: string): string[] => {
     .flatMap((alternative) => expandInnermostGroup(`${prefix}${alternative}${suffix}`));
 };
 
-export const expandBraceAlternations = (glob: string): string[] => [
-  ...new Set(expandInnermostGroup(glob)),
-];
+/**
+ * Expands the comma alternations of a glob (`a.{ts,tsx}` → `a.ts`, `a.tsx`)
+ * into one pattern per combination, innermost group first, so the result can
+ * be handed to a consumer that splits its pattern list on bare commas. A glob
+ * without a brace alternation is returned as is; a brace group without a
+ * comma (e.g. `{a}`) is left untouched. A glob whose expansion would exceed
+ * `MAX_BRACE_EXPANSIONS` patterns is returned as is as well.
+ *
+ * @example
+ * expandBraceAlternations("src/**\/*.{ts,tsx}")
+ * // => ["src/**\/*.ts", "src/**\/*.tsx"]
+ */
+export const expandBraceAlternations = (glob: string): string[] => {
+  let branches = 1;
+  for (const group of glob.matchAll(/\{([^{},]*(?:,[^{},]*)+)\}/g)) {
+    branches *= (group[1] ?? "").split(",").length;
+    if (branches > MAX_BRACE_EXPANSIONS) {
+      return [glob];
+    }
+  }
+  return [...new Set(expandInnermostGroup(glob))];
+};

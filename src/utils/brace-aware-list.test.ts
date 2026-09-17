@@ -34,6 +34,12 @@ describe("expandBraceAlternations", () => {
     expect(expandBraceAlternations("src/**/*.{ts,tsx}")).toEqual(["src/**/*.ts", "src/**/*.tsx"]);
   });
 
+  it("returns a glob verbatim when its expansion would explode", () => {
+    expect(expandBraceAlternations("{a,b}".repeat(8))).toHaveLength(256);
+    expect(expandBraceAlternations("{a,b}".repeat(9))).toEqual(["{a,b}".repeat(9)]);
+    expect(expandBraceAlternations(`{${",".repeat(300)}`)).toEqual([`{${",".repeat(300)}`]);
+  });
+
   it("expands several and nested groups into every combination", () => {
     expect(expandBraceAlternations("{src,lib}/*.{ts,js}")).toEqual([
       "src/*.ts",

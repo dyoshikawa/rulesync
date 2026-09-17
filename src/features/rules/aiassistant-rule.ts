@@ -59,7 +59,12 @@ const LINE_SPLIT_REGEX = /(?<=\r\n|\r(?!\n)|(?<!\r)\n)/;
  * The block is line-based, so a value must not carry a line break: one would
  * start a new `<field>: <value>` line and could override `apply:`.
  */
-const flattenValue = (value: string): string => value.replace(/\s*(?:\r\n|\r|\n)\s*/g, " ").trim();
+const flattenValue = (value: string): string =>
+  value
+    .split(/\r\n|\r|\n/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .join(" ");
 
 export type AiassistantRuleMetadata = {
   /** One of `AIASSISTANT_APPLY_VALUES`, or an unrecognized value kept as is. */
@@ -152,7 +157,7 @@ export class AiassistantRule extends ToolRule {
     if (metadata === undefined) {
       return body;
     }
-    const lines = [`apply: ${flattenValue(metadata.apply)}`];
+    const lines = [`apply: ${metadata.apply}`];
     if (metadata.apply === "by model decision" && metadata.instructions) {
       lines.push(`instructions: ${flattenValue(metadata.instructions)}`);
     }
@@ -237,21 +242,24 @@ export class AiassistantRule extends ToolRule {
       .map((glob) => flattenValue(glob))
       .filter((glob) => glob.length > 0)
       .flatMap((glob) => expandBraceAlternations(glob));
-    const specificGlobs = globs.filter((glob) => !UNIVERSAL_GLOBS.has(glob));
+    // A universal glob means "every file", so a list that contains one is
+    // `always` however specific the others are; only an all-specific list
+    // narrows the rule to `by file patterns`.
+    const hasUniversalGlob = globs.some((glob) => UNIVERSAL_GLOBS.has(glob));
     const instructions = frontmatter.description && flattenValue(frontmatter.description);
 
-    const explicitApply = frontmatter.aiassistant?.apply?.trim();
+    const explicitApply =
+      frontmatter.aiassistant?.apply && flattenValue(frontmatter.aiassistant.apply);
     const apply = explicitApply
       ? explicitApply
-      : frontmatter.root !== true && specificGlobs.length > 0
+      : frontmatter.root !== true && globs.length > 0 && !hasUniversalGlob
         ? "by file patterns"
         : frontmatter.root !== true && globs.length === 0 && instructions
           ? "by model decision"
           : "always";
-    // An explicit `by file patterns` keeps every glob, universal ones
-    // included: the user asked for that type, and a block without `patterns`
-    // can never attach.
-    const patterns = explicitApply ? globs : specificGlobs;
+    // `patterns` carries every glob, universal ones included, so an explicit
+    // `by file patterns` on a mixed list round-trips unchanged.
+    const patterns = globs;
 
     return {
       apply,
@@ -295,6 +303,14 @@ export class AiassistantRule extends ToolRule {
       warnWithFallback(
         undefined,
         `${relativeFilePath}: the glob "${commaGlob}" contains a comma, which AI Assistant reads as a pattern separator.`,
+      );
+    }
+    // The plugin closes the block at the first `---` anywhere, not only on a
+    // line of its own, so a value containing it is cut short in the IDE.
+    if ([apply, instructions ?? "", ...patterns].some((value) => value.includes("---"))) {
+      warnWithFallback(
+        undefined,
+        `${relativeFilePath}: a metadata value contains "---", which AI Assistant reads as the end of the metadata block.`,
       );
     }
   }
