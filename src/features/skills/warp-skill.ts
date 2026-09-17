@@ -2,9 +2,10 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
+import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { WARP_AGENTS_SKILLS_DIR_PATH, WARP_SKILLS_DIR_PATH } from "../../constants/warp-paths.js";
+import { WARP_SKILLS_DIR_PATH } from "../../constants/warp-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { rulesyncCommandSlugExists } from "../commands/command-skill-ownership.js";
@@ -85,13 +86,17 @@ export class WarpSkill extends ToolSkill {
   }: { global?: boolean } = {}): ToolSkillSettablePaths {
     // Warp reads project skills from `.warp/skills/` and user skills from
     // `~/.warp/skills/`; both share the relative path, with only the output
-    // base differing. It also discovers the cross-tool `.agents/skills/`
-    // (`~/.agents/skills/`) root, which Warp documents as the recommended
-    // location. That root is import-only: generation still writes to
-    // `.warp/skills/`.
+    // base differing. It also discovers the cross-tool Agent Skills root at
+    // `<projectRoot>/.agents/skills/` and `~/.agents/skills/`, which Warp
+    // documents as the recommended location. That root is import-only:
+    // rulesync never writes there for this target, so a skill another tool put
+    // in the shared tree must not become an orphan deletion candidate — least
+    // of all under the user's home directory. When the same skill name exists
+    // in both roots, the Warp-specific root wins.
+    // @see https://docs.warp.dev/agents/capabilities/skills/
     return {
       relativeDirPath: WARP_SKILLS_DIR_PATH,
-      alternativeSkillRoots: [WARP_AGENTS_SKILLS_DIR_PATH],
+      importOnlySkillRoots: [AGENTSMD_SKILLS_DIR_PATH],
     };
   }
 

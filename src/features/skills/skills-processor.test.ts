@@ -30,6 +30,7 @@ import {
   skillsProcessorToolTargetsGlobal,
 } from "./skills-processor.js";
 import { TaktSkill } from "./takt-skill.js";
+import { WarpSkill } from "./warp-skill.js";
 
 /**
  * Write a directory-form skill whose frontmatter `name` matches its directory
@@ -1063,6 +1064,47 @@ Skill body`,
         ]),
       );
       expect(byName.get("dup-skill")).toEqual([join(".junie", "skills"), "from-junie"]);
+      expect(byName.get("shared-only")).toEqual([join(".agents", "skills"), "from-agents"]);
+    });
+
+    it("should prefer .warp/skills over the import-only .agents/skills for the same skill name", async () => {
+      // warp declares `.agents/skills` under `importOnlySkillRoots` (Warp's
+      // recommended location, shared with other tools). The Warp-specific root
+      // wins and the shared tree only fills in names it does not already cover.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "warp",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".warp", "skills"),
+        dirName: "dup-skill",
+        body: "from-warp",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "dup-skill",
+        body: "from-agents",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "shared-only",
+        body: "from-agents",
+      });
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(2);
+      const byName = new Map(
+        toolDirs.map((toolDir) => [
+          toolDir.getDirName(),
+          [(toolDir as WarpSkill).getRelativeDirPath(), (toolDir as WarpSkill).getBody()],
+        ]),
+      );
+      expect(byName.get("dup-skill")).toEqual([join(".warp", "skills"), "from-warp"]);
       expect(byName.get("shared-only")).toEqual([join(".agents", "skills"), "from-agents"]);
     });
 
@@ -2494,6 +2536,28 @@ Content that would fail parsing`;
       const dirsToDelete = await processor.loadToolDirsToDelete();
 
       expect(dirsToDelete.map((d) => d.getRelativeDirPath())).toEqual([join(".junie", "skills")]);
+      expect(dirsToDelete.map((d) => d.getDirName())).toEqual(["own-skill"]);
+    });
+
+    it("should never list the import-only .agents/skills root for warp deletion", async () => {
+      // warp shares the `.agents/skills/` tree with every other Agent Skills
+      // client (and, in global mode, `~/.agents/skills/`), so `--delete` for
+      // the warp target must only ever prune `.warp/skills/`.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "warp",
+      });
+      const warpDir = join(testDir, ".warp", "skills", "own-skill");
+      const sharedDir = join(testDir, ".agents", "skills", "foreign-skill");
+      await ensureDir(warpDir);
+      await ensureDir(sharedDir);
+      await writeFileContent(join(warpDir, "SKILL.md"), "x");
+      await writeFileContent(join(sharedDir, "SKILL.md"), "y");
+
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete.map((d) => d.getRelativeDirPath())).toEqual([join(".warp", "skills")]);
       expect(dirsToDelete.map((d) => d.getDirName())).toEqual(["own-skill"]);
     });
   });

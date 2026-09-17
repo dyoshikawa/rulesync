@@ -78,13 +78,16 @@ describe("WarpSkill", () => {
       );
     });
 
-    it("should expose .agents/skills as an alternative discovery root", () => {
+    it("should expose .agents/skills as an import-only discovery root", () => {
       // Warp's recommended skill location is the cross-tool `.agents/skills/`
-      // (and `~/.agents/skills/`); it is read on import only.
-      expect(WarpSkill.getSettablePaths().alternativeSkillRoots).toEqual([
+      // (and `~/.agents/skills/`). It must be `importOnlySkillRoots`, not
+      // `alternativeSkillRoots`: the latter is also swept by orphan deletion,
+      // which would prune other tools' skills from the shared tree.
+      expect(WarpSkill.getSettablePaths().importOnlySkillRoots).toEqual([
         join(".agents", "skills"),
       ]);
-      expect(WarpSkill.getSettablePaths({ global: true }).alternativeSkillRoots).toEqual([
+      expect(WarpSkill.getSettablePaths().alternativeSkillRoots).toBeUndefined();
+      expect(WarpSkill.getSettablePaths({ global: true }).importOnlySkillRoots).toEqual([
         join(".agents", "skills"),
       ]);
     });
