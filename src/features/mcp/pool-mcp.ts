@@ -101,19 +101,30 @@ function poolHeadersListToRecord(
 }
 
 /**
- * Pool's `allow`/`deny`/`enabled_tools` entries are glob patterns, while the
- * canonical `enabledTools`/`disabledTools` lists are literal tool names that
- * the other targets match verbatim. A pattern therefore imports as a name
- * that matches nothing elsewhere — a `deny` that quietly stops denying is the
- * case worth calling out — so it is copied as-is but warned about.
+ * Pool's `deny`/`enabled_tools` entries are glob patterns, while the canonical
+ * `enabledTools`/`disabledTools` lists are literal tool names that the other
+ * targets match verbatim. A pattern therefore imports as a name that matches
+ * nothing elsewhere — a `deny` that quietly stops denying is the case worth
+ * calling out — so it is copied as-is but warned about. `allow` is exempt: it
+ * imports to the Pool-only `poolAllow`, where globs are exactly what Pool
+ * expects and no other tool ever reads them.
  */
 const GLOB_METACHARACTERS = /[*?[]/;
 
-function importPoolToolList(
-  serverName: string,
-  poolKey: string,
-  value: unknown,
-): string[] | undefined {
+/** Patterns named in the glob warning before the rest collapse to `(+N more)`. */
+const MAX_LISTED_GLOB_PATTERNS = 10;
+
+function importPoolToolList({
+  serverName,
+  poolKey,
+  value,
+  warnOnGlobs,
+}: {
+  serverName: string;
+  poolKey: string;
+  value: unknown;
+  warnOnGlobs: boolean;
+}): string[] | undefined {
   if (!isStringArray(value)) {
     warnWithFallback(
       undefined,
@@ -121,11 +132,17 @@ function importPoolToolList(
     );
     return undefined;
   }
+  if (!warnOnGlobs) {
+    return value;
+  }
   const patterns = value.filter((entry) => GLOB_METACHARACTERS.test(entry));
   if (patterns.length > 0) {
+    const listed = patterns.slice(0, MAX_LISTED_GLOB_PATTERNS).map(quoteValueForWarning);
+    const overflow = patterns.length - listed.length;
+    const shown = overflow > 0 ? `${listed.join(", ")} (+${overflow} more)` : listed.join(", ");
     warnWithFallback(
       undefined,
-      `${poolKey} in Pool MCP server ${quoteValueForWarning(serverName)} contains glob patterns (${patterns.map(quoteValueForWarning).join(", ")}); other tools match the imported tool names literally`,
+      `${poolKey} in Pool MCP server ${quoteValueForWarning(serverName)} contains glob patterns (${shown}); other tools match the imported tool names literally`,
     );
   }
   return value;
@@ -305,9 +322,18 @@ function convertFromPoolFormat(poolServers: Record<string, unknown>): McpServers
         }
         continue;
       }
-      const canonicalKey = POOL_TO_CANONICAL_TOOL_LIST_KEYS[key];
+      // `Object.hasOwn` keeps inherited names such as `toString` from resolving
+      // to an `Object.prototype` function and hijacking the rename.
+      const canonicalKey = Object.hasOwn(POOL_TO_CANONICAL_TOOL_LIST_KEYS, key)
+        ? POOL_TO_CANONICAL_TOOL_LIST_KEYS[key]
+        : undefined;
       if (canonicalKey) {
-        const list = importPoolToolList(name, key, value);
+        const list = importPoolToolList({
+          serverName: name,
+          poolKey: key,
+          value,
+          warnOnGlobs: canonicalKey !== "poolAllow",
+        });
         if (list) {
           converted[canonicalKey] = list;
         }

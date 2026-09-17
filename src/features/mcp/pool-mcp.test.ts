@@ -344,6 +344,8 @@ describe("PoolMcp", () => {
             "    command: fs",
             "    enabled_tools: [read_file, 'list_*']",
             "    deny: 'delete_*'",
+            "    allow: ['read_*']",
+            "    toString: [keep_me]",
             "  remote:",
             "    transport:",
             "      type: http",
@@ -356,7 +358,12 @@ describe("PoolMcp", () => {
         });
 
         expect(JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers).toEqual({
-          fs: { command: "fs", enabledTools: ["read_file", "list_*"] },
+          fs: {
+            command: "fs",
+            enabledTools: ["read_file", "list_*"],
+            poolAllow: ["read_*"],
+            toString: ["keep_me"],
+          },
           remote: { type: "http", url: "https://example.com/mcp" },
         });
         const messages = warnSpy.mock.calls.map(([message]) => String(message));
@@ -365,6 +372,10 @@ describe("PoolMcp", () => {
             'enabled_tools in Pool MCP server "fs" contains glob patterns ("list_*")',
           ),
         );
+        // `allow` is Pool-only, so its globs are expected and never warned about;
+        // an inherited-prototype name such as `toString` passes through untouched.
+        expect(messages).not.toContainEqual(expect.stringContaining("allow in Pool MCP server"));
+        expect(messages).not.toContainEqual(expect.stringContaining("toString"));
         expect(messages).toContainEqual(
           expect.stringContaining('Ignored malformed value for deny in Pool MCP server "fs"'),
         );
@@ -378,6 +389,35 @@ describe("PoolMcp", () => {
             'Ignored malformed header ": empty-name" in Pool MCP server "remote"',
           ),
         );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should cap the glob patterns listed in the import warning", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      try {
+        const patterns = Array.from({ length: 12 }, (_, index) => `tool_${index}_*`);
+        const mcp = new PoolMcp({
+          outputRoot: testDir,
+          relativeDirPath: ".poolside",
+          relativeFilePath: "settings.yaml",
+          fileContent: [
+            "mcp_servers:",
+            "  fs:",
+            "    command: fs",
+            `    deny: [${patterns.map((pattern) => `'${pattern}'`).join(", ")}]`,
+            "",
+          ].join("\n"),
+        });
+
+        expect(
+          JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers.fs.disabledTools,
+        ).toEqual(patterns);
+        const messages = warnSpy.mock.calls.map(([message]) => String(message));
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('"tool_9_*" (+2 more))');
+        expect(messages[0]).not.toContain("tool_10_*");
       } finally {
         warnSpy.mockRestore();
       }
