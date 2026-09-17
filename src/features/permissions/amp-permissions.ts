@@ -31,7 +31,7 @@ import {
  * builtin of that name). It lives in the shared Amp settings file:
  * `.amp/settings.json` (project) and `~/.config/amp/settings.json` (global).
  *
- * Reference: https://ampcode.com/manual ("amp.tools.disable").
+ * Reference: https://ampcode.com/docs/cli/settings ("amp.tools.disable").
  */
 const AMP_TOOLS_DISABLE_KEY = "amp.tools.disable";
 
@@ -43,12 +43,15 @@ const AMP_TOOLS_DISABLE_KEY = "amp.tools.disable";
  * glob. Rules are evaluated **first-match-wins**. It lives in the same shared
  * Amp settings file as `amp.tools.disable`.
  *
- * `amp.permissions` is Amp's documented legacy/backwards-compat surface — it
- * remains functional and is the only place to express `allow`/`ask` and
- * argument-specific `reject` rules (the simpler `amp.tools.disable` array can
- * only disable whole tools).
+ * `amp.permissions` is Amp's legacy/backwards-compat surface — it remains
+ * functional in the shipped CLI and is the only place to express `allow`/`ask`
+ * and argument-specific `reject` rules (the simpler `amp.tools.disable` array
+ * can only disable whole tools). Since 2026-09 the docs no longer describe it:
+ * the permissions section only points at custom plugins, so treat the key as
+ * undocumented-but-honored.
  *
- * Reference: https://ampcode.com/manual ("amp.permissions").
+ * Reference: https://ampcode.com/docs/tools#permissions and
+ * https://ampcode.com/docs/customize/plugins#example-plugin-permissions.
  */
 const AMP_PERMISSIONS_KEY = "amp.permissions";
 
