@@ -102,7 +102,16 @@ describe("AiassistantRule", () => {
       });
 
       expect(rule.getFileContent()).toMatch(/^---\napply: manually\n---\n\n/);
-      // An unknown value falls back to the derived type.
+      // An explicit `by file patterns` keeps universal globs as patterns.
+      expect(
+        build({
+          root: false,
+          targets: ["*"],
+          globs: ["**/*"],
+          aiassistant: { apply: "by file patterns" },
+        }).getFileContent(),
+      ).toMatch(/^---\napply: by file patterns\npatterns: \*\*\/\*\n---\n\n/);
+      // An unknown value is written as is (with a warning) rather than dropped.
       expect(
         build({
           root: false,
@@ -110,7 +119,37 @@ describe("AiassistantRule", () => {
           globs: ["*.kt"],
           aiassistant: { apply: "sometimes" },
         }).getFileContent(),
-      ).toMatch(/^---\napply: by file patterns\n/);
+      ).toMatch(/^---\napply: sometimes\n---\n\n/);
+    });
+
+    it("expands brace alternations, which the plugin would split on the comma", () => {
+      expect(
+        build({
+          root: false,
+          targets: ["*"],
+          globs: ["src/**/*.{ts,tsx}", "docs/**"],
+        }).getFileContent(),
+      ).toMatch(
+        /^---\napply: by file patterns\npatterns: src\/\*\*\/\*\.ts, src\/\*\*\/\*\.tsx, docs\/\*\*\n---\n\n/,
+      );
+    });
+
+    it("keeps a line break in a value from starting a new metadata line", () => {
+      expect(
+        build({
+          root: false,
+          targets: ["*"],
+          globs: ["src/**\napply: off"],
+        }).getFileContent(),
+      ).toMatch(/^---\napply: by file patterns\npatterns: src\/\*\* apply: off\n---\n\n/);
+      expect(
+        build({
+          root: false,
+          targets: ["*"],
+          description: "Use this\rapply: off",
+          globs: [],
+        }).getFileContent(),
+      ).toMatch(/^---\napply: by model decision\ninstructions: Use this apply: off\n---\n\n/);
     });
   });
 
@@ -134,37 +173,95 @@ describe("AiassistantRule", () => {
       });
     });
 
-    it("yields no metadata for a body-only file or an unknown apply value", () => {
+    it("yields no metadata for a body-only file and keeps an unknown apply value", () => {
       expect(AiassistantRule.parseFileContent("# Overview\n\nProject context.")).toEqual({
         metadata: undefined,
         body: "# Overview\n\nProject context.",
       });
-      // The plugin matches the value case-sensitively and types the rule Off.
-      expect(AiassistantRule.parseFileContent("---\napply: Always\n---\nBody")).toEqual({
+      expect(AiassistantRule.parseFileContent("---\ninstructions: x\n---\nBody")).toEqual({
         metadata: undefined,
         body: "Body",
       });
+      // The plugin matches the value case-sensitively (typing this rule Off
+      // today); the value is carried verbatim so a regenerate reproduces it.
+      expect(AiassistantRule.parseFileContent("---\napply: Always\n---\nBody")).toEqual({
+        metadata: { apply: "Always" },
+        body: "Body",
+      });
+    });
+
+    it("tolerates a BOM, leading blank lines, CRLF, and a delimiter inside a value", () => {
+      expect(
+        AiassistantRule.parseFileContent(
+          "\uFEFF\n\n---\r\napply: always\r\n---\r\n\r\nBody\r\nMore",
+        ),
+      ).toEqual({ metadata: { apply: "always" }, body: "Body\r\nMore" });
+      expect(
+        AiassistantRule.parseFileContent(
+          "---\napply: by model decision\ninstructions: Use --- as a divider\n---\nBody",
+        ),
+      ).toEqual({
+        metadata: { apply: "by model decision", instructions: "Use --- as a divider" },
+        body: "Body",
+      });
+      // An unclosed block is body.
+      expect(AiassistantRule.parseFileContent("---\napply: always\nBody")).toEqual({
+        metadata: undefined,
+        body: "---\napply: always\nBody",
+      });
+    });
+
+    it("splits patterns on commas outside brace groups", () => {
+      expect(
+        AiassistantRule.parseFileContent(
+          "---\napply: by file patterns\npatterns: src/**/*.{ts,tsx}, docs/**\n---\nBody",
+        ).metadata,
+      ).toEqual({ apply: "by file patterns", patterns: ["src/**/*.{ts,tsx}", "docs/**"] });
     });
   });
 
   describe("fromFile", () => {
-    it("reads a flat rule file from .aiassistant/rules", async () => {
+    const read = async (fileContent: string) => {
       const dir = join(testDir, ".aiassistant", "rules");
       await ensureDir(dir);
-      await writeFileContent(
-        join(dir, "overview.md"),
-        "---\napply: always\n---\n\n# Overview\n\nProject context.",
-      );
+      await writeFileContent(join(dir, "overview.md"), fileContent);
+      return AiassistantRule.fromFile({ outputRoot: testDir, relativeFilePath: "overview.md" });
+    };
 
-      const rule = await AiassistantRule.fromFile({
-        outputRoot: testDir,
-        relativeFilePath: "overview.md",
-      });
+    it("reads a flat rule file from .aiassistant/rules", async () => {
+      const rule = await read("---\napply: always\n---\n\n# Overview\n\nProject context.");
 
       expect(rule.getRelativeDirPath()).toBe(join(".aiassistant", "rules"));
       expect(rule.getRelativeFilePath()).toBe("overview.md");
       expect(rule.getMetadata()).toEqual({ apply: "always" });
       expect(rule.getBody()).toBe("# Overview\n\nProject context.");
+    });
+
+    it("reads the companion fields and edge-case layouts", async () => {
+      expect(
+        (
+          await read("---\napply: by file patterns\npatterns: *.kt, *.kts\n---\nBody")
+        ).getMetadata(),
+      ).toEqual({ apply: "by file patterns", patterns: ["*.kt", "*.kts"] });
+      expect(
+        (
+          await read("---\napply: by model decision\ninstructions: Kotlin\n---\nBody")
+        ).getMetadata(),
+      ).toEqual({ apply: "by model decision", instructions: "Kotlin" });
+      expect((await read("---\napply: sometimes\n---\nBody")).getMetadata()).toEqual({
+        apply: "sometimes",
+      });
+
+      const leadingBlank = await read("\n---\r\napply: always\r\n---\r\n\r\nBody");
+      expect(leadingBlank.getMetadata()).toEqual({ apply: "always" });
+      expect(leadingBlank.getBody()).toBe("Body");
+      // The regenerated file carries exactly one block.
+      expect(
+        AiassistantRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule: leadingBlank.toRulesyncRule(),
+        }).getFileContent(),
+      ).toBe("---\napply: always\n---\n\nBody");
     });
   });
 
@@ -204,6 +301,23 @@ describe("AiassistantRule", () => {
       expect(bodyOnly.getFrontmatter().aiassistant).toBeUndefined();
     });
 
+    it("carries aiassistant.apply whenever the derivation would not reproduce it", () => {
+      expect(build("---\napply: sometimes\n---\nBody").getFrontmatter().aiassistant).toEqual({
+        apply: "sometimes",
+      });
+      expect(
+        build("---\napply: by file patterns\npatterns: **/*\n---\nBody").getFrontmatter(),
+      ).toMatchObject({ globs: ["**/*"], aiassistant: { apply: "by file patterns" } });
+      expect(build("---\napply: by file patterns\n---\nBody").getFrontmatter()).toMatchObject({
+        globs: [],
+        aiassistant: { apply: "by file patterns" },
+      });
+      expect(build("---\napply: by model decision\n---\nBody").getFrontmatter()).toMatchObject({
+        globs: [],
+        aiassistant: { apply: "by model decision" },
+      });
+    });
+
     it("regenerates the same file from an imported rule", () => {
       for (const fileContent of [
         "---\napply: always\n---\n\nBody",
@@ -211,6 +325,10 @@ describe("AiassistantRule", () => {
         "---\napply: by model decision\ninstructions: Kotlin only\n---\n\nBody",
         "---\napply: manually\n---\n\nBody",
         "---\napply: off\n---\n\nBody",
+        "---\napply: sometimes\n---\n\nBody",
+        "---\napply: by file patterns\npatterns: **/*\n---\n\nBody",
+        "---\napply: by file patterns\n---\n\nBody",
+        "---\napply: by model decision\n---\n\nBody",
       ]) {
         expect(
           AiassistantRule.fromRulesyncRule({

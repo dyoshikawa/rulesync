@@ -3,8 +3,10 @@ import { join } from "node:path";
 import { AIASSISTANT_RULES_DIR_PATH } from "../../constants/aiassistant-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import { expandBraceAlternations, splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { readFileContent } from "../../utils/file.js";
-import { RulesyncRule } from "./rulesync-rule.js";
+import { warnWithFallback } from "../../utils/logger.js";
+import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
   ToolRuleForDeletionParams,
@@ -23,6 +25,8 @@ export type AiassistantRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> &
 /**
  * Rule types AI Assistant recognizes on the `apply:` metadata line. The values
  * are matched case-sensitively by the plugin, so they are emitted verbatim.
+ * Any other value is carried through untouched (the plugin treats it as Off
+ * today; a future build may recognize it).
  */
 const AIASSISTANT_APPLY_VALUES = [
   "always",
@@ -42,23 +46,36 @@ const isAiassistantApply = (value: string): value is AiassistantApply =>
  */
 const UNIVERSAL_GLOBS = new Set(["**/*", "*"]);
 
+const METADATA_DELIMITER = "---";
+
 /**
- * The plugin's own `metadataRegex`: a leading `---` block, read with
- * `find` (so the file may start with blank lines) and stripped from the body.
+ * Splits text into lines that keep their own line terminator, so the body can
+ * be sliced back out of the file byte-for-byte. Lone `\r` counts as a break,
+ * matching Kotlin's `lines()`, which the plugin uses on the block.
  */
-const METADATA_BLOCK_REGEX = /^---\s*([\s\S]*?)---\s*/;
+const LINE_SPLIT_REGEX = /(?<=\r\n|\r(?!\n)|(?<!\r)\n)/;
+
+/**
+ * The block is line-based, so a value must not carry a line break: one would
+ * start a new `<field>: <value>` line and could override `apply:`.
+ */
+const flattenValue = (value: string): string => value.replace(/\s*(?:\r\n|\r|\n)\s*/g, " ").trim();
 
 export type AiassistantRuleMetadata = {
-  apply: AiassistantApply;
+  /** One of `AIASSISTANT_APPLY_VALUES`, or an unrecognized value kept as is. */
+  apply: string;
   /** Condition for `by model decision`. */
   instructions?: string | undefined;
-  /** Comma-separated globs for `by file patterns`. */
+  /** Globs for `by file patterns` (one per entry; comma-separated in the file). */
   patterns?: string[] | undefined;
 };
 
-export type AiassistantRuleParams = Omit<ToolRuleParams, "fileContent"> & {
+export type AiassistantRuleParams = Omit<
+  ToolRuleParams,
+  "fileContent" | "description" | "globs"
+> & {
   body: string;
-  /** Omitted when the file carried no recognizable `apply:` line. */
+  /** Omitted when the file carried no `apply:` line. */
   metadata?: AiassistantRuleMetadata | undefined;
 };
 
@@ -135,38 +152,49 @@ export class AiassistantRule extends ToolRule {
     if (metadata === undefined) {
       return body;
     }
-    const lines = [`apply: ${metadata.apply}`];
+    const lines = [`apply: ${flattenValue(metadata.apply)}`];
     if (metadata.apply === "by model decision" && metadata.instructions) {
-      lines.push(`instructions: ${metadata.instructions}`);
+      lines.push(`instructions: ${flattenValue(metadata.instructions)}`);
     }
     if (
       metadata.apply === "by file patterns" &&
       metadata.patterns &&
       metadata.patterns.length > 0
     ) {
-      lines.push(`patterns: ${metadata.patterns.join(", ")}`);
+      lines.push(`patterns: ${metadata.patterns.map(flattenValue).join(", ")}`);
     }
-    return `---\n${lines.join("\n")}\n---\n\n${body}`;
+    return `${METADATA_DELIMITER}\n${lines.join("\n")}\n${METADATA_DELIMITER}\n\n${body}`;
   }
 
   /**
-   * Split a rule file into its metadata block and body, mirroring the plugin:
-   * the block is located with the same regex, each line is split on its first
-   * colon and trimmed, and an `apply:` value outside the known set (or a
-   * missing block) yields no metadata. Unknown fields are ignored.
+   * Split a rule file into its metadata block and body. The plugin locates the
+   * block with `^---\s*([\s\S]*?)---\s*` (anchored at the very start of the
+   * file); this reads it line by line instead — a delimiter is a line that is
+   * exactly `---` — which is linear on any input and tolerates a BOM or blank
+   * lines before the block. Each line is split on its first colon and trimmed;
+   * unknown fields are ignored; a missing block or `apply:` line yields no
+   * metadata, while an unrecognized `apply:` value is kept verbatim.
    */
   static parseFileContent(fileContent: string): {
     metadata: AiassistantRuleMetadata | undefined;
     body: string;
   } {
-    const match = METADATA_BLOCK_REGEX.exec(fileContent);
-    if (match === null) {
-      return { metadata: undefined, body: fileContent.trim() };
+    const content = fileContent.replace(/^\uFEFF/, "").trimStart();
+    const lines = content.split(LINE_SPLIT_REGEX);
+    const closingIndex =
+      lines[0]?.trim() === METADATA_DELIMITER
+        ? lines.findIndex((line, index) => index > 0 && line.trim() === METADATA_DELIMITER)
+        : -1;
+    if (closingIndex === -1) {
+      return { metadata: undefined, body: content.trim() };
     }
-    const body = fileContent.slice(match[0].length).trim();
+    const body = lines
+      .slice(closingIndex + 1)
+      .join("")
+      .trim();
 
     const fields = new Map<string, string>();
-    for (const line of (match[1] ?? "").split(/\r?\n/)) {
+    for (const line of lines.slice(1, closingIndex)) {
       const separatorIndex = line.indexOf(":");
       if (separatorIndex === -1) {
         continue;
@@ -175,22 +203,19 @@ export class AiassistantRule extends ToolRule {
     }
 
     const apply = fields.get("apply");
-    if (apply === undefined || !isAiassistantApply(apply)) {
+    if (apply === undefined || apply.length === 0) {
       return { metadata: undefined, body };
     }
 
     const instructions = fields.get("instructions");
-    const patterns = fields
-      .get("patterns")
-      ?.split(",")
-      .map((pattern) => pattern.trim())
-      .filter((pattern) => pattern.length > 0);
+    const patterns = fields.get("patterns");
 
     return {
       metadata: {
         apply,
         ...(apply === "by model decision" && instructions && { instructions }),
-        ...(apply === "by file patterns" && patterns && patterns.length > 0 && { patterns }),
+        ...(apply === "by file patterns" &&
+          patterns && { patterns: splitBraceAwareList(patterns) }),
       },
       body,
     };
@@ -203,29 +228,75 @@ export class AiassistantRule extends ToolRule {
    * `globs` at all becomes the `by model decision` condition, and everything
    * else — the root rule, universal globs (which already say "every file",
    * whatever the description), bare rules — is `always`.
+   *
+   * The plugin splits `patterns` on every comma, so a brace alternation such
+   * as `*.{ts,tsx}` is expanded into one glob per branch before it is written.
    */
-  private static buildMetadata(rulesyncRule: RulesyncRule): AiassistantRuleMetadata {
-    const frontmatter = rulesyncRule.getFrontmatter();
-    const globs = (frontmatter.globs ?? []).map((glob) => glob.trim()).filter(Boolean);
+  private static buildMetadata(frontmatter: RulesyncRuleFrontmatter): AiassistantRuleMetadata {
+    const globs = (frontmatter.globs ?? [])
+      .map((glob) => flattenValue(glob))
+      .filter((glob) => glob.length > 0)
+      .flatMap((glob) => expandBraceAlternations(glob));
     const specificGlobs = globs.filter((glob) => !UNIVERSAL_GLOBS.has(glob));
-    // The block is line-based, so a multi-line description is flattened.
-    const instructions = frontmatter.description?.replace(/\s*\r?\n\s*/g, " ").trim();
+    const instructions = frontmatter.description && flattenValue(frontmatter.description);
 
-    const explicitApply = frontmatter.aiassistant?.apply;
-    const apply: AiassistantApply =
-      explicitApply !== undefined && isAiassistantApply(explicitApply)
-        ? explicitApply
-        : frontmatter.root !== true && specificGlobs.length > 0
-          ? "by file patterns"
-          : frontmatter.root !== true && globs.length === 0 && instructions
-            ? "by model decision"
-            : "always";
+    const explicitApply = frontmatter.aiassistant?.apply?.trim();
+    const apply = explicitApply
+      ? explicitApply
+      : frontmatter.root !== true && specificGlobs.length > 0
+        ? "by file patterns"
+        : frontmatter.root !== true && globs.length === 0 && instructions
+          ? "by model decision"
+          : "always";
+    // An explicit `by file patterns` keeps every glob, universal ones
+    // included: the user asked for that type, and a block without `patterns`
+    // can never attach.
+    const patterns = explicitApply ? globs : specificGlobs;
 
     return {
       apply,
       ...(apply === "by model decision" && instructions && { instructions }),
-      ...(apply === "by file patterns" && specificGlobs.length > 0 && { patterns: specificGlobs }),
+      ...(apply === "by file patterns" && patterns.length > 0 && { patterns }),
     };
+  }
+
+  /**
+   * Warn, at generate time, about a block the plugin cannot act on as the
+   * author presumably intended.
+   */
+  private static warnAboutMetadata({
+    metadata,
+    relativeFilePath,
+  }: {
+    metadata: AiassistantRuleMetadata;
+    relativeFilePath: string;
+  }): void {
+    const { apply, instructions, patterns = [] } = metadata;
+    if (!isAiassistantApply(apply)) {
+      warnWithFallback(
+        undefined,
+        `${relativeFilePath}: aiassistant.apply "${apply}" is not one of ${AIASSISTANT_APPLY_VALUES.join(", ")}; it is written as is, and the current AI Assistant treats such a rule as Off.`,
+      );
+    }
+    if (apply === "by file patterns" && patterns.length === 0) {
+      warnWithFallback(
+        undefined,
+        `${relativeFilePath}: aiassistant.apply is "by file patterns" but the rule has no globs, so AI Assistant will never attach it.`,
+      );
+    }
+    if (apply === "by model decision" && !instructions) {
+      warnWithFallback(
+        undefined,
+        `${relativeFilePath}: aiassistant.apply is "by model decision" but the rule has no description, so AI Assistant has no condition to decide on.`,
+      );
+    }
+    const commaGlob = patterns.find((glob) => glob.includes(","));
+    if (commaGlob !== undefined) {
+      warnWithFallback(
+        undefined,
+        `${relativeFilePath}: the glob "${commaGlob}" contains a comma, which AI Assistant reads as a pattern separator.`,
+      );
+    }
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -237,21 +308,27 @@ export class AiassistantRule extends ToolRule {
           ? ["**/*"]
           : [];
     const description = metadata?.apply === "by model decision" ? metadata.instructions : undefined;
-    // `always`, `by model decision` and `by file patterns` are recovered from
-    // `globs` / `description` on the next generate; only the two types with no
-    // canonical counterpart need to be carried explicitly.
+    const frontmatter: RulesyncRuleFrontmatter = {
+      root: false,
+      targets: ["*"],
+      description,
+      globs,
+    };
+    // `aiassistant.apply` is carried only when the next generate would not
+    // derive the same type from `globs` / `description` on its own: the types
+    // with no canonical counterpart (`manually`, `off`, unrecognized values)
+    // and the blocks whose companion field is missing or universal.
+    const derivedApply =
+      metadata === undefined ? undefined : AiassistantRule.buildMetadata(frontmatter).apply;
     const apply =
-      metadata?.apply === "manually" || metadata?.apply === "off" ? metadata.apply : undefined;
+      metadata !== undefined && derivedApply !== metadata.apply ? metadata.apply : undefined;
 
     return new RulesyncRule({
       outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: {
-        root: false,
-        targets: ["*"],
-        description,
-        globs,
+        ...frontmatter,
         ...(apply !== undefined && { aiassistant: { apply } }),
       },
       body: this.body,
@@ -263,13 +340,15 @@ export class AiassistantRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): AiassistantRule {
+    const metadata = this.buildMetadata(rulesyncRule.getFrontmatter());
+    this.warnAboutMetadata({ metadata, relativeFilePath: rulesyncRule.getRelativeFilePath() });
     // Both root and non-root rules map to a flat file under rules/.
     return new AiassistantRule({
       outputRoot,
       relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       body: rulesyncRule.getBody(),
-      metadata: this.buildMetadata(rulesyncRule),
+      metadata,
       validate,
       root: false,
     });

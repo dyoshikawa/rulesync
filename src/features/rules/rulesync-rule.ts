@@ -111,7 +111,7 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       // Rule type written to the `apply:` metadata line of
       // `.aiassistant/rules/*.md`: always | manually | by model decision |
       // by file patterns | off. Unset means "derive it from `globs` and
-      // `description`" (string for forward compat).
+      // `description`"; any other string is written verbatim (forward compat).
       apply: z.optional(z.string()),
     }),
   ),
