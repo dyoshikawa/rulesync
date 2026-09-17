@@ -72,12 +72,21 @@ describe("WarpSkill", () => {
       // Warp reads project skills from .warp/skills/ and global skills from
       // ~/.warp/skills/; both share the relative path, with only the output
       // base (project vs. home directory) differing.
-      expect(WarpSkill.getSettablePaths()).toEqual({
-        relativeDirPath: join(".warp", "skills"),
-      });
-      expect(WarpSkill.getSettablePaths({ global: true })).toEqual({
-        relativeDirPath: join(".warp", "skills"),
-      });
+      expect(WarpSkill.getSettablePaths().relativeDirPath).toBe(join(".warp", "skills"));
+      expect(WarpSkill.getSettablePaths({ global: true }).relativeDirPath).toBe(
+        join(".warp", "skills"),
+      );
+    });
+
+    it("should expose .agents/skills as an alternative discovery root", () => {
+      // Warp's recommended skill location is the cross-tool `.agents/skills/`
+      // (and `~/.agents/skills/`); it is read on import only.
+      expect(WarpSkill.getSettablePaths().alternativeSkillRoots).toEqual([
+        join(".agents", "skills"),
+      ]);
+      expect(WarpSkill.getSettablePaths({ global: true }).alternativeSkillRoots).toEqual([
+        join(".agents", "skills"),
+      ]);
     });
   });
 
@@ -154,6 +163,28 @@ It can be multiline.`;
         description: "Test skill description",
       });
       expect(skill.getBody()).toBe("This is the body of the warp skill.\nIt can be multiline.");
+    });
+
+    it("should load a skill from the .agents/skills import root when relativeDirPath is set", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "shared-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: shared-skill
+description: Discovered from .agents/skills
+---
+
+Shared skill body.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await WarpSkill.fromDir({
+        outputRoot: testDir,
+        relativeDirPath: join(".agents", "skills"),
+        dirName: "shared-skill",
+      });
+
+      expect(skill.getRelativeDirPath()).toBe(join(".agents", "skills"));
+      expect(skill.getFrontmatter().name).toBe("shared-skill");
+      expect(skill.getBody()).toBe("Shared skill body.");
     });
   });
 

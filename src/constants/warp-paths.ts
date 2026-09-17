@@ -2,6 +2,11 @@ import { join } from "node:path";
 
 export const WARP_DIR = ".warp";
 export const WARP_SKILLS_DIR_PATH = join(WARP_DIR, "skills");
+// Warp also discovers skills from the cross-tool `.agents/skills/` directory
+// (its recommended project root, and `~/.agents/skills/` for user skills).
+// Import-only: generation keeps writing to `.warp/skills/`.
+// @see https://docs.warp.dev/agents/capabilities/skills/
+export const WARP_AGENTS_SKILLS_DIR_PATH = join(".agents", "skills");
 export const WARP_LINUX_DIR = join(".config", "warp-terminal");
 // Windows (Stable) settings live in `%LOCALAPPDATA%\warp\Warp\config`
 // (i.e. AppData/Local ... /config), per Warp's documented file locations.
