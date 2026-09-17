@@ -250,6 +250,8 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreToolUse.ps1" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/SessionShutdown" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/SessionShutdown.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskCancel" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskCancel.ps1" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskComplete" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskComplete.ps1" },
   { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskError" },

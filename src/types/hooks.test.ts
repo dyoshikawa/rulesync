@@ -5,6 +5,7 @@ import {
   HookDefinitionSchema,
   HooksConfigSchema,
   CANONICAL_TO_CLAUDE_EVENT_NAMES,
+  CANONICAL_TO_CLINE_EVENT_NAMES,
   CANONICAL_TO_CODEXCLI_EVENT_NAMES,
   CANONICAL_TO_CURSOR_EVENT_NAMES,
   CANONICAL_TO_DEEPAGENTS_EVENT_NAMES,
@@ -12,6 +13,7 @@ import {
   CANONICAL_TO_JUNIE_EVENT_NAMES,
   CANONICAL_TO_OPENCODE_EVENT_NAMES,
   CLAUDE_HOOK_EVENTS,
+  CLINE_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
   CODEXCLI_TO_CANONICAL_EVENT_NAMES,
   CURSOR_HOOK_EVENTS,
@@ -35,6 +37,12 @@ describe("Event map completeness", () => {
   it("every FACTORYDROID_HOOK_EVENTS entry should exist in CANONICAL_TO_FACTORYDROID_EVENT_NAMES", () => {
     for (const event of FACTORYDROID_HOOK_EVENTS) {
       expect(CANONICAL_TO_FACTORYDROID_EVENT_NAMES).toHaveProperty(event);
+    }
+  });
+
+  it("every CLINE_HOOK_EVENTS entry should exist in CANONICAL_TO_CLINE_EVENT_NAMES", () => {
+    for (const event of CLINE_HOOK_EVENTS) {
+      expect(CANONICAL_TO_CLINE_EVENT_NAMES).toHaveProperty(event);
     }
   });
 
@@ -132,6 +140,18 @@ describe("Codex CLI event naming", () => {
   it("should keep stop distinct from stopCancelled", () => {
     expect(CANONICAL_TO_CODEXCLI_EVENT_NAMES.stop).toBe("Stop");
     expect(CODEXCLI_TO_CANONICAL_EVENT_NAMES.Stop).toBe("stop");
+  });
+});
+
+describe("Cline event naming", () => {
+  it("should map stopCancelled onto TaskCancel and keep TaskResume unmapped (issue #2405)", () => {
+    // Verified against `HOOK_CONFIG_FILE_EVENT_MAP` (TaskCancel -> agent_abort) in
+    // https://github.com/cline/cline/blob/main/sdk/packages/core/src/hooks/hook-file-config.ts
+    // and the `afterRun` adapter in apps/vscode/src/sdk/hooks-adapter.ts.
+    expect(CLINE_HOOK_EVENTS).toContain("stopCancelled");
+    expect(CANONICAL_TO_CLINE_EVENT_NAMES.stopCancelled).toBe("TaskCancel");
+    expect(CANONICAL_TO_CLINE_EVENT_NAMES.stop).toBeUndefined();
+    expect(Object.values(CANONICAL_TO_CLINE_EVENT_NAMES)).not.toContain("TaskResume");
   });
 });
 
