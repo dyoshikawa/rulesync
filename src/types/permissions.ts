@@ -750,9 +750,10 @@ export type TaktPermissionsOverride = z.infer<typeof TaktPermissionsOverrideSche
  */
 const AmpPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
-  // Undocumented-but-honored since the 2026-09 docs rebuild: the legacy
-  // permissions appendix now redirects to https://ampcode.com/docs/tools#permissions,
-  // which only points at custom plugins, but the shipped CLI still reads the key.
+  // Gone from the web docs: the legacy permissions appendix now redirects to
+  // https://ampcode.com/docs/tools#permissions, which only points at custom
+  // plugins. The shipped CLI still reads the key and lists it in its built-in
+  // settings reference (`amp --help`).
   permissions: z.optional(
     z.array(
       z.looseObject({
