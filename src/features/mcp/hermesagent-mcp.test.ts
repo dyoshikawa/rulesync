@@ -335,7 +335,6 @@ describe("HermesagentMcp", () => {
                 client_id: "client-id",
                 client_secret: "client-secret",
                 scopes: ["read", "write"],
-                __proto__: "polluted",
                 ignored: "value",
                 cimd: "not-a-boolean",
               },
@@ -374,30 +373,32 @@ describe("HermesagentMcp", () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",
         relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify({
-          mcpServers: {
-            remote: {
-              url: "https://mcp.example.com/mcp",
-              auth: "oauth",
-              protocol: "stateless",
-              lazy: true,
-              lifecycle: { idle_timeout_seconds: 120, __proto__: { polluted: true } },
-              oauth: {
-                client_name: "My Client",
-                client_metadata_url: "https://example.com/my-cimd.json",
-                cimd: false,
-                token_endpoint_auth_method: "client_secret_post",
-                application_type: "web",
-                user_agent: "My-MCP-Client/1.0",
-                flow: "device",
-                timeout: 120,
-                // An explicit `scope` wins over a `scopes` list.
-                scope: "files:read",
-                scopes: ["ignored"],
-              },
-            },
-          },
-        }),
+        // Raw JSON so the literal "__proto__" key inside `lifecycle` reaches
+        // the parser as an own property (an object-literal __proto__ would not
+        // survive JSON.stringify). An explicit `scope` wins over a `scopes` list.
+        fileContent: `{
+          "mcpServers": {
+            "remote": {
+              "url": "https://mcp.example.com/mcp",
+              "auth": "oauth",
+              "protocol": "stateless",
+              "lazy": true,
+              "lifecycle": { "idle_timeout_seconds": 120, "__proto__": { "polluted": true } },
+              "oauth": {
+                "client_name": "My Client",
+                "client_metadata_url": "https://example.com/my-cimd.json",
+                "cimd": false,
+                "token_endpoint_auth_method": "client_secret_post",
+                "application_type": "web",
+                "user_agent": "My-MCP-Client/1.0",
+                "flow": "device",
+                "timeout": 120,
+                "scope": "files:read",
+                "scopes": ["ignored"]
+              }
+            }
+          }
+        }`,
       });
 
       const mcp = await HermesagentMcp.fromRulesyncMcp({

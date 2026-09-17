@@ -1057,7 +1057,8 @@ describe("E2E: mcp (global mode)", () => {
         redirect_uri: "http://localhost:8080/callback",
         redirect_port: 8080,
         client_id: "rulesync-e2e",
-        scopes: ["read", "write"],
+        // Hermes reads `scope`; a legacy `scopes` list is folded into it.
+        scope: "read write",
       },
     });
   });
