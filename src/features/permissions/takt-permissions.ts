@@ -829,6 +829,14 @@ async function readTaktRuntimeFile({
   }
 }
 
+/** A map-valued key of a `provider:` section, or `undefined` when it is not a map. */
+function runtimeSectionMap(
+  section: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | undefined {
+  return isPlainObject(section[key]) ? section[key] : undefined;
+}
+
 /**
  * Collapse the project and global `runtime.yaml` into the single document Takt
  * itself resolves against, matching upstream's loader: `profiles` and
@@ -846,14 +854,6 @@ async function readTaktRuntimeFile({
  * file's `defaults`/`profiles`, and a project section that masks the global one
  * leaves the merged document inactive even though the global file alone was not.
  */
-/** A map-valued key of a `provider:` section, or `undefined` when it is not a map. */
-function runtimeSectionMap(
-  section: Record<string, unknown>,
-  key: string,
-): Record<string, unknown> | undefined {
-  return isPlainObject(section[key]) ? section[key] : undefined;
-}
-
 function mergeTaktRuntimeConfigs({
   project,
   global: globalConfig,
