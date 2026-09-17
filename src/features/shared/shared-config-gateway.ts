@@ -1253,16 +1253,6 @@ const KIMI_CODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
 };
 
 /**
- * ZCode's settings file, which also carries model/theme/permission keys
- * rulesync does not own. Both copies are the user's primary ZCode config, so
- * every writer refuses to read-modify-write a file it could not parse rather
- * than replacing it with generated output. `mcp` and `hooks` are owned as
- * whole keys because their writers recompute each from the existing file
- * (non-owned siblings carried over) before applying the patch. ZCode never
- * executes workspace config hooks, so the workspace copy is declared with
- * `mcp` alone and the user copy adds `hooks`.
- */
-/**
  * Pool settings (`.poolside/settings.yaml` / `~/.config/poolside/settings.yaml`):
  * the user's primary Pool settings file, so an unparseable root fails closed
  * rather than being replaced with generated output. `mcp_servers` is owned as
@@ -1276,6 +1266,16 @@ const POOL_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
   },
 };
 
+/**
+ * ZCode's settings file, which also carries model/theme/permission keys
+ * rulesync does not own. Both copies are the user's primary ZCode config, so
+ * every writer refuses to read-modify-write a file it could not parse rather
+ * than replacing it with generated output. `mcp` and `hooks` are owned as
+ * whole keys because their writers recompute each from the existing file
+ * (non-owned siblings carried over) before applying the patch. ZCode never
+ * executes workspace config hooks, so the workspace copy is declared with
+ * `mcp` alone and the user copy adds `hooks`.
+ */
 const ZCODE_WORKSPACE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
   format: "json",
   invalidRootPolicy: "error",
@@ -1352,8 +1352,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   [HERMES_HOME_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,
   // Pool settings: the project file (`.poolside/settings.yaml`, committed and
   // shared with the team) and the user one under `~/.config/poolside/`. Both
-  // carry the user's own Pool settings (model, permissions, ...) beside the
-  // `mcp_servers` block, which is the only key rulesync owns.
+  // carry the user's own Pool settings (`pool`, `tools`, `sandbox`, ...) beside
+  // the `mcp_servers` block, which is the only key rulesync owns.
   [POOL_PROJECT_SETTINGS_SHARED_FILE_KEY]: POOL_SETTINGS_DECLARATION,
   [POOL_GLOBAL_SETTINGS_SHARED_FILE_KEY]: POOL_SETTINGS_DECLARATION,
   [TAKT_CONFIG_SHARED_FILE_KEY]: {

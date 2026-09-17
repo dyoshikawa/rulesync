@@ -497,7 +497,7 @@ describe("E2E: mcp", () => {
     {
       target: "pool",
       outputPath: join(".poolside", "settings.yaml"),
-      content: "model: claude-opus-5\n",
+      content: "pool:\n  worktree_prefix: feat-\n",
     },
   ])(
     "should succeed in check mode when a $target mcp file is non-deletable",

@@ -6,6 +6,7 @@ import { RULESYNC_MCP_SCHEMA_URL } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { readFileContent, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { PoolMcp } from "./pool-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
@@ -133,11 +134,11 @@ describe("PoolMcp", () => {
             command: "srv",
             enabledTools: ["read_file", "list_dir"],
             disabledTools: ["delete_*"],
-            allow: ["read_*"],
+            poolAllow: ["read_*"],
             disabled: true,
           },
-          "empty-filters": { command: "srv", enabledTools: [], disabledTools: [], allow: [] },
-          "bad-allow": { command: "srv", allow: "read_*" },
+          "empty-filters": { command: "srv", enabledTools: [], disabledTools: [], poolAllow: [] },
+          "bare-allow": { command: "srv", allow: ["read_*"] },
         }),
       });
 
@@ -151,7 +152,18 @@ describe("PoolMcp", () => {
           disabled: true,
         },
         "empty-filters": { command: "srv", args: [] },
-        "bad-allow": { command: "srv", args: [] },
+        // A bare canonical `allow` is not Pool's key: only `poolAllow` reaches it.
+        "bare-allow": { command: "srv", args: [] },
+      });
+    });
+
+    it("should keep poolAllow out of every other tool's servers", () => {
+      const rulesyncMcp = buildRulesyncMcp({
+        srv: { command: "srv", poolAllow: ["read_*"], enabledTools: ["read_file"] },
+      });
+
+      expect(rulesyncMcp.getMcpServers()).toEqual({
+        srv: { command: "srv", enabledTools: ["read_file"] },
       });
     });
 
@@ -192,10 +204,12 @@ describe("PoolMcp", () => {
       await writeFileContent(
         projectSettingsPath(),
         [
-          "model: claude-opus-5",
-          "permissions:",
-          "  allow:",
-          "    - Bash(git status)",
+          "pool:",
+          "  worktree_prefix: feat-",
+          "tools:",
+          "  shell:",
+          "    allow:",
+          "      - git log *",
           "mcp_servers:",
           "  old:",
           "    command: old",
@@ -209,8 +223,8 @@ describe("PoolMcp", () => {
       });
 
       const settings = mcp.getSettings();
-      expect(settings.model).toBe("claude-opus-5");
-      expect(settings.permissions).toEqual({ allow: ["Bash(git status)"] });
+      expect(settings.pool).toEqual({ worktree_prefix: "feat-" });
+      expect(settings.tools).toEqual({ shell: { allow: ["git log *"] } });
       expect(settings.mcp_servers).toEqual({ fs: { command: "fs", args: [] } });
     });
 
@@ -269,7 +283,8 @@ describe("PoolMcp", () => {
         relativeDirPath: ".poolside",
         relativeFilePath: "settings.yaml",
         fileContent: [
-          "model: claude-opus-5",
+          "pool:",
+          "  worktree_prefix: feat-",
           "mcp_servers:",
           "  fs:",
           "    command: fs",
@@ -303,7 +318,7 @@ describe("PoolMcp", () => {
             cwd: "./api",
             env: { TOKEN: "x" },
             enabledTools: ["read_file"],
-            allow: ["read_*"],
+            poolAllow: ["read_*"],
             disabledTools: ["delete_*"],
             disabled: true,
           },
@@ -316,12 +331,64 @@ describe("PoolMcp", () => {
       });
     });
 
+    it("should warn about glob patterns, malformed lists and dropped headers on import", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      try {
+        const mcp = new PoolMcp({
+          outputRoot: testDir,
+          relativeDirPath: ".poolside",
+          relativeFilePath: "settings.yaml",
+          fileContent: [
+            "mcp_servers:",
+            "  fs:",
+            "    command: fs",
+            "    enabled_tools: [read_file, 'list_*']",
+            "    deny: 'delete_*'",
+            "  remote:",
+            "    transport:",
+            "      type: http",
+            "      url: https://example.com/mcp",
+            "      headers:",
+            "        - not-a-header",
+            "        - ': empty-name'",
+            "",
+          ].join("\n"),
+        });
+
+        expect(JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers).toEqual({
+          fs: { command: "fs", enabledTools: ["read_file", "list_*"] },
+          remote: { type: "http", url: "https://example.com/mcp" },
+        });
+        const messages = warnSpy.mock.calls.map(([message]) => String(message));
+        expect(messages).toContainEqual(
+          expect.stringContaining(
+            'enabled_tools in Pool MCP server "fs" contains glob patterns ("list_*")',
+          ),
+        );
+        expect(messages).toContainEqual(
+          expect.stringContaining('Ignored malformed value for deny in Pool MCP server "fs"'),
+        );
+        expect(messages).toContainEqual(
+          expect.stringContaining(
+            'Ignored malformed header "not-a-header" in Pool MCP server "remote"',
+          ),
+        );
+        expect(messages).toContainEqual(
+          expect.stringContaining(
+            'Ignored malformed header ": empty-name" in Pool MCP server "remote"',
+          ),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
     it("should yield empty servers when the settings have no mcp_servers block", () => {
       const mcp = new PoolMcp({
         outputRoot: testDir,
         relativeDirPath: ".poolside",
         relativeFilePath: "settings.yaml",
-        fileContent: "model: claude-opus-5\n",
+        fileContent: "pool:\n  worktree_prefix: feat-\n",
       });
 
       expect(JSON.parse(mcp.toRulesyncMcp().getFileContent())).toEqual({

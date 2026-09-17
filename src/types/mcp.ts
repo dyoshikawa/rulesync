@@ -117,6 +117,13 @@ export const McpServerSchema = z.looseObject({
   crushOauthClientSecret: z.optional(z.string()),
   crushOauthCallbackPort: z.optional(z.int()),
   crushSessionless: z.optional(z.boolean()),
+  // Pool-specific: the per-server `allow` list of tool-name glob patterns Pool's
+  // approval layer auto-approves (`deny` wins over it). Written as `allow` by
+  // `pool-mcp.ts` and stripped by `RulesyncMcp.getMcpServers()`, like
+  // `envVars`: the key is an approval decision only Pool reads, and a bare
+  // `allow` would otherwise be copied verbatim into every other tool's config.
+  // https://docs.poolside.ai/settings-file-reference
+  poolAllow: z.optional(z.array(z.string())),
   headers: z.optional(z.record(z.string(), z.string())),
   /**
    * The canonical per-server tool allowlist.

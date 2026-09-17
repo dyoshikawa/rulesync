@@ -9,8 +9,9 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { type Logger } from "../../utils/logger.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -71,23 +72,63 @@ function asPoolRemoteType(stated: string | undefined, url: string): "http" | "ss
  * Pool spells remote headers as a list of `"Name: value"` strings rather than
  * a map, so the canonical record is flattened at generate time and split back
  * at the first `:` on import. A list entry without a `:` names no header and
- * is dropped.
+ * is dropped with a warning — silently losing what may be a mistyped auth
+ * header would leave the canonical file short of one without a trace.
  */
 function headersRecordToPoolList(headers: Record<string, string>): string[] {
   return Object.entries(headers).map(([name, value]) => `${name}: ${value}`);
 }
 
-function poolHeadersListToRecord(headers: unknown): Record<string, string> | undefined {
+function poolHeadersListToRecord(
+  serverName: string,
+  headers: unknown,
+): Record<string, string> | undefined {
   if (!isStringArray(headers)) return undefined;
   const result: Record<string, string> = {};
   for (const entry of headers) {
     const separator = entry.indexOf(":");
-    if (separator <= 0) continue;
-    const name = entry.slice(0, separator).trim();
-    if (name === "" || PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
+    const name = separator > 0 ? entry.slice(0, separator).trim() : "";
+    if (name === "" || PROTOTYPE_POLLUTION_KEYS.has(name)) {
+      warnWithFallback(
+        undefined,
+        `Ignored malformed header ${quoteValueForWarning(entry)} in Pool MCP server ${quoteValueForWarning(serverName)}: expected "Name: value"`,
+      );
+      continue;
+    }
     result[name] = entry.slice(separator + 1).trim();
   }
   return Object.keys(result).length > 0 ? result : undefined;
+}
+
+/**
+ * Pool's `allow`/`deny`/`enabled_tools` entries are glob patterns, while the
+ * canonical `enabledTools`/`disabledTools` lists are literal tool names that
+ * the other targets match verbatim. A pattern therefore imports as a name
+ * that matches nothing elsewhere — a `deny` that quietly stops denying is the
+ * case worth calling out — so it is copied as-is but warned about.
+ */
+const GLOB_METACHARACTERS = /[*?[]/;
+
+function importPoolToolList(
+  serverName: string,
+  poolKey: string,
+  value: unknown,
+): string[] | undefined {
+  if (!isStringArray(value)) {
+    warnWithFallback(
+      undefined,
+      `Ignored malformed value for ${poolKey} in Pool MCP server ${quoteValueForWarning(serverName)}: expected a list of strings`,
+    );
+    return undefined;
+  }
+  const patterns = value.filter((entry) => GLOB_METACHARACTERS.test(entry));
+  if (patterns.length > 0) {
+    warnWithFallback(
+      undefined,
+      `${poolKey} in Pool MCP server ${quoteValueForWarning(serverName)} contains glob patterns (${patterns.map(quoteValueForWarning).join(", ")}); other tools match the imported tool names literally`,
+    );
+  }
+  return value;
 }
 
 type McpServerConfig = McpServers[string];
@@ -166,8 +207,8 @@ function toPoolTransportFields(
  * The fields shared by stdio and remote entries. Tool filters map onto Pool's
  * own switches — `enabledTools` becomes `enabled_tools` (the tools Pool
  * exposes at all) and `disabledTools` becomes `deny` (patterns agents may
- * never use); a hand-authored `allow` list (glob patterns, no canonical twin)
- * passes through verbatim. `disabled: true` is spelled the same on both sides.
+ * never use); the Pool-only approval allowlist is authored as `poolAllow` and
+ * written as `allow`. `disabled: true` is spelled the same on both sides.
  */
 function toPoolCommonFields(config: McpServerConfig): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
@@ -177,8 +218,8 @@ function toPoolCommonFields(config: McpServerConfig): Record<string, unknown> {
   if (config.enabledTools && config.enabledTools.length > 0) {
     fields.enabled_tools = config.enabledTools;
   }
-  if (isStringArray(config.allow) && config.allow.length > 0) {
-    fields.allow = config.allow;
+  if (config.poolAllow && config.poolAllow.length > 0) {
+    fields.allow = config.poolAllow;
   }
   if (config.disabledTools && config.disabledTools.length > 0) {
     fields.deny = config.disabledTools;
@@ -223,13 +264,23 @@ function convertToPoolFormat(mcpServers: McpServers, logger?: Logger): Record<st
   return result;
 }
 
+const POOL_TO_CANONICAL_TOOL_LIST_KEYS: Record<
+  string,
+  "enabledTools" | "disabledTools" | "poolAllow"
+> = {
+  enabled_tools: "enabledTools",
+  deny: "disabledTools",
+  allow: "poolAllow",
+};
+
 /**
  * Convert Pool's native `mcp_servers` shape back to canonical rulesync
  * servers: the `transport` block is flattened to `type`/`url`/`headers`,
- * `enabled_tools` maps back to `enabledTools` and `deny` to `disabledTools`.
- * Unknown keys pass through untouched so an import keeps whatever a
- * hand-authored entry declared; generation back out is a whitelist, so only
- * the keys `convertToPoolFormat` writes are re-emitted.
+ * `enabled_tools` maps back to `enabledTools`, `deny` to `disabledTools` and
+ * `allow` to the namespaced `poolAllow` (see `McpServerSchema`). Unknown keys
+ * pass through untouched so an import keeps whatever a hand-authored entry
+ * declared; generation back out is a whitelist, so only the keys
+ * `convertToPoolFormat` writes are re-emitted.
  */
 function convertFromPoolFormat(poolServers: Record<string, unknown>): McpServers {
   const result: McpServers = {};
@@ -248,18 +299,18 @@ function convertFromPoolFormat(poolServers: Record<string, unknown>): McpServers
         if (typeof value.url === "string") {
           converted.url = value.url;
         }
-        const headers = poolHeadersListToRecord(value.headers);
+        const headers = poolHeadersListToRecord(name, value.headers);
         if (headers) {
           converted.headers = headers;
         }
         continue;
       }
-      if (key === "enabled_tools") {
-        converted.enabledTools = value;
-        continue;
-      }
-      if (key === "deny") {
-        converted.disabledTools = value;
+      const canonicalKey = POOL_TO_CANONICAL_TOOL_LIST_KEYS[key];
+      if (canonicalKey) {
+        const list = importPoolToolList(name, key, value);
+        if (list) {
+          converted[canonicalKey] = list;
+        }
         continue;
       }
       converted[key] = value;
@@ -342,7 +393,17 @@ export class PoolMcp extends ToolMcp {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
 
-    const converted = convertToPoolFormat(rulesyncMcp.getMcpServers(), logger);
+    // `poolAllow` is stripped by `getMcpServers()` so it cannot leak into other
+    // tools' configs, so read it back off the unfiltered source JSON — the
+    // same re-merge musecode does for `musecodeMode`.
+    const mcpServers = Object.fromEntries(
+      Object.entries(rulesyncMcp.getMcpServers()).map(([serverName, serverConfig]) => {
+        const rawServer = rulesyncMcp.getRawMcpServer(serverName);
+        const poolAllow = isRecord(rawServer) ? rawServer.poolAllow : undefined;
+        return [serverName, { ...serverConfig, ...(isStringArray(poolAllow) && { poolAllow }) }];
+      }),
+    );
+    const converted = convertToPoolFormat(mcpServers, logger);
 
     return new PoolMcp({
       outputRoot,
@@ -366,8 +427,8 @@ export class PoolMcp extends ToolMcp {
       : {};
     const converted = convertFromPoolFormat(servers);
 
-    // Do not spread the full settings document: Pool's own keys (model,
-    // permissions, ...) must not leak into rulesync mcp.json.
+    // Do not spread the full settings document: Pool's own keys (`pool`,
+    // `tools`, `sandbox`, ...) must not leak into rulesync mcp.json.
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: converted }, null, 2),
     });

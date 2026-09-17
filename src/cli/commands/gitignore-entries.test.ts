@@ -118,6 +118,12 @@ describe("registry derivation", () => {
       // ZCode user config: emitted in GLOBAL scope only (project scope writes
       // `.zcode/config.json` instead), so project derivation never yields it.
       "**/.zcode/cli/config.json",
+      // Pool user settings: emitted in GLOBAL scope only (project scope writes
+      // `.poolside/settings.yaml` instead), so project derivation never yields
+      // it. It stays listed as a shared user-managed config so a global
+      // generate with nothing to contribute does not create a bare
+      // `mcp_servers: {}` in the user's home directory.
+      "**/.config/poolside/settings.yaml",
       // IBM Bob user settings: emitted in GLOBAL scope only (project scope
       // writes `.bob/settings.json` instead), so project derivation never
       // yields it.

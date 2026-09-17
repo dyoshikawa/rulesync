@@ -58,11 +58,12 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   // (Bitbucket Cloud Agentic Pipelines), so neither is gitignored.
   ".rovodev/config.yml",
   ".rovodev/mcp.json",
-  // Pool project settings: documented as the shared, committed team settings
-  // (`settings.local.yaml` is the untracked twin Pool leaves to each
-  // developer). The global twin lives under `~/.config/poolside/`, which the
-  // project-scope gitignore derivation never emits, so it is not listed.
+  // Pool settings: the project file is documented as the shared, committed
+  // team settings (`settings.local.yaml` is the untracked twin Pool leaves to
+  // each developer), and the user one lives under `~/.config/poolside/`. Both
+  // carry the user's own Pool settings beside the `mcp_servers` block.
   ".poolside/settings.yaml",
+  ".config/poolside/settings.yaml",
   // Tabnine CLI settings: the project file and the user one share the same
   // `.tabnine/agent/` layout and carry the user's own settings beside the
   // `mcpServers`, `hooks` and `tools` blocks.
