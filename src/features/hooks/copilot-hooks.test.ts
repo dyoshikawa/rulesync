@@ -869,6 +869,69 @@ describe("CopilotHooks", () => {
       expect(reExported.hooks.sessionStart[0].timeoutSec).toBe(30);
     });
 
+    it("should round-trip the VS Code per-OS command overrides through import and re-export", async () => {
+      const copilotHooks = new CopilotHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilot-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [
+              {
+                type: "command",
+                command: "./scripts/format.sh",
+                windows: "powershell -File scripts\\format.ps1",
+                linux: "./scripts/format-linux.sh",
+                osx: "./scripts/format-mac.sh",
+              },
+            ],
+            // Authored with per-OS overrides only, which VS Code accepts ("at
+            // least one command property"); before, this imported as a hook
+            // with no command and was regenerated empty.
+            sessionStart: [{ type: "command", windows: "echo win", osx: "echo mac" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const imported = copilotHooks.toRulesyncHooks().getJson();
+      expect(imported.hooks.preToolUse?.[0]).toMatchObject({
+        command: "./scripts/format.sh",
+        windows: "powershell -File scripts\\format.ps1",
+        linux: "./scripts/format-linux.sh",
+        osx: "./scripts/format-mac.sh",
+      });
+      expect(imported.hooks.preToolUse?.[0]?.shell).toBeUndefined();
+      expect(imported.hooks.sessionStart?.[0]).toEqual({
+        type: "command",
+        windows: "echo win",
+        osx: "echo mac",
+      });
+
+      const reExported = JSON.parse(
+        (
+          await CopilotHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks: copilotHooks.toRulesyncHooks(),
+            validate: false,
+          })
+        ).getFileContent(),
+      );
+      expect(reExported.hooks.preToolUse[0]).toEqual({
+        type: "command",
+        command: "./scripts/format.sh",
+        windows: "powershell -File scripts\\format.ps1",
+        linux: "./scripts/format-linux.sh",
+        osx: "./scripts/format-mac.sh",
+      });
+      expect(reExported.hooks.sessionStart[0]).toEqual({
+        type: "command",
+        windows: "echo win",
+        osx: "echo mac",
+      });
+    });
+
     it("should read the timeout alias when timeoutSec is absent", () => {
       const copilotHooks = new CopilotHooks({
         outputRoot: testDir,
