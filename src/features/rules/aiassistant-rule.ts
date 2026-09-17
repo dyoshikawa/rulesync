@@ -244,7 +244,10 @@ export class AiassistantRule extends ToolRule {
       .flatMap((glob) => expandBraceAlternations(glob));
     // A universal glob means "every file", so a list that contains one is
     // `always` however specific the others are; only an all-specific list
-    // narrows the rule to `by file patterns`.
+    // narrows the rule to `by file patterns`. This is deliberately `some`
+    // rather than the `every` the Cline/CodeBuddy adapters use: those keep a
+    // mixed list as conditional paths, whereas the plugin's `by file patterns`
+    // and `always` are mutually exclusive, so the union is the honest choice.
     const hasUniversalGlob = globs.some((glob) => UNIVERSAL_GLOBS.has(glob));
     const instructions = frontmatter.description && flattenValue(frontmatter.description);
 

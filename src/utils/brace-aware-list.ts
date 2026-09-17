@@ -35,17 +35,8 @@ export const splitBraceAwareList = (value: string): string[] => {
  */
 const MAX_BRACE_EXPANSIONS = 256;
 
-const expandInnermostGroup = (glob: string): string[] => {
-  const match = /\{([^{},]*(?:,[^{},]*)+)\}/.exec(glob);
-  if (match === null) {
-    return [glob];
-  }
-  const prefix = glob.slice(0, match.index);
-  const suffix = glob.slice(match.index + match[0].length);
-  return (match[1] ?? "")
-    .split(",")
-    .flatMap((alternative) => expandInnermostGroup(`${prefix}${alternative}${suffix}`));
-};
+/** Matches an innermost brace group with at least one comma: `{a,b}`, not `{a}` or `{a,{b,c}}`. */
+const INNERMOST_BRACE_GROUP_REGEX = /\{([^{},]*(?:,[^{},]*)+)\}/;
 
 /**
  * Expands the comma alternations of a glob (`a.{ts,tsx}` → `a.ts`, `a.tsx`)
@@ -55,17 +46,39 @@ const expandInnermostGroup = (glob: string): string[] => {
  * comma (e.g. `{a}`) is left untouched. A glob whose expansion would exceed
  * `MAX_BRACE_EXPANSIONS` patterns is returned as is as well.
  *
+ * The cap is enforced on the work list itself rather than by counting the
+ * groups up front: a nested group such as `{{a,b},c}` is rewritten into one
+ * new group per inner alternative, so the number of patterns in flight is the
+ * only bound that holds for arbitrary nesting.
+ *
  * @example
  * expandBraceAlternations("src/**\/*.{ts,tsx}")
  * // => ["src/**\/*.ts", "src/**\/*.tsx"]
  */
 export const expandBraceAlternations = (glob: string): string[] => {
-  let branches = 1;
-  for (const group of glob.matchAll(/\{([^{},]*(?:,[^{},]*)+)\}/g)) {
-    branches *= (group[1] ?? "").split(",").length;
-    if (branches > MAX_BRACE_EXPANSIONS) {
-      return [glob];
+  let pending = [glob];
+  for (;;) {
+    const next: string[] = [];
+    let expanded = false;
+    for (const pattern of pending) {
+      const match = INNERMOST_BRACE_GROUP_REGEX.exec(pattern);
+      if (match === null) {
+        next.push(pattern);
+        continue;
+      }
+      expanded = true;
+      const prefix = pattern.slice(0, match.index);
+      const suffix = pattern.slice(match.index + match[0].length);
+      for (const alternative of (match[1] ?? "").split(",")) {
+        next.push(`${prefix}${alternative}${suffix}`);
+      }
+      if (next.length > MAX_BRACE_EXPANSIONS) {
+        return [glob];
+      }
     }
+    if (!expanded) {
+      return [...new Set(next)];
+    }
+    pending = next;
   }
-  return [...new Set(expandInnermostGroup(glob))];
 };
