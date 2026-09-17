@@ -93,8 +93,9 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
     "amp",
     {
       // Amp reads code review checks from `.agents/checks/` (project) and
-      // `~/.config/amp/checks/` (global) as Markdown files with YAML frontmatter.
-      // https://ampcode.com/manual
+      // `~/.config/amp/checks/` (global) as Markdown files with YAML frontmatter,
+      // run by the official `@amp/review-checks` plugin.
+      // https://ampcode.com/docs/review
       class: AmpCheck,
       meta: { supportsGlobal: true, filePattern: "*.md" },
     },

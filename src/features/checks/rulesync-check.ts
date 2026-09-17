@@ -22,7 +22,7 @@ export const RulesyncCheckFrontmatterSchema = z.looseObject({
   // Kept generically named `severity` in the canonical source so a future tool
   // with its own severity naming can map onto it; maps to Amp's `severity-default`.
   // Bounded and well-documented, so a strict enum is appropriate here.
-  // @see https://ampcode.com/manual
+  // @see https://ampcode.com/docs/review
   severity: z.optional(z.enum(["low", "medium", "high", "critical"])),
   tools: z.optional(z.array(z.string())),
 });
