@@ -37,6 +37,23 @@ const GOOSE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // produces a hook that never runs; an absent matcher means match-all.
   // https://github.com/aaif-goose/goose/pull/10467
   wildcardMatcherMeansAll: true,
+  // Goose v1.48.0+ spells the canonical `failClosed` as `on_failure: "block"`
+  // (`enum OnFailure { Allow, Block }`, lowercase) and reads it on `PreToolUse`
+  // command hooks only: on every other event the field is ignored, and on
+  // `PreToolUse` a value other than the two keywords makes Goose refuse the
+  // whole hooks file. So `true` is emitted as "block" there and nowhere else,
+  // and `false` is omitted as upstream's default.
+  // https://github.com/aaif-goose/goose/blob/v1.48.0/crates/goose/src/hooks/mod.rs
+  keywordPassthroughFields: [
+    {
+      canonical: "failClosed",
+      tool: "on_failure",
+      trueValue: "block",
+      falseValue: "allow",
+      commandOnly: true,
+      events: new Set(["preToolUse"]),
+    },
+  ],
 };
 
 /**
